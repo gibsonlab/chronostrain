@@ -37,7 +37,7 @@ def variational_learn(model, reads, tol=1e-5):
     means = [np.zeros(model.strains, 1) for t in model.times]
     covariances = [model.time_scale(k) * np.eye(model.strains) for k in range(model.num_times())]
     frag_freqs = [
-        (1 / model.num_fragments()) * np.ones(model.num_fragments, len(model.reads[t]))
+        (1 / len(model.fragment_space)) * np.ones(len(model.fragment_space), len(model.reads[t]))
         for t in model.times
     ]
 
@@ -55,7 +55,7 @@ def variational_learn(model, reads, tol=1e-5):
 def compute_frag_errors(model, reads):
     return [
         [
-            [model.error_model.compute_likelihood(f, r) for f in range(model.fragments())]
+            [model.error_model.compute_likelihood(f, r) for f in range(model.fragment_space)]
             for r in reads[k]
         ]
         for k in range(len(model.times))
@@ -93,7 +93,7 @@ def log_frequency_expectations(model, means, covariances, t_idx):
 def gradient_update(model, frag_probs, center):
     H = np.zeros(model.num_strains(), model.num_strains)
     V = np.zeros(model.num_strains(), 1)
-    for frag in range(len(model.fragments)):
+    for frag in range(len(model.fragment_space)):
         H_f = frag_probs[frag] * map_hessian(center, model.W, frag)
         V_f = frag_probs[frag] * np.transpose(map_gradient(center, model.W, frag))
         H = H + H_f
