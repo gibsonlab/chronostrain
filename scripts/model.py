@@ -17,6 +17,74 @@ import itertools
 random.seed(123)
 
 
+class Q_Score(Enum):
+    HIGH = 3
+    MEDIUM = 2
+    LOW = 1
+    TERRIBLE = 0
+
+
+class Q_Score_Distribution():
+    
+    def __init__(self):
+        
+        self.distribution = {Q_Score.HIGH : 0.5, Q_Score.MEDIUM : 0.3, Q_Score.LOW : 0.15, Q_Score.TERRIBLE: 0.05}
+    
+    def get_q_score_vector(self, fragment):
+        """
+            fragment is a list
+            Modified from: 
+                https://stackoverflow.com/questions/32330459/partition-a-list-into-sublists-by-percentage
+        """
+        
+        
+        percentages = [self.distribution[Q_Score.TERRIBLE]/2, 
+                  self.distribution[Q_Score.LOW]/2, 
+                  self.distribution[Q_Score.MEDIUM]/2, 
+                  self.distribution[Q_Score.HIGH], 
+                  self.distribution[Q_Score.MEDIUM]/2, 
+                  self.distribution[Q_Score.LOW]/2, 
+                  self.distribution[Q_Score.TERRIBLE]/2]
+        
+        
+        splits = np.cumsum(percentages)
+        print(splits)
+
+        if splits[-1] != 1:
+            raise ValueError("percents don't add up to 100")
+    
+        # Split doesn't need last percent, it will just take what is left
+        splits = splits[:-1]
+    
+        # Turn values into indices
+        splits *= len(fragment)
+    
+        # Turn double indices into integers.
+        # CAUTION: numpy rounds to closest EVEN number when a number is halfway
+        # between two integers. So 0.5 will become 0 and 1.5 will become 2!
+        # If you want to round up in all those cases, do
+        # splits += 0.5 instead of round() before casting to int
+        splits_indices = splits.round().astype(np.int)
+#        if splits_indices[-1] >= len(fragment):
+#            splits_indices[-1] -= 1  
+        
+        
+        print(splits_indices)
+        split_fragment = np.split(fragment, splits_indices)
+        
+        quality_vector = []
+        
+        quality_vector.extend([Q_Score.TERRIBLE]*len(split_fragment[0]))
+        quality_vector.extend([Q_Score.LOW]*len(split_fragment[1]))
+        quality_vector.extend([Q_Score.MEDIUM]*len(split_fragment[2]))
+        quality_vector.extend([Q_Score.HIGH]*len(split_fragment[3]))
+        quality_vector.extend([Q_Score.MEDIUM]*len(split_fragment[4]))
+        quality_vector.extend([Q_Score.LOW]*len(split_fragment[5]))
+        quality_vector.extend([Q_Score.TERRIBLE]*len(split_fragment[6]))
+        
+        assert len(quality_vector) == len(fragment)
+        
+        return quality_vector        
 
 class Population():
     
@@ -178,90 +246,58 @@ def generate_strain_fragment_frequencies(fragments, bacteria_pop):
                 w[row][col] = w[row][col]/column_total
         
     return w
-            
-    
-    
+
 def generate_time_indexed_fragment_frequencies(strain_fragment_matrix, bacteria_pop):
     """
     
-    returns a dictionary mapping fragments to their fraction
+    returns a vector of time indexed fragment abundances based on the current time index strain abundances
+    and the fragments' relative frequencies in each strain's sequence.
+    
     """
     
     fragment_to_prob_vector = np.matmul(strain_fragment_matrix, np.array(bacteria_pop.abundances))
     return fragment_to_prob_vector
 
 
+def generate_read_collection(time_indexed_fragments_frequencies):
+    """
+    
+    generatives reads from a model based on 
+    """
 
-class Q_Score(Enum):
-    HIGH = 3
-    MEDIUM = 2
-    LOW = 1
-    TERRIBLE = 0
-
-
-class Q_Score_Distribution():
+    # Key = Actual nucleotide
+    # Value = Probability distribution of 
     
-    def __init__(self):
-        
-        self.distribution = {Q_Score.HIGH : 0.5, Q_Score.MEDIUM : 0.3, Q_Score.LOW : 0.15, Q_Score.TERRIBLE: 0.05}
+#    HIGH_Q_BASE_CHANGE_MATRIX = {"A" : {"A": .91, "U": .03, "C" : .03, "G": .03},            ,
+#                                 "U" : {"A": .03, "U": .03, "C" : .03, "G": .03},  
+#                                 "C" : {"A": .03, "U": .03, "C" : .91, "G": .03},  
+#                                 "G" : {"A": .03, "U": .03, "C" : .03, "G": .91}} 
+                                 
+    HIGH_Q_BASE_CHANGE_MATRIX = {"A": {"A": 0.91, "U": 0.03, "C": 0.03, "G": 0.03}, 
+                                   "U": {"A": 0.03, "U": 0.91, "C": 0.03, "G": 0.03},
+                                   "C": {"A": 0.03, "U": 0.03, "C": 0.91, "G": 0.03},
+                                   "G": {"A": 0.03, "U": 0.03, "C": 0.03, "G": 0.91}}
     
-    def get_q_score_vector(self, fragment):
-        """
-            fragment is a list
-            Modified from: 
-                https://stackoverflow.com/questions/32330459/partition-a-list-into-sublists-by-percentage
-        """
-        
-        
-        percentages = [self.distribution[Q_Score.TERRIBLE]/2, 
-                  self.distribution[Q_Score.LOW]/2, 
-                  self.distribution[Q_Score.MEDIUM]/2, 
-                  self.distribution[Q_Score.HIGH], 
-                  self.distribution[Q_Score.MEDIUM]/2, 
-                  self.distribution[Q_Score.LOW]/2, 
-                  self.distribution[Q_Score.TERRIBLE]/2]
-        
-        
-        splits = np.cumsum(percentages)
-        print(splits)
-
-        if splits[-1] != 1:
-            raise ValueError("percents don't add up to 100")
+    MEDIUM_Q_BASE_CHANGE_MATRIX = {"A": {"A": 0.91, "U": 0.03, "C": 0.03, "G": 0.03}, 
+                               "U": {"A": 0.03, "U": 0.91, "C": 0.03, "G": 0.03},
+                               "C": {"A": 0.03, "U": 0.03, "C": 0.91, "G": 0.03},
+                               "G": {"A": 0.03, "U": 0.03, "C": 0.03, "G": 0.91}}
     
-        # Split doesn't need last percent, it will just take what is left
-        splits = splits[:-1]
+    LOW_Q_BASE_CHANGE_MATRIX = {"A": {"A": 0.91, "U": 0.03, "C": 0.03, "G": 0.03}, 
+                               "U": {"A": 0.03, "U": 0.91, "C": 0.03, "G": 0.03},
+                               "C": {"A": 0.03, "U": 0.03, "C": 0.91, "G": 0.03},
+                               "G": {"A": 0.03, "U": 0.03, "C": 0.03, "G": 0.91}}
     
-        # Turn values into indices
-        splits *= len(fragment)
+    TERRIBLE_Q_BASE_CHANGE_MATRIX = {"A": {"A": 0.25, "U": 0.25, "C": 0.25, "G": 0.25}, 
+                               "U": {"A": 0.25, "U": 0.25, "C": 0.25, "G": 0.25},
+                               "C": {"A": 0.25, "U": 0.03, "C": 0.91, "G": 0.03},
+                               "G": {"A": 0.03, "U": 0.03, "C": 0.03, "G": 0.91}}
+                               
+                                 
+    MEDIUM_Q_BASE_CHANGE_MATRIX  = []
+    LOW_Q_BASE_CHANGE_MATRIX = []
+    TERRIBLE_Q_BASE_CHANGE_MATRIX = []
     
-        # Turn double indices into integers.
-        # CAUTION: numpy rounds to closest EVEN number when a number is halfway
-        # between two integers. So 0.5 will become 0 and 1.5 will become 2!
-        # If you want to round up in all those cases, do
-        # splits += 0.5 instead of round() before casting to int
-        splits_indices = splits.round().astype(np.int)
-#        if splits_indices[-1] >= len(fragment):
-#            splits_indices[-1] -= 1  
-        
-        
-        print(splits_indices)
-        split_fragment = np.split(fragment, splits_indices)
-        
-        quality_vector = []
-        
-        quality_vector.extend([Q_Score.TERRIBLE]*len(split_fragment[0]))
-        quality_vector.extend([Q_Score.LOW]*len(split_fragment[1]))
-        quality_vector.extend([Q_Score.MEDIUM]*len(split_fragment[2]))
-        quality_vector.extend([Q_Score.HIGH]*len(split_fragment[3]))
-        quality_vector.extend([Q_Score.MEDIUM]*len(split_fragment[4]))
-        quality_vector.extend([Q_Score.LOW]*len(split_fragment[5]))
-        quality_vector.extend([Q_Score.TERRIBLE]*len(split_fragment[6]))
-        
-        assert len(quality_vector) == len(fragment)
-        
-        return quality_vector        
-  
-      
 
 
 # Take from https://www.w3resource.com/python-exercises/string/python-data-type-string-exercise-52.php
@@ -276,25 +312,27 @@ def all_repeat(str1, rno):
 
 if __name__ == "__main__":
 
+    FRAGMENT_LENGTH = 6
+    FRAGMENT_NUM = 8
+    FRAGMENTS = ["".join([random.choice(["A", "G", "C", "U"]) for i in range(FRAGMENT_LENGTH)]) for i in range(FRAGMENT_NUM)]
+    
+    # FRAGMENTS = all_repeat("AGCU", 2) # size 16. This would come from real world data.
+    # FRAGMENTS
+    
     random.seed(123)
     NUM_TIME_STEPS = 10
     NUMBER_STRAINS = 4
     
- 
-    # FRAGMENTS = all_repeat("AGCU", 2) # size 16. This would come from real world data.
-    # FRAGMENTS
-    
-    FRAGMENT_LENGTH = 9
-    FRAGMENT_NUM = 8
-    FRAGMENTS = ["".join([random.choice(["A", "G", "C", "U"]) for i in range(FRAGMENT_LENGTH)]) for i in range(FRAGMENT_NUM)]
+    MARKER_LENGTH = FRAGMENT_LENGTH * 10000
+    NUM_SNPS = MARKER_LENGTH/100 # One SNP every 100 nucleotides 
 
     driver = np.array([0]*NUMBER_STRAINS) # Intialize gaussian process. 
     
-    bacteria_pop = Population(NUM_STRAINS=NUMBER_STRAINS, NUM_MARKERS=1, MARKER_LENGTH=FRAGMENT_LENGTH*10000, NUM_SNPS = 5000)
+    bacteria_pop = Population(NUM_STRAINS=NUMBER_STRAINS, NUM_MARKERS=1, MARKER_LENGTH=MARKER_LENGTH, NUM_SNPS = NUM_SNPS)
     print(bacteria_pop)
 
     strain_fragment_matrix = generate_strain_fragment_frequencies(FRAGMENTS, bacteria_pop)
-    print(strain_fragment_matrix)
+    print("Strain Fragment Frequency matrix (each column is one strain, each row is a fragment): \n", strain_fragment_matrix)
 
     # assert column totals sum to 1 or all entries in column are 0
     for col, col_sum in enumerate(strain_fragment_matrix.sum(axis=0)):
@@ -315,18 +353,19 @@ if __name__ == "__main__":
         
         bacteria_pop.abundances = rel_abundances
         
-        fragments_to_abundance = generate_time_indexed_fragment_frequencies(strain_fragment_matrix, bacteria_pop)
+        time_indexed_fragments_frequencies = generate_time_indexed_fragment_frequencies(strain_fragment_matrix, bacteria_pop)
     
-        print("Fragments to abundance")
-        print(fragments_to_abundance, "\n")
+        print("Time indexed Fragment Abundance")
+        print(time_indexed_fragments_frequencies, "\n")
+        
+        
+        
     
 #    my_pop = Population(NUM_STRAINS = 3, NUM_MARKERS = 2, MARKER_LENGTH = 10, NUM_SNPS = 5 )
 #    print(my_pop)
 
-# %%
+# %% testing area 
         
     
-q_distribution = Q_Score_Distribution()
-      
-        
-q_distribution.get_q_score_vector(list(FRAGMENTS[0]))
+#q_distribution = Q_Score_Distribution()
+#q_distribution.get_q_score_vector(list(FRAGMENTS[0]))
