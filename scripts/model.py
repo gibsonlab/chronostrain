@@ -6,15 +6,10 @@ Created on Wed Feb 19 14:41:50 2020
 @author: Daniel Alfonsetti
 """
 
-
 import numpy as np
 import random 
 import copy
 from enum import Enum
-import itertools
-
-
-random.seed(123)
 
 
 class Q_Score(Enum):
@@ -26,17 +21,47 @@ class Q_Score(Enum):
 
 class Q_Score_Distribution():
     
-    def __init__(self):
+    def __init__(self, distribution = None):
         
-        self.distribution = {Q_Score.HIGH : 0.5, Q_Score.MEDIUM : 0.3, Q_Score.LOW : 0.15, Q_Score.TERRIBLE: 0.05}
+        if distribution:
+            self.distribution = distribution
+            
+        self.distribution = {Q_Score.HIGH : 0.5, 
+                             Q_Score.MEDIUM : 0.3, 
+                             Q_Score.LOW : 0.15, 
+                             Q_Score.TERRIBLE: 0.05}
     
-    def get_q_score_vector(self, fragment):
+    def get_simple_q_score_vector(self, fragment):
         """
-            fragment is a list
-            Modified from: 
-                https://stackoverflow.com/questions/32330459/partition-a-list-into-sublists-by-percentage
+        Returns a quality score vector ('q vector') for the fragment
+        
+    
+        The quality scores are chosen in proprotion to the distribution specified
+        in self.distribution. 
+        
+        The current implementation assigns quality scores such that 1/2 of the specified
+        frequency of the "terrible" score is applied to the first base pairs in the fragment
+        as well as the last base pairs in the fragment.
+        
+        This pattern is reapeated with the 'low quality' score with the base pairs
+        on both ends of the fragment that haven't been assigned. The resulting quality 
+        pattern along the fragment is thus as follows:
+            
+            Terrible - Low - Medium - High - Medium - Low - Terrible
+  
+
+        @param - fragment --
+            A list of characters (A, U, C, T)
+        
+        @return - 
+            A list with length equal to the length of the input fragment list, and
+            each element is an integer (0-3) representing a quality score.
+
         """
         
+        # Implementation modified from 
+        # https://stackoverflow.com/questions/32330459/partition-a-list-into-sublists-by-percentage
+                
         
         percentages = [self.distribution[Q_Score.TERRIBLE]/2, 
                   self.distribution[Q_Score.LOW]/2, 
@@ -48,7 +73,6 @@ class Q_Score_Distribution():
         
         
         splits = np.cumsum(percentages)
-        print(splits)
 
         if splits[-1] != 1:
             raise ValueError("percents don't add up to 100")
@@ -69,22 +93,22 @@ class Q_Score_Distribution():
 #            splits_indices[-1] -= 1  
         
         
-        print(splits_indices)
         split_fragment = np.split(fragment, splits_indices)
         
         quality_vector = []
         
-        quality_vector.extend([Q_Score.TERRIBLE]*len(split_fragment[0]))
-        quality_vector.extend([Q_Score.LOW]*len(split_fragment[1]))
-        quality_vector.extend([Q_Score.MEDIUM]*len(split_fragment[2]))
-        quality_vector.extend([Q_Score.HIGH]*len(split_fragment[3]))
-        quality_vector.extend([Q_Score.MEDIUM]*len(split_fragment[4]))
-        quality_vector.extend([Q_Score.LOW]*len(split_fragment[5]))
-        quality_vector.extend([Q_Score.TERRIBLE]*len(split_fragment[6]))
+        quality_vector.extend([Q_Score.TERRIBLE.value]*len(split_fragment[0]))
+        quality_vector.extend([Q_Score.LOW.value]*len(split_fragment[1]))
+        quality_vector.extend([Q_Score.MEDIUM.value]*len(split_fragment[2]))
+        quality_vector.extend([Q_Score.HIGH.value]*len(split_fragment[3]))
+        quality_vector.extend([Q_Score.MEDIUM.value]*len(split_fragment[4]))
+        quality_vector.extend([Q_Score.LOW.value]*len(split_fragment[5]))
+        quality_vector.extend([Q_Score.TERRIBLE.value]*len(split_fragment[6]))
         
         assert len(quality_vector) == len(fragment)
         
         return quality_vector        
+
 
 class Population():
     
@@ -93,7 +117,7 @@ class Population():
         
         self.markers = []
         self.strains = []
-        self.abundances = []
+        self.strain_abundances = []
 
         for i in range(NUM_MARKERS):
             
@@ -117,9 +141,6 @@ class Population():
         return return_str
     
     
-
-
-
 class Strain():
     
     def __init__(self, markers, mutate = False):
@@ -130,6 +151,9 @@ class Strain():
             self.mutate_markers()
 
     def mutate_markers(self):
+        """
+        Mutate each of this strain's markers.
+        """
         
         for marker in self.markers:
             marker.mutate()
@@ -154,6 +178,11 @@ class Marker():
         
         
     def mutate(self):
+        """
+        For each SNP location in this marker, 
+        randomly choose a nucleotide to replace the current
+        nucleotideat that SNP.
+        """
         
         for idx in self.snp_locations:
             current_letter =  self.sequence[idx]
@@ -167,14 +196,16 @@ class Marker():
         return "Sequence: " + str(self.sequence) + "\nSNP Locations: " + str(self.snp_locations) + "\nSNP Values: " + str(self.snp_values)
     
 
-
-
 def generate_brownian_motion(means_vec, time_constant = 1):
     """
     Returns a multivariate gaussian centered according to means_vec
     
-    Arguments
-    means_vec -- an s dimensional array
+    @param - means_vec -- 
+        a numpy array of doubles 
+        
+    @return --
+        a numpy array of the same length as the input, chosen from a multiplevariate 
+        normal distribution centered at means_vec.
     """
     # https://docs.scipy.org/doc/numpy-1.15.1/reference/generated/numpy.random.multivariate_normal.html
     
@@ -184,10 +215,10 @@ def generate_brownian_motion(means_vec, time_constant = 1):
 
 def generate_relative_abundances(gaussian_process):
     """
-    Returns an array with same length as guassian_process after running softmax on it.
+    @param - gaussain_process - an n-dimensional array of floats
     
-    Arguments
-    gaussain_process - an n-dimensional array
+    @return - rel_abundances
+        a list with same length as guassian_process after running softmax on it.
     """
     
     # softmax
@@ -198,17 +229,24 @@ def generate_relative_abundances(gaussian_process):
 
 
 
-def get_fragment_in_strain_prob(fragment, strain):
+def count_fragment_in_strain(fragment, strain):
     """
-    Helper function for generate_fragment_frequency
+    Helper function for generate_strain_fragment_frequencies
     
-    Returns the probability of observing fragment "fragment" in strain "strain"
+    @fragment - A string of "A" "U" "G" and "C"s.
+    
+    @strain -- a bacteria strain object. Contains a markers field
+        which is a list of lists representing a list of markers, where each marker
+        is represented as a list of characters ("A", "U", "G", "C")
+    
+    @returns --
+        the number of times  fragment "fragment" is observed in strain "strain"'s markers
     """
     
-    # TODO: Implement. Must use sliding window scheme.
-    
-
     def count_substring(substring, string):
+        """
+        Returns the number of times substring occurs in string.
+        """
 
         count = 0
         for i in range(len(string)-(len(substring))+1):
@@ -226,17 +264,25 @@ def get_fragment_in_strain_prob(fragment, strain):
     return total
 
 
-def generate_strain_fragment_frequencies(fragments, bacteria_pop):
+def generate_strain_fragment_frequencies(fragments, strains):
     """
-        Returns a numpy matrix 
+    @param - fragments --
+        A list of fragments
+        
+    @param - strains --
+        A list of strain objects, where each strain has a list of marker sequences.
+        
+    @returns --
+        a 2D numpy array where column i is the relative frequencies of observing each
+        of the fragments in strain i.
     """
-    # TODO: Make this a method of population
-    w = np.zeros((len(fragments), len(bacteria_pop.strains)))
     
-    for col, strain in enumerate(bacteria_pop.strains):
+    w = np.zeros((len(fragments), len(strains)))
+    
+    for col, strain in enumerate(strains):
 
         for row, fragment in enumerate(fragments):
-            w[row][col] = get_fragment_in_strain_prob(fragment, strain)
+            w[row][col] = count_fragment_in_strain(fragment, strain)
         
         
          # normalize along columns
@@ -247,79 +293,120 @@ def generate_strain_fragment_frequencies(fragments, bacteria_pop):
         
     return w
 
-def generate_time_indexed_fragment_frequencies(strain_fragment_matrix, bacteria_pop):
+
+def generate_time_indexed_fragment_frequencies(strain_fragment_matrix, strain_abundances):
+    """
+    @param - strain_fragment_matrix - 
+        A 2D numpy array where column i is the relative frequencies of observing each
+        of the fragments in strain i.
+        
+    @param - strain_abundances
+        A list representing the relative abundances of the strains
+        
+    @returns - fragment_to_prob_vector
+         a 1D numpy array of time indexed fragment abundances based on the current time index strain abundances
+         and the fragments' relative frequencies in each strain's sequence.
     """
     
-    returns a vector of time indexed fragment abundances based on the current time index strain abundances
-    and the fragments' relative frequencies in each strain's sequence.
-    
-    """
-    
-    fragment_to_prob_vector = np.matmul(strain_fragment_matrix, np.array(bacteria_pop.abundances))
+    fragment_to_prob_vector = np.matmul(strain_fragment_matrix, np.array(strain_abundances))
     return fragment_to_prob_vector
 
 
-def generate_read_collection(time_indexed_fragments_frequencies):
+def generate_noisy_reads(time_indexed_fragment_frequencies, fragments):
+    """
+        Given a set of fragments and their time indexed frequencies (based on the current time
+        index strain abundances and the fragments' relative frequencies in each strain's sequence.), 
+        generate a set of noisy fragment reads where the read fragments are selected in proportion
+        to their time indexed frequencies and the outputted base pair at location i of each selected 
+        fragment is chosen from a probability distribution condition on the actual base pair at location
+        i and the quality score at location i in the generated quality score vector for the 
+        selected fragment.
+        
+        @param - time_indexed_fragment_frequencies - 
+                a list of floats representing a probability distribution over the fragments
+                
+        @param - fragments
+                a list of strings representing the fragments
+        
+        @return - generated_noisy_fragments
+                a list of strings representing a noisy reads of the set of input fragments
+  
     """
     
-    generatives reads from a model based on 
-    """
+    q_distribution = Q_Score_Distribution()
 
-    # Key = Actual nucleotide
-    # Value = Probability distribution of 
+    # Define base change probability matrices condition on quality score level.
     
-#    HIGH_Q_BASE_CHANGE_MATRIX = {"A" : {"A": .91, "U": .03, "C" : .03, "G": .03},            ,
-#                                 "U" : {"A": .03, "U": .03, "C" : .03, "G": .03},  
-#                                 "C" : {"A": .03, "U": .03, "C" : .91, "G": .03},  
-#                                 "G" : {"A": .03, "U": .03, "C" : .03, "G": .91}} 
-                                 
-    HIGH_Q_BASE_CHANGE_MATRIX = {"A": {"A": 0.91, "U": 0.03, "C": 0.03, "G": 0.03}, 
-                                   "U": {"A": 0.03, "U": 0.91, "C": 0.03, "G": 0.03},
-                                   "C": {"A": 0.03, "U": 0.03, "C": 0.91, "G": 0.03},
-                                   "G": {"A": 0.03, "U": 0.03, "C": 0.03, "G": 0.91}}
+    # Example:
+    # HIGH_Q_BASE_CHANGE_MATRIX[_A][_U] is the probability of observing U when the actual
+    # nucleotide is _A
     
-    MEDIUM_Q_BASE_CHANGE_MATRIX = {"A": {"A": 0.91, "U": 0.03, "C": 0.03, "G": 0.03}, 
-                               "U": {"A": 0.03, "U": 0.91, "C": 0.03, "G": 0.03},
-                               "C": {"A": 0.03, "U": 0.03, "C": 0.91, "G": 0.03},
-                               "G": {"A": 0.03, "U": 0.03, "C": 0.03, "G": 0.91}}
+    _A = 0
+    _U = 1
+    _C = 2
+    _G = 3
     
-    LOW_Q_BASE_CHANGE_MATRIX = {"A": {"A": 0.91, "U": 0.03, "C": 0.03, "G": 0.03}, 
-                               "U": {"A": 0.03, "U": 0.91, "C": 0.03, "G": 0.03},
-                               "C": {"A": 0.03, "U": 0.03, "C": 0.91, "G": 0.03},
-                               "G": {"A": 0.03, "U": 0.03, "C": 0.03, "G": 0.91}}
+    HIGH_Q_BASE_CHANGE_MATRIX = np.array(([0.91, 0.03, 0.03, 0.03],
+                                           [0.03, 0.91, 0.03, 0.03],
+                                           [0.03, 0.03, 0.91, 0.03],
+                                           [0.03, 0.03, 0.03, 0.91]))
+            
+    MEDIUM_Q_BASE_CHANGE_MATRIX = np.array(([0.85, 0.05, 0.05, 0.05],
+                                             [0.05, 0.85, 0.05, 0.05],
+                                             [0.05, 0.05, 0.85, 0.05],
+                                             [0.05, 0.05, 0.05, 0.85]))
+
+    LOW_Q_BASE_CHANGE_MATRIX = np.array(([0.70, 0.10, 0.10, 0.10],
+                                          [0.10, 0.70, 0.10, 0.10],
+                                          [0.10, 0.10, 0.70, 0.10],
+                                          [0.10, 0.10, 0.10, 0.70]))
+            
+    TERRIBLE_Q_BASE_CHANGE_MATRIX = np.array(([0.25, 0.25, 0.25, 0.25],
+                                               [0.25, 0.25, 0.25, 0.25],
+                                               [0.25, 0.25, 0.25, 0.25],
+                                               [0.25, 0.25, 0.25, 0.25]))
+#    
+    Q_SCORE_BASE_CHANGE_MATRICES = [TERRIBLE_Q_BASE_CHANGE_MATRIX,
+                                    LOW_Q_BASE_CHANGE_MATRIX,
+                                    MEDIUM_Q_BASE_CHANGE_MATRIX,
+                                    HIGH_Q_BASE_CHANGE_MATRIX]
+
+    # Sample fragments in proportion to their time indexed frequencies.
+    sampled_fragments = np.random.choice(fragments, len(fragments), p=time_indexed_fragment_frequencies)
     
-    TERRIBLE_Q_BASE_CHANGE_MATRIX = {"A": {"A": 0.25, "U": 0.25, "C": 0.25, "G": 0.25}, 
-                               "U": {"A": 0.25, "U": 0.25, "C": 0.25, "G": 0.25},
-                               "C": {"A": 0.25, "U": 0.03, "C": 0.91, "G": 0.03},
-                               "G": {"A": 0.03, "U": 0.03, "C": 0.03, "G": 0.91}}
-                               
-                                 
-    MEDIUM_Q_BASE_CHANGE_MATRIX  = []
-    LOW_Q_BASE_CHANGE_MATRIX = []
-    TERRIBLE_Q_BASE_CHANGE_MATRIX = []
+    generated_noisy_fragments = []
     
+    # For each sampled fragment, generate a noisy read of it.
+    for sampled_fragment in sampled_fragments:
+        
+        # Generate quality score vector from the sample fragment
+        quality_score_vector = q_distribution.get_simple_q_score_vector(list(sampled_fragment))
+        
+        generated_noisy_fragment = ""
+        
+        # Generate base pair reads from the sample fragment, conditioned on actual base pair and quality score for that base pair.
+        for actual_base_pair, q_score in zip(sampled_fragment, quality_score_vector):
+
+            actual_base_pair_index = eval(str("_" + actual_base_pair)) # Gets row index in the base pair change matrices.
+            
+            # Generate a noisy base pair read from the distribution defined by the actual base pair and the quality score
+            noisy_letter = np.random.choice(["A", "U", "C", "G"], 1, p=Q_SCORE_BASE_CHANGE_MATRICES[q_score][actual_base_pair_index])[0]
+            generated_noisy_fragment  += noisy_letter
+        
+        generated_noisy_fragments.append(generated_noisy_fragment)
+        
+    return generated_noisy_fragments
 
 
-# Take from https://www.w3resource.com/python-exercises/string/python-data-type-string-exercise-52.php
-def all_repeat(str1, rno):
-  chars = list(str1)
-  results = []
-  for c in itertools.product(chars, repeat = rno):
-    results.append(''.join(c))
-  return results
-
-# %% #
+# %%
 
 if __name__ == "__main__":
+    random.seed(123)
 
     FRAGMENT_LENGTH = 6
     FRAGMENT_NUM = 8
-    FRAGMENTS = ["".join([random.choice(["A", "G", "C", "U"]) for i in range(FRAGMENT_LENGTH)]) for i in range(FRAGMENT_NUM)]
     
-    # FRAGMENTS = all_repeat("AGCU", 2) # size 16. This would come from real world data.
-    # FRAGMENTS
     
-    random.seed(123)
     NUM_TIME_STEPS = 10
     NUMBER_STRAINS = 4
     
@@ -329,14 +416,6 @@ if __name__ == "__main__":
     driver = np.array([0]*NUMBER_STRAINS) # Intialize gaussian process. 
     
     bacteria_pop = Population(NUM_STRAINS=NUMBER_STRAINS, NUM_MARKERS=1, MARKER_LENGTH=MARKER_LENGTH, NUM_SNPS = NUM_SNPS)
-    print(bacteria_pop)
-
-    strain_fragment_matrix = generate_strain_fragment_frequencies(FRAGMENTS, bacteria_pop)
-    print("Strain Fragment Frequency matrix (each column is one strain, each row is a fragment): \n", strain_fragment_matrix)
-
-    # assert column totals sum to 1 or all entries in column are 0
-    for col, col_sum in enumerate(strain_fragment_matrix.sum(axis=0)):
-        assert col_sum.round() == 1 or all([not strain_fragment_matrix[x][col] for x in range(len(strain_fragment_matrix))])
         
     
     #%% 
@@ -344,28 +423,34 @@ if __name__ == "__main__":
     for i in range(NUM_TIME_STEPS):
         print('===========================')
         print("Step #", i, "\n")
-              
+    
+        # Generate fragments for this time step.
+        fragments = ["".join([random.choice(["A", "G", "C", "U"]) for i in range(FRAGMENT_LENGTH)]) for i in range(FRAGMENT_NUM)]
+        
+        strain_fragment_matrix = generate_strain_fragment_frequencies(fragments, bacteria_pop.strains)
+        print("Strain Fragment Frequency matrix (each column is one strain, each row is a fragment): \n", strain_fragment_matrix)
+    
+        # assert column totals sum to 1 or all entries in column are 0
+        for col, col_sum in enumerate(strain_fragment_matrix.sum(axis=0)):
+            assert col_sum.round() == 1 or all([not strain_fragment_matrix[x][col] for x in range(len(strain_fragment_matrix))])
+        
+        # Step 1
         driver = generate_brownian_motion(driver)
         print("Gaussian process: ", driver, "\n")
         
+        # Step 2
         rel_abundances = generate_relative_abundances(driver)
         print("Relative abundances of strains: ", rel_abundances, "\n")
         
-        bacteria_pop.abundances = rel_abundances
+        bacteria_pop.strain_abundances = rel_abundances
         
-        time_indexed_fragments_frequencies = generate_time_indexed_fragment_frequencies(strain_fragment_matrix, bacteria_pop)
+        # Step 3
+        time_indexed_fragment_frequencies = generate_time_indexed_fragment_frequencies(strain_fragment_matrix, bacteria_pop.strain_abundances)
     
-        print("Time indexed Fragment Abundance")
-        print(time_indexed_fragments_frequencies, "\n")
+        print("Time indexed Fragment Frequencies")
+        print(time_indexed_fragment_frequencies, "\n")
         
-        
-        
-    
-#    my_pop = Population(NUM_STRAINS = 3, NUM_MARKERS = 2, MARKER_LENGTH = 10, NUM_SNPS = 5 )
-#    print(my_pop)
-
-# %% testing area 
-        
-    
-#q_distribution = Q_Score_Distribution()
-#q_distribution.get_q_score_vector(list(FRAGMENTS[0]))
+        # Step 4
+        noisy_reads = generate_noisy_reads(time_indexed_fragment_frequencies, fragments)
+        print("Sample Noisy Reads")
+        print(noisy_reads, "\n")
