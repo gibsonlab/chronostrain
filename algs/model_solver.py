@@ -1,41 +1,37 @@
+"""
+ model_solver.py
+ Contains implementations of the proposed algorithms.
+"""
+
 import math
 import numpy as np
 
-# ===============
-# An implementation of the proposed algorithms.
-# ===============
 
-class GenerativeModel:
-    def __init__(self, times, mu, tau_1, tau, W, strains, fragments):
-        self.times = times
-        self.mu = mu
-        self.tau_1 = tau_1
-        self.tau = tau
-        self.W = W
-        self.strains = strains
-        self.fragments = fragments
+# ===========================================================================================
+# =============== Expectation-Maximization (for getting a MAP estimator) ====================
+# ===========================================================================================
 
-    def num_strains(self):
-        return len(self.strains)
 
-    def num_fragments(self):
-        # Should output F, the total number of possible fragments in the database.
-        raise NotImplementedError()
+def em_estimate(model, reads, tol=1e-5):
+    # Initialization
 
-    def time_scale(self, time_idx):
-        if time_idx == 0:
-            return self.tau_1
-        if time_idx < len(self.times):
-            return self.tau * (self.times[time_idx] - self.times[time_idx] - 1)
-        else:
-            return IndexError("Can't reference time at index {}.".format(time_idx))
+    # Update
 
-    def num_times(self):
-        return len(self.times)
+    raise NotImplementedError()
 
+
+# ================================================================================================
+# =============== Variational Inference (for learning approximate posteriors) ====================
+# ================================================================================================
 
 
 def variational_learn(model, reads, tol=1e-5):
+    """
+    :param model: A GenerativeModel instance.
+    :param reads: A time-indexed list of read sets. Each entry is itself a list of reads for time t.
+    :param tol: the convergence tolerance threshold for the objective.
+    :return: Output the learned parameters for the mean-field posterior.
+    """
     # Initialization
     frag_errors = compute_frag_errors(model, reads)
     means = [np.zeros(model.strains, 1) for t in model.times]
@@ -57,7 +53,13 @@ def variational_learn(model, reads, tol=1e-5):
 
 
 def compute_frag_errors(model, reads):
-    raise NotImplementedError()
+    return [
+        [
+            [model.error_model.compute_likelihood(f, r) for f in range(model.fragments())]
+            for r in reads[k]
+        ]
+        for k in range(len(model.times))
+    ]
 
 
 def compute_model_ELBO(model, reads, means, covariances, frag_freqs):
