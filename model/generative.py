@@ -25,14 +25,14 @@ class SequenceRead:
 
 
 class GenerativeModel:
-    def __init__(self, times, mu, tau_1, tau, W, strains, fragments, read_error_model):
+    def __init__(self, times, mu, tau_1, tau, W, strains, fragment_space, read_error_model):
         self.times = times
         self.mu = mu
         self.tau_1 = tau_1
         self.tau = tau
         self.W = W
         self.strains = strains
-        self.fragments = fragments
+        self.fragment_space = fragment_space  # The set/enumeration (to be decided) of all possible fragments.
         self.error_model = read_error_model
 
     def num_strains(self):
@@ -40,17 +40,6 @@ class GenerativeModel:
         :return: The total number of strains in the model.
         """
         return len(self.strains)
-
-    def fragments(self):
-        """
-        :return: A list (or an iterator) over the collection of unique fragments in the model.
-        """
-
-    def num_fragments(self):
-        """
-        :return: The total number of unique fragments in the model.
-        """
-        raise NotImplementedError()
 
     def time_scale(self, time_idx):
         """
@@ -64,4 +53,19 @@ class GenerativeModel:
             return self.tau * (self.times[time_idx] - self.times[time_idx] - 1)
         else:
             return IndexError("Can't reference time at index {}.".format(time_idx))
+
+    def sample_reads(self, num_samples):
+        """
+        Generate a time-indexed list of read collections.
+        :param num_samples: the number of samples at each time point.
+        :return:
+        """
+        if len(num_samples) != len(self.times):
+            raise ValueError("Length of num_samples ({}) must agree with number of time points ({})".format(
+                len(num_samples), len(self.times))
+            )
+
+        # TODO: implement this (call functions / copy-paste from scripts/model.py as necessary)
+        # e.g. first generate brownian motion trajectory, then sample fragments, then sample reads.
+        pass
 

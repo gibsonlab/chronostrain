@@ -13,107 +13,108 @@ Created on Wed Feb 19 14:41:50 2020
 import numpy as np
 import random 
 import copy
-from enum import Enum
+# from enum import Enum
+from model import reads
+
+#
+# class Q_Score(Enum):
+#     HIGH = 3
+#     MEDIUM = 2
+#     LOW = 1
+#     TERRIBLE = 0
+#
+#
+# class Q_Score_Distribution:
+#     # Quality score distribution class
+#
+#     def __init__(self, distribution = None):
+#
+#         if distribution:
+#             self.distribution = distribution
+#
+#         self.distribution = {Q_Score.HIGH : 0.5,
+#                              Q_Score.MEDIUM : 0.3,
+#                              Q_Score.LOW : 0.15,
+#                              Q_Score.TERRIBLE: 0.05}
+#
+#     def get_simple_q_score_vector(self, fragment):
+#         """
+#         Returns a quality score vector ('q vector') for the fragment
+#
+#
+#         The quality scores are chosen in proprotion to the distribution specified
+#         in self.distribution.
+#
+#         The current implementation assigns quality scores such that 1/2 of the specified
+#         frequency of the "terrible" score is applied to the first base pairs in the fragment
+#         as well as the last base pairs in the fragment.
+#
+#         This pattern is reapeated with the 'low quality' score with the base pairs
+#         on both ends of the fragment that haven't been assigned. The resulting quality
+#         pattern along the fragment is thus as follows:
+#
+#             Terrible - Low - Medium - High - Medium - Low - Terrible
+#
+#
+#         @param - fragment --
+#             A list of characters (A, U, C, T)
+#
+#         @return -
+#             A list with length equal to the length of the input fragment list, and
+#             each element is an integer (0-3) representing a quality score.
+#
+#         """
+#
+#         # Implementation modified from
+#         # https://stackoverflow.com/questions/32330459/partition-a-list-into-sublists-by-percentage
+#
+#
+#         percentages = [self.distribution[Q_Score.TERRIBLE]/2,
+#                        self.distribution[Q_Score.LOW]/2,
+#                        self.distribution[Q_Score.MEDIUM]/2,
+#                        self.distribution[Q_Score.HIGH],
+#                        self.distribution[Q_Score.MEDIUM]/2,
+#                        self.distribution[Q_Score.LOW]/2,
+#                        self.distribution[Q_Score.TERRIBLE]/2]
+#
+#         splits = np.cumsum(percentages)
+#
+#         if splits[-1] != 1:
+#             raise ValueError("percents don't add up to 100")
+#
+#         # Split doesn't need last percent, it will just take what is left
+#         splits = splits[:-1]
+#
+#         # Turn values into indices
+#         splits *= len(fragment)
+#
+#         # Turn double indices into integers.
+#         # CAUTION: numpy rounds to closest EVEN number when a number is halfway
+#         # between two integers. So 0.5 will become 0 and 1.5 will become 2!
+#         # If you want to round up in all those cases, do
+#         # splits += 0.5 instead of round() before casting to int
+#         splits_indices = splits.round().astype(np.int)
+# #        if splits_indices[-1] >= len(fragment):
+# #            splits_indices[-1] -= 1
+#
+#         split_fragment = np.split(fragment, splits_indices)
+#
+#         quality_vector = []
+#
+#         quality_vector.extend([Q_Score.TERRIBLE.value]*len(split_fragment[0]))
+#         quality_vector.extend([Q_Score.LOW.value]*len(split_fragment[1]))
+#         quality_vector.extend([Q_Score.MEDIUM.value]*len(split_fragment[2]))
+#         quality_vector.extend([Q_Score.HIGH.value]*len(split_fragment[3]))
+#         quality_vector.extend([Q_Score.MEDIUM.value]*len(split_fragment[4]))
+#         quality_vector.extend([Q_Score.LOW.value]*len(split_fragment[5]))
+#         quality_vector.extend([Q_Score.TERRIBLE.value]*len(split_fragment[6]))
+#
+#         assert len(quality_vector) == len(fragment)
+#
+#         return quality_vector
 
 
-class Q_Score(Enum):
-    HIGH = 3
-    MEDIUM = 2
-    LOW = 1
-    TERRIBLE = 0
-
-
-class Q_Score_Distribution():
-    # Quality score distribution class
-    
-    def __init__(self, distribution = None):
-        
-        if distribution:
-            self.distribution = distribution
-            
-        self.distribution = {Q_Score.HIGH : 0.5, 
-                             Q_Score.MEDIUM : 0.3, 
-                             Q_Score.LOW : 0.15, 
-                             Q_Score.TERRIBLE: 0.05}
-    
-    def get_simple_q_score_vector(self, fragment):
-        """
-        Returns a quality score vector ('q vector') for the fragment
-        
-    
-        The quality scores are chosen in proprotion to the distribution specified
-        in self.distribution. 
-        
-        The current implementation assigns quality scores such that 1/2 of the specified
-        frequency of the "terrible" score is applied to the first base pairs in the fragment
-        as well as the last base pairs in the fragment.
-        
-        This pattern is reapeated with the 'low quality' score with the base pairs
-        on both ends of the fragment that haven't been assigned. The resulting quality 
-        pattern along the fragment is thus as follows:
-            
-            Terrible - Low - Medium - High - Medium - Low - Terrible
-  
-
-        @param - fragment --
-            A list of characters (A, U, C, T)
-        
-        @return - 
-            A list with length equal to the length of the input fragment list, and
-            each element is an integer (0-3) representing a quality score.
-
-        """
-        
-        # Implementation modified from 
-        # https://stackoverflow.com/questions/32330459/partition-a-list-into-sublists-by-percentage
-                
-        
-        percentages = [self.distribution[Q_Score.TERRIBLE]/2, 
-                       self.distribution[Q_Score.LOW]/2, 
-                       self.distribution[Q_Score.MEDIUM]/2, 
-                       self.distribution[Q_Score.HIGH], 
-                       self.distribution[Q_Score.MEDIUM]/2, 
-                       self.distribution[Q_Score.LOW]/2, 
-                       self.distribution[Q_Score.TERRIBLE]/2]
-        
-        splits = np.cumsum(percentages)
-
-        if splits[-1] != 1:
-            raise ValueError("percents don't add up to 100")
-    
-        # Split doesn't need last percent, it will just take what is left
-        splits = splits[:-1]
-    
-        # Turn values into indices
-        splits *= len(fragment)
-    
-        # Turn double indices into integers.
-        # CAUTION: numpy rounds to closest EVEN number when a number is halfway
-        # between two integers. So 0.5 will become 0 and 1.5 will become 2!
-        # If you want to round up in all those cases, do
-        # splits += 0.5 instead of round() before casting to int
-        splits_indices = splits.round().astype(np.int)
-#        if splits_indices[-1] >= len(fragment):
-#            splits_indices[-1] -= 1  
-        
-        split_fragment = np.split(fragment, splits_indices)
-        
-        quality_vector = []
-        
-        quality_vector.extend([Q_Score.TERRIBLE.value]*len(split_fragment[0]))
-        quality_vector.extend([Q_Score.LOW.value]*len(split_fragment[1]))
-        quality_vector.extend([Q_Score.MEDIUM.value]*len(split_fragment[2]))
-        quality_vector.extend([Q_Score.HIGH.value]*len(split_fragment[3]))
-        quality_vector.extend([Q_Score.MEDIUM.value]*len(split_fragment[4]))
-        quality_vector.extend([Q_Score.LOW.value]*len(split_fragment[5]))
-        quality_vector.extend([Q_Score.TERRIBLE.value]*len(split_fragment[6]))
-        
-        assert len(quality_vector) == len(fragment)
-        
-        return quality_vector        
-
-
-class Population():
+class Population:
     
     def __init__(self, num_strains = 1000, NUM_MARKERS = 1, marker_length = 1000, num_snps = 3):
         
@@ -144,7 +145,7 @@ class Population():
         return return_str
     
     
-class Strain():
+class Strain:
     
     def __init__(self, markers, mutate = False):
         self.markers = markers
@@ -167,8 +168,9 @@ class Strain():
             return_str += "---------------------------\n Marker " + str(n+1) + " out of " + str(len(self.markers)) + "\n" + str(i) + "\n"
         return_str += "\n"
         return return_str
-                
-class Marker():
+
+
+class Marker:
     
     def __init__(self, marker_length, num_snps):
         
@@ -199,54 +201,9 @@ class Marker():
         return "Sequence: " + str(self.sequence) + "\nSNP Locations: " + str(self.snp_locations) + "\nSNP Values: " + str(self.snp_values)
     
 
-class Model():
-    
-    # -----------------------------
-    # Define class/static variables
-    
-    Q_DISTRIBUTION = Q_Score_Distribution()
+class Model:
 
-    # Define base change probability matrices conditioned on quality score level.
-    
-    # Example:
-    # HIGH_Q_BASE_CHANGE_MATRIX[_A][_U] is the probability of observing U when the actual
-    # nucleotide is _A
-    
-    _A = 0
-    _U = 1
-    _C = 2
-    _G = 3
-    
-            
-    TERRIBLE_Q_BASE_CHANGE_MATRIX = np.array(([0.25, 0.25, 0.25, 0.25],
-                                               [0.25, 0.25, 0.25, 0.25],
-                                               [0.25, 0.25, 0.25, 0.25],
-                                               [0.25, 0.25, 0.25, 0.25]))
-    
-    LOW_Q_BASE_CHANGE_MATRIX = np.array(([0.70, 0.10, 0.10, 0.10],
-                                          [0.10, 0.70, 0.10, 0.10],
-                                          [0.10, 0.10, 0.70, 0.10],
-                                          [0.10, 0.10, 0.10, 0.70]))
-    
-    MEDIUM_Q_BASE_CHANGE_MATRIX = np.array(([0.85, 0.05, 0.05, 0.05],
-                                         [0.05, 0.85, 0.05, 0.05],
-                                         [0.05, 0.05, 0.85, 0.05],
-                                         [0.05, 0.05, 0.05, 0.85]))
-
-    HIGH_Q_BASE_CHANGE_MATRIX = np.array(([0.91, 0.03, 0.03, 0.03],
-                                       [0.03, 0.91, 0.03, 0.03],
-                                       [0.03, 0.03, 0.91, 0.03],
-                                       [0.03, 0.03, 0.03, 0.91]))
-        
-    Q_SCORE_BASE_CHANGE_MATRICES = [TERRIBLE_Q_BASE_CHANGE_MATRIX,
-                                    LOW_Q_BASE_CHANGE_MATRIX,
-                                    MEDIUM_Q_BASE_CHANGE_MATRIX,
-                                    HIGH_Q_BASE_CHANGE_MATRIX]
-    
-    
-    def __init__(self, fragment_length = 8, num_fragments = 6, num_time_steps = 10, num_strains = 4, num_markers = 1):
-        
-        
+    def __init__(self, fragment_length = 8, num_fragments = 6, num_time_steps = 10, num_strains = 4, num_markers = 1, error_model=reads.BasicErrorModel()):
         self.num_time_steps = num_time_steps
 
         self.fragment_length = fragment_length
@@ -262,6 +219,8 @@ class Model():
                                        NUM_MARKERS=num_markers, 
                                        marker_length=self.marker_length,
                                        num_snps = self.num_snps)
+        self.error_model = error_model
+
     
     def run(self):
         
@@ -437,31 +396,14 @@ class Model():
                 a list of strings representing a noisy reads of the set of input fragments
       
         """
-
-    
         # Sample fragments in proportion to their time indexed frequencies.
         sampled_fragments = np.random.choice(fragments, len(fragments), p=time_indexed_fragment_frequencies)
         
         generated_noisy_fragments = []
         
         # For each sampled fragment, generate a noisy read of it.
-        for sampled_fragment in sampled_fragments:
-            
-            # Generate quality score vector from the sample fragment
-            quality_score_vector = Model.Q_DISTRIBUTION.get_simple_q_score_vector(list(sampled_fragment))
-            
-            generated_noisy_fragment = ""
-            
-            # Generate base pair reads from the sample fragment, conditioned on actual base pair and quality score for that base pair.
-            for actual_base_pair, q_score in zip(sampled_fragment, quality_score_vector):
-    
-                actual_base_pair_index = eval(str("Model._" + actual_base_pair)) # Gets row index in the base pair change matrices.
-                
-                # Generate a noisy base pair read from the distribution defined by the actual base pair and the quality score
-                noisy_letter = np.random.choice(["A", "U", "C", "G"], 1, p = Model.Q_SCORE_BASE_CHANGE_MATRICES[q_score][actual_base_pair_index])[0]
-                generated_noisy_fragment  += noisy_letter
-            
-            generated_noisy_fragments.append(generated_noisy_fragment)
+        for frag in sampled_fragments:
+            generated_noisy_fragments.append(self.error_model.sample_noisy_read(frag))
             
         return generated_noisy_fragments
 
