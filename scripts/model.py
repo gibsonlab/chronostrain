@@ -267,7 +267,7 @@ class Model():
         
         for i in range(self.num_time_steps):
             print('===========================')
-            print("Step #", i, "\n")
+            print("Time step #", i+1, "\n")
             self.step()
     
     def step(self): 
@@ -277,7 +277,7 @@ class Model():
         
         # Step 0
         strain_fragment_matrix = self.generate_strain_fragment_frequencies(fragments, self.bacteria_pop.strains)
-        print("Strain Fragment Frequency matrix (each column is one strain, each row is a fragment): \n", strain_fragment_matrix)
+        print("Strain Fragment Frequency matrix (each column is one strain, each row is a fragment): \n", strain_fragment_matrix, "\n")
     
         # assert column totals sum to 1 or all entries in column are 0
         for col, col_sum in enumerate(strain_fragment_matrix.sum(axis=0)):
