@@ -26,14 +26,14 @@ class SequenceRead:
 
 class GenerativeModel:
     def __init__(self, times, mu, tau_1, tau, W, strains, fragment_space, read_error_model):
-        self.times = times
-        self.mu = mu
-        self.tau_1 = tau_1
-        self.tau = tau
-        self.W = W
-        self.strains = strains
+        self.times = times  # array of time points
+        self.mu = mu  # mean for X_1
+        self.tau_1 = tau_1  # covariance scaling for X_1
+        self.tau = tau  # covariance base scaling
+        self.W = W  # the fragment-strain frequency matrix
+        self.strains = strains  # array of strains
         self.fragment_space = fragment_space  # The set/enumeration (to be decided) of all possible fragments.
-        self.error_model = read_error_model
+        self.error_model = read_error_model  # instance of (child class of) AbstractErrorModel
 
     def num_strains(self):
         """
@@ -68,4 +68,16 @@ class GenerativeModel:
         # TODO: implement this (call functions / copy-paste from scripts/model.py as necessary)
         # e.g. first generate brownian motion trajectory, then sample fragments, then sample reads.
         pass
+
+    def sample_abundances(self):
+        """
+
+        :return: abundances AND reads (time-indexed)
+        """
+
+        # TODO implement this using code from scripts/model.py
+        abundances = None
+        reads = None
+
+        return abundances, reads
 
