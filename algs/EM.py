@@ -1,5 +1,3 @@
-
-
 import numpy as np
 from model import reads
 from model import generative
@@ -100,7 +98,7 @@ def em_iterate(brownian_motion_guess, e_matrix, step_size):
     return np.asanyarray(updated_brownian_motion_guess)
 
 
-def EM(my_model, sampled_abundances, sampled_reads, step_size=0.001, num_iterations=50):
+def em_run(model, sampled_abundances, sampled_reads, step_size=0.001, num_iterations=50):
 
     errorModel = reads.BasicErrorModel()
 
@@ -110,11 +108,11 @@ def EM(my_model, sampled_abundances, sampled_reads, step_size=0.001, num_iterati
     e_matrix = []
     for time_index, (abundances_at_t, sampled_reads_at_t) in enumerate(zip(sampled_abundances, sampled_reads)):
 
-        e_t_vector = np.zeros((len(sampled_reads_at_t), len(my_model.fragment_space)))
+        e_t_vector = np.zeros((len(sampled_reads_at_t), len(model.fragment_space)))
         for read_index, read in enumerate(sampled_reads_at_t):
 
-            e_i_t = np.zeros(len(my_model.fragment_space))
-            for fragment_index, fragment in enumerate(my_model.fragment_space):
+            e_i_t = np.zeros(len(model.fragment_space))
+            for fragment_index, fragment in enumerate(model.fragment_space):
 
                 # probability of reading fragment as read_i
                 p = np.exp(errorModel.compute_log_likelihood(fragment=fragment, read=read))
@@ -135,7 +133,7 @@ def EM(my_model, sampled_abundances, sampled_reads, step_size=0.001, num_iterati
     print("Initialization; Mean squared error: ", mean_squared_error(my_model.brownian_motion, brownian_motion_guess))
     for i in range(num_iterations):
         updated_brownian_motion_guess = em_iterate(brownian_motion_guess, e_matrix, step_size)
-        brownian_motion_guess = updated_brownian_motion_guess[:]
+        brownian_motion_guess = updated_brownian_motion_guess
         print("Iteration: " + str(i) + "; Mean squared error: " + str(mean_squared_error(my_model.brownian_motion,
                                                                                          brownian_motion_guess)))
 
@@ -191,5 +189,4 @@ if __name__ == "__main__":
     print("Sampled abundances:")
     print(sampled_abundances)
     print("Completed!")
-
-    # Strain tracking algorithm
+    em_run(my_model, sampled_abundances, sampled_reads)
