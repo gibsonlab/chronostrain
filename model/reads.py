@@ -5,6 +5,8 @@
 from abc import ABC, abstractmethod
 from enum import Enum
 import numpy as np
+import model.generative as generative
+import math
 
 
 class Q_Score(Enum):
@@ -18,6 +20,7 @@ class AbstractQScoreDistribution(ABC):
     """
     Parent class for all Q-score distributions.
     """
+
     def __init__(self, length):
         self.length = length
 
@@ -45,9 +48,9 @@ class AbstractErrorModel(ABC):
     """
 
     @abstractmethod
-    def compute_likelihood(self, fragment, read):
+    def compute_log_likelihood(self, fragment, read):
         """
-        Compute the probability of observing the read, conditional on the fragment.
+        Compute the log probability of observing the read, conditional on the fragment.
         :param fragment: The source fragment (a String)
         :param read: The read (of type SequenceRead)
         :return: the value P(read | fragment).
@@ -142,15 +145,18 @@ class BasicQScoreDistribution(AbstractQScoreDistribution):
                                           distribution[Q_Score.LOW.value] / 2,
                                           distribution[Q_Score.TERRIBLE.value] / 2])
 
+        lengths = [math.floor(i) for i in lengths]
+        assert np.cumsum(lengths)[-1] <= self.length
+
         # Allocate a fixed-length array (we already know the length).
-        quality_vector = np.zeros(self.length)
+        quality_vector = np.zeros(self.length, dtype=int)
 
         # Hardcoded distribution
         cur = 0
-        quality_vector[cur:cur+lengths[0]] = Q_Score.TERRIBLE.value
+        quality_vector[cur:cur + lengths[0]] = Q_Score.TERRIBLE.value
 
         cur = cur + lengths[0]
-        quality_vector[cur:cur+lengths[1]] = Q_Score.LOW.value
+        quality_vector[cur:cur + lengths[1]] = Q_Score.LOW.value
 
         cur = cur + lengths[1]
         quality_vector[cur:cur + lengths[2]] = Q_Score.MEDIUM.value
@@ -180,7 +186,7 @@ class BasicErrorModel(AbstractErrorModel):
 
     # Example:
     # HIGH_Q_BASE_CHANGE_MATRIX[_A][_U] is the probability of observing U when the actual
-    # nucleotide is _A
+    # nucleotide is _A. (e.g. each 1D array should sum to 1).
 
     base_indices = {'A': 0, 'C': 1, 'G': 2, 'T': 3}
 
@@ -213,26 +219,49 @@ class BasicErrorModel(AbstractErrorModel):
         self.read_len = read_len
         self.q_dist = BasicQScoreDistribution(read_len)
 
-    def compute_likelihood(self, fragment, read):
-        # TODO
-        # TODO -- implement this
-        # TODO
-        pass
+    def compute_log_likelihood(self, fragment, read):
+        """
+        Computes the log likelihood of reading 'fragment' as 'read'
+
+        @param -- read
+            read is a SequenceRead object. It contains two vectors of equal length,
+            one with the nucleotide sequence (a string of 'A', 'U', C' and 'G')
+            as well as a quality vector (a numpy array of ints)
+
+        @param -- fragment
+            a string of 'A', 'U', 'C', and 'G'
+        """
+
+        log_product = 0
+        for noisy_base_pair, actual_base_pair, q_score in zip(fragment, read.get_seq(), read.get_quality()):
+            idx1 = BasicErrorModel.base_indices[noisy_base_pair]
+            idx2 = BasicErrorModel.base_indices[actual_base_pair]
+            base_prob = BasicErrorModel.Q_SCORE_BASE_CHANGE_MATRICES[q_score][idx1][idx2]
+
+            log_product += np.log(base_prob)
+
+        return log_product
 
     def sample_noisy_read(self, fragment):
         quality_score_vector = self.q_dist.sample_qvec()
 
         noisy_fragment_chars = ['' for _ in range(self.read_len)]
+        noisy_fragment_quality = np.zeros(shape=self.read_len, dtype=int)
 
-        # Generate base pair reads from the sample fragment, conditioned on actual base pair and quality score for that base pair.
+        # Generate base pair reads from the sample fragment, conditioned on actual base pair and
+        # quality score for that base pair.
         for k, (actual_base_pair, q_score) in enumerate(zip(fragment, quality_score_vector)):
             actual_base_pair_index = BasicErrorModel.base_indices[actual_base_pair]
 
-            # Generate a noisy base pair read from the distribution defined by the actual base pair and the quality score
+            # Generate a noisy base pair read from the distribution defined by the
+            # actual base pair and the quality score
             noisy_letter = np.random.choice(
                 ["A", "C", "G", "T"],
                 size=1,
                 p=BasicErrorModel.Q_SCORE_BASE_CHANGE_MATRICES[q_score][actual_base_pair_index])[0]
             noisy_fragment_chars[k] = noisy_letter
+            noisy_fragment_quality[k] = q_score
 
-        return ''.join(noisy_fragment_chars)
+        noisy_fragment_string = ''.join(noisy_fragment_chars)
+        seq_read = generative.SequenceRead(noisy_fragment_string, noisy_fragment_quality, "blank metadata")
+        return seq_read

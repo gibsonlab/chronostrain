@@ -1,7 +1,7 @@
 import os
 import sys
 import csv
-import urllib2 as urllib
+import urllib.request as urllib
 
 
 _base_dir = "data"
