@@ -5,6 +5,7 @@
 
 import math
 import numpy as np
+import em
 
 
 # ===========================================================================================
@@ -14,10 +15,14 @@ import numpy as np
 
 def em_estimate(model, reads, tol=1e-5):
     # Initialization
+    raise NotImplementedError("TODO: Choose initialization")
 
     # Update
+    em.em_run()
+    raise NotImplementedError("TODO: repeat iterations until convergence (with an option for early stopping).")
 
-    raise NotImplementedError()
+    raise NotImplementedError("TODO: return the estimated parameters.")
+
 
 
 # ================================================================================================
