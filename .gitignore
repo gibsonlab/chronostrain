@@ -1,3 +1,4 @@
 .idea/
 data/*.fasta
 __pycache__/
+.DS_Store
