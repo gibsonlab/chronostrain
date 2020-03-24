@@ -5,24 +5,59 @@
 
 import math
 import numpy as np
-import em
+from algs import em
 
+
+# Helper function for both EM and VI
+def compute_frag_errors(model, reads):
+    return [
+        [
+            [np.exp(model.error_model.compute_log_likelihood(f, r)) for f in model.fragment_space]
+            for r in reads[k]
+        ]
+        for k in range(len(model.times))
+    ]
 
 # ===========================================================================================
 # =============== Expectation-Maximization (for getting a MAP estimator) ====================
 # ===========================================================================================
 
 
-def em_estimate(model, reads, tol=1e-5):
+def em_estimate(model, reads, tol=1e-10, iters=10000):
+    """
+    :param model: A GenerativeModel instance.
+    :param reads: A time-indexed list of read sets. Each entry is itself a list of reads for time t.
+    :param tol: the convergence tolerance threshold for the objective.
+    :param iters: Number of iterations to stop after if no convergence has been achieved yet.
+    :return: Output the learned MAP estimator for the strain trajectory
+    """
+    # TODO: Use tolerance termination condition with respect to change in P(X | data)
+
+    print("Running EM algorithm")
+
     # Initialization
-    raise NotImplementedError("TODO: Choose initialization")
+    frag_errors = compute_frag_errors(model, reads)
+    means = np.zeros((len(model.times), model.num_strains()))
 
     # Update
-    em.em_run()
-    raise NotImplementedError("TODO: repeat iterations until convergence (with an option for early stopping).")
+    step_size = .0001
+    prev_ssn = float('inf')
+    ssn_change = None
+    iter_num = 0
 
-    raise NotImplementedError("TODO: return the estimated parameters.")
+    while ssn_change is None or (ssn_change >= tol and iter_num < iters):
+        iter_num += 1
 
+        if iter_num % 500 == 0:
+            print("Iteration: ", iter_num)
+
+        em.em_update(model, reads, means, frag_errors, step_size)
+
+        ssn = sum([np.linalg.norm(vec, 2)**2 for vec in means])  # Sum of squared norms.
+        ssn_change = np.abs(prev_ssn - ssn)
+        prev_ssn = ssn
+
+    return means  # TODO: return frag_freqs? Like the VI alg does.
 
 
 # ================================================================================================
@@ -42,7 +77,7 @@ def variational_learn(model, reads, tol=1e-5):
     means = [np.zeros(model.strains, 1) for t in model.times]
     covariances = [model.time_scale(k) * np.eye(model.strains) for k in range(model.num_times())]
     frag_freqs = [
-        (1 / len(model.fragment_space)) * np.ones(len(model.fragment_space), len(model.reads[t]))
+        (1 / len(model.fragment_space)) * np.ones(len(model.fragment_space), len(reads[t]))
         for t in model.times
     ]
 
@@ -55,16 +90,6 @@ def variational_learn(model, reads, tol=1e-5):
         prev_loss = loss
 
     return means, covariances, frag_freqs
-
-
-def compute_frag_errors(model, reads):
-    return [
-        [
-            [model.error_model.compute_likelihood(f, r) for f in range(model.fragment_space)]
-            for r in reads[k]
-        ]
-        for k in range(len(model.times))
-    ]
 
 
 def compute_model_ELBO(model, reads, means, covariances, frag_freqs):
@@ -83,7 +108,7 @@ def variational_update(model, reads, means, covariances, frag_freqs, frag_errors
     # ==== update fragment probabilities.
     for t_idx in range(len(model.times())):
         E_log_z = log_frequency_expectations(model, means, covariances, t_idx)
-        for r_idx in range(len(model.reads())):
+        for r_idx in range(len(reads)):
             frag_freqs[t_idx][r_idx, :] = frag_errors[t_idx][r_idx] * np.exp(E_log_z)
 
     # ==== Return ELBO loss.
@@ -129,7 +154,7 @@ def softmax_derivative(x):
     deriv = np.zeros((N, N))
     for i in range(N):
         for j in range(N):
-            deriv[i][j] = s[i] * (delta(i,j) - s[j])
+            deriv[i][j] = s[i] * (delta(i, j) - s[j])
     return deriv
     # sbar = 1 - s
     # return s * np.transpose(sbar) - (np.ones((N, N)) - np.eye(N)) * s[:, None]
@@ -144,9 +169,9 @@ def softmax_second_derivative_tensor(x):
             for j in range(N):
                 # second derivative of sigma_k (with respect to x_i, x_j)
                 deriv[s][i][j] = s[k] * (
-                        ((delta(j,k) - s[j]) * (delta(i,k) - s[i]))
+                        ((delta(j, k) - s[j]) * (delta(i, k) - s[i]))
                         -
-                        (s[i] * (delta(i,j) - s[j]))
+                        (s[i] * (delta(i, j) - s[j]))
                 )
     return deriv
 
