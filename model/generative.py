@@ -25,8 +25,8 @@ class SequenceRead:
             raise ValueError("quality must be a numpy array")
 
         for q_score in quality:
-            if type(q_score) != np.int64:
-                raise ValueError("Each value in the quality vector must be numpy ints")
+            if type(q_score) != np.int64 or type(q_score) == int:
+                raise ValueError("Each value in the quality vector must be numpy ints or ints")
 
         self.seq = seq  # string
         self.quality = quality  # np array of ints
