@@ -22,14 +22,12 @@ org1_t1.fastq
 org1_t4.fastq
 
 """
-
 arguments = sys.argv
 
 data_dir = arguments[0]
 file_prefix = arguments[1]
 num_timepoints = arguments[2]
 algorithm_name = arguments[3]
-
 
 # debugging
 # ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/phase3/data/HG00096/sequence_read/"
@@ -42,8 +40,7 @@ num_timepoints = 3
 algorithm_name = "EM"
 ###
 
-
-reads = [] # A time-indexed list of read sets. Each entry is itself a list of reads for time t.
+reads = []  # A time-indexed list of read sets. Each entry is itself a list of reads for time t.
 
 timepoint_to_reads = {}
 
@@ -56,16 +53,13 @@ files_suffix = [pattern2.search(file).group(0) for file in files]
 pattern3 = re.compile("[0-9]+")
 timepoints = [int(pattern3.search(suffix).group(0)) for suffix in files_suffix]
 
-
 # Parse the reads (include quality)
 for time in timepoints:
     reads_t = []
 
     for record in SeqIO.parse(data_dir + file_prefix + "_t" + str(time) + ".fastq", "fastq"):
 
-        read = generative.SequenceRead(str(record.seq),
-                                       np.asanyarray(record.letter_annotations["phred_quality"]),
-                                       "")
+        read = generative.SequenceRead(str(record.seq), np.asanyarray(record.letter_annotations["phred_quality"]),  "")
         reads_t.append(read)
 
     timepoint_to_reads[time] = reads_t
