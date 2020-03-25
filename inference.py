@@ -8,9 +8,13 @@ from util.logger import logger
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Perform inference on time-series reads.")
+    parser.add_argument('-r', '--read_files', nargs='+', required=True,
+                        help='<Required> One read file per time point (minimum 1)')
+    parser.add_argument('-m', '--method', choices=['em', 'vi', 'bbvi'], required=True,
+                        help='<Required> Inference method.')
 
     # =============
-    # TODO: add arguments to parser.
+    # TODO: add more arguments to parser.
     # =============
     return parser.parse_args()
 
@@ -27,7 +31,7 @@ def load_from_fastq(filenames):
     raise NotImplementedError("TODO implement!")
 
 
-def perform_inference(args):
+def perform_inference(reads, method):
     # TODO -- call EM algorithm here.
     raise NotImplementedError("TODO implement!")
 
@@ -40,7 +44,7 @@ def main():
     logger.debug("Reading time-series read files.")
     reads = load_from_fastq(args.read_files)
     logger.debug("Performing inference.")
-    abundances = perform_inference(reads)
+    abundances = perform_inference(reads, args.method)
     logger.info(str(abundances))  # Should output this to its own separate file.
     logger.info("Inference finished.")
 
