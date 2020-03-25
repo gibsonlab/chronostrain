@@ -146,7 +146,10 @@ class BasicQScoreDistribution(AbstractQScoreDistribution):
                                           distribution[Q_Score.TERRIBLE.value] / 2])
 
         lengths = [math.floor(i) for i in lengths]
-        assert np.cumsum(lengths)[-1] <= self.length
+
+        if not (np.cumsum(lengths)[-1] <= self.length):
+            raise ValueError("The sum of the segment lengths ({}) must be less than or equal "
+                             "to the total fragment length ({})".format(np.cumsum(lengths)[-1],  self.length))
 
         # Allocate a fixed-length array (we already know the length).
         quality_vector = np.zeros(self.length, dtype=int)
@@ -233,7 +236,7 @@ class BasicErrorModel(AbstractErrorModel):
         """
 
         log_product = 0
-        for noisy_base_pair, actual_base_pair, q_score in zip(fragment, read.get_seq(), read.get_quality()):
+        for noisy_base_pair, actual_base_pair, q_score in zip(fragment, read.seq, read.quality):
             idx1 = BasicErrorModel.base_indices[noisy_base_pair]
             idx2 = BasicErrorModel.base_indices[actual_base_pair]
             base_prob = BasicErrorModel.Q_SCORE_BASE_CHANGE_MATRICES[q_score][idx1][idx2]

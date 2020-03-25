@@ -2,6 +2,7 @@ import copy
 import random
 import numpy as np
 
+
 class Population:
 
     def __init__(self, num_strains=1000, num_markers=1, marker_length=1000, num_snps=3):
@@ -37,7 +38,6 @@ class Population:
                         fragment_space.add(fragment_str)
 
         return list(fragment_space)
-
 
     def generate_strain_fragment_frequencies(self, fragment_space):
         """
@@ -82,8 +82,7 @@ class Population:
 
             return total
 
-
-        W = np.zeros((len(fragment_space), len(self.strains))) # (rows, columns)
+        W = np.zeros((len(fragment_space), len(self.strains)))  # (rows, columns)
 
         for col, strain in enumerate(self.strains):
 
@@ -96,9 +95,10 @@ class Population:
                 for row in range(len(fragment_space)):
                     W[row][col] = W[row][col] / column_total
 
-        assert all([round(sum(W[:, i]), 4) == 1 for i in range(W.shape[1])]), "Expected all columns to sum to 1"
-        return W
+        if not all([round(sum(W[:, i]), 4) == 1 for i in range(W.shape[1])]):
+            raise ValueError("Expected all columns in W matrix to sum to 1")
 
+        return W
 
     def __str__(self):
         return_str = "Population\n"
@@ -139,7 +139,8 @@ class Marker:
         self.sequence = [random.choice(["A", "G", "C", "T"]) for i in range(marker_length)]
 
         # Choose evenly spaced SNP locations.
-        # syntax ref: https://stackoverflow.com/questions/50685409/select-n-evenly-spaced-out-elements-in-array-including-first-and-last
+        # syntax ref:
+        # https://stackoverflow.com/questions/50685409/select-n-evenly-spaced-out-elements-in-array-including-first-and-last
 
         self.snp_locations = np.round(np.linspace(0, marker_length - 1, num_snps)).astype(int)
         self.snp_values = [self.sequence[i] for i in self.snp_locations]
@@ -162,11 +163,12 @@ class Marker:
         return "Sequence: " + str(self.sequence) + "\nSNP Locations: " + str(
             self.snp_locations) + "\nSNP Values: " + str(self.snp_values)
 
-class RealStrains():
+
+class RealStrains:
     # TODO: Implement real strains with real markers
     def __init__(self, species):
 
-        self.markers = None;
+        self.markers = None
 
 
 

@@ -4,32 +4,34 @@
 """
 
 import numpy as np
-import random
-from model import bacteria
-from model import reads
+
 
 class SequenceRead:
     """
     A class representing a sequence-quality vector pair.
     """
+
     def __init__(self, seq, quality, metadata):
 
-        # Assertions
-        assert len(seq) == len(quality), ("Sequence and Q-vector must match in length. Got: seq-len = {}, Q-len={}".format(len(seq), len(quality)))
-        assert type(seq) == str, "seq must be of type string"
-        assert type(quality) == np.ndarray, "quality must be a numpy array"
-        for x in quality:
-            assert type(x) == np.int64, "the values in quality must be numpy ints"
+        if len(seq) != len(quality):
+            raise ValueError("Length of nucleotide sequence ({}) must agree with length "
+                             "of quality score sequence ({})".format(len(seq), len(quality))
+                             )
 
-        self.seq = seq # string
-        self.quality = quality # np array of ints.
+        if type(seq) != str:
+            raise ValueError("seq must be of type string")
+
+        if type(quality) != np.ndarray:
+            raise ValueError("quality must be a numpy array")
+
+        for q_score in quality:
+            if type(q_score) != np.int64 or type(q_score) == int:
+                raise ValueError("Each value in the quality vector must be numpy ints or ints")
+
+        self.seq = seq  # string
+        self.quality = quality  # np array of ints
         self.metadata = metadata
 
-    def get_seq(self):
-        return self.seq
-
-    def get_quality(self):
-        return self.quality
 
 class GenerativeModel:
 
@@ -45,13 +47,6 @@ class GenerativeModel:
 
         self.bacteria_pop = bacteria_pop
         self.strain_fragment_matrix = self.bacteria_pop.generate_strain_fragment_frequencies(self.fragment_space)
-
-
-        # After generating data...
-        # (i.e. after calling sample_reads, sample_abundances, or sample_abundances_and_reads)
-        self.noisy_reads = None
-        self.brownian_motion = None
-        self.abundances = None
 
     def num_strains(self):
         """
@@ -73,8 +68,8 @@ class GenerativeModel:
                 and contains num_samples[i] read objects.
         """
 
-        abundances, noisy_reads = self.sample_abundances_and_reads(num_samples)
-        return noisy_reads
+        abundances, reads = self.sample_abundances_and_reads(num_samples)
+        return reads
 
     def sample_abundances(self, num_samples):
         """
@@ -82,7 +77,9 @@ class GenerativeModel:
 
          See sample_abundances_and_reads for details.
          """
-        return self.sample_abundances_and_reads(num_samples)
+
+        abundances, reads = self.sample_abundances_and_reads(num_samples)
+        return abundances
 
     def sample_abundances_and_reads(self, num_samples):
         """
@@ -114,30 +111,26 @@ class GenerativeModel:
         strain_rel_abundances_motion = self.generate_relative_abundances(brownian_motion)
 
         if len(strain_rel_abundances_motion) != len(self.times):
-            raise ValueError("Length of strain_rel_abundances_motion ({}) must agree with number of time points ({})".format(
-                len(strain_rel_abundances_motion), len(self.times))
-            )
+            raise ValueError("Length of strain_rel_abundances_motion ({}) must agree "
+                             "with number of time points ({})".format(
+                                len(strain_rel_abundances_motion), len(self.times)))
 
-        noisy_reads = []
+        reads = []
         abundances = []
 
         # Iterate over each time step.
         # For each time step, we have a particular number of reads we want to sample
         # and the bacteria strains have a particular set of relative abundances.
         for num_sample, strain_rel_abnd in zip(num_samples, strain_rel_abundances_motion):
-
             # Step 3
             time_indexed_fragment_frequencies = self.generate_time_indexed_fragment_frequencies(strain_rel_abnd)
             abundances.append(time_indexed_fragment_frequencies)
 
             # Step 4
-            time_indexed_noisy_reads = self.generate_noisy_reads(time_indexed_fragment_frequencies, num_sample)
-            noisy_reads.append(time_indexed_noisy_reads)
+            time_indexed_reads = self.generate_reads(time_indexed_fragment_frequencies, num_sample)
+            reads.append(time_indexed_reads)
 
-        self.abundances = abundances
-        self.noisy_reads = noisy_reads
-        self.brownian_motion = brownian_motion
-        return abundances, noisy_reads
+        return abundances, reads
 
     def time_scale(self, time_idx):
         """
@@ -172,10 +165,9 @@ class GenerativeModel:
         brownian_motion = []
 
         covar_matrix = np.identity(self.mu.size)
-        mean_vec = self.mu # Initialize mean vector.
+        mean_vec = self.mu  # Initialize mean vector.
 
         for time_idx in range(len(self.times)):
-
             time_scale_value = self.time_scale(time_idx)
             mean_vec = np.random.multivariate_normal(mean_vec, covar_matrix * (time_scale_value ** 2))
             brownian_motion.append(mean_vec)
@@ -194,14 +186,15 @@ class GenerativeModel:
         rel_abundances_motion = []
 
         for sample in gaussian_process:
-
             # softmax
             total = sum(np.exp(sample))
             rel_abundances = [np.exp(x) / total for x in sample]
 
             rel_abundances_motion.append(rel_abundances)
 
-        assert all([round(sum(x), 4) == 1 for x in rel_abundances_motion])  # Assert each array sums to 1.
+        if not all([round(sum(x), 4) == 1 for x in rel_abundances_motion]):
+            ValueError("Sum of relative strain abundances at each time point should sum to 1")
+
         return rel_abundances_motion
 
     # Step 3
@@ -221,11 +214,13 @@ class GenerativeModel:
 
         fragment_to_prob_vector = np.matmul(self.strain_fragment_matrix, np.array(strain_abundances))
 
-        assert round(sum(fragment_to_prob_vector), 4) == 1
+        if round(sum(fragment_to_prob_vector), 4) != 1:
+            raise ValueError("Relative fragment probabilities (for a given time point) should sum to 1")
+
         return fragment_to_prob_vector
 
     # Step 4
-    def generate_noisy_reads(self, time_indexed_fragment_frequencies, num_reads=None):
+    def generate_reads(self, time_indexed_fragment_frequencies, num_reads=None):
         """
         Given a set of fragments and their time indexed frequencies (based on the current time
         index strain abundances and the fragments' relative frequencies in each strain's sequence.),
@@ -260,56 +255,4 @@ class GenerativeModel:
 
         return generated_noisy_fragments
 
-
 # TODO: Write reads and quality scores to file (low priority)
-if __name__ == "__main__":
-    random.seed(123)
-
-    # Generate bacteria population
-    num_strains = 4
-    num_markers = 1
-    fragment_length = 10
-
-    my_bacteria_pop = bacteria.Population(num_strains=num_strains,
-                                          num_markers=num_markers,
-                                          marker_length=fragment_length * 300,
-                                          num_snps=(fragment_length * 300) // 100)
-
-    # Construct generative model
-    times = [1, 2, 3]
-    mu = np.array([0] * my_bacteria_pop.num_strains)  # One dimension for each strain
-    tau_1 = 1
-    tau = 1
-    W = my_bacteria_pop.get_fragment_space(window_size=fragment_length)
-    strains = my_bacteria_pop.strains
-    fragment_space = my_bacteria_pop.get_fragment_space(window_size=fragment_length)
-    print("Successfully constructed fragment space!")
-
-    read_error_model = reads.BasicErrorModel(read_len=fragment_length)
-    bacteria_pop = my_bacteria_pop
-
-    my_model = GenerativeModel(times=times,
-                               mu=mu,
-                               tau_1=tau_1,
-                               tau=tau,
-                               W=W,
-                               strains=strains,
-                               fragment_space=fragment_space,
-                               read_error_model=read_error_model,
-                               bacteria_pop=bacteria_pop)
-    print("Constructed model!")
-
-    num_samples = [1, 1, 1]
-    print("Sampling reads...")
-    sampled_reads = my_model.sample_reads(num_samples=num_samples)
-    print("Sampled reads:")
-    print(sampled_reads)
-
-    print("==================")
-    print("Sampling reads and abundances...")
-    sampled_abundances, sampled_reads = my_model.sample_abundances(num_samples=num_samples)
-
-    print("Sampled abundances:")
-    print(sampled_abundances)
-    print("Completed!")
-
