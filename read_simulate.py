@@ -74,29 +74,26 @@ def save_timeslice_to_fastq(reads, out_path):
     SeqIO.write(records, out_path, "fastq")
 
 
-def sample_reads(accession_number, number_reads, read_length, time_points, seed):
+def sample_reads(genomes, abundances, number_reads, read_length, time_points, seed):
 
     random.seed(seed)
-
-    # TODO: Use SeqIO to open fasta file? Wasn't working correctly so had to do manually here.
-    genome = ""
-    filename = _data_dir + "/" + accession_number + ".fasta"
-    with open(filename) as file:
-        for i, line in enumerate(file):
-            genome = re.sub('[^AGCT]+', '', line.split(sep=" ")[-1])
-
+    # TODO: use genomes input
+    # TODO: use abundances input
     reads_list = []
 
     for t in range(len(time_points)):
         reads_at_t = []
         for n in range(len(number_reads)):
 
+            # Sample a random length (read_length) substring
             start_index = random.randint(0, len(genome) - read_length)
             sequence = genome[start_index:start_index + read_length]
 
-            phred_score_dist = reads.PhredScoreDistribution(read_length)
+            # Sample a random phred score vector
+            phred_score_dist = reads.BasicPhredScoreDistribution(read_length)
             quality = phred_score_dist.create_qvec(phred_score_dist.distribution)
 
+            # Instantiate SequenceRead class
             read = generative.SequenceRead(sequence, quality, metadata="")
             reads_at_t.append(read)
 
@@ -105,16 +102,43 @@ def sample_reads(accession_number, number_reads, read_length, time_points, seed)
     return reads_list
 
 
+def get_abundances(file):
+    """
+    Read time-indexed abundnaces from file.
+    :param file:
+    :return: a list of abundance profiles. Each abundance profile is a list (??)
+    """
+    # TODO
+
+
+def get_accessions(accession_nums, strain_info):
+    """
+    For each accession num, retrieve genome info from strain_info.
+    """
+    # TODO
+    # # TODO: Use SeqIO to open fasta file? Wasn't working correctly so had to do manually here.
+    # genome = ""
+    # filename = _data_dir + "/" + accession_number + ".fasta"
+    # with open(filename) as file:
+    #     for i, line in enumerate(file):
+    #         genome = re.sub('[^AGCT]+', '', line.split(sep=" ")[-1])
+
+
+
 def main():
     logger.info("Pipeline for read simulation started.")
     args = parse_args()
     logger.debug("Downloading genomes from NCBI...")
-    fetch_sequences()
+    strain_info = fetch_sequences()
     logger.debug("Sampling reads...")
 
+    genomes = get_accessions(strain_info, args.accession_nums)
+    abundances = get_abundances(file=args.abundance_file)
+
     sampled_reads = sample_reads(
-        accession_number=args.accession_num,
+        genomes=genomes,
         number_reads=args.num_reads,
+        abundances=abundances,
         read_length=args.read_length,
         time_points=args.time_points,
         seed=args.seed

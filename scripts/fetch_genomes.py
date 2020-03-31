@@ -37,6 +37,10 @@ def fetch_filename(accession):
 
 
 def fetch_sequences():
+    """
+    Read CSV file, and download FASTA from accessions if doesn't exist.
+    :return: a list of strain-accession-filename wrappers.
+    """
     strains_list = []
 
     csv_filename = os.path.join(_base_dir, _refs_file_csv)
@@ -55,7 +59,9 @@ def fetch_sequences():
                 "file": fetch_filename(accession)
             })
             line_count += 1
+
     print("Found {} records.".format(len(strains_list)))
+    return strains_list
 
 
 if __name__ == "__main__":
