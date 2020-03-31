@@ -1,6 +1,7 @@
 """
   inference.py
   Run to perform inference on specified reads.
+  TODO: This script is still in development.
 """
 import argparse
 from util.logger import logger

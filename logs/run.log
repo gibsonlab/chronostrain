@@ -111,3 +111,4 @@
 2020-03-31 13:01:55,853 [root, DEBUG] [read_simulate (113)] - Sampling reads...
 2020-03-31 13:01:55,981 [root, DEBUG] [read_simulate (122)] - Saving samples to FastQ file ./simulated_datasampled_read.
 2020-03-31 13:01:55,987 [root, INFO] [read_simulate (124)] - Reads finished sampling.
+2020-03-31 13:33:18,558 [root, INFO] [inference (109)] - Pipeline for inference started.
