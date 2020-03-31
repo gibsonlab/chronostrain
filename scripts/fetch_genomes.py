@@ -1,7 +1,7 @@
 import os
 import sys
 import csv
-import urllib2 as urllib
+import urllib.request as urllib
 
 
 _base_dir = "data"
@@ -38,9 +38,10 @@ def fetch_filename(accession):
 
 def fetch_sequences():
     strains_list = []
+
     csv_filename = os.path.join(_base_dir, _refs_file_csv)
     line_count = 0
-    with open(csv_filename) as f:
+    with open(csv_filename, "r") as f:
         csv_reader = csv.reader(f, delimiter=',')
         for row in csv_reader:
             if line_count == 0:
