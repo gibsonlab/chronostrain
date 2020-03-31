@@ -6,46 +6,6 @@
 import math
 import numpy as np
 from algs import em
-from abc import ABCMeta, abstractmethod
-from util.logger import logger
-
-
-class AbstractModelSolver(metaclass=ABCMeta):
-    def __init__(self, generative_model, data):
-        self.generative_model = generative_model
-        self.data = data
-        self.preprocess()
-
-    def solve(self, iters=100, thresh=1e-5):
-        obj_last = self.objective()
-        for i in range(iters):
-            self.solve_iter()
-            obj_next = self.objective()
-            if abs(obj_next - obj_last) < thresh:
-                logger.debug("Threshold {t} passed; terminating optimization early.".format(t=thresh))
-                break
-        logger.debug("{} iterations finished.".format(iters))
-
-    @abstractmethod
-    def solve_iter(self):
-        """
-        A single optimization step. Should make progress in maximizing the objective function at the end of each call.
-        """
-        pass
-
-    @abstractmethod
-    def objective(self):
-        """
-        Compute the objective function of the optimizer, given some data.
-        :return: A float representing the objective value to be optimized.
-        """
-        return 0.
-
-    def preprocess(self):
-        """
-        Do any necessary pre-processing.
-        """
-        pass
 
 
 # Helper function for both EM and VI
@@ -85,8 +45,6 @@ def em_estimate(model, reads, tol=1e-10, iters=10000):
     ssn_change = None
     iter_num = 0
 
-    prev_guess = means
-
     while ssn_change is None or (ssn_change >= tol and iter_num < iters):
         iter_num += 1
 
@@ -94,9 +52,9 @@ def em_estimate(model, reads, tol=1e-10, iters=10000):
             print("Iteration: ", iter_num)
 
         em.em_update(model, reads, means, frag_errors, step_size)
-        difference = (means - prev_guess)  # TODO implement this properly, arrays don't know how to subtract
 
-        ssn = sum([np.linalg.norm(vec, 2)**2 for vec in difference])  # Sum of squared norms.
+
+        ssn = sum([np.linalg.norm(vec, 2)**2 for vec in means])  # Sum of squared norms.
         ssn_change = np.abs(prev_ssn - ssn)
         prev_ssn = ssn
 
