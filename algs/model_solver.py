@@ -53,6 +53,7 @@ def em_estimate(model, reads, tol=1e-10, iters=10000):
 
         em.em_update(model, reads, means, frag_errors, step_size)
 
+
         ssn = sum([np.linalg.norm(vec, 2)**2 for vec in means])  # Sum of squared norms.
         ssn_change = np.abs(prev_ssn - ssn)
         prev_ssn = ssn

@@ -8,12 +8,12 @@ random.seed(123)
 # Generate bacteria population
 num_strains = 4
 num_markers = 1
-fragment_length = 10
+fragment_length = 100
 
 my_bacteria_pop = bacteria.Population(num_strains=num_strains,
                                       num_markers=num_markers,
-                                      marker_length=fragment_length * 300,
-                                      num_snps=(fragment_length * 300) // 100)
+                                      marker_length=fragment_length * 5,
+                                      num_snps=(fragment_length * 5) // 100)
 
 # Construct generative model
 times = [1, 2, 3]
@@ -25,7 +25,9 @@ strains = my_bacteria_pop.strains
 fragment_space = my_bacteria_pop.get_fragment_space(window_size=fragment_length)
 print("Successfully constructed fragment space!")
 
-read_error_model = reads.BasicErrorModel(read_len=fragment_length)
+# read_error_model = reads.BasicErrorModel(read_len=fragment_length)
+read_error_model = reads.FastQErrorModel(read_len=fragment_length)
+
 bacteria_pop = my_bacteria_pop
 
 my_model = generative.GenerativeModel(times=times,
@@ -48,4 +50,4 @@ print("Sampled abundances:")
 print(sampled_abundances)
 print("Completed!")
 
-print(model_solver.em_estimate(my_model, sampled_reads))
+print(model_solver.em_estimate(my_model, sampled_reads, iters=1000))
