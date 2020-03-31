@@ -270,7 +270,7 @@ class BasicErrorModel(AbstractErrorModel):
         return seq_read
 
 
-class PhredScoreDistribution(AbstractQScoreDistribution):
+class BasicPhredScoreDistribution(AbstractQScoreDistribution):
     def __init__(self, length, distribution=np.array([1, 2, 3, 4, 2])):
         """
         :param length: the length of q-vectors to be generated.

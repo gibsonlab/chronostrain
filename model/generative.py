@@ -35,14 +35,13 @@ class SequenceRead:
 
 class GenerativeModel:
 
-    def __init__(self, times, mu, tau_1, tau, W, fragment_space, read_error_model, bacteria_pop=None):
+    def __init__(self, times, mu, tau_1, tau, W, read_error_model, bacteria_pop=None):
 
         self.times = times  # array of time points
         self.mu = mu  # mean for X_1
         self.tau_1 = tau_1  # covariance scaling for X_1
         self.tau = tau  # covariance base scaling
         self.W = W  # the fragment-strain frequency matrix
-        self.fragment_space = fragment_space  # The set/enumeration (to be decided) of all possible fragments.
         self.error_model = read_error_model  # instance of (child class of) AbstractErrorModel
 
         self.bacteria_pop = bacteria_pop
