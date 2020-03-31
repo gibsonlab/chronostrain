@@ -10,6 +10,8 @@ from algs import model_solver
 from Bio import SeqIO
 import numpy as np
 
+from model.generative import Marker, Strain, Population
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Perform inference on time-series reads.")
@@ -58,7 +60,7 @@ def load_from_fastq(filenames):
     return reads
 
 
-def perform_inference(reads, times, method):
+def perform_inference(reads, population, times, method, window_size=50):
 
     if len(reads) != len(times):
         raise ValueError("There must be exactly one set of reads for each time point specified")
@@ -66,34 +68,53 @@ def perform_inference(reads, times, method):
     if len(times) != len(set(times)):
         raise ValueError("Specified sample times must be unique")
 
-    # Generate bacteria population
-    num_strains = 4
-    num_markers = 1
-    fragment_length = 10
-    bacteria_pop = bacteria.Population(num_strains=num_strains,
-                                          num_markers=num_markers,
-                                          marker_length=fragment_length * 300,
-                                          num_snps=(fragment_length * 300) // 100)
+    # Instantiate basic model instance
+    mu = 0# TODO
+    tau_1 = 1# TODO
+    tau = 1 # TODO
 
-    # Generate error model
-    fragment_length = len(reads[0][0].seq)
-    read_error_model = reads.BasicErrorModel(read_len=fragment_length)
+    # 1) retrieve list of strains
+    # 2) for each strain, retrieve list of markers
 
-    # Construct generative model
-    mu = np.array([0] * bacteria_pop.num_strains)  # One dimension for each strain
-    tau_1 = 1
-    tau = 1
-    W = bacteria_pop.get_fragment_space(window_size=fragment_length)
-    fragment_space = bacteria_pop.get_fragment_space(window_size=fragment_length)
+    model = generative.GenerativeModel(
+        times=times,
+        mu=mu,
+        tau_1=tau_1,
+        tau=tau,
+        W=W,
+        fragment_space=population.get_fragment_space(window_size=window_size),
+        read_error_model=read_error_model,
+        bacteria_pop=bacteria_pop
+    )
 
-    model = generative.GenerativeModel(times=times,
-                                          mu=mu,
-                                          tau_1=tau_1,
-                                          tau=tau,
-                                          W=W,
-                                          fragment_space=fragment_space,
-                                          read_error_model=read_error_model,
-                                          bacteria_pop=bacteria_pop)
+    # # Generate bacteria population
+    # num_strains = 4
+    # num_markers = 1
+    # fragment_length = 10
+    # bacteria_pop = bacteria.Population(num_strains=num_strains,
+    #                                       num_markers=num_markers,
+    #                                       marker_length=fragment_length * 300,
+    #                                       num_snps=(fragment_length * 300) // 100)
+    #
+    # # Generate error model
+    # fragment_length = len(reads[0][0].seq)
+    # read_error_model = reads.BasicErrorModel(read_len=fragment_length)
+    #
+    # # Construct generative model
+    # mu = np.array([0] * bacteria_pop.num_strains)  # One dimension for each strain
+    # tau_1 = 1
+    # tau = 1
+    # W = bacteria_pop.get_fragment_space(window_size=fragment_length)
+    # fragment_space = bacteria_pop.get_fragment_space(window_size=fragment_length)
+    #
+    # model = generative.GenerativeModel(times=times,
+    #                                       mu=mu,
+    #                                       tau_1=tau_1,
+    #                                       tau=tau,
+    #                                       W=W,
+    #                                       fragment_space=fragment_space,
+    #                                       read_error_model=read_error_model,
+    #                                       bacteria_pop=bacteria_pop)
 
     if method == "EM":
         means = model_solver.em_estimate(model, reads, tol=1e-10, iters=10000)
@@ -105,8 +126,23 @@ def perform_inference(reads, times, method):
         raise("{} is not an implemented method!".format(method))
 
 
-def main():
+def retrieve_markers(strain, src):
+    pass
 
+
+def parse_population(strain_ids):
+    strains = [None for _ in strain_ids]
+    # for each strain_id, create a Strain instance (but retrieve markers from somewhere
+    i = 0
+    for strain in strain_ids:
+        markers = retrieve_markers(strain, src=None)
+        strain_instance = Strain(markers)
+        strains[i] = strain_instance
+        i += 1
+    return Population(strains)
+
+
+def main():
     logger.info("Pipeline for inference started.")
     args = parse_args()
     logger.debug("Downloading marker database.")
@@ -114,7 +150,8 @@ def main():
     logger.debug("Reading time-series read files.")
     reads = load_from_fastq(args.read_files)
     logger.debug("Performing inference.")
-    abundances = perform_inference(reads, args.times, args.method)
+    population = parse_population(args.strain_ids)
+    abundances = perform_inference(reads, population, args.times, args.method)
     logger.info(str(abundances))
     logger.info("Inference finished.")
 
