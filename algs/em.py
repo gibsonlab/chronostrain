@@ -61,7 +61,7 @@ def em_update(model, reads, means, frag_errors, step_size):
         # Compute the 'main' term
         ##############################
 
-        W = model.strain_fragment_matrix
+        W = model.fragment_frequencies
 
         main_term = np.matmul(np.matmul(np.transpose(sigma_prime), np.transpose(W)), q_guess)
 

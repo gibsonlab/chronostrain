@@ -35,37 +35,28 @@ class SequenceRead:
 
 class GenerativeModel:
 
-    def __init__(self, times, mu, tau_1, tau, W, read_error_model, bacteria_pop=None):
+    def __init__(self, times, mu, tau_1, tau, bacteria_pop, read_length, read_error_model):
 
         self.times = times  # array of time points
         self.mu = mu  # mean for X_1
         self.tau_1 = tau_1  # covariance scaling for X_1
         self.tau = tau  # covariance base scaling
-        self.W = W  # the fragment-strain frequency matrix
         self.error_model = read_error_model  # instance of (child class of) AbstractErrorModel
 
-        self.bacteria_pop = bacteria_pop
-        self.strain_fragment_matrix = self.bacteria_pop.generate_strain_fragment_frequencies(self.fragment_space)
+        self.bacteria_pop = bacteria_pop  # instance of bacteria.Population
 
-    def num_strains(self):
-        """
-        :return: The total number of strains in the model.
-        """
+        # List of all fragments (corresponds to 'F' in the white paper)
+        self.fragment_space = self.bacteria_pop.get_fragment_space(window_size=read_length)
 
-        return len(self.bacteria_pop.strains)
+        # Relative abundances of each fragment (corresponds to 'W' matrix in the white paper)
+        self.fragment_frequencies = self.bacteria_pop.generate_strain_fragment_frequencies(window_size=read_length)
 
     def sample_reads(self, num_samples):
         """
-        A wrapper function for sample_abundances_and_reads
-        Generate a time-indexed list of read collections.
+         A wrapper function for sample_abundances_and_reads
 
-         :param num_samples: A list of the number of samples to take each time point.
-            (e.g. num_samples[i] is the number of samples we take at time point self.times[i])
-
-         :return: a time-indexed list of lists of SequenceRead objects, where the i-th
-                inner list corresponds to reads taken at time index i (self.times[i])
-                and contains num_samples[i] read objects.
-        """
+         See sample_abundances_and_reads for details.
+         """
 
         abundances, reads = self.sample_abundances_and_reads(num_samples)
         return reads
@@ -199,9 +190,6 @@ class GenerativeModel:
     # Step 3
     def generate_time_indexed_fragment_frequencies(self, strain_abundances):
         """
-        @param - strain_fragment_matrix -
-            A 2D numpy array where column i is the relative frequencies of observing each
-            of the fragments in strain i.
 
         @param - strain_abundances
             A list representing the relative abundances of the strains
@@ -211,7 +199,7 @@ class GenerativeModel:
              and the fragments' relative frequencies in each strain's sequence.
         """
 
-        fragment_to_prob_vector = np.matmul(self.strain_fragment_matrix, np.array(strain_abundances))
+        fragment_to_prob_vector = np.matmul(self.fragment_frequencies, np.array(strain_abundances))
 
         if round(sum(fragment_to_prob_vector), 4) != 1:
             raise ValueError("Relative fragment probabilities (for a given time point) should sum to 1")
@@ -253,5 +241,3 @@ class GenerativeModel:
             generated_noisy_fragments.append(self.error_model.sample_noisy_read(frag))
 
         return generated_noisy_fragments
-
-# TODO: Write reads and quality scores to file (low priority)
