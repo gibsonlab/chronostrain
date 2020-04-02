@@ -77,7 +77,7 @@ def em_estimate(model, reads, tol=1e-10, iters=10000):
 
     # Initialization
     frag_errors = compute_frag_errors(model, reads)
-    means = np.zeros((len(model.times), model.num_strains()))
+    means = np.zeros((len(model.times), len(model.bacteria_pop.strains)))
 
     # Update
     step_size = .0001
