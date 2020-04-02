@@ -1,7 +1,6 @@
 import numpy as np
-from logger import logger
-from model_solver import AbstractModelSolver, compute_frag_errors
-
+from util.logger import logger
+from algs.model_solver import AbstractModelSolver, compute_frag_errors
 
 # ===========================================================================================
 # =============== Expectation-Maximization (for getting a MAP estimator) ====================
@@ -26,7 +25,7 @@ class EMSolver(AbstractModelSolver):
         """
         if initialization is None:
             # T x S matrix of time-indexed abundances.
-            abundances = np.zeros((len(self.model.times), self.model.num_strains()), dtype=float)
+            abundances = np.zeros((len(self.model.times), len(self.model.bacteria_pop.strains)), dtype=float)
         else:
             abundances = initialization
 
@@ -107,7 +106,7 @@ class EMSolver(AbstractModelSolver):
             # Compute the 'main' term
             ##############################
 
-            W = self.model.strain_fragment_matrix
+            W = self.model.fragment_frequencies
 
             main_term = np.matmul(np.matmul(np.transpose(sigma_prime), np.transpose(W)), q_guess)
 
@@ -119,4 +118,4 @@ class EMSolver(AbstractModelSolver):
                 abundances[time_index] + self.lr * (main_term + regularization_term)
             )
 
-        return updated_abundances
+        return np.array(updated_abundances)

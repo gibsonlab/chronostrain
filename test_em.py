@@ -1,6 +1,6 @@
 import random
 import numpy as np
-from algs import model_solver
+from algs import em
 from model import bacteria, reads, generative
 
 random.seed(123)
@@ -56,4 +56,7 @@ print(sampled_reads)
 print("Sampled abundances:")
 print(sampled_abundances)
 
-print(model_solver.em_estimate(my_model, sampled_reads, iters=1000))
+
+my_em_solver = em.EMSolver(my_model, sampled_reads)
+print(my_em_solver.solve())
+
