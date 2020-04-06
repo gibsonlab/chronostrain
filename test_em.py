@@ -29,7 +29,7 @@ my_bacteria_pop = bacteria.Population(strains)
 
 # Construct generative model
 times = [1, 2, 3]
-mu = np.array([0] * len(my_bacteria_pop.strains))  # One dimension for each strain
+mu = np.array([1] * len(my_bacteria_pop.strains))  # One dimension for each strain
 tau_1 = 1
 tau = 1
 read_length = 100
@@ -50,12 +50,6 @@ num_samples = [1, 5, 4]
 print("==================")
 print("Sampling reads and abundances...")
 sampled_abundances, sampled_reads = my_model.sample_abundances_and_reads(num_samples=num_samples)
-
-print(sampled_reads)
-
-print("Sampled abundances:")
-print(sampled_abundances)
-
 
 my_em_solver = em.EMSolver(my_model, sampled_reads)
 print(my_em_solver.solve())

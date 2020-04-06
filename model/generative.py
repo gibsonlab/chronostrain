@@ -51,35 +51,37 @@ class GenerativeModel:
         # Relative abundances of each fragment (corresponds to 'W' matrix in the white paper)
         self.fragment_frequencies = self.bacteria_pop.generate_strain_fragment_frequencies(window_size=read_length)
 
-    def sample_reads(self, num_samples):
+    def sample_reads(self, num_samples, strain_abundances=None):
         """
          A wrapper function for sample_abundances_and_reads
 
          See sample_abundances_and_reads for details.
          """
 
-        abundances, reads = self.sample_abundances_and_reads(num_samples)
+        strain_rel_abundances_motion, reads = self.sample_abundances_and_reads(num_samples, strain_abundances)
         return reads
 
-    def sample_abundances(self, num_samples):
+    def sample_abundances(self, num_samples, strain_abundances=None):
         """
          A wrapper function for sample_abundances_and_reads
 
          See sample_abundances_and_reads for details.
          """
 
-        abundances, reads = self.sample_abundances_and_reads(num_samples)
-        return abundances
+        strain_rel_abundances_motion, reads = self.sample_abundances_and_reads(num_samples, strain_abundances)
+        return strain_rel_abundances_motion
 
-    def sample_abundances_and_reads(self, num_samples):
+    def sample_abundances_and_reads(self, num_samples, strain_abundances=None):
         """
         Generate a time-indexed list of read collections and strain abundances.
 
          :param num_samples: A list of the number of samples to take each time point.
             (e.g. num_samples[i] is the number of samples we take at time point self.times[i])
 
+         :param strain_rel_abundances_motion:
+
          :return: a tuple of (abundances, reads) where
-             abundances is
+             strain_abundances is
                  a time-indexed list of 1D numpy arrays of fragment abundances based on the
                  corresponding time index strain abundances and the fragments' relative
                  frequencies in each strain's sequence.
@@ -94,11 +96,16 @@ class GenerativeModel:
                 len(num_samples), len(self.times))
             )
 
-        # Step 1
-        brownian_motion = self.generate_brownian_motion()
+        if not strain_abundances:
+            # Step 1
+            brownian_motion = self.generate_brownian_motion()
 
-        # Step 2
-        strain_rel_abundances_motion = self.generate_relative_abundances(brownian_motion)
+            # Step 2
+            strain_rel_abundances_motion = self.generate_relative_abundances(brownian_motion)
+
+        else:
+            # Step 2
+            strain_rel_abundances_motion = self.generate_relative_abundances(strain_abundances)
 
         if len(strain_rel_abundances_motion) != len(self.times):
             raise ValueError("Length of strain_rel_abundances_motion ({}) must agree "
@@ -106,7 +113,7 @@ class GenerativeModel:
                                 len(strain_rel_abundances_motion), len(self.times)))
 
         reads = []
-        abundances = []
+        fragment_abundances = []
 
         # Iterate over each time step.
         # For each time step, we have a particular number of reads we want to sample
@@ -114,13 +121,13 @@ class GenerativeModel:
         for num_sample, strain_rel_abnd in zip(num_samples, strain_rel_abundances_motion):
             # Step 3
             time_indexed_fragment_frequencies = self.generate_time_indexed_fragment_frequencies(strain_rel_abnd)
-            abundances.append(time_indexed_fragment_frequencies)
+            fragment_abundances.append(time_indexed_fragment_frequencies)
 
             # Step 4
             time_indexed_reads = self.generate_reads(time_indexed_fragment_frequencies, num_sample)
             reads.append(time_indexed_reads)
 
-        return abundances, reads
+        return strain_rel_abundances_motion, reads
 
     def time_scale(self, time_idx):
         """
@@ -165,7 +172,8 @@ class GenerativeModel:
         return np.asanyarray(brownian_motion)
 
     # Step 2
-    def generate_relative_abundances(self, gaussian_process):
+    @staticmethod
+    def generate_relative_abundances(gaussian_process):
         """
         @param - gaussain_process - an list of n-dimensional arrays of floats
 

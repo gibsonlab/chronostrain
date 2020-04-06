@@ -2,66 +2,80 @@
   read_simulate.py
   Run to simulate reads from genomes specified by accession numbers.
 """
+
 import os
 import argparse
 from scripts.fetch_genomes import fetch_sequences
 from util.logger import logger
+import numpy as np
+import re
+from pathlib import Path
+import csv
 
 from Bio.SeqRecord import SeqRecord
 from Bio.Seq import Seq
 
 import random
-import re
-from model import generative, reads
+from model import generative, reads, bacteria
 
 from Bio import SeqIO
-
 
 _data_dir = "data"
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Simulate reads from genomes.")
-    parser.add_argument('-s', '--seed', required=False, type=int, default=31415,
-                        help='<Optional> Seed for randomness (for reproducibility).')
+
     parser.add_argument('-o', '--out_dir', required=True, type=str,
                         help='<Required> Directory to save the reads.')
 
-    parser.add_argument('-a', '--accession_num', required=True, type = str,
-                        help='<Required> Accession number of the species to sample from.')
+    parser.add_argument('-a', '--accession_file', required=True, type=str,
+                        help='<Required> File listing the species to sample from. Should be in csv format as follows:'
+                             '"Name","Accession" \
+                              "Clostridium sporogenes ATCC 15579","NZ_DS981518.1" \
+                              "Enterococcus faecalis V583","NC_004668.1" \
+                              "Bacteroides fragilis NCTC9343","CR626927.1"')
 
     parser.add_argument('-t', '--time_points', required=True, type=int, nargs="+",
                         help='<Required> A list of intergers, where each integer represents a time point'
                              'for which to take a sample from. Time points are saved as part of file name.')
 
-    parser.add_argument('-n', '--num_reads', required=True, type = int, nargs='+',
+    parser.add_argument('-n', '--num_reads', required=True, type=int, nargs='+',
                         help='<Required> Numbers of the reads to sample at each time point. '
-                             'Must either be a single integer or a list of integers with length equal to the number of time points.')
+                             'Must either be a single integer or a list of integers with length equal to the '
+                             'number of time points.')
 
-    parser.add_argument('-l', '--read_length', required=True, type = int,
+    parser.add_argument('-l', '--read_length', required=True, type=int,
                         help='<Required> Length of the reads to sample.')
 
-
+    # Optional params
+    parser.add_argument('-s', '--seed', required=False, type=int, default=31415,
+                        help='<Optional> Seed for randomness (for reproducibility).')
+    parser.add_argument('-b', '--abundance_file', required=False, type=str,
+                        help='<Required> A csv containing the relatively abundances for each strain by time point.')
     parser.add_argument('-p', '--out_prefix', required=False, default='sampled_read',
                         help='<Optional> File prefix for the read files.')
     parser.add_argument('-e', '--extension', required=False, default='txt',
                         help='<Optional> File extension.')
 
-    return parser.parse_args()
+    return  parser.parse_args()
 
 
 def save_to_fastq(sampled_reads, time_points, out_dir, out_prefix):
+
+    Path(out_dir).mkdir(parents=True, exist_ok=True)
 
     if len(sampled_reads) != len(time_points):
         raise ValueError("Number of time indexed lists of reads should equal number of time points to read at")
 
     for i, t in enumerate(time_points):
-        filename = '{}_{}.fastq'.format(out_prefix, t)
+        filename = '{}_t{}.fastq'.format(out_prefix, t)
         out_path = os.path.join(out_dir, filename)
         save_timeslice_to_fastq(sampled_reads[i], out_path)
 
-def save_timeslice_to_fastq(reads, out_path):
-    # Save reads taken at a particular timepoint to fastq.
 
+def save_timeslice_to_fastq(reads, out_path):
+
+    # Save reads taken at a particular timepoint to fastq.
     records = []
     for i, read in enumerate(reads):
 
@@ -74,78 +88,121 @@ def save_timeslice_to_fastq(reads, out_path):
     SeqIO.write(records, out_path, "fastq")
 
 
-def sample_reads(genomes, abundances, number_reads, read_length, time_points, seed):
+def sample_reads(genomes_map, abundances, number_reads, read_length, time_points, seed):
 
-    random.seed(seed)
-    # TODO: use genomes input
-    # TODO: use abundances input
-    reads_list = []
+    if seed:
+        random.seed(seed)
 
-    for t in range(len(time_points)):
-        reads_at_t = []
-        for n in range(len(number_reads)):
+    ##############################
+    # Generate bacteria population
+    # To reflect real-world data collection, we use let the entire genome be a marker
+    # so that every l-length fragment in the genome has a chance of being sampled, regardless of whether its
+    # in an actual marker region for a strain.
 
-            # Sample a random length (read_length) substring
-            start_index = random.randint(0, len(genome) - read_length)
-            sequence = genome[start_index:start_index + read_length]
+    strains = []
+    for strain_name, genome in genomes_map.items():
 
-            # Sample a random phred score vector
-            phred_score_dist = reads.BasicPhredScoreDistribution(read_length)
-            quality = phred_score_dist.create_qvec(phred_score_dist.distribution)
+        nucleotides = genome[:500] # TODO: For testing purposes, we are only using first 500 nucleotides
+        marker = bacteria.Marker(nucleotides)
+        new_strain = bacteria.Strain(markers=[marker], name=strain_name)
+        strains.append(new_strain)
 
-            # Instantiate SequenceRead class
-            read = generative.SequenceRead(sequence, quality, metadata="")
-            reads_at_t.append(read)
+    my_bacteria_pop = bacteria.Population(strains)
+    ##############################
+    # Construct generative model
 
-        reads_list.append(reads_at_t)
+    mu = np.array([0] * len(my_bacteria_pop.strains))  # One dimension for each strain
+    tau_1 = 1
+    tau = 1
 
-    return reads_list
+    my_error_model = reads.FastQErrorModel(read_len=read_length)
+
+    my_model = generative.GenerativeModel(times=time_points,
+                                          mu=mu,
+                                          tau_1=tau_1,
+                                          tau=tau,
+                                          bacteria_pop=my_bacteria_pop,
+                                          read_length=read_length,
+                                          read_error_model=my_error_model)
+    ##############################
+    if abundances:
+        for abundance_profile in abundances:
+            if len(abundance_profile) != len(my_bacteria_pop.strains):
+                raise ValueError("Length of abundance profiles ({}) must match number of strains. ({})".
+                                 format(len(abundance_profile), len(my_bacteria_pop.strains)))
+        if len(abundances) != len(time_points):
+            raise ValueError("Number of abundance profiles ({}) must match number of time points ({}).".
+                             format(len(abundances), len(time_points)))
+
+        abundances, time_indexed_reads = my_model.sample_abundances_and_reads(number_reads, abundances)
+    else:
+        abundances, time_indexed_reads = my_model.sample_abundances_and_reads(number_reads)
+
+    return time_indexed_reads
 
 
 def get_abundances(file):
     """
-    Read time-indexed abundnaces from file.
+    Read time-indexed abundances from file.
     :param file:
-    :return: a list of abundance profiles. Each abundance profile is a list (??)
+    :return: a time indexed list of abundance profiles. Each element is a list itself containing the relative abundances
+    of strains at a particular time point.
     """
-    # TODO
+
+    file_path = os.path.join(_data_dir, file)
+    with open(file_path, newline='') as f:
+        reader = csv.reader(f)
+        strain_abundances = [np.array(row, dtype='float') for i, row in enumerate(reader) if i != 0]
+
+    return strain_abundances
 
 
-def get_accessions(accession_nums, strain_info):
+def get_genomes(accession_nums, strain_info):
     """
     For each accession num, retrieve genome info from strain_info.
     """
-    # TODO
-    # # TODO: Use SeqIO to open fasta file? Wasn't working correctly so had to do manually here.
-    # genome = ""
-    # filename = _data_dir + "/" + accession_number + ".fasta"
-    # with open(filename) as file:
-    #     for i, line in enumerate(file):
-    #         genome = re.sub('[^AGCT]+', '', line.split(sep=" ")[-1])
 
+    genomes_map = {}
+
+    for accession_num in accession_nums:
+        if accession_num in strain_info.keys():
+            filename = os.path.join(_data_dir, accession_num + ".fasta")
+            with open(filename) as file:
+                for i, line in enumerate(file):
+                    genome = re.sub('[^AGCT]+', '', line.split(sep=" ")[-1])
+            genomes_map[accession_num] = genome
+    return genomes_map
 
 
 def main():
+
     logger.info("Pipeline for read simulation started.")
     args = parse_args()
+
     logger.debug("Downloading genomes from NCBI...")
-    strain_info = fetch_sequences()
+    strain_info = fetch_sequences(args.accession_file)
+
+    genomes_map = get_genomes(strain_info.keys(), strain_info)
+
+    abundances = None
+    if args.abundance_file:
+        logger.debug("Parsing abundance file...")
+        abundances = get_abundances(file=args.abundance_file)
+
     logger.debug("Sampling reads...")
-
-    genomes = get_accessions(strain_info, args.accession_nums)
-    abundances = get_abundances(file=args.abundance_file)
-
     sampled_reads = sample_reads(
-        genomes=genomes,
+        genomes_map=genomes_map,
         number_reads=args.num_reads,
         abundances=abundances,
         read_length=args.read_length,
         time_points=args.time_points,
         seed=args.seed
     )
-    logger.debug("Saving samples to FastQ file {}.".format(args.out_dir + args.out_prefix))
+
+    logger.debug("Saving samples to FastQ file {}.".format(args.out_dir + "/" + args.out_prefix))
     save_to_fastq(sampled_reads, args.time_points, args.out_dir, args.out_prefix)
     logger.info("Reads finished sampling.")
+
 
 if __name__ == "__main__":
     main()

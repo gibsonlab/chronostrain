@@ -114,15 +114,17 @@ class Population:
 
 
 class Strain:
-    def __init__(self, markers):
+    def __init__(self, markers, name=""):
         """
         :param markers: a list of Marker instances.
+        :param name: Strain name or accession number.
         """
 
         if not all([isinstance(s, Marker) for s in markers]):
             raise ValueError("All elements in markers must be Marker instances")
 
-        self.markers = markers  # A list of Marker objects.
+        self.name = name
+        self.markers = markers
 
     def __str__(self):
         return_str = ""
