@@ -1,7 +1,7 @@
 import math
 import numpy as np
 from util.logger import logger
-from model_solver import AbstractModelSolver, compute_frag_errors
+from algs.model_solver import AbstractModelSolver, compute_frag_errors
 from abc import ABCMeta, abstractmethod
 
 

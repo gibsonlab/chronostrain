@@ -1,7 +1,6 @@
 import numpy as np
-from logger import logger
-from model_solver import AbstractModelSolver, compute_frag_errors
-
+from util.logger import logger
+from algs.model_solver import AbstractModelSolver, compute_frag_errors
 
 # ===========================================================================================
 # =============== Expectation-Maximization (for getting a MAP estimator) ====================
@@ -26,18 +25,20 @@ class EMSolver(AbstractModelSolver):
         """
         if initialization is None:
             # T x S matrix of time-indexed abundances.
-            abundances = np.zeros((len(self.model.times), self.model.num_strains()), dtype=float)
+            abundances = np.ones((len(self.model.times), len(self.model.bacteria_pop.strains)), dtype=float)
         else:
             abundances = initialization
 
         k = 0
         for i in range(iters):
             updated_abundances = self.em_update(abundances)
+
             diff = np.linalg.norm(updated_abundances - abundances, 'fro')
+
             has_converged = (diff < thresh)
 
             if has_converged:
-                logger.debug("Convergence criterion met; terminating optimization early.".format(t=thresh))
+                logger.debug("Convergence criterion ({t}) met; terminating optimization early.".format(t=thresh))
                 break
 
             abundances = updated_abundances
@@ -49,16 +50,17 @@ class EMSolver(AbstractModelSolver):
         return abundances
 
     def em_update(self, abundances):
+
         updated_abundances = []
-        rel_abundances_motion_guess = self.model.generate_relative_abundances(abundances)
 
         for time_index, (guessed_abundances_at_t, reads_at_t) in \
-                enumerate(zip(rel_abundances_motion_guess, self.data)):
+                enumerate(zip(abundances, self.data)):
 
             ##############################
             # Compute the "Q" vector
             ##############################
 
+            rel_abundances_motion_guess = self.model.generate_relative_abundances(abundances)
             time_indexed_fragment_frequencies_guess = self.model.generate_time_indexed_fragment_frequencies(
                 rel_abundances_motion_guess[time_index])
 
@@ -107,7 +109,7 @@ class EMSolver(AbstractModelSolver):
             # Compute the 'main' term
             ##############################
 
-            W = self.model.strain_fragment_matrix
+            W = self.model.fragment_frequencies
 
             main_term = np.matmul(np.matmul(np.transpose(sigma_prime), np.transpose(W)), q_guess)
 
@@ -119,4 +121,4 @@ class EMSolver(AbstractModelSolver):
                 abundances[time_index] + self.lr * (main_term + regularization_term)
             )
 
-        return updated_abundances
+        return np.array(updated_abundances)
