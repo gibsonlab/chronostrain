@@ -1,6 +1,6 @@
 import numpy as np
 from util.logger import logger
-from algs.model_solver import AbstractModelSolver, compute_frag_errors
+from algs.base import AbstractModelSolver, compute_frag_errors
 
 # ===========================================================================================
 # =============== Expectation-Maximization (for getting a MAP estimator) ====================
@@ -50,7 +50,6 @@ class EMSolver(AbstractModelSolver):
         return abundances
 
     def em_update(self, abundances):
-
         updated_abundances = []
 
         for time_index, (guessed_abundances_at_t, reads_at_t) in \
