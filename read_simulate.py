@@ -1,3 +1,4 @@
+#!/bin/python3
 """
   read_simulate.py
   Run to simulate reads from genomes specified by accession numbers.
@@ -12,13 +13,11 @@ import re
 from pathlib import Path
 import csv
 
+from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 from Bio.Seq import Seq
 
-import random
 from model import generative, reads, bacteria
-
-from Bio import SeqIO
 
 _data_dir = "data"
 
@@ -88,10 +87,8 @@ def save_timeslice_to_fastq(reads, out_path):
     SeqIO.write(records, out_path, "fastq")
 
 
-def sample_reads(genomes_map, abundances, number_reads, read_length, time_points, seed):
-
-    if seed:
-        random.seed(seed)
+def sample_reads(genomes_map, abundances, read_depths, read_length, time_points, seed=31415):
+    np.random.seed(seed)
 
     ##############################
     # Generate bacteria population
@@ -101,10 +98,8 @@ def sample_reads(genomes_map, abundances, number_reads, read_length, time_points
 
     strains = []
     for strain_name, genome in genomes_map.items():
-
-        nucleotides = genome[:500] # TODO: For testing purposes, we are only using first 500 nucleotides
-        marker = bacteria.Marker(nucleotides)
-        new_strain = bacteria.Strain(markers=[marker], name=strain_name)
+        seq = genome[:500]  # TODO: For testing purposes, we are only using first 500 nucleotides
+        new_strain = bacteria.Strain(markers=[seq], name=strain_name)
         strains.append(new_strain)
 
     my_bacteria_pop = bacteria.Population(strains)
@@ -134,9 +129,9 @@ def sample_reads(genomes_map, abundances, number_reads, read_length, time_points
             raise ValueError("Number of abundance profiles ({}) must match number of time points ({}).".
                              format(len(abundances), len(time_points)))
 
-        abundances, time_indexed_reads = my_model.sample_abundances_and_reads(number_reads, abundances)
+        time_indexed_reads = my_model.sample_timed_reads(abundances, read_depths)
     else:
-        abundances, time_indexed_reads = my_model.sample_abundances_and_reads(number_reads)
+        abundances, time_indexed_reads = my_model.sample_abundances_and_reads(read_depths)
 
     return time_indexed_reads
 
@@ -190,12 +185,14 @@ def main():
         abundances = get_abundances(file=args.abundance_file)
 
     logger.debug("Sampling reads...")
+    time_points = args.time_points
+    read_depths = args.num_reads * np.ones(len(time_points), dtype=int)
     sampled_reads = sample_reads(
         genomes_map=genomes_map,
-        number_reads=args.num_reads,
+        read_depths=read_depths,
         abundances=abundances,
         read_length=args.read_length,
-        time_points=args.time_points,
+        time_points=time_points,
         seed=args.seed
     )
 

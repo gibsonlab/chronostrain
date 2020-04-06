@@ -1,3 +1,4 @@
+#!/bin/python3
 """
   inference.py
   Run to perform inference on specified reads.
@@ -8,15 +9,18 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from util.logger import logger
+from database.base import *
 
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 from Bio.Seq import Seq
 
-from model.bacteria import Population, Strain, Marker
+from model.bacteria import Population, Strain
 from model import generative
 from model.reads import FastQErrorModel
 from algs import em, vi
+
+from scripts.fetch_genomes import fetch_sequences
 
 _data_dir = "data"
 
@@ -46,18 +50,20 @@ def parse_args():
     return parser.parse_args()
 
 
-def load_marker_database(accession_csv_file):
+def load_marker_database(accession_csv_file) -> AbstractDatabase:
     """
         Right now we are just picking some random parts of the genome as markers.
         TODO: Find an actual markers database. Metaphlan is proving to be a pain. OR
         TODO: Make our own marker database somehow.
     """
 
-    from scripts.fetch_genomes import fetch_sequences
+    # TODO: use database/base.py impls after filling those in.
+
     strain_info_map = fetch_sequences(accession_csv_file)
 
     marker_dir = os.path.join(_data_dir, "markers/")
     Path(marker_dir).mkdir(parents=True, exist_ok=True)
+    database = dict()
 
     for strain_accession in strain_info_map.keys():
 
@@ -69,26 +75,15 @@ def load_marker_database(accession_csv_file):
         sequences = [SeqRecord(Seq(genome[0:50])),
                      SeqRecord(Seq(genome[110:160])),
                      SeqRecord(Seq(genome[170:220]))]
+        database[strain_accession] = sequences
 
-        output_file_path = os.path.join(_data_dir, "markers", strain_accession + "_markers.fasta")
-        with open(output_file_path, "w") as output_handle:
-            SeqIO.write(sequences, output_handle, "fasta")
-
-
-def retrieve_markers(strain_accession):
-    """
-        Get markers for the species with accession number strain_accession.
-    """
-
-    markers = []
-    input_filename = os.path.join(_data_dir, "markers", strain_accession + "_markers.fasta")
-    with open(input_filename) as handle:
-        for record in SeqIO.parse(handle, "fasta"):
-            markers.append(Marker(str(record.seq)))
-    return markers
+        # output_file_path = os.path.join(_data_dir, "markers", strain_accession + "_markers.fasta")
+        # with open(output_file_path, "w") as output_handle:
+        #     SeqIO.write(sequences, output_handle, "fasta")
+    return database
 
 
-def parse_population(accession_csv_file):
+def parse_population(strain_db, accession_csv_file):
     """
     Creates a Population object after finding markers for each strain listed in accession_csv_file.
     """
@@ -98,8 +93,8 @@ def parse_population(accession_csv_file):
     strains = []
     # for each strain_id, create a Strain instance
     for strain_id in accession_csv_df['Accession'].tolist():
-        markers = retrieve_markers(strain_id)
-        strain_instance = Strain(markers=markers,name=strain_id)
+        markers = strain_db.get_markers(strain_id)
+        strain_instance = Strain(name=strain_id, markers=markers)
         strains.append(strain_instance)
 
     return Population(strains)
@@ -163,7 +158,8 @@ def perform_inference(reads, population, time_points, method, window_size, seed)
     if method == "em":
         solver = em.EMSolver(my_model, reads)
         abundances = solver.solve()
-        return my_model.generate_relative_abundances(abundances)
+        logger.info("Learned abundances:")
+        logger.info(abundances)
 
     elif method == "vi":
         posterior = vi.SecondOrderVariationalPosterior(mu, np.identity(mu.size), my_model.fragment_frequencies)
@@ -181,9 +177,9 @@ def main():
     logger.info("Pipeline for inference started.")
     args = parse_args()
     logger.debug("Downloading marker database.")
-    load_marker_database(args.accession_file)
+    db = load_marker_database(args.accession_file)
     logger.debug("Creating bacteria database")
-    population = parse_population(args.accession_file)
+    population = parse_population(db, args.accession_file)
     logger.debug("Reading time-series read files.")
     reads = load_from_fastq(args.read_files_dir, args.read_files)
     logger.debug("Performing inference.")

@@ -51,7 +51,7 @@ def reverse_complement(dna):
 
 
 def get_all_substrings(input_string, k):
-    return [input_string[i:i+k] for i in xrange(len(input_string) - k + 1)]
+    return [input_string[i:i+k] for i in range(len(input_string) - k + 1)]
 
 
 _pat = re.compile('^[ACGTacgt]*$')

@@ -1,5 +1,5 @@
 import numpy as np
-from fasta_functions import fasta_reader
+from simulation.fasta_functions import fasta_reader
 
 
 """

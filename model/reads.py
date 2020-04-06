@@ -3,19 +3,24 @@
  Contains classes for the error model of reads.
 """
 from abc import ABC, abstractmethod
-from enum import Enum
 import numpy as np
 import model.generative as generative
 import math
 
 
-class Q_Score(Enum):
+class SequenceRead:
+    """
+    A class representing a sequence-quality vector pair.
+    """
+    def __init__(self, seq: str, quality: list, metadata):
+        if len(seq) != len(quality):
+            raise ValueError("Length of nucleotide sequence ({}) must agree with length "
+                             "of quality score sequence ({})".format(len(seq), len(quality))
+                             )
 
-    VERYHIGH = 4
-    HIGH = 3
-    MEDIUM = 2
-    LOW = 1
-    VERYLOW = 0
+        self.seq = seq
+        self.quality = quality
+        self.metadata = metadata
 
 
 class AbstractQScoreDistribution(ABC):
@@ -27,7 +32,7 @@ class AbstractQScoreDistribution(ABC):
         self.length = length
 
     @abstractmethod
-    def compute_likelihood(self, qvec):
+    def compute_likelihood(self, qvec) -> float:
         """
         Compute the likelihood of a given q-vector.
         :param qvec: The query.
@@ -36,7 +41,7 @@ class AbstractQScoreDistribution(ABC):
         pass
 
     @abstractmethod
-    def sample_qvec(self):
+    def sample_qvec(self) -> list:
         """
         Obtain a random sample.
         :return: A quality score vector from the specified distribution.
@@ -50,7 +55,7 @@ class AbstractErrorModel(ABC):
     """
 
     @abstractmethod
-    def compute_log_likelihood(self, fragment, read):
+    def compute_log_likelihood(self, fragment: str, read: SequenceRead):
         """
         Compute the log probability of observing the read, conditional on the fragment.
         :param fragment: The source fragment (a String)
@@ -60,7 +65,7 @@ class AbstractErrorModel(ABC):
         pass
 
     @abstractmethod
-    def sample_noisy_read(self, fragment):
+    def sample_noisy_read(self, fragment: str):
         """
         Obtain a random read (q-vec and sequence pair) from a given fragment.
         :param fragment: The source fragment.
@@ -93,16 +98,17 @@ class AbstractTrainableErrorModel(AbstractErrorModel):
 
 class RampUpRampDownDistribution(AbstractQScoreDistribution):
     """
-        A default (simple) implementation.
+        A default (simple) deterministic implementation, assigning probability 1 to a single particular quality score
+        vector.
+
         Assigns a slow ramp-up  and then a ramp-down of the quality values over the target length.
         The outputted quality vector has quality assignments roughly proportional to the distribution specified.
-
-        Assigns probability 1 to a single particular quality score vector.
     """
 
-    def __init__(self, length,
-                 quality_score_values=np.array([0, 1, 2, 3, 4]),
-                 distribution=np.array([0.05, 0.15, 0.30, 0.25, 0.25])):
+    def __init__(self,
+                 length: int,
+                 quality_score_values: np.ndarray,
+                 distribution: np.ndarray):
         """
         :param length: the length of q-vectors to be generated.
         :param quality_score_values: the quality score values. Should be in increasing level of quality.
@@ -171,7 +177,7 @@ class RampUpRampDownDistribution(AbstractQScoreDistribution):
                              "to the total fragment length ({})".format(np.cumsum(lengths)[-1], self.length))
 
         # Allocate a fixed-length array to fill in with quality scores.
-        quality_vector = np.full(shape=self.length, fill_value=self.quality_score_values[0], dtype=int)
+        quality_vector = np.empty(shape=self.length, dtype=int)
 
         # Note: The quality scores at the end of the vector
         # does not get updated because of our flooring in the lengths of above.
@@ -180,13 +186,18 @@ class RampUpRampDownDistribution(AbstractQScoreDistribution):
         # assigning each quality score to its dedicated chunk of positions in the vector
         # according to the lengths of each chunk calculated previously.
         cur_pos = 0
-        for i, value in enumerate(self.quality_score_values.tolist() + self.quality_score_values.tolist()[:-1][::-1]):
+        for i, value in enumerate(np.append( arr1, arr2 )):
+        # for i, value in enumerate(self.quality_score_values.tolist() + self.quality_score_values.tolist()[:-1][::-1]): ## TODO append
             if i > 0:
                 cur_pos = cur_pos + lengths[i - 1]
             quality_vector[cur_pos:cur_pos + lengths[i]] = value
 
         return quality_vector
 
+
+# ========================================================================
+# ===== Basic implementation (0~5-scale quality score) ===================
+# ========================================================================
 
 class BasicQScoreDistribution(RampUpRampDownDistribution):
 
@@ -299,6 +310,10 @@ class BasicErrorModel(AbstractErrorModel):
         return seq_read
 
 
+# ======================================================================
+# =========== FastQ implementation =====================================
+# ======================================================================
+
 class BasicPhredScoreDistribution(RampUpRampDownDistribution):
     """
         An implementation of the quality score ramp-up ramp-down model, where the quality values are PHRED scores.
@@ -309,6 +324,7 @@ class BasicPhredScoreDistribution(RampUpRampDownDistribution):
         super().__init__(length,
                          quality_score_values=np.array([10, 20, 30, 40, 50]),
                          distribution=np.array([0.05, 0.15, 0.30, 0.25, 0.25]))
+
 
 class PhredScoreDistribution(AbstractQScoreDistribution):
     # TODO: Implement something more sophisticated than a slow ramp up of and ramp down of quality
@@ -381,157 +397,3 @@ class FastQErrorModel(AbstractErrorModel):
         seq_read = generative.SequenceRead(noisy_fragment_string, noisy_fragment_quality, "blank metadata")
 
         return seq_read
-
-
-# class BasicPhredScoreDistribution(AbstractQScoreDistribution):
-#
-#     def __init__(self, length, distribution=np.array([1, 2, 3, 4, 2])):
-#         """
-#         :param length: the length of q-vectors to be generated.
-#         :param distribution: An array of weights "terrible", "low", "medium" and "high" respectively.
-#         """
-#         super().__init__(length)
-#         self.distribution = distribution / distribution.sum()  # normalize to 1.
-#         self.qvec = self.create_qvec(self.distribution)  # Hardcoded quality score vector.
-#
-#     def compute_likelihood(self, qvec):
-#         """
-#         Likelihood is just the indicator function.
-#         :param qvec: the query
-#         :return: 1 if query is qvec, 0 else.
-#         """
-#         return int(np.array_equal(qvec, self.qvec))
-#
-#     def sample_qvec(self):
-#         return self.qvec
-#
-#     def create_qvec(self, distribution):
-#         """
-#         Returns a single quality score vector ('q vector').
-#
-#
-#         The quality scores are chosen in proportion to the distribution specified
-#         in self.distribution.
-#
-#         The current implementation assigns quality scores such that 1/2 of the specified
-#         frequency of the "terrible" score is applied to the first base pairs in the fragment
-#         as well as the last base pairs in the fragment.
-#
-#         This pattern is repeated with the 'low quality' score with the base pairs
-#         on both ends of the fragment that haven't been assigned. The resulting quality
-#         pattern along the fragment is thus as follows:
-#
-#             Terrible - Low - Medium - High - Medium - Low - Terrible
-#
-#         :return: A list with length equal to the length of the input fragment list, and
-#         each element is an integer (0-3) representing a quality score.
-#
-#         """
-#
-#         lengths = self.length * np.array([distribution[Q_Score.VERYLOW.value] / 2,
-#                                           distribution[Q_Score.LOW.value] / 2,
-#                                           distribution[Q_Score.MEDIUM.value] / 2,
-#                                           distribution[Q_Score.HIGH.value] / 2,
-#                                           distribution[Q_Score.VERYHIGH.value],
-#                                           distribution[Q_Score.HIGH.value] / 2,
-#                                           distribution[Q_Score.MEDIUM.value] / 2,
-#                                           distribution[Q_Score.LOW.value] / 2,
-#                                           distribution[Q_Score.VERYLOW.value] / 2])
-#
-#         lengths = [math.floor(i) for i in lengths]
-#
-#         if not (np.cumsum(lengths)[-1] <= self.length):
-#             raise ValueError("The sum of the segment lengths ({}) must be less than or equal "
-#                              "to the total fragment length ({})".format(np.cumsum(lengths)[-1], self.length))
-#
-#         # Allocate a fixed-length array (we already know the length).
-#         quality_vector = np.empty(self.length, dtype=int)
-#         quality_vector.fill(10)
-#
-#         # Hardcoded distribution
-#         cur = 0
-#         for i, value in enumerate([10, 20, 30, 40, 50, 40, 30, 20, 10]):
-#             if i > 0:
-#                 cur = cur + lengths[i-1]
-#             quality_vector[cur:cur + lengths[i]] = value
-#
-#         return quality_vector
-
-
-# class BasicQScoreDistribution(AbstractQScoreDistribution):
-#     """
-#     A default (simple) implementation. Assigns probability 1 to a single particular quality score vector.
-#     """
-#
-#     def __init__(self, length, distribution=np.array([0.05, 0.15, 0.30, 0.25, 0.25])):
-#         """
-#         :param length: the length of q-vectors to be generated.
-#         :param distribution: An array of weights "terrible", "low", "medium" and "high" respectively.
-#         """
-#         super().__init__(length)
-#         self.distribution = distribution / distribution.sum()  # normalize to 1.
-#         self.qvec = self.create_qvec(self.distribution)  # Hardcoded quality score vector.
-#
-#     def compute_likelihood(self, qvec):
-#         """
-#         Likelihood is just the indicator function.
-#         :param qvec: the query
-#         :return: 1 if query is qvec, 0 else.
-#         """
-#         return int(np.array_equal(qvec, self.qvec))
-#
-#     def sample_qvec(self):
-#         return self.qvec
-#
-#     def create_qvec(self, distribution):
-#         """
-#         Returns a single quality score vector ('q vector').
-#
-#
-#         The quality scores are chosen in proportion to the distribution specified
-#         in self.distribution.
-#
-#         The current implementation assigns quality scores such that 1/2 of the specified
-#         frequency of the "terrible" score is applied to the first base pairs in the fragment
-#         as well as the last base pairs in the fragment.
-#
-#         This pattern is repeated with the 'low quality' score with the base pairs
-#         on both ends of the fragment that haven't been assigned. The resulting quality
-#         pattern along the fragment is thus as follows:
-#
-#             Terrible - Low - Medium - High - Medium - Low - Terrible
-#
-#         :return: A list with length equal to the length of the input fragment list, and
-#         each element is an integer (0-3) representing a quality score.
-#
-#         """
-#
-#         lengths = self.length * np.array([distribution[Q_Score.VERYLOW.value] / 2,
-#                                           distribution[Q_Score.LOW.value] / 2,
-#                                           distribution[Q_Score.MEDIUM.value] / 2,
-#                                           distribution[Q_Score.HIGH.value] / 2,
-#                                           distribution[Q_Score.VERYHIGH.value],
-#                                           distribution[Q_Score.HIGH.value] / 2,
-#                                           distribution[Q_Score.MEDIUM.value] / 2,
-#                                           distribution[Q_Score.LOW.value] / 2,
-#                                           distribution[Q_Score.VERYLOW.value] / 2])
-#
-#         lengths = [math.floor(i) for i in lengths]
-#
-#         if not (np.cumsum(lengths)[-1] <= self.length):
-#             raise ValueError("The sum of the segment lengths ({}) must be less than or equal "
-#                              "to the total fragment length ({})".format(np.cumsum(lengths)[-1],  self.length))
-#
-#         # Allocate a fixed-length array (we already know the length).
-#         quality_vector = np.zeros(self.length, dtype=int)
-#
-#         # Hardcoded distribution
-#         # Note: The quality scores at the end of the vector
-#         # do not get updated because of our flooring in the lengths of above.
-#         cur = 0
-#         for i, value in enumerate([0, 1, 2, 3, 4, 3, 2, 1, 0]):
-#             if i > 0:
-#                 cur = cur + lengths[i-1]
-#             quality_vector[cur:cur + lengths[i]] = value
-#
-#         return quality_vector
