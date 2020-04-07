@@ -85,7 +85,7 @@ class GenerativeModel:
         if time_idx == 0:
             return self.tau_1
         if time_idx < len(self.times):
-            return self.tau * (self.times[time_idx] - self.times[time_idx] - 1)
+            return self.tau * (self.times[time_idx] - self.times[time_idx-1])
         else:
             return IndexError("Can't reference time at index {}.".format(time_idx))
 

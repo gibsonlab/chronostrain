@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import List
 import numpy as np
 from model.fragments import FragmentSpace
+from util.logger import logger
 
 
 @dataclass
@@ -37,6 +38,7 @@ class Population:
         if window_size in self.fragment_space_map.keys():
             return self.fragment_space_map[window_size]
 
+        logger.debug("Constructing fragment space for window size {}...".format(window_size))
         fragment_space = FragmentSpace()
         for strain in self.strains:
             for marker in strain.markers:
@@ -44,6 +46,7 @@ class Population:
                     fragment_space.add_seq(seq)
 
         self.fragment_space_map[window_size] = fragment_space
+        logger.debug("Finished constructing fragment space for window size {}!".format(window_size))
 
         return fragment_space
 

@@ -23,9 +23,10 @@ class AbstractModelSolver(metaclass=ABCMeta):
 
 # Helper function for both EM and VI
 def compute_frag_errors(model, reads):
+    fragment_space = model.bacteria_pop.get_fragment_space(model.read_length)
     return [
         [
-            [np.exp(model.error_model.compute_log_likelihood(f, r)) for f in model.fragment_space]
+            [np.exp(model.error_model.compute_log_likelihood(f, r)) for f in fragment_space.get_fragments()]
             for r in reads[k]
         ]
         for k in range(len(model.times))

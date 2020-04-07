@@ -176,8 +176,8 @@ class RampUpRampDownDistribution(AbstractQScoreDistribution):
             raise ValueError("The sum of the segment lengths ({}) must be less than or equal "
                              "to the total fragment length ({})".format(np.cumsum(lengths)[-1], self.length))
 
-        # Allocate a fixed-length array to fill in with quality scores.
-        quality_vector = np.empty(shape=self.length, dtype=int)
+        # Allocate a fixed-length array to fill in with quality scores (default to quality score '10')
+        quality_vector = np.ones(shape=self.length, dtype=int)*10
 
         # Note: The quality scores at the end of the vector
         # does not get updated because of our flooring in the lengths of above.
@@ -186,8 +186,8 @@ class RampUpRampDownDistribution(AbstractQScoreDistribution):
         # assigning each quality score to its dedicated chunk of positions in the vector
         # according to the lengths of each chunk calculated previously.
         cur_pos = 0
-        for i, value in enumerate(np.append( arr1, arr2 )):
-        # for i, value in enumerate(self.quality_score_values.tolist() + self.quality_score_values.tolist()[:-1][::-1]): ## TODO append
+        # for i, value in enumerate(np.append( self.quality_score_values, np.flip(self.quality_score_values[:-1]))):
+        for i, value in enumerate(self.quality_score_values.tolist() + self.quality_score_values.tolist()[:-1][::-1]): ## TODO append
             if i > 0:
                 cur_pos = cur_pos + lengths[i - 1]
             quality_vector[cur_pos:cur_pos + lengths[i]] = value
@@ -356,7 +356,7 @@ class FastQErrorModel(AbstractErrorModel):
         """
 
         log_product = 0
-        for actual_base_pair, read_base_pair, q_score in zip(fragment, read.seq, read.quality):
+        for actual_base_pair, read_base_pair, q_score in zip(fragment.seq, read.seq, read.quality):
 
             # probability of observing 'read_base_pair' when the actual base pair is 'actual_base_pair'
             accuracy = 1-np.power(10, -q_score/10)
