@@ -14,6 +14,7 @@ import re
 from pathlib import Path
 import csv
 
+from model.bacteria import Population
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 from Bio.Seq import Seq
@@ -89,22 +90,13 @@ def save_timeslice_to_fastq(timeslice_reads, out_path):
     SeqIO.write(records, out_path, "fastq")
 
 
-def sample_reads(database, abundances, read_depths, read_length, time_points, seed=31415):
+def sample_reads(population, abundances, read_depths, read_length, time_points, seed=31415):
     np.random.seed(seed)
 
     ##############################
-    # Generate bacteria population
-    # To reflect real-world data collection, we use let the entire genome be a marker
-    # so that every l-length fragment in the genome has a chance of being sampled, regardless of whether its
-    # in an actual marker region for a strain.
-
-
-
-    my_bacteria_pop = bacteria.Population(strains)
-    ##############################
     # Construct generative model
 
-    mu = np.array([0] * len(my_bacteria_pop.strains))  # One dimension for each strain
+    mu = np.array([0] * len(population.strains))  # One dimension for each strain
     tau_1 = 1
     tau = 1
 
@@ -114,15 +106,16 @@ def sample_reads(database, abundances, read_depths, read_length, time_points, se
                                           mu=mu,
                                           tau_1=tau_1,
                                           tau=tau,
-                                          bacteria_pop=my_bacteria_pop,
+                                          bacteria_pop=population,
                                           read_length=read_length,
                                           read_error_model=my_error_model)
     ##############################
+    # Generate trajectory if not already given and then sample.
     if abundances:
         for abundance_profile in abundances:
-            if len(abundance_profile) != len(my_bacteria_pop.strains):
+            if len(abundance_profile) != len(population.strains):
                 raise ValueError("Length of abundance profiles ({}) must match number of strains. ({})".
-                                 format(len(abundance_profile), len(my_bacteria_pop.strains)))
+                                 format(len(abundance_profile), len(population.strains)))
         if len(abundances) != len(time_points):
             raise ValueError("Number of abundance profiles ({}) must match number of time points ({}).".
                              format(len(abundances), len(time_points)))
@@ -153,34 +146,42 @@ def get_abundances(file):
     return strain_abundances
 
 
-def get_genomes(accession_nums, strain_info):
-    """
-    For each accession num, retrieve genome info from strain_info.
-    """
+def load_genome_database(accession_csv_file: str) -> AbstractStrainDatabase:
 
-    genomes_map = {}
+    # To reflect real-world data collection/fastq file generation, we let the entire genome be a single marker
+    # so that every l-length fragment in the genome has a chance of being sampled, regardless of whether its
+    # in an actual marker region for a strain.
 
-    for accession_num in accession_nums:
-        if accession_num in strain_info.keys():
-            filename = os.path.join(_data_dir, accession_num + ".fasta")
-            with open(filename) as file:
-                for i, line in enumerate(file):
-                    genome = re.sub('[^AGCT]+', '', line.split(sep=" ")[-1])
-            genomes_map[accession_num] = genome
-    return genomes_map
+    # The SimpleCSVStrainDatabase object makes this one marker per species with that one marker
+    # containing the entire genome, just as we want.
 
-
-def load_marker_database(accession_csv_file: str) -> AbstractStrainDatabase:
     database_obj = SimpleCSVStrainDatabase(accession_csv_file)
-    database_obj.load()
     return database_obj
+
+
+def parse_population(strain_db: AbstractStrainDatabase, accession_csv_file: str) -> Population:
+    """
+    Creates a Population object after finding markers for each strain listed in accession_csv_file.
+    """
+    file_path = os.path.join(_data_dir, accession_csv_file)
+
+    strains = []
+    # for each strain_id, create a Strain instance
+    with open(file_path) as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            strain_id = row['Accession']
+            strain = strain_db.get_strain(strain_id)
+            strains.append(strain)
+    return Population(strains)
 
 
 def main():
     try:
         logger.info("Pipeline for read simulation started.")
         args = parse_args()
-        database = load_marker_database(args.accession_file)
+        genome_database = load_genome_database(args.accession_file)
+        population = parse_population(genome_database, args.accession_file)
 
         abundances = None
         if args.abundance_file:
@@ -191,7 +192,7 @@ def main():
         time_points = args.time_points
         read_depths = args.num_reads * np.ones(len(time_points), dtype=int)
         sampled_reads = sample_reads(
-            database=database,
+            population=population,
             read_depths=read_depths,
             abundances=abundances,
             read_length=args.read_length,
