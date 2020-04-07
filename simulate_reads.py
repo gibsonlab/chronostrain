@@ -1,6 +1,6 @@
 #!/bin/python3
 """
-  read_simulate.py
+  simulate_reads.py
   Run to simulate reads from genomes specified by accession numbers.
 """
 
@@ -98,7 +98,7 @@ def sample_reads(genomes_map, abundances, read_depths, read_length, time_points,
 
     strains = []
     for strain_name, genome in genomes_map.items():
-        seq = genome[:500]  # TODO: For testing purposes, we are only using first 500 nucleotides
+        seq = genome[:30]  # TODO: For testing purposes, we are only using first 30 nucleotides. Lowers fragment space
         new_strain = bacteria.Strain(markers=[seq], name=strain_name)
         strains.append(new_strain)
 
@@ -129,7 +129,10 @@ def sample_reads(genomes_map, abundances, read_depths, read_length, time_points,
             raise ValueError("Number of abundance profiles ({}) must match number of time points ({}).".
                              format(len(abundances), len(time_points)))
 
-        time_indexed_reads = my_model.sample_timed_reads(abundances, read_depths)
+        normalized_abundances = []
+        for Z in abundances:
+            normalized_abundances.append(generative.softmax(Z))
+        time_indexed_reads = my_model.sample_timed_reads(normalized_abundances, read_depths)
     else:
         abundances, time_indexed_reads = my_model.sample_abundances_and_reads(read_depths)
 

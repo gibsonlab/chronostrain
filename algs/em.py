@@ -1,4 +1,5 @@
 import numpy as np
+from model.generative import softmax
 from util.logger import logger
 from algs.base import AbstractModelSolver, compute_frag_errors
 
@@ -59,8 +60,9 @@ class EMSolver(AbstractModelSolver):
             # Compute the "Q" vector
             ##############################
 
-            rel_abundances_motion_guess = self.model.generate_relative_abundances(abundances)
-            time_indexed_fragment_frequencies_guess = self.model.generate_time_indexed_fragment_frequencies(
+            rel_abundances_motion_guess = [softmax(abundance) for abundance in abundances]
+
+            time_indexed_fragment_frequencies_guess = self.model.strain_abundance_to_frag_abundance(
                 rel_abundances_motion_guess[time_index])
 
             # Step 1
