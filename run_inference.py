@@ -1,28 +1,25 @@
 #!/bin/python3
 """
-  inference.py
+  run_inference.py
   Run to perform inference on specified reads.
 """
 
-import os, random, re, argparse
+import random, argparse
 import numpy as np
 import pandas as pd
-from pathlib import Path
 from util.logger import logger
 from database.base import *
 
 from Bio import SeqIO
-from Bio.SeqRecord import SeqRecord
-from Bio.Seq import Seq
 
 from model.bacteria import Population, Strain
 from model import generative
 from model.reads import FastQErrorModel
 from algs import em, vi
 
-from scripts.fetch_genomes import fetch_sequences
 
 _data_dir = "data"
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Perform inference on time-series reads.")
@@ -50,40 +47,13 @@ def parse_args():
     return parser.parse_args()
 
 
-def load_marker_database(accession_csv_file) -> AbstractDatabase:
-    """
-        Right now we are just picking some random parts of the genome as markers.
-        TODO: Find an actual markers database. Metaphlan is proving to be a pain. OR
-        TODO: Make our own marker database somehow.
-    """
-
-    # TODO: use database/base.py impls after filling those in.
-
-    strain_info_map = fetch_sequences(accession_csv_file)
-
-    marker_dir = os.path.join(_data_dir, "markers/")
-    Path(marker_dir).mkdir(parents=True, exist_ok=True)
-    database = dict()
-
-    for strain_accession in strain_info_map.keys():
-
-        input_file_path = os.path.join(_data_dir, strain_accession + ".fasta")
-        with open(input_file_path) as file:
-            for i, line in enumerate(file):
-                genome = re.sub('[^AGCT]+', '', line.split(sep=" ")[-1])
-
-        sequences = [SeqRecord(Seq(genome[0:50])),
-                     SeqRecord(Seq(genome[110:160])),
-                     SeqRecord(Seq(genome[170:220]))]
-        database[strain_accession] = sequences
-
-        # output_file_path = os.path.join(_data_dir, "markers", strain_accession + "_markers.fasta")
-        # with open(output_file_path, "w") as output_handle:
-        #     SeqIO.write(sequences, output_handle, "fasta")
-    return database
+def load_marker_database(accession_csv_file : str) -> AbstractDatabase:
+    database_obj = SimpleCSVDatabase(accession_csv_file)
+    database_obj.load()
+    return database_obj
 
 
-def parse_population(strain_db, accession_csv_file):
+def parse_population(strain_db: AbstractDatabase, accession_csv_file : str) -> Population:
     """
     Creates a Population object after finding markers for each strain listed in accession_csv_file.
     """
@@ -94,20 +64,22 @@ def parse_population(strain_db, accession_csv_file):
     # for each strain_id, create a Strain instance
     for strain_id in accession_csv_df['Accession'].tolist():
         markers = strain_db.get_markers(strain_id)
+
+        # markers = [marker[1:30] for marker in markers] # TODO:Only for debugging. Make sure cmd line win size param<30
         strain_instance = Strain(name=strain_id, markers=markers)
         strains.append(strain_instance)
 
     return Population(strains)
 
 
-def load_from_fastq(file_dir_name, filenames):
+def load_from_fastq(file_dir_name: str, filenames: List[str]) -> List[List[generative.SequenceRead]]:
     """
     param file_dir_name - Name of directory containing the fastq files.
-
     param filesnames - a list of strings of filenames. Must be in chronological order.
             filenames[0] == name of fastq file for first time point
             filenames[1] == name of fastq file for second time point
             etc...
+    return - A list of lists, where the ith inner list contains all of the reads taken at the ith time point.
     """
 
     num_times = len(filenames)
@@ -130,7 +102,10 @@ def load_from_fastq(file_dir_name, filenames):
     return reads
 
 
-def perform_inference(reads, population, time_points, method, window_size, seed):
+def perform_inference(reads: List[List[str]],
+                      population: generative.Population,
+                      time_points: List[int],
+                      method: str, window_size: int, seed: int):
     random.seed(seed)
 
     if len(reads) != len(time_points):
