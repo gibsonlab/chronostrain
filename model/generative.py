@@ -8,6 +8,7 @@ from typing import List, Tuple
 from model.bacteria import Population
 from model.reads import AbstractErrorModel, SequenceRead
 
+
 def softmax(x: np.ndarray) -> np.ndarray:
     y = np.exp(x)
     return y / np.sum(y)
@@ -67,14 +68,14 @@ class GenerativeModel:
                 )
             )
 
-        reads = []
+        reads_list = []
 
         # For each time point, convert to fragment abundances and sample each read.
         for read_depth, strain_abundance in zip(read_depths, abundances):
             frag_abundance = self.strain_abundance_to_frag_abundance(strain_abundance)
-            reads.append(self.sample_reads(frag_abundance, read_depth))
+            reads_list.append(self.sample_reads(frag_abundance, read_depth))
 
-        return reads
+        return reads_list
 
     def time_scale(self, time_idx: int) -> float:
         """
