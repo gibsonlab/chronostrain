@@ -12,7 +12,7 @@ from database.base import *
 
 from Bio import SeqIO
 
-from model.bacteria import Population, Strain
+from model.bacteria import Population
 from model import generative
 from model.reads import FastQErrorModel, SequenceRead
 from algs import em, vi
@@ -47,13 +47,13 @@ def parse_args():
     return parser.parse_args()
 
 
-def load_marker_database(accession_csv_file: str) -> AbstractDatabase:
-    database_obj = SimpleCSVDatabase(accession_csv_file)
+def load_marker_database(accession_csv_file: str) -> AbstractStrainDatabase:
+    database_obj = SimpleCSVStrainDatabase(accession_csv_file)
     database_obj.load()
     return database_obj
 
 
-def parse_population(strain_db: AbstractDatabase, accession_csv_file: str) -> Population:
+def parse_population(strain_db: AbstractStrainDatabase, accession_csv_file: str) -> Population:
     """
     Creates a Population object after finding markers for each strain listed in accession_csv_file.
     """
@@ -65,9 +65,8 @@ def parse_population(strain_db: AbstractDatabase, accession_csv_file: str) -> Po
         reader = csv.DictReader(csvfile)
         for row in reader:
             strain_id = row['Accession']
-            markers = strain_db.get_markers(strain_id)
-            strain_instance = Strain(name=strain_id, markers=markers)
-            strains.append(strain_instance)
+            strain = strain_db.get_strain(strain_id)
+            strains.append(strain)
     return Population(strains)
 
 

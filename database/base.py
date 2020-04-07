@@ -1,24 +1,33 @@
 from abc import abstractmethod, ABCMeta
+
+from model.bacteria import Strain, Marker
 from scripts.fetch_genomes import fetch_sequences
 
 import os
 import re
-from typing import List, Dict
+from typing import List
 
 _DEFAULT_DATA_DIR = "data"
 
 
-class AbstractDatabase(metaclass=ABCMeta):
+class AbstractStrainDatabase(metaclass=ABCMeta):
+    def __init__(self):
+        self.load()
+
     @abstractmethod
     def load(self):
         pass
 
     @abstractmethod
-    def get_markers(self, strain_id : str):
+    def get_strain(self, strain_id: str) -> Strain:
         pass
 
+    def get_strains(self, strain_ids: List[str]) -> List[Strain]:
+        return [self.get_strain(s_id) for s_id in strain_ids]
 
-class SimpleCSVDatabase(AbstractDatabase):
+
+
+class SimpleCSVStrainDatabase(AbstractStrainDatabase):
     """
     A Simple implementation that treats each complete strain genome as a marker.
     """
@@ -27,13 +36,12 @@ class SimpleCSVDatabase(AbstractDatabase):
         """
         :param csv_refs: CSV file specifying accession numbers.
         """
-        self.database = {}
+        self.strain_to_markers = {}
         self.csv_refs = csv_refs
+        super().__init__()
 
-    def load(self) -> Dict[str, List[str]]:
+    def __load__(self):
         strain_info_map = fetch_sequences(refs_file_csv=self.csv_refs)
-        self.database = {}
-
         for strain_accession in strain_info_map.keys():
 
             input_file_path = os.path.join(_DEFAULT_DATA_DIR, strain_accession + ".fasta")
@@ -41,10 +49,8 @@ class SimpleCSVDatabase(AbstractDatabase):
                 for i, line in enumerate(file):
                     genome = re.sub('[^AGCT]+', '', line.split(sep=" ")[-1])
 
-            marker_sequences = [genome[:]]
+            markers = [Marker(name=strain_accession, seq=genome)]  # Each genome's marker is its own genome.
+            self.strain_to_markers[strain_accession] = markers
 
-            self.database[strain_accession] = marker_sequences
-        return self.database
-
-    def get_markers(self, strain_id: str) -> List[str]:
-        return self.database[strain_id]
+    def get_markers(self, strain_id: str) -> Strain:
+        return Strain(name=strain_id, markers=self.strain_to_markers[strain_id])

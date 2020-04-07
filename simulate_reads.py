@@ -6,7 +6,8 @@
 
 import os
 import argparse
-from scripts.fetch_genomes import fetch_sequences
+
+from database.base import AbstractStrainDatabase, SimpleCSVStrainDatabase
 from util.logger import logger
 import numpy as np
 import re
@@ -88,7 +89,7 @@ def save_timeslice_to_fastq(timeslice_reads, out_path):
     SeqIO.write(records, out_path, "fastq")
 
 
-def sample_reads(genomes_map, abundances, read_depths, read_length, time_points, seed=31415):
+def sample_reads(database, abundances, read_depths, read_length, time_points, seed=31415):
     np.random.seed(seed)
 
     ##############################
@@ -97,11 +98,7 @@ def sample_reads(genomes_map, abundances, read_depths, read_length, time_points,
     # so that every l-length fragment in the genome has a chance of being sampled, regardless of whether its
     # in an actual marker region for a strain.
 
-    strains = []
-    for strain_name, genome in genomes_map.items():
-        seq = genome[:30]  # TODO: For testing purposes, we are only using first 30 nucleotides. Lowers fragment space
-        new_strain = bacteria.Strain(markers=[seq], name=strain_name)
-        strains.append(new_strain)
+
 
     my_bacteria_pop = bacteria.Population(strains)
     ##############################
@@ -173,15 +170,17 @@ def get_genomes(accession_nums, strain_info):
     return genomes_map
 
 
+def load_marker_database(accession_csv_file: str) -> AbstractStrainDatabase:
+    database_obj = SimpleCSVStrainDatabase(accession_csv_file)
+    database_obj.load()
+    return database_obj
+
+
 def main():
     try:
         logger.info("Pipeline for read simulation started.")
         args = parse_args()
-
-        logger.debug("Downloading genomes from NCBI...")
-        strain_info = fetch_sequences(args.accession_file)
-
-        genomes_map = get_genomes(strain_info.keys(), strain_info)
+        database = load_marker_database(args.accession_file)
 
         abundances = None
         if args.abundance_file:
@@ -192,7 +191,7 @@ def main():
         time_points = args.time_points
         read_depths = args.num_reads * np.ones(len(time_points), dtype=int)
         sampled_reads = sample_reads(
-            genomes_map=genomes_map,
+            database=database,
             read_depths=read_depths,
             abundances=abundances,
             read_length=args.read_length,

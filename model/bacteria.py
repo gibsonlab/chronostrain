@@ -6,9 +6,21 @@ from util.logger import logger
 
 
 @dataclass
+class Marker:
+    name: str
+    seq: str
+
+    def __repr__(self):
+        return "Marker[{}:{}]".format(self.name, self.seq)
+
+    def __str__(self):
+        return self.__repr__()
+
+
+@dataclass
 class Strain:
     name: str
-    markers: List[str]
+    markers: List[Marker]
 
     def __repr__(self):
         return "Strain(Markers={})".format(str(self.markers))
@@ -42,7 +54,7 @@ class Population:
         fragment_space = FragmentSpace()
         for strain in self.strains:
             for marker in strain.markers:
-                for seq in sliding_window(marker, window_size):
+                for seq in sliding_window(marker.seq, window_size):
                     fragment_space.add_seq(seq)
 
         self.fragment_space_map[window_size] = fragment_space
@@ -67,7 +79,7 @@ class Population:
 
         for col, strain in enumerate(self.strains):
             for marker in strain.markers:
-                for subseq in sliding_window(marker, window_size):
+                for subseq in sliding_window(marker.seq, window_size):
                     frag_freqs[fragment_space.get_fragment(subseq).index][col] += 1
 
         # normalize each col to sum to 1.
