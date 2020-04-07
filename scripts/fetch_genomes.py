@@ -1,7 +1,7 @@
 import os
-import sys
 import csv
 import urllib.request as urllib
+from util.logger import logger
 
 
 _base_dir = "data"
@@ -21,29 +21,28 @@ def get_filename(accession):
 def fetch_filename(accession):
     """
     Return the FASTA filename of the accession. Try to download the file if not found.
-    :param accession:
+    :param accession: NCBI accession number
     :return:
     """
     filename = get_filename(accession)
     if os.path.exists(filename):
-        print("[{}] file found: {}".format(accession, filename))
+        logger.info("[{}] file found: {}".format(accession, filename))
     else:
-        sys.stdout.write("[{}] file \"{}\" not found. Downloading... ".format(accession, filename))
+        logger.info("[{}] file \"{}\" not found. Downloading... ".format(accession, filename))
         filedata = urllib.urlopen(get_ncbi_url(accession))
         with open(filename, 'w') as f:
             f.write(str(filedata.read()).replace("\r", ""))
-        print("Done.")
     return filename
 
 
-def fetch_sequences():
+def fetch_sequences(refs_file_csv):
     """
     Read CSV file, and download FASTA from accessions if doesn't exist.
-    :return: a list of strain-accession-filename wrappers.
+    :return: a dictionary mapping accessions to strain-accession-filename wrappers.
     """
-    strains_list = []
+    strains_map = {}
 
-    csv_filename = os.path.join(_base_dir, _refs_file_csv)
+    csv_filename = os.path.join(_base_dir, refs_file_csv)
     line_count = 0
     with open(csv_filename, "r") as f:
         csv_reader = csv.reader(f, delimiter=',')
@@ -53,16 +52,16 @@ def fetch_sequences():
                 continue
             strain_name = row[0]
             accession = row[1]
-            strains_list.append({
+            strains_map[accession] = {
                 "strain": strain_name,
                 "accession": accession,
                 "file": fetch_filename(accession)
-            })
+            }
             line_count += 1
 
-    print("Found {} records.".format(len(strains_list)))
-    return strains_list
+    logger.info("Found {} records.".format(len(strains_map.keys())))
+    return strains_map
 
 
 if __name__ == "__main__":
-    fetch_sequences()
+    fetch_sequences(_refs_file_csv)

@@ -1,6 +1,11 @@
 .idea/
 __pycache__/
-data/*.fasta
-data/*.fastq
-logs/*
-simulated_data/*.fastq
+*.fasta
+*.fastq
+*.gnk
+*.pyc
+data/
+simulated_data/
+data/markers/
+logs/
+

@@ -4,91 +4,42 @@
 """
 
 import numpy as np
+from typing import List
+from model.bacteria import Population
+from model.reads import AbstractErrorModel, SequenceRead
 
 
-class SequenceRead:
-    """
-    A class representing a sequence-quality vector pair.
-    """
-
-    def __init__(self, seq, quality, metadata):
-
-        if len(seq) != len(quality):
-            raise ValueError("Length of nucleotide sequence ({}) must agree with length "
-                             "of quality score sequence ({})".format(len(seq), len(quality))
-                             )
-
-        if type(seq) != str:
-            raise ValueError("seq must be of type string")
-
-        if type(quality) != np.ndarray:
-            raise ValueError("quality must be a numpy array")
-
-        for q_score in quality:
-            if type(q_score) != np.int64 or type(q_score) == int:
-                raise ValueError("Each value in the quality vector must be numpy ints or ints")
-
-        self.seq = seq  # string
-        self.quality = quality  # np array of ints
-        self.metadata = metadata
+def softmax(x: np.ndarray) -> np.ndarray:
+    y = np.exp(x)
+    return y / np.sum(y)
 
 
 class GenerativeModel:
-
-    def __init__(self, times, mu, tau_1, tau, W, read_error_model, bacteria_pop=None):
+    def __init__(self,
+                 times: List[int],
+                 mu: np.ndarray,
+                 tau_1: float,
+                 tau: float,
+                 bacteria_pop: Population,
+                 read_error_model: AbstractErrorModel,
+                 read_length: int):
 
         self.times = times  # array of time points
         self.mu = mu  # mean for X_1
         self.tau_1 = tau_1  # covariance scaling for X_1
         self.tau = tau  # covariance base scaling
-        self.W = W  # the fragment-strain frequency matrix
-        self.error_model = read_error_model  # instance of (child class of) AbstractErrorModel
-
+        self.error_model = read_error_model
         self.bacteria_pop = bacteria_pop
-        self.strain_fragment_matrix = self.bacteria_pop.generate_strain_fragment_frequencies(self.fragment_space)
+        self.read_length = read_length
+        self.fragment_frequencies = self.bacteria_pop.get_strain_fragment_frequencies(window_size=read_length)
 
-    def num_strains(self):
-        """
-        :return: The total number of strains in the model.
-        """
-
-        return len(self.bacteria_pop.strains)
-
-    def sample_reads(self, num_samples):
-        """
-        A wrapper function for sample_abundances_and_reads
-        Generate a time-indexed list of read collections.
-
-         :param num_samples: A list of the number of samples to take each time point.
-            (e.g. num_samples[i] is the number of samples we take at time point self.times[i])
-
-         :return: a time-indexed list of lists of SequenceRead objects, where the i-th
-                inner list corresponds to reads taken at time index i (self.times[i])
-                and contains num_samples[i] read objects.
-        """
-
-        abundances, reads = self.sample_abundances_and_reads(num_samples)
-        return reads
-
-    def sample_abundances(self, num_samples):
-        """
-         A wrapper function for sample_abundances_and_reads
-
-         See sample_abundances_and_reads for details.
-         """
-
-        abundances, reads = self.sample_abundances_and_reads(num_samples)
-        return abundances
-
-    def sample_abundances_and_reads(self, num_samples):
+    def sample_abundances_and_reads(self, read_depths):
         """
         Generate a time-indexed list of read collections and strain abundances.
 
-         :param num_samples: A list of the number of samples to take each time point.
-            (e.g. num_samples[i] is the number of samples we take at time point self.times[i])
-
+         :param read_depths: the number of reads per time point. A time-indexed array of ints.
          :return: a tuple of (abundances, reads) where
-             abundances is
+             strain_abundances is
                  a time-indexed list of 1D numpy arrays of fragment abundances based on the
                  corresponding time index strain abundances and the fragments' relative
                  frequencies in each strain's sequence.
@@ -98,40 +49,33 @@ class GenerativeModel:
                 and contains num_samples[i] read objects.
         """
 
-        if len(num_samples) != len(self.times):
+        if len(read_depths) != len(self.times):
             raise ValueError("Length of num_samples ({}) must agree with number of time points ({})".format(
-                len(num_samples), len(self.times))
+                len(read_depths), len(self.times))
             )
 
-        # Step 1
-        brownian_motion = self.generate_brownian_motion()
-
-        # Step 2
-        strain_rel_abundances_motion = self.generate_relative_abundances(brownian_motion)
-
-        if len(strain_rel_abundances_motion) != len(self.times):
-            raise ValueError("Length of strain_rel_abundances_motion ({}) must agree "
-                             "with number of time points ({})".format(
-                                len(strain_rel_abundances_motion), len(self.times)))
-
-        reads = []
-        abundances = []
-
-        # Iterate over each time step.
-        # For each time step, we have a particular number of reads we want to sample
-        # and the bacteria strains have a particular set of relative abundances.
-        for num_sample, strain_rel_abnd in zip(num_samples, strain_rel_abundances_motion):
-            # Step 3
-            time_indexed_fragment_frequencies = self.generate_time_indexed_fragment_frequencies(strain_rel_abnd)
-            abundances.append(time_indexed_fragment_frequencies)
-
-            # Step 4
-            time_indexed_reads = self.generate_reads(time_indexed_fragment_frequencies, num_sample)
-            reads.append(time_indexed_reads)
-
+        abundances = self.sample_abundances()
+        reads = self.sample_timed_reads(abundances, read_depths)
         return abundances, reads
 
-    def time_scale(self, time_idx):
+    def sample_timed_reads(self, abundances: List[np.ndarray], read_depths: List[int]):
+        if len(abundances) != len(self.times):
+            raise ValueError(
+                "Length of strain_rel_abundances_motion ({}) must agree with number of time points ({})".format(
+                    len(abundances), len(self.times)
+                )
+            )
+
+        reads = []
+
+        # For each time point, convert to fragment abundances and sample each read.
+        for read_depth, strain_abundance in zip(read_depths, abundances):
+            frag_abundance = self.strain_abundance_to_frag_abundance(strain_abundance)
+            reads.append(self.sample_reads(frag_abundance, read_depth))
+
+        return reads
+
+    def time_scale(self, time_idx: int):
         """
         Return the k-th time increment.
         :param time_idx: the index to query (corresponding to k).
@@ -141,85 +85,40 @@ class GenerativeModel:
         if time_idx == 0:
             return self.tau_1
         if time_idx < len(self.times):
-            return self.tau * (self.times[time_idx] - self.times[time_idx] - 1)
+            return self.tau * (self.times[time_idx] - self.times[time_idx-1])
         else:
             return IndexError("Can't reference time at index {}.".format(time_idx))
 
-    # Step 1
-    def generate_brownian_motion(self):
+    def _sample_brownian_motion(self) -> List[np.ndarray]:
         """
-        Generates multivariate gaussian motion.
-        There is one dimension for each strain in the multivariate gaussian.
-        Variance is applied according to tau_1, tau, and the time differences present in
-        the
-
-        The number of dimenions at each time point is equal to the number of strains
-        and the number of time points is equ
-
-
-        @return --
-            a list of numpy arrays, where each array has length equal to the number of strains.
+        Generates an S-dimensional brownian motion, S = # of strains, centered at mu.
+        Initial covariance is tau_1, while subsequent variance scaling is tau.
         """
-
         brownian_motion = []
-
-        covar_matrix = np.identity(self.mu.size)
-        mean_vec = self.mu  # Initialize mean vector.
+        covariance = np.identity(self.mu.size)
+        center = self.mu  # Initialize mean vector.
 
         for time_idx in range(len(self.times)):
-            time_scale_value = self.time_scale(time_idx)
-            mean_vec = np.random.multivariate_normal(mean_vec, covar_matrix * (time_scale_value ** 2))
-            brownian_motion.append(mean_vec)
+            scaling = self.time_scale(time_idx)
+            center = np.random.multivariate_normal(center, covariance * scaling)
+            brownian_motion.append(center)
 
-        return np.asanyarray(brownian_motion)
+        return brownian_motion
 
-    # Step 2
-    def generate_relative_abundances(self, gaussian_process):
+    def sample_abundances(self):
+        abundances = []
+        gaussians = self._sample_brownian_motion()
+        for Z in gaussians:
+            abundances.append(softmax(Z))
+        return abundances
+
+    def strain_abundance_to_frag_abundance(self, strain_abundance: np.ndarray) -> np.ndarray:
         """
-        @param - gaussain_process - an list of n-dimensional arrays of floats
-
-        @return - rel_abundances
-            a list of n-dimension arrays after running softmax on each one.
+        Convert strain abundance to fragment abundance, via the matrix multiplication F = WS.
         """
+        return np.matmul(self.fragment_frequencies, strain_abundance)
 
-        rel_abundances_motion = []
-
-        for sample in gaussian_process:
-            # softmax
-            total = sum(np.exp(sample))
-            rel_abundances = [np.exp(x) / total for x in sample]
-
-            rel_abundances_motion.append(rel_abundances)
-
-        if not all([round(sum(x), 4) == 1 for x in rel_abundances_motion]):
-            ValueError("Sum of relative strain abundances at each time point should sum to 1")
-
-        return rel_abundances_motion
-
-    # Step 3
-    def generate_time_indexed_fragment_frequencies(self, strain_abundances):
-        """
-        @param - strain_fragment_matrix -
-            A 2D numpy array where column i is the relative frequencies of observing each
-            of the fragments in strain i.
-
-        @param - strain_abundances
-            A list representing the relative abundances of the strains
-
-        @returns - fragment_to_prob_vector
-             a 1D numpy array of time indexed fragment abundances based on the current time index strain abundances
-             and the fragments' relative frequencies in each strain's sequence.
-        """
-
-        fragment_to_prob_vector = np.matmul(self.strain_fragment_matrix, np.array(strain_abundances))
-
-        if round(sum(fragment_to_prob_vector), 4) != 1:
-            raise ValueError("Relative fragment probabilities (for a given time point) should sum to 1")
-
-        return fragment_to_prob_vector
-
-    # Step 4
-    def generate_reads(self, time_indexed_fragment_frequencies, num_reads=None):
+    def sample_reads(self, frag_abundances: np.ndarray, num_samples: int = 1) -> List[SequenceRead]:
         """
         Given a set of fragments and their time indexed frequencies (based on the current time
         index strain abundances and the fragments' relative frequencies in each strain's sequence.),
@@ -240,18 +139,12 @@ class GenerativeModel:
 
         """
 
-        if not num_reads:
-            num_reads = len(self.fragment_space)
+        frag_space = self.bacteria_pop.get_fragment_space(self.read_length)
+        samples = np.random.choice(list(frag_space.get_fragments()), num_samples, p=frag_abundances)
 
-        # Sample fragments in proportion to their time indexed frequencies.
-        sampled_fragments = np.random.choice(self.fragment_space, num_reads, p=time_indexed_fragment_frequencies)
+        # Draw a read from each fragment, do an in-place replacement.
+        for i in range(num_samples):
+            frag = samples[i]
+            samples[i] = self.error_model.sample_noisy_read(frag.seq)
 
-        generated_noisy_fragments = []
-
-        # For each sampled fragment, generate a noisy read of it.
-        for frag in sampled_fragments:
-            generated_noisy_fragments.append(self.error_model.sample_noisy_read(frag))
-
-        return generated_noisy_fragments
-
-# TODO: Write reads and quality scores to file (low priority)
+        return samples

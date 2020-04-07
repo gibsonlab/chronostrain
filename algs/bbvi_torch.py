@@ -1,5 +1,5 @@
 """
-  bbvi.py (pytorch implementation)
+  bbvi.py (pyro implementation)
   Black-box Variational Inference
   Author: Younhun Kim
 """
