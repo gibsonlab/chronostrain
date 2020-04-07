@@ -55,7 +55,7 @@ def parse_args():
     parser.add_argument('-s', '--seed', required=False, type=int, default=31415,
                         help='<Optional> Seed for randomness (for reproducibility).')
     parser.add_argument('-b', '--abundance_file', required=False, type=str,
-                        help='<Required> A csv containing the relatively abundances for each strain by time point.')
+                        help='<Required> A csv containing the relative abundances for each strain by time point.')
     parser.add_argument('-p', '--out_prefix', required=False, default='sampled_read',
                         help='<Optional> File prefix for the read files.')
     parser.add_argument('-e', '--extension', required=False, default='txt',
@@ -128,10 +128,11 @@ def sample_reads(population: Population,
             raise ValueError("Number of abundance profiles ({}) must match number of time points ({}).".
                              format(len(abundances), len(time_points)))
 
-        normalized_abundances = []
         for Z in abundances:
-            normalized_abundances.append(softmax(Z))
-        time_indexed_reads = my_model.sample_timed_reads(normalized_abundances, read_depths)
+            if not (round(sum(Z), 4) == 1):
+                raise ValueError("Abundances at each time point should sum to 1")
+
+        time_indexed_reads = my_model.sample_timed_reads(abundances, read_depths)
     else:
         abundances, time_indexed_reads = my_model.sample_abundances_and_reads(read_depths)
 
@@ -154,7 +155,7 @@ def get_abundances(file: str) -> List[np.array]:
     return strain_abundances
 
 
-def load_genome_database(accession_csv_file: str) -> AbstractStrainDatabase:
+def load_strain_database(accession_csv_file: str) -> AbstractStrainDatabase:
 
     # To reflect real-world data collection/fastq file generation, we let the entire genome be a single marker
     # so that every l-length fragment in the genome has a chance of being sampled, regardless of whether its
@@ -188,7 +189,7 @@ def main():
     try:
         logger.info("Pipeline for read simulation started.")
         args = parse_args()
-        genome_database = load_genome_database(args.accession_file)
+        genome_database = load_strain_database(args.accession_file)
         population = parse_population(genome_database, args.accession_file)
 
         abundances = None
