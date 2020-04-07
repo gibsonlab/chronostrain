@@ -1,6 +1,7 @@
 import numpy as np
 import random
 
+
 def generate_random_abundances(times, num_strains, scale=1.0):
     abundances = []
     previous_t = None
@@ -27,7 +28,8 @@ def simulate_reads(genomes, timeseries_abundances, timeseries_num_reads, read_le
     Simulate metagenomic reads according to specified abundances.
     :param genomes: A List of NucleotideSeq Objects, one per strain.
     :param timeseries_abundances: A time-indexed array of strain-indexed (numpy) array of real values.
-    :param timeseries_num_reads: A time-indexed array of real values, which determines the total number of reads per time slice.
+    :param timeseries_num_reads: A time-indexed array of real values, which determines the total number of reads per
+            time slice.
     :return:
     """
     if len(genomes) != len(timeseries_abundances[0]):
