@@ -1,7 +1,7 @@
 import os
 import sys
 import csv
-import urllib2 as urllib
+import urllib.request as urllib
 
 
 _base_dir = "data"
@@ -21,7 +21,7 @@ def get_filename(accession):
 def fetch_filename(accession):
     """
     Return the FASTA filename of the accession. Try to download the file if not found.
-    :param accession:
+    :param accession: NCBI accession number
     :return:
     """
     filename = get_filename(accession)
@@ -36,11 +36,16 @@ def fetch_filename(accession):
     return filename
 
 
-def fetch_sequences():
-    strains_list = []
-    csv_filename = os.path.join(_base_dir, _refs_file_csv)
+def fetch_sequences(refs_file_csv):
+    """
+    Read CSV file, and download FASTA from accessions if doesn't exist.
+    :return: a dictionary mapping accessions to strain-accession-filename wrappers.
+    """
+    strains_map = {}
+
+    csv_filename = os.path.join(_base_dir, refs_file_csv)
     line_count = 0
-    with open(csv_filename) as f:
+    with open(csv_filename, "r") as f:
         csv_reader = csv.reader(f, delimiter=',')
         for row in csv_reader:
             if line_count == 0:
@@ -48,14 +53,16 @@ def fetch_sequences():
                 continue
             strain_name = row[0]
             accession = row[1]
-            strains_list.append({
+            strains_map[accession] = {
                 "strain": strain_name,
                 "accession": accession,
                 "file": fetch_filename(accession)
-            })
+            }
             line_count += 1
-    print("Found {} records.".format(len(strains_list)))
+
+    print("Found {} records.".format(len(strains_map.keys())))
+    return strains_map
 
 
 if __name__ == "__main__":
-    fetch_sequences()
+    fetch_sequences(_refs_file_csv)
