@@ -6,20 +6,22 @@
 
 import os
 import argparse
-
-from database.base import AbstractStrainDatabase, SimpleCSVStrainDatabase
-from util.logger import logger
 import numpy as np
-import re
 from pathlib import Path
 import csv
 
-from model.bacteria import Population
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 from Bio.Seq import Seq
 
-from model import generative, reads, bacteria
+from util.logger import logger
+from database.base import AbstractStrainDatabase, SimpleCSVStrainDatabase
+from model.bacteria import Population
+from model.reads import SequenceRead, FastQErrorModel
+from model.generative import GenerativeModel, softmax
+
+from typing import List
+
 
 _data_dir = "data"
 
@@ -62,7 +64,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def save_to_fastq(sampled_reads, time_points, out_dir, out_prefix):
+def save_to_fastq(sampled_reads: List[List[SequenceRead]], time_points: List[int], out_dir: str, out_prefix: str):
 
     Path(out_dir).mkdir(parents=True, exist_ok=True)
 
@@ -75,9 +77,9 @@ def save_to_fastq(sampled_reads, time_points, out_dir, out_prefix):
         save_timeslice_to_fastq(sampled_reads[i], out_path)
 
 
-def save_timeslice_to_fastq(timeslice_reads, out_path):
+def save_timeslice_to_fastq(timeslice_reads: List[SequenceRead], out_path: str):
 
-    # Save reads taken at a particular timepoint to fastq.
+    # Save reads taken at a particular timepoint to fastq using SeqIO library
     records = []
     for i, read in enumerate(timeslice_reads):
 
@@ -90,7 +92,12 @@ def save_timeslice_to_fastq(timeslice_reads, out_path):
     SeqIO.write(records, out_path, "fastq")
 
 
-def sample_reads(population, abundances, read_depths, read_length, time_points, seed=31415):
+def sample_reads(population: Population,
+                 abundances: List[np.array],
+                 read_depths: List[int],
+                 read_length: int,
+                 time_points: List[int],
+                 seed: int = 31415) -> List[List[SequenceRead]]:
     np.random.seed(seed)
 
     ##############################
@@ -100,15 +107,16 @@ def sample_reads(population, abundances, read_depths, read_length, time_points, 
     tau_1 = 1
     tau = 1
 
-    my_error_model = reads.FastQErrorModel(read_len=read_length)
+    my_error_model = FastQErrorModel(read_len=read_length)
 
-    my_model = generative.GenerativeModel(times=time_points,
-                                          mu=mu,
-                                          tau_1=tau_1,
-                                          tau=tau,
-                                          bacteria_pop=population,
-                                          read_length=read_length,
-                                          read_error_model=my_error_model)
+    my_model = GenerativeModel(times=time_points,
+                               mu=mu,
+                               tau_1=tau_1,
+                               tau=tau,
+                               bacteria_pop=population,
+                               read_length=read_length,
+                               read_error_model=my_error_model)
+
     ##############################
     # Generate trajectory if not already given and then sample.
     if abundances:
@@ -122,7 +130,7 @@ def sample_reads(population, abundances, read_depths, read_length, time_points, 
 
         normalized_abundances = []
         for Z in abundances:
-            normalized_abundances.append(generative.softmax(Z))
+            normalized_abundances.append(softmax(Z))
         time_indexed_reads = my_model.sample_timed_reads(normalized_abundances, read_depths)
     else:
         abundances, time_indexed_reads = my_model.sample_abundances_and_reads(read_depths)
@@ -130,7 +138,7 @@ def sample_reads(population, abundances, read_depths, read_length, time_points, 
     return time_indexed_reads
 
 
-def get_abundances(file):
+def get_abundances(file: str) -> List[np.array]:
     """
     Read time-indexed abundances from file.
     :param file:
