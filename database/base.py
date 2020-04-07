@@ -15,7 +15,7 @@ class AbstractStrainDatabase(metaclass=ABCMeta):
         self.load()
 
     @abstractmethod
-    def load(self):
+    def __load__(self):
         pass
 
     @abstractmethod
@@ -52,5 +52,5 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
             markers = [Marker(name=strain_accession, seq=genome)]  # Each genome's marker is its own genome.
             self.strain_to_markers[strain_accession] = markers
 
-    def get_markers(self, strain_id: str) -> Strain:
+    def get_strain(self, strain_id: str) -> Strain:
         return Strain(name=strain_id, markers=self.strain_to_markers[strain_id])
