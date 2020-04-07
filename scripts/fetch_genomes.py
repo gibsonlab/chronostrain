@@ -1,7 +1,7 @@
 import os
-import sys
 import csv
 import urllib.request as urllib
+from util.logger import logger
 
 
 _base_dir = "data"
@@ -26,13 +26,12 @@ def fetch_filename(accession):
     """
     filename = get_filename(accession)
     if os.path.exists(filename):
-        print("[{}] file found: {}".format(accession, filename))
+        logger.info("[{}] file found: {}".format(accession, filename))
     else:
-        sys.stdout.write("[{}] file \"{}\" not found. Downloading... ".format(accession, filename))
+        logger.info("[{}] file \"{}\" not found. Downloading... ".format(accession, filename))
         filedata = urllib.urlopen(get_ncbi_url(accession))
         with open(filename, 'w') as f:
             f.write(str(filedata.read()).replace("\r", ""))
-        print("Done.")
     return filename
 
 
@@ -60,7 +59,7 @@ def fetch_sequences(refs_file_csv):
             }
             line_count += 1
 
-    print("Found {} records.".format(len(strains_map.keys())))
+    logger.info("Found {} records.".format(len(strains_map.keys())))
     return strains_map
 
 

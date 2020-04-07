@@ -4,9 +4,9 @@
   Run to perform inference on specified reads.
 """
 
-import random, argparse
+import argparse
+import csv
 import numpy as np
-import pandas as pd
 from util.logger import logger
 from database.base import *
 
@@ -14,7 +14,7 @@ from Bio import SeqIO
 
 from model.bacteria import Population, Strain
 from model import generative
-from model.reads import FastQErrorModel
+from model.reads import FastQErrorModel, SequenceRead
 from algs import em, vi
 
 
@@ -47,28 +47,27 @@ def parse_args():
     return parser.parse_args()
 
 
-def load_marker_database(accession_csv_file : str) -> AbstractDatabase:
+def load_marker_database(accession_csv_file: str) -> AbstractDatabase:
     database_obj = SimpleCSVDatabase(accession_csv_file)
     database_obj.load()
     return database_obj
 
 
-def parse_population(strain_db: AbstractDatabase, accession_csv_file : str) -> Population:
+def parse_population(strain_db: AbstractDatabase, accession_csv_file: str) -> Population:
     """
     Creates a Population object after finding markers for each strain listed in accession_csv_file.
     """
     file_path = os.path.join(_data_dir, accession_csv_file)
-    accession_csv_df = pd.read_csv(file_path)
 
     strains = []
     # for each strain_id, create a Strain instance
-    for strain_id in accession_csv_df['Accession'].tolist():
-        markers = strain_db.get_markers(strain_id)
-
-        # markers = [marker[1:30] for marker in markers] # TODO:Only for debugging. Make sure cmd line win size param<30
-        strain_instance = Strain(name=strain_id, markers=markers)
-        strains.append(strain_instance)
-
+    with open(file_path) as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            strain_id = row['Accession']
+            markers = strain_db.get_markers(strain_id)
+            strain_instance = Strain(name=strain_id, markers=markers)
+            strains.append(strain_instance)
     return Population(strains)
 
 
@@ -102,11 +101,13 @@ def load_from_fastq(file_dir_name: str, filenames: List[str]) -> List[List[gener
     return reads
 
 
-def perform_inference(reads: List[List[str]],
+def perform_inference(reads: List[List[SequenceRead]],
                       population: generative.Population,
                       time_points: List[int],
-                      method: str, window_size: int, seed: int):
-    random.seed(seed)
+                      method: str,
+                      window_size: int,
+                      seed: int):
+    np.random.seed(seed)
 
     if len(reads) != len(time_points):
         raise ValueError("There must be exactly one set of reads for each time point specified")
@@ -142,27 +143,28 @@ def perform_inference(reads: List[List[str]],
         solver.solve()
 
     elif method == "bbvi":
-        pass  # TODO
+        raise NotImplementedError("Method 'bbvi' implemented yet.")
 
     else:
-        raise("{} is not an implemented method!".format(method))
+        raise ValueError("{} is not an implemented method!".format(method))
 
 
 def main():
-    logger.info("Pipeline for inference started.")
-    args = parse_args()
-    logger.debug("Downloading marker database.")
-    db = load_marker_database(args.accession_file)
-    logger.debug("Creating bacteria database")
-    population = parse_population(db, args.accession_file)
-    logger.debug("Reading time-series read files.")
-    reads = load_from_fastq(args.read_files_dir, args.read_files)
-    logger.debug("Performing inference.")
-    abundances = perform_inference(reads, population, args.time_points, args.method, args.read_length, args.seed)
-    logger.info(str(abundances))
-    logger.info("Inference finished.")
+    try:
+        logger.info("Pipeline for inference started.")
+        args = parse_args()
+        logger.debug("Loading from marker database {}.".format(args.accession_file))
+        db = load_marker_database(args.accession_file)
+        population = parse_population(db, args.accession_file)
+        logger.debug("Reading time-series read files.")
+        reads = load_from_fastq(args.read_files_dir, args.read_files)
+        logger.debug("Performing inference.")
+        abundances = perform_inference(reads, population, args.time_points, args.method, args.read_length, args.seed)
+        logger.info(str(abundances))
+        logger.info("Inference finished.")
+    except Exception as e:
+        logger.error("Uncaught exception -- {}".format(e))
 
 
 if __name__ == "__main__":
     main()
-

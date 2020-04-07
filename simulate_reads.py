@@ -21,6 +21,7 @@ from model import generative, reads, bacteria
 
 _data_dir = "data"
 
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Simulate reads from genomes.")
 
@@ -56,7 +57,7 @@ def parse_args():
     parser.add_argument('-e', '--extension', required=False, default='txt',
                         help='<Optional> File extension.')
 
-    return  parser.parse_args()
+    return parser.parse_args()
 
 
 def save_to_fastq(sampled_reads, time_points, out_dir, out_prefix):
@@ -72,11 +73,11 @@ def save_to_fastq(sampled_reads, time_points, out_dir, out_prefix):
         save_timeslice_to_fastq(sampled_reads[i], out_path)
 
 
-def save_timeslice_to_fastq(reads, out_path):
+def save_timeslice_to_fastq(timeslice_reads, out_path):
 
     # Save reads taken at a particular timepoint to fastq.
     records = []
-    for i, read in enumerate(reads):
+    for i, read in enumerate(timeslice_reads):
 
         # https://biopython.org/docs/1.74/api/Bio.SeqRecord.html
         record = SeqRecord(Seq(read.seq), id="Read number " + str(i), description=", a simulated read")
@@ -173,37 +174,38 @@ def get_genomes(accession_nums, strain_info):
 
 
 def main():
+    try:
+        logger.info("Pipeline for read simulation started.")
+        args = parse_args()
 
-    logger.info("Pipeline for read simulation started.")
-    args = parse_args()
+        logger.debug("Downloading genomes from NCBI...")
+        strain_info = fetch_sequences(args.accession_file)
 
-    logger.debug("Downloading genomes from NCBI...")
-    strain_info = fetch_sequences(args.accession_file)
+        genomes_map = get_genomes(strain_info.keys(), strain_info)
 
-    genomes_map = get_genomes(strain_info.keys(), strain_info)
+        abundances = None
+        if args.abundance_file:
+            logger.debug("Parsing abundance file...")
+            abundances = get_abundances(file=args.abundance_file)
 
-    abundances = None
-    if args.abundance_file:
-        logger.debug("Parsing abundance file...")
-        abundances = get_abundances(file=args.abundance_file)
+        logger.debug("Sampling reads...")
+        time_points = args.time_points
+        read_depths = args.num_reads * np.ones(len(time_points), dtype=int)
+        sampled_reads = sample_reads(
+            genomes_map=genomes_map,
+            read_depths=read_depths,
+            abundances=abundances,
+            read_length=args.read_length,
+            time_points=time_points,
+            seed=args.seed
+        )
 
-    logger.debug("Sampling reads...")
-    time_points = args.time_points
-    read_depths = args.num_reads * np.ones(len(time_points), dtype=int)
-    sampled_reads = sample_reads(
-        genomes_map=genomes_map,
-        read_depths=read_depths,
-        abundances=abundances,
-        read_length=args.read_length,
-        time_points=time_points,
-        seed=args.seed
-    )
-
-    logger.debug("Saving samples to FastQ file {}.".format(args.out_dir + "/" + args.out_prefix))
-    save_to_fastq(sampled_reads, args.time_points, args.out_dir, args.out_prefix)
-    logger.info("Reads finished sampling.")
+        logger.debug("Saving samples to FastQ file {}.".format(args.out_dir + "/" + args.out_prefix))
+        save_to_fastq(sampled_reads, args.time_points, args.out_dir, args.out_prefix)
+        logger.info("Reads finished sampling.")
+    except Exception as e:
+        logger.error("Uncaught exception -- {}".format(e))
 
 
 if __name__ == "__main__":
     main()
-

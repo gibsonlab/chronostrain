@@ -46,7 +46,7 @@ class Population:
                     fragment_space.add_seq(seq)
 
         self.fragment_space_map[window_size] = fragment_space
-        logger.debug("Finished constructing fragment space for window size {}!".format(window_size))
+        logger.debug("Finished.")
 
         return fragment_space
 
