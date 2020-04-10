@@ -18,7 +18,7 @@ from util.logger import logger
 from database.base import AbstractStrainDatabase, SimpleCSVStrainDatabase
 from model.bacteria import Population
 from model.reads import SequenceRead, FastQErrorModel
-from model.generative import GenerativeModel, softmax
+from model.generative import GenerativeModel
 
 from typing import List
 
@@ -118,7 +118,7 @@ def sample_reads(population: Population,
                                read_error_model=my_error_model)
 
     ##############################
-    # Generate trajectory if not already given and then sample.
+    # Generate strain trajectory if not already given and then sample.
     if abundances:
         for abundance_profile in abundances:
             if len(abundance_profile) != len(population.strains):
@@ -128,11 +128,11 @@ def sample_reads(population: Population,
             raise ValueError("Number of abundance profiles ({}) must match number of time points ({}).".
                              format(len(abundances), len(time_points)))
 
+        normalized_abundances = []
         for Z in abundances:
-            if not (round(sum(Z), 4) == 1):
-                raise ValueError("Abundances at each time point should sum to 1")
+            normalized_abundances.append(Z / np.sum(Z))
+        time_indexed_reads = my_model.sample_timed_reads(normalized_abundances, read_depths)
 
-        time_indexed_reads = my_model.sample_timed_reads(abundances, read_depths)
     else:
         abundances, time_indexed_reads = my_model.sample_abundances_and_reads(read_depths)
 
@@ -192,10 +192,10 @@ def main():
         genome_database = load_strain_database(args.accession_file)
         population = parse_population(genome_database, args.accession_file)
 
-        abundances = None
+        strain_abundances = None
         if args.abundance_file:
             logger.debug("Parsing abundance file...")
-            abundances = get_abundances(file=args.abundance_file)
+            strain_abundances = get_abundances(file=args.abundance_file)
 
         logger.debug("Sampling reads...")
         time_points = args.time_points
@@ -203,7 +203,7 @@ def main():
         sampled_reads = sample_reads(
             population=population,
             read_depths=read_depths,
-            abundances=abundances,
+            abundances=strain_abundances,
             read_length=args.read_length,
             time_points=time_points,
             seed=args.seed
