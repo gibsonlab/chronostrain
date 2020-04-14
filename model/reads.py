@@ -4,7 +4,6 @@
 """
 from abc import ABC, abstractmethod
 import numpy as np
-import model.generative as generative
 import math
 
 
@@ -306,7 +305,7 @@ class BasicErrorModel(AbstractErrorModel):
             noisy_fragment_quality[k] = q_score
 
         noisy_fragment_string = ''.join(noisy_fragment_chars)
-        seq_read = generative.SequenceRead(noisy_fragment_string, noisy_fragment_quality, "blank metadata")
+        seq_read = SequenceRead(noisy_fragment_string, noisy_fragment_quality, "blank metadata")
         return seq_read
 
 
@@ -394,6 +393,6 @@ class FastQErrorModel(AbstractErrorModel):
             noisy_fragment_quality[k] = q_score
 
         noisy_fragment_string = ''.join(noisy_fragment_chars)
-        seq_read = generative.SequenceRead(noisy_fragment_string, noisy_fragment_quality, "blank metadata")
+        seq_read = SequenceRead(noisy_fragment_string, noisy_fragment_quality, "blank metadata")
 
         return seq_read

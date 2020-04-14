@@ -49,7 +49,6 @@ def parse_args():
 
 def load_marker_database(accession_csv_file: str) -> AbstractStrainDatabase:
     database_obj = SimpleCSVStrainDatabase(accession_csv_file)
-    database_obj.load()
     return database_obj
 
 

@@ -12,7 +12,7 @@ _DEFAULT_DATA_DIR = "data"
 
 class AbstractStrainDatabase(metaclass=ABCMeta):
     def __init__(self):
-        self.load()
+        self.__load__()
 
     @abstractmethod
     def __load__(self):
@@ -24,7 +24,6 @@ class AbstractStrainDatabase(metaclass=ABCMeta):
 
     def get_strains(self, strain_ids: List[str]) -> List[Strain]:
         return [self.get_strain(s_id) for s_id in strain_ids]
-
 
 
 class SimpleCSVStrainDatabase(AbstractStrainDatabase):
@@ -48,7 +47,7 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
             with open(input_file_path) as file:
                 for i, line in enumerate(file):
                     genome = re.sub('[^AGCT]+', '', line.split(sep=" ")[-1])
-
+                    # genome = genome[:30] # TODO: This line is for debugging to speed up fragment matrix generation.
             markers = [Marker(name=strain_accession, seq=genome)]  # Each genome's marker is its own genome.
             self.strain_to_markers[strain_accession] = markers
 

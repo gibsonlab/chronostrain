@@ -4,7 +4,7 @@
 """
 
 import numpy as np
-from typing import List
+from typing import List, Tuple
 from model.bacteria import Population
 from model.reads import AbstractErrorModel, SequenceRead
 
@@ -33,7 +33,8 @@ class GenerativeModel:
         self.read_length = read_length
         self.fragment_frequencies = self.bacteria_pop.get_strain_fragment_frequencies(window_size=read_length)
 
-    def sample_abundances_and_reads(self, read_depths):
+    def sample_abundances_and_reads(self, read_depths: List[int]) -> \
+            Tuple[List[np.ndarray], List[List[SequenceRead]]]:
         """
         Generate a time-indexed list of read collections and strain abundances.
 
@@ -58,7 +59,8 @@ class GenerativeModel:
         reads = self.sample_timed_reads(abundances, read_depths)
         return abundances, reads
 
-    def sample_timed_reads(self, abundances: List[np.ndarray], read_depths: List[int]):
+    def sample_timed_reads(self, abundances: List[np.ndarray], read_depths: List[int]) -> List[List[SequenceRead]]:
+
         if len(abundances) != len(self.times):
             raise ValueError(
                 "Length of strain_rel_abundances_motion ({}) must agree with number of time points ({})".format(
@@ -66,16 +68,16 @@ class GenerativeModel:
                 )
             )
 
-        reads = []
+        reads_list = []
 
         # For each time point, convert to fragment abundances and sample each read.
         for read_depth, strain_abundance in zip(read_depths, abundances):
             frag_abundance = self.strain_abundance_to_frag_abundance(strain_abundance)
-            reads.append(self.sample_reads(frag_abundance, read_depth))
+            reads_list.append(self.sample_reads(frag_abundance, read_depth))
 
-        return reads
+        return reads_list
 
-    def time_scale(self, time_idx: int):
+    def time_scale(self, time_idx: int) -> float:
         """
         Return the k-th time increment.
         :param time_idx: the index to query (corresponding to k).
@@ -87,7 +89,7 @@ class GenerativeModel:
         if time_idx < len(self.times):
             return self.tau * (self.times[time_idx] - self.times[time_idx-1])
         else:
-            return IndexError("Can't reference time at index {}.".format(time_idx))
+            raise IndexError("Can't reference time at index {}.".format(time_idx))
 
     def _sample_brownian_motion(self) -> List[np.ndarray]:
         """
@@ -105,7 +107,7 @@ class GenerativeModel:
 
         return brownian_motion
 
-    def sample_abundances(self):
+    def sample_abundances(self) -> List[np.ndarray]:
         abundances = []
         gaussians = self._sample_brownian_motion()
         for Z in gaussians:
