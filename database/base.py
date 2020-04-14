@@ -12,7 +12,7 @@ _DEFAULT_DATA_DIR = "data"
 
 class AbstractStrainDatabase(metaclass=ABCMeta):
     def __init__(self):
-        self.load()
+        self.__load__()
 
     @abstractmethod
     def __load__(self):

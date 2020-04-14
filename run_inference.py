@@ -15,7 +15,7 @@ from Bio import SeqIO
 from model.bacteria import Population
 from model import generative
 from model.reads import FastQErrorModel, SequenceRead
-from algs import em, vi
+from algs import em, vi, bbvi
 
 
 _data_dir = "data"
@@ -49,7 +49,6 @@ def parse_args():
 
 def load_marker_database(accession_csv_file: str) -> AbstractStrainDatabase:
     database_obj = SimpleCSVStrainDatabase(accession_csv_file)
-    database_obj.load()
     return database_obj
 
 
@@ -131,18 +130,31 @@ def perform_inference(reads: List[List[SequenceRead]],
                                           read_error_model=my_error_model)
 
     if method == "em":
+        logger.info("Solving using Expectation-Maximization.")
         solver = em.EMSolver(my_model, reads)
         abundances = solver.solve()
         logger.info("Learned abundances:")
         logger.info(abundances)
 
     elif method == "vi":
-        posterior = vi.SecondOrderVariationalPosterior(mu, np.identity(mu.size), my_model.fragment_frequencies)
+        logger.info("Solving using second-order variational inference.")
+        posterior = vi.SecondOrderVariationalPosterior(mu, np.identity(mu.size), my_model.get_fragment_frequencies())
         solver = vi.SecondOrderVariationalGradientSolver(my_model, reads, posterior)
         solver.solve()
 
     elif method == "bbvi":
-        raise NotImplementedError("Method 'bbvi' implemented yet.")
+        logger.info("Solving using black-box (monte-carlo) variational inference.")
+        solver = bbvi.BBVISolver(model=my_model, data=reads)
+        solver.solve()
+        posterior = solver.posterior
+
+        logger.info("Learned posterior:")
+        logger.info(posterior.params())
+
+        logger.info("Posterior sample:")
+        sample_x, sample_f = posterior.sample()
+        logger.info("X: ", sample_x)
+        logger.info("F: ", sample_f)
 
     else:
         raise ValueError("{} is not an implemented method!".format(method))

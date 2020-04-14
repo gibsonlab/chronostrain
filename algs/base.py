@@ -5,15 +5,18 @@
 
 import numpy as np
 from abc import ABCMeta, abstractmethod
+from typing import List
+from model.generative import GenerativeModel
+from model.reads import SequenceRead
 
 
 class AbstractModelSolver(metaclass=ABCMeta):
-    def __init__(self, generative_model, data):
-        self.model = generative_model
+    def __init__(self, model: GenerativeModel, data: List[List[SequenceRead]]):
+        self.model = model
         self.data = data
 
     @abstractmethod
-    def solve(self):
+    def solve(self, *args, **kwargs):
         pass
 
 
