@@ -26,7 +26,6 @@ class AbstractStrainDatabase(metaclass=ABCMeta):
         return [self.get_strain(s_id) for s_id in strain_ids]
 
 
-
 class SimpleCSVStrainDatabase(AbstractStrainDatabase):
     """
     A Simple implementation that treats each complete strain genome as a marker.
@@ -48,7 +47,7 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
             with open(input_file_path) as file:
                 for i, line in enumerate(file):
                     genome = re.sub('[^AGCT]+', '', line.split(sep=" ")[-1])
-
+                    # genome = genome[:30] # TODO: This line is for debugging to speed up fragment matrix generation.
             markers = [Marker(name=strain_accession, seq=genome)]  # Each genome's marker is its own genome.
             self.strain_to_markers[strain_accession] = markers
 

@@ -58,7 +58,7 @@ class Population:
                     fragment_space.add_seq(seq)
 
         self.fragment_space_map[window_size] = fragment_space
-        logger.debug("Finished.")
+        logger.debug("Finished constructing fragment space.")
 
         return fragment_space
 
@@ -77,6 +77,7 @@ class Population:
         fragment_space = self.get_fragment_space(window_size)
         frag_freqs = np.zeros((fragment_space.size(), len(self.strains)), dtype=float)
 
+        logger.debug("Constructing fragment frequencies for window size {}...".format(window_size))
         for col, strain in enumerate(self.strains):
             for marker in strain.markers:
                 for subseq in sliding_window(marker.seq, window_size):
@@ -85,6 +86,7 @@ class Population:
         # normalize each col to sum to 1.
         frag_freqs = frag_freqs / frag_freqs.sum(axis=0)
         self.fragment_frequencies_map[window_size] = frag_freqs
+        logger.debug("Finished constructing fragment frequencies for window size {}...".format(window_size))
         return frag_freqs
 
 
