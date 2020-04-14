@@ -5,13 +5,28 @@
 
 import numpy as np
 from typing import List, Tuple
+from scipy.stats import multivariate_normal
 from model.bacteria import Population
+from model.fragments import FragmentSpace
 from model.reads import AbstractErrorModel, SequenceRead
 
+import torch
+from torch.distributions.multivariate_normal import MultivariateNormal
+from torch.distributions.categorical import Categorical
 
-def softmax(x: np.ndarray) -> np.ndarray:
+
+# TODO: move implementation to torch to enable GPU-accelerated matrix operations.
+
+def softmax(x: np.ndarray, axis: int = 0) -> np.ndarray:
+    """
+    Computes the softmax function of x, where normalization occurs across the specified axis.
+    :param x: The input.
+    :param axis: the normalization axis. Useful if "x" is a 2-d array,
+    consisting of many samples of D-dimensional vectors, so that the normalization needs to happen across columns.
+    :return:
+    """
     y = np.exp(x)
-    return y / np.sum(y)
+    return y / np.sum(y, axis=axis)
 
 
 class GenerativeModel:
@@ -31,10 +46,63 @@ class GenerativeModel:
         self.error_model = read_error_model
         self.bacteria_pop = bacteria_pop
         self.read_length = read_length
-        self.fragment_frequencies = self.bacteria_pop.get_strain_fragment_frequencies(window_size=read_length)
 
-    def sample_abundances_and_reads(self, read_depths: List[int]) -> \
-            Tuple[List[np.ndarray], List[List[SequenceRead]]]:
+    def num_times(self) -> int:
+        return len(self.times)
+
+    def num_strains(self) -> int:
+        return len(self.bacteria_pop.strains)
+
+    def num_fragments(self) -> int:
+        return self.get_fragment_space().size()
+
+    def get_fragment_space(self) -> FragmentSpace:
+        return self.bacteria_pop.get_fragment_space(self.read_length)
+
+    def get_fragment_frequencies(self):
+        return self.bacteria_pop.get_strain_fragment_frequencies(window_size=self.read_length)
+
+    def log_likelihood_torch(self, X: List[torch.Tensor], F: List[torch.Tensor], R: List[List[SequenceRead]], device):
+        """
+        Computes the joint log-likelihood of X, F, and R.
+        Let N be the number of samples.
+        :param X: The S-dimensional Gaussian trajectory, indexed (T x N x S) as a List of 2-d numpy arrays.
+        :param F: The per-read (R reads) sampled fragments, indexed (T x N x R_t) as a list of 2-d numpy arrays.
+        :param R: The sampled reads, indexed (T x R_t) as a list of list of SequenceReads.
+        :return: The log-likelihood from the generative model.
+        """
+        n = X[0].size(0)
+        ans = torch.zeros(n, dtype=torch.double, device=device)
+        prev_x = torch.tensor(self.mu)
+        for t in range(len(X)):
+            # ==== Note:
+            # each x_t is an N x S matrix.
+            x_t = X[t]
+            dist = MultivariateNormal(loc=prev_x.mm, covariance_matrix=self.time_scale(t) * torch.eye(self.num_strains()))
+            ans = ans + dist.log_prob(x_t)
+            prev_x = x_t
+
+            # ==== Note:
+            # y_t is an N x S matrix.
+            # W is a F x S matrix, want to end up with an N x F matrix.
+            # Proper dimension ordering is y_t * transpose(W).
+            y_t = x_t.softmax(dim=1)
+            W = torch.tensor(self.get_fragment_frequencies(), device=device)  # TODO: get rid of this line once everything is moved to pytorch.
+            z_t = y_t.mm(W.transpose(0, 1))
+
+            # ==== Note:
+            # each f_t is an N x R_t matrix.
+            f_t = F[t]
+            ans = ans + Categorical(z_t).log_prob(f_t)
+            # TODO: tensor-ize this for loop after error_model.compute_log_likelihood is moved to torch.
+            for m in range(n):
+                for i, read in enumerate(R[t]):
+                    ans[m] = ans[m] + self.error_model.compute_log_likelihood(
+                        fragment=self.get_fragment_space().get_fragment_by_index(i),
+                        read=read
+                    )
+
+    def sample_abundances_and_reads(self, read_depths: List[int]) -> Tuple[List[np.ndarray], List[List[SequenceRead]]]:
         """
         Generate a time-indexed list of read collections and strain abundances.
 
@@ -102,7 +170,7 @@ class GenerativeModel:
 
         for time_idx in range(len(self.times)):
             scaling = self.time_scale(time_idx)
-            center = np.random.multivariate_normal(center, covariance * scaling)
+            center = multivariate_normal.rvs(mean=center, cov=scaling*covariance)
             brownian_motion.append(center)
 
         return brownian_motion
@@ -118,7 +186,7 @@ class GenerativeModel:
         """
         Convert strain abundance to fragment abundance, via the matrix multiplication F = WS.
         """
-        return np.matmul(self.fragment_frequencies, strain_abundance)
+        return np.matmul(self.get_fragment_frequencies(), strain_abundance)
 
     def sample_reads(self, frag_abundances: np.ndarray, num_samples: int = 1) -> List[SequenceRead]:
         """

@@ -1,247 +1,216 @@
 """
-  bbvi.py
+  bbvi.py (pytorch implementation)
   Black-box Variational Inference
-  Author: Younhun Kim, with some code from https://github.com/jamesvuc/BBVI/blob/master/bbvi.py
+  Author: Younhun Kim
 """
 
-from abc import ABCMeta, abstractmethod
+from typing import List, Tuple
+import torch
+from torch.distributions.multivariate_normal import MultivariateNormal
+from torch.distributions.categorical import Categorical
 
-import datetime as dt
+from model.reads import SequenceRead
 
-import numpy as np
+from algs.base import AbstractModelSolver
+from model.generative import GenerativeModel
+from util.logger import logger
+from util.benchmarking import RuntimeEstimator
 
-from autograd import grad
-from autograd.misc.optimizers import adam
-from autograd.core import getval
-from scipy.stats import multivariate_normal as mvn
-from scipy.stats import norm as norm
-
-# TODO: consider re-implementing in pytorch (and enable GPU support.)
+_CPU = torch.device("cpu")
+_CUDA = torch.device("cuda")
 
 
-"""
-  Abstract class due to https://github.com/jamesvuc/BBVI/blob/master/bbvi.py
-"""
-class BaseBBVIModel(metaclass=ABCMeta):
+# ============================ Constants =============================
+default_device = _CUDA
+
+
+class MeanFieldPosterior:
+    def __init__(
+            self,
+            times: int,
+            strains: int,
+            fragments: int,
+            read_counts: List[int],
+            device=default_device
+    ):
+        """
+        Mean-field assumption:
+        1) Parametrize X_1, ..., X_T as a Gaussian Process, with covariance kernel \Sigma_{t, t+1}.
+        2) Parametrize F_1, ..., F_T as independent (but not identical) categorical RVs (for each read).
+        :param times: Number of time points, T.
+        :param strains: Number of strains, S.
+        :param fragments: Number of fragments, F.
+        :param read_counts: Number of reads per time point.
+        :param device: the device to use for pytorch. (Default: CUDA if available).
+        """
+        # Check: might need this to be a matrix, not a vector.
+        self.times = times
+        self.strains = strains
+        self.fragments = fragments
+        self.read_counts = read_counts
+        self.device = device
+
+        # ================= Learnable parameters:
+        # The initial mean of the GP.
+        self.mean = torch.nn.Parameter(torch.zeros(
+            strains, device=device, dtype=torch.double, requires_grad=True
+        ))
+
+        # Represents the transition matrix Sigma_{t+1,t} * inv(Sigma_{t,t}).
+        self.transitions = [torch.nn.Parameter(torch.eye(
+            strains, strains, device=device, dtype=torch.double, requires_grad=True
+        )) for _ in range(times)]
+
+        # Represents the precision matrices inv(Sigma_{t+1,t+1} - Sigma_{t+1,t} inv(Sigma_{t,t}) * Sigma_{t,t+1}).
+        self.precisions = [torch.nn.Parameter(torch.eye(
+            strains, device=device, dtype=torch.double, requires_grad=True
+        )) for _ in range(times)]
+
+        # The categorical weights for each time point.
+        self.frag_weights = [torch.nn.Parameter(torch.ones(
+            fragments, device=device, dtype=torch.double, requires_grad=True
+        )) for _ in range(times)]
+
+    def params(self) -> List[torch.nn.Parameter]:
+        """
+        Return a list of all learnable parameters (e.g. Parameter instances with requires_grad=True).
+        """
+        return [self.mean] + self.transitions + self.precisions + self.frag_weights
+
+    def sample(self, num_samples=1) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
+        # Indexing: (time) x (sample idx) x (distribution dimension)
+        X = self.rand_sample_X(num_samples)
+        F = self.rand_sample_F(num_samples)
+        return X, F
+
+    def log_likelihood(self, X, F) -> torch.Tensor:
+        return self.log_likelihood_X(X) + self.log_likelihood_F(F)
+
+    def rand_sample_X(self, num_samples) -> List[torch.Tensor]:
+        # Dimension indexing: (T x N x S)
+        X = [torch.empty(1) for _ in range(self.times)]
+        prev_x = self.mean.view(self.strains).repeat(num_samples, 1)
+        for t in range(self.times):
+            X[t] = MultivariateNormal(
+                loc=prev_x.mm(self.transitions[t]),
+                precision_matrix=self.precisions[t]
+            ).sample().to(self.device)
+            X[t].requires_grad = False
+            prev_x = X[t]
+        #
+        # # Dimension indexing: (N x T x S)
+        # X = torch.stack(X).transpose(0,1)
+        return X
+
+    def rand_sample_F(self, num_samples) -> List[torch.Tensor]:
+        # Indexing: (T x N x R)
+        F = [
+            Categorical(self.frag_weights[t])
+                .sample([num_samples, self.read_counts[t]])
+                .to(self.device)
+            for t in range(self.times)
+        ]
+        for t in range(self.times):
+            F[t].requires_grad = False
+        #
+        # # Indexing: (N x T x R)
+        # F = torch.stack(F).transpose(0,1)
+        return F
+
+    def log_likelihood_X(self, X: List[torch.Tensor]) -> torch.Tensor:
+        N = X[0].size(0)
+        ans = torch.zeros(N, dtype=torch.double, device=self.device)
+        prev_x = self.mean.view(1, self.strains)
+        for t in range(self.times):
+            dist = MultivariateNormal(loc=prev_x.mm(self.transitions[t]), precision_matrix=self.precisions[t])
+            ans = ans + dist.log_prob(X[t])
+            prev_x = X[t]
+        return ans
+
+    def log_likelihood_F(self, F: List[torch.Tensor]) -> torch.Tensor:
+        N = F[0].size(0)
+        ans = torch.zeros(N, dtype=torch.double, device=self.device)
+        for t in range(self.times):
+            dist = Categorical(self.frag_weights[t])
+            ans = ans + dist.log_prob(F[t]).sum(dim=1)
+        return ans
+
+
+class BBVISolver(AbstractModelSolver):
     """
-    An abstract base class providing the structure for a general Bayesian
-    inference problem to be solved using black box variational inference.
-    We provide a number of ELBO graient approximations, with ease of experimentation
-    being a primary goal.
-
-    To use this framework, one must derive their own class (i.e. model), and implement
-    the user-specified mehtods indicated below.
-
-    The mechanics follow those of
-    https://github.com/HIPS/autograd/blob/master/examples/black_box_svi.py
+    An abstraction of a black-box VI implementation.
     """
 
-    def __init__(self):
-        self._init_var_params = None
-        self._var_params = None
-        self.N_SAMPLES = None
+    def __init__(self,
+                 model: GenerativeModel,
+                 data: List[List[SequenceRead]],
+                 device=default_device):
+        super(BBVISolver, self).__init__(model, data)
+        self.model = model
+        self.data = data
+        self.device = device
+        self.posterior = MeanFieldPosterior(
+            times=model.num_times(),
+            strains=model.num_strains(),
+            fragments=model.num_fragments(),
+            read_counts=[len(reads) for reads in data],
+            device=device
+        )
 
-    """
-    =======User-specified methods=====
-    These methods must be implemented when the model is derived from this base class.
-    The user-specified signatures should match those below,.
-    """
-
-    # Variational approx
-
-    @abstractmethod
-    def log_var_approx(self, z, params):
+    def elbo_estimate(self, num_samples=1000):
         """
-        Computes the log variational approximation of z to the posterior log_prob
-        using variational parameters params. Should be vectorized over z.
+        Computes the monte-carlo approximation to the ELBO objective, as specified in
+        https://arxiv.org/abs/1401.0118.
+        (No re-parametrization trick, no Rao-Blackwell-ization.)
         """
-        pass
+        (X_samples, F_samples) = self.posterior.sample(num_samples=num_samples)
 
-    @abstractmethod
-    def sample_var_approx(self, params, n_samples=1000):
-        """
-        Returns samples from the variational approximation with parameters params.
-        """
-        pass
+        posterior_ll = self.posterior.log_likelihood(
+            X=X_samples,
+            F=F_samples
+        )
+        posterior_ll_grad_disabled = posterior_ll.clone()
+        posterior_ll_grad_disabled.requires_grad = False
 
-    # Joint Distribution
-    @abstractmethod
-    def log_prob(self, z):
-        """
-        Computes the log-posterior of latent variables z.
-        """
-        pass
+        generative_ll = self.model.log_likelihood_torch(
+            X=X_samples,
+            F=F_samples,
+            R=self.data,
+            device=self.device
+        )
 
-    def callback(self, *args):
-        """
-        Optional method called once per optimization step.
-        """
-        pass
+        elbo_monte_carlo = posterior_ll * (generative_ll - posterior_ll_grad_disabled)
+        return elbo_monte_carlo.mean()
 
-    """
-    =======-Generic VI methods=======
-    """
+    def solve(self,
+              optim_class=torch.optim.SGD,
+              optim_args=None,
+              iters=4000,
+              num_samples=1000,
+              print_debug_every=200
+              ):
+        if optim_args is None:
+            optim_args = {'lr': 1e-4}
+        optimizer = optim_class(
+            self.posterior.params(),
+            **optim_args
+        )
 
-    """------Stochastic Search-------"""
+        time_est = RuntimeEstimator(total_iters=iters, horizon=10)
+        for i in range(1, iters+1, 1):
+            time_est.stopwatch_click()
 
-    def _objfunc(self, params, t):
-        """
-        Implements an unadjusted stochastic-search BBVI gradient estimate according
-        to https://arxiv.org/abs/1401.0118.
-        """
-        samps = self.sample_var_approx(getval(params), n_samples=self.N_SAMPLES)
+            loss = -self.elbo_estimate(num_samples=num_samples)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
-        return np.mean(
-            self.log_var_approx(samps, params) * (self.log_prob(samps) - self.log_var_approx(samps, getval(params))))
+            secs_elapsed = time_est.stopwatch_click()
+            time_est.increment(secs_elapsed)
 
-    def _objfuncCV(self, params, t):
-        """
-        Experimental: Implements a version of above with an estimated control variate.
-        """
-        raise NotImplementedError("TODO Fix the control variate scaling!")
-
-        samps = self.sample_var_approx(getval(params), n_samples=self.N_SAMPLES)
-
-        a_hat = np.mean(self.log_prob(samps) - self.log_var_approx(samps, getval(params)))  # TODO fix
-
-        return np.mean(self.log_var_approx(samps, params) * (
-                    self.log_prob(samps) - self.log_var_approx(samps, getval(params)) - a_hat))
-
-    """-----Reparameterization Trick--------"""
-
-    def _estimate_ELBO(self, params, t):
-        """
-        Implements the ELBO estimate from http://www.cs.toronto.edu/~duvenaud/papers/blackbox.pdf
-        which in turn implements the reparamerization trick from https://arxiv.org/abs/1506.02557
-        """
-        samps = self.sample_var_approx(params, n_samples=self.N_SAMPLES)
-
-        # estimates -E[log p(z)-log q(z)]
-        return -np.mean(self.log_prob(samps) - self.log_var_approx(samps, params),
-                        axis=0)  # this one appears to be correct
-
-    def _estimate_ELBO_noscore(self, params, t):
-        """
-        Implements the ELBO estimate from
-        https://papers.nips.cc/paper/7268-sticking-the-landing-simple-lower-variance-gradient-estimators-for-variational-inference.pdf
-        which can reduce variance in certain cases.
-        """
-        samps = self.sample_var_approx(params, n_samples=self.N_SAMPLES)
-
-        # eliminates the score function
-        return -np.mean(self.log_prob(samps) - self.log_var_approx(samps, getval(params)),
-                        axis=0)  # this one appears to be correct
-
-    """-----Optimization------"""
-
-    def run_VI(self, init_params, num_samples=50, step_size=0.01, num_iters=2000, method='stochsearch'):
-        methods = ['stochsearch', 'reparam', 'noscore']
-        if method not in methods:
-            raise KeyError('Allowable VI methods are', methods)
-
-        self.N_SAMPLES = num_samples
-
-        # select the gradient type
-        if method == 'stochsearch':
-            # not CV
-            _tmp_gradient = grad(self._objfunc)
-        # CV
-        # _tmp_gradient=grad(self._objfuncCV)
-
-        elif method == 'reparam':
-            _tmp_gradient = grad(self._estimate_ELBO)
-
-        elif method == 'noscore':
-            _tmp_gradient = grad(self._estimate_ELBO_noscore)
-
-        else:
-            raise Exception("Allowable ELBO estimates are", methods)
-
-        # set the initial parameters
-        self._init_var_params = init_params
-
-        # start the clock
-        s = dt.datetime.now()
-
-        # run the VI
-        self._var_params = adam(_tmp_gradient, self._init_var_params,
-                                step_size=step_size,
-                                num_iters=num_iters,
-                                callback=self.callback
-                                )
-
-        return self._var_params
-
-
-# ========= START EXAMPLE
-class TestModel1(BaseBBVIModel):
-    def __init__(self, D=2):
-        self.dim=D
-        plt.show(block=False)
-        self.fig, self.ax=plt.subplots(2)
-        self.elbo_hist=[]
-        super().__init__(self)
-
-    # specify the variational approximator
-    def unpack_params(self, params):
-        # print('params shape',params.shape)
-        return params[:, 0], params[:, 1]
-
-    def log_var_approx(self, z, params):
-        mu, log_sigma=self.unpack_params(params)
-        sigma=np.diag(np.exp(2*log_sigma))+1e-6
-        return mvn.logpdf(z, mu, sigma)
-
-    def sample_var_approx(self, params, n_samples=2000):
-        mu, log_sigma=self.unpack_params(params)
-        return npr.randn(n_samples, mu.shape[0])*np.exp(log_sigma)+mu
-
-    # specify the distribution to be approximated
-    def log_prob(self, z):
-        mu, log_sigma = z[:, 0], z[:, 1]#this is a vectorized extraction of mu,sigma
-        sigma_density = norm.logpdf(log_sigma, 0, 1.35)
-        mu_density = norm.logpdf(mu, 0, np.exp(log_sigma))
-
-        return sigma_density + mu_density
-
-    def plot_isocontours(self, ax, func, xlimits=[-2, 2], ylimits=[-4, 2], numticks=101):
-        x = np.linspace(*xlimits, num=numticks)
-        y = np.linspace(*ylimits, num=numticks)
-        X, Y = np.meshgrid(x, y)
-        zs = func(np.concatenate([np.atleast_2d(X.ravel()), np.atleast_2d(Y.ravel())]).T)
-        Z = zs.reshape(X.shape)
-        # plt.contour(X, Y, Z)
-        ax.contour(X, Y, Z)
-        ax.set_yticks([])
-        ax.set_xticks([])
-
-
-    def callback(self, *args):
-        self.elbo_hist.append(self._estimate_ELBO(args[0], 0))
-        if args[1]%50==0:
-            print(args[1])
-            curr_params=args[0]
-            for a in self.ax:
-                a.cla()
-            self.plot_isocontours(self.ax[0], lambda z:np.exp(self.log_prob(z)))
-            self.plot_isocontours(self.ax[0], lambda z:np.exp(self.log_var_approx(z, curr_params)))
-            self.ax[1].plot(self.elbo_hist)
-            self.ax[1].set_title('elbo estimate='+str(round(self.elbo_hist[-1],4)))
-            plt.pause(1.0/30.0)
-
-            plt.draw()
- # ========= END EXAMPLE
-
-
-class BBVIImplementation(BaseBBVIModel):
-    def log_var_approx(self, z, params):
-        pass
-
-    def sample_var_approx(self, params, n_samples=1000):
-        pass
-
-    def log_prob(self, z):
-        pass
-
-    def run_VI(self, init_params, num_samples=50, step_size=0.01, num_iters=2000, how='blackwell-rao'):
-        pass
+            if i % print_debug_every == 0:
+                logger.debug("Iteration {i} | time left: {t} min. | Last ELBO = {loss}".format(
+                    i=i,
+                    t=time_est.time_left() // 60,
+                    loss=loss.item()
+                ))
