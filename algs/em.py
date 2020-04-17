@@ -1,5 +1,6 @@
 import numpy as np
 from model.generative import softmax
+from util.benchmarking import RuntimeEstimator
 from util.logger import logger
 from algs.base import AbstractModelSolver, compute_frag_errors
 from typing import Any
@@ -17,7 +18,7 @@ class EMSolver(AbstractModelSolver):
         self.frag_errors = compute_frag_errors(self.model, self.data)
         self.lr = lr
 
-    def solve(self, iters=100, thresh=1e-5, initialization=None):
+    def solve(self, iters=100, thresh=1e-5, initialization=None, print_debug_every=100):
         """
         Runs the EM algorithm on the instantiated data.
         :param iters: number of iterations.
@@ -33,30 +34,32 @@ class EMSolver(AbstractModelSolver):
         else:
             abundances = initialization
 
-        for i in range(1, iters+1):
-
-
+        time_est = RuntimeEstimator(total_iters=iters, horizon=10)
+        k = 1
+        while k <= iters:
+            time_est.stopwatch_click()
             updated_abundances = self.em_update(abundances)
+            secs_elapsed = time_est.stopwatch_click()
+            time_est.increment(secs_elapsed)
 
             diff = np.linalg.norm(updated_abundances - abundances, 'fro')
 
             has_converged = (diff < thresh)
-
             if has_converged:
-                logger.debug("Convergence criterion ({t}) met; terminating optimization early.".format(t=thresh))
+                logger.debug("Convergence criterion ({th}) met; terminating optimization early.".format(th=thresh))
                 break
-
             abundances = updated_abundances
 
-            print("iteration {} complete; abundance {}".format(i, abundances))
-
-            if i % 100 == 0 or i == 1:
-                logger.debug("(Iteration {})  abundance difference: {}".format(i, diff))
-
-        logger.debug("Finished {} iterations.".format(iters))
+            if k % print_debug_every == 0:
+                logger.debug("Iteration {i} | time left: {t} min. | Abundance Diff: {diff}".format(
+                    i=k,
+                    t=time_est.time_left() // 60,
+                    diff=diff
+                ))
+            k += 1
+        logger.debug("Finished {k} iterations.".format(k=k))
 
         normalized_abundances = np.array([softmax(abundance) for abundance in abundances])
-
         return normalized_abundances
 
     def em_update(self, abundances: np.ndarray) -> np.ndarray:

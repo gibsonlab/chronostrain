@@ -15,7 +15,7 @@ from Bio import SeqIO
 from model.bacteria import Population
 from model import generative
 from model.reads import FastQErrorModel, SequenceRead
-from algs import em, vi
+from algs import em, vi, bbvi
 
 
 _data_dir = "data"
@@ -44,7 +44,7 @@ def parse_args():
     parser.add_argument('-s', '--seed', required=False, type=int, default=31415,
                         help='<Optional> Seed for randomness (for reproducibility).')
     parser.add_argument('-b', '--abundance_file', required=False, type=str,
-                        help='<Required> A csv containing the relative abundances for each strain by time point.')
+                        help='<Optional> A csv containing the relative abundances for each strain by time point.')
 
     return parser.parse_args()
 
@@ -134,18 +134,32 @@ def perform_inference(reads: List[List[SequenceRead]],
     logger.info("Created generative model!")
 
     if method == "em":
-        logger.info("Running EM algorithm")
+        logger.info("Solving using Expectation-Maximization.")
         solver = em.EMSolver(my_model, reads)
-        return solver.solve()
-
+        abundances = solver.solve()
+        logger.info("Learned abundances:")
+        logger.info(abundances)
+        return abundaces
 
     elif method == "vi":
-        posterior = vi.SecondOrderVariationalPosterior(mu, np.identity(mu.size), my_model.fragment_frequencies)
+        logger.info("Solving using second-order variational inference.")
+        posterior = vi.SecondOrderVariationalPosterior(mu, np.identity(mu.size), my_model.get_fragment_frequencies())
         solver = vi.SecondOrderVariationalGradientSolver(my_model, reads, posterior)
         return solver.solve()
 
     elif method == "bbvi":
-        raise NotImplementedError("Method 'bbvi' implemented yet.")
+        logger.info("Solving using black-box (monte-carlo) variational inference.")
+        solver = bbvi.BBVISolver(model=my_model, data=reads)
+        solver.solve()
+        posterior = solver.posterior
+
+        logger.info("Learned posterior:")
+        logger.info(posterior.params())
+
+        logger.info("Posterior sample:")
+        sample_x, sample_f = posterior.sample()
+        logger.info("X: ", sample_x)
+        logger.info("F: ", sample_f)
 
     else:
         raise ValueError("{} is not an implemented method!".format(method))
@@ -172,7 +186,6 @@ def get_abundances(file: str) -> List[np.array]:
     return strain_abundances
 
 
-
 def main():
     # try:
     logger.info("Pipeline for inference started.")
@@ -185,7 +198,6 @@ def main():
     logger.info("Performing inference.")
     predicted_abundances = perform_inference(reads, population, args.time_points, args.method, args.read_length, args.seed)
     logger.info("Inference finished.")
-    logger.info("Predicted abundances: " + str(predicted_abundances))
 
     if args.abundance_file:
         actual_abundances_raw = get_abundances(args.abundance_file)

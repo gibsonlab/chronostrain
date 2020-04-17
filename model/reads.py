@@ -2,16 +2,19 @@
  reads.py
  Contains classes for the error model of reads.
 """
-from abc import ABC, abstractmethod
+from abc import ABCMeta, abstractmethod
 import numpy as np
 import math
 import time
+import torch
+from pyro.distributions.torch_distribution import TorchDistribution
+
 
 class SequenceRead:
     """
     A class representing a sequence-quality vector pair.
     """
-    def __init__(self, seq: str, quality: list, metadata):
+    def __init__(self, seq: str, quality: np.ndarray, metadata):
         if len(seq) != len(quality):
             raise ValueError("Length of nucleotide sequence ({}) must agree with length "
                              "of quality score sequence ({})".format(len(seq), len(quality))
@@ -22,7 +25,7 @@ class SequenceRead:
         self.metadata = metadata
 
 
-class AbstractQScoreDistribution(ABC):
+class AbstractQScoreDistribution(TorchDistribution, metaclass=ABCMeta):
     """
     Parent class for all Q-score distributions.
     """
@@ -31,7 +34,7 @@ class AbstractQScoreDistribution(ABC):
         self.length = length
 
     @abstractmethod
-    def compute_likelihood(self, qvec) -> float:
+    def compute_log_likelihood(self, qvec) -> float:
         """
         Compute the likelihood of a given q-vector.
         :param qvec: The query.
@@ -47,14 +50,25 @@ class AbstractQScoreDistribution(ABC):
         """
         pass
 
+    # Pyro/Torch wrappers
+    def sample(self, sample_shape=torch.Size()):
+        return self.sample_qvec()
 
-class AbstractErrorModel(ABC):
+    def rsample(self, sample_shape=torch.Size()):
+        return self.sample()
+
+    def log_prob(self, value):
+        pass
+
+
+
+class AbstractErrorModel(TorchDistribution, metaclass=ABCMeta):
     """
     Parent class for all fragment-to-read error models.
     """
 
     @abstractmethod
-    def compute_log_likelihood(self, fragment: str, read: SequenceRead):
+    def compute_log_likelihood(self, fragment: str, read: SequenceRead) -> float:
         """
         Compute the log probability of observing the read, conditional on the fragment.
         :param fragment: The source fragment (a String)
@@ -123,7 +137,7 @@ class RampUpRampDownDistribution(AbstractQScoreDistribution):
         self.quality_score_values = quality_score_values
         self.qvec = self.create_qvec()  # Hardcoded quality score vector.
 
-    def compute_likelihood(self, qvec):
+    def compute_log_likelihood(self, qvec):
         """
         Likelihood is just the indicator function.
         :param qvec: the query
@@ -185,8 +199,8 @@ class RampUpRampDownDistribution(AbstractQScoreDistribution):
         # assigning each quality score to its dedicated chunk of positions in the vector
         # according to the lengths of each chunk calculated previously.
         cur_pos = 0
-        # for i, value in enumerate(np.append( self.quality_score_values, np.flip(self.quality_score_values[:-1]))):
-        for i, value in enumerate(self.quality_score_values.tolist() + self.quality_score_values.tolist()[:-1][::-1]): ## TODO append
+        # for i, value in enumerate(self.quality_score_values.tolist() + self.quality_score_values.tolist()[:-1][::-1]):
+        for i, value in enumerate(np.append( self.quality_score_values, np.flip(self.quality_score_values[:-1]))): ## TODO check if this works as intended
             if i > 0:
                 cur_pos = cur_pos + lengths[i - 1]
             quality_vector[cur_pos:cur_pos + lengths[i]] = value
@@ -256,20 +270,15 @@ class BasicErrorModel(AbstractErrorModel):
         self.read_len = read_len
         self.q_dist = BasicQScoreDistribution(read_len)
 
-    def compute_log_likelihood(self, fragment, read):
+    def compute_log_likelihood(self, fragment: str, read: SequenceRead) -> float:
         """
         Computes the log likelihood of reading 'fragment' as 'read'
-
-        @param -- read
-            read is a SequenceRead object. It contains two vectors of equal length,
-            one with the nucleotide sequence (a string of 'A', 'U', C' and 'G')
-            as well as a quality vector (a numpy array of ints)
-
-        @param -- fragment
-            a string of 'A', 'T', 'C', and 'G'
+        :param: read - a SequenceRead instance.
+        :param: fragment
         """
 
-        log_product = 0
+        # why not 0
+        log_product = self.q_dist.compute_log_likelihood(read.quality)
         for actual_base_pair, read_base_pair, q_score in zip(fragment, read.seq, read.quality):
 
             idx1 = BasicErrorModel.base_indices[actual_base_pair]
@@ -279,7 +288,6 @@ class BasicErrorModel(AbstractErrorModel):
             base_prob = BasicErrorModel.Q_SCORE_BASE_CHANGE_MATRICES[q_score][idx1][idx2]
 
             log_product += np.log(base_prob)
-
         return log_product
 
     def sample_noisy_read(self, fragment):
@@ -341,28 +349,10 @@ class FastQErrorModel(AbstractErrorModel):
         self.read_len = read_len
         self.q_dist = BasicPhredScoreDistribution(read_len)
 
-    def compute_log_likelihood(self, fragment, read):
-        """
-        Computes the log likelihood of reading 'fragment' as 'read'
-
-        @param -- read
-            read is a SequenceRead object. It contains two vectors of equal length,
-            one with the nucleotide sequence (a string of 'A', 'U', C' and 'G')
-            as well as a quality vector (a numpy array of ints)
-
-        @param -- fragment
-            a string of 'A', 'U', 'C', and 'G'
-        """
-
-
-        # TODO: Compute in parallel for speedup?
-        # ref: https://medium.com/@mjschillawski/quick-and-easy-parallelization-in-python-32cb9027e490
-
-        log_product = 0
+    def compute_log_likelihood(self, fragment: str, read: SequenceRead) -> float:
+        log_product = self.q_dist.compute_log_likelihood(read.quality)
         log_likelihood_map = {}
-
-        for fragment_base_pair, read_base_pair, q_score in zip(fragment.seq, read.seq, read.quality):
-            # Get probability of observing 'read_base_pair' when the actual base pair is 'actual_base_pair'
+        for actual_base_pair, read_base_pair, q_score in zip(fragment, read.seq, read.quality):
 
             if (fragment_base_pair, read_base_pair, q_score) in log_likelihood_map:
                 log_product += log_likelihood_map[(fragment_base_pair, read_base_pair, q_score)]
@@ -374,8 +364,7 @@ class FastQErrorModel(AbstractErrorModel):
 
             log_likelihood_map[(fragment_base_pair, read_base_pair, q_score)] = log_likelihood
 
-            log_product += log_likelihood
-
+            log_product += np.log(base_prob)
         return log_product
 
     def sample_noisy_read(self, fragment):
