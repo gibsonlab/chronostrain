@@ -7,9 +7,12 @@ import numpy as np
 from typing import List, Tuple
 from model.bacteria import Population
 from model.reads import AbstractErrorModel, SequenceRead
+from util.logger import logger
 
 
 def softmax(x: np.ndarray) -> np.ndarray:
+    # ref: https://challengeenthusiast.com/2018/07/10/stabilizing-against-overflow-and-underflow/
+    x = x - max(x)  # For numerical stability
     y = np.exp(x)
     return y / np.sum(y)
 
@@ -49,7 +52,6 @@ class GenerativeModel:
                 inner list corresponds to a reads taken at time index i (self.times[i])
                 and contains num_samples[i] read objects.
         """
-
         if len(read_depths) != len(self.times):
             raise ValueError("Length of num_samples ({}) must agree with number of time points ({})".format(
                 len(read_depths), len(self.times))
@@ -60,6 +62,8 @@ class GenerativeModel:
         return abundances, reads
 
     def sample_timed_reads(self, abundances: List[np.ndarray], read_depths: List[int]) -> List[List[SequenceRead]]:
+
+        logger.info("Sampling reads given abundances trajectory.")
 
         if len(abundances) != len(self.times):
             raise ValueError(
@@ -108,6 +112,8 @@ class GenerativeModel:
         return brownian_motion
 
     def sample_abundances(self) -> List[np.ndarray]:
+
+        logger.info("Generating abundances trajectory")
         abundances = []
         gaussians = self._sample_brownian_motion()
         for Z in gaussians:

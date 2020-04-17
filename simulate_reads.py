@@ -150,7 +150,13 @@ def get_abundances(file: str) -> List[np.array]:
     file_path = os.path.join(_data_dir, file)
     with open(file_path, newline='') as f:
         reader = csv.reader(f)
-        strain_abundances = [np.array(row, dtype='float') for i, row in enumerate(reader) if i != 0]
+
+        strain_abundances = []
+        for i, row in enumerate(reader):
+            if i == 0 or len(row) == 0:
+                continue
+            else:
+                strain_abundances.append(np.array(row, dtype='float'))
 
     return strain_abundances
 
@@ -194,10 +200,10 @@ def main():
 
         strain_abundances = None
         if args.abundance_file:
-            logger.debug("Parsing abundance file...")
+            logger.info("Parsing abundance file...")
             strain_abundances = get_abundances(file=args.abundance_file)
 
-        logger.debug("Sampling reads...")
+        logger.info("Sampling reads...")
         time_points = args.time_points
         read_depths = args.num_reads * np.ones(len(time_points), dtype=int)
         sampled_reads = sample_reads(
@@ -209,7 +215,7 @@ def main():
             seed=args.seed
         )
 
-        logger.debug("Saving samples to FastQ file {}.".format(args.out_dir + "/" + args.out_prefix))
+        logger.info("Saving samples to FastQ file {}.".format(args.out_dir + "/" + args.out_prefix))
         save_to_fastq(sampled_reads, args.time_points, args.out_dir, args.out_prefix)
         logger.info("Reads finished sampling.")
     except Exception as e:

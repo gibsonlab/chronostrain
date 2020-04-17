@@ -2,6 +2,7 @@ import numpy as np
 from model.generative import softmax
 from util.logger import logger
 from algs.base import AbstractModelSolver, compute_frag_errors
+from typing import Any
 
 # ===========================================================================================
 # =============== Expectation-Maximization (for getting a MAP estimator) ====================
@@ -22,16 +23,19 @@ class EMSolver(AbstractModelSolver):
         :param iters: number of iterations.
         :param thresh: the threshold that determines the convergence criterion (implemented as Frobenius norm of abundances).
         :param initialization: A (T x S) matrix of time-series abundances. If not specified, set to all-zeros matrix.
-        :return: The estimated abundances.
+        :return: The estimated abundances
         """
+
+
         if initialization is None:
-            # T x S matrix of time-indexed abundances.
+            # T x S array of time-indexed abundances.
             abundances = np.ones((len(self.model.times), len(self.model.bacteria_pop.strains)), dtype=float)
         else:
             abundances = initialization
 
-        k = 0
-        for i in range(iters):
+        for i in range(1, iters+1):
+
+
             updated_abundances = self.em_update(abundances)
 
             diff = np.linalg.norm(updated_abundances - abundances, 'fro')
@@ -44,14 +48,23 @@ class EMSolver(AbstractModelSolver):
 
             abundances = updated_abundances
 
-            if k % 100 == 0:
-                logger.debug("(Iteration {})  abundance difference: {}".format(k, diff))
-            k += 1
-        logger.debug("Finished {} iterations.".format(k))
-        return abundances
+            print("iteration {} complete; abundance {}".format(i, abundances))
 
-    def em_update(self, abundances):
-        updated_abundances = []
+            if i % 100 == 0 or i == 1:
+                logger.debug("(Iteration {})  abundance difference: {}".format(i, diff))
+
+        logger.debug("Finished {} iterations.".format(iters))
+
+        normalized_abundances = np.array([softmax(abundance) for abundance in abundances])
+
+        return normalized_abundances
+
+    def em_update(self, abundances: np.ndarray) -> np.ndarray:
+
+        rel_abundances_motion_guess = [softmax(abundance) for abundance in abundances]
+        print("Soft maxed abundances: ", rel_abundances_motion_guess)
+
+        updated_abundances = np.ones((len(abundances), len(abundances[0])))
 
         for time_index, (guessed_abundances_at_t, reads_at_t) in \
                 enumerate(zip(abundances, self.data)):
@@ -59,8 +72,6 @@ class EMSolver(AbstractModelSolver):
             ##############################
             # Compute the "Q" vector
             ##############################
-
-            rel_abundances_motion_guess = [softmax(abundance) for abundance in abundances]
 
             time_indexed_fragment_frequencies_guess = self.model.strain_abundance_to_frag_abundance(
                 rel_abundances_motion_guess[time_index])
@@ -77,8 +88,14 @@ class EMSolver(AbstractModelSolver):
             v = sum(v)
 
             # Step 3
+            # TODO: Sometimes we get a divide by zero error here (particularly when a strain abundance
+            #  is thought to be zero)
             q_guess = np.divide(v, time_indexed_fragment_frequencies_guess)
-
+            # print("===========")
+            # print(q_guess)
+            # print(self.model.fragment_frequencies)
+            # print(rel_abundances_motion_guess[time_index])
+            # print(time_indexed_fragment_frequencies_guess)
             ##############################
             # Compute the regularization term
             ##############################
@@ -118,8 +135,6 @@ class EMSolver(AbstractModelSolver):
             # Update our guess for the motion at this time step
             ##############################
 
-            updated_abundances.append(
-                abundances[time_index] + self.lr * (main_term + regularization_term)
-            )
+            updated_abundances[time_index] = abundances[time_index] + self.lr * (main_term + regularization_term)
 
         return np.array(updated_abundances)

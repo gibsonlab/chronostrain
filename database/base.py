@@ -47,7 +47,9 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
             with open(input_file_path) as file:
                 for i, line in enumerate(file):
                     genome = re.sub('[^AGCT]+', '', line.split(sep=" ")[-1])
-                    # genome = genome[:30] # TODO: This line is for debugging to speed up fragment matrix generation.
+                    # For debugging/speed purposes, limit the size of the gneome.
+                    # Say, 5 markers, each approximately 500bp, for 2500 total bps.
+                    genome = genome[:2500]
             markers = [Marker(name=strain_accession, seq=genome)]  # Each genome's marker is its own genome.
             self.strain_to_markers[strain_accession] = markers
 

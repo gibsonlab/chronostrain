@@ -5,7 +5,7 @@
 from abc import ABC, abstractmethod
 import numpy as np
 import math
-
+import time
 
 class SequenceRead:
     """
@@ -354,15 +354,27 @@ class FastQErrorModel(AbstractErrorModel):
             a string of 'A', 'U', 'C', and 'G'
         """
 
+
+        # TODO: Compute in parallel for speedup?
+        # ref: https://medium.com/@mjschillawski/quick-and-easy-parallelization-in-python-32cb9027e490
+
         log_product = 0
-        for actual_base_pair, read_base_pair, q_score in zip(fragment.seq, read.seq, read.quality):
+        log_likelihood_map = {}
 
-            # probability of observing 'read_base_pair' when the actual base pair is 'actual_base_pair'
+        for fragment_base_pair, read_base_pair, q_score in zip(fragment.seq, read.seq, read.quality):
+            # Get probability of observing 'read_base_pair' when the actual base pair is 'actual_base_pair'
+
+            if (fragment_base_pair, read_base_pair, q_score) in log_likelihood_map:
+                log_product += log_likelihood_map[(fragment_base_pair, read_base_pair, q_score)]
+                continue
+
             accuracy = 1-np.power(10, -q_score/10)
+            base_prob = accuracy if read_base_pair == fragment_base_pair else 1-accuracy
+            log_likelihood = np.log(base_prob)
 
-            base_prob = accuracy if read_base_pair == actual_base_pair else 1-accuracy
+            log_likelihood_map[(fragment_base_pair, read_base_pair, q_score)] = log_likelihood
 
-            log_product += np.log(base_prob)
+            log_product += log_likelihood
 
         return log_product
 
