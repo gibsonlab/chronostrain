@@ -31,7 +31,7 @@ class EMSolver(AbstractModelSolver):
         self.lr = lr
         self.device = device
 
-    def solve(self, iters=100, thresh=1e-5, initialization=None, print_debug_every=10):
+    def solve(self, iters=1000, thresh=1e-5, initialization=None, print_debug_every=200):
         """
         Runs the EM algorithm on the instantiated data.
         :param iters: number of iterations.
