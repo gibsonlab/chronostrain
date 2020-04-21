@@ -195,34 +195,35 @@ def parse_population(strain_db: AbstractStrainDatabase, accession_csv_file: str)
 
 
 def main():
-    # try:
-    logger.info("Pipeline for read simulation started.")
-    args = parse_args()
-    genome_database = load_strain_database(args.accession_file)
-    population = parse_population(genome_database, args.accession_file)
+    try:
+        logger.info("Pipeline for read simulation started.")
+        args = parse_args()
+        genome_database = load_strain_database(args.accession_file)
+        population = parse_population(genome_database, args.accession_file)
 
-    strain_abundances = None
-    if args.abundance_file:
-        logger.info("Parsing abundance file...")
-        strain_abundances = get_abundances(file=args.abundance_file)
+        strain_abundances = None
+        if args.abundance_file:
+            logger.info("Parsing abundance file...")
+            strain_abundances = get_abundances(file=args.abundance_file)
 
-    logger.info("Sampling reads...")
-    time_points = args.time_points
-    read_depths = args.num_reads
-    sampled_reads = sample_reads(
-        population=population,
-        read_depths=read_depths,
-        abundances=strain_abundances,
-        read_length=args.read_length,
-        time_points=time_points,
-        seed=args.seed
-    )
+        logger.info("Sampling reads...")
+        time_points = args.time_points
+        read_depths = args.num_reads
+        sampled_reads = sample_reads(
+            population=population,
+            read_depths=read_depths,
+            abundances=strain_abundances,
+            read_length=args.read_length,
+            time_points=time_points,
+            seed=args.seed
+        )
 
-    logger.info("Saving samples to FastQ file {}.".format(args.out_dir + "/" + args.out_prefix))
-    save_to_fastq(sampled_reads, args.time_points, args.out_dir, args.out_prefix)
-    logger.info("Reads finished sampling.")
-    # except Exception as e:
-    #     logger.error("Uncaught exception -- {}".format(e))
+        logger.info("Saving samples to FastQ file {}.".format(args.out_dir + "/" + args.out_prefix))
+        save_to_fastq(sampled_reads, args.time_points, args.out_dir, args.out_prefix)
+        logger.info("Reads finished sampling.")
+
+    except Exception as e:
+        logger.error("Uncaught exception -- {}".format(e))
 
 
 if __name__ == "__main__":
