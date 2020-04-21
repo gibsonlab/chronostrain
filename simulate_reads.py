@@ -6,13 +6,14 @@
 
 import os
 import argparse
-import numpy as np
+import random
 from pathlib import Path
 import csv
 
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 from Bio.Seq import Seq
+from typing import List
 
 from util.logger import logger
 from database.base import AbstractStrainDatabase, SimpleCSVStrainDatabase
@@ -20,11 +21,12 @@ from model.bacteria import Population
 from model.reads import SequenceRead, FastQErrorModel
 from model.generative import GenerativeModel
 
-from typing import List
-
+import torch
 
 _data_dir = "data"
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+torch.set_default_tensor_type(torch.DoubleTensor)
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Simulate reads from genomes.")
@@ -93,17 +95,17 @@ def save_timeslice_to_fastq(timeslice_reads: List[SequenceRead], out_path: str):
 
 
 def sample_reads(population: Population,
-                 abundances: List[np.array],
+                 abundances: List[torch.Tensor],
                  read_depths: List[int],
                  read_length: int,
                  time_points: List[int],
                  seed: int = 31415) -> List[List[SequenceRead]]:
-    np.random.seed(seed)
+    random.seed(seed)
 
     ##############################
     # Construct generative model
 
-    mu = np.array([0] * len(population.strains))  # One dimension for each strain
+    mu = torch.zeros(len(population.strains))  # One dimension for each strain
     tau_1 = 1
     tau = 1
 
@@ -130,7 +132,8 @@ def sample_reads(population: Population,
 
         normalized_abundances = []
         for Z in abundances:
-            normalized_abundances.append(Z / np.sum(Z))
+            normalized_abundances.append(Z / torch.sum(Z))
+
         time_indexed_reads = my_model.sample_timed_reads(normalized_abundances, read_depths)
 
     else:
@@ -139,7 +142,7 @@ def sample_reads(population: Population,
     return time_indexed_reads
 
 
-def get_abundances(file: str) -> List[np.array]:
+def get_abundances(file: str) -> List[torch.Tensor]:
     """
     Read time-indexed abundances from file.
     :param file:
@@ -156,8 +159,8 @@ def get_abundances(file: str) -> List[np.array]:
             if i == 0 or len(row) == 0:
                 continue
             else:
-                strain_abundances.append(np.array(row, dtype='float'))
-
+                row = [float(x) for x in row]
+                strain_abundances.append(torch.tensor(row, device=device))
     return strain_abundances
 
 
@@ -192,34 +195,34 @@ def parse_population(strain_db: AbstractStrainDatabase, accession_csv_file: str)
 
 
 def main():
-    try:
-        logger.info("Pipeline for read simulation started.")
-        args = parse_args()
-        genome_database = load_strain_database(args.accession_file)
-        population = parse_population(genome_database, args.accession_file)
+    # try:
+    logger.info("Pipeline for read simulation started.")
+    args = parse_args()
+    genome_database = load_strain_database(args.accession_file)
+    population = parse_population(genome_database, args.accession_file)
 
-        strain_abundances = None
-        if args.abundance_file:
-            logger.info("Parsing abundance file...")
-            strain_abundances = get_abundances(file=args.abundance_file)
+    strain_abundances = None
+    if args.abundance_file:
+        logger.info("Parsing abundance file...")
+        strain_abundances = get_abundances(file=args.abundance_file)
 
-        logger.info("Sampling reads...")
-        time_points = args.time_points
-        read_depths = args.num_reads * np.ones(len(time_points), dtype=int)
-        sampled_reads = sample_reads(
-            population=population,
-            read_depths=read_depths,
-            abundances=strain_abundances,
-            read_length=args.read_length,
-            time_points=time_points,
-            seed=args.seed
-        )
+    logger.info("Sampling reads...")
+    time_points = args.time_points
+    read_depths = args.num_reads
+    sampled_reads = sample_reads(
+        population=population,
+        read_depths=read_depths,
+        abundances=strain_abundances,
+        read_length=args.read_length,
+        time_points=time_points,
+        seed=args.seed
+    )
 
-        logger.info("Saving samples to FastQ file {}.".format(args.out_dir + "/" + args.out_prefix))
-        save_to_fastq(sampled_reads, args.time_points, args.out_dir, args.out_prefix)
-        logger.info("Reads finished sampling.")
-    except Exception as e:
-        logger.error("Uncaught exception -- {}".format(e))
+    logger.info("Saving samples to FastQ file {}.".format(args.out_dir + "/" + args.out_prefix))
+    save_to_fastq(sampled_reads, args.time_points, args.out_dir, args.out_prefix)
+    logger.info("Reads finished sampling.")
+    # except Exception as e:
+    #     logger.error("Uncaught exception -- {}".format(e))
 
 
 if __name__ == "__main__":

@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from typing import List
-import numpy as np
 from model.fragments import FragmentSpace
 from util.logger import logger
+import torch
 
 
 @dataclass
@@ -62,7 +62,7 @@ class Population:
 
         return fragment_space
 
-    def get_strain_fragment_frequencies(self, window_size) -> np.ndarray:
+    def get_strain_fragment_frequencies(self, window_size) -> torch.tensor:
         """
         Get fragment counts per strain. The output represents the 'W' matrix in the notes.
         :param window_size: an integer specifying the fragment window length.
@@ -75,7 +75,7 @@ class Population:
 
         # For each strain, fill out the column.
         fragment_space = self.get_fragment_space(window_size)
-        frag_freqs = np.zeros((fragment_space.size(), len(self.strains)), dtype=float)
+        frag_freqs = torch.zeros(fragment_space.size(), len(self.strains))
 
         logger.info("Constructing fragment frequencies for window size {}...".format(window_size))
         for col, strain in enumerate(self.strains):
@@ -84,7 +84,8 @@ class Population:
                     frag_freqs[fragment_space.get_fragment(subseq).index][col] += 1
 
         # normalize each col to sum to 1.
-        frag_freqs = frag_freqs / frag_freqs.sum(axis=0)
+        frag_freqs = frag_freqs / torch.sum(frag_freqs, dim=0)
+
         self.fragment_frequencies_map[window_size] = frag_freqs
         logger.info("Finished constructing fragment frequencies for window size {}".format(window_size))
         return frag_freqs

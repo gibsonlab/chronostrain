@@ -6,6 +6,7 @@
 
 import argparse
 import csv
+import random
 import numpy as np
 from util.logger import logger
 from database.base import *
@@ -17,6 +18,10 @@ from model import generative
 from model.reads import FastQErrorModel, SequenceRead
 from algs import em, vi, bbvi
 
+import torch
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+torch.set_default_tensor_type(torch.DoubleTensor)
 
 _data_dir = "data"
 
@@ -92,7 +97,7 @@ def load_from_fastq(file_dir_name: str, filenames: List[str]) -> List[List[gener
         file_path = os.path.join(file_dir_name, file)
         for record in SeqIO.parse(file_path, "fastq"):
             read = generative.SequenceRead(seq=str(record.seq),
-                                           quality=np.asanyarray(record.letter_annotations["phred_quality"]),
+                                           quality=record.letter_annotations["phred_quality"],
                                            metadata="")
             reads_at_t.append(read)
 
@@ -107,7 +112,7 @@ def perform_inference(reads: List[List[SequenceRead]],
                       method: str,
                       window_size: int,
                       seed: int):
-    np.random.seed(seed)
+    random.seed(seed)
 
     if len(reads) != len(time_points):
         raise ValueError("There must be exactly one set of reads for each time point specified")
@@ -119,7 +124,8 @@ def perform_inference(reads: List[List[SequenceRead]],
     # Construct generative model
 
     logger.info("Creating generative model...")
-    mu = np.array([0] * len(population.strains))  # One dimension for each strain
+
+    mu = torch.zeros(len(population.strains), device=device)  # One dimension for each strain
     tau_1 = 1
     tau = 1
 
@@ -139,11 +145,11 @@ def perform_inference(reads: List[List[SequenceRead]],
         abundances = solver.solve()
         logger.info("Learned abundances:")
         logger.info(abundances)
-        return abundaces
+        return abundances
 
     elif method == "vi":
         logger.info("Solving using second-order variational inference.")
-        posterior = vi.SecondOrderVariationalPosterior(mu, np.identity(mu.size), my_model.get_fragment_frequencies())
+        posterior = vi.SecondOrderVariationalPosterior(mu, torch.eye(len(population.strains)), my_model.get_fragment_frequencies())
         solver = vi.SecondOrderVariationalGradientSolver(my_model, reads, posterior)
         return solver.solve()
 
@@ -165,7 +171,7 @@ def perform_inference(reads: List[List[SequenceRead]],
         raise ValueError("{} is not an implemented method!".format(method))
 
 
-def get_abundances(file: str) -> List[np.array]:
+def get_abundances(file: str) -> List[List[float]]:
     """
     Read time-indexed abundances from file.
     :param file:
@@ -181,33 +187,35 @@ def get_abundances(file: str) -> List[np.array]:
             if i == 0 or len(row) == 0:
                 continue
             else:
-                strain_abundances.append(np.array(row, dtype='float'))
+                row = [float(i) for i in row]
+                strain_abundances.append(row)
 
     return strain_abundances
 
 
 def main():
-    # try:
-    logger.info("Pipeline for inference started.")
-    args = parse_args()
-    logger.info("Loading from marker database {}.".format(args.accession_file))
-    db = load_marker_database(args.accession_file)
-    population = parse_population(db, args.accession_file)
-    logger.info("Reading time-series read files.")
-    reads = load_from_fastq(args.read_files_dir, args.read_files)
-    logger.info("Performing inference.")
-    predicted_abundances = perform_inference(reads, population, args.time_points, args.method, args.read_length, args.seed)
-    logger.info("Inference finished.")
+    try:
+        logger.info("Pipeline for inference started.")
+        args = parse_args()
+        logger.info("Loading from marker database {}.".format(args.accession_file))
+        db = load_marker_database(args.accession_file)
+        population = parse_population(db, args.accession_file)
+        logger.info("Reading time-series read files.")
+        reads = load_from_fastq(args.read_files_dir, args.read_files)
+        logger.info("Performing inference.")
+        predicted_abundances = perform_inference(reads, population, args.time_points, args.method, args.read_length, args.seed)
+        logger.info("Inference finished.")
 
-    if args.abundance_file:
-        actual_abundances_raw = get_abundances(args.abundance_file)
-        actual_abundances = np.array([Z/np.sum(Z) for Z in actual_abundances_raw])
-        logger.info("Actual abundances: " + str(actual_abundances))
-        diff = np.linalg.norm(predicted_abundances - actual_abundances)
-        logger.info("Difference {}".format(diff))
+        if args.abundance_file:
+            actual_abundances_raw = get_abundances(args.abundance_file)
+            actual_abundances = torch.tensor([[i/sum(Z) for i in Z] for Z in actual_abundances_raw], device=device)
+            logger.info("Actual Abundances:")
+            logger.info(actual_abundances)
+            diff = torch.norm(predicted_abundances - actual_abundances, p='fro')
+            logger.info("Difference {}".format(diff))
 
-    # except Exception as e:
-    #     logger.error("Uncaught exception -- {}".format(e))
+    except Exception as e:
+        logger.error("Uncaught exception -- {}".format(e))
 
 
 if __name__ == "__main__":

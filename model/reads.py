@@ -5,7 +5,8 @@
 from abc import ABCMeta, abstractmethod
 import numpy as np
 import math
-import time
+from model.fragments import Fragment
+from typing import List
 import torch
 from pyro.distributions.torch_distribution import TorchDistribution
 
@@ -14,7 +15,7 @@ class SequenceRead:
     """
     A class representing a sequence-quality vector pair.
     """
-    def __init__(self, seq: str, quality: np.ndarray, metadata):
+    def __init__(self, seq: str, quality: List, metadata):
         if len(seq) != len(quality):
             raise ValueError("Length of nucleotide sequence ({}) must agree with length "
                              "of quality score sequence ({})".format(len(seq), len(quality))
@@ -68,7 +69,7 @@ class AbstractErrorModel(TorchDistribution, metaclass=ABCMeta):
     """
 
     @abstractmethod
-    def compute_log_likelihood(self, fragment: str, read: SequenceRead) -> float:
+    def compute_log_likelihood(self, fragment: Fragment, read: SequenceRead) -> float:
         """
         Compute the log probability of observing the read, conditional on the fragment.
         :param fragment: The source fragment (a String)
@@ -168,7 +169,6 @@ class RampUpRampDownDistribution(AbstractQScoreDistribution):
 
         :return: A list with length equal to the length of the input fragment list, and
         each element is a quality score from self.quality_score_values
-
         """
 
         lengths = [0]*(len(self.quality_score_values)*2-1)
@@ -270,7 +270,7 @@ class BasicErrorModel(AbstractErrorModel):
         self.read_len = read_len
         self.q_dist = BasicQScoreDistribution(read_len)
 
-    def compute_log_likelihood(self, fragment: str, read: SequenceRead) -> float:
+    def compute_log_likelihood(self, fragment: Fragment, read: SequenceRead) -> float:
         """
         Computes the log likelihood of reading 'fragment' as 'read'
         :param: read - a SequenceRead instance.
@@ -294,7 +294,7 @@ class BasicErrorModel(AbstractErrorModel):
         quality_score_vector = self.q_dist.sample_qvec()
 
         noisy_fragment_chars = ['' for _ in range(self.read_len)]
-        noisy_fragment_quality = np.zeros(shape=self.read_len, dtype=int)
+        noisy_fragment_quality = [0]*self.read_len
 
         # Generate base pair reads from the fragment, conditioned on fragment base pairs and
         # the quality score for that base pair.
@@ -349,10 +349,11 @@ class FastQErrorModel(AbstractErrorModel):
         self.read_len = read_len
         self.q_dist = BasicPhredScoreDistribution(read_len)
 
-    def compute_log_likelihood(self, fragment: str, read: SequenceRead) -> float:
+    def compute_log_likelihood(self, fragment: Fragment, read: SequenceRead) -> float:
         log_product = self.q_dist.compute_log_likelihood(read.quality)
         log_likelihood_map = {}
-        for actual_base_pair, read_base_pair, q_score in zip(fragment, read.seq, read.quality):
+
+        for fragment_base_pair, read_base_pair, q_score in zip(fragment.seq, read.seq, read.quality):
 
             if (fragment_base_pair, read_base_pair, q_score) in log_likelihood_map:
                 log_product += log_likelihood_map[(fragment_base_pair, read_base_pair, q_score)]
@@ -372,7 +373,7 @@ class FastQErrorModel(AbstractErrorModel):
         quality_score_vector = self.q_dist.sample_qvec()
 
         noisy_fragment_chars = ['' for _ in range(self.read_len)]
-        noisy_fragment_quality = np.zeros(shape=self.read_len, dtype=int)
+        noisy_fragment_quality = [0]*self.read_len
 
         # Generate base pair reads from the fragment, conditioned on fragment base pairs and
         # the quality score for that base pair.
