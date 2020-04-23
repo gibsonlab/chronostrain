@@ -3,21 +3,21 @@
  Contains classes for representing the generative model.
 """
 
-import numpy as np
 from typing import List, Tuple
-from scipy.stats import multivariate_normal
 from model.bacteria import Population
 from model.fragments import FragmentSpace
 from model.reads import AbstractErrorModel, SequenceRead
+from util.logger import logger
 
 import torch
+import random
 from torch.distributions.multivariate_normal import MultivariateNormal
 from torch.distributions.categorical import Categorical
 
 
 # TODO: move implementation to torch to enable GPU-accelerated matrix operations.
 
-def softmax(x: np.ndarray, axis: int = 0) -> np.ndarray:
+def softmax(x: torch.Tensor, axis: int = 0) -> torch.Tensor:
     """
     Computes the softmax function of x, where normalization occurs across the specified axis.
     :param x: The input.
@@ -25,14 +25,16 @@ def softmax(x: np.ndarray, axis: int = 0) -> np.ndarray:
     consisting of many samples of D-dimensional vectors, so that the normalization needs to happen across columns.
     :return:
     """
-    y = np.exp(x)
-    return y / np.sum(y, axis=axis)
+    # ref: https://challengeenthusiast.com/2018/07/10/stabilizing-against-overflow-and-underflow/
+    x = x - max(x)  # For numerical stability
+    y = torch.exp(x)
+    return y / torch.sum(y, dim=axis)
 
 
 class GenerativeModel:
     def __init__(self,
                  times: List[int],
-                 mu: np.ndarray,
+                 mu: torch.Tensor,
                  tau_1: float,
                  tau: float,
                  bacteria_pop: Population,
@@ -59,7 +61,7 @@ class GenerativeModel:
     def get_fragment_space(self) -> FragmentSpace:
         return self.bacteria_pop.get_fragment_space(self.read_length)
 
-    def get_fragment_frequencies(self):
+    def get_fragment_frequencies(self) -> torch.Tensor:
         return self.bacteria_pop.get_strain_fragment_frequencies(window_size=self.read_length)
 
     def log_likelihood_torch(self, X: List[torch.Tensor], F: List[torch.Tensor], R: List[List[SequenceRead]], device):
@@ -73,7 +75,7 @@ class GenerativeModel:
         """
         n = X[0].size(0)
         ans = torch.zeros(n, dtype=torch.double, device=device)
-        prev_x = torch.tensor(self.mu)
+        prev_x = torch.tensor(len(self.mu), device=device)
         for t in range(len(X)):
             # ==== Note:
             # each x_t is an N x S matrix.
@@ -102,7 +104,7 @@ class GenerativeModel:
                         read=read
                     )
 
-    def sample_abundances_and_reads(self, read_depths: List[int]) -> Tuple[List[np.ndarray], List[List[SequenceRead]]]:
+    def sample_abundances_and_reads(self, read_depths: List[int]) -> Tuple[List[torch.Tensor], List[List[SequenceRead]]]:
         """
         Generate a time-indexed list of read collections and strain abundances.
 
@@ -117,7 +119,6 @@ class GenerativeModel:
                 inner list corresponds to a reads taken at time index i (self.times[i])
                 and contains num_samples[i] read objects.
         """
-
         if len(read_depths) != len(self.times):
             raise ValueError("Length of num_samples ({}) must agree with number of time points ({})".format(
                 len(read_depths), len(self.times))
@@ -127,7 +128,9 @@ class GenerativeModel:
         reads = self.sample_timed_reads(abundances, read_depths)
         return abundances, reads
 
-    def sample_timed_reads(self, abundances: List[np.ndarray], read_depths: List[int]) -> List[List[SequenceRead]]:
+    def sample_timed_reads(self, abundances: List[torch.Tensor], read_depths: List[int]) -> List[List[SequenceRead]]:
+
+        logger.info("Sampling reads given abundances trajectory.")
 
         if len(abundances) != len(self.times):
             raise ValueError(
@@ -159,36 +162,39 @@ class GenerativeModel:
         else:
             raise IndexError("Can't reference time at index {}.".format(time_idx))
 
-    def _sample_brownian_motion(self) -> List[np.ndarray]:
+    def _sample_brownian_motion(self) -> List[torch.Tensor]:
         """
         Generates an S-dimensional brownian motion, S = # of strains, centered at mu.
         Initial covariance is tau_1, while subsequent variance scaling is tau.
         """
         brownian_motion = []
-        covariance = np.identity(self.mu.size)
+        covariance = torch.eye(list(self.mu.size())[0])  # Initialize covariance matrix
         center = self.mu  # Initialize mean vector.
 
         for time_idx in range(len(self.times)):
             scaling = self.time_scale(time_idx)
-            center = multivariate_normal.rvs(mean=center, cov=scaling*covariance)
+            mvn = MultivariateNormal(loc=center, covariance_matrix=scaling*covariance)
+            center = mvn.sample()
             brownian_motion.append(center)
 
         return brownian_motion
 
-    def sample_abundances(self) -> List[np.ndarray]:
+    def sample_abundances(self) -> List[torch.Tensor]:
+
+        logger.info("Generating abundances trajectory")
         abundances = []
         gaussians = self._sample_brownian_motion()
-        for Z in gaussians:
-            abundances.append(softmax(Z))
+        for X in gaussians:
+            abundances.append(softmax(X))
         return abundances
 
-    def strain_abundance_to_frag_abundance(self, strain_abundance: np.ndarray) -> np.ndarray:
+    def strain_abundance_to_frag_abundance(self, strain_abundance: torch.Tensor) -> torch.Tensor:
         """
         Convert strain abundance to fragment abundance, via the matrix multiplication F = WS.
         """
-        return np.matmul(self.get_fragment_frequencies(), strain_abundance)
+        return torch.matmul(self.get_fragment_frequencies(), strain_abundance)
 
-    def sample_reads(self, frag_abundances: np.ndarray, num_samples: int = 1) -> List[SequenceRead]:
+    def sample_reads(self, frag_abundances: torch.Tensor, num_samples: int = 1) -> List[SequenceRead]:
         """
         Given a set of fragments and their time indexed frequencies (based on the current time
         index strain abundances and the fragments' relative frequencies in each strain's sequence.),
@@ -198,11 +204,11 @@ class GenerativeModel:
         i and the quality score at location i in the generated quality score vector for the
         selected fragment.
 
-        @param - time_indexed_fragment_frequencies -
-                a list of floats representing a probability distribution over the fragments
+        @param - frag_abundances -
+                a tensor of floats representing a probability distribution over the fragments
 
-        @param - fragments
-                a list of strings representing the fragments
+        @param - num_samples -
+                the number of samples to be taken.
 
         @return - generated_noisy_fragments
                 a list of strings representing a noisy reads of the set of input fragments
@@ -210,7 +216,13 @@ class GenerativeModel:
         """
 
         frag_space = self.bacteria_pop.get_fragment_space(self.read_length)
-        samples = np.random.choice(list(frag_space.get_fragments()), num_samples, p=frag_abundances)
+
+        frag_abundances = frag_abundances.tolist()
+        frag_abundances = [i/sum(frag_abundances) for i in frag_abundances]
+
+        samples = random.choices(population=list(frag_space.get_fragments()),
+                                 weights=frag_abundances,
+                                 k=num_samples)
 
         # Draw a read from each fragment, do an in-place replacement.
         for i in range(num_samples):

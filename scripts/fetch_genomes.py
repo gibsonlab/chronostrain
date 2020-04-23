@@ -45,7 +45,7 @@ def fetch_sequences(refs_file_csv):
     csv_filename = os.path.join(_base_dir, refs_file_csv)
     line_count = 0
     with open(csv_filename, "r") as f:
-        csv_reader = csv.reader(f, delimiter=',')
+        csv_reader = csv.reader(f)
         for row in csv_reader:
             if line_count == 0:
                 line_count += 1

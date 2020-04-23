@@ -6,6 +6,7 @@
 
 import argparse
 import csv
+import random
 import numpy as np
 from util.logger import logger
 from database.base import *
@@ -17,6 +18,10 @@ from model import generative
 from model.reads import FastQErrorModel, SequenceRead
 from algs import em, vi, bbvi
 
+import torch
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+torch.set_default_tensor_type(torch.DoubleTensor)
 
 _data_dir = "data"
 
@@ -43,6 +48,8 @@ def parse_args():
     # Optional params
     parser.add_argument('-s', '--seed', required=False, type=int, default=31415,
                         help='<Optional> Seed for randomness (for reproducibility).')
+    parser.add_argument('-b', '--abundance_file', required=False, type=str,
+                        help='<Optional> A csv containing the relative abundances for each strain by time point.')
 
     return parser.parse_args()
 
@@ -80,7 +87,7 @@ def load_from_fastq(file_dir_name: str, filenames: List[str]) -> List[List[gener
     """
 
     num_times = len(filenames)
-    logger.debug("Number of time points: {}".format(num_times))
+    logger.info("Number of time points: {}".format(num_times))
 
     # Parse the reads (include quality)
     reads = []  # A time-indexed list of read sets. Each entry is itself a list of reads for time t.
@@ -90,7 +97,7 @@ def load_from_fastq(file_dir_name: str, filenames: List[str]) -> List[List[gener
         file_path = os.path.join(file_dir_name, file)
         for record in SeqIO.parse(file_path, "fastq"):
             read = generative.SequenceRead(seq=str(record.seq),
-                                           quality=np.asanyarray(record.letter_annotations["phred_quality"]),
+                                           quality=record.letter_annotations["phred_quality"],
                                            metadata="")
             reads_at_t.append(read)
 
@@ -105,7 +112,7 @@ def perform_inference(reads: List[List[SequenceRead]],
                       method: str,
                       window_size: int,
                       seed: int):
-    np.random.seed(seed)
+    random.seed(seed)
 
     if len(reads) != len(time_points):
         raise ValueError("There must be exactly one set of reads for each time point specified")
@@ -115,12 +122,14 @@ def perform_inference(reads: List[List[SequenceRead]],
 
     ##############################
     # Construct generative model
-    mu = np.array([0] * len(population.strains))  # One dimension for each strain
+
+    logger.info("Creating generative model...")
+
+    mu = torch.zeros(len(population.strains), device=device)  # One dimension for each strain
     tau_1 = 1
     tau = 1
 
     my_error_model = FastQErrorModel(read_len=window_size)
-
     my_model = generative.GenerativeModel(times=time_points,
                                           mu=mu,
                                           tau_1=tau_1,
@@ -128,6 +137,7 @@ def perform_inference(reads: List[List[SequenceRead]],
                                           bacteria_pop=population,
                                           read_length=window_size,
                                           read_error_model=my_error_model)
+    logger.info("Created generative model!")
 
     if method == "em":
         logger.info("Solving using Expectation-Maximization.")
@@ -135,12 +145,13 @@ def perform_inference(reads: List[List[SequenceRead]],
         abundances = solver.solve()
         logger.info("Learned abundances:")
         logger.info(abundances)
+        return abundances
 
     elif method == "vi":
         logger.info("Solving using second-order variational inference.")
-        posterior = vi.SecondOrderVariationalPosterior(mu, np.identity(mu.size), my_model.get_fragment_frequencies())
+        posterior = vi.SecondOrderVariationalPosterior(mu, torch.eye(len(population.strains)), my_model.get_fragment_frequencies())
         solver = vi.SecondOrderVariationalGradientSolver(my_model, reads, posterior)
-        solver.solve()
+        return solver.solve()
 
     elif method == "bbvi":
         logger.info("Solving using black-box (monte-carlo) variational inference.")
@@ -160,19 +171,49 @@ def perform_inference(reads: List[List[SequenceRead]],
         raise ValueError("{} is not an implemented method!".format(method))
 
 
+def get_abundances(file: str) -> List[List[float]]:
+    """
+    Read time-indexed abundances from file.
+    :param file:
+    :return: a time indexed list of abundance profiles. Each element is a list itself containing the relative abundances
+    of strains at a particular time point.
+    """
+    file_path = os.path.join(_data_dir, file)
+    with open(file_path, newline='') as f:
+        reader = csv.reader(f)
+
+        strain_abundances = []
+        for i, row in enumerate(reader):
+            if i == 0 or len(row) == 0:
+                continue
+            else:
+                row = [float(i) for i in row]
+                strain_abundances.append(row)
+
+    return strain_abundances
+
+
 def main():
     try:
         logger.info("Pipeline for inference started.")
         args = parse_args()
-        logger.debug("Loading from marker database {}.".format(args.accession_file))
+        logger.info("Loading from marker database {}.".format(args.accession_file))
         db = load_marker_database(args.accession_file)
         population = parse_population(db, args.accession_file)
-        logger.debug("Reading time-series read files.")
+        logger.info("Reading time-series read files.")
         reads = load_from_fastq(args.read_files_dir, args.read_files)
-        logger.debug("Performing inference.")
-        abundances = perform_inference(reads, population, args.time_points, args.method, args.read_length, args.seed)
-        logger.info(str(abundances))
+        logger.info("Performing inference.")
+        predicted_abundances = perform_inference(reads, population, args.time_points, args.method, args.read_length, args.seed)
         logger.info("Inference finished.")
+
+        if args.abundance_file:
+            actual_abundances_raw = get_abundances(args.abundance_file)
+            actual_abundances = torch.tensor([[i/sum(Z) for i in Z] for Z in actual_abundances_raw], device=device)
+            logger.info("Actual Abundances:")
+            logger.info(actual_abundances)
+            diff = torch.norm(predicted_abundances - actual_abundances, p='fro')
+            logger.info("Difference {}".format(diff))
+
     except Exception as e:
         logger.error("Uncaught exception -- {}".format(e))
 
