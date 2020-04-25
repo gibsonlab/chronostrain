@@ -93,7 +93,6 @@ def sample_reads(
     # Construct a GenerativeModel instance.
     my_error_model = reads.FastQErrorModel(read_len=read_length)
     # my_error_model = reads.NoiselessErrorModel()
-    
     my_model = generative.GenerativeModel(times=time_points,
                                           mu=mu,
                                           tau_1=tau_1,
