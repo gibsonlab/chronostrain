@@ -21,7 +21,7 @@ class SequenceRead:
     """
     A class representing a sequence-quality vector pair.
     """
-    def __init__(self, seq: str, quality: torch.Tensor, metadata):
+    def __init__(self, seq: str, quality: torch.Tensor, metadata: str):
         if len(seq) != len(quality):
             raise ValueError(
                 "Length of nucleotide sequence ({}) must agree with length of quality score sequence ({})".format(

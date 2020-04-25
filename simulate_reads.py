@@ -57,8 +57,6 @@ def parse_args():
                              'a time point in the dataset. Time points are saved as part of file name.')
     parser.add_argument('-p', '--out_prefix', required=False, default='sim',
                         help='<Optional> File prefix for the read files.')
-    parser.add_argument('-e', '--extension', required=False, default='txt',
-                        help='<Optional> File extension.')
 
     return parser.parse_args()
 

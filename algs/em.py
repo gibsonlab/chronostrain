@@ -129,10 +129,13 @@ class EMSolver(AbstractModelSolver):
             Q = (Q / Q.sum(dim=0)[None, :]).sum(dim=1) / Z_t.view(F)
 
             sigmoid = y[t]
-            sigmoid_jacobian = torch.ger(sigmoid, sigmoid) - \
+            sigmoid_jacobian = torch.ger(sigmoid, 1-sigmoid) - \
                                torch.diag(sigmoid).mm(
                                    torch.ones(S, S, device=self.device) - torch.eye(S, device=self.device)
                                )
+            # print("sigmoid: ", sigmoid)
+            # print("outer product", )
+            # print("jacobian: ", sigmoid_jacobian)
 
             x_gradient[t] = x_gradient[t] + sigmoid_jacobian.mv(
                 self.model.get_fragment_frequencies().t().mv(Q)
@@ -144,9 +147,11 @@ class EMSolver(AbstractModelSolver):
             x_gradient = x_gradient * gradient_clip / grad_t_norm
 
         # ==== Re-center to zero to prevent drift.
-        x_gradient = x_gradient - (torch.ones(size=x_gradient.size(), device=self.device) * x_gradient.mean())
+        updated_x = x + self.lr * x_gradient
+        updated_x = updated_x - (updated_x.mean() * torch.ones(size=updated_x.size(), device=self.device))
 
-        return x + self.lr * x_gradient
+        return updated_x
+
 
     def get_frag_likelihoods(self, t: int):
         """

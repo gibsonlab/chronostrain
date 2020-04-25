@@ -149,7 +149,7 @@ class GenerativeModel:
             read_depth = read_depths[k]
             strain_abundance = abundances[k]
             frag_abundance = self.strain_abundance_to_frag_abundance(strain_abundance.view(S, 1)).view(F)
-            reads_list.append(self.sample_reads(frag_abundance, read_depth, metadata="Simulated read t={}".format(self.times[k])))
+            reads_list.append(self.sample_reads(frag_abundance, read_depth, metadata="SIM_t{}".format(self.times[k])))
 
         return reads_list
 
@@ -233,6 +233,6 @@ class GenerativeModel:
         # Draw a read from each fragment.
         for i in range(num_samples):
             frag = frag_space.get_fragment_by_index(frag_indexed_samples[i].item())
-            frag_samples.append(self.error_model.sample_noisy_read(frag.seq, metadata=metadata))
+            frag_samples.append(self.error_model.sample_noisy_read(frag.seq, metadata=(metadata + "|" + frag.metadata)))
 
         return frag_samples

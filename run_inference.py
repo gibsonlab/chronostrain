@@ -11,7 +11,7 @@ import torch
 
 from model.generative import GenerativeModel
 from model.bacteria import Population
-from model.reads import SequenceRead, FastQErrorModel
+from model.reads import SequenceRead, FastQErrorModel, NoiselessErrorModel
 from algs import em, vi, bbvi
 
 from typing import List
@@ -82,7 +82,7 @@ def perform_inference(reads: List[List[SequenceRead]],
     ##############################
     # Construct generative model
     mu = torch.zeros(len(population.strains))
-    tau_1 = 1
+    tau_1 = 100
     tau = 1
     window_size = len(reads[0][0].seq)
 
@@ -96,6 +96,7 @@ def perform_inference(reads: List[List[SequenceRead]],
                                bacteria_pop=population,
                                read_length=window_size,
                                read_error_model=my_error_model)
+    print(my_model.get_fragment_space())
 
     # logger.debug(str(my_model.get_fragment_space()))
     logger.debug("Strain keys:")
@@ -104,8 +105,8 @@ def perform_inference(reads: List[List[SequenceRead]],
 
     if method == "em":
         logger.info("Solving using Expectation-Maximization.")
-        solver = em.EMSolver(my_model, reads, torch_device=default_device, lr=1e-3)
-        abundances = solver.solve(iters=10000, print_debug_every=100, thresh=1e-5)
+        solver = em.EMSolver(my_model, reads, torch_device=default_device, lr=1e-4)
+        abundances = solver.solve(iters=10000, print_debug_every=100, thresh=1e-7, gradient_clip=1e2)
         save_abundances(
             population=population,
             time_points=time_points,

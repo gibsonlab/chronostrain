@@ -66,7 +66,7 @@ class FragmentSpace:
     def get_fragments(self):
         return self.seq_to_frag.values()
 
-    def get_fragment(self, seq: str):
+    def get_fragment(self, seq: str) -> Fragment:
         """
         Retrieves a Fragment instance corresponding to the sequence.
         Raises KeyError if the sequence is not found in the space.
@@ -79,7 +79,7 @@ class FragmentSpace:
         except KeyError:
             raise KeyError("Sequence '{}' not in dictionary.".format(seq))
 
-    def get_fragment_by_index(self, idx: int):
+    def get_fragment_by_index(self, idx: int) -> Fragment:
         return self.frag_list[idx]
 
     def size(self) -> int:
