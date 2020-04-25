@@ -3,30 +3,37 @@
  Contains classes for the error model of reads.
 """
 from abc import ABCMeta, abstractmethod
-import numpy as np
-import math
-from model.fragments import Fragment
-from typing import List
 import torch
-from pyro.distributions.torch_distribution import TorchDistribution
+from model.fragments import Fragment
+
+
+# ============= Utility functions
+def mutate_acgt(base):
+    i = torch.randint(low=0, high=3, size=[1]).item()
+    bases = {'A', 'C', 'G', 'T'}
+    bases.remove(base)
+    return list(bases)[i]
+
+# ============= END Utility functions
 
 
 class SequenceRead:
     """
     A class representing a sequence-quality vector pair.
     """
-    def __init__(self, seq: str, quality: List, metadata):
+    def __init__(self, seq: str, quality: torch.Tensor, metadata):
         if len(seq) != len(quality):
-            raise ValueError("Length of nucleotide sequence ({}) must agree with length "
-                             "of quality score sequence ({})".format(len(seq), len(quality))
-                             )
-
+            raise ValueError(
+                "Length of nucleotide sequence ({}) must agree with length of quality score sequence ({})".format(
+                    len(seq), len(quality)
+                )
+            )
         self.seq = seq
         self.quality = quality
         self.metadata = metadata
 
 
-class AbstractQScoreDistribution(TorchDistribution, metaclass=ABCMeta):
+class AbstractQScoreDistribution(metaclass=ABCMeta):
     """
     Parent class for all Q-score distributions.
     """
@@ -51,19 +58,8 @@ class AbstractQScoreDistribution(TorchDistribution, metaclass=ABCMeta):
         """
         pass
 
-    # Pyro/Torch wrappers
-    def sample(self, sample_shape=torch.Size()):
-        return self.sample_qvec()
 
-    def rsample(self, sample_shape=torch.Size()):
-        return self.sample()
-
-    def log_prob(self, value):
-        pass
-
-
-
-class AbstractErrorModel(TorchDistribution, metaclass=ABCMeta):
+class AbstractErrorModel(metaclass=ABCMeta):
     """
     Parent class for all fragment-to-read error models.
     """
@@ -79,10 +75,12 @@ class AbstractErrorModel(TorchDistribution, metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def sample_noisy_read(self, fragment: str):
+    def sample_noisy_read(self, fragment: str, metadata: str = "") -> SequenceRead:
         """
         Obtain a random read (q-vec and sequence pair) from a given fragment.
+
         :param fragment: The source fragment.
+        :param metadata: The metadata to store in the read.
         :return: A list of reads sampled according to their probabilities.
         """
         pass
@@ -109,6 +107,13 @@ class AbstractTrainableErrorModel(AbstractErrorModel):
 # ==================================== IMPLEMENTATIONS =================================
 # ======================================================================================
 
+class NoiselessErrorModel(AbstractErrorModel):
+    def compute_log_likelihood(self, fragment: Fragment, read: SequenceRead) -> float:
+        return 0. if fragment.seq == read.seq else float("-inf")
+
+    def sample_noisy_read(self, fragment: str, metadata: str = "") -> SequenceRead:
+        return SequenceRead(fragment, quality=torch.ones(len(fragment))*1000, metadata=metadata)
+
 
 class RampUpRampDownDistribution(AbstractQScoreDistribution):
     """
@@ -121,8 +126,8 @@ class RampUpRampDownDistribution(AbstractQScoreDistribution):
 
     def __init__(self,
                  length: int,
-                 quality_score_values: np.ndarray,
-                 distribution: np.ndarray):
+                 quality_score_values: torch.Tensor,
+                 distribution: torch.Tensor):
         """
         :param length: the length of q-vectors to be generated.
         :param quality_score_values: the quality score values. Should be in increasing level of quality.
@@ -138,18 +143,18 @@ class RampUpRampDownDistribution(AbstractQScoreDistribution):
         self.quality_score_values = quality_score_values
         self.qvec = self.create_qvec()  # Hardcoded quality score vector.
 
-    def compute_log_likelihood(self, qvec):
+    def compute_log_likelihood(self, qvec: torch.Tensor):
         """
         Likelihood is just the indicator function.
         :param qvec: the query
         :return: 1 if query is qvec, 0 else.
         """
-        return int(np.array_equal(qvec, self.qvec))
+        return int(torch.eq(qvec, self.qvec))
 
-    def sample_qvec(self):
+    def sample_qvec(self) -> torch.Tensor:
         return self.qvec
 
-    def create_qvec(self):
+    def create_qvec(self) -> torch.Tensor:
         """
         Returns a single quality score vector ('q vector').
 
@@ -171,39 +176,44 @@ class RampUpRampDownDistribution(AbstractQScoreDistribution):
         each element is a quality score from self.quality_score_values
         """
 
-        lengths = [0]*(len(self.quality_score_values)*2-1)
+        lengths = torch.zeros(len(self.quality_score_values)*2-1)
 
         # Iterate over each quality score and find the length of each chunk it will
         # span in the return vector.
         for index in range(len(self.quality_score_values)):
-            if index == (len(self.quality_score_values)-1): # Midpoint. Highest quality.
+            if index == (len(self.quality_score_values)-1):  # Midpoint. Highest quality.
                 lengths[index] = self.length * self.distribution[index]
             else:
                 length = self.length * self.distribution[index] / 2
                 lengths[index] = length
                 lengths[len(lengths)-1-index] = length
 
-        lengths = [math.floor(i) for i in lengths]
+        lengths = torch.floor(lengths).to(dtype=torch.int)
+        total_len = lengths.sum().item()
 
-        if not (np.cumsum(lengths)[-1] <= self.length):
+        if not (total_len <= self.length):
             raise ValueError("The sum of the segment lengths ({}) must be less than or equal "
-                             "to the total fragment length ({})".format(np.cumsum(lengths)[-1], self.length))
+                             "to the total fragment length ({})".format(total_len, self.length))
 
-        # Allocate a fixed-length array to fill in with quality scores (default to quality score '10')
-        quality_vector = np.ones(shape=self.length, dtype=int)*10
+        # Allocate a fixed-length array.
+        quality_vector = 10 * torch.ones(self.length)
 
-        # Note: The quality scores at the end of the vector
-        # does not get updated because of our flooring in the lengths of above.
+        # Note: The quality scores at the end of the vector do not get updated because of our flooring
+        # in the lengths of above.
 
         # Go over the quality scores from lowest to highest, and then back down from highest to lowest.
         # assigning each quality score to its dedicated chunk of positions in the vector
         # according to the lengths of each chunk calculated previously.
         cur_pos = 0
-        # for i, value in enumerate(self.quality_score_values.tolist() + self.quality_score_values.tolist()[:-1][::-1]):
-        for i, value in enumerate(np.append( self.quality_score_values, np.flip(self.quality_score_values[:-1]))): ## TODO check if this works as intended
-            if i > 0:
-                cur_pos = cur_pos + lengths[i - 1]
-            quality_vector[cur_pos:cur_pos + lengths[i]] = value
+        q_idx = 0
+        incr = 1
+
+        for i, count in enumerate(lengths):
+            quality_vector[cur_pos:cur_pos + count] = self.quality_score_values[q_idx]
+            cur_pos = cur_pos + count
+            if q_idx == self.quality_score_values.size(0) - 1:
+                incr = -incr
+            q_idx = q_idx + incr
 
         return quality_vector
 
@@ -214,11 +224,12 @@ class RampUpRampDownDistribution(AbstractQScoreDistribution):
 
 class BasicQScoreDistribution(RampUpRampDownDistribution):
 
-    def __init__(self, length):
-
-        super().__init__(length,
-                         quality_score_values=np.array([0, 1, 2, 3, 4]),
-                         distribution=np.array([0.05, 0.15, 0.30, 0.25, 0.25]))
+    def __init__(self, length: int):
+        super().__init__(
+            length,
+            quality_score_values=torch.tensor([0, 1, 2, 3, 4]),
+            distribution=torch.tensor([0.05, 0.15, 0.30, 0.25, 0.25])
+        )
 
 
 class BasicErrorModel(AbstractErrorModel):
@@ -234,31 +245,32 @@ class BasicErrorModel(AbstractErrorModel):
     # nucleotide is _A. (e.g. each 1D array should sum to 1).
 
     base_indices = {'A': 0, 'C': 1, 'G': 2, 'T': 3}
+    bases = ['A', 'C', 'G', 'T']
 
-    VERYLOW_Q_BASE_CHANGE_MATRIX = np.array(([0.25, 0.25, 0.25, 0.25],
-                                              [0.25, 0.25, 0.25, 0.25],
-                                              [0.25, 0.25, 0.25, 0.25],
-                                              [0.25, 0.25, 0.25, 0.25]))
+    VERYLOW_Q_BASE_CHANGE_MATRIX = torch.tensor(([0.25, 0.25, 0.25, 0.25],
+                                                 [0.25, 0.25, 0.25, 0.25],
+                                                 [0.25, 0.25, 0.25, 0.25],
+                                                 [0.25, 0.25, 0.25, 0.25]))
 
-    LOW_Q_BASE_CHANGE_MATRIX = np.array(([0.70, 0.10, 0.10, 0.10],
-                                         [0.10, 0.70, 0.10, 0.10],
-                                         [0.10, 0.10, 0.70, 0.10],
-                                         [0.10, 0.10, 0.10, 0.70]))
+    LOW_Q_BASE_CHANGE_MATRIX = torch.tensor(([0.70, 0.10, 0.10, 0.10],
+                                             [0.10, 0.70, 0.10, 0.10],
+                                             [0.10, 0.10, 0.70, 0.10],
+                                             [0.10, 0.10, 0.10, 0.70]))
 
-    MEDIUM_Q_BASE_CHANGE_MATRIX = np.array(([0.85, 0.05, 0.05, 0.05],
-                                            [0.05, 0.85, 0.05, 0.05],
-                                            [0.05, 0.05, 0.85, 0.05],
-                                            [0.05, 0.05, 0.05, 0.85]))
+    MEDIUM_Q_BASE_CHANGE_MATRIX = torch.tensor(([0.85, 0.05, 0.05, 0.05],
+                                                [0.05, 0.85, 0.05, 0.05],
+                                                [0.05, 0.05, 0.85, 0.05],
+                                                [0.05, 0.05, 0.05, 0.85]))
 
-    HIGH_Q_BASE_CHANGE_MATRIX = np.array(([0.91, 0.03, 0.03, 0.03],
-                                          [0.03, 0.91, 0.03, 0.03],
-                                          [0.03, 0.03, 0.91, 0.03],
-                                          [0.03, 0.03, 0.03, 0.91]))
+    HIGH_Q_BASE_CHANGE_MATRIX = torch.tensor(([0.91, 0.03, 0.03, 0.03],
+                                              [0.03, 0.91, 0.03, 0.03],
+                                              [0.03, 0.03, 0.91, 0.03],
+                                              [0.03, 0.03, 0.03, 0.91]))
 
-    VERYHIGH_Q_BASE_CHANGE_MATRIX = np.array(([0.991, 0.003, 0.003, 0.003],
-                                          [0.003, 0.991, 0.003, 0.003],
-                                          [0.003, 0.003, 0.991, 0.003],
-                                          [0.003, 0.003, 0.003, 0.991]))
+    VERYHIGH_Q_BASE_CHANGE_MATRIX = torch.tensor(([0.991, 0.003, 0.003, 0.003],
+                                                  [0.003, 0.991, 0.003, 0.003],
+                                                  [0.003, 0.003, 0.991, 0.003],
+                                                  [0.003, 0.003, 0.003, 0.991]))
 
     Q_SCORE_BASE_CHANGE_MATRICES = [VERYLOW_Q_BASE_CHANGE_MATRIX,
                                     LOW_Q_BASE_CHANGE_MATRIX,
@@ -277,20 +289,15 @@ class BasicErrorModel(AbstractErrorModel):
         :param: fragment
         """
 
-        # why not 0
         log_product = self.q_dist.compute_log_likelihood(read.quality)
-        for actual_base_pair, read_base_pair, q_score in zip(fragment, read.seq, read.quality):
-
-            idx1 = BasicErrorModel.base_indices[actual_base_pair]
-            idx2 = BasicErrorModel.base_indices[read_base_pair]
-
-            # probability of observing 'read_base_pair' when the actual base pair is 'actual_base_pair'
+        for actual_base, read_base, q_score in zip(fragment.seq, read.seq, read.quality):
+            idx1 = BasicErrorModel.base_indices[actual_base]
+            idx2 = BasicErrorModel.base_indices[read_base]
             base_prob = BasicErrorModel.Q_SCORE_BASE_CHANGE_MATRICES[q_score][idx1][idx2]
-
-            log_product += np.log(base_prob)
+            log_product += torch.log(base_prob)
         return log_product
 
-    def sample_noisy_read(self, fragment):
+    def sample_noisy_read(self, fragment, metadata="") -> SequenceRead:
         quality_score_vector = self.q_dist.sample_qvec()
 
         noisy_fragment_chars = ['' for _ in range(self.read_len)]
@@ -298,22 +305,27 @@ class BasicErrorModel(AbstractErrorModel):
 
         # Generate base pair reads from the fragment, conditioned on fragment base pairs and
         # the quality score for that base pair.
-        for k, (read_base_pair, q_score) in enumerate(zip(fragment, quality_score_vector)):
-            read_base_pair_index = BasicErrorModel.base_indices[read_base_pair]
+        for k in range(len(fragment)):
+            # information at position k
+            read_base = fragment[k]
+            q_score = quality_score_vector[k].item()
 
-            # Generate a noisy base pair reads from the distribution defined by the
-            # actual fragment base pair and the quality score
+            # Translate ACGT to 0,1,2,3
+            read_base_index = BasicErrorModel.base_indices[read_base]
 
-            noisy_letter = np.random.choice(
-                ["A", "C", "G", "T"],
-                size=1,
-                p=BasicErrorModel.Q_SCORE_BASE_CHANGE_MATRICES[q_score][read_base_pair_index])[0]
+            # Look up noisy channel probabilities
+            noisy_letter = torch.multinomial(
+                BasicErrorModel.Q_SCORE_BASE_CHANGE_MATRICES[q_score][read_base_index],
+                num_samples=1,
+                replacement=True
+            ).item()
 
-            noisy_fragment_chars[k] = noisy_letter
+            # Save the noisy output.
+            noisy_fragment_chars[k] = BasicErrorModel.bases[noisy_letter]
             noisy_fragment_quality[k] = q_score
 
         noisy_fragment_string = ''.join(noisy_fragment_chars)
-        seq_read = SequenceRead(noisy_fragment_string, noisy_fragment_quality, "blank metadata")
+        seq_read = SequenceRead(noisy_fragment_string, noisy_fragment_quality, metadata=metadata)
         return seq_read
 
 
@@ -328,15 +340,17 @@ class BasicPhredScoreDistribution(RampUpRampDownDistribution):
     """
 
     def __init__(self, length):
-        super().__init__(length,
-                         quality_score_values=np.array([10, 20, 30, 40, 50]),
-                         distribution=np.array([0.05, 0.15, 0.30, 0.25, 0.25]))
+        super().__init__(
+            length,
+            quality_score_values=torch.tensor([10, 20, 30, 40, 50]),
+            distribution=torch.tensor([0.05, 0.15, 0.30, 0.25, 0.25])
+        )
 
 
-class PhredScoreDistribution(AbstractQScoreDistribution):
-    # TODO: Implement something more sophisticated than a slow ramp up of and ramp down of quality
-    # TODO: over the nucleotides. Monte Carlo simulations?
-    pass
+# class PhredScoreDistribution(AbstractQScoreDistribution):
+#     # TODO: Implement something more sophisticated than a slow ramp up of and ramp down of quality
+#     # TODO: over the nucleotides. Monte Carlo simulations?
+#     pass
 
 
 class FastQErrorModel(AbstractErrorModel):
@@ -349,52 +363,28 @@ class FastQErrorModel(AbstractErrorModel):
         self.read_len = read_len
         self.q_dist = BasicPhredScoreDistribution(read_len)
 
+    @staticmethod
+    def compute_error_prob(q: torch.Tensor) -> torch.Tensor:
+        return torch.pow(10, -q.to(dtype=torch.double)/10)
+
     def compute_log_likelihood(self, fragment: Fragment, read: SequenceRead) -> float:
-        log_product = self.q_dist.compute_log_likelihood(read.quality)
-        log_likelihood_map = {}
+        error_prob = FastQErrorModel.compute_error_prob(read.quality)
+        matches = torch.tensor([
+            fragment.seq[k] == read.seq[k] for k in range(len(fragment.seq))
+        ]).to(dtype=torch.double)
 
-        for fragment_base_pair, read_base_pair, q_score in zip(fragment.seq, read.seq, read.quality):
+        return ((1 - error_prob) * matches + error_prob * (1 - matches)).log().sum().item()
 
-            if (fragment_base_pair, read_base_pair, q_score) in log_likelihood_map:
-                log_product += log_likelihood_map[(fragment_base_pair, read_base_pair, q_score)]
-                continue
-
-            accuracy = 1-np.power(10, -q_score/10)
-            base_prob = accuracy if read_base_pair == fragment_base_pair else 1-accuracy
-            log_likelihood = np.log(base_prob)
-
-            log_likelihood_map[(fragment_base_pair, read_base_pair, q_score)] = log_likelihood
-
-            log_product += np.log(base_prob)
-        return log_product
-
-    def sample_noisy_read(self, fragment):
-
-        quality_score_vector = self.q_dist.sample_qvec()
-
+    def sample_noisy_read(self, fragment: str, metadata="") -> SequenceRead:
+        qvec = self.q_dist.sample_qvec()
         noisy_fragment_chars = ['' for _ in range(self.read_len)]
-        noisy_fragment_quality = [0]*self.read_len
 
-        # Generate base pair reads from the fragment, conditioned on fragment base pairs and
-        # the quality score for that base pair.
-        for k, (read_base_pair, q_score) in enumerate(zip(fragment, quality_score_vector)):
+        error_probs = FastQErrorModel.compute_error_prob(qvec)
+        error_locs = (torch.rand(size=error_probs.size()) < error_probs)
+        for k in range(len(fragment)):
+            if error_locs[k].item():
+                noisy_fragment_chars[k] = fragment[k]
+            else:
+                noisy_fragment_chars[k] = mutate_acgt(fragment[k])
 
-            choice_list = [read_base_pair]
-            for base in ["A", "C", "G", "T"]:
-                if base != read_base_pair:
-                    choice_list.append(base)
-
-            accuracy = 1 - np.power(10, -q_score/10)
-            # Generate a noisy base pair reads from the distribution defined by the
-            # actual fragment base pair and the quality score
-            noisy_letter = np.random.choice(
-                choice_list,
-                size=1,
-                p=[accuracy, (1-accuracy)/3, (1-accuracy)/3, (1-accuracy)/3])[0]
-            noisy_fragment_chars[k] = noisy_letter
-            noisy_fragment_quality[k] = q_score
-
-        noisy_fragment_string = ''.join(noisy_fragment_chars)
-        seq_read = SequenceRead(noisy_fragment_string, noisy_fragment_quality, "blank metadata")
-
-        return seq_read
+        return SequenceRead(''.join(noisy_fragment_chars), qvec, metadata=metadata)

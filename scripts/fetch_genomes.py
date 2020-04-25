@@ -1,7 +1,8 @@
 import os
 import csv
 import urllib.request as urllib
-from util.logger import logger
+from util.io.logger import logger
+from util.io.filesystem import convert_size, get_filesize_bytes
 
 
 _base_dir = "data"
@@ -32,6 +33,9 @@ def fetch_filename(accession):
         filedata = urllib.urlopen(get_ncbi_url(accession))
         with open(filename, 'w') as f:
             f.write(str(filedata.read()).replace("\r", ""))
+            logger.info("[{ac}] download completed. ({sz})".format(
+                ac=accession, sz=convert_size(get_filesize_bytes(filename))
+            ))
     return filename
 
 

@@ -1,7 +1,6 @@
 import math
-import numpy as np
-from util.logger import logger
-from algs.base import AbstractModelSolver, compute_frag_errors
+from util.io.logger import logger
+from algs.base import AbstractModelSolver, compute_read_likelihoods
 from abc import ABCMeta, abstractmethod
 
 
@@ -12,7 +11,7 @@ from abc import ABCMeta, abstractmethod
 class AbstractGradientVISolver(AbstractModelSolver, metaclass=ABCMeta):
     def __init__(self, generative_model, data, variational_posterior):
         super().__init__(generative_model, data)
-        self.frag_errors = compute_frag_errors(generative_model, data)
+        self.frag_errors = compute_read_likelihoods(generative_model, data)
         self.posterior = variational_posterior
 
     def solve(self, iters=100, thresh=1e-5):

@@ -22,6 +22,10 @@ class AbstractStrainDatabase(metaclass=ABCMeta):
     def get_strain(self, strain_id: str) -> Strain:
         pass
 
+    @abstractmethod
+    def all_strains(self) -> List[Strain]:
+        pass
+
     def get_strains(self, strain_ids: List[str]) -> List[Strain]:
         return [self.get_strain(s_id) for s_id in strain_ids]
 
@@ -31,12 +35,13 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
     A Simple implementation that treats each complete strain genome as a marker.
     """
 
-    def __init__(self, csv_refs):
+    def __init__(self, csv_refs, trim_debug=None):
         """
         :param csv_refs: CSV file specifying accession numbers.
         """
         self.strain_to_markers = {}
         self.csv_refs = csv_refs
+        self.trim_debug = trim_debug
         super().__init__()
 
     def __load__(self):
@@ -45,13 +50,17 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
 
             input_file_path = os.path.join(_DEFAULT_DATA_DIR, strain_accession + ".fasta")
             with open(input_file_path) as file:
+                # TODO: read all lines and concatenate (if the line has standard line breaks).
                 for i, line in enumerate(file):
                     genome = re.sub('[^AGCT]+', '', line.split(sep=" ")[-1])
-                    # For debugging/speed purposes, limit the size of the gneome.
-                    # Say, 5 markers, each approximately 500bp, for 2500 total bps.
-                    genome = genome[:2500]
+                if self.trim_debug is not None:
+                    genome = genome[:self.trim_debug]
+
             markers = [Marker(name=strain_accession, seq=genome)]  # Each genome's marker is its own genome.
             self.strain_to_markers[strain_accession] = markers
 
     def get_strain(self, strain_id: str) -> Strain:
         return Strain(name=strain_id, markers=self.strain_to_markers[strain_id])
+
+    def all_strains(self) -> List[Strain]:
+        return [Strain(name=s_id, markers=markers) for (s_id, markers) in self.strain_to_markers.items()]

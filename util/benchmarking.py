@@ -6,32 +6,32 @@
 import time
 
 
-def current_time_seconds():
-    return int(time.time())
+def current_time_millis():
+    return int(round(time.time() * 1000))
 
 
-def seconds_elapsed(start):
-    return current_time_seconds() - start
-
-
-def minutes_elapsed(start):
-    return int(seconds_elapsed(start) / 60)
+def millis_elapsed(start_millis):
+    return current_time_millis() - start_millis
 
 
 class CyclicIntegerBuffer:
     """
     An (integer-valued) buffer of finite capcity. Cyclically overwrites next available slot in memory.
     """
-    def __init__(self, size, default_value=0):
-        self.size = size
-        self.buf = [default_value for _ in range(size)]
+    def __init__(self, capacity, default_value=0):
+        if capacity == 0:
+            raise ValueError("Buffer size must be nonzero.")
+        self.capacity = capacity
+        self.size = 0
+        self.buf = [default_value for _ in range(capacity)]
         self.total = 0
         self.next_idx = 0
 
     def push(self, val):
         self.total += val - self.buf[self.next_idx]
         self.buf[self.next_idx] = val
-        self.next_idx += 1
+        self.next_idx = (self.next_idx + 1) % self.capacity
+        self.size = min(self.capacity, self.size + 1)
 
     def values(self):
         return self.buf
@@ -54,21 +54,21 @@ class RuntimeEstimator:
         """
         self.total_iters = total_iters
         self.iters_left = total_iters
-        self.iter_buf = CyclicIntegerBuffer(size=horizon)
+        self.iter_buf = CyclicIntegerBuffer(capacity=horizon)
         self.last_click = None
 
     def stopwatch_click(self):
         """
         Registers a click on the stopwatch (starts recording a new lap).
-        :return: The time elapsed since last click, in seconds.
+        :return: The time elapsed since last click, in milliseconds.
         """
 
         if self.last_click is None:
-            self.last_click = current_time_seconds()
+            self.last_click = current_time_millis()
             return None
         else:
-            now = current_time_seconds()
-            diff = seconds_elapsed(now)
+            now = current_time_millis()
+            diff = millis_elapsed(self.last_click)
             self.last_click = now
             return diff
 
@@ -83,4 +83,3 @@ class RuntimeEstimator:
 
     def time_left(self):
         return self.iters_left * self.iter_buf.mean()
-

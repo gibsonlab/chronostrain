@@ -1,16 +1,13 @@
-from model.generative import softmax
 from util.benchmarking import RuntimeEstimator
-from util.logger import logger
-from algs.base import AbstractModelSolver, compute_frag_errors
+from util.io.logger import logger
+from algs.base import AbstractModelSolver, compute_read_likelihoods
 
 from typing import List
 from model.reads import SequenceRead
 from model.generative import GenerativeModel
 
 import torch
-
-default_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-torch.set_default_tensor_type(torch.DoubleTensor)
+from torch.nn.functional import softmax
 
 # ===========================================================================================
 # =============== Expectation-Maximization (for getting a MAP estimator) ====================
@@ -21,40 +18,67 @@ class EMSolver(AbstractModelSolver):
     """
     MAP estimation via Expectation-Maximization.
     """
-    def __init__(self, generative_model: GenerativeModel,
-                 data: List[List[SequenceRead]],
-                 lr: int = 0.001,
-                 device=default_device):
+    def __init__(
+            self,
+            generative_model: GenerativeModel,
+            data: List[List[SequenceRead]],
+            torch_device,
+            lr: float = 1e-3):
+        """
+        Instantiates an EMSolver instance.
 
+        :param generative_model: The underlying generative model with prior parameters.
+        :param data: the observed data, a time-indexed list of read collections.
+        :param torch_device: the torch device to operate on. (Recommended: CUDA if available.)
+        :param lr: the learning rate (default: 1e-3
+        """
         super().__init__(generative_model, data)
-        self.frag_errors = compute_frag_errors(self.model, self.data)
+        self.read_likelihoods = compute_read_likelihoods(self.model, self.data, device=torch_device)
         self.lr = lr
-        self.device = device
+        self.device = torch_device
+        self.model.get_fragment_frequencies()
 
-    def solve(self, iters=1000, thresh=1e-5, initialization=None, print_debug_every=200):
+    def solve(self,
+              iters: int = 1000,
+              thresh: float = 1e-5,
+              gradient_clip: float = 1e2,
+              initialization=None,
+              print_debug_every=200
+              ):
         """
         Runs the EM algorithm on the instantiated data.
         :param iters: number of iterations.
-        :param thresh: the threshold that determines the convergence criterion (implemented as Frobenius norm of abundances).
+        :param thresh: the threshold that determines the convergence criterion (implemented as Frobenius norm of
+        abundances).
+        :param gradient_clip: An upper bound on the Frobenius norm of the underlying GP trajectory (as a T x S matrix).
         :param initialization: A (T x S) matrix of time-series abundances. If not specified, set to all-zeros matrix.
+        :param print_debug_every: The number of iterations to skip between debug logging summary.
         :return: The estimated abundances
         """
-
         if initialization is None:
-            # T x S array of time-indexed abundances.
-            brownian_motion = torch.ones(len(self.model.times), len(self.model.bacteria_pop.strains), device=self.device)
+            # T x S array representing a time-indexed, S-dimensional brownian motion.
+            brownian_motion = torch.ones(
+                size=[len(self.model.times), len(self.model.bacteria_pop.strains)],
+                device=self.device
+            )
         else:
             brownian_motion = initialization
 
-        time_est = RuntimeEstimator(total_iters=iters, horizon=100)
+        logger.debug("EM algorithm started. (Gradient method, Target iterations={})".format(
+            iters
+        ))
+        time_est = RuntimeEstimator(total_iters=iters, horizon=5)
         k = 1
         while k <= iters:
             time_est.stopwatch_click()
-            updated_brownian_motion = self.em_update(brownian_motion)
+            updated_brownian_motion = self.em_update_new(brownian_motion, gradient_clip=gradient_clip)
             secs_elapsed = time_est.stopwatch_click()
             time_est.increment(secs_elapsed)
 
-            diff = torch.norm(updated_brownian_motion - brownian_motion, p='fro')
+            diff = torch.norm(
+                softmax(updated_brownian_motion, dim=1) - softmax(brownian_motion, dim=1),
+                p='fro'
+            )
 
             has_converged = (diff < thresh)
             if has_converged:
@@ -63,88 +87,81 @@ class EMSolver(AbstractModelSolver):
             brownian_motion = updated_brownian_motion
 
             if k % print_debug_every == 0:
-                logger.info("Iteration {i} | time left: {t} min. | Brownian Motion Diff: {diff}".format(
+                logger.info("Iteration {i} | time left: {t:.1f} min. | Learned Abundance Diff: {diff}".format(
                     i=k,
-                    t=time_est.time_left() // 60,
+                    t=time_est.time_left() / 60000,
                     diff=diff
                 ))
+                logger.debug("softmax(X) = {}".format(softmax(brownian_motion, dim=1)))
             k += 1
         logger.info("Finished {k} iterations.".format(k=k-1))
 
-        abundances = [softmax(gaussian) for gaussian in brownian_motion]
+        abundances = [softmax(gaussian, dim=0) for gaussian in brownian_motion]
         normalized_abundances = torch.stack(abundances).to(self.device)
         return normalized_abundances
 
-    def em_update(self, brownian_motion: torch.Tensor) -> torch.Tensor:
+    def em_update_new(
+            self,
+            x: torch.Tensor,
+            gradient_clip: float
+    ):
+        T, S = x.size()
+        F = self.model.num_fragments()
+        x_gradient = torch.zeros(size=x.size(), device=self.device)  # T x S tensor.
 
-        rel_abundances_motion_guess = [softmax(gaussian) for gaussian in brownian_motion]
+        # ====== Gaussian part
+        if T > 1:
+            for t in range(T):
+                variance_scaling = -1 / (self.model.time_scale(t) ** 2)
+                if t == 0:
+                    x_gradient[t] = variance_scaling * ((2 * x[0]) - x[1] - torch.zeros(S, device=self.device))
+                elif t == T-1:
+                    x_gradient[t] = variance_scaling * (x[T-1] - x[T-2])
+                else:
+                    x_gradient[t] = variance_scaling * ((2 * x[t]) - x[t-1] - x[t+1])
 
-        updated_brownian_motion = torch.ones(len(brownian_motion), len(brownian_motion[0]))
+        # ====== Sigmoidal part
+        y = softmax(x, dim=1)
+        for t in range(T):
+            # Scale each row by Z_t, and normalize.
+            Z_t = self.model.strain_abundance_to_frag_abundance(y[t].view(S, 1))
+            Q = self.get_frag_likelihoods(t) * Z_t
+            Q = (Q / Q.sum(dim=0)[None, :]).sum(dim=1) / Z_t.view(F)
 
-        for time_index, (guessed_gaussian_at_t, reads_at_t) in \
-                enumerate(zip(brownian_motion, self.data)):
+            sigmoid = y[t]
+            sigmoid_jacobian = torch.ger(sigmoid, sigmoid) - \
+                               torch.diag(sigmoid).mm(
+                                   torch.ones(S, S, device=self.device) - torch.eye(S, device=self.device)
+                               )
 
-            ##############################
-            # Compute the "Q" vector
-            ##############################
+            x_gradient[t] = x_gradient[t] + sigmoid_jacobian.mv(
+                self.model.get_fragment_frequencies().t().mv(Q)
+            )
 
-            time_indexed_fragment_frequencies_guess = self.model.strain_abundance_to_frag_abundance(
-                rel_abundances_motion_guess[time_index])
+        # ==== Gradient clipping.
+        grad_t_norm = x_gradient.norm(p=2).item()
+        if grad_t_norm > gradient_clip:
+            x_gradient = x_gradient * gradient_clip / grad_t_norm
 
-            # Step 1
-            v = []
-            for read_index, read in enumerate(reads_at_t):
-                read_v = torch.mul(self.frag_errors[time_index][read_index], time_indexed_fragment_frequencies_guess)
-                read_v = read_v / sum(read_v)
-                v.append(read_v)
+        # ==== Re-center to zero to prevent drift.
+        x_gradient = x_gradient - (torch.ones(size=x_gradient.size(), device=self.device) * x_gradient.mean())
 
-            # Step 2
-            v = torch.stack(v).to(self.device)
-            v = sum(v)
+        return x + self.lr * x_gradient
 
-            # Step 3
-            # TODO: Sometimes we get a divide by zero error here (particularly when a strain abundance
-            #  is thought to be zero)
-            q_guess = torch.div(v, time_indexed_fragment_frequencies_guess)
+    def get_frag_likelihoods(self, t: int):
+        """
+        Look up the fragment error matrix for timeslice t.
 
-            ##############################
-            # Compute the regularization term
-            ##############################
+        :param t: the time index (not the actual value).
+        :return: An (F x N) matrix representing the read likelihoods according to the error model.
+        """
+        return self.read_likelihoods[t]
 
-            if time_index == 1:
-                regularization_term = brownian_motion[time_index] - brownian_motion[time_index + 1]
-            elif time_index == len(self.model.times) - 1:
-                regularization_term = brownian_motion[time_index] - brownian_motion[time_index - 1]
-            else:
-                regularization_term = (2 * brownian_motion[time_index] -
-                                       brownian_motion[time_index - 1] -
-                                       brownian_motion[time_index + 1])
-
-            scaled_tau = self.model.time_scale(time_index) ** 2
-            regularization_term *= -1 / scaled_tau
-
-            ##############################
-            # Compute the derivative of relative abundances at X^t
-            # An S x S Jacobian
-            ##############################
-
-            sigma_prime = torch.zeros(len(guessed_gaussian_at_t), len(guessed_gaussian_at_t), device=self.device)
-            for i in range(len(guessed_gaussian_at_t)):
-                for j in range(len(guessed_gaussian_at_t)):
-                    delta = 1 if i == j else 0
-                    sigma_prime[i][j] = guessed_gaussian_at_t[i] * (delta - guessed_gaussian_at_t[j])
-
-            ##############################
-            # Compute the 'main' term
-            ##############################
-
-            W = self.model.get_fragment_frequencies()
-            main_term = torch.matmul(torch.matmul(sigma_prime.t(), W.t()), q_guess)
-
-            ##############################
-            # Update our guess for the motion at this time step
-            ##############################
-
-            updated_brownian_motion[time_index] = brownian_motion[time_index] + self.lr * (main_term + regularization_term)
-
-        return torch.tensor(updated_brownian_motion)
+    def read_error_projections(self, t: int, frag_abundance: torch.Tensor) -> torch.Tensor:
+        """
+        :param t: the time index.
+        :param frag_abundance: The vector of fragment abundances Z_t.
+        :return: The vector of linear projections [<E_1^t, Z_t> , ..., <E_N^t, Z_t>].
+        """
+        # (N x F) matrix, applied to an F-dimensional vector.
+        return self.read_likelihoods[t].t().mv(frag_abundance)

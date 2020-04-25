@@ -13,15 +13,8 @@ from model.reads import SequenceRead
 
 from algs.base import AbstractModelSolver
 from model.generative import GenerativeModel
-from util.logger import logger
+from util.io.logger import logger
 from util.benchmarking import RuntimeEstimator
-
-_CPU = torch.device("cpu")
-_CUDA = torch.device("cuda")
-
-
-# ============================ Constants =============================
-default_device = _CUDA
 
 
 class MeanFieldPosterior:
@@ -31,7 +24,7 @@ class MeanFieldPosterior:
             strains: int,
             fragments: int,
             read_counts: List[int],
-            device=default_device
+            device
     ):
         """
         Mean-field assumption:
@@ -53,23 +46,23 @@ class MeanFieldPosterior:
         # ================= Learnable parameters:
         # The initial mean of the GP.
         self.mean = torch.nn.Parameter(torch.zeros(
-            strains, device=device, dtype=torch.double, requires_grad=True
-        ))
+            strains, device=device, dtype=torch.double
+        ), requires_grad=True)
 
         # Represents the transition matrix Sigma_{t+1,t} * inv(Sigma_{t,t}).
         self.transitions = [torch.nn.Parameter(torch.eye(
-            strains, strains, device=device, dtype=torch.double, requires_grad=True
-        )) for _ in range(times)]
+            strains, strains, device=device, dtype=torch.double
+        ), requires_grad=True) for _ in range(times)]
 
         # Represents the precision matrices inv(Sigma_{t+1,t+1} - Sigma_{t+1,t} inv(Sigma_{t,t}) * Sigma_{t,t+1}).
         self.precisions = [torch.nn.Parameter(torch.eye(
-            strains, device=device, dtype=torch.double, requires_grad=True
-        )) for _ in range(times)]
+            strains, device=device, dtype=torch.double
+        ), requires_grad=True) for _ in range(times)]
 
         # The categorical weights for each time point.
         self.frag_weights = [torch.nn.Parameter(torch.ones(
-            fragments, device=device, dtype=torch.double, requires_grad=True
-        )) for _ in range(times)]
+            fragments, device=device, dtype=torch.double
+        ), requires_grad=True) for _ in range(times)]
 
     def params(self) -> List[torch.nn.Parameter]:
         """
@@ -144,7 +137,7 @@ class BBVISolver(AbstractModelSolver):
     def __init__(self,
                  model: GenerativeModel,
                  data: List[List[SequenceRead]],
-                 device=default_device):
+                 device):
         super(BBVISolver, self).__init__(model, data)
         self.model = model
         self.data = data
