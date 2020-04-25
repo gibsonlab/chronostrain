@@ -378,13 +378,12 @@ class FastQErrorModel(AbstractErrorModel):
     def sample_noisy_read(self, fragment: str, metadata="") -> SequenceRead:
         qvec = self.q_dist.sample_qvec()
         noisy_fragment_chars = ['' for _ in range(self.read_len)]
-
         error_probs = FastQErrorModel.compute_error_prob(qvec)
         error_locs = (torch.rand(size=error_probs.size()) < error_probs)
         for k in range(len(fragment)):
             if error_locs[k].item():
-                noisy_fragment_chars[k] = fragment[k]
-            else:
                 noisy_fragment_chars[k] = mutate_acgt(fragment[k])
+            else:
+                noisy_fragment_chars[k] = fragment[k]
 
         return SequenceRead(''.join(noisy_fragment_chars), qvec, metadata=metadata)

@@ -83,7 +83,7 @@ def sample_reads(
     :param seed: (Optional, default:31415) The random seed to use for sampling (to encourage reproducibility).
     :return: (1) The relative abundance profile and (2) the sampled reads (time-indexed).
     """
-    torch.manual_seed = seed
+    torch.manual_seed(seed)
 
     # Default/unbiased parameters for prior.
     mu = torch.zeros(len(population.strains))  # One dimension for each strain
@@ -91,8 +91,9 @@ def sample_reads(
     tau = 1
 
     # Construct a GenerativeModel instance.
-    # my_error_model = reads.FastQErrorModel(read_len=read_length)
-    my_error_model = reads.NoiselessErrorModel()
+    my_error_model = reads.FastQErrorModel(read_len=read_length)
+    # my_error_model = reads.NoiselessErrorModel()
+    
     my_model = generative.GenerativeModel(times=time_points,
                                           mu=mu,
                                           tau_1=tau_1,

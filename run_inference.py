@@ -11,7 +11,7 @@ import torch
 
 from model.generative import GenerativeModel
 from model.bacteria import Population
-from model.reads import NoiselessErrorModel, SequenceRead
+from model.reads import SequenceRead, FastQErrorModel
 from algs import em, vi, bbvi
 
 from typing import List
@@ -86,8 +86,8 @@ def perform_inference(reads: List[List[SequenceRead]],
     tau = 1
     window_size = len(reads[0][0].seq)
 
-    # my_error_model = FastQErrorModel(read_len=window_size)
-    my_error_model = NoiselessErrorModel()
+    my_error_model = FastQErrorModel(read_len=window_size)
+    # my_error_model = NoiselessErrorModel()
 
     my_model = GenerativeModel(times=time_points,
                                mu=mu,
@@ -115,7 +115,10 @@ def perform_inference(reads: List[List[SequenceRead]],
 
     elif method == "vi":
         logger.info("Solving using second-order variational inference.")
-        posterior = vi.SecondOrderVariationalPosterior(mu, torch.eye(len(population.strains)), my_model.get_fragment_frequencies())
+        posterior = vi.SecondOrderVariationalPosterior(
+            means=mu,
+            covariances=torch.eye(len(population.strains)),
+            frag_freqs=my_model.get_fragment_frequencies())
         solver = vi.SecondOrderVariationalGradientSolver(my_model, reads, posterior)
         return solver.solve()
 
@@ -158,7 +161,10 @@ def main():
 
     if args.abundance_file:
         actual_abundances_raw = load_abundances(data_dir=_data_dir, filename=args.abundance_file)
-        actual_abundances = torch.tensor([[i / sum(Z) for i in Z] for Z in actual_abundances_raw], device=default_device)
+        actual_abundances = torch.tensor(
+            [[i / sum(Z) for i in Z] for Z in actual_abundances_raw],
+            device=default_device
+        )
         logger.info("Actual Abundances:")
         logger.info(actual_abundances)
         diff = torch.norm(predicted_abundances - actual_abundances, p='fro')
