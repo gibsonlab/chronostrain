@@ -153,7 +153,6 @@ class RampUpRampDownDistribution(AbstractQScoreDistribution):
         """
         Returns a single quality score vector ('q vector').
 
-
         The quality scores are chosen in proportion to the distribution specified
         in self.distribution.
 
@@ -364,8 +363,8 @@ class FastQErrorModel(AbstractErrorModel):
             log_likelihood = np.log(base_prob)
 
             log_likelihood_map[(fragment_base_pair, read_base_pair, q_score)] = log_likelihood
+            log_product += log_likelihood
 
-            log_product += np.log(base_prob)
         return log_product
 
     def sample_noisy_read(self, fragment):

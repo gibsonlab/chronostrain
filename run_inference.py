@@ -7,7 +7,6 @@
 import argparse
 import csv
 import random
-import numpy as np
 from util.logger import logger
 from database.base import *
 
