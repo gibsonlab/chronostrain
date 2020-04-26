@@ -8,4 +8,5 @@ data/
 simulated_data/
 data/markers/
 logs/
+*.ini
 

@@ -3,19 +3,17 @@
  Contains implementations of the proposed algorithms.
 """
 
-import numpy as np
+import torch
+import math
+
 from abc import ABCMeta, abstractmethod
 from typing import List
 from model.generative import GenerativeModel
 from model.reads import SequenceRead
 
-from util.logger import logger
-import time
+from util.io.logger import logger
+from util.benchmarking import current_time_millis, millis_elapsed
 
-import torch
-
-default_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-torch.set_default_tensor_type(torch.DoubleTensor)
 
 class AbstractModelSolver(metaclass=ABCMeta):
     def __init__(self, model: GenerativeModel, data: List[List[SequenceRead]]):
@@ -32,21 +30,23 @@ class AbstractModelSolver(metaclass=ABCMeta):
 # ===================================================================
 
 # Helper function for both EM and VI
-def compute_frag_errors(model: GenerativeModel, reads: List[List[SequenceRead]]) -> torch.Tensor:
+def compute_read_likelihoods(model: GenerativeModel, reads: List[List[SequenceRead]], device) -> List[torch.Tensor]:
     fragment_space = model.bacteria_pop.get_fragment_space(model.read_length)
 
-    start_time = time.time()
+    start_time = current_time_millis()
     logger.info("Computing fragment errors...")
     errors = [
-        [
-            [np.exp(model.error_model.compute_log_likelihood(f, r)) for f in fragment_space.get_fragments()]
-            for r in reads[k]
-        ]
+        # Each is an (F x N) matrix.
+        torch.tensor([
+            [
+                math.exp(model.error_model.compute_log_likelihood(f, r))
+                for r in reads[k]
+            ] for f in fragment_space.get_fragments()
+        ], device=device, dtype=torch.double)
         for k in range(len(model.times))
-    ]  # TODO: This is taking a very long time. Compute in parallel?
+    ]
 
-    elapsed_time = time.time() - start_time
-    # https://medium.com/@mjschillawski/quick-and-easy-parallelization-in-python-32cb9027e490
-    logger.info("Computed fragment errors! Time taken to calculate fragment errors: " + str(elapsed_time))
+    # TODO https://medium.com/@mjschillawski/quick-and-easy-parallelization-in-python-32cb9027e490
+    logger.debug("Computed fragment errors in {} min.".format(millis_elapsed(start_time) / 60000))
 
-    return torch.tensor(errors, device=default_device)
+    return errors
