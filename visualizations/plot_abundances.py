@@ -5,7 +5,7 @@ import pandas as pd
 import os
 
 
-def plot_abundances_comparsion(inferred_abnd_dir: str, inferred_abnd_file: str,
+def plot_abundances_comparison(inferred_abnd_dir: str, inferred_abnd_file: str,
                                reads_dir: str, abnd_file: str,
                                title: str, output_dir: str, output_file: str):
 

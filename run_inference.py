@@ -197,7 +197,7 @@ def main():
                 "Read Length: " + str(len(reads[0][0].seq)) + "\n" + \
                 "Algorithm: " + algorithm_name_dict[args.method]
 
-        plot_abundances.plot_abundances_comparsion(inferred_abnd_dir=args.out_dir, inferred_abnd_file=args.out_file,
+        plot_abundances.plot_abundances_comparison(inferred_abnd_dir=args.out_dir, inferred_abnd_file=args.out_file,
                                                    reads_dir=args.read_files_dir, abnd_file="sim_abundances.csv",
                                                    output_dir=args.out_dir, output_file=args.out_file[:-4]+".png",
                                                    title=title)
