@@ -190,8 +190,8 @@ def main():
         avg_read_depth_over_time = sum(num_reads_per_time)/len(num_reads_per_time)
 
         algorithm_name_dict = {"em": "Expectation maximization",
-                          "vi": "Variational inference",
-                          "bbvi": "Black-box (monte-carlo) \n variational inference"}
+                               "vi": "Variational inference",
+                               "bbvi": "Black-box (monte-carlo) \n variational inference"}
 
         title = "Average Read Depth over Time: " + str(round(avg_read_depth_over_time, 1)) + "\n" + \
                 "Read Length: " + str(len(reads[0][0].seq)) + "\n" + \

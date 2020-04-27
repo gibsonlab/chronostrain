@@ -5,7 +5,6 @@ import pandas as pd
 import os
 
 
-
 def plot_abundances_comparsion(inferred_abnd_dir: str, inferred_abnd_file: str,
                                reads_dir: str, abnd_file: str,
                                title: str, output_dir: str, output_file: str):
@@ -38,8 +37,3 @@ def plot_abundances_comparsion(inferred_abnd_dir: str, inferred_abnd_file: str,
 def plot_abundances(directory: str, abundance_file: str):
     pass
 
-
-# %%
-# if __name__ == "__main__":
-#     directory = "simulated_data/test_1/"
-#     abundance_file = "sim_abundances.csv"

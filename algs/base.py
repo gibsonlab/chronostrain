@@ -20,6 +20,7 @@ from tqdm import tqdm
 
 num_cores = multiprocessing.cpu_count()
 
+
 class AbstractModelSolver(metaclass=ABCMeta):
     def __init__(self, model: GenerativeModel, data: List[List[SequenceRead]]):
         self.model = model
@@ -53,6 +54,8 @@ def compute_read_likelihoods(model: GenerativeModel, reads: List[List[SequenceRe
     errors = Parallel(n_jobs=num_cores)(delayed(create_matrix)(k) for k in tqdm(range(len(model.times))))
 
     # ref: https://medium.com/@mjschillawski/quick-and-easy-parallelization-in-python-32cb9027e490
+    # TODO: Some 'future warnings' are being thrown about saving tensors (in the subprocesses).
+    # TODO: Maybe find another parallelization alternative.
     logger.debug("Computed fragment errors in {} min.".format(millis_elapsed(start_time) / 60000))
 
     return errors
