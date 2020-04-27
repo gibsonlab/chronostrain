@@ -51,8 +51,8 @@ def compute_read_likelihoods(model: GenerativeModel, reads: List[List[SequenceRe
         ], device=device, dtype=torch.double)
 
     errors = Parallel(n_jobs=num_cores)(delayed(create_matrix)(k) for k in tqdm(range(len(model.times))))
-    # ref: https://medium.com/@mjschillawski/quick-and-easy-parallelization-in-python-32cb9027e490
 
+    # ref: https://medium.com/@mjschillawski/quick-and-easy-parallelization-in-python-32cb9027e490
     logger.debug("Computed fragment errors in {} min.".format(millis_elapsed(start_time) / 60000))
 
     return errors

@@ -64,8 +64,9 @@ def load_marker_database(accession_csv_file: str) -> AbstractStrainDatabase:
     # marker is its own genome.
     # ==============================================
 
-    database_obj = SimpleCSVStrainDatabase(accession_csv_file)  # trim_debug=2500)
+    database_obj = SimpleCSVStrainDatabase(accession_csv_file, trim_debug=2500)
     return database_obj
+
 
 def perform_inference(reads: List[List[SequenceRead]],
                       population: Population,
@@ -124,7 +125,15 @@ def perform_inference(reads: List[List[SequenceRead]],
             covariances=torch.eye(len(population.strains)),
             frag_freqs=my_model.get_fragment_frequencies())
         solver = vi.SecondOrderVariationalGradientSolver(my_model, reads, posterior)
-        return solver.solve()
+        abundances = solver.solve()
+        save_abundances(
+            population=population,
+            time_points=time_points,
+            abundances=abundances,
+            out_filename=out_filename,
+            out_dir=out_dir
+        )
+        return abundances
 
     elif method == "bbvi":
         logger.info("Solving using black-box (monte-carlo) variational inference.")
@@ -174,9 +183,26 @@ def main():
         diff = torch.norm(predicted_abundances - actual_abundances, p='fro')
         logger.info("Difference {}".format(diff))
 
-        plot_abundances.plot_abundances_comparsion(inferred_abnd_dir= args.out_dir, inferred_abnd_file= args.out_file,
-                                                   real_abnd_dir= _data_dir, real_abnd_file= args.abundance_file ,
-                                                   title="", output_dir= args.out_dir, output_file=args.out_file[:-4] + ".png")
+        ##########################################################################
+        # Plotting
+        ##########################################################################
+        num_reads_per_time = list(map(len, reads))
+        avg_read_depth_over_time = sum(num_reads_per_time)/len(num_reads_per_time)
+
+        algorithm_name_dict = {"em": "Expectation maximization",
+                          "vi": "Variational inference",
+                          "bbvi": "Black-box (monte-carlo) \n variational inference"}
+
+        title = "Average Read Depth over Time: " + str(round(avg_read_depth_over_time, 1)) + "\n" + \
+                "Read Length: " + str(len(reads[0][0].seq)) + "\n" + \
+                "Algorithm: " + algorithm_name_dict[args.method]
+
+        plot_abundances.plot_abundances_comparsion(inferred_abnd_dir=args.out_dir, inferred_abnd_file=args.out_file,
+                                                   reads_dir=args.read_files_dir, abnd_file="sim_abundances.csv",
+                                                   output_dir=args.out_dir, output_file=args.out_file[:-4]+".png",
+                                                   title=title)
+        ##########################################################################
+
 
 if __name__ == "__main__":
     try:

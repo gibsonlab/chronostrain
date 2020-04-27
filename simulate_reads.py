@@ -185,7 +185,7 @@ def main():
     # marker is its own genome.
     # ==============================================
     # TODO: DEBUG configuration on. turn off later.
-    database = SimpleCSVStrainDatabase(args.accession_file)  # trim_debug=2500)
+    database = SimpleCSVStrainDatabase(args.accession_file, trim_debug=2500)
 
     # ========= Load abundances and accessions.
     abundances = None
