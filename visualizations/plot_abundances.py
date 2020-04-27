@@ -48,6 +48,6 @@ def plot_abundances_comparsion(inferred_abnd_dir: str, inferred_abnd_file: str,
 
 
 # %%
-if __name__ == "__main__":
-    directory = "simulated_data/test_1/"
-    abundance_file = "sim_abundances.csv"
+# if __name__ == "__main__":
+#     directory = "simulated_data/test_1/"
+#     abundance_file = "sim_abundances.csv"
