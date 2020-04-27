@@ -99,6 +99,9 @@ def sample_reads(
                                           read_length=read_length,
                                           read_error_model=my_error_model)
 
+    if len(read_depths) != len(time_points):
+        read_depths = [read_depths[0]]*len(time_points)
+
     if abundances:
         # If abundance profile is provided, normalize it and interpret that as the relative abundance.
         for abundance_profile in abundances:
@@ -141,6 +144,8 @@ def get_abundances(file: str) -> Tuple[List[int], List[torch.Tensor], List[str]]
             if i == 0:
                 accessions = row[1:]
                 continue
+            if not row:
+                continue
             time_point = row[0]
             abundances = torch.tensor(
                 [float(val) for val in row[1:]],
@@ -150,6 +155,7 @@ def get_abundances(file: str) -> Tuple[List[int], List[torch.Tensor], List[str]]
             time_points.append(time_point)
             strain_abundances.append(abundances)
 
+    accessions = [x.replace('"', '').strip() for x in accessions]
     return time_points, strain_abundances, accessions
 
 
@@ -179,7 +185,7 @@ def main():
     # marker is its own genome.
     # ==============================================
     # TODO: DEBUG configuration on. turn off later.
-    database = SimpleCSVStrainDatabase(args.accession_file, trim_debug=50)
+    database = SimpleCSVStrainDatabase(args.accession_file)  # trim_debug=2500)
 
     # ========= Load abundances and accessions.
     abundances = None
@@ -195,6 +201,7 @@ def main():
 
     # ========== Create Population instance.
     if accessions:
+        print(database.get_strains(accessions))
         population = Population(database.get_strains(accessions), torch_device=default_device)
     else:
         population = Population(database.all_strains(), torch_device=default_device)

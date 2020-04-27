@@ -145,6 +145,7 @@ class GenerativeModel:
         reads_list = []
 
         # For each time point, convert to fragment abundances and sample each read.
+
         for k in range(len(read_depths)):
             read_depth = read_depths[k]
             strain_abundance = abundances[k]
