@@ -11,7 +11,7 @@ import torch
 
 from model.generative import GenerativeModel
 from model.bacteria import Population
-from model.reads import SequenceRead, FastQErrorModel, NoiselessErrorModel
+from model.reads import SequenceRead, FastQErrorModel
 from algs import em, vi, bbvi
 
 from typing import List
@@ -51,18 +51,10 @@ def parse_args():
                         help='<Optional> Seed for randomness (for reproducibility).')
     parser.add_argument('-b', '--abundance_file', required=False, type=str,
                         help='<Optional> A csv containing the relative abundances for each strain by time point.')
+    parser.add_argument('-trim', '--marker_trim_len', required=False, type=int,
+                        help='<Optional> An integer to trim markers down to. For testing/debugging.')
 
     return parser.parse_args()
-
-
-def load_marker_database(accession_csv_file: str) -> AbstractStrainDatabase:
-    # ==============================================
-    # Note: The usage of "SimpleCSVStrainDatabase" initializes the strain information so that each strain's (unique)
-    # marker is its own genome.
-    # ==============================================
-
-    database_obj = SimpleCSVStrainDatabase(accession_csv_file, trim_debug=50)
-    return database_obj
 
 
 def perform_inference(reads: List[List[SequenceRead]],
@@ -95,7 +87,8 @@ def perform_inference(reads: List[List[SequenceRead]],
                                tau=tau,
                                bacteria_pop=population,
                                read_length=window_size,
-                               read_error_model=my_error_model)
+                               read_error_model=my_error_model,
+                               torch_device=default_device)
     print(my_model.get_fragment_space())
 
     # logger.debug(str(my_model.get_fragment_space()))
@@ -145,7 +138,7 @@ def main():
     logger.info("Pipeline for inference started.")
     args = parse_args()
     logger.info("Loading from marker database {}.".format(args.accession_file))
-    db = load_marker_database(accession_csv_file=args.accession_file)
+    db = SimpleCSVStrainDatabase(args.accession_file, trim_debug=args.marker_trim_len)
 
     # ==== Load Population instance from database info
     accessions = get_all_accessions_csv(data_dir=_data_dir, accession_csv_file=args.accession_file)

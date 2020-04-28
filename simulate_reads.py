@@ -57,6 +57,8 @@ def parse_args():
                              'a time point in the dataset. Time points are saved as part of file name.')
     parser.add_argument('-p', '--out_prefix', required=False, default='sim',
                         help='<Optional> File prefix for the read files.')
+    parser.add_argument('-trim', '--marker_trim_len', required=False, type=int,
+                        help='<Optional> An integer to trim markers down to. For testing/debugging.')
 
     return parser.parse_args()
 
@@ -66,8 +68,8 @@ def sample_reads(
         read_depths: List[int],
         read_length: int,
         time_points: List[int],
-        abundances: List[torch.Tensor] = None,
-        seed: int = 31415) -> Tuple[List[torch.Tensor], List[List[SequenceRead]]]:
+        abundances: torch.Tensor = None,
+        seed: int = 31415) -> Tuple[torch.Tensor, List[List[SequenceRead]]]:
     """
     Sample sequence reads from the generative model, using either a pre-specified abundance profile or using
     random samples.
@@ -76,7 +78,8 @@ def sample_reads(
     :param read_depths: The read counts for each time point.
     :param read_length: The read length.
     :param time_points: A list of time values (in increasing order).
-    :param abundances: (Optional) An abundance profile, could be positive-valued weights (e.g. absolute abundances).
+    :param abundances: (Optional) An abundance profile as a T x S tensor.
+     Could be positive-valued weights (e.g. absolute abundances).
      If none specified, the generative model samples its own from a Gaussian process.
     :param seed: (Optional, default:31415) The random seed to use for sampling (to encourage reproducibility).
     :return: (1) The relative abundance profile and (2) the sampled reads (time-indexed).
@@ -84,7 +87,7 @@ def sample_reads(
     torch.manual_seed(seed)
 
     # Default/unbiased parameters for prior.
-    mu = torch.zeros(len(population.strains))  # One dimension for each strain
+    mu = torch.zeros(len(population.strains), device=default_device)  # One dimension for each strain
     tau_1 = 1
     tau = 1
 
@@ -97,7 +100,8 @@ def sample_reads(
                                           tau=tau,
                                           bacteria_pop=population,
                                           read_length=read_length,
-                                          read_error_model=my_error_model)
+                                          read_error_model=my_error_model,
+                                          torch_device=default_device)
 
     if abundances:
         # If abundance profile is provided, normalize it and interpret that as the relative abundance.
@@ -109,19 +113,22 @@ def sample_reads(
             raise ValueError("Number of abundance profiles ({}) must match number of time points ({}).".
                              format(len(abundances), len(time_points)))
 
-        normalized_abundances = []
-        for Y in abundances:
-            normalized_abundances.append(Y / Y.sum())
-        abundances = normalized_abundances
-        time_indexed_reads = my_model.sample_timed_reads(normalized_abundances, read_depths)
+        logger.info("Generating sample reads from specified ({} x {}) abundance profile.".format(
+            abundances.size(0), abundances.size(1)
+        ))
+        abundances = abundances / abundances.sum(dim=1, keepdim=True)
+        time_indexed_reads = my_model.sample_timed_reads(abundances, read_depths)
     else:
         # Otherwise, sample our own abundances.
+        logger.info("Sampling ({} x {}) abundance profile and reads.".format(
+            my_model.num_times(), my_model.num_strains()
+        ))
         abundances, time_indexed_reads = my_model.sample_abundances_and_reads(read_depths)
 
     return abundances, time_indexed_reads
 
 
-def get_abundances(file: str) -> Tuple[List[int], List[torch.Tensor], List[str]]:
+def get_abundances(file: str) -> Tuple[List[int], torch.Tensor, List[str]]:
     """
     Read time-indexed abundances from file.
     :param file: The filename with abundances.
@@ -150,7 +157,7 @@ def get_abundances(file: str) -> Tuple[List[int], List[torch.Tensor], List[str]]
             time_points.append(time_point)
             strain_abundances.append(abundances)
 
-    return time_points, strain_abundances, accessions
+    return time_points, torch.stack(strain_abundances, dim=0), accessions
 
 
 def get_genomes(accession_nums, strain_info):
@@ -178,8 +185,7 @@ def main():
     # Note: The usage of "SimpleCSVStrainDatabase" initializes the strain information so that each strain's (unique)
     # marker is its own genome.
     # ==============================================
-    # TODO: DEBUG configuration on. turn off later.
-    database = SimpleCSVStrainDatabase(args.accession_file, trim_debug=50)
+    database = SimpleCSVStrainDatabase(args.accession_file, trim_debug=args.marker_trim_len)
 
     # ========= Load abundances and accessions.
     abundances = None
