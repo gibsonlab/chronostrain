@@ -64,8 +64,9 @@ class EMSolver(AbstractModelSolver):
         else:
             brownian_motion = initialization
 
-        logger.debug("EM algorithm started. (Gradient method, Target iterations={})".format(
-            iters
+        logger.debug("EM algorithm started. (Gradient method, Target iterations={}, Threshold={})".format(
+            iters,
+            thresh
         ))
         time_est = RuntimeEstimator(total_iters=iters, horizon=5)
         k = 1

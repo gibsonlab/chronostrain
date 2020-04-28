@@ -8,7 +8,7 @@ import os
 import csv
 import torch
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
 from Bio import SeqIO
 from Bio.Seq import Seq
@@ -53,28 +53,39 @@ def save_abundances(
     logger.info("Abundances output successfully to file {}. ({})".format(
         out_path, convert_size(get_filesize_bytes(out_path))
     ))
+    return out_path
 
 
-def load_abundances(data_dir: str, filename: str) -> List[List[float]]:
+def load_abundances(file_path: str, torch_device) -> Tuple[List[int], torch.Tensor, List[str]]:
     """
     Read time-indexed abundances from file.
 
-    :return: a time indexed list of abundance profiles. Each element is a list itself containing the relative abundances
-    of strains at a particular time point.
+    :return: (1) A list of time points,
+    (2) a time indexed list of abundance profiles,
+    (3) the list of relevant accessions.
     """
-    file_path = os.path.join(data_dir, filename)
+
+    time_points = []
+    strain_abundances = []
+    accessions = []
+
     with open(file_path, newline='') as f:
-        reader = csv.reader(f)
-
-        strain_abundances = []
+        reader = csv.reader(f, quotechar='"')
         for i, row in enumerate(reader):
-            if i == 0 or len(row) == 0:
+            if i == 0:
+                accessions = [x.replace('"', '').strip() for x in row[1:]]
                 continue
-            else:
-                row = [float(i) for i in row]
-                strain_abundances.append(row[1:]) # Don't include first element in each row; that is just hte time-index
-
-    return strain_abundances
+            if not row:
+                continue
+            time_point = row[0]
+            abundances = torch.tensor(
+                [float(val) for val in row[1:]],
+                dtype=torch.double,
+                device=torch_device
+            )
+            time_points.append(time_point)
+            strain_abundances.append(abundances)
+    return time_points, torch.stack(strain_abundances, dim=0), accessions
 
 
 def save_reads_to_fastq(
@@ -123,20 +134,18 @@ def save_timeslice_to_fastq(
     ))
 
 
-def load_fastq_reads(base_dir: str, filenames: List[str]) -> List[List[SequenceRead]]:
+def load_fastq_reads(file_paths: List[str]) -> List[List[SequenceRead]]:
     """
     Load the files from the specified path structure. The files are loaded in order of filenames, assumed to be sorted
     correctly temporally.
 
-    :param base_dir: Name of directory containing the fastq files.
-    :param filenames: A list of files inside base_dir to parse, in order of filenames.
+    :param file_paths: A list of files inside base_dir to parse, in order of filenames.
     :return: A time-indexed list of SequenceRead instances.
     """
 
     reads = []  # A time-indexed list of read sets. Each item is itself a list of reads for time t.
-    for file in filenames:
+    for file_path in file_paths:
         reads_t = []  # A list of reads at a particular time (i.e. the reads in 'file')
-        file_path = os.path.join(base_dir, file)
         for record in SeqIO.parse(file_path, "fastq"):
             quality = torch.tensor(record.letter_annotations["phred_quality"], dtype=torch.int)
             read = SequenceRead(

@@ -18,7 +18,7 @@ from torch.nn.functional import softmax
 
 class GenerativeModel:
     def __init__(self,
-                 times: List[int],
+                 times: List[float],
                  mu: torch.Tensor,
                  tau_1: float,
                  tau: float,
