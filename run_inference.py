@@ -12,13 +12,12 @@ import torch
 from model.generative import GenerativeModel
 from model.bacteria import Population
 from model.reads import SequenceRead, FastQErrorModel
-from algs import em, vi, bbvi
-from visualizations import plot_abundances
+from algs import em, bbvi
+from visualizations import plot_abundances as plotter
 
 from typing import List
 from util.io.logger import logger
-from util.io.model_io import get_all_accessions_csv, load_fastq_reads, load_abundances, save_abundances
-
+from util.io.model_io import get_all_accessions_csv, load_fastq_reads, save_abundances, load_abundances
 
 # ============================= Constants =================================
 default_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -30,172 +29,229 @@ _data_dir = "data"
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Perform inference on time-series reads.")
-    parser.add_argument('-d', '--read_files_dir', required=True,
-                        help='<Required> Directory containing read files.')
+    # parser.add_argument('-d', '--read_files_dir', required=True,
+    #                     help='<Required> Directory containing read files.')
+
+    # Input specification.
     parser.add_argument('-r', '--read_files', nargs='+', required=True,
-                        help='<Required> One read file per time point (minimum 1)')
-    parser.add_argument('-a', '--accession_file', required=True, type=str,
-                        help='<Required> File listing the species to sample from. '
-                             'Expected CSV format (incl. header row): '
-                             '"Name","Accession" \
-                              "Clostridium sporogenes ATCC 15579","NZ_DS981518.1" \
-                              "Enterococcus faecalis V583","NC_004668.1" \
-                              "Bacteroides fragilis NCTC9343","CR626927.1"')
+                        help='<Required> List of paths to read files; minimum 1.')
+    parser.add_argument('-a', '--accession_path', required=True, type=str,
+                        help='<Required> A path to the CSV file listing the strains to sample from. '
+                             'See README for the expected format.')
     parser.add_argument('-t', '--time_points', required=True, nargs='+', type=int,
                         help='<Required> A list of integers. Each value represents a time point in the dataset.')
     parser.add_argument('-m', '--method', choices=['em', 'vi', 'bbvi'], required=True,
                         help='<Required> A keyword specifying the inference method.')
-    parser.add_argument('-o', '--out_file', required=True, type=str,
-                        help='<Required> The file to save results to.')
-    parser.add_argument('-y', '--out_dir', required=True, type=str,
-                        help='<Required> The directory to save results to.')
+
+    # Output specification.
+    parser.add_argument('-od', '--out_dir', required=True, type=str,
+                        help='<Required> The directory to store all output files.')
+    parser.add_argument('-of', '--out_file', required=True, type=str,
+                        help='<Required> The filename (not the full path) to save learned outputs to.')
+    parser.add_argument('-pf', '--plots_file', required=True, type=str,
+                        help='<Required> The file (not the full path) to save plots to.')
 
     # Optional params
     parser.add_argument('-s', '--seed', required=False, type=int, default=31415,
                         help='<Optional> Seed for randomness (for reproducibility).')
-    parser.add_argument('-b', '--abundance_file', required=False, type=str,
-                        help='<Optional> A csv containing the relative abundances for each strain by time point.')
+    parser.add_argument('-truth', '--true_abundance_path', required=False, type=str,
+                        help='<Optional> The CSV file path containing the ground truth relative abundances for each '
+                             'strain by time point. For benchmarking.')
     parser.add_argument('-trim', '--marker_trim_len', required=False, type=int,
                         help='<Optional> An integer to trim markers down to. For testing/debugging.')
 
     return parser.parse_args()
 
 
-def perform_inference(reads: List[List[SequenceRead]],
-                      population: Population,
-                      time_points: List[int],
-                      method: str,
-                      seed: int,
-                      out_filename: str,
-                      out_dir: str):
-    torch.manual_seed(seed)
+def perform_em(
+        reads: List[List[SequenceRead]],
+        model: GenerativeModel,
+        out_dir: str,
+        abnd_out_filename: str,
+        plot_out_filename: str,
+        ground_truth_path: str):
 
-    if len(reads) != len(time_points):
-        raise ValueError("There must be exactly one set of reads for each time point specified")
+    # ==== Run the solver.
+    solver = em.EMSolver(model, reads, torch_device=default_device, lr=1e-4)
+    abundances = solver.solve(iters=10000, print_debug_every=1000, thresh=1e-8, gradient_clip=1e2)
 
-    if len(time_points) != len(set(time_points)):
-        raise ValueError("Specified sample times must be unique")
+    # ==== Save the learned abundances.
+    output_path = save_abundances(
+        population=model.bacteria_pop,
+        time_points=model.times,
+        abundances=abundances,
+        out_filename=abnd_out_filename,
+        out_dir=out_dir
+    )
+    logger.info("Abundances saved to {}.".format(output_path))
 
-    ##############################
-    # Construct generative model
-    mu = torch.zeros(len(population.strains))
-    tau_1 = 100
-    tau = 1
-    window_size = len(reads[0][0].seq)  # Assumes reads are all of the same length.
+    # ==== Plot the learned abundances.
+    plots_out_path = plot_result(
+        reads=reads,
+        method_desc='Expectation-Maximization',
+        result_path=output_path,
+        plots_out_dir=out_dir,
+        plots_out_filename=plot_out_filename,
+        true_path=ground_truth_path
+    )
+    logger.info("Plots saved to {}.".format(plots_out_path))
 
-    my_error_model = FastQErrorModel(read_len=window_size)
-    # my_error_model = NoiselessErrorModel()
+    if ground_truth_path:
+        _, predicted_abundances, _ = load_abundances(file_path=output_path, torch_device=default_device)
+        _, actual_abundances, _ = load_abundances(file_path=ground_truth_path, torch_device=default_device)
+        diff = torch.norm(predicted_abundances - actual_abundances, p='fro')
+        logger.debug("Abundance squared-norm difference: {}".format(diff))
 
-    my_model = GenerativeModel(times=time_points,
-                               mu=mu,
-                               tau_1=tau_1,
-                               tau=tau,
-                               bacteria_pop=population,
-                               read_length=window_size,
-                               read_error_model=my_error_model,
-                               torch_device=default_device)
 
-    logger.debug("Strain keys:")
-    for k, strain in enumerate(my_model.bacteria_pop.strains):
-        logger.debug("{} -> {}".format(strain, k))
+def perform_bbvi(
+        model: GenerativeModel,
+        reads: List[List[SequenceRead]]):
+    logger.info("Solving using Black-Box (Monte-Carlo) Variational Inference.")
+    solver = bbvi.BBVISolver(model=model, data=reads, device=default_device)
+    solver.solve()
+    posterior = solver.posterior
 
-    if method == "em":
-        logger.info("Solving using Expectation-Maximization.")
-        solver = em.EMSolver(my_model, reads, torch_device=default_device, lr=1e-4)
-        abundances = solver.solve(iters=10000, print_debug_every=1000, thresh=1e-8, gradient_clip=1e2)
-        save_abundances(
-            population=population,
-            time_points=time_points,
-            abundances=abundances,
-            out_filename=out_filename,
-            out_dir=out_dir
+    logger.info("Learned posterior:")
+    logger.info(posterior.params())
+
+    logger.info("Posterior sample:")
+    sample_x, sample_f = posterior.sample()
+    logger.info("X: ", sample_x)
+    logger.info("F: ", sample_f)
+    raise NotImplementedError("TODO check if this works.")
+
+
+def plot_result(
+        reads: List[List[SequenceRead]],
+        method_desc: str,
+        result_path: str,
+        plots_out_dir: str,
+        plots_out_filename: str,
+        true_path: str = None) -> str:
+    """
+    Draw a plot of the abundances, and save to a file.
+
+    :param reads: The collection of reads as input.
+    :param method_desc: An informative name of the method used to perform inference.
+    :param result_path: The path to the learned abundances.
+    :param plots_out_dir: The directory to save the plots to.
+    :param plots_out_filename: The filename to output to.
+    :param true_path: The path to the ground truth abundance file.
+    (Optional. if none specified, then only plots the learned abundances.)
+    :return: The path to the saved file.
+    """
+    num_reads_per_time = list(map(len, reads))
+    avg_read_depth_over_time = sum(num_reads_per_time) / len(num_reads_per_time)
+
+    title = "Average Read Depth over Time: " + str(round(avg_read_depth_over_time, 1)) + "\n" + \
+            "Read Length: " + str(len(reads[0][0].seq)) + "\n" + \
+            "Algorithm: " + method_desc
+
+    if true_path:
+        plots_out_path = plotter.plot_abundances_comparison(
+            inferred_abnd_path=result_path,
+            real_abnd_path=true_path,
+            title=title,
+            output_dir=plots_out_dir,
+            output_filename=plots_out_filename
         )
-        return abundances
-
-    elif method == "vi":
-        logger.info("Solving using second-order variational inference.")
-        posterior = vi.SecondOrderVariationalPosterior(
-            means=mu,
-            covariances=torch.eye(len(population.strains)),
-            frag_freqs=my_model.get_fragment_frequencies())
-        solver = vi.SecondOrderVariationalGradientSolver(my_model, reads, posterior)
-        abundances = solver.solve()
-        save_abundances(
-            population=population,
-            time_points=time_points,
-            abundances=abundances,
-            out_filename=out_filename,
-            out_dir=out_dir
-        )
-        return abundances
-
-    elif method == "bbvi":
-        logger.info("Solving using black-box (monte-carlo) variational inference.")
-        solver = bbvi.BBVISolver(model=my_model, data=reads, device=default_device)
-        solver.solve()
-        posterior = solver.posterior
-
-        logger.info("Learned posterior:")
-        logger.info(posterior.params())
-
-        logger.info("Posterior sample:")
-        sample_x, sample_f = posterior.sample()
-        logger.info("X: ", sample_x)
-        logger.info("F: ", sample_f)
-
     else:
-        raise ValueError("{} is not an implemented method!".format(method))
+        plots_out_path = plotter.plot_abundances(
+            inferred_abnd_path=result_path,
+            title=title,
+            output_dir=plots_out_dir,
+            output_filename=plots_out_filename
+        )
+    return plots_out_path
 
 
 def main():
     logger.info("Pipeline for inference started.")
     args = parse_args()
-    logger.info("Loading from marker database {}.".format(args.accession_file))
-    db = SimpleCSVStrainDatabase(args.accession_file, trim_debug=args.marker_trim_len)
+    torch.manual_seed(args.seed)
+
+    # ==== Create database instance.
+    logger.info("Loading from marker database {}.".format(args.accession_path))
+    db = SimpleCSVStrainDatabase(args.accession_path, trim_debug=args.marker_trim_len)
 
     # ==== Load Population instance from database info
-    accessions = get_all_accessions_csv(data_dir=_data_dir, accession_csv_file=args.accession_file)
     population = Population(
-        strains=[db.get_strain(strain_id) for strain_id in accessions],
+        strains=db.all_strains(),
         torch_device=default_device
     )
 
+    # ==== Load reads and validate.
     logger.info("Loading time-series read files.")
-    reads = load_fastq_reads(base_dir=args.read_files_dir, filenames=args.read_files)
+    reads = load_fastq_reads(file_paths=args.read_files)
     logger.info("Performing inference using method '{}'.".format(args.method))
-    predicted_abundances = perform_inference(reads, population, args.time_points, args.method, args.seed, args.out_file, args.out_dir)
-    logger.info("Inference finished.")
 
-    if args.abundance_file:
-        actual_abundances_raw = load_abundances(data_dir=_data_dir, filename=args.abundance_file)
-        actual_abundances = torch.tensor(
-            [[i / sum(Z) for i in Z] for Z in actual_abundances_raw],
-            device=default_device
+    if len(reads) != len(args.time_points):
+        raise ValueError("There must be exactly one set of reads for each time point specified.")
+
+    if len(args.time_points) != len(set(args.time_points)):
+        raise ValueError("Specified sample times must be distinct.")
+
+    # ==== Create model instance.
+    mu = torch.zeros(len(population.strains))
+    tau_1 = 100
+    tau = 1
+    window_size = len(reads[0][0].seq)  # Assumes reads are all of the same length.
+
+    error_model = FastQErrorModel(read_len=window_size)
+    model = GenerativeModel(
+        times=args.time_points,
+        mu=mu,
+        tau_1=tau_1,
+        tau=tau,
+        bacteria_pop=population,
+        read_length=window_size,
+        read_error_model=error_model,
+        torch_device=default_device
+    )
+
+    logger.debug("Strain keys:")
+    for k, strain in enumerate(model.bacteria_pop.strains):
+        logger.debug("{} -> {}".format(strain, k))
+
+    """
+    Perform inference using the chosen method. Available choices: 'em', 'bbvi'.
+    1) 'em' runs Expectation-Maximization. Saves the learned abundances and plots them.
+    2) 'bbvi' runs black-box VI and saves the learned posterior parametrization (as tensors).
+    """
+    if args.method == 'em':
+        logger.info("Solving using Expectation-Maximization.")
+        perform_em(
+            reads=reads,
+            model=model,
+            out_dir=args.out_dir,
+            abnd_out_filename=args.out_file,
+            plot_out_filename=args.plots_file,
+            ground_truth_path=args.true_abundance_path
         )
-        logger.info("Actual Abundances:")
-        logger.info(actual_abundances)
-        diff = torch.norm(predicted_abundances - actual_abundances, p='fro')
-        logger.info("Difference {}".format(diff))
-
-        ##########################################################################
-        # Plotting
-        ##########################################################################
-        num_reads_per_time = list(map(len, reads))
-        avg_read_depth_over_time = sum(num_reads_per_time)/len(num_reads_per_time)
-
-        algorithm_name_dict = {"em": "Expectation maximization",
-                               "vi": "Variational inference",
-                               "bbvi": "Black-box (monte-carlo) \n variational inference"}
-
-        title = "Average Read Depth over Time: " + str(round(avg_read_depth_over_time, 1)) + "\n" + \
-                "Read Length: " + str(len(reads[0][0].seq)) + "\n" + \
-                "Algorithm: " + algorithm_name_dict[args.method]
-
-        plot_abundances.plot_abundances_comparison(inferred_abnd_dir=args.out_dir, inferred_abnd_file=args.out_file,
-                                                   reads_dir=args.read_files_dir, abnd_file="sim_abundances.csv",
-                                                   output_dir=args.out_dir, output_file=args.out_file[:-4]+".png",
-                                                   title=title)
-        ##########################################################################
+    elif args.method == 'bbvi':
+        perform_bbvi(
+            model=model,
+            reads=reads
+        )
+    elif args.method == 'vi':
+        raise NotImplementedError("TODO: test!")
+        # logger.info("Solving using second-order variational inference.")
+        # posterior = vi.SecondOrderVariationalPosterior(
+        #     means=mu,
+        #     covariances=torch.eye(len(population.strains)),
+        #     frag_freqs=my_model.get_fragment_frequencies())
+        # solver = vi.SecondOrderVariationalGradientSolver(my_model, reads, posterior)
+        # abundances = solver.solve()
+        # save_abundances(
+        #     population=population,
+        #     time_points=time_points,
+        #     abundances=abundances,
+        #     out_filename=out_filename,
+        #     out_dir=out_dir
+        # )
+        # return abundances
+    else:
+        raise ValueError("{} is not an implemented method.".format(args.method))
 
 
 if __name__ == "__main__":
