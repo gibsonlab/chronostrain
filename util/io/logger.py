@@ -2,7 +2,7 @@ import os
 import logging
 import logging.config
 
-_config_filename = 'log_config_default.ini'
+_config_filename = 'log_config.ini'
 
 
 def get_logger(key='root'):

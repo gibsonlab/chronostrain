@@ -24,7 +24,8 @@ class GenerativeModel:
                  tau: float,
                  bacteria_pop: Population,
                  read_error_model: AbstractErrorModel,
-                 read_length: int):
+                 read_length: int,
+                 torch_device):
 
         self.times = times  # array of time points
         self.mu = mu  # mean for X_1
@@ -33,6 +34,7 @@ class GenerativeModel:
         self.error_model = read_error_model
         self.bacteria_pop = bacteria_pop
         self.read_length = read_length
+        self.torch_device = torch_device
 
     def num_times(self) -> int:
         return len(self.times)
@@ -106,7 +108,7 @@ class GenerativeModel:
     def sample_abundances_and_reads(
             self,
             read_depths: List[int]
-    ) -> Tuple[List[torch.Tensor], List[List[SequenceRead]]]:
+    ) -> Tuple[torch.Tensor, List[List[SequenceRead]]]:
         """
         Generate a time-indexed list of read collections and strain abundances.
 
@@ -130,27 +132,27 @@ class GenerativeModel:
         reads = self.sample_timed_reads(abundances, read_depths)
         return abundances, reads
 
-    def sample_timed_reads(self, abundances: List[torch.Tensor], read_depths: List[int]) -> List[List[SequenceRead]]:
+    def sample_timed_reads(self, abundances: torch.Tensor, read_depths: List[int]) -> List[List[SequenceRead]]:
         S = self.num_strains()
         F = self.num_fragments()
         logger.debug("Sampling reads, conditioned on abundances.")
 
-        if len(abundances) != len(self.times):
+        if abundances.size(0) != len(self.times):
             raise ValueError(
                 "Argument abundances (len {}) must must have specified number of time points (len {})".format(
-                    len(abundances), len(self.times)
+                    abundances.size(0), len(self.times)
                 )
             )
 
         reads_list = []
 
         # For each time point, convert to fragment abundances and sample each read.
-
-        for k in range(len(read_depths)):
-            read_depth = read_depths[k]
-            strain_abundance = abundances[k]
+        for t in range(len(read_depths)):
+            logger.debug("Sampling reads for t = {}.".format(self.times[t]))
+            read_depth = read_depths[t]
+            strain_abundance = abundances[t]
             frag_abundance = self.strain_abundance_to_frag_abundance(strain_abundance.view(S, 1)).view(F)
-            reads_list.append(self.sample_reads(frag_abundance, read_depth, metadata="SIM_t{}".format(self.times[k])))
+            reads_list.append(self.sample_reads(frag_abundance, read_depth, metadata="SIM_t{}".format(self.times[t])))
 
         return reads_list
 
@@ -168,40 +170,43 @@ class GenerativeModel:
         else:
             raise IndexError("Can't reference time at index {}.".format(time_idx))
 
-    def _sample_brownian_motion(self) -> List[torch.Tensor]:
+    def _sample_brownian_motion(self) -> torch.Tensor:
         """
         Generates an S-dimensional brownian motion, S = # of strains, centered at mu.
         Initial covariance is tau_1, while subsequent variance scaling is tau.
         """
         brownian_motion = []
-        covariance = torch.eye(list(self.mu.size())[0])  # Initialize covariance matrix
+        covariance = torch.eye(list(self.mu.size())[0], device=self.torch_device)  # Initialize covariance matrix
         center = self.mu  # Initialize mean vector.
 
         for time_idx in range(len(self.times)):
             scaling = self.time_scale(time_idx)
-            mvn = MultivariateNormal(loc=center, covariance_matrix=scaling*covariance)
-            center = mvn.sample()
+            center = MultivariateNormal(loc=center, covariance_matrix=(scaling ** 2) * covariance).sample()
             brownian_motion.append(center)
 
-        return brownian_motion
+        return torch.stack(brownian_motion, dim=0)
 
-    def sample_abundances(self) -> List[torch.Tensor]:
+    def sample_abundances(self) -> torch.Tensor:
+        """
+        Samples abundances from a Gaussian Process.
 
-        logger.info("Generating abundances trajectory")
-        abundances = []
+        :return: A T x S tensor; each row is an abundance profile for a time point.
+        """
         gaussians = self._sample_brownian_motion()
-        for X in gaussians:
-            abundances.append(softmax(X))
-        return abundances
+        return softmax(gaussians, dim=1)
 
-    def strain_abundance_to_frag_abundance(self, strain_abundance: torch.Tensor) -> torch.Tensor:
+    def strain_abundance_to_frag_abundance(self, strain_abundances: torch.Tensor) -> torch.Tensor:
         """
         Convert strain abundance to fragment abundance, via the matrix multiplication F = WZ.
         Assumes strain_abundance is an S x T tensor, so that the output is an F x T tensor.
         """
-        return self.get_fragment_frequencies().mm(strain_abundance)
+        return self.get_fragment_frequencies().mm(strain_abundances)
 
-    def sample_reads(self, frag_abundances: torch.Tensor, num_samples: int = 1, metadata: str = "") -> List[SequenceRead]:
+    def sample_reads(
+            self,
+            frag_abundances: torch.Tensor,
+            num_samples: int = 1,
+            metadata: str = "") -> List[SequenceRead]:
         """
         Given a set of fragments and their time indexed frequencies (based on the current time
         index strain abundances and the fragments' relative frequencies in each strain's sequence.),

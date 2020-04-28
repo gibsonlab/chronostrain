@@ -1,11 +1,12 @@
 from abc import abstractmethod, ABCMeta
 
 from model.bacteria import Strain, Marker
-from scripts.fetch_genomes import fetch_sequences
+from util.io.fetch_genomes import fetch_sequences
 
 import os
 import re
 from typing import List
+from util.io.logger import logger
 
 _DEFAULT_DATA_DIR = "data"
 
@@ -39,6 +40,8 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
         """
         :param csv_refs: CSV file specifying accession numbers.
         """
+        if trim_debug:
+            logger.debug("[SimpleCSVStrainDatabase: initialized in debug mode. Trim length = {L}]".format(L=trim_debug))
         self.strain_to_markers = {}
         self.csv_refs = csv_refs
         self.trim_debug = trim_debug

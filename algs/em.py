@@ -92,7 +92,6 @@ class EMSolver(AbstractModelSolver):
                     t=time_est.time_left() / 60000,
                     diff=diff
                 ))
-                logger.debug("softmax(X) = {}".format(softmax(brownian_motion, dim=1)))
             k += 1
         logger.info("Finished {k} iterations.".format(k=k-1))
 
@@ -112,13 +111,16 @@ class EMSolver(AbstractModelSolver):
         # ====== Gaussian part
         if T > 1:
             for t in range(T):
-                variance_scaling = -1 / (self.model.time_scale(t) ** 2)
                 if t == 0:
+                    variance_scaling = -1 / (self.model.tau_1 ** 2)
                     x_gradient[t] = variance_scaling * ((2 * x[0]) - x[1] - torch.zeros(S, device=self.device))
                 elif t == T-1:
+                    variance_scaling = -1 / ((self.model.tau * (self.model.times[t] - self.model.times[t-1])) ** 2)
                     x_gradient[t] = variance_scaling * (x[T-1] - x[T-2])
                 else:
-                    x_gradient[t] = variance_scaling * ((2 * x[t]) - x[t-1] - x[t+1])
+                    variance_scaling_prev = -1 / ((self.model.tau * (self.model.times[t] - self.model.times[t-1])) ** 2)
+                    variance_scaling_next = -1 / ((self.model.tau * (self.model.times[t+1] - self.model.times[t])) ** 2)
+                    x_gradient[t] = variance_scaling_prev * (x[t] - x[t-1]) + variance_scaling_next * (x[t] - x[t+1])
 
         # ====== Sigmoidal part
         y = softmax(x, dim=1)
@@ -133,9 +135,6 @@ class EMSolver(AbstractModelSolver):
                                torch.diag(sigmoid).mm(
                                    torch.ones(S, S, device=self.device) - torch.eye(S, device=self.device)
                                )
-            # print("sigmoid: ", sigmoid)
-            # print("outer product", )
-            # print("jacobian: ", sigmoid_jacobian)
 
             x_gradient[t] = x_gradient[t] + sigmoid_jacobian.mv(
                 self.model.get_fragment_frequencies().t().mv(Q)
@@ -151,7 +150,6 @@ class EMSolver(AbstractModelSolver):
         updated_x = updated_x - (updated_x.mean() * torch.ones(size=updated_x.size(), device=self.device))
 
         return updated_x
-
 
     def get_frag_likelihoods(self, t: int):
         """

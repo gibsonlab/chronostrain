@@ -23,12 +23,17 @@ from util.io.logger import logger
 def save_abundances(
         population: Population,
         time_points: List[int],
-        abundances: List[torch.Tensor],
+        abundances: torch.Tensor,
         out_filename: str,
         out_dir: str = None):
     """
     Save the time-indexed abundance profile to disk. Output format is CSV.
 
+    :param population: The Population instance containing the strain information.
+    :param time_points: The list of time points in the data.
+    :param abundances: A T x S tensor containing time-indexed relative abundances profiles.
+    :param out_filename: The filename to write to.
+    :param out_dir: The directory to specify the path.
     :return: The path/filename for the abundance CSV file.
     """
     if len(population.strains) != len(abundances[0]):
@@ -42,8 +47,9 @@ def save_abundances(
     with open(out_path, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile, delimiter=',', quoting=csv.QUOTE_ALL)
         writer.writerow(["T"] + [strain.name for strain in population.strains])
-        for k, abundance in enumerate(abundances):
-            writer.writerow([time_points[k]] + [x.item() for x in abundances[k]])
+        # for k, abundance in enumerate(abundances):
+        for t in range(len(time_points)):
+            writer.writerow([time_points[t]] + [x.item() for x in abundances[t]])
     logger.info("Abundances output successfully to file {}. ({})".format(
         out_path, convert_size(get_filesize_bytes(out_path))
     ))
