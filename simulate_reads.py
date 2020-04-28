@@ -4,9 +4,7 @@
   Run to simulate reads from genomes specified by accession numbers.
 """
 
-import os
 import argparse
-import re
 import torch
 
 from util.io.logger import logger
@@ -129,23 +127,6 @@ def sample_reads(
         abundances, time_indexed_reads = my_model.sample_abundances_and_reads(read_depths)
 
     return abundances, time_indexed_reads
-
-
-def get_genomes(accession_nums, strain_info):
-    """
-    For each accession num, retrieve genome info from strain_info.
-    """
-
-    genomes_map = {}
-
-    for accession_num in accession_nums:
-        if accession_num in strain_info.keys():
-            filename = os.path.join(_data_dir, accession_num + ".fasta")
-            with open(filename) as file:
-                for i, line in enumerate(file):
-                    genome = re.sub('[^AGCT]+', '', line.split(sep=" ")[-1])
-            genomes_map[accession_num] = genome
-    return genomes_map
 
 
 def main():
