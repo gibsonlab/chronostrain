@@ -1,7 +1,7 @@
 from abc import abstractmethod, ABCMeta
 
 from model.bacteria import Strain, Marker
-from scripts.fetch_genomes import fetch_sequences
+from util.io.fetch_genomes import fetch_sequences
 
 import os
 import re
