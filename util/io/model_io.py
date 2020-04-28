@@ -72,7 +72,7 @@ def load_abundances(data_dir: str, filename: str) -> List[List[float]]:
                 continue
             else:
                 row = [float(i) for i in row]
-                strain_abundances.append(row)
+                strain_abundances.append(row[1:]) # Don't include first element in each row; that is just hte time-index
 
     return strain_abundances
 

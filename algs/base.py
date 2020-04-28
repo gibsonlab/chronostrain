@@ -14,6 +14,12 @@ from model.reads import SequenceRead
 from util.io.logger import logger
 from util.benchmarking import current_time_millis, millis_elapsed
 
+import multiprocessing
+from joblib import Parallel, delayed
+from tqdm import tqdm
+
+num_cores = multiprocessing.cpu_count()
+
 
 class AbstractModelSolver(metaclass=ABCMeta):
     def __init__(self, model: GenerativeModel, data: List[List[SequenceRead]]):
@@ -35,18 +41,21 @@ def compute_read_likelihoods(model: GenerativeModel, reads: List[List[SequenceRe
 
     start_time = current_time_millis()
     logger.info("Computing fragment errors...")
-    errors = [
+
+    def create_matrix(k):
         # Each is an (F x N) matrix.
-        torch.tensor([
+        return torch.tensor([
             [
                 math.exp(model.error_model.compute_log_likelihood(f, r))
                 for r in reads[k]
             ] for f in fragment_space.get_fragments()
         ], device=device, dtype=torch.double)
-        for k in range(len(model.times))
-    ]
 
-    # TODO https://medium.com/@mjschillawski/quick-and-easy-parallelization-in-python-32cb9027e490
+    errors = Parallel(n_jobs=num_cores)(delayed(create_matrix)(k) for k in tqdm(range(len(model.times))))
+
+    # ref: https://medium.com/@mjschillawski/quick-and-easy-parallelization-in-python-32cb9027e490
+    # TODO: Some 'future warnings' are being thrown about saving tensors (in the subprocesses).
+    # TODO: Maybe find another parallelization alternative.
     logger.debug("Computed fragment errors in {} min.".format(millis_elapsed(start_time) / 60000))
 
     return errors

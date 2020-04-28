@@ -13,10 +13,12 @@ from model.generative import GenerativeModel
 from model.bacteria import Population
 from model.reads import SequenceRead, FastQErrorModel
 from algs import em, vi, bbvi
+from visualizations import plot_abundances
 
 from typing import List
 from util.io.logger import logger
 from util.io.model_io import get_all_accessions_csv, load_fastq_reads, load_abundances, save_abundances
+
 
 # ============================= Constants =================================
 default_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -44,7 +46,9 @@ def parse_args():
     parser.add_argument('-m', '--method', choices=['em', 'vi', 'bbvi'], required=True,
                         help='<Required> A keyword specifying the inference method.')
     parser.add_argument('-o', '--out_file', required=True, type=str,
-                        help='The file to save results to.')
+                        help='<Required> The file to save results to.')
+    parser.add_argument('-y', '--out_dir', required=True, type=str,
+                        help='<Required> The directory to save results to.')
 
     # Optional params
     parser.add_argument('-s', '--seed', required=False, type=int, default=31415,
@@ -62,7 +66,8 @@ def perform_inference(reads: List[List[SequenceRead]],
                       time_points: List[int],
                       method: str,
                       seed: int,
-                      out_filename: str):
+                      out_filename: str,
+                      out_dir: str):
     torch.manual_seed(seed)
 
     if len(reads) != len(time_points):
@@ -76,7 +81,7 @@ def perform_inference(reads: List[List[SequenceRead]],
     mu = torch.zeros(len(population.strains))
     tau_1 = 100
     tau = 1
-    window_size = len(reads[0][0].seq)
+    window_size = len(reads[0][0].seq)  # Assumes reads are all of the same length.
 
     my_error_model = FastQErrorModel(read_len=window_size)
     # my_error_model = NoiselessErrorModel()
@@ -89,9 +94,7 @@ def perform_inference(reads: List[List[SequenceRead]],
                                read_length=window_size,
                                read_error_model=my_error_model,
                                torch_device=default_device)
-    print(my_model.get_fragment_space())
 
-    # logger.debug(str(my_model.get_fragment_space()))
     logger.debug("Strain keys:")
     for k, strain in enumerate(my_model.bacteria_pop.strains):
         logger.debug("{} -> {}".format(strain, k))
@@ -99,13 +102,15 @@ def perform_inference(reads: List[List[SequenceRead]],
     if method == "em":
         logger.info("Solving using Expectation-Maximization.")
         solver = em.EMSolver(my_model, reads, torch_device=default_device, lr=1e-4)
-        abundances = solver.solve(iters=10000, print_debug_every=100, thresh=1e-7, gradient_clip=1e2)
+        abundances = solver.solve(iters=10000, print_debug_every=1000, thresh=1e-8, gradient_clip=1e2)
         save_abundances(
             population=population,
             time_points=time_points,
             abundances=abundances,
             out_filename=out_filename,
+            out_dir=out_dir
         )
+        return abundances
 
     elif method == "vi":
         logger.info("Solving using second-order variational inference.")
@@ -114,7 +119,15 @@ def perform_inference(reads: List[List[SequenceRead]],
             covariances=torch.eye(len(population.strains)),
             frag_freqs=my_model.get_fragment_frequencies())
         solver = vi.SecondOrderVariationalGradientSolver(my_model, reads, posterior)
-        return solver.solve()
+        abundances = solver.solve()
+        save_abundances(
+            population=population,
+            time_points=time_points,
+            abundances=abundances,
+            out_filename=out_filename,
+            out_dir=out_dir
+        )
+        return abundances
 
     elif method == "bbvi":
         logger.info("Solving using black-box (monte-carlo) variational inference.")
@@ -150,7 +163,7 @@ def main():
     logger.info("Loading time-series read files.")
     reads = load_fastq_reads(base_dir=args.read_files_dir, filenames=args.read_files)
     logger.info("Performing inference using method '{}'.".format(args.method))
-    predicted_abundances = perform_inference(reads, population, args.time_points, args.method, args.seed, args.out_file)
+    predicted_abundances = perform_inference(reads, population, args.time_points, args.method, args.seed, args.out_file, args.out_dir)
     logger.info("Inference finished.")
 
     if args.abundance_file:
@@ -163,6 +176,26 @@ def main():
         logger.info(actual_abundances)
         diff = torch.norm(predicted_abundances - actual_abundances, p='fro')
         logger.info("Difference {}".format(diff))
+
+        ##########################################################################
+        # Plotting
+        ##########################################################################
+        num_reads_per_time = list(map(len, reads))
+        avg_read_depth_over_time = sum(num_reads_per_time)/len(num_reads_per_time)
+
+        algorithm_name_dict = {"em": "Expectation maximization",
+                               "vi": "Variational inference",
+                               "bbvi": "Black-box (monte-carlo) \n variational inference"}
+
+        title = "Average Read Depth over Time: " + str(round(avg_read_depth_over_time, 1)) + "\n" + \
+                "Read Length: " + str(len(reads[0][0].seq)) + "\n" + \
+                "Algorithm: " + algorithm_name_dict[args.method]
+
+        plot_abundances.plot_abundances_comparison(inferred_abnd_dir=args.out_dir, inferred_abnd_file=args.out_file,
+                                                   reads_dir=args.read_files_dir, abnd_file="sim_abundances.csv",
+                                                   output_dir=args.out_dir, output_file=args.out_file[:-4]+".png",
+                                                   title=title)
+        ##########################################################################
 
 
 if __name__ == "__main__":

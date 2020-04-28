@@ -6,6 +6,7 @@ __pycache__/
 *.pyc
 data/
 simulated_data/
+output/
 data/markers/
 logs/
 *.ini

@@ -4,11 +4,10 @@ import urllib.request as urllib
 from util.io.logger import logger
 from util.io.filesystem import convert_size, get_filesize_bytes
 
-
 _base_dir = "data"
 _filename = "{accession}.fasta"
 _ncbi_api_url = "https://www.ncbi.nlm.nih.gov/search/api/sequence/{accession}/?report=fasta"
-_refs_file_csv = "ncbi_refs.csv"
+_refs_file_csv = "ncbi_refs_1.csv"
 
 
 def get_ncbi_url(accession):

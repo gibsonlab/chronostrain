@@ -103,6 +103,9 @@ def sample_reads(
                                           read_error_model=my_error_model,
                                           torch_device=default_device)
 
+    if len(read_depths) != len(time_points):
+        read_depths = [read_depths[0]]*len(time_points)
+
     if abundances:
         # If abundance profile is provided, normalize it and interpret that as the relative abundance.
         for abundance_profile in abundances:
@@ -146,7 +149,9 @@ def get_abundances(file: str) -> Tuple[List[int], torch.Tensor, List[str]]:
         reader = csv.reader(f, quotechar='"')
         for i, row in enumerate(reader):
             if i == 0:
-                accessions = row[1:]
+                accessions = row[1:].replace('"', '').strip()
+                continue
+            if not row:
                 continue
             time_point = row[0]
             abundances = torch.tensor(
@@ -156,7 +161,6 @@ def get_abundances(file: str) -> Tuple[List[int], torch.Tensor, List[str]]:
             )
             time_points.append(time_point)
             strain_abundances.append(abundances)
-
     return time_points, torch.stack(strain_abundances, dim=0), accessions
 
 
@@ -201,6 +205,7 @@ def main():
 
     # ========== Create Population instance.
     if accessions:
+        print(database.get_strains(accessions))
         population = Population(database.get_strains(accessions), torch_device=default_device)
     else:
         population = Population(database.all_strains(), torch_device=default_device)
