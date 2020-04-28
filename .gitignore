@@ -4,7 +4,6 @@ __pycache__/
 *.fastq
 *.gnk
 *.pyc
-data/
 simulated_data/
 output/
 data/markers/
