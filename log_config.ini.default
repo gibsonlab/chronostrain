@@ -31,5 +31,5 @@ format=%(asctime)s [%(name)s, %(levelname)s] [%(module)s (%(lineno)d)] - %(messa
 
 [logger_root]
 level=DEBUG
-handlers=consoleHandler
+handlers=consoleHandler,fileHandler
 
