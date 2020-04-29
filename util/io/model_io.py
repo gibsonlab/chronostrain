@@ -50,7 +50,7 @@ def save_abundances(
         # for k, abundance in enumerate(abundances):
         for t in range(len(time_points)):
             writer.writerow([time_points[t]] + [x.item() for x in abundances[t]])
-    logger.info("Abundances output successfully to file {}. ({})".format(
+    logger.info("Abundances inference_output successfully to file {}. ({})".format(
         out_path, convert_size(get_filesize_bytes(out_path))
     ))
 
@@ -98,7 +98,7 @@ def save_reads_to_fastq(
         total_sz += get_filesize_bytes(out_path)
     # return prefix_format.format(out_prefix, '*')
 
-    logger.info("Reads output successfully to file prefix {fmt}. ({sz} Total)".format(
+    logger.info("Reads inference_output successfully to file prefix {fmt}. ({sz} Total)".format(
         fmt=prefix_format.format(out_prefix, '*'),
         sz=convert_size(total_sz)
     ))

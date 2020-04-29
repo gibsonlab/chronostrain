@@ -51,7 +51,7 @@ class Population:
         if window_size in self.fragment_space_map.keys():
             return self.fragment_space_map[window_size]
 
-        logger.debug("Constructing fragment space for window size {}...".format(window_size))
+        logger.info("Constructing fragment space for window size {}...".format(window_size))
         fragment_space = FragmentSpace()
         for strain in self.strains:
             for marker in strain.markers:
@@ -59,13 +59,13 @@ class Population:
                     fragment_space.add_seq(seq, metadata=strain.name + "Pos" + str(pos))
 
         self.fragment_space_map[window_size] = fragment_space
-        logger.debug("Finished constructing fragment space.")
+        logger.info("Finished constructing fragment space.")
 
         return fragment_space
 
     def get_strain_fragment_frequencies(self, window_size) -> torch.Tensor:
         """
-        Get fragment counts per strain. The output represents the 'W' matrix in the notes.
+        Get fragment counts per strain. The inference_output represents the 'W' matrix in the notes.
         :param window_size: an integer specifying the fragment window length.
         :return: An (F x S) matrix, where each column is a strain-specific frequency vector of fragments.
         """
@@ -78,7 +78,7 @@ class Population:
         fragment_space = self.get_fragment_space(window_size)
         frag_freqs = torch.zeros(fragment_space.size(), len(self.strains), device=self.torch_device)
 
-        logger.debug("Constructing fragment frequencies for window size {}...".format(window_size))
+        logger.info("Constructing fragment frequencies for window size {}...".format(window_size))
 
         for col, strain in enumerate(self.strains):
             for marker in strain.markers:
@@ -89,7 +89,7 @@ class Population:
         frag_freqs = frag_freqs / torch.sum(frag_freqs, dim=0)
 
         self.fragment_frequencies_map[window_size] = frag_freqs
-        logger.debug("Finished constructing fragment frequencies for window size {}.".format(window_size))
+        logger.info("Finished constructing fragment frequencies for window size {}.".format(window_size))
         return frag_freqs
 
 

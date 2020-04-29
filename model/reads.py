@@ -320,7 +320,7 @@ class BasicErrorModel(AbstractErrorModel):
                 replacement=True
             ).item()
 
-            # Save the noisy output.
+            # Save the noisy inference_output.
             noisy_fragment_chars[k] = BasicErrorModel.bases[noisy_letter]
             noisy_fragment_quality[k] = q_score
 

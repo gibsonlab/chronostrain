@@ -4,9 +4,9 @@ __pycache__/
 *.fastq
 *.gnk
 *.pyc
-simulated_data/
-output/
+data/simulated_data/
+data/inference_output/
 data/markers/
 logs/
 *.ini
-
+log_config.ini
