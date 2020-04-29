@@ -4,10 +4,7 @@
   Run to simulate reads from genomes specified by accession numbers.
 """
 
-import os
 import argparse
-import re
-import csv
 import torch
 
 from util.io.logger import logger
@@ -18,7 +15,7 @@ from database.base import SimpleCSVStrainDatabase
 from model import generative, reads
 from model.bacteria import Population
 from model.reads import SequenceRead
-from util.io.model_io import save_reads_to_fastq, save_abundances
+from util.io.model_io import save_reads_to_fastq, save_abundances, load_abundances
 
 _data_dir = "data"
 
@@ -32,12 +29,9 @@ def parse_args():
     parser.add_argument('-o', '--out_dir', required=True, type=str,
                         help='<Required> Directory to save the reads.')
 
-    parser.add_argument('-a', '--accession_file', required=True, type=str,
-                        help='<Required> File listing the species to sample from. Should be in csv format as follows:'
-                             '"Name","Accession" \
-                              "Clostridium sporogenes ATCC 15579","NZ_DS981518.1" \
-                              "Enterococcus faecalis V583","NC_004668.1" \
-                              "Bacteroides fragilis NCTC9343","CR626927.1"')
+    parser.add_argument('-a', '--accession_path', required=True, type=str,
+                        help='<Required> A path to the CSV file listing the strains to sample from. '
+                             'See README for the expected format.')
 
     parser.add_argument('-n', '--num_reads', required=True, type=int, nargs='+',
                         help='<Required> Numbers of the reads to sample at each time point. '
@@ -47,18 +41,22 @@ def parse_args():
     parser.add_argument('-l', '--read_length', required=True, type=int,
                         help='<Required> Length of the reads to sample.')
 
+    parser.add_argument('-b', '--abundance_path', required=False, type=str,
+                        help='<Required if -t not specified> '
+                             'A path to a CSV file containing the time-indexed relative abundances for each strain.')
+
+    parser.add_argument('-t', '--time_points', required=False, type=int, nargs="+",
+                        help='<Required if -b not specified> '
+                             'A list of integers. Each value represents a time point in the dataset.')
+
     # Optional params
     parser.add_argument('-s', '--seed', required=False, type=int, default=31415,
                         help='<Optional> Seed for randomness (for reproducibility).')
-    parser.add_argument('-b', '--abundance_file', required=False, type=str,
-                        help='<Optional> A csv containing the relatively abundances for each strain by time point.')
-    parser.add_argument('-t', '--time_points', required=False, type=int, nargs="+",
-                        help='<Optional; Required if -b not specified> A list of integers. Each value represents '
-                             'a time point in the dataset. Time points are saved as part of file name.')
     parser.add_argument('-p', '--out_prefix', required=False, default='sim',
-                        help='<Optional> File prefix for the read files.')
+                        help='<Optional> File prefix for the read files. '
+                             'Files are saved in the format [PREFIX]_reads_t[TIME].fastq. (Default: "sim")')
     parser.add_argument('-trim', '--marker_trim_len', required=False, type=int,
-                        help='<Optional> An integer to trim markers down to. For testing/debugging.')
+                        help='<Optional> An integer to trim markers down to. (For testing/debugging.)')
 
     return parser.parse_args()
 
@@ -67,7 +65,7 @@ def sample_reads(
         population: Population,
         read_depths: List[int],
         read_length: int,
-        time_points: List[int],
+        time_points: List[float],
         abundances: torch.Tensor = None,
         seed: int = 31415) -> Tuple[torch.Tensor, List[List[SequenceRead]]]:
     """
@@ -106,7 +104,7 @@ def sample_reads(
     if len(read_depths) != len(time_points):
         read_depths = [read_depths[0]]*len(time_points)
 
-    if abundances is not None:
+    if abundances:
         # If abundance profile is provided, normalize it and interpret that as the relative abundance.
         for abundance_profile in abundances:
             if len(abundance_profile) != len(population.strains):
@@ -131,56 +129,6 @@ def sample_reads(
     return abundances, time_indexed_reads
 
 
-def get_abundances(file: str) -> Tuple[List[int], torch.Tensor, List[str]]:
-    """
-    Read time-indexed abundances from file.
-    :param file: The filename with abundances.
-    :return: (1) A list of time points,
-    (2) a time indexed list of abundance profiles,
-    (3) the list of relevant accessions.
-    """
-
-    time_points = []
-    strain_abundances = []
-    accessions = []
-
-    file_path = os.path.join(_data_dir, file)
-    with open(file_path, newline='') as f:
-        reader = csv.reader(f, quotechar='"')
-        for i, row in enumerate(reader):
-            if i == 0:
-                accessions = [accession.replace('"', '').strip() for accession in row[1:]]
-                continue
-            if not row:
-                continue
-            time_point = row[0]
-            abundances = torch.tensor(
-                [float(val) for val in row[1:]],
-                dtype=torch.double,
-                device=default_device
-            )
-            time_points.append(time_point)
-            strain_abundances.append(abundances)
-    return time_points, torch.stack(strain_abundances, dim=0), accessions
-
-
-def get_genomes(accession_nums, strain_info):
-    """
-    For each accession num, retrieve genome info from strain_info.
-    """
-
-    genomes_map = {}
-
-    for accession_num in accession_nums:
-        if accession_num in strain_info.keys():
-            filename = os.path.join(_data_dir, accession_num + ".fasta")
-            with open(filename) as file:
-                for i, line in enumerate(file):
-                    genome = re.sub('[^AGCT]+', '', line.split(sep=" ")[-1])
-            genomes_map[accession_num] = genome
-    return genomes_map
-
-
 def main():
     logger.info("Pipeline for read simulation started.")
     args = parse_args()
@@ -189,19 +137,22 @@ def main():
     # Note: The usage of "SimpleCSVStrainDatabase" initializes the strain information so that each strain's (unique)
     # marker is its own genome.
     # ==============================================
-    database = SimpleCSVStrainDatabase(args.accession_file, trim_debug=args.marker_trim_len)
+    database = SimpleCSVStrainDatabase(args.accession_path, trim_debug=args.marker_trim_len)
 
     # ========= Load abundances and accessions.
     abundances = None
     accessions = None
-    if args.abundance_file:
+    if args.abundance_path:
         logger.debug("Parsing abundance file...")
-        time_points, abundances, accessions = get_abundances(file=args.abundance_file)
+        time_points, abundances, accessions = load_abundances(
+            file_path=args.abundance_path,
+            torch_device=default_device
+        )
     else:
         time_points = args.time_points
 
     if time_points is None:
-        raise Exception("(Time points) argument is required if abundances file not specified.")
+        raise Exception("(Time points -t) argument is required if abundances file (-b) not specified.")
 
     # ========== Create Population instance.
     if accessions:
@@ -226,11 +177,11 @@ def main():
     save_reads_to_fastq(sampled_reads, time_points, args.out_dir, args.out_prefix)
     logger.debug("Saving abundances to file...")
     save_abundances(
-        population,
-        time_points,
-        abundances,
-        '{}_abundances.csv'.format(args.out_prefix),
-        out_dir=args.out_dir
+        population=population,
+        time_points=time_points,
+        abundances=abundances,
+        out_dir=args.out_dir,
+        out_filename='{}_abundances.csv'.format(args.out_prefix)
     )
     logger.info("Reads finished sampling.")
 

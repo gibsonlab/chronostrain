@@ -31,7 +31,7 @@ def plot_abundances_comparison(inferred_abnd_dir: str, inferred_abnd_file: str,
 
     save_location = os.path.join(output_dir, output_file)
     plt.savefig(save_location, bbox_inches='tight')
-    # plt.show()
+    plt.show()
 
 
 def plot_abundances(inferred_abnd_dir: str, inferred_abnd_file: str,

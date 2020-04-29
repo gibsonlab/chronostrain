@@ -40,7 +40,7 @@ def compute_read_likelihoods(model: GenerativeModel, reads: List[List[SequenceRe
     fragment_space = model.bacteria_pop.get_fragment_space(model.read_length)
 
     start_time = current_time_millis()
-    logger.info("Computing fragment errors...")
+    logger.info("Computing read-fragment likelihoods...")
 
     def create_matrix(k):
         # Each is an (F x N) matrix.

@@ -7,7 +7,6 @@ from util.io.filesystem import convert_size, get_filesize_bytes
 _base_dir = "data"
 _filename = "{accession}.fasta"
 _ncbi_api_url = "https://www.ncbi.nlm.nih.gov/search/api/sequence/{accession}/?report=fasta"
-_refs_file_csv = "ncbi_refs_1.csv"
 
 
 def get_ncbi_url(accession):
@@ -38,16 +37,15 @@ def fetch_filename(accession):
     return filename
 
 
-def fetch_sequences(refs_file_csv):
+def fetch_sequences(refs_file_csv: str):
     """
     Read CSV file, and download FASTA from accessions if doesn't exist.
     :return: a dictionary mapping accessions to strain-accession-filename wrappers.
     """
     strains_map = {}
 
-    csv_filename = os.path.join(_base_dir, refs_file_csv)
     line_count = 0
-    with open(csv_filename, "r") as f:
+    with open(refs_file_csv, "r") as f:
         csv_reader = csv.reader(f)
         for row in csv_reader:
             if line_count == 0:
@@ -65,6 +63,3 @@ def fetch_sequences(refs_file_csv):
     logger.info("Found {} records.".format(len(strains_map.keys())))
     return strains_map
 
-
-if __name__ == "__main__":
-    fetch_sequences(_refs_file_csv)
