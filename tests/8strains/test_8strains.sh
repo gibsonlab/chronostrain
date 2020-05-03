@@ -21,7 +21,7 @@ python run_inference.py \
 "data/simulated_reads/$TESTNAME/sim_reads_t3.fastq" \
 "data/simulated_reads/$TESTNAME/sim_reads_t4.fastq" \
 --accession_path "tests/$TESTNAME/ncbi_refs.csv" \
---true_abundance_path "tests/$TESTNAME/strain_abundances.csv" \
+--true_abundance_path "data/simulated_reads/$TESTNAME/sim_abundances.csv" \
 --time_points 1 2 3 4 \
 --method "em" \
 --seed 123 \

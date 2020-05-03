@@ -23,8 +23,8 @@ python run_inference.py \
 "data/simulated_reads/$TESTNAME/sim_reads_t7.fastq" \
 "data/simulated_reads/$TESTNAME/sim_reads_t8.fastq" \
 "data/simulated_reads/$TESTNAME/sim_reads_t10.fastq" \
+--true_abundance_path "data/simulated_reads/$TESTNAME/sim_abundances.csv" \
 --accession_path "tests/$TESTNAME/ncbi_refs.csv" \
---true_abundance_path "tests/$TESTNAME/strain_abundances.csv" \
 --time_points 1 2 4 6 7 8 10 \
 --method "em" \
 --seed 123 \

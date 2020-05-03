@@ -26,7 +26,7 @@ do
   "data/simulated_reads/$TESTNAME/depth_$depth/sim_reads_t7.fastq" \
   "data/simulated_reads/$TESTNAME/depth_$depth/sim_reads_t8.fastq" \
   "data/simulated_reads/$TESTNAME/depth_$depth/sim_reads_t10.fastq" \
-  --true_abundance_path "data/simulated_reads/$TESTNAME//depth_$depth/sim_abundances.csv" \
+  --true_abundance_path "data/simulated_reads/$TESTNAME/depth_$depth/sim_abundances.csv" \
   --accession_path "tests/$TESTNAME/ncbi_refs.csv" \
   --time_points 1 2 4 6 7 8 10 \
   --method "em" \
