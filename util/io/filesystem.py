@@ -17,6 +17,6 @@ def convert_size(size_bytes):
 
 def get_filesize_bytes(filename) -> int:
     """
-    Get the size of the specified file, in bytes. Use convert_size() for a more meaningful inference_output.
+    Get the size of the specified file, in bytes. Use convert_size() for a more meaningful output.
     """
     return os.stat(filename).st_size

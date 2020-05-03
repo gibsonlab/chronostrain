@@ -198,7 +198,7 @@ class GenerativeModel:
     def strain_abundance_to_frag_abundance(self, strain_abundances: torch.Tensor) -> torch.Tensor:
         """
         Convert strain abundance to fragment abundance, via the matrix multiplication F = WZ.
-        Assumes strain_abundance is an S x T tensor, so that the inference_output is an F x T tensor.
+        Assumes strain_abundance is an S x T tensor, so that the output is an F x T tensor.
         """
         return self.get_fragment_frequencies().mm(strain_abundances)
 

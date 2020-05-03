@@ -1,22 +1,22 @@
 import seaborn as sns
 import matplotlib.pyplot as plt
-
 import pandas as pd
-import os
 
 
-def plot_abundances_comparison(inferred_abnd_dir: str, inferred_abnd_file: str,
-                               reads_dir: str, abnd_file: str,
-                               title: str, output_dir: str, output_file: str):
+def plot_abundances_comparison(
+            inferred_abnd_path: str,
+            real_abnd_path: str,
+            title: str,
+            plots_out_path: str):
 
-    real_df = (pd.read_csv(os.path.join(reads_dir, abnd_file))
+    real_df = (pd.read_csv(real_abnd_path)
                       .assign(Truth="Real")
                       .melt(id_vars=['T', "Truth"],
                             var_name="Strain",
                             value_name="Abundance")
                       .rename(columns={"T": "Time"}))
 
-    inferred_df = (pd.read_csv(os.path.join(inferred_abnd_dir, inferred_abnd_file))
+    inferred_df = (pd.read_csv(inferred_abnd_path)
                           .assign(Truth="Inferred")
                           .melt(id_vars=['T', "Truth"],
                                 var_name="Strain",
@@ -29,15 +29,14 @@ def plot_abundances_comparison(inferred_abnd_dir: str, inferred_abnd_file: str,
     plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
     plt.title(title)
 
-    save_location = os.path.join(output_dir, output_file)
-    plt.savefig(save_location, bbox_inches='tight')
-    plt.show()
+    plt.savefig(plots_out_path, bbox_inches='tight')
 
+def plot_abundances(
+            abnd_path: str,
+            title: str,
+            plots_out_path: str):
 
-def plot_abundances(inferred_abnd_dir: str, inferred_abnd_file: str,
-                    title: str, output_dir: str, output_file: str):
-
-    inferred_df = (pd.read_csv(os.path.join(inferred_abnd_dir, inferred_abnd_file))
+    inferred_df = (pd.read_csv(abnd_path)
                           .melt(id_vars=['T', "Truth"],
                                 var_name="Strain",
                                 value_name="Abundance")
@@ -47,6 +46,4 @@ def plot_abundances(inferred_abnd_dir: str, inferred_abnd_file: str,
     plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
     plt.title(title)
 
-    save_location = os.path.join(output_dir, output_file)
-    plt.savefig(save_location, bbox_inches='tight')
-    plt.show()
+    plt.savefig(plots_out_path, bbox_inches='tight')

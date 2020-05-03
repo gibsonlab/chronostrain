@@ -65,7 +65,7 @@ class Population:
 
     def get_strain_fragment_frequencies(self, window_size) -> torch.Tensor:
         """
-        Get fragment counts per strain. The inference_output represents the 'W' matrix in the notes.
+        Get fragment counts per strain. The output represents the 'W' matrix in the notes.
         :param window_size: an integer specifying the fragment window length.
         :return: An (F x S) matrix, where each column is a strain-specific frequency vector of fragments.
         """

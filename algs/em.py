@@ -9,6 +9,8 @@ from model.generative import GenerativeModel
 import torch
 from torch.nn.functional import softmax
 
+torch.set_default_dtype(torch.float64)
+
 # ===========================================================================================
 # =============== Expectation-Maximization (for getting a MAP estimator) ====================
 # ===========================================================================================
@@ -128,7 +130,7 @@ class EMSolver(AbstractModelSolver):
         for t in range(T):
             # Scale each row by Z_t, and normalize.
             Z_t = self.model.strain_abundance_to_frag_abundance(y[t].view(S, 1))
-            Q = self.get_frag_likelihoods(t) * Z_t
+            Q = self.get_frag_likelihoods(t).add(1e-5) * Z_t  # TODO: Use an alternative to the pseudocount trick?
             Q = (Q / Q.sum(dim=0)[None, :]).sum(dim=1) / Z_t.view(F)
 
             sigmoid = y[t]
