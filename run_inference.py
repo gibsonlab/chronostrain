@@ -197,8 +197,11 @@ def create_model(population: Population,
                  window_size: int,
                  time_points: List[int]):
     """
-
-
+    Simple wrapper for creating a generative model.
+    @param population: The bacteria population.
+    @param window_size: Fragment read length to use.
+    @param time_points: List of time points for which samples are taken from.
+    @return A Generative model object.
     """
     mu = torch.zeros(len(population.strains))
     tau_1 = 100
