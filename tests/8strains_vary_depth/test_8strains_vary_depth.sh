@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-TESTNAME="2strains_vary_depth"
+TESTNAME="8strains_vary_depth"
 
 cd ../..
 

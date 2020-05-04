@@ -9,9 +9,9 @@ python simulate_reads.py \
 --out_dir "./data/simulated_reads/$TESTNAME" \
 --accession_path "tests/$TESTNAME/ncbi_refs.csv" \
 --abundance_path "tests/$TESTNAME/strain_abundances.csv" \
---num_reads 3 \
+--num_reads 1 \
 --read_length 150 \
--trim 2500
+-trim 200
 
 # Time consistency on
 python run_inference.py \
@@ -31,7 +31,7 @@ python run_inference.py \
 --out_dir "data/output/test_$TESTNAME" \
 --out_file "EM_result_$TESTNAME.csv" \
 --plots_file "EM_result_${TESTNAME}_plot.png" \
--trim 2500 \
+-trim 200 \
 --time_consistency "on"
 
 # Time consistency off
@@ -52,5 +52,5 @@ python run_inference.py \
 --out_dir "data/output/test_${TESTNAME}_time_off" \
 --out_file "EM_result_${TESTNAME}_time_off.csv" \
 --plots_file "EM_result_${TESTNAME}_plot_time_off.png" \
--trim 2500 \
+-trim 200 \
 --time_consistency "off"

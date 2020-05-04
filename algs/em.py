@@ -130,7 +130,7 @@ class EMSolver(AbstractModelSolver):
         for t in range(T):
             # Scale each row by Z_t, and normalize.
             Z_t = self.model.strain_abundance_to_frag_abundance(y[t].view(S, 1))
-            Q = self.get_frag_likelihoods(t).add(1e-5) * Z_t  # TODO: Use an alternative to the pseudocount trick?
+            Q = self.get_frag_likelihoods(t) * Z_t
             Q = (Q / Q.sum(dim=0)[None, :]).sum(dim=1) / Z_t.view(F)
 
             sigmoid = y[t]
