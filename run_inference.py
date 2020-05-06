@@ -11,13 +11,13 @@ import torch
 
 from model.generative import GenerativeModel
 from model.bacteria import Population
-from model.reads import SequenceRead, FastQErrorModel
-from algs import em, bbvi
+from model.reads import SequenceRead, FastQErrorModel, NoiselessErrorModel
+from algs import em, bbvi, vsmc
 from visualizations import plot_abundances as plotter
 
 from typing import List
 from util.io.logger import logger
-from util.io.model_io import get_all_accessions_csv, load_fastq_reads, save_abundances, load_abundances
+from util.io.model_io import load_fastq_reads, save_abundances, load_abundances
 
 # ============================= Constants =================================
 default_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -59,6 +59,8 @@ def parse_args():
                              'strain by time point. For benchmarking.')
     parser.add_argument('-trim', '--marker_trim_len', required=False, type=int,
                         help='<Optional> An integer to trim markers down to. For testing/debugging.')
+    parser.add_argument('--disable_quality', action="store_true",
+                        help='<Flag> Turn off effect of quality scores.')
 
     return parser.parse_args()
 
@@ -103,22 +105,32 @@ def perform_em(
         logger.debug("Abundance squared-norm difference: {}".format(diff))
 
 
-def perform_bbvi(
+def perform_vsmc(
         model: GenerativeModel,
         reads: List[List[SequenceRead]]):
-    logger.info("Solving using Black-Box (Monte-Carlo) Variational Inference.")
-    solver = bbvi.BBVISolver(model=model, data=reads, device=default_device)
-    solver.solve()
+
+    # ==== Run the solver.
+    solver = vsmc.VSMCSolver(model=model, data=reads, torch_device=default_device)
+    solver.solve(
+        optim_class=torch.optim.Adam,
+        optim_args={'lr': 1e-2, 'betas': (0.9, 0.999), 'eps': 1e-7, 'weight_decay': 0.},
+        iters=1000,
+        num_samples=10000,
+        print_debug_every=20
+    )
     posterior = solver.posterior
 
+    # ==== Output the learned posterior.
     logger.info("Learned posterior:")
-    logger.info(posterior.params())
+    logger.info(posterior.means[0])
+    logger.info(posterior.covariances[0])
 
-    logger.info("Posterior sample:")
-    sample_x, sample_f = posterior.sample()
-    logger.info("X: ", sample_x)
-    logger.info("F: ", sample_f)
-    raise NotImplementedError("TODO check if this works.")
+    logger.info("softmax: {}".format(posterior.means[0].data.softmax(dim=0)))
+    logger.info("time 2 (AFTER SOFTMAX): {}".format(
+        (posterior.means[0] + posterior.means[1]).softmax(dim=0)
+    ))
+
+    raise NotImplementedError("TODO output plots.")
 
 
 def plot_result(
@@ -192,12 +204,16 @@ def main():
         raise ValueError("Specified sample times must be distinct.")
 
     # ==== Create model instance.
-    mu = torch.zeros(len(population.strains))
+    mu = torch.zeros(len(population.strains), device=default_device)
     tau_1 = 100
     tau = 1
     window_size = len(reads[0][0].seq)  # Assumes reads are all of the same length.
 
-    error_model = FastQErrorModel(read_len=window_size)
+    if args.disable_quality:
+        logger.info("Flag --disable_quality turned on; Quality scores are diabled.")
+        error_model = NoiselessErrorModel(mismatch_likelihood=1e-100)
+    else:
+        error_model = FastQErrorModel(read_len=window_size)
     model = GenerativeModel(
         times=args.time_points,
         mu=mu,
@@ -228,28 +244,12 @@ def main():
             plot_out_filename=args.plots_file,
             ground_truth_path=args.true_abundance_path
         )
-    elif args.method == 'bbvi':
-        perform_bbvi(
+    elif args.method == 'vsmc':
+        logger.info("Solving using Variational Sequential Monte-Carlo.")
+        perform_vsmc(
             model=model,
             reads=reads
         )
-    elif args.method == 'vi':
-        raise NotImplementedError("TODO: test!")
-        # logger.info("Solving using second-order variational inference.")
-        # posterior = vi.SecondOrderVariationalPosterior(
-        #     means=mu,
-        #     covariances=torch.eye(len(population.strains)),
-        #     frag_freqs=my_model.get_fragment_frequencies())
-        # solver = vi.SecondOrderVariationalGradientSolver(my_model, reads, posterior)
-        # abundances = solver.solve()
-        # save_abundances(
-        #     population=population,
-        #     time_points=time_points,
-        #     abundances=abundances,
-        #     out_filename=out_filename,
-        #     out_dir=out_dir
-        # )
-        # return abundances
     else:
         raise ValueError("{} is not an implemented method.".format(args.method))
 

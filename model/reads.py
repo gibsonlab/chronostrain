@@ -2,6 +2,7 @@
  reads.py
  Contains classes for the error model of reads.
 """
+import math
 from abc import ABCMeta, abstractmethod
 import torch
 from model.fragments import Fragment
@@ -108,8 +109,13 @@ class AbstractTrainableErrorModel(AbstractErrorModel):
 # ======================================================================================
 
 class NoiselessErrorModel(AbstractErrorModel):
+    def __init__(self, mismatch_likelihood: float = 1e-20):
+        super().__init__()
+        self.mismatch_log_likelihood = math.log(mismatch_likelihood)
+        self.match_log_likelihood = math.log(1 - mismatch_likelihood)
+
     def compute_log_likelihood(self, fragment: Fragment, read: SequenceRead) -> float:
-        return 0. if fragment.seq == read.seq else float("-inf")
+        return self.match_log_likelihood if fragment.seq == read.seq else self.mismatch_log_likelihood
 
     def sample_noisy_read(self, fragment: str, metadata: str = "") -> SequenceRead:
         return SequenceRead(fragment, quality=torch.ones(len(fragment))*1000, metadata=metadata)
@@ -301,7 +307,6 @@ class BasicErrorModel(AbstractErrorModel):
         quality_score_vector = self.q_dist.sample_qvec()
 
         noisy_fragment_chars = ['' for _ in range(self.read_len)]
-        noisy_fragment_quality = [0]*self.read_len
 
         # Generate base pair reads from the fragment, conditioned on fragment base pairs and
         # the quality score for that base pair.
@@ -322,10 +327,9 @@ class BasicErrorModel(AbstractErrorModel):
 
             # Save the noisy output.
             noisy_fragment_chars[k] = BasicErrorModel.bases[noisy_letter]
-            noisy_fragment_quality[k] = q_score
 
         noisy_fragment_string = ''.join(noisy_fragment_chars)
-        seq_read = SequenceRead(noisy_fragment_string, noisy_fragment_quality, metadata=metadata)
+        seq_read = SequenceRead(noisy_fragment_string, quality_score_vector, metadata=metadata)
         return seq_read
 
 
@@ -373,7 +377,8 @@ class FastQErrorModel(AbstractErrorModel):
             fragment.seq[k] == read.seq[k] for k in range(len(fragment.seq))
         ]).to(dtype=torch.double)
 
-        return ((1 - error_prob) * matches + error_prob * (1 - matches)).log().sum().item()
+        return ((torch.ones(1, device=error_prob.device) - error_prob) * matches + (error_prob/3)
+                * (torch.ones(1, device=error_prob.device) - matches)).log().sum().item()
 
     def sample_noisy_read(self, fragment: str, metadata="") -> SequenceRead:
         qvec = self.q_dist.sample_qvec()

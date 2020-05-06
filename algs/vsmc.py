@@ -1,0 +1,246 @@
+"""
+Monte-Carlo Variational Inference
+(Variational Sequential Monte Carlo)
+"""
+
+import torch
+from typing import List
+
+from torch.distributions import MultivariateNormal, Categorical
+from torch.nn.functional import softmax
+
+from model.generative import GenerativeModel
+from model.reads import SequenceRead
+from algs.base import AbstractModelSolver, compute_read_likelihoods
+from util.benchmarking import RuntimeEstimator
+
+from util.io.logger import logger
+
+
+class VariationalSequentialPosterior:
+    def __init__(
+            self,
+            num_times: int,
+            num_strains: int,
+            num_fragments: int,
+            read_counts: List[int],
+            device
+    ):
+        self.times = num_times
+        self.strains = num_strains
+        self.fragments = num_fragments
+        self.read_counts = read_counts
+        self.device = device
+
+        # ================= Learnable parameters:
+        # The mean parameters of the GP.
+        # t = 0: the mean of the GP.
+        # t > 0: Describes the conditional mean shift A, as in
+        #     E[X_{t+1} | X_{t} = y] = E[X_{t+1}] + TRANSITION[t+1]*(y - E[X_{t}])
+        #
+        self.means = [
+            torch.nn.Parameter(
+                torch.zeros(num_strains, device=device, dtype=torch.double),
+                requires_grad=True
+            )
+            for _ in range(num_times)
+        ]
+
+        # Represents the transition matrix Sigma_{t+1,t} * inv(Sigma_{t,t})
+        # These describe the means of the conditional distribution X_{t+1} | X_{t}.
+        self.transitions = [
+            torch.nn.Parameter(
+                torch.eye(num_strains, num_strains, device=device, dtype=torch.double),
+                requires_grad=False  # TODO change to "True" to enable training.
+            )
+            for _ in range(num_times - 1)
+        ]
+
+        # Represents the time-t covariances.
+        # Describes the conditional covariances Cov(X_{t+1} | X_{t}) -->
+        # think of "Sigma_{i,j}" as the (time-i, time-j) block of the complete Covariance matrix.
+        # t > 1: Sigma_{t+1,t+1} - Sigma_{t+1,t}*inv(Sigma_{t,t})*Sigma_{t,t+1}
+        # t = 1: Sigma_{1,1}
+        self.covariances = [
+            torch.nn.Parameter(
+                torch.eye(num_strains, device=device, dtype=torch.double),
+                requires_grad=True  # TODO change to "True" to enable training.
+            )
+            for _ in range(num_times)
+        ]
+
+    def params(self) -> List[torch.nn.Parameter]:
+        """
+        Return a list of all learnable parameters (e.g. Parameter instances with requires_grad=True).
+        """
+        # return self.means + self.transitions + self.covariances
+        return self.means + self.covariances
+
+
+class VSMCSolver(AbstractModelSolver):
+    def __init__(self, model: GenerativeModel, data: List[List[SequenceRead]], torch_device):
+        super().__init__(model, data)
+        self.read_likelihoods = compute_read_likelihoods(model, data, logarithm=False, device=torch_device)
+        self.posterior = VariationalSequentialPosterior(
+            num_times=model.num_times(),
+            num_strains=model.num_strains(),
+            num_fragments=model.num_fragments(),
+            read_counts=[len(reads) for reads in data],
+            device=torch_device
+        )
+        self.device = torch_device
+
+    def elbo_surrogate_estimate(self, num_samples) -> torch.Tensor:
+        """
+        Compute the ELBO surrogate approximation [Equation (9) of Naesseth et al
+        (https://arxiv.org/pdf/1705.11140.pdf)].
+
+        This implementation has been checked to be consistent with the authors' original implementation
+        (https://github.com/blei-lab/variational-smc/blob/master/variational_smc.py).
+
+        In the above style, this implementation uses the reparametrization trick and ignores the score derivative.
+        (Auto-differentiation is only turned on for the weights to estimate p_hat(Y).
+        Refer to Equation (9) of Naesseth et al (https://arxiv.org/pdf/1705.11140.pdf).
+
+        :param num_samples:
+        :return: A scalar tensor containing the ELBO surrogate value (with gradient information).
+        """
+        W_log_means = []
+        W_normalized = torch.empty([1])
+        X_prev = torch.empty([1])
+
+        W_summands = []
+
+        for t in range(self.posterior.times):
+            # Propagation
+            if t == 0:
+                # Initial distribution of X_0 (no resampling required).
+                distribution = MultivariateNormal(
+                    loc=self.posterior.means[0].expand(num_samples, -1),
+                    covariance_matrix=self.posterior.covariances[0]
+                )
+            else:
+                # Resampling (double-check that gradient is turned off.)
+                children = Categorical(probs=W_normalized).sample([num_samples])  # Offsprings of each particle.
+
+                # print(" ******************************** ")
+                # print("Weights: ", W_normalized)
+                # print("generative likelihood: ", self.generative_log_prob(0, X_prev, X_prev))
+                # print("posterior likelihood: ", distribution.log_prob(X))
+                # print("logW = ", logW)
+                #
+                # print("X_prev: ", X_prev)
+                # Y = softmax(X_prev, dim=1)
+                # print("softmax(X_prev): ", Y)
+                # Z = Y.mm(self.model.get_fragment_frequencies().t())
+                # print("Z = ", Z)
+                # R = Z.mm(self.read_likelihoods[t-1])
+                # print("Read likelihoods = ", R)
+                # R_sum = R.log().sum(dim=1)
+                # print("joint read likelihoods = ", R_sum.exp())
+                #
+                # print("children: ", children)
+                # print("X_prev[children]: ", X_prev[children])
+                # print("after mat multiplication: ", X_prev[children].mm(self.posterior.transitions[t-1]))
+                # print("mean: ", self.posterior.means[t])
+
+                # distribution of X_t.
+                distribution = MultivariateNormal(
+                    loc=X_prev[children].mm(self.posterior.transitions[t-1]) + self.posterior.means[t].expand(num_samples, -1),
+                    covariance_matrix=self.posterior.covariances[t]
+                )
+            X = distribution.sample().detach()
+
+            # Compute weights.
+            # print("generative log prob = ", self.generative_log_prob(t=t, X=X, X_prev=X_prev))
+            # print("posterior log prob = ", distribution.log_prob(X))
+            # print("X = ", X)
+            logW = self.generative_log_prob(t=t, X=X, X_prev=X_prev) - distribution.log_prob(X)
+            W_log_means.append(logW.exp().mean().log())
+
+            # Resampling probabilities.
+            W_normalized = (logW - logW.max()).detach().exp()  # Turn off gradients for re-sampling.
+            W_normalized = W_normalized / W_normalized.sum()
+            X_prev = X
+
+            W_summands.append((W_normalized * logW).sum())
+        return torch.stack(W_summands).sum()
+
+        # return torch.stack(W_log_means).sum()
+
+    def generative_log_prob(self, t, X, X_prev):
+        """
+        :param t: the time index (0 thru T-1)
+        :param X: (N x S) tensor of time (t) samples.
+        :param X_prev: (N x S) tensor of time (t-1) samples.
+        :return: The joint log-likelihood p(X_t, Reads_t | X_{t-1}).
+        """
+        # Gaussian part
+        N = X_prev.size(0)
+        if t == 0:
+            center = self.model.mu.repeat(N, 1)
+        else:
+            center = X_prev
+        covariance = self.model.time_scale(t) * torch.eye(self.model.num_strains(), device=self.device)
+        distribution = MultivariateNormal(loc=center, covariance_matrix=covariance)
+        gaussian_log_probs = distribution.log_prob(X)
+
+        # Reads likelihood calculation, conditioned on the Gaussian part.
+        data_log_probs = (softmax(X, dim=1)
+                          .mm(self.model.get_fragment_frequencies().t())
+                          .mm(self.read_likelihoods[t])
+                          .log()
+                          .sum(dim=1))
+
+        return gaussian_log_probs + data_log_probs
+
+    def solve(self,
+              optim_class=torch.optim.Adam,
+              optim_args=None,
+              iters=4000,
+              num_samples=8000,
+              print_debug_every=200):
+
+        if optim_args is None:
+            optim_args = {'lr': 1e-3, 'betas': (0.9, 0.999), 'eps': 1e-8, 'weight_decay': 0.}
+        optimizer = optim_class(
+            self.posterior.params(),
+            **optim_args
+        )
+
+        logger.debug("BBVI algorithm started. (Gradient method, Target iterations={})".format(
+            iters
+        ))
+        time_est = RuntimeEstimator(total_iters=iters, horizon=5)
+        for i in range(1, iters+1, 1):
+            time_est.stopwatch_click()
+
+            # Maximize elbo by minimizing -elbo.
+            elbo = self.elbo_surrogate_estimate(num_samples=num_samples)
+            optimizer.zero_grad()
+            elbo.backward()
+            # print("\t****** grad: ", self.posterior.means[0].grad)
+
+            # elbo = -self.elbo_surrogate_estimate(num_samples=num_samples, mean=self.posterior.means[0])
+            # print(" ============= ELBO before step: ", elbo.data)
+
+            optimizer.step()
+
+            millis_elapsed = time_est.stopwatch_click()
+            time_est.increment(millis_elapsed)
+            if i % print_debug_every == 0:
+                logger.debug("Iteration {i} | time left: {t:.2f} min. | Last ELBO = {elbo}".format(
+                    i=i,
+                    t=time_est.time_left() / 60000,
+                    elbo=elbo.item()
+                ))
+
+            # elbo = -self.elbo_surrogate_estimate(num_samples=num_samples, mean=self.posterior.means[0])
+            # print(" ============= ELBO after step: ", elbo.data)
+            #
+            # print("\t****** grad: ", self.posterior.means[0].grad)
+            # print("\t****** POSTERIOR PARAMS: {}".format(self.posterior.params()[0].data))
+
+
+
+

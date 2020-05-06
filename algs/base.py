@@ -36,7 +36,11 @@ class AbstractModelSolver(metaclass=ABCMeta):
 # ===================================================================
 
 # Helper function for both EM and VI
-def compute_read_likelihoods(model: GenerativeModel, reads: List[List[SequenceRead]], device) -> List[torch.Tensor]:
+def compute_read_likelihoods(
+        model: GenerativeModel,
+        reads: List[List[SequenceRead]],
+        logarithm: bool,
+        device) -> List[torch.Tensor]:
     fragment_space = model.bacteria_pop.get_fragment_space(model.read_length)
 
     start_time = current_time_millis()
@@ -46,7 +50,8 @@ def compute_read_likelihoods(model: GenerativeModel, reads: List[List[SequenceRe
         # Each is an (F x N) matrix.
         return torch.tensor([
             [
-                math.exp(model.error_model.compute_log_likelihood(f, r))
+                model.error_model.compute_log_likelihood(f, r) if logarithm
+                else math.exp(model.error_model.compute_log_likelihood(f, r))
                 for r in reads[k]
             ] for f in fragment_space.get_fragments()
         ], device=device, dtype=torch.double)

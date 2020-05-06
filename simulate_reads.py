@@ -57,6 +57,8 @@ def parse_args():
                              'Files are saved in the format [PREFIX]_reads_t[TIME].fastq. (Default: "sim")')
     parser.add_argument('-trim', '--marker_trim_len', required=False, type=int,
                         help='<Optional> An integer to trim markers down to. (For testing/debugging.)')
+    parser.add_argument('--disable_quality', action="store_true",
+                        help='<Flag> Turn off effect of quality scores.')
 
     return parser.parse_args()
 
@@ -66,6 +68,7 @@ def sample_reads(
         read_depths: List[int],
         read_length: int,
         time_points: List[float],
+        disable_quality: bool,
         abundances: torch.Tensor = None,
         seed: int = 31415) -> Tuple[torch.Tensor, List[List[SequenceRead]]]:
     """
@@ -90,8 +93,11 @@ def sample_reads(
     tau = 1
 
     # Construct a GenerativeModel instance.
-    my_error_model = reads.FastQErrorModel(read_len=read_length)
-    # my_error_model = reads.NoiselessErrorModel()
+    if disable_quality:
+        logger.info("Flag --disable_quality turned on; Quality scores are diabled.")
+        my_error_model = reads.NoiselessErrorModel()
+    else:
+        my_error_model = reads.FastQErrorModel(read_len=read_length)
     my_model = generative.GenerativeModel(times=time_points,
                                           mu=mu,
                                           tau_1=tau_1,
@@ -104,7 +110,7 @@ def sample_reads(
     if len(read_depths) != len(time_points):
         read_depths = [read_depths[0]]*len(time_points)
 
-    if abundances:
+    if abundances is not None:
         # If abundance profile is provided, normalize it and interpret that as the relative abundance.
         for abundance_profile in abundances:
             if len(abundance_profile) != len(population.strains):
@@ -168,6 +174,7 @@ def main():
         read_depths=args.num_reads,
         abundances=abundances,
         read_length=args.read_length,
+        disable_quality=args.disable_quality,
         time_points=time_points,
         seed=args.seed
     )
