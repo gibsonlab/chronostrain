@@ -35,8 +35,7 @@ do
   --out_dir "data/output/test_$TESTNAME/depth_$depth/" \
   --out_file "EM_result_$TESTNAME.csv" \
   --plots_file "EM_result_${TESTNAME}_plot.png" \
-  -trim 2500 \
-  --time_consistency "on"
+  -trim 2500
 
    # Time consistency off
   python run_inference.py \
@@ -58,5 +57,5 @@ do
   --out_file "EM_result_$TESTNAME.csv" \
   --plots_file "EM_result_${TESTNAME}_plot.png" \
   -trim 2500 \
-  --time_consistency "off"
+  --disable_time_consistency
 done
