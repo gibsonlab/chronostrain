@@ -4,10 +4,7 @@ __pycache__/
 *.fastq
 *.gnk
 *.pyc
-data/simulated_data/
-data/simulated_reads/
-data/output/
-data/markers/
+data/
 logs/
 *.ini
 log_config.ini
