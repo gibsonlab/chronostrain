@@ -60,6 +60,7 @@ def fetch_sequences(refs_file_csv: str):
             }
             line_count += 1
 
+
     logger.info("Found {} records.".format(len(strains_map.keys())))
     return strains_map
 

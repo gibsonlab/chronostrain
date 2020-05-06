@@ -9,6 +9,8 @@ from model.generative import GenerativeModel
 import torch
 from torch.nn.functional import softmax
 
+torch.set_default_dtype(torch.float64)
+
 # ===========================================================================================
 # =============== Expectation-Maximization (for getting a MAP estimator) ====================
 # ===========================================================================================

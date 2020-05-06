@@ -373,7 +373,8 @@ class FastQErrorModel(AbstractErrorModel):
             fragment.seq[k] == read.seq[k] for k in range(len(fragment.seq))
         ]).to(dtype=torch.double)
 
-        return ((1 - error_prob) * matches + error_prob * (1 - matches)).log().sum().item()
+        return ((1 - error_prob) * matches + error_prob/3 * (1 - matches)).log().sum().item()
+        # return ((1 - error_prob) * matches + error_prob * (1 - matches)).log().sum().item()
 
     def sample_noisy_read(self, fragment: str, metadata="") -> SequenceRead:
         qvec = self.q_dist.sample_qvec()

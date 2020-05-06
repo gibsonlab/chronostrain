@@ -104,7 +104,7 @@ def sample_reads(
     if len(read_depths) != len(time_points):
         read_depths = [read_depths[0]]*len(time_points)
 
-    if abundances:
+    if abundances is not None:
         # If abundance profile is provided, normalize it and interpret that as the relative abundance.
         for abundance_profile in abundances:
             if len(abundance_profile) != len(population.strains):
