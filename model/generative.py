@@ -59,28 +59,30 @@ class GenerativeModel:
             self,
             X: List[torch.Tensor],
             F: List[torch.Tensor],
-            R: List[List[SequenceRead]],
+            read_log_likelihoods: List[torch.Tensor],
             device) -> torch.Tensor:
         """
-        Computes the joint log-likelihood of X, F, and R.
+        Computes the joint log-likelihood of X, F, and R according to this generative model.
         Let N be the number of samples.
         :param X: The S-dimensional Gaussian trajectory, indexed (T x N x S) as a List of 2-d tensors.
         :param F: The per-read (R reads) sampled fragments, indexed (T x N x R_t) as a list of 2-d tensors.
         :param R: The sampled reads, indexed (T x R_t) as a list of list of SequenceReads.
+        :param read_log_likelihoods: A precomputed list of tensors containing read-fragment log likelihoods
+          (output of compute_read_likelihoods(logarithm=True).)
         :param device: The torch device to run the calculations on.
         :return: The log-likelihood from the generative model. Outputs a length-N
         tensor (one log-likelihood for each sample).
         """
-        n = X[0].size(0)
-        ans = torch.zeros(n, dtype=torch.double, device=device)
-        prev_x = torch.tensor(len(self.mu), device=device)
+        N = X[0].size(0)
+        ans = torch.zeros(N, dtype=torch.double, device=device)
+        prev_x = self.mu.to(device=device)
         for t in range(len(X)):
             # ==== Note:
             # each x_t is an N x S matrix.
             x_t = X[t]
             dist = MultivariateNormal(
-                loc=prev_x.mm,
-                covariance_matrix=self.time_scale(t) * torch.eye(self.num_strains())
+                loc=prev_x,
+                covariance_matrix=self.time_scale(t) * torch.eye(self.num_strains(), device=device)
             )
             ans = ans + dist.log_prob(x_t)
             prev_x = x_t
@@ -94,15 +96,16 @@ class GenerativeModel:
             z_t = y_t.mm(frag_freqs.transpose(0, 1))  # an N x F matrix, each row is a frag frequency vector.
 
             # ==== Note:
-            # each f_t is an N x R_t matrix.
+            # each f_t is an N x R_t matrix; sum categorical log-likelihoods over reads (for each sampled z_t).
+            # Note that the transpose is very important; z is (N x F), f_t.t() is (R_t x N) so that
+            # the output is (R_t x N) -> each column is the n-th likelihood vector of all the reads.
             f_t = F[t]
-            ans = ans + Categorical(z_t).log_prob(f_t)
-            for m in range(n):
-                for i, read in enumerate(R[t]):
-                    ans[m] = ans[m] + self.error_model.compute_log_likelihood(
-                        fragment=self.get_fragment_space().get_fragment_by_index(i),
-                        read=read
-                    )
+            ans = ans + Categorical(z_t).log_prob(f_t.t()).sum(0)
+
+            # E_t is an F x N matrix.
+            E_t = read_log_likelihoods[t]
+            for i in range(E_t.size(1)):
+                ans = ans + E_t[f_t[:, i], i]
         return ans
 
     def sample_abundances_and_reads(

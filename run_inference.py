@@ -11,13 +11,13 @@ import torch
 
 from model.generative import GenerativeModel
 from model.bacteria import Population
-from model.reads import SequenceRead, FastQErrorModel
-from algs import em, bbvi
+from model.reads import SequenceRead, FastQErrorModel, NoiselessErrorModel
+from algs import em, vsmc
 from visualizations import plot_abundances as plotter
 
 from typing import List
 from util.io.logger import logger
-from util.io.model_io import get_all_accessions_csv, load_fastq_reads, save_abundances, load_abundances
+from util.io.model_io import load_fastq_reads, save_abundances, load_abundances
 
 import multiprocessing
 from joblib import Parallel, delayed
@@ -46,7 +46,7 @@ def parse_args():
                              'See README for the expected format.')
     parser.add_argument('-t', '--time_points', required=True, nargs='+', type=int,
                         help='<Required> A list of integers. Each value represents a time point in the dataset.')
-    parser.add_argument('-m', '--method', choices=['em', 'vi', 'bbvi'], required=True,
+    parser.add_argument('-m', '--method', choices=['em', 'vsmc'], required=True,
                         help='<Required> A keyword specifying the inference method.')
 
     # Output specification.
@@ -65,9 +65,10 @@ def parse_args():
                              'strain by time point. For benchmarking.')
     parser.add_argument('-trim', '--marker_trim_len', required=False, type=int,
                         help='<Optional> An integer to trim markers down to. For testing/debugging.')
-    parser.add_argument('-tc', '--time_consistency', required=False, default="on", choices=["on", "off"],
-                        help='<Optional> Determines whether or not the EM algorithm should be run with'
-                             ' time consistency.')
+    parser.add_argument('--disable_quality', action="store_true",
+                        help='<Flag> Turn off effect of quality scores.')
+    parser.add_argument('--disable_time_consistency', action="store_true",
+                        help='<Flag> Turn off time consistency (perform separate inference on each time point).')
 
     return parser.parse_args()
 
@@ -79,24 +80,34 @@ def perform_em(
         abnd_out_filename: str,
         plot_out_filename: str,
         ground_truth_path: str,
-        time_consistency: str):
+        disable_time_consistency: bool,
+        disable_quality: bool):
 
     # ==== Run the solver.
-    if time_consistency == "on":
+    if not disable_time_consistency:
         solver = em.EMSolver(model, reads, torch_device=default_device, lr=1e-5)
         abundances = solver.solve(iters=10000, print_debug_every=1000, thresh=1e-8, gradient_clip=1e5)
     else:
+        logger.info("Flag --disable_time_consistency turned on; Performing inference on each sample independently.")
+
         def get_abundances(reads_t):
             population = model.bacteria_pop
-
-            pseudo_model = create_model(population=population, window_size=len(reads_t[0].seq), time_points=[1])
-            solver = em.EMSolver(pseudo_model, [reads_t], torch_device=default_device, lr=1e-5)
-            abundances_t = solver.solve(iters=10000, print_debug_every=1000, thresh=1e-8, gradient_clip=1e5)
+            pseudo_model = create_model(
+                population=population,
+                window_size=len(reads_t[0].seq),
+                time_points=[1],
+                disable_quality=disable_quality
+            )
+            instance_solver = em.EMSolver(pseudo_model, [reads_t], torch_device=default_device, lr=1e-5)
+            abundances_t = instance_solver.solve(iters=10000, print_debug_every=1000, thresh=1e-8, gradient_clip=1e5)
             return abundances_t[0]  # There are only abundances for one time point.
 
-        model.get_fragment_space()  # Generate fragment space before running times in parallel.
+        # Generate fragment space (stored and shared in Population instance) before running times in parallel.
+        model.get_fragment_space()
+
+        # Run jobs distributed across processes.
         abundances = Parallel(n_jobs=num_cores)(delayed(get_abundances)(reads_t) for reads_t in tqdm(reads))
-        abundances = torch.stack(abundances).to(default_device)
+        abundances = torch.stack(abundances)
 
     # ==== Save the learned abundances.
     output_path = save_abundances(
@@ -124,28 +135,43 @@ def perform_em(
         result_path=output_path,
         true_path=ground_truth_path,
         abundance_diff=diff,
-        time_consistency=time_consistency,
-        plots_out_path=plots_out_path
+        plots_out_path=plots_out_path,
+        disable_time_consistency=disable_time_consistency,
+        disable_quality=disable_quality
     )
     logger.info("Plots saved to {}.".format(plots_out_path))
 
 
-def perform_bbvi(
+def perform_vsmc(
         model: GenerativeModel,
-        reads: List[List[SequenceRead]]):
-    logger.info("Solving using Black-Box (Monte-Carlo) Variational Inference.")
-    solver = bbvi.BBVISolver(model=model, data=reads, device=default_device)
-    solver.solve()
-    posterior = solver.posterior
+        reads: List[List[SequenceRead]],
+        disable_time_consistency: bool):
 
+    # ==== Run the solver.
+    if not disable_time_consistency:
+        solver = vsmc.VSMCSolver(model=model, data=reads, torch_device=default_device)
+        solver.solve(
+            optim_class=torch.optim.Adam,
+            optim_args={'lr': 1e-2, 'betas': (0.9, 0.999), 'eps': 1e-7, 'weight_decay': 0.},
+            iters=1000,
+            num_samples=10000,
+            print_debug_every=20
+        )
+        posterior = solver.posterior
+    else:
+        raise NotImplementedError("Feature 'disable_time_consistency' not implemented yet for VSMC.")
+
+    # ==== Output the learned posterior.
     logger.info("Learned posterior:")
-    logger.info(posterior.params())
+    logger.info(posterior.means[0])
+    logger.info(posterior.covariances[0])
 
-    logger.info("Posterior sample:")
-    sample_x, sample_f = posterior.sample()
-    logger.info("X: ", sample_x)
-    logger.info("F: ", sample_f)
-    raise NotImplementedError("TODO check if this works.")
+    logger.info("softmax: {}".format(posterior.means[0].data.softmax(dim=0)))
+    logger.info("time 2 (AFTER SOFTMAX): {}".format(
+        (posterior.means[0] + posterior.means[1]).softmax(dim=0)
+    ))
+
+    raise NotImplementedError("TODO output plots.")
 
 
 def plot_result(
@@ -153,7 +179,8 @@ def plot_result(
         method_desc: str,
         result_path: str,
         plots_out_path: str,
-        time_consistency: bool,
+        disable_time_consistency: bool,
+        disable_quality: bool,
         abundance_diff: float = None,
         true_path: str = None):
     """
@@ -164,7 +191,8 @@ def plot_result(
     :param result_path: The path to the learned abundances.
     :param plots_out_path: The path to save the plots to.
     :param abundance_diff: The squared-norm difference between inferred abundances and ground-truth abundances.
-    :param time_consistency: Whether or not the inference algorithm was performed with time-consistency.
+    :param disable_time_consistency: Whether or not the inference algorithm was performed with time-consistency.
+    :param disable_quality: Whether or not quality scores were used.
     :param true_path: The path to the ground truth abundance file.
     (Optional. if none specified, then only plots the learned abundances.)
     :return: The path to the saved file.
@@ -175,7 +203,8 @@ def plot_result(
     title = "Average Read Depth over Time: " + str(round(avg_read_depth_over_time, 1)) + "\n" + \
             "Read Length: " + str(len(reads[0][0].seq)) + "\n" + \
             "Algorithm: " + method_desc + "\n" + \
-            "Time consistency: " + str(time_consistency)
+            ('Time consistency off\n' if disable_time_consistency else '') + \
+            ('Quality score off\n' if disable_quality else '')
 
     if true_path:
         title += "\nSquare-Norm Abundances Difference: " + str(round(abundance_diff, 3))
@@ -186,7 +215,7 @@ def plot_result(
             plots_out_path=plots_out_path
         )
     else:
-       plotter.plot_abundances(
+        plotter.plot_abundances(
             abnd_path=result_path,
             title=title,
             plots_out_path=plots_out_path
@@ -195,18 +224,25 @@ def plot_result(
 
 def create_model(population: Population,
                  window_size: int,
-                 time_points: List[int]):
+                 time_points: List[int],
+                 disable_quality: bool):
     """
     Simple wrapper for creating a generative model.
     @param population: The bacteria population.
     @param window_size: Fragment read length to use.
     @param time_points: List of time points for which samples are taken from.
+    @param disable_quality: A flag to indicate whether or not to use NoiselessErrorModel.
     @return A Generative model object.
     """
     mu = torch.zeros(len(population.strains))
     tau_1 = 100
     tau = 1
-    error_model = FastQErrorModel(read_len=window_size)
+
+    if disable_quality:
+        logger.info("Flag --disable_quality turned on; Quality scores are diabled.")
+        error_model = NoiselessErrorModel()
+    else:
+        error_model = FastQErrorModel(read_len=window_size)
 
     model = GenerativeModel(
         bacteria_pop=population,
@@ -249,7 +285,12 @@ def main():
         raise ValueError("Specified sample times must be distinct.")
 
     # ==== Create model instance
-    model = create_model(population=population, window_size=len(reads[0][0].seq), time_points=args.time_points)
+    model = create_model(
+        population=population,
+        window_size=len(reads[0][0].seq),
+        time_points=args.time_points,
+        disable_quality=args.disable_quality
+    )
 
     logger.debug("Strain keys:")
     for k, strain in enumerate(model.bacteria_pop.strains):
@@ -262,7 +303,7 @@ def main():
     """
 
     if args.method == 'em':
-        logger.info("Solving using Expectation-Maximization (Time consistency is {})".format(args.time_consistency))
+        logger.info("Solving using Expectation-Maximization.".format(args.time_consistency))
         perform_em(
             reads=reads,
             model=model,
@@ -270,31 +311,16 @@ def main():
             abnd_out_filename=args.out_file,
             plot_out_filename=args.plots_file,
             ground_truth_path=args.true_abundance_path,
-            time_consistency=args.time_consistency
+            disable_time_consistency=args.disable_time_consistency,
+            disable_quality=args.disable_quality
         )
-
-    elif args.method == 'bbvi':
-        perform_bbvi(
+    elif args.method == 'vsmc':
+        logger.info("Solving using Variational Sequential Monte-Carlo.")
+        perform_vsmc(
             model=model,
-            reads=reads
+            reads=reads,
+            disable_time_consistency=args.disable_time_consistency
         )
-    elif args.method == 'vi':
-        raise NotImplementedError("TODO: test!")
-        # logger.info("Solving using second-order variational inference.")
-        # posterior = vi.SecondOrderVariationalPosterior(
-        #     means=mu,
-        #     covariances=torch.eye(len(population.strains)),
-        #     frag_freqs=my_model.get_fragment_frequencies())
-        # solver = vi.SecondOrderVariationalGradientSolver(my_model, reads, posterior)
-        # abundances = solver.solve()
-        # save_abundances(
-        #     population=population,
-        #     time_points=time_points,
-        #     abundances=abundances,
-        #     out_filename=out_filename,
-        #     out_dir=out_dir
-        # )
-        # return abundances
     else:
         raise ValueError("{} is not an implemented method.".format(args.method))
 

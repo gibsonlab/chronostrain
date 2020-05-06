@@ -35,7 +35,7 @@ class EMSolver(AbstractModelSolver):
         :param lr: the learning rate (default: 1e-3
         """
         super().__init__(generative_model, data)
-        self.read_likelihoods = compute_read_likelihoods(self.model, self.data, device=torch_device)
+        self.read_likelihoods = compute_read_likelihoods(self.model, self.data, logarithm=False, device=torch_device)
         self.lr = lr
         self.device = torch_device
         self.model.get_fragment_frequencies()
