@@ -20,7 +20,6 @@ from tqdm import tqdm
 
 num_cores = multiprocessing.cpu_count()
 
-
 class AbstractModelSolver(metaclass=ABCMeta):
     def __init__(self, model: GenerativeModel, data: List[List[SequenceRead]]):
         self.model = model
@@ -47,7 +46,8 @@ def compute_read_likelihoods(
     logger.info("Computing read-fragment likelihoods...")
 
     def create_matrix(k):
-        # Each is an (F x N) matrix.
+        # Each is an (F x N) matrix,
+        # where N is the number of reads in a given time point and F is the number of fragments.
         return torch.tensor([
             [
                 model.error_model.compute_log_likelihood(f, r) if logarithm

@@ -19,9 +19,15 @@ from typing import List
 from util.io.logger import logger
 from util.io.model_io import load_fastq_reads, save_abundances, load_abundances
 
+import multiprocessing
+from joblib import Parallel, delayed
+from tqdm import tqdm
+
 # ============================= Constants =================================
 default_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.set_default_tensor_type(torch.DoubleTensor)
+
+num_cores = multiprocessing.cpu_count()
 
 _data_dir = "data"
 # =========================== END Constants ===============================
@@ -61,6 +67,8 @@ def parse_args():
                         help='<Optional> An integer to trim markers down to. For testing/debugging.')
     parser.add_argument('--disable_quality', action="store_true",
                         help='<Flag> Turn off effect of quality scores.')
+    parser.add_argument('--disable_time_consistency', action="store_true",
+                        help='<Flag> Turn off time consistency (perform separate inference on each time point).')
 
     return parser.parse_args()
 
@@ -71,11 +79,24 @@ def perform_em(
         out_dir: str,
         abnd_out_filename: str,
         plot_out_filename: str,
-        ground_truth_path: str):
+        ground_truth_path: str,
+        disable_time_consistency: bool):
 
     # ==== Run the solver.
-    solver = em.EMSolver(model, reads, torch_device=default_device, lr=1e-4)
-    abundances = solver.solve(iters=10000, print_debug_every=1000, thresh=1e-8, gradient_clip=1e2)
+    if disable_time_consistency:
+        solver = em.EMSolver(model, reads, torch_device=default_device, lr=1e-5)
+        abundances = solver.solve(iters=10000, print_debug_every=1000, thresh=1e-8, gradient_clip=1e5)
+    else:
+        def get_abundances(reads_t):
+            population = model.bacteria_pop
+            pseudo_model = create_model(population=population, window_size=len(reads_t[0].seq), time_points=[1])
+            solver = em.EMSolver(pseudo_model, [reads_t], torch_device=default_device, lr=1e-5)
+            abundances_t = solver.solve(iters=10000, print_debug_every=1000, thresh=1e-8, gradient_clip=1e5)
+            return abundances_t[0]  # There are only abundances for one time point.
+
+        model.get_fragment_space()  # Generate fragment space before running times in parallel.
+        abundances = Parallel(n_jobs=num_cores)(delayed(get_abundances)(reads_t) for reads_t in tqdm(reads))
+        abundances = torch.stack(abundances).to(default_device)
 
     # ==== Save the learned abundances.
     output_path = save_abundances(
@@ -87,22 +108,26 @@ def perform_em(
     )
     logger.info("Abundances saved to {}.".format(output_path))
 
-    # ==== Plot the learned abundances.
-    plots_out_path = plot_result(
-        reads=reads,
-        method_desc='Expectation-Maximization',
-        result_path=output_path,
-        plots_out_dir=out_dir,
-        plots_out_filename=plot_out_filename,
-        true_path=ground_truth_path
-    )
-    logger.info("Plots saved to {}.".format(plots_out_path))
-
+    # ==== Get difference between learned abundances and ground-truth abundances.
+    diff = None
     if ground_truth_path:
         _, predicted_abundances, _ = load_abundances(file_path=output_path, torch_device=default_device)
         _, actual_abundances, _ = load_abundances(file_path=ground_truth_path, torch_device=default_device)
-        diff = torch.norm(predicted_abundances - actual_abundances, p='fro')
+        diff = torch.norm(predicted_abundances - actual_abundances, p='fro').item()
         logger.debug("Abundance squared-norm difference: {}".format(diff))
+
+    # ==== Plot the learned abundances.
+    plots_out_path = os.path.join(out_dir, plot_out_filename)
+    plot_result(
+        reads=reads,
+        method_desc='Expectation-Maximization',
+        result_path=output_path,
+        true_path=ground_truth_path,
+        abundance_diff=diff,
+        time_consistency=time_consistency,
+        plots_out_path=plots_out_path
+    )
+    logger.info("Plots saved to {}.".format(plots_out_path))
 
 
 def perform_vsmc(
@@ -137,17 +162,19 @@ def plot_result(
         reads: List[List[SequenceRead]],
         method_desc: str,
         result_path: str,
-        plots_out_dir: str,
-        plots_out_filename: str,
-        true_path: str = None) -> str:
+        plots_out_path: str,
+        time_consistency: bool,
+        abundance_diff: float = None,
+        true_path: str = None):
     """
     Draw a plot of the abundances, and save to a file.
 
     :param reads: The collection of reads as input.
     :param method_desc: An informative name of the method used to perform inference.
     :param result_path: The path to the learned abundances.
-    :param plots_out_dir: The directory to save the plots to.
-    :param plots_out_filename: The filename to output to.
+    :param plots_out_path: The path to save the plots to.
+    :param abundance_diff: The squared-norm difference between inferred abundances and ground-truth abundances.
+    :param time_consistency: Whether or not the inference algorithm was performed with time-consistency.
     :param true_path: The path to the ground truth abundance file.
     (Optional. if none specified, then only plots the learned abundances.)
     :return: The path to the saved file.
@@ -157,24 +184,52 @@ def plot_result(
 
     title = "Average Read Depth over Time: " + str(round(avg_read_depth_over_time, 1)) + "\n" + \
             "Read Length: " + str(len(reads[0][0].seq)) + "\n" + \
-            "Algorithm: " + method_desc
+            "Algorithm: " + method_desc + "\n" + \
+            "Time consistency: " + str(time_consistency)
 
     if true_path:
-        plots_out_path = plotter.plot_abundances_comparison(
+        title += "\nSquare-Norm Abundances Difference: " + str(round(abundance_diff, 3))
+        plotter.plot_abundances_comparison(
             inferred_abnd_path=result_path,
             real_abnd_path=true_path,
             title=title,
-            output_dir=plots_out_dir,
-            output_filename=plots_out_filename
+            plots_out_path=plots_out_path
         )
     else:
-        plots_out_path = plotter.plot_abundances(
-            inferred_abnd_path=result_path,
+       plotter.plot_abundances(
+            abnd_path=result_path,
             title=title,
-            output_dir=plots_out_dir,
-            output_filename=plots_out_filename
+            plots_out_path=plots_out_path
         )
-    return plots_out_path
+
+
+def create_model(population: Population,
+                 window_size: int,
+                 time_points: List[int]):
+    """
+    Simple wrapper for creating a generative model.
+    @param population: The bacteria population.
+    @param window_size: Fragment read length to use.
+    @param time_points: List of time points for which samples are taken from.
+    @return A Generative model object.
+    """
+    mu = torch.zeros(len(population.strains))
+    tau_1 = 100
+    tau = 1
+    error_model = FastQErrorModel(read_len=window_size)
+
+    model = GenerativeModel(
+        bacteria_pop=population,
+        read_length=window_size,
+        times=time_points,
+        mu=mu,
+        tau_1=tau_1,
+        tau=tau,
+        read_error_model=error_model,
+        torch_device=default_device
+    )
+
+    return model
 
 
 def main():
@@ -203,6 +258,7 @@ def main():
     if len(args.time_points) != len(set(args.time_points)):
         raise ValueError("Specified sample times must be distinct.")
 
+    """
     # ==== Create model instance.
     mu = torch.zeros(len(population.strains), device=default_device)
     tau_1 = 100
@@ -224,6 +280,10 @@ def main():
         read_error_model=error_model,
         torch_device=default_device
     )
+    """
+
+    # ==== Create model instance
+    model = create_model(population=population, window_size=len(reads[0][0].seq), time_points=args.time_points)
 
     logger.debug("Strain keys:")
     for k, strain in enumerate(model.bacteria_pop.strains):
@@ -234,15 +294,17 @@ def main():
     1) 'em' runs Expectation-Maximization. Saves the learned abundances and plots them.
     2) 'bbvi' runs black-box VI and saves the learned posterior parametrization (as tensors).
     """
+
     if args.method == 'em':
-        logger.info("Solving using Expectation-Maximization.")
+        logger.info("Solving using Expectation-Maximization (Time consistency is {})".format(args.time_consistency))
         perform_em(
             reads=reads,
             model=model,
             out_dir=args.out_dir,
             abnd_out_filename=args.out_file,
             plot_out_filename=args.plots_file,
-            ground_truth_path=args.true_abundance_path
+            ground_truth_path=args.true_abundance_path,
+            time_consistency=args.time_consistency
         )
     elif args.method == 'vsmc':
         logger.info("Solving using Variational Sequential Monte-Carlo.")

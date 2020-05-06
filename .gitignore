@@ -5,9 +5,6 @@ __pycache__/
 *.gnk
 *.pyc
 data/
-simulated_data/
-output/
-data/markers/
 logs/
 *.ini
-
+log_config.ini
