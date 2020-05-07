@@ -5,6 +5,8 @@
 """
 
 import argparse
+
+from algs.vsmc import VariationalSequentialPosterior
 from database.base import *
 
 import torch
@@ -35,8 +37,6 @@ _data_dir = "data"
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Perform inference on time-series reads.")
-    # parser.add_argument('-d', '--read_files_dir', required=True,
-    #                     help='<Required> Directory containing read files.')
 
     # Input specification.
     parser.add_argument('-r', '--read_files', nargs='+', required=True,
@@ -69,6 +69,11 @@ def parse_args():
                         help='<Flag> Turn off effect of quality scores.')
     parser.add_argument('--disable_time_consistency', action="store_true",
                         help='<Flag> Turn off time consistency (perform separate inference on each time point).')
+    parser.add_argument('--iters', required=False, type=int, default=10000,
+                        help='<Optional> The number of iterations to run (if using EM or Variational Inference).')
+    parser.add_argument('--num_samples', required=False, type=int, default=10000,
+                        help='<Optional> The number of samples to use for monte-carlo estimation '
+                             '(for Variational solution).')
 
     return parser.parse_args()
 
@@ -81,12 +86,13 @@ def perform_em(
         plot_out_filename: str,
         ground_truth_path: str,
         disable_time_consistency: bool,
-        disable_quality: bool):
+        disable_quality: bool,
+        iters: int):
 
     # ==== Run the solver.
     if not disable_time_consistency:
         solver = em.EMSolver(model, reads, torch_device=default_device, lr=1e-5)
-        abundances = solver.solve(iters=10000, print_debug_every=1000, thresh=1e-8, gradient_clip=1e5)
+        abundances = solver.solve(iters=iters, print_debug_every=1000, thresh=1e-8, gradient_clip=1e5)
     else:
         logger.info("Flag --disable_time_consistency turned on; Performing inference on each sample independently.")
 
@@ -129,9 +135,8 @@ def perform_em(
 
     # ==== Plot the learned abundances.
     plots_out_path = os.path.join(out_dir, plot_out_filename)
-    plot_result(
+    plot_em_result(
         reads=reads,
-        method_desc='Expectation-Maximization',
         result_path=output_path,
         true_path=ground_truth_path,
         abundance_diff=diff,
@@ -145,7 +150,12 @@ def perform_em(
 def perform_vsmc(
         model: GenerativeModel,
         reads: List[List[SequenceRead]],
-        disable_time_consistency: bool):
+        disable_time_consistency: bool,
+        disable_quality: bool,
+        iters: int,
+        num_samples: int,
+        ground_truth_path: str,
+        plot_out_filename: str):
 
     # ==== Run the solver.
     if not disable_time_consistency:
@@ -153,30 +163,28 @@ def perform_vsmc(
         solver.solve(
             optim_class=torch.optim.Adam,
             optim_args={'lr': 1e-2, 'betas': (0.9, 0.999), 'eps': 1e-7, 'weight_decay': 0.},
-            iters=1000,
-            num_samples=10000,
+            iters=iters,
+            num_samples=num_samples,
             print_debug_every=20
         )
         posterior = solver.posterior
     else:
-        raise NotImplementedError("Feature 'disable_time_consistency' not implemented yet for VSMC.")
+        raise NotImplementedError("Feature 'disable_time_consistency' not implemented for VSMC.")
 
-    # ==== Output the learned posterior.
-    logger.info("Learned posterior:")
-    logger.info(posterior.means[0])
-    logger.info(posterior.covariances[0])
+    plot_vsmc_result(
+        times=model.times,
+        population=model.bacteria_pop,
+        reads=reads,
+        posterior=posterior,
+        disable_time_consistency=disable_time_consistency,
+        disable_quality=disable_quality,
+        truth_path=ground_truth_path,
+        plots_out_path=plot_out_filename
+    )
 
-    logger.info("softmax: {}".format(posterior.means[0].data.softmax(dim=0)))
-    logger.info("time 2 (AFTER SOFTMAX): {}".format(
-        (posterior.means[0] + posterior.means[1]).softmax(dim=0)
-    ))
 
-    raise NotImplementedError("TODO output plots.")
-
-
-def plot_result(
+def plot_em_result(
         reads: List[List[SequenceRead]],
-        method_desc: str,
         result_path: str,
         plots_out_path: str,
         disable_time_consistency: bool,
@@ -187,7 +195,6 @@ def plot_result(
     Draw a plot of the abundances, and save to a file.
 
     :param reads: The collection of reads as input.
-    :param method_desc: An informative name of the method used to perform inference.
     :param result_path: The path to the learned abundances.
     :param plots_out_path: The path to save the plots to.
     :param abundance_diff: The squared-norm difference between inferred abundances and ground-truth abundances.
@@ -202,7 +209,7 @@ def plot_result(
 
     title = "Average Read Depth over Time: " + str(round(avg_read_depth_over_time, 1)) + "\n" + \
             "Read Length: " + str(len(reads[0][0].seq)) + "\n" + \
-            "Algorithm: " + method_desc + "\n" + \
+            "Algorithm: Expectation-Maximization" + "\n" + \
             ('Time consistency off\n' if disable_time_consistency else '') + \
             ('Quality score off\n' if disable_quality else '')
 
@@ -222,6 +229,38 @@ def plot_result(
         )
 
 
+def plot_vsmc_result(
+        times: List[int],
+        population: Population,
+        reads: List[List[SequenceRead]],
+        posterior: VariationalSequentialPosterior,
+        disable_time_consistency: bool,
+        disable_quality: bool,
+        plots_out_path: str,
+        truth_path: str = None):
+    num_reads_per_time = list(map(len, reads))
+    avg_read_depth_over_time = sum(num_reads_per_time) / len(num_reads_per_time)
+
+    title = "Average Read Depth over Time: " + str(round(avg_read_depth_over_time, 1)) + "\n" + \
+            "Read Length: " + str(len(reads[0][0].seq)) + "\n" + \
+            "Algorithm: Variational Sequential Monte-Carlo" + "\n" + \
+            ('Time consistency off\n' if disable_time_consistency else '') + \
+            ('Quality score off\n' if disable_quality else '')
+
+    means = posterior.get_means_detached()
+    variances = posterior.get_variances_detached()
+
+    plotter.plot_posterior_abundances(
+        times=times,
+        population=population,
+        means=means,
+        variances=variances,
+        title=title,
+        plots_out_path=plots_out_path,
+        truth_path=truth_path
+    )
+
+
 def create_model(population: Population,
                  window_size: int,
                  time_points: List[int],
@@ -234,7 +273,7 @@ def create_model(population: Population,
     @param disable_quality: A flag to indicate whether or not to use NoiselessErrorModel.
     @return A Generative model object.
     """
-    mu = torch.zeros(len(population.strains))
+    mu = torch.zeros(len(population.strains), device=default_device)
     tau_1 = 100
     tau = 1
 
@@ -303,7 +342,7 @@ def main():
     """
 
     if args.method == 'em':
-        logger.info("Solving using Expectation-Maximization.".format(args.time_consistency))
+        logger.info("Solving using Expectation-Maximization.")
         perform_em(
             reads=reads,
             model=model,
@@ -312,14 +351,20 @@ def main():
             plot_out_filename=args.plots_file,
             ground_truth_path=args.true_abundance_path,
             disable_time_consistency=args.disable_time_consistency,
-            disable_quality=args.disable_quality
+            disable_quality=args.disable_quality,
+            iters=args.iters
         )
     elif args.method == 'vsmc':
         logger.info("Solving using Variational Sequential Monte-Carlo.")
         perform_vsmc(
             model=model,
             reads=reads,
-            disable_time_consistency=args.disable_time_consistency
+            disable_time_consistency=args.disable_time_consistency,
+            disable_quality=args.disable_quality,
+            iters=args.iters,
+            num_samples=args.num_samples,
+            ground_truth_path=args.true_abundance_path,
+            plot_out_filename=args.plots_file
         )
     else:
         raise ValueError("{} is not an implemented method.".format(args.method))
