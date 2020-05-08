@@ -14,7 +14,7 @@ import torch
 from model.generative import GenerativeModel
 from model.bacteria import Population
 from model.reads import SequenceRead, FastQErrorModel, NoiselessErrorModel
-from algs import em, vsmc
+from algs import em, vsmc, bbvi
 from visualizations import plot_abundances as plotter
 
 from typing import List
@@ -46,7 +46,7 @@ def parse_args():
                              'See README for the expected format.')
     parser.add_argument('-t', '--time_points', required=True, nargs='+', type=int,
                         help='<Required> A list of integers. Each value represents a time point in the dataset.')
-    parser.add_argument('-m', '--method', choices=['em', 'vsmc'], required=True,
+    parser.add_argument('-m', '--method', choices=['em', 'bbvi', 'vsmc'], required=True,
                         help='<Required> A keyword specifying the inference method.')
 
     # Output specification.
@@ -162,7 +162,7 @@ def perform_vsmc(
         solver = vsmc.VSMCSolver(model=model, data=reads, torch_device=default_device)
         solver.solve(
             optim_class=torch.optim.Adam,
-            optim_args={'lr': 1e-2, 'betas': (0.9, 0.999), 'eps': 1e-7, 'weight_decay': 0.},
+            optim_args={'lr': 1e-2, 'betas': (0.7, 0.7), 'eps': 1e-7, 'weight_decay': 0.},
             iters=iters,
             num_samples=num_samples,
             print_debug_every=20
@@ -171,7 +171,45 @@ def perform_vsmc(
     else:
         raise NotImplementedError("Feature 'disable_time_consistency' not implemented for VSMC.")
 
-    plot_vsmc_result(
+    plot_variational_result(
+        method='Variational Sequential Monte Carlo',
+        times=model.times,
+        population=model.bacteria_pop,
+        reads=reads,
+        posterior=posterior,
+        disable_time_consistency=disable_time_consistency,
+        disable_quality=disable_quality,
+        truth_path=ground_truth_path,
+        plots_out_path=plot_out_filename
+    )
+
+
+def perform_bbvi(
+        model: GenerativeModel,
+        reads: List[List[SequenceRead]],
+        disable_time_consistency: bool,
+        disable_quality: bool,
+        iters: int,
+        num_samples: int,
+        ground_truth_path: str,
+        plot_out_filename: str):
+
+    # ==== Run the solver.
+    if not disable_time_consistency:
+        solver = bbvi.BBVISolver(model=model, data=reads, device=default_device)
+        solver.solve(
+            optim_class=torch.optim.Adam,
+            optim_args={'lr': 1e-4, 'betas': (0.9, 0.999), 'eps': 1e-7, 'weight_decay': 0.},
+            iters=iters,
+            num_samples=num_samples,
+            print_debug_every=20
+        )
+        posterior = solver.posterior
+    else:
+        raise NotImplementedError("Feature 'disable_time_consistency' not implemented for BBVI.")
+
+    plot_variational_result(
+        method='Black-Box Variational Inference',
         times=model.times,
         population=model.bacteria_pop,
         reads=reads,
@@ -229,7 +267,8 @@ def plot_em_result(
         )
 
 
-def plot_vsmc_result(
+def plot_variational_result(
+        method: str,
         times: List[int],
         population: Population,
         reads: List[List[SequenceRead]],
@@ -243,7 +282,7 @@ def plot_vsmc_result(
 
     title = "Average Read Depth over Time: " + str(round(avg_read_depth_over_time, 1)) + "\n" + \
             "Read Length: " + str(len(reads[0][0].seq)) + "\n" + \
-            "Algorithm: Variational Sequential Monte-Carlo" + "\n" + \
+            "Algorithm: " + method + "\n" + \
             ('Time consistency off\n' if disable_time_consistency else '') + \
             ('Quality score off\n' if disable_quality else '')
 
@@ -353,6 +392,18 @@ def main():
             disable_time_consistency=args.disable_time_consistency,
             disable_quality=args.disable_quality,
             iters=args.iters
+        )
+    elif args.method == 'bbvi':
+        logger.info("Solving using Black-Box Variational Inference.")
+        perform_bbvi(
+            model=model,
+            reads=reads,
+            disable_time_consistency=args.disable_time_consistency,
+            disable_quality=args.disable_quality,
+            iters=args.iters,
+            num_samples=args.num_samples,
+            ground_truth_path=args.true_abundance_path,
+            plot_out_filename=args.plots_file
         )
     elif args.method == 'vsmc':
         logger.info("Solving using Variational Sequential Monte-Carlo.")

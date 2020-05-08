@@ -1,4 +1,3 @@
-import math
 from util.io.logger import logger
 from algs.base import AbstractModelSolver, compute_read_likelihoods
 from abc import ABCMeta, abstractmethod
@@ -9,9 +8,9 @@ from abc import ABCMeta, abstractmethod
 # ================================================================================================
 
 class AbstractGradientVISolver(AbstractModelSolver, metaclass=ABCMeta):
-    def __init__(self, generative_model, data, variational_posterior):
+    def __init__(self, generative_model, data, variational_posterior, device):
         super().__init__(generative_model, data)
-        self.frag_errors = compute_read_likelihoods(generative_model, data)
+        self.frag_errors = compute_read_likelihoods(model=generative_model, reads=data, logarithm=False, device=device)
         self.posterior = variational_posterior
 
     def solve(self, iters=100, thresh=1e-5):
@@ -183,9 +182,3 @@ def delta(i, j):
     if i == j:
         return 1
     return 0
-
-
-def softmax(x):
-    shiftx = x - np.max(x)
-    exps = np.exp(shiftx)
-    return exps / np.sum(exps)

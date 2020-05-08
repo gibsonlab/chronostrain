@@ -72,7 +72,7 @@ class EMSolver(AbstractModelSolver):
             iters,
             thresh
         ))
-        time_est = RuntimeEstimator(total_iters=iters, horizon=5)
+        time_est = RuntimeEstimator(total_iters=iters, horizon=print_debug_every)
         k = 1
         while k <= iters:
             time_est.stopwatch_click()

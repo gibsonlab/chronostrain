@@ -14,7 +14,6 @@ from algs.base import AbstractModelSolver, compute_read_likelihoods
 from util.benchmarking import RuntimeEstimator
 
 from util.io.logger import logger
-from util.torch import multi_logit
 
 
 class VariationalSequentialPosterior:
@@ -153,8 +152,9 @@ class VSMCSolver(AbstractModelSolver):
             X = distribution.sample().detach()
 
             # Compute weights.
-            logW = self.generative_log_prob(t=t, X=X, X_prev=X_prev) - distribution.log_prob(X)
-            W_log_means.append(logW.exp().mean().log())
+            logW = self.model.log_likelihood_xt(
+                t=t, X=X, X_prev=X_prev, read_likelihoods=self.read_likelihoods[t]
+            ) - distribution.log_prob(X)
 
             # Resampling probabilities.
             W_normalized = (logW - logW.max()).detach().exp()  # Turn off gradients for re-sampling.
@@ -163,34 +163,6 @@ class VSMCSolver(AbstractModelSolver):
 
             W_summands.append((W_normalized * logW).sum())
         return torch.stack(W_summands).sum()
-
-        # return torch.stack(W_log_means).sum()
-
-    def generative_log_prob(self, t, X, X_prev):
-        """
-        :param t: the time index (0 thru T-1)
-        :param X: (N x S-1) tensor of time (t) samples.
-        :param X_prev: (N x S-1) tensor of time (t-1) samples.
-        :return: The joint log-likelihood p(X_t, Reads_t | X_{t-1}).
-        """
-        # Gaussian part
-        N = X_prev.size(0)
-        if t == 0:
-            center = self.model.mu.repeat(N, 1)
-        else:
-            center = X_prev
-        covariance = self.model.time_scale(t) * torch.eye(self.model.num_strains() - 1, device=self.device)
-        distribution = MultivariateNormal(loc=center, covariance_matrix=covariance)
-        gaussian_log_probs = distribution.log_prob(X)
-
-        # Reads likelihood calculation, conditioned on the Gaussian part.
-        data_log_probs = (multi_logit(X, dim=1)
-                          .mm(self.model.get_fragment_frequencies().t())
-                          .mm(self.read_likelihoods[t])
-                          .log()
-                          .sum(dim=1))
-
-        return gaussian_log_probs + data_log_probs
 
     def solve(self,
               optim_class=torch.optim.Adam,
@@ -206,10 +178,10 @@ class VSMCSolver(AbstractModelSolver):
             **optim_args
         )
 
-        logger.debug("BBVI algorithm started. (Gradient method, Target iterations = {})".format(
-            iters
+        logger.debug("VSMC algorithm started. (Target iterations = {it})".format(
+            it=iters
         ))
-        time_est = RuntimeEstimator(total_iters=iters, horizon=5)
+        time_est = RuntimeEstimator(total_iters=iters, horizon=print_debug_every)
         for i in range(1, iters+1, 1):
             time_est.stopwatch_click()
 
