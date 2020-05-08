@@ -79,6 +79,7 @@ def sample_reads(
     :param read_depths: The read counts for each time point.
     :param read_length: The read length.
     :param time_points: A list of time values (in increasing order).
+    :param disable_quality: A flag to indicate whether to use NoiselessErrorModel.
     :param abundances: (Optional) An abundance profile as a T x S tensor.
      Could be positive-valued weights (e.g. absolute abundances).
      If none specified, the generative model samples its own from a Gaussian process.
@@ -88,7 +89,7 @@ def sample_reads(
     torch.manual_seed(seed)
 
     # Default/unbiased parameters for prior.
-    mu = torch.zeros(len(population.strains), device=default_device)  # One dimension for each strain
+    mu = torch.zeros(len(population.strains) - 1, device=default_device)  # One dimension for each strain
     tau_1 = 1
     tau = 1
 
@@ -108,6 +109,8 @@ def sample_reads(
                                           torch_device=default_device)
 
     if len(read_depths) != len(time_points):
+        logger.warn("Not enough read depths specified for time points. "
+                    "Defaulting to {} per time point.".format(read_depths[0]))
         read_depths = [read_depths[0]]*len(time_points)
 
     if abundances is not None:
