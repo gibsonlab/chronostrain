@@ -273,8 +273,8 @@ def create_model(population: Population,
     @param disable_quality: A flag to indicate whether or not to use NoiselessErrorModel.
     @return A Generative model object.
     """
-    mu = torch.zeros(len(population.strains), device=default_device)
-    tau_1 = 100
+    mu = torch.zeros(len(population.strains) - 1, device=default_device)
+    tau_1 = 1000
     tau = 1
 
     if disable_quality:

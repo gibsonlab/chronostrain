@@ -1,4 +1,3 @@
-import math
 from typing import List
 
 import torch
@@ -8,6 +7,7 @@ import pandas as pd
 
 from model.bacteria import Population
 from util.io.model_io import load_abundances
+from util.torch import multi_logit
 
 
 def plot_abundances_comparison(
@@ -72,29 +72,25 @@ def plot_posterior_abundances(
         _, true_abundances, accessions = load_abundances(truth_path)
         truth_acc_dict = {acc: i for i, acc in enumerate(accessions)}
 
-    mean_softmax = [torch.nn.functional.softmax(means[t], dim=0) for t in range(len(times))]
+    mean_softmax = [multi_logit(means[t], dim=0) for t in range(len(times))]
     stdevs = [variances[t].sqrt() for t in range(len(times))]
 
     for s, strain in enumerate(population.strains):
         val = [mean_softmax[t][s].item() for t in range(len(times))]
-        delta = -torch.ones(size=means[0].size(), device=means[0].device)
-        delta[s] = 1
-        upper = [
-            torch.nn.functional.softmax(means[t] + (stdevs[t] * delta[s]), dim=0)[s].item()
-            for t in range(len(times))
-        ]
-        lower = [
-            torch.nn.functional.softmax(means[t] - (stdevs[t] * delta[s]), dim=0)[s].item()
-            for t in range(len(times))
-        ]
-        # print("Upper: ", upper)
-        # print("Lower: ", lower)
-        # upper = [means[t][s].item() + math.sqrt(variances[t][s].item()) for t in range(len(times))]
-        # lower = [means[t][s].item() - math.sqrt(variances[t][s].item()) for t in range(len(times))]
+        # delta = -torch.ones(size=means[0].size(), device=means[0].device)
+        # delta[s] = 1
+        # upper = [
+        #     multi_logit(means[t] + 2 * (stdevs[t] * delta), dim=0)[s].item()
+        #     for t in range(len(times))
+        # ]
+        # lower = [
+        #     multi_logit(means[t] - 2 * (stdevs[t] * delta), dim=0)[s].item()
+        #     for t in range(len(times))
+        # ]
 
         p = plt.plot(times, val, linestyle='solid', label=strain.name)
         color = p[-1].get_color()
-        plt.fill_between(times, lower, upper, facecolor=color, alpha=0.2)
+        # plt.fill_between(times, lower, upper, facecolor=color, alpha=0.2)
 
         if true_abundances is not None:
             truth = [true_abundances[t, truth_acc_dict[strain.name]].item() for t in range(len(times))]
