@@ -56,7 +56,7 @@ def save_abundances(
     return out_path
 
 
-def load_abundances(file_path: str, torch_device) -> Tuple[List[int], torch.Tensor, List[str]]:
+def load_abundances(file_path: str, torch_device=torch.device("cpu")) -> Tuple[List[int], torch.Tensor, List[str]]:
     """
     Read time-indexed abundances from file.
 

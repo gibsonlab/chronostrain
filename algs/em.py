@@ -7,7 +7,8 @@ from model.reads import SequenceRead
 from model.generative import GenerativeModel
 
 import torch
-from torch.nn.functional import softmax
+
+from util.torch import multi_logit
 
 torch.set_default_dtype(torch.float64)
 
@@ -52,15 +53,16 @@ class EMSolver(AbstractModelSolver):
         :param iters: number of iterations.
         :param thresh: the threshold that determines the convergence criterion (implemented as Frobenius norm of
         abundances).
-        :param gradient_clip: An upper bound on the Frobenius norm of the underlying GP trajectory (as a T x S matrix).
-        :param initialization: A (T x S) matrix of time-series abundances. If not specified, set to all-zeros matrix.
+        :param gradient_clip: An upper bound on the Frobenius norm of the underlying GP trajectory
+        (as a T x S-1 matrix).
+        :param initialization: A (T x S-1) matrix of time-series abundances. If not specified, set to all-zeros matrix.
         :param print_debug_every: The number of iterations to skip between debug logging summary.
         :return: The estimated abundances
         """
         if initialization is None:
             # T x S array representing a time-indexed, S-dimensional brownian motion.
             brownian_motion = torch.ones(
-                size=[len(self.model.times), len(self.model.bacteria_pop.strains)],
+                size=[len(self.model.times), len(self.model.bacteria_pop.strains) - 1],
                 device=self.device
             )
         else:
@@ -79,7 +81,7 @@ class EMSolver(AbstractModelSolver):
             time_est.increment(secs_elapsed)
 
             diff = torch.norm(
-                softmax(updated_brownian_motion, dim=1) - softmax(brownian_motion, dim=1),
+                multi_logit(updated_brownian_motion, dim=1) - multi_logit(brownian_motion, dim=1),
                 p='fro'
             )
 
@@ -98,7 +100,7 @@ class EMSolver(AbstractModelSolver):
             k += 1
         logger.info("Finished {k} iterations.".format(k=k-1))
 
-        abundances = [softmax(gaussian, dim=0) for gaussian in brownian_motion]
+        abundances = [multi_logit(gaussian, dim=0) for gaussian in brownian_motion]
         normalized_abundances = torch.stack(abundances).to(self.device)
         return normalized_abundances
 
@@ -108,15 +110,17 @@ class EMSolver(AbstractModelSolver):
             gradient_clip: float
     ):
         T, S = x.size()
+        S = S + 1
+
         F = self.model.num_fragments()
-        x_gradient = torch.zeros(size=x.size(), device=self.device)  # T x S tensor.
+        x_gradient = torch.zeros(size=x.size(), device=self.device)  # T x S-1 tensor.
 
         # ====== Gaussian part
         if T > 1:
             for t in range(T):
                 if t == 0:
                     variance_scaling = -1 / (self.model.tau_1 ** 2)
-                    x_gradient[t] = variance_scaling * ((2 * x[0]) - x[1] - torch.zeros(S, device=self.device))
+                    x_gradient[t] = variance_scaling * ((2 * x[0]) - x[1] - self.model.mu)
                 elif t == T-1:
                     variance_scaling = -1 / ((self.model.tau * (self.model.times[t] - self.model.times[t-1])) ** 2)
                     x_gradient[t] = variance_scaling * (x[T-1] - x[T-2])
@@ -126,11 +130,11 @@ class EMSolver(AbstractModelSolver):
                     x_gradient[t] = variance_scaling_prev * (x[t] - x[t-1]) + variance_scaling_next * (x[t] - x[t+1])
 
         # ====== Sigmoidal part
-        y = softmax(x, dim=1)
+        y = multi_logit(x, dim=1)
         for t in range(T):
             # Scale each row by Z_t, and normalize.
             Z_t = self.model.strain_abundance_to_frag_abundance(y[t].view(S, 1))
-            Q = self.get_frag_likelihoods(t) * Z_t
+            Q = self.get_frag_likelihoods(t) * Z_t  # Scale each row by Z_t's entries.
             Q = (Q / Q.sum(dim=0)[None, :]).sum(dim=1) / Z_t.view(F)
 
             sigmoid = y[t]
@@ -139,7 +143,8 @@ class EMSolver(AbstractModelSolver):
                                    torch.ones(S, S, device=self.device) - torch.eye(S, device=self.device)
                                )
 
-            x_gradient[t] = x_gradient[t] + sigmoid_jacobian.mv(
+            # Chopping off the last row corresponds to multi_logit appending zeros at the end.
+            x_gradient[t] = x_gradient[t] + sigmoid_jacobian[:-1, :].mv(
                 self.model.get_fragment_frequencies().t().mv(Q)
             )
 
@@ -148,9 +153,11 @@ class EMSolver(AbstractModelSolver):
         if grad_t_norm > gradient_clip:
             x_gradient = x_gradient * gradient_clip / grad_t_norm
 
-        # ==== Re-center to zero to prevent drift.
+
         updated_x = x + self.lr * x_gradient
-        updated_x = updated_x - (updated_x.mean() * torch.ones(size=updated_x.size(), device=self.device))
+
+        # ==== Re-center to zero to prevent drift.
+        # updated_x = updated_x - (updated_x.mean() * torch.ones(size=updated_x.size(), device=self.device))
 
         return updated_x
 

@@ -78,7 +78,7 @@ class Population:
         fragment_space = self.get_fragment_space(window_size)
         frag_freqs = torch.zeros(fragment_space.size(), len(self.strains), device=self.torch_device)
 
-        logger.info("Constructing fragment frequencies for window size {}...".format(window_size))
+        logger.debug("Constructing fragment frequencies for window size {}...".format(window_size))
 
         for col, strain in enumerate(self.strains):
             for marker in strain.markers:
@@ -89,7 +89,7 @@ class Population:
         frag_freqs = frag_freqs / torch.sum(frag_freqs, dim=0)
 
         self.fragment_frequencies_map[window_size] = frag_freqs
-        logger.info("Finished constructing fragment frequencies for window size {}.".format(window_size))
+        logger.debug("Finished constructing fragment frequencies for window size {}.".format(window_size))
         return frag_freqs
 
 

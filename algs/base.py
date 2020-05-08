@@ -20,6 +20,7 @@ from tqdm import tqdm
 
 num_cores = multiprocessing.cpu_count()
 
+
 class AbstractModelSolver(metaclass=ABCMeta):
     def __init__(self, model: GenerativeModel, data: List[List[SequenceRead]]):
         self.model = model
@@ -43,7 +44,7 @@ def compute_read_likelihoods(
     fragment_space = model.bacteria_pop.get_fragment_space(model.read_length)
 
     start_time = current_time_millis()
-    logger.info("Computing read-fragment likelihoods...")
+    logger.debug("Computing read-fragment likelihoods...")
 
     def create_matrix(k):
         # Each is an (F x N) matrix,

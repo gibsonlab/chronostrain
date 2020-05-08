@@ -7,7 +7,6 @@ import torch
 from typing import List
 
 from torch.distributions import MultivariateNormal, Categorical
-from torch.nn.functional import softmax
 
 from model.generative import GenerativeModel
 from model.reads import SequenceRead
@@ -15,6 +14,7 @@ from algs.base import AbstractModelSolver, compute_read_likelihoods
 from util.benchmarking import RuntimeEstimator
 
 from util.io.logger import logger
+from util.torch import multi_logit
 
 
 class VariationalSequentialPosterior:
@@ -40,7 +40,7 @@ class VariationalSequentialPosterior:
         #
         self.means = [
             torch.nn.Parameter(
-                torch.zeros(num_strains, device=device, dtype=torch.double),
+                torch.zeros(num_strains-1, device=device, dtype=torch.double),
                 requires_grad=True
             )
             for _ in range(num_times)
@@ -50,21 +50,21 @@ class VariationalSequentialPosterior:
         # These describe the means of the conditional distribution X_{t+1} | X_{t}.
         self.transitions = [
             torch.nn.Parameter(
-                torch.eye(num_strains, num_strains, device=device, dtype=torch.double),
-                requires_grad=False  # TODO change to "True" to enable training.
+                torch.eye(num_strains-1, num_strains-1, device=device, dtype=torch.double),
+                requires_grad=True
             )
             for _ in range(num_times - 1)
         ]
 
         # Represents the time-t covariances.
-        # Describes the conditional covariances Cov(X_{t+1} | X_{t}) -->
+        # Describes the CONDITIONAL covariances Cov(X_{t+1} | X_{t}) -->
         # think of "Sigma_{i,j}" as the (time-i, time-j) block of the complete Covariance matrix.
         # t > 1: Sigma_{t+1,t+1} - Sigma_{t+1,t}*inv(Sigma_{t,t})*Sigma_{t,t+1}
         # t = 1: Sigma_{1,1}
-        self.covariances = [
+        self.cond_covar_cholesky = [
             torch.nn.Parameter(
-                torch.eye(num_strains, device=device, dtype=torch.double),
-                requires_grad=True  # TODO change to "True" to enable training.
+                torch.eye(num_strains-1, device=device, dtype=torch.double),
+                requires_grad=True
             )
             for _ in range(num_times)
         ]
@@ -73,8 +73,24 @@ class VariationalSequentialPosterior:
         """
         Return a list of all learnable parameters (e.g. Parameter instances with requires_grad=True).
         """
-        # return self.means + self.transitions + self.covariances
-        return self.means + self.covariances
+        return self.means + self.transitions + self.cond_covar_cholesky
+        # return self.means
+
+    def get_means_detached(self):
+        return [mean.detach() for mean in self.means]
+
+    def get_variances_detached(self):
+        variances = []
+        prev_covariance = None
+        for t in range(self.times):
+            if t == 0:
+                covariance = self.cond_covar_cholesky[0].t().mm(self.cond_covar_cholesky[0])
+            else:
+                covariance = self.cond_covar_cholesky[t].t().mm(self.cond_covar_cholesky[t]) \
+                             + self.transitions[t-1].mm(prev_covariance.mm(self.transitions[t-1].t()))
+            variances.append(covariance.diagonal().detach())
+            prev_covariance = covariance
+        return variances
 
 
 class VSMCSolver(AbstractModelSolver):
@@ -117,44 +133,26 @@ class VSMCSolver(AbstractModelSolver):
                 # Initial distribution of X_0 (no resampling required).
                 distribution = MultivariateNormal(
                     loc=self.posterior.means[0].expand(num_samples, -1),
-                    covariance_matrix=self.posterior.covariances[0]
+                    covariance_matrix=(self.posterior.cond_covar_cholesky[0]
+                                       .t()
+                                       .mm(self.posterior.cond_covar_cholesky[0]))
                 )
             else:
                 # Resampling (double-check that gradient is turned off.)
                 children = Categorical(probs=W_normalized).sample([num_samples])  # Offsprings of each particle.
 
-                # print(" ******************************** ")
-                # print("Weights: ", W_normalized)
-                # print("generative likelihood: ", self.generative_log_prob(0, X_prev, X_prev))
-                # print("posterior likelihood: ", distribution.log_prob(X))
-                # print("logW = ", logW)
-                #
-                # print("X_prev: ", X_prev)
-                # Y = softmax(X_prev, dim=1)
-                # print("softmax(X_prev): ", Y)
-                # Z = Y.mm(self.model.get_fragment_frequencies().t())
-                # print("Z = ", Z)
-                # R = Z.mm(self.read_likelihoods[t-1])
-                # print("Read likelihoods = ", R)
-                # R_sum = R.log().sum(dim=1)
-                # print("joint read likelihoods = ", R_sum.exp())
-                #
-                # print("children: ", children)
-                # print("X_prev[children]: ", X_prev[children])
-                # print("after mat multiplication: ", X_prev[children].mm(self.posterior.transitions[t-1]))
-                # print("mean: ", self.posterior.means[t])
-
                 # distribution of X_t.
                 distribution = MultivariateNormal(
-                    loc=X_prev[children].mm(self.posterior.transitions[t-1]) + self.posterior.means[t].expand(num_samples, -1),
-                    covariance_matrix=self.posterior.covariances[t]
+                    loc=((X_prev[children] - self.posterior.means[t-1].expand(num_samples, -1))
+                         .mm(self.posterior.transitions[t-1])
+                         + self.posterior.means[t].expand(num_samples, -1)),
+                    covariance_matrix=(self.posterior.cond_covar_cholesky[t]
+                                       .t()
+                                       .mm(self.posterior.cond_covar_cholesky[t]))
                 )
             X = distribution.sample().detach()
 
             # Compute weights.
-            # print("generative log prob = ", self.generative_log_prob(t=t, X=X, X_prev=X_prev))
-            # print("posterior log prob = ", distribution.log_prob(X))
-            # print("X = ", X)
             logW = self.generative_log_prob(t=t, X=X, X_prev=X_prev) - distribution.log_prob(X)
             W_log_means.append(logW.exp().mean().log())
 
@@ -171,8 +169,8 @@ class VSMCSolver(AbstractModelSolver):
     def generative_log_prob(self, t, X, X_prev):
         """
         :param t: the time index (0 thru T-1)
-        :param X: (N x S) tensor of time (t) samples.
-        :param X_prev: (N x S) tensor of time (t-1) samples.
+        :param X: (N x S-1) tensor of time (t) samples.
+        :param X_prev: (N x S-1) tensor of time (t-1) samples.
         :return: The joint log-likelihood p(X_t, Reads_t | X_{t-1}).
         """
         # Gaussian part
@@ -181,12 +179,12 @@ class VSMCSolver(AbstractModelSolver):
             center = self.model.mu.repeat(N, 1)
         else:
             center = X_prev
-        covariance = self.model.time_scale(t) * torch.eye(self.model.num_strains(), device=self.device)
+        covariance = self.model.time_scale(t) * torch.eye(self.model.num_strains() - 1, device=self.device)
         distribution = MultivariateNormal(loc=center, covariance_matrix=covariance)
         gaussian_log_probs = distribution.log_prob(X)
 
         # Reads likelihood calculation, conditioned on the Gaussian part.
-        data_log_probs = (softmax(X, dim=1)
+        data_log_probs = (multi_logit(X, dim=1)
                           .mm(self.model.get_fragment_frequencies().t())
                           .mm(self.read_likelihoods[t])
                           .log()
@@ -208,7 +206,7 @@ class VSMCSolver(AbstractModelSolver):
             **optim_args
         )
 
-        logger.debug("BBVI algorithm started. (Gradient method, Target iterations={})".format(
+        logger.debug("BBVI algorithm started. (Gradient method, Target iterations = {})".format(
             iters
         ))
         time_est = RuntimeEstimator(total_iters=iters, horizon=5)
@@ -216,31 +214,17 @@ class VSMCSolver(AbstractModelSolver):
             time_est.stopwatch_click()
 
             # Maximize elbo by minimizing -elbo.
-            elbo = self.elbo_surrogate_estimate(num_samples=num_samples)
+            elbo = -self.elbo_surrogate_estimate(num_samples=num_samples)
             optimizer.zero_grad()
             elbo.backward()
-            # print("\t****** grad: ", self.posterior.means[0].grad)
-
-            # elbo = -self.elbo_surrogate_estimate(num_samples=num_samples, mean=self.posterior.means[0])
-            # print(" ============= ELBO before step: ", elbo.data)
 
             optimizer.step()
 
             millis_elapsed = time_est.stopwatch_click()
             time_est.increment(millis_elapsed)
             if i % print_debug_every == 0:
-                logger.debug("Iteration {i} | time left: {t:.2f} min. | Last ELBO = {elbo}".format(
+                logger.info("Iteration {i} | time left: {t:.2f} min. | Last ELBO = {elbo}".format(
                     i=i,
                     t=time_est.time_left() / 60000,
                     elbo=elbo.item()
                 ))
-
-            # elbo = -self.elbo_surrogate_estimate(num_samples=num_samples, mean=self.posterior.means[0])
-            # print(" ============= ELBO after step: ", elbo.data)
-            #
-            # print("\t****** grad: ", self.posterior.means[0].grad)
-            # print("\t****** POSTERIOR PARAMS: {}".format(self.posterior.params()[0].data))
-
-
-
-

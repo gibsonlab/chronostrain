@@ -13,7 +13,7 @@ from util.io.logger import logger
 
 from torch.distributions.multivariate_normal import MultivariateNormal
 from torch.distributions.categorical import Categorical
-from torch.nn.functional import softmax
+from util.torch import multi_logit
 
 
 class GenerativeModel:
@@ -64,9 +64,8 @@ class GenerativeModel:
         """
         Computes the joint log-likelihood of X, F, and R according to this generative model.
         Let N be the number of samples.
-        :param X: The S-dimensional Gaussian trajectory, indexed (T x N x S) as a List of 2-d tensors.
+        :param X: The (S-1)-dimensional Gaussian trajectory, indexed (T x N x S-1) as a List of 2-d tensors.
         :param F: The per-read (R reads) sampled fragments, indexed (T x N x R_t) as a list of 2-d tensors.
-        :param R: The sampled reads, indexed (T x R_t) as a list of list of SequenceReads.
         :param read_log_likelihoods: A precomputed list of tensors containing read-fragment log likelihoods
           (output of compute_read_likelihoods(logarithm=True).)
         :param device: The torch device to run the calculations on.
@@ -82,7 +81,7 @@ class GenerativeModel:
             x_t = X[t]
             dist = MultivariateNormal(
                 loc=prev_x,
-                covariance_matrix=self.time_scale(t) * torch.eye(self.num_strains(), device=device)
+                covariance_matrix=self.time_scale(t) * torch.eye(self.num_strains()-1, device=device)
             )
             ans = ans + dist.log_prob(x_t)
             prev_x = x_t
@@ -91,7 +90,7 @@ class GenerativeModel:
             # y_t is an N x S matrix.
             # W is a F x S matrix, want to end up with an N x F matrix.
             # Proper dimension ordering is y_t * transpose(W).
-            y_t = softmax(x_t, dim=1)
+            y_t = multi_logit(x_t, dim=1)
             frag_freqs = self.get_fragment_frequencies()  # the W matrix
             z_t = y_t.mm(frag_freqs.transpose(0, 1))  # an N x F matrix, each row is a frag frequency vector.
 
@@ -196,7 +195,7 @@ class GenerativeModel:
         :return: A T x S tensor; each row is an abundance profile for a time point.
         """
         gaussians = self._sample_brownian_motion()
-        return softmax(gaussians, dim=1)
+        return multi_logit(gaussians, dim=1)
 
     def strain_abundance_to_frag_abundance(self, strain_abundances: torch.Tensor) -> torch.Tensor:
         """
