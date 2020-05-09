@@ -4,20 +4,20 @@
   Author: Younhun Kim
 """
 
-from typing import List, Tuple
+from typing import List
 import torch
 from torch.distributions.multivariate_normal import MultivariateNormal
-from torch.distributions.categorical import Categorical
 
+from algs.vi import AbstractVariationalPosterior
 from model.reads import SequenceRead
 
 from algs.base import AbstractModelSolver, compute_read_likelihoods
 from model.generative import GenerativeModel
 from util.io.logger import logger
 from util.benchmarking import RuntimeEstimator
-from util.torch import multi_logit
 
-class MeanFieldPosterior:
+
+class GaussianPosterior(AbstractVariationalPosterior):
     def __init__(
             self,
             times: int,
@@ -86,17 +86,10 @@ class MeanFieldPosterior:
         """
         return self.means + self.transitions + self.cond_covar_cholesky
 
-    def sample(self, num_samples=1, apply_softmax=False) -> List[torch.Tensor]:
-        # Indexing: (time) x (sample idx) x (distribution dimension)
-        X = self.rand_sample_X(num_samples)
-        if apply_softmax:
-            X = [multi_logit(x_t, dim=1) for x_t in X]
-        return X
-
     def log_likelihood(self, X) -> torch.Tensor:
         return self.log_likelihood_X(X)
 
-    def rand_sample_X(self, num_samples) -> List[torch.Tensor]:
+    def sample(self, num_samples=1) -> List[torch.Tensor]:
         # Dimension indexing: (T instances of N x S tensors)
         X = [torch.empty(1) for _ in range(self.times)]
         for t in range(self.times):
@@ -165,7 +158,7 @@ class BBVISolver(AbstractModelSolver):
         self.model = model
         self.data = data
         self.device = device
-        self.posterior = MeanFieldPosterior(
+        self.posterior = GaussianPosterior(
             times=model.num_times(),
             strains=model.num_strains(),
             fragments=model.num_fragments(),
@@ -216,13 +209,26 @@ class BBVISolver(AbstractModelSolver):
             time_est.increment(secs_elapsed)
 
             if i % print_debug_every == 0:
-                gradient_size = 0.
-                for param in self.posterior.params():
-                    gradient_size += param.grad.norm(p=2).item()
+                gradient_mean = 0.
+                for param in self.posterior.means:
+                    gradient_mean += param.grad.norm(p=2).item()
 
-                logger.info("Iteration {i} | time left: {t:.2f} min. | Last ELBO = {elbo} | Gradient norm = {grad}".format(
-                    i=i,
-                    t=time_est.time_left() / 60000,
-                    elbo=-elbo_loss.item(),
-                    grad=gradient_size
-                ))
+                gradient_variance = 0.
+                for param in self.posterior.cond_covar_cholesky:
+                    gradient_variance += param.grad.norm(p=2).item()
+
+                gradient_transition = 0.
+                for param in self.posterior.transitions:
+                    gradient_transition += param.grad.norm(p=2).item()
+
+                logger.info("Iteration {i} "
+                            "| time left: {t:.2f} min. "
+                            "| Last ELBO = {elbo:.2f} "
+                            "| Gradient norms = (mean: {gradm:.2f}, covar: {gradc:.2f}, trans: {gradt:.2f})"
+                            .format(i=i,
+                                    t=time_est.time_left() / 60000,
+                                    elbo=-elbo_loss.item(),
+                                    gradm=gradient_mean,
+                                    gradc=gradient_variance,
+                                    gradt=gradient_transition)
+                            )

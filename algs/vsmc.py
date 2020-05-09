@@ -8,15 +8,17 @@ from typing import List
 
 from torch.distributions import MultivariateNormal, Categorical
 
+from algs.vi import AbstractVariationalPosterior
 from model.generative import GenerativeModel
 from model.reads import SequenceRead
 from algs.base import AbstractModelSolver, compute_read_likelihoods
 from util.benchmarking import RuntimeEstimator
 
 from util.io.logger import logger
+from util.torch import multi_logit
 
 
-class VariationalSequentialPosterior:
+class VariationalSequentialPosterior(AbstractVariationalPosterior):
     def __init__(
             self,
             num_times: int,
@@ -90,6 +92,32 @@ class VariationalSequentialPosterior:
             variances.append(covariance.diagonal().detach())
             prev_covariance = covariance
         return variances
+
+    def sample(self, num_samples=1, apply_softmax=False) -> List[torch.Tensor]:
+        # Indexing: (time) x (sample idx) x (distribution dimension)
+        X = self.rand_sample_X(num_samples)
+        if apply_softmax:
+            X = [multi_logit(x_t, dim=1) for x_t in X]
+        return X
+
+    def rand_sample_X(self, num_samples) -> List[torch.Tensor]:
+        # Dimension indexing: (T instances of N x S tensors)
+        X = [torch.empty(1) for _ in range(self.times)]
+        for t in range(self.times):
+            if t == 0:
+                X[0] = MultivariateNormal(
+                    loc=self.means[0].expand(num_samples, -1),
+                    covariance_matrix=self.cond_covar_cholesky[0].t().mm(self.cond_covar_cholesky[0])
+                ).sample().to(self.device)
+            else:
+                X[t] = MultivariateNormal(
+                    loc=((X[t-1] - self.means[t-1].expand(num_samples, -1))
+                         .mm(self.transitions[t-1])
+                         + self.means[t].expand(num_samples, -1)),
+                    covariance_matrix=self.cond_covar_cholesky[t].t().mm(self.cond_covar_cholesky[t])
+                ).sample().to(self.device)
+            X[t].requires_grad = False
+        return X
 
 
 class VSMCSolver(AbstractModelSolver):

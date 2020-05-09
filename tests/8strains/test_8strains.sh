@@ -25,9 +25,8 @@ python run_inference.py \
 --time_points 1 2 3 4 \
 --method "em" \
 --seed 123 \
---out_dir "data/output/test_$TESTNAME" \
---out_file "EM_result_$TESTNAME.csv" \
---plots_file "EM_result_${TESTNAME}_plot.png" \
+--out_path "data/output/test_$TESTNAME/EM_result_$TESTNAME.csv" \
+--plots_path "data/output/test_$TESTNAME/EM_result_${TESTNAME}_plot.png" \
 -trim 2500
 
 # Time consistency off
@@ -42,8 +41,7 @@ python run_inference.py \
 --time_points 1 2 3 4 \
 --method "em" \
 --seed 123 \
---out_dir "data/output/test_${TESTNAME}_time_off" \
---out_file "EM_result_${TESTNAME}_time_off.csv" \
---plots_file "EM_result_${TESTNAME}_plot_time_off.png" \
+--out_path "data/output/test_${TESTNAME}_time_off/EM_result_${TESTNAME}_time_off.csv" \
+--plots_path "data/output/test_${TESTNAME}_time_off/EM_result_${TESTNAME}_plot_time_off.png" \
 -trim 2500 \
 --disable_time_consistency

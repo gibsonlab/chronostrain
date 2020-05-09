@@ -138,10 +138,11 @@ class EMSolver(AbstractModelSolver):
             Q = (Q / Q.sum(dim=0)[None, :]).sum(dim=1) / Z_t.view(F)
 
             sigmoid = y[t]
-            sigmoid_jacobian = torch.ger(sigmoid, 1-sigmoid) - \
-                               torch.diag(sigmoid).mm(
-                                   torch.ones(S, S, device=self.device) - torch.eye(S, device=self.device)
-                               )
+            sigmoid_jacobian = torch.diag(sigmoid) - torch.ger(sigmoid, sigmoid)
+            # sigmoid_jacobian = torch.ger(sigmoid, 1-sigmoid) - \
+            #                    torch.diag(sigmoid).mm(
+            #                        torch.ones(S, S, device=self.device) - torch.eye(S, device=self.device)
+            #                    )
 
             # Chopping off the last row corresponds to multi_logit appending zeros at the end.
             x_gradient[t] = x_gradient[t] + sigmoid_jacobian[:-1, :].mv(

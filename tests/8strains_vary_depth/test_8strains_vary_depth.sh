@@ -31,9 +31,8 @@ do
   --time_points 1 2 3 4 5 10 15 \
   --method "em" \
   --seed 123 \
-  --out_dir "data/output/test_$TESTNAME/depth_$depth/" \
-  --out_file "EM_result_$TESTNAME.csv" \
-  --plots_file "EM_result_${TESTNAME}_plot.png" \
+  --out_path "data/output/test_$TESTNAME/depth_$depth/EM_result_$TESTNAME.csv" \
+  --plots_path "data/output/test_$TESTNAME/depth_$depth/EM_result_${TESTNAME}_plot.png" \
   -trim 2500
 
    # Time consistency off
@@ -51,9 +50,8 @@ do
   --time_points 1 2 3 4 5 10 15 \
   --method "em" \
   --seed 123 \
-  --out_dir "data/output/test_${TESTNAME}_time_off/depth_$depth/" \
-  --out_file "EM_result_$TESTNAME.csv" \
-  --plots_file "EM_result_${TESTNAME}_plot.png" \
+  --out_path "data/output/test_${TESTNAME}_time_off/depth_$depth/EM_result_$TESTNAME.csv" \
+  --plots_path "data/output/test_${TESTNAME}_time_off/depth_$depth/EM_result_${TESTNAME}_plot.png" \
   -trim 2500
   --disable_time_consistency
 done

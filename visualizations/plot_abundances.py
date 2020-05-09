@@ -1,10 +1,12 @@
 from typing import List
 
+import numpy as np
 import torch
 import seaborn as sns
 import matplotlib.pyplot as plt
 import pandas as pd
 
+from algs.vi import AbstractVariationalPosterior
 from model.bacteria import Population
 from util.io.model_io import load_abundances
 from util.torch import multi_logit
@@ -59,46 +61,52 @@ def plot_abundances(
 
 def plot_posterior_abundances(
         times: List[int],
+        posterior: AbstractVariationalPosterior,
         population: Population,
-        means: List[torch.Tensor],
-        variances: List[torch.Tensor],
         title: str,
         plots_out_path: str,
-        truth_path: str):
+        truth_path: str,
+        num_samples: int = 10000):
 
     true_abundances = None
     truth_acc_dict = None
     if truth_path:
-        _, true_abundances, accessions = load_abundances(truth_path)
+        _, true_abundances, accessions = load_abundances(truth_path, torch_device=torch.device("cpu"))
         truth_acc_dict = {acc: i for i, acc in enumerate(accessions)}
 
-    mean_softmax = [multi_logit(means[t], dim=0) for t in range(len(times))]
-    stdevs = [variances[t].sqrt() for t in range(len(times))]
+    abundance_samples = [multi_logit(x_t, dim=1) for x_t in posterior.sample(num_samples=num_samples)]
+    data = pd.DataFrame(np.array(
+        [
+            (times[t], strain.name, abundance_t[i, s].item(), 'Learned')
+            for i in range(num_samples)
+            for s, strain in enumerate(population.strains)
+            for t, abundance_t in enumerate(abundance_samples)
+        ],
+        dtype=[('Time', int), ('Strain', '<U20'), ('Abundance', float), ('Truth', '<U10')]
+    ))
 
-    for s, strain in enumerate(population.strains):
-        val = [mean_softmax[t][s].item() for t in range(len(times))]
-        # delta = -torch.ones(size=means[0].size(), device=means[0].device)
-        # delta[s] = 1
-        # upper = [
-        #     multi_logit(means[t] + 2 * (stdevs[t] * delta), dim=0)[s].item()
-        #     for t in range(len(times))
-        # ]
-        # lower = [
-        #     multi_logit(means[t] - 2 * (stdevs[t] * delta), dim=0)[s].item()
-        #     for t in range(len(times))
-        # ]
+    # logger.debug(data.groupby(['Time', 'Strain'])[['Abundance']].std())
 
-        p = plt.plot(times, val, linestyle='solid', label=strain.name)
-        color = p[-1].get_color()
-        # plt.fill_between(times, lower, upper, facecolor=color, alpha=0.2)
+    if true_abundances is not None:
+        true_abundances = true_abundances[0:len(times)]  # TODO debugging.
+        data = pd.concat([pd.DataFrame(np.array(
+            [
+                (times[t], strain.name, abundance_t[truth_acc_dict[strain.name]].item(), 'Real')
+                for s, strain in enumerate(population.strains)
+                for t, abundance_t in enumerate(true_abundances)
+            ],
+            dtype=[('Time', int), ('Strain', '<U20'), ('Abundance', float), ('Truth', '<U10')]
+        )), data])
 
-        if true_abundances is not None:
-            truth = [true_abundances[t, truth_acc_dict[strain.name]].item() for t in range(len(times))]
-            plt.plot(times, truth, linestyle='dotted', color=color, label=strain.name + '(True)')
-
-        plt.title(title)
-        plt.xlabel('Time')
-        plt.ylabel('Abundance')
-        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', borderaxespad=0.)
-
+    sns.lineplot(
+        x='Time',
+        y='Abundance',
+        hue='Strain',
+        ci="sd",
+        data=data,
+        style="Truth",
+        markers=True
+    )
+    plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+    plt.title(title)
     plt.savefig(plots_out_path, bbox_inches='tight')

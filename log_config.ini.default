@@ -1,5 +1,5 @@
 [loggers]
-keys=root
+keys=root,customLogger
 
 [handlers]
 keys=consoleHandler,fileHandler
@@ -22,14 +22,17 @@ args=('logs/run.log',)
 keys=simpleFormatter,complexFormatter
 
 [formatter_simpleFormatter]
-format=%(asctime)s [%(name)s, %(levelname)s] - %(message)s
+format=%(asctime)s [%(levelname)s] - %(message)s
 datefmt=
 
 [formatter_complexFormatter]
-format=%(asctime)s [%(name)s, %(levelname)s] [%(module)s (%(lineno)d)] - %(message)s
-
+format=%(asctime)s [%(levelname)s] [%(module)s (%(lineno)d)] - %(message)s
 
 [logger_root]
-level=DEBUG
-handlers=consoleHandler,fileHandler
+level=INFO
+handlers=
 
+[logger_customLogger]
+level=DEBUG
+qualname=customLogger
+handlers=consoleHandler, fileHandler
