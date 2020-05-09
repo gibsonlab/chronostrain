@@ -1,8 +1,8 @@
 from abc import ABCMeta, abstractmethod
-from typing import List
+from typing import List, Tuple
 
 import torch
-from torch.distributions import MultivariateNormal
+from torch.distributions import MultivariateNormal, Categorical
 
 from model.generative import GenerativeModel
 from model.reads import SequenceRead
@@ -99,13 +99,31 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
             V = V + self.grad_G_f(X_t, Wf_dot_sigma, sigma_deriv_times_Wf) * phi_sum
         return V, H  # (N x S-1) and (N x S-1 x S-1)
 
-    def update(self) -> float:
+    def update(self, resample=True) -> float:
         diff = 0.
-        X = self.sample_t0(num_samples=self.num_update_samples)
+
+        # for resampling.
+        X_prev = None
+
+        # Get the samples.
         for t in range(self.model.num_times()):
-            if t > 0:
-                X = self.sample_t(t=t, X_prev=X)
+            if t == 0:
+                print("Sampling t0")
+                X, log_likelihoods = self.sample_t0(num_samples=self.num_update_samples)
+            else:
+                X, log_likelihoods = self.sample_t(t=t, X_prev=X_prev)
             diff += self.update_t(t=t, X_t=X)
+
+            if resample:
+                logW = self.model.log_likelihood_xt(
+                    t=t, X=X, X_prev=X_prev, read_likelihoods=self.read_likelihoods[t]
+                ) - log_likelihoods
+                W_normalized = (logW - logW.max()).exp()
+                W_normalized = W_normalized / W_normalized.sum()
+                children = Categorical(probs=W_normalized).sample([self.num_update_samples])
+                X_prev = X[children]
+            else:
+                X_prev = X
         return diff
 
     def update_t(self, t, X_t) -> float:
@@ -114,8 +132,9 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
                           .log()  # N x F
                           .mean(dim=0)
                           .exp()
-                          .view(size=[1, self.model.num_fragments()]))  # F
+                          .view(size=[1, self.model.num_fragments()]))  # (1 x F) tensor
         updated_phi_t = estimated_tilt.expand([self.read_counts[t], -1]).t() * self.read_likelihoods[t]
+        updated_phi_t = updated_phi_t / updated_phi_t.sum(dim=0, keepdim=True)  # normalize.
         diff = (self.phi[t] - updated_phi_t).norm(p=2).item()
         self.phi[t] = updated_phi_t
         return diff
@@ -124,41 +143,53 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
         X = []
         for t in range(self.model.num_times()):
             if t == 0:
-                X.append(self.sample_t0(num_samples=num_samples))
+                sample, _ = self.sample_t0(num_samples=num_samples)
+                X.append(sample)
             else:
-                X.append(self.sample_t(t=t, X_prev=X[t-1]))
+                sample, _ = self.sample_t(t=t, X_prev=X[t-1])
+                X.append(sample)
         return X
 
-    def sample_t0(self, num_samples: int = 1) -> torch.Tensor:
+    def sample_t0(self, num_samples: int = 1) -> Tuple[torch.Tensor, torch.Tensor]:
         S = self.model.num_strains()
         center = self.mu
         V, H = self.VH_t(t=0, X_t=center.view(size=[1, S - 1]))
         precision = torch.eye(S - 1, device=self.device) / (self.model.time_scale(0) ** 2) - H.view(S - 1, S - 1)
         loc = precision.inverse().matmul(V.view(S - 1, 1)).view(size=[S - 1]) + self.mu
-        # print(V)
-        # print("loc = ", loc)
-        # print("covar = ", precision.inverse())
+
         dist_0 = MultivariateNormal(
             loc=loc,
             precision_matrix=precision,
         )
-        return dist_0.sample(sample_shape=[num_samples])
+        samples = dist_0.sample(sample_shape=[num_samples])
+        likelihoods = dist_0.log_prob(samples)
+        return samples, likelihoods
 
-    def sample_t(self, t: int, X_prev: torch.Tensor) -> torch.Tensor:
+    def sample_t(self, t: int, X_prev: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         N = X_prev.size(0)
         S = self.model.num_strains()
         V, H = self.VH_t(t=t, X_t=X_prev)
 
         # N x S-1 x S-1
-        precision = torch.eye(S-1, device=self.device).expand([N, -1, -1]) / (self.model.time_scale(t) ** 2) - H
+        precision = torch.eye(S-1, device=self.device).expand([N, -1, -1]) \
+                    / (self.model.time_scale(t) ** 2) \
+                    - H
         loc = X_prev + precision.inverse().matmul(
             V.view(size=[N, S-1, 1])
         ).view(size=[N, S-1])
-        samples = MultivariateNormal(
+
+        # print("V = ", V)
+        # print("loc = ", loc)
+        # print("covar = ", precision.inverse())
+
+        dist = MultivariateNormal(
             loc=loc,
             precision_matrix=precision,
-        ).sample()
-        return samples
+        )
+
+        samples = dist.sample()
+        likelihoods = dist.log_prob(samples)
+        return samples, likelihoods
 
     def sigmoid_derivative(self, X: torch.Tensor) -> torch.Tensor:
         N = X.size(0)
@@ -217,7 +248,8 @@ class SecondOrderVariationalSolver(AbstractModelSolver):
               iters=4000,
               num_montecarlo_samples=1000,
               print_debug_every=200,
-              thresh=1e-5):
+              thresh=1e-5,
+              do_resampling=True):
         posterior = MeanFieldPosterior(
             model=self.model,
             read_counts=[len(reads) for reads in self.data],
@@ -232,7 +264,7 @@ class SecondOrderVariationalSolver(AbstractModelSolver):
         time_est = RuntimeEstimator(total_iters=iters, horizon=print_debug_every)
         for i in range(1, iters+1, 1):
             time_est.stopwatch_click()
-            last_diff = posterior.update()  # <------ VI update step.
+            last_diff = posterior.update(resample=do_resampling)  # <------ VI update step.
             secs_elapsed = time_est.stopwatch_click()
             time_est.increment(secs_elapsed)
 

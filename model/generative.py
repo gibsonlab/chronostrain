@@ -87,7 +87,7 @@ class GenerativeModel:
         """
         :param t: the time index (0 thru T-1)
         :param X: (N x S-1) tensor of time (t) samples.
-        :param X_prev: (N x S-1) tensor of time (t-1) samples.
+        :param X_prev: (N x S-1) tensor of time (t-1) samples. (None if t=0).
         :param read_likelihoods: An (F x R_t) matrix of conditional read probabilities.
         :return: The joint log-likelihood p(X_t, Reads_t | X_{t-1}).
         """

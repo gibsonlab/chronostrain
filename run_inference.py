@@ -244,7 +244,8 @@ def perform_vi(
             iters=iters,
             num_montecarlo_samples=num_samples,
             print_debug_every=1,
-            thresh=1e-5
+            thresh=1e-5,
+            do_resampling=False
         )
     else:
         raise NotImplementedError("Feature 'disable_time_consistency' not implemented for VI.")
