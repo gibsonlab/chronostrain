@@ -16,7 +16,8 @@ def plot_abundances_comparison(
             inferred_abnd_path: str,
             real_abnd_path: str,
             title: str,
-            plots_out_path: str):
+            plots_out_path: str,
+            draw_legend: bool):
 
     real_df = (pd.read_csv(real_abnd_path)
                .assign(Truth="Real")
@@ -34,8 +35,11 @@ def plot_abundances_comparison(
 
     result_df = pd.concat([real_df, inferred_df])
 
-    sns.lineplot(x="Time", y="Abundance", hue="Strain", data=result_df, style="Truth", markers=True)
-    plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+    ax = sns.lineplot(x="Time", y="Abundance", hue="Strain",
+                      data=result_df, style="Truth", markers=True,
+                      legend=draw_legend)
+    if draw_legend:
+        plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
     plt.title(title)
 
     plt.savefig(plots_out_path, bbox_inches='tight')
@@ -44,7 +48,8 @@ def plot_abundances_comparison(
 def plot_abundances(
         abnd_path: str,
         title: str,
-        plots_out_path: str):
+        plots_out_path: str,
+        draw_legend: bool):
 
     inferred_df = (pd.read_csv(abnd_path)
                    .melt(id_vars=['T'],
@@ -52,8 +57,11 @@ def plot_abundances(
                          value_name="Abundance")
                    .rename(columns={"T": "Time"}))
 
-    sns.lineplot(x="Time", y="Abundance", hue="Strain", data=inferred_df, markers=True)
-    plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+    sns.lineplot(x="Time", y="Abundance",
+                 hue="Strain", data=inferred_df,
+                 markers=True, legend=draw_legend)
+    if draw_legend:
+        plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
     plt.title(title)
 
     plt.savefig(plots_out_path, bbox_inches='tight')
@@ -66,6 +74,7 @@ def plot_posterior_abundances(
         title: str,
         plots_out_path: str,
         truth_path: str,
+        draw_legend: bool,
         num_samples: int = 10000):
 
     true_abundances = None
@@ -102,11 +111,13 @@ def plot_posterior_abundances(
         x='Time',
         y='Abundance',
         hue='Strain',
-        ci="sd",
+        ci=95,
         data=data,
         style="Truth",
-        markers=True
+        markers=True,
+        legend=draw_legend
     )
-    plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+    if draw_legend:
+        plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
     plt.title(title)
     plt.savefig(plots_out_path, bbox_inches='tight')

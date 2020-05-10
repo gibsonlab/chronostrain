@@ -25,6 +25,10 @@ def save_abundances_by_path(
         time_points: List[int],
         abundances: torch.Tensor,
         out_path: str):
+    path = Path(out_path)
+    parent = Path(path.parent)
+    parent.mkdir(parents=True, exist_ok=True)
+
     with open(out_path, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile, delimiter=',', quoting=csv.QUOTE_ALL)
         writer.writerow(["T"] + [strain.name for strain in population.strains])

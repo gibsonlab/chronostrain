@@ -93,7 +93,7 @@ def perform_em(
     # ==== Run the solver.
     if not disable_time_consistency:
         solver = em.EMSolver(model, reads, torch_device=default_device, lr=learning_rate)
-        abundances = solver.solve(iters=iters, print_debug_every=1000, thresh=1e-8, gradient_clip=1e5)
+        abundances = solver.solve(iters=iters, print_debug_every=1000, thresh=1e-5, gradient_clip=1e5)
     else:
         logger.info("Flag --disable_time_consistency turned on; Performing inference on each sample independently.")
 
@@ -292,25 +292,28 @@ def plot_em_result(
     num_reads_per_time = list(map(len, reads))
     avg_read_depth_over_time = sum(num_reads_per_time) / len(num_reads_per_time)
 
-    title = "Average Read Depth over Time: " + str(round(avg_read_depth_over_time, 1)) + "\n" + \
-            "Read Length: " + str(len(reads[0][0].seq)) + "\n" + \
-            "Algorithm: Expectation-Maximization" + "\n" + \
-            ('Time consistency off\n' if disable_time_consistency else '') + \
-            ('Quality score off\n' if disable_quality else '')
+    # title = "Average Read Depth over Time: " + str(round(avg_read_depth_over_time, 1)) + "\n" + \
+    #         "Read Length: " + str(len(reads[0][0].seq)) + "\n" + \
+    #         "Algorithm: Expectation-Maximization" + "\n" + \
+    #         ('Time consistency off\n' if disable_time_consistency else '') + \
+    #         ('Quality score off\n' if disable_quality else '')
+    title = "Algorithm: Expectation-Maximization"
 
     if true_path:
-        title += "\nSquare-Norm Abundances Difference: " + str(round(abundance_diff, 3))
+        # title += "\nSquare-Norm Abundances Difference: " + str(round(abundance_diff, 3))
         plotter.plot_abundances_comparison(
             inferred_abnd_path=result_path,
             real_abnd_path=true_path,
             title=title,
-            plots_out_path=plots_out_path
+            plots_out_path=plots_out_path,
+            draw_legend=False
         )
     else:
         plotter.plot_abundances(
             abnd_path=result_path,
             title=title,
-            plots_out_path=plots_out_path
+            plots_out_path=plots_out_path,
+            draw_legend=False
         )
 
 
@@ -328,11 +331,12 @@ def plot_variational_result(
     num_reads_per_time = list(map(len, reads))
     avg_read_depth_over_time = sum(num_reads_per_time) / len(num_reads_per_time)
 
-    title = "Average Read Depth over Time: " + str(round(avg_read_depth_over_time, 1)) + "\n" + \
-            "Read Length: " + str(len(reads[0][0].seq)) + "\n" + \
-            "Algorithm: " + method + "\n" + \
-            ('Time consistency off\n' if disable_time_consistency else '') + \
-            ('Quality score off\n' if disable_quality else '')
+    # title = "Average Read Depth over Time: " + str(round(avg_read_depth_over_time, 1)) + "\n" + \
+    #         "Read Length: " + str(len(reads[0][0].seq)) + "\n" + \
+    #         "Algorithm: " + method + "\n" + \
+    #         ('Time consistency off\n' if disable_time_consistency else '') + \
+    #         ('Quality score off\n' if disable_quality else '')
+    title = "Algorithm: " + method
 
     plotter.plot_posterior_abundances(
         times=times,
@@ -357,7 +361,7 @@ def create_model(population: Population,
     @param disable_quality: A flag to indicate whether or not to use NoiselessErrorModel.
     @return A Generative model object.
     """
-    mu = torch.zeros(len(population.strains) - 1, device=default_device)
+    mu = torch.zeros(len(population.strains)-1, device=default_device)
     tau_1 = 1000
     tau = 1
 
