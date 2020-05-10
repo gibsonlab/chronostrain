@@ -12,7 +12,6 @@ from model.reads import AbstractErrorModel, SequenceRead
 from util.io.logger import logger
 
 from torch.distributions.multivariate_normal import MultivariateNormal
-from torch.distributions.categorical import Categorical
 from util.torch import multi_logit
 
 

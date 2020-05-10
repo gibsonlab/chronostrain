@@ -345,7 +345,8 @@ def plot_variational_result(
         title=title,
         plots_out_path=plots_out_path,
         truth_path=truth_path,
-        num_samples=num_samples
+        num_samples=num_samples,
+        draw_legend=False
     )
 
 
@@ -489,3 +490,4 @@ if __name__ == "__main__":
         main()
     except Exception as e:
         logger.exception(e)
+        exit(1)

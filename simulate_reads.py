@@ -165,7 +165,6 @@ def main():
 
     # ========== Create Population instance.
     if accessions:
-        print(database.get_strains(accessions))
         population = Population(database.get_strains(accessions), torch_device=default_device)
     else:
         population = Population(database.all_strains(), torch_device=default_device)
@@ -201,3 +200,4 @@ if __name__ == "__main__":
         main()
     except Exception as e:
         logger.exception(e)
+        exit(1)
