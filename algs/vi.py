@@ -46,7 +46,7 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
             for t in range(model.num_times())
         ]  # each is an F x R_t tensor.
 
-    def deriv_precomputation(self, f: int, X: torch.Tensor):
+    def deriv_precomputation(self, f: int, X: torch.Tensor, clipping=float("inf")):
         S = self.model.num_strains()
 
         W_f = self.model.get_fragment_frequencies()[f]  # S-dim vector.
@@ -54,6 +54,12 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
         Wf_dot_sigma = sigma.mv(W_f)  # N-dim vector.
 
         sigma_deriv = self.sigmoid_derivative(X)  # N x S-1 x S
+
+        # Gradient clipping for stability.
+        deriv_norm = sigma_deriv.norm(p=2, dim=[1, 2], keepdim=True)
+        clip_idx = (deriv_norm > clipping).view(X.size(0))
+        sigma_deriv[clip_idx] = (sigma_deriv[clip_idx] / deriv_norm[clip_idx]) * clipping
+
         sigma_deriv_times_Wf = (sigma_deriv.matmul(W_f.view(size=[S, 1])))  # N x S-1 x 1
         return W_f, Wf_dot_sigma, sigma_deriv_times_Wf
 
@@ -81,25 +87,26 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
         S = self.model.num_strains()
         return Wf_dot_sigma.reciprocal().expand([S-1, -1]).t() * sigma_deriv_times_Wf.view(size=[N, S-1])  # N x S-1
 
-    def VH_t(self, t: int, X_t: torch.Tensor):
+    def VH_t(self, t: int, X_t: torch.Tensor, clipping=float("inf")):
         """
         Returns the pair V(X_t), H(X_t), the data-weighted sigmoid gradients and Hessians.
 
         :param t: the time index (for looking up read likelihoods)
         :param X_t: the Gaussian (an N x S-1 tensor, rows indexed over samples).
+        :param clipping: A gradient clipping threshold (in frobenius norm).
         :return: V (an N x S-1 tensor) and H (an N x S-1 x S-1 tensor).
         """
         V = torch.zeros(X_t.size(0), X_t.size(1), device=self.device)
         H = torch.zeros(X_t.size(0), X_t.size(1), X_t.size(1), device=self.device)
         for f in range(self.model.num_fragments()):
             # TODO optimize these operations (they are extremely slow).
-            W_f, Wf_dot_sigma, sigma_deriv_times_Wf = self.deriv_precomputation(f, X_t)
+            W_f, Wf_dot_sigma, sigma_deriv_times_Wf = self.deriv_precomputation(f, X_t, clipping=clipping)
             phi_sum = self.phi[t][f].sum()
             H = H + self.hessian_G_f(X_t, W_f, Wf_dot_sigma, sigma_deriv_times_Wf) * phi_sum
             V = V + self.grad_G_f(X_t, Wf_dot_sigma, sigma_deriv_times_Wf) * phi_sum
         return V, H  # (N x S-1) and (N x S-1 x S-1)
 
-    def update(self, resample=True) -> float:
+    def update(self, resample=True, clipping=float("inf"), stdev_scale=1.) -> float:
         diff = 0.
 
         # for resampling.
@@ -108,10 +115,18 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
         # Get the samples.
         for t in range(self.model.num_times()):
             if t == 0:
-                print("Sampling t0")
-                X, log_likelihoods = self.sample_t0(num_samples=self.num_update_samples)
+                X, log_likelihoods = self.sample_t0(
+                    num_samples=self.num_update_samples,
+                    clipping=clipping,
+                    stdev_scale=stdev_scale
+                )
             else:
-                X, log_likelihoods = self.sample_t(t=t, X_prev=X_prev)
+                X, log_likelihoods = self.sample_t(
+                    t=t,
+                    X_prev=X_prev,
+                    clipping=clipping,
+                    stdev_scale=stdev_scale
+                )
             diff += self.update_t(t=t, X_t=X)
 
             if resample:
@@ -139,22 +154,22 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
         self.phi[t] = updated_phi_t
         return diff
 
-    def sample(self, num_samples=1) -> List[torch.Tensor]:
+    def sample(self, num_samples=1, clipping=float("inf"), stdev_scale=1.) -> List[torch.Tensor]:
         X = []
         for t in range(self.model.num_times()):
             if t == 0:
-                sample, _ = self.sample_t0(num_samples=num_samples)
+                sample, _ = self.sample_t0(num_samples=num_samples, clipping=clipping, stdev_scale=stdev_scale)
                 X.append(sample)
             else:
-                sample, _ = self.sample_t(t=t, X_prev=X[t-1])
+                sample, _ = self.sample_t(t=t, X_prev=X[t-1], clipping=clipping, stdev_scale=stdev_scale)
                 X.append(sample)
         return X
 
-    def sample_t0(self, num_samples: int = 1) -> Tuple[torch.Tensor, torch.Tensor]:
+    def sample_t0(self, num_samples: int = 1, clipping=float("inf"), stdev_scale=1.) -> Tuple[torch.Tensor, torch.Tensor]:
         S = self.model.num_strains()
         center = self.mu
-        V, H = self.VH_t(t=0, X_t=center.view(size=[1, S - 1]))
-        precision = torch.eye(S - 1, device=self.device) / (self.model.time_scale(0) ** 2) - H.view(S - 1, S - 1)
+        V, H = self.VH_t(t=0, X_t=center.view(size=[1, S - 1]), clipping=clipping)
+        precision = stdev_scale * torch.eye(S - 1, device=self.device) / (self.model.time_scale(0) ** 2) - H.view(S - 1, S - 1)
         loc = precision.inverse().matmul(V.view(S - 1, 1)).view(size=[S - 1]) + self.mu
 
         dist_0 = MultivariateNormal(
@@ -165,22 +180,18 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
         likelihoods = dist_0.log_prob(samples)
         return samples, likelihoods
 
-    def sample_t(self, t: int, X_prev: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def sample_t(self, t: int, X_prev: torch.Tensor, clipping=float("inf"), stdev_scale=1.) -> Tuple[torch.Tensor, torch.Tensor]:
         N = X_prev.size(0)
         S = self.model.num_strains()
-        V, H = self.VH_t(t=t, X_t=X_prev)
+        V, H = self.VH_t(t=t, X_t=X_prev, clipping=clipping)
 
         # N x S-1 x S-1
-        precision = torch.eye(S-1, device=self.device).expand([N, -1, -1]) \
+        precision = stdev_scale * torch.eye(S-1, device=self.device).expand([N, -1, -1]) \
                     / (self.model.time_scale(t) ** 2) \
                     - H
         loc = X_prev + precision.inverse().matmul(
             V.view(size=[N, S-1, 1])
         ).view(size=[N, S-1])
-
-        # print("V = ", V)
-        # print("loc = ", loc)
-        # print("covar = ", precision.inverse())
 
         dist = MultivariateNormal(
             loc=loc,
@@ -249,7 +260,9 @@ class SecondOrderVariationalSolver(AbstractModelSolver):
               num_montecarlo_samples=1000,
               print_debug_every=200,
               thresh=1e-5,
-              do_resampling=True):
+              do_resampling=True,
+              clipping=50.,
+              stdev_scale=1.):
         posterior = MeanFieldPosterior(
             model=self.model,
             read_counts=[len(reads) for reads in self.data],
@@ -264,14 +277,14 @@ class SecondOrderVariationalSolver(AbstractModelSolver):
         time_est = RuntimeEstimator(total_iters=iters, horizon=print_debug_every)
         for i in range(1, iters+1, 1):
             time_est.stopwatch_click()
-            last_diff = posterior.update(resample=do_resampling)  # <------ VI update step.
+            last_diff = posterior.update(resample=do_resampling, clipping=clipping, stdev_scale=stdev_scale)  # <------ VI update step.
             secs_elapsed = time_est.stopwatch_click()
             time_est.increment(secs_elapsed)
 
-            has_converged = (last_diff < thresh)
-            if has_converged:
-                logger.info("Convergence criterion ({th}) met; terminating optimization early.".format(th=thresh))
-                break
+            # has_converged = (last_diff < thresh)
+            # if has_converged:
+            #     logger.info("Convergence criterion ({th}) met; terminating optimization early.".format(th=thresh))
+            #     break
 
             if i % print_debug_every == 0:
                 logger.info("Iteration {i} "

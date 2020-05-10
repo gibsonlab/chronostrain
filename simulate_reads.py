@@ -109,8 +109,8 @@ def sample_reads(
                                           torch_device=default_device)
 
     if len(read_depths) != len(time_points):
-        logger.warn("Not enough read depths specified for time points. "
-                    "Defaulting to {} per time point.".format(read_depths[0]))
+        logger.warning("Not enough read depths specified for time points. "
+                       "Defaulting to {} per time point.".format(read_depths[0]))
         read_depths = [read_depths[0]]*len(time_points)
 
     if abundances is not None:
