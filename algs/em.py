@@ -44,7 +44,9 @@ class EMSolver(AbstractModelSolver):
     def solve(self,
               iters: int = 1000,
               thresh: float = 1e-5,
+              disable_quality: bool = False,
               gradient_clip: float = 1e2,
+              q_smoothing: float = 0.,
               initialization=None,
               print_debug_every=200
               ):
@@ -59,6 +61,9 @@ class EMSolver(AbstractModelSolver):
         :param print_debug_every: The number of iterations to skip between debug logging summary.
         :return: The estimated abundances
         """
+        if disable_quality:
+            logger.debug("EM solve() called with disable_quality = True. Will simulate mappings from read likelihoods.")
+
         if initialization is None:
             # T x S array representing a time-indexed, S-dimensional brownian motion.
             brownian_motion = torch.ones(
@@ -76,7 +81,11 @@ class EMSolver(AbstractModelSolver):
         k = 1
         while k <= iters:
             time_est.stopwatch_click()
-            updated_brownian_motion = self.em_update_new(brownian_motion, gradient_clip=gradient_clip)
+            updated_brownian_motion = self.em_update_new(
+                brownian_motion,
+                gradient_clip=gradient_clip,
+                q_smoothing=q_smoothing
+            )
             secs_elapsed = time_est.stopwatch_click()
             time_est.increment(secs_elapsed)
 
@@ -107,7 +116,8 @@ class EMSolver(AbstractModelSolver):
     def em_update_new(
             self,
             x: torch.Tensor,
-            gradient_clip: float
+            gradient_clip: float,
+            q_smoothing: float = 0.
     ):
         T, S = x.size()
         S = S + 1
@@ -134,7 +144,7 @@ class EMSolver(AbstractModelSolver):
         for t in range(T):
             # Scale each row by Z_t, and normalize.
             Z_t = self.model.strain_abundance_to_frag_abundance(y[t].view(S, 1))
-            Q = self.get_frag_likelihoods(t) * Z_t  # Scale each row by Z_t's entries.
+            Q = (self.get_frag_likelihoods(t)) * Z_t + q_smoothing
             Q = (Q / Q.sum(dim=0)[None, :]).sum(dim=1) / Z_t.view(F)
 
             sigmoid = y[t]
