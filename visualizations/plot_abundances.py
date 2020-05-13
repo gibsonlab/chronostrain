@@ -114,7 +114,9 @@ def plot_posterior_abundances(
         draw_legend: bool,
         num_samples: int = 10000,
         num_reads_per_time: List[int] = None,
-        title: str = None):
+        title: str = None,
+        font_size: int = 12,
+        thickness: int = 1):
 
     true_abundances = None
     truth_acc_dict = None
@@ -144,15 +146,18 @@ def plot_posterior_abundances(
             dtype=[('Time', float), ('Strain', '<U20'), ('Abundance', float), ('Truth', '<U10')]
         )), data])
 
+    plt.rcParams.update({'font.size': font_size})
     ax = sns.lineplot(
         x='Time',
         y='Abundance',
         hue='Strain',
-        ci=95,
+        ci=99,
         data=data,
         style="Truth",
         markers=True,
-        legend=draw_legend
+        legend=draw_legend,
+        size="Truth",
+        sizes=[thickness, thickness]
     )
 
     if draw_legend:

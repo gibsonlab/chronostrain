@@ -18,8 +18,8 @@ import multiprocessing
 from joblib import Parallel, delayed
 from tqdm import tqdm
 
-# num_cores = multiprocessing.cpu_count()
-num_cores = 1
+num_cores = multiprocessing.cpu_count()
+# num_cores = 1
 
 
 class AbstractModelSolver(metaclass=ABCMeta):

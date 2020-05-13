@@ -93,7 +93,12 @@ def perform_em(
     # ==== Run the solver.
     if not disable_time_consistency:
         solver = em.EMSolver(model, reads, torch_device=default_device, lr=learning_rate)
-        abundances = solver.solve(iters=iters, print_debug_every=1000, thresh=1e-5, gradient_clip=1e5)
+        abundances = solver.solve(
+            iters=iters,
+            disable_quality=disable_quality,
+            print_debug_every=1000,
+            thresh=1e-5,
+            gradient_clip=1e5)
     else:
         logger.info("Flag --disable_time_consistency turned on; Performing inference on each sample independently.")
 
@@ -106,7 +111,12 @@ def perform_em(
                 disable_quality=disable_quality
             )
             instance_solver = em.EMSolver(pseudo_model, [reads_t], torch_device=default_device, lr=learning_rate)
-            abundances_t = instance_solver.solve(iters=10000, print_debug_every=1000, thresh=1e-8, gradient_clip=1e5)
+            abundances_t = instance_solver.solve(
+                iters=10000,
+                disable_quality=disable_quality,
+                print_debug_every=1000,
+                thresh=1e-8,
+                gradient_clip=1e5)
             return abundances_t[0]  # There are only abundances for one time point.
 
         # Generate fragment space (stored and shared in Population instance) before running times in parallel.
@@ -245,9 +255,8 @@ def perform_vi(
             num_montecarlo_samples=num_samples,
             print_debug_every=1,
             thresh=1e-10,
-            do_resampling=False,
             clipping=0.3,
-            stdev_scale=10.0
+            stdev_scale=[50, 50, 50, 50, 50, 300, 50, 500]
         )
     else:
         raise NotImplementedError("Feature 'disable_time_consistency' not implemented for VI.")
@@ -363,7 +372,7 @@ def create_model(population: Population,
     @return A Generative model object.
     """
     mu = torch.zeros(len(population.strains)-1, device=default_device)
-    tau_1 = 1000
+    tau_1 = 1
     tau = 1
 
     if disable_quality:

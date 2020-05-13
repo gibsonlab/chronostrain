@@ -4,23 +4,21 @@ set -e
 TESTNAME="em_perf"
 SPARSE_DEPTH="10"
 
-#for depth in 10 100 200 300 400 500 600 700 800 900 1000 1500 2000 3000
-for depth in 10 100 200 300 400 500 600 700 800 900 1000
+for depth in 10 20 30 40 50 60 70 80 90 100
 do
-  for trial in 1 2 3 4 5 6 7 8 9 10
+  for trial in 1 2 3 4 5
   do
-    python simulate_reads.py \
+    python3 simulate_reads.py \
     --out_dir "./data/simulated_reads/$TESTNAME/depth_$depth-trial_$trial/" \
     --accession_path "tests/$TESTNAME/ncbi_refs.csv" \
     --abundance_path "tests/$TESTNAME/true_abundances.csv" \
     --num_reads $depth \
     --read_length 150 \
+    --seed $depth$trial \
     -trim 500
 
-#--num_reads $depth $depth $depth $SPARSE_DEPTH $depth $depth $SPARSE_DEPTH $depth \
-
     # Time consistency on
-    python run_inference.py \
+    python3 run_inference.py \
     --read_files \
     "data/simulated_reads/$TESTNAME/depth_$depth-trial_$trial/sim_reads_t1.fastq" \
     "data/simulated_reads/$TESTNAME/depth_$depth-trial_$trial/sim_reads_t2.fastq" \
@@ -37,6 +35,6 @@ do
     --out_path "data/output/test_$TESTNAME/depth_$depth-trial_$trial/EM_result_$TESTNAME.csv" \
     --plots_path "data/output/test_$TESTNAME/depth_$depth-trial_$trial/EM_result_${TESTNAME}_plot.png" \
     -trim 500 \
-    --iters 50000
+    --iters 20000
   done
 done

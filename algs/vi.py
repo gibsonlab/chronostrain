@@ -32,12 +32,16 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
                  read_counts: List[int],
                  num_update_samples: int,
                  read_likelihoods: List[torch.Tensor],
-                 device):
+                 device,
+                 clipping: float = float("inf"),
+                 stdev_scale: float = List[float]):
         self.model = model
         self.read_counts = read_counts
         self.device = device
         self.num_update_samples = num_update_samples
         self.read_likelihoods = read_likelihoods
+        self.clipping = clipping
+        self.stdev_scale = stdev_scale
 
         # Variational parameters
         self.mu = torch.zeros(size=[model.num_strains()-1], device=self.device)
@@ -106,97 +110,140 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
             V = V + self.grad_G_f(X_t, Wf_dot_sigma, sigma_deriv_times_Wf) * phi_sum
         return V, H  # (N x S-1) and (N x S-1 x S-1)
 
-    def update(self, resample=True, clipping=float("inf"), stdev_scale=1.) -> float:
+    def update(self) -> float:
         diff = 0.
 
         # for resampling.
-        X_prev = None
+        X_prev = self.model.mu
+        log_w_prev = torch.zeros(size=[self.num_update_samples], device=self.device)
 
         # Get the samples.
         for t in range(self.model.num_times()):
             if t == 0:
-                X, log_likelihoods = self.sample_t0(
-                    num_samples=self.num_update_samples,
-                    clipping=clipping,
-                    stdev_scale=stdev_scale
+                X, proposal_log_likelihoods = self.sample_t0(
+                    num_samples=self.num_update_samples
                 )
             else:
-                X, log_likelihoods = self.sample_t(
+                X, proposal_log_likelihoods = self.sample_t(
                     t=t,
-                    X_prev=X_prev,
-                    clipping=clipping,
-                    stdev_scale=stdev_scale
+                    X_prev=X_prev
                 )
-            diff += self.update_t(t=t, X_t=X)
+            # diff += self.update_t(t=t, X_t=X, X_prev=X_prev, proposal_log_likelihoods=proposal_log_likelihoods)
 
-            if resample:
-                logW = self.model.log_likelihood_xt(
-                    t=t, X=X, X_prev=X_prev, read_likelihoods=self.read_likelihoods[t]
-                ) - log_likelihoods
-                W_normalized = (logW - logW.max()).exp()
-                W_normalized = W_normalized / W_normalized.sum()
-                children = Categorical(probs=W_normalized).sample([self.num_update_samples])
+            actual_log_likelihoods = self.actual_log_likelihood(t, X, X_prev)  # length N
+            log_w = log_w_prev + actual_log_likelihoods - proposal_log_likelihoods  # length N
+            W_normalized = (log_w - log_w.max()).exp()  # length N
+            W_normalized = W_normalized / W_normalized.sum()  # length N, normalized.
+
+            # ESS criterion for resampling.
+            N = self.num_update_samples
+            do_resample = W_normalized.pow(2).sum().inverse().item() < (N / 2)
+            if do_resample:
+                children = Categorical(probs=W_normalized).sample([N])
                 X_prev = X[children]
+                W_normalized = (1 / N) * torch.ones(size=[N], device=self.device)
+                log_w_prev = W_normalized.log()
             else:
-                X_prev = X
+                log_w_prev = log_w
+
+            diff += self.update_t(t=t, X_t=X,  weights=W_normalized)
         return diff
 
-    def update_t(self, t, X_t) -> float:
-        estimated_tilt = (multi_logit(X_t, dim=1)
-                          .mm(self.model.get_fragment_frequencies().t())
-                          .log()  # N x F
-                          .mean(dim=0)
-                          .exp()
-                          .view(size=[1, self.model.num_fragments()]))  # (1 x F) tensor
-        updated_phi_t = estimated_tilt.expand([self.read_counts[t], -1]).t() * self.read_likelihoods[t]
+    def actual_log_likelihood(self, t, X_t, X_prev):
+        return (
+                (1 / self.model.time_scale(t) ** 2) * (X_t - X_prev).norm(p='fro', dim=1)
+                +
+                (multi_logit(X_t, dim=1).mm(self.model.get_fragment_frequencies().t())).log().mv(
+                    self.phi[t].sum(dim=1)
+                )
+        )  # length N
+
+    def update_t(self,
+                 t: int,
+                 X_t: torch.Tensor,
+                 weights: torch.Tensor) -> float:
+        """
+        Update the model paramters (phi) from sequential importance samples.
+
+        :param t: the time index of current sample.
+        :param X_t: (N x S-1) tensor of proposal samples.
+        :param X_prev: (N x S-1) tensor of parent samples (with row indices matching X_t).
+        :param weights: a length N vector of sequential sample weights.
+        :return the difference (in L2 norm) of phi.
+        """
+        log_statistic = (multi_logit(X_t, dim=1)
+                         .mm(self.model.get_fragment_frequencies().t())
+                         .log())  # N x F
+        tilt = ((log_statistic * weights[:, None])
+                .mean(dim=0)
+                .exp()
+                .view(size=[1, self.model.num_fragments()]))  # 1 x F tensor
+
+        updated_phi_t = tilt.expand([self.read_counts[t], -1]).t() * self.read_likelihoods[t]
         updated_phi_t = updated_phi_t / updated_phi_t.sum(dim=0, keepdim=True)  # normalize.
         diff = (self.phi[t] - updated_phi_t).norm(p=2).item()
         self.phi[t] = updated_phi_t
         return diff
 
-    def sample(self, num_samples=1, clipping=float("inf"), stdev_scale=1.) -> List[torch.Tensor]:
+    def sample(self, num_samples=1) -> List[torch.Tensor]:
+        """
+        TODO: perform rejection sampling.
+        :param num_samples:
+        """
+        exit(1)
         X = []
         for t in range(self.model.num_times()):
             if t == 0:
-                sample, _ = self.sample_t0(num_samples=num_samples, clipping=clipping, stdev_scale=stdev_scale)
+                sample, _ = self.sample_t0(num_samples=num_samples)
                 X.append(sample)
             else:
-                sample, _ = self.sample_t(t=t, X_prev=X[t-1], clipping=clipping, stdev_scale=stdev_scale)
+                sample, _ = self.sample_t(t=t, X_prev=X[t-1])
                 X.append(sample)
         return X
 
-    def sample_t0(self, num_samples: int = 1, clipping=float("inf"), stdev_scale=1.) -> Tuple[torch.Tensor, torch.Tensor]:
+    def sample_t0(self, num_samples: int = 1) -> Tuple[torch.Tensor, torch.Tensor]:
         S = self.model.num_strains()
         center = self.mu
-        V, H = self.VH_t(t=0, X_t=center.view(size=[1, S - 1]), clipping=clipping)
-        precision = stdev_scale * torch.eye(S - 1, device=self.device) / (self.model.time_scale(0) ** 2) - H.view(S - 1, S - 1)
+        V, H = self.VH_t(t=0, X_t=center.view(size=[1, S - 1]), clipping=self.clipping)
+        precision = self.stdev_scale[0] * torch.eye(S - 1, device=self.device) / (self.model.time_scale(0) ** 2) - H.view(S - 1, S - 1)
         loc = precision.inverse().matmul(V.view(S - 1, 1)).view(size=[S - 1]) + self.mu
 
-        dist_0 = MultivariateNormal(
-            loc=loc,
-            precision_matrix=precision,
-        )
+        try:
+            dist_0 = MultivariateNormal(
+                loc=loc,
+                precision_matrix=precision,
+            )
+        except Exception as e:
+            print("Gaussian precision matrix not positive definite. Time t = {}".format(0))
+            raise e
+
         samples = dist_0.sample(sample_shape=[num_samples])
         likelihoods = dist_0.log_prob(samples)
         return samples, likelihoods
 
-    def sample_t(self, t: int, X_prev: torch.Tensor, clipping=float("inf"), stdev_scale=1.) -> Tuple[torch.Tensor, torch.Tensor]:
+    def sample_t(self, t: int, X_prev: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         N = X_prev.size(0)
         S = self.model.num_strains()
-        V, H = self.VH_t(t=t, X_t=X_prev, clipping=clipping)
+        V, H = self.VH_t(t=t, X_t=X_prev, clipping=self.clipping)
 
         # N x S-1 x S-1
-        precision = stdev_scale * torch.eye(S-1, device=self.device).expand([N, -1, -1]) \
+        precision = self.stdev_scale[t] * torch.eye(S-1, device=self.device).expand([N, -1, -1]) \
                     / (self.model.time_scale(t) ** 2) \
                     - H
+
         loc = X_prev + precision.inverse().matmul(
             V.view(size=[N, S-1, 1])
         ).view(size=[N, S-1])
 
-        dist = MultivariateNormal(
-            loc=loc,
-            precision_matrix=precision,
-        )
+        try:
+            dist = MultivariateNormal(
+                loc=loc,
+                precision_matrix=precision,
+            )
+        except Exception as e:
+            print("Gaussian precision matrix not positive definite. Time t = {}".format(t))
+            raise e
+
 
         samples = dist.sample()
         likelihoods = dist.log_prob(samples)
@@ -260,7 +307,6 @@ class SecondOrderVariationalSolver(AbstractModelSolver):
               num_montecarlo_samples=1000,
               print_debug_every=200,
               thresh=1e-5,
-              do_resampling=True,
               clipping=50.,
               stdev_scale=1.):
         posterior = MeanFieldPosterior(
@@ -268,7 +314,9 @@ class SecondOrderVariationalSolver(AbstractModelSolver):
             read_counts=[len(reads) for reads in self.data],
             num_update_samples=num_montecarlo_samples,
             read_likelihoods=self.read_likelihoods,
-            device=self.device
+            device=self.device,
+            clipping=clipping,
+            stdev_scale=stdev_scale
         )
 
         logger.debug("Variational Inference algorithm started. (Second-order heuristic, Target iterations={it})".format(
@@ -277,7 +325,7 @@ class SecondOrderVariationalSolver(AbstractModelSolver):
         time_est = RuntimeEstimator(total_iters=iters, horizon=print_debug_every)
         for i in range(1, iters+1, 1):
             time_est.stopwatch_click()
-            last_diff = posterior.update(resample=do_resampling, clipping=clipping, stdev_scale=stdev_scale)  # <------ VI update step.
+            last_diff = posterior.update()  # <------ VI update step.
             secs_elapsed = time_est.stopwatch_click()
             time_est.increment(secs_elapsed)
 
