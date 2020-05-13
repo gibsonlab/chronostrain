@@ -14,7 +14,9 @@ def plot_performance_degradation(
         abundance_replicate_paths: List[List[str]],
         true_abundance_path: str,
         out_path: str,
-        title: str = None
+        title: str = None,
+        font_size: int = 18,
+        thickness: int = 1
 ):
     """
     :param read_depths: A list of read depths.
@@ -31,19 +33,24 @@ def plot_performance_degradation(
         for path in abundance_replicate_paths[i]:
             _, abundances, _ = load_abundances(path, torch_device=torch.device("cpu"))
             diff = (abundances - true_abundances).norm().item()
-            abundance_diffs.append((read_depth, diff))
+            abundance_diffs.append(('diff:', read_depth, diff))
     df = pd.DataFrame(np.array(
         abundance_diffs,
-        dtype=[('Read count', int), ('L2 error', float)]
+        dtype=[('label', '<U10'), ('Read count', int), ('L2 error', float)]
     ))
 
-    sns.lineplot(
+    plt.rcParams.update({'font.size': font_size})
+
+    ax = sns.lineplot(
         x='Read count',
         y='L2 error',
         ci='sd',
         data=df,
-        legend=False
+        legend=False,
+        sizes=[thickness],
+        size='label'
     )
+    ax.set_ylim([0., 1.])
 
     if title:
         plt.title(title)

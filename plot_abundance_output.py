@@ -1,4 +1,5 @@
 import argparse
+
 from util.io.logger import logger
 from visualizations.plot_abundances import plot_abundances_comparison, plot_abundances
 
@@ -11,19 +12,20 @@ def parse_args():
                         help='A specification of the abundance file.')
     parser.add_argument('-o', '--output_path', required=True, type=str,
                         help='The file path to save the output plot to.')
-    parser.add_argument('-n', '--num_reads', required=True, type=int, nargs='+',
+    parser.add_argument('-n', '--num_reads', required=False, type=int, nargs='+',
                         help='Number of reads at each time point.')
 
     # Optional args.
     parser.add_argument('-g', '--ground_truth_path', required=False, type=str)
     parser.add_argument('--title', required=False, type=str,
                         help='The title for the plot.')
+    parser.add_argument('--font_size', required=False, type=int, default=22)
+    parser.add_argument('--thickness', required=False, type=int, default=1)
 
     return parser.parse_args()
 
 
 def main():
-    logger.info("Pipeline for inference started.")
     args = parse_args()
 
     num_reads = args.num_reads
@@ -36,12 +38,21 @@ def main():
             title=args.title,
             plots_out_path=args.output_path,
             draw_legend=False,
-            num_reads_per_time=num_reads
+            num_reads_per_time=num_reads,
+            font_size=args.font_size,
+            thickness=args.thickness
         )
     else:
         plot_abundances(
             abnd_path=args.abundance_path,
             title=args.title,
             plots_out_path=args.output_path,
-            draw_legend=False
+            draw_legend=False,
+            font_size=args.font_size,
+            thickness=args.thickness
         )
+    logger.info("Plots saved to {}".format(args.output_path))
+
+
+if __name__ == "__main__":
+    main()

@@ -18,7 +18,9 @@ def plot_abundances_comparison(
             plots_out_path: str,
             draw_legend: bool,
             num_reads_per_time: List[int] = None,
-            title: str = None):
+            title: str = None,
+            font_size: int = 12,
+            thickness: int = 1):
 
     real_df = (pd.read_csv(real_abnd_path)
                .assign(Truth="Real")
@@ -35,19 +37,15 @@ def plot_abundances_comparison(
                    .rename(columns={"T": "Time"}))
 
     result_df = pd.concat([real_df, inferred_df])
-
-    ax = sns.lineplot(x="Time", y="Abundance", hue="Strain",
-                      data=result_df, style="Truth", markers=True,
-                      legend=draw_legend)
-    ax.set_xticks(result_df.Time.values)
-    if draw_legend:
-        plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
-    if title is not None:
-        plt.title(title)
-    if num_reads_per_time is not None:
-        render_read_counts(result_df, num_reads_per_time, ax)
-
-    plt.savefig(plots_out_path, bbox_inches='tight')
+    plot_abundance_dataframe(
+        data=result_df,
+        plots_out_path=plots_out_path,
+        draw_legend=draw_legend,
+        num_reads_per_time=num_reads_per_time,
+        title=title,
+        font_size=font_size,
+        thickness=thickness
+    )
 
 
 def plot_abundances(
@@ -55,29 +53,60 @@ def plot_abundances(
         plots_out_path: str,
         draw_legend: bool,
         num_reads_per_time: List[int] = None,
-        title: str = None):
+        title: str = None,
+        font_size: int = 12,
+        thickness: int = 1):
 
     inferred_df = (pd.read_csv(abnd_path)
-                   .melt(id_vars=['T'],
+                   .assign(Truth="Real")
+                   .melt(id_vars=['T', "Truth"],
                          var_name="Strain",
                          value_name="Abundance")
                    .rename(columns={"T": "Time"}))
+    plot_abundance_dataframe(
+        data=inferred_df,
+        plots_out_path=plots_out_path,
+        draw_legend=draw_legend,
+        num_reads_per_time=num_reads_per_time,
+        title=title,
+        font_size=font_size,
+        thickness=thickness
+    )
 
+
+def plot_abundance_dataframe(
+        data: pd.DataFrame,
+        plots_out_path: str,
+        draw_legend: bool,
+        num_reads_per_time: List[int] = None,
+        title: str = None,
+        font_size: int = 12,
+        thickness: int = 1):
+    plt.rcParams.update({'font.size': font_size})
     ax = sns.lineplot(x="Time", y="Abundance",
-                      hue="Strain", data=inferred_df,
-                      markers=True, legend=draw_legend)
+                      hue="Strain", data=data, style="Truth",
+                      markers=True, legend=draw_legend,
+                      size="Truth",
+                      sizes=[thickness, thickness])
+    ax.set_ylim([-0.0, 0.7])
+    xlim = [data['Time'].min(), data['Time'].max()]
+    xlim[0] = xlim[0] - (xlim[1] - xlim[0]) * 0.05
+    xlim[1] = xlim[1] + (xlim[1] - xlim[0]) * 0.05
+    ax.set_xlim(xlim)
+
+    ax.set_xticks(data.Time.values)
     if draw_legend:
         plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
     if title is not None:
         plt.title(title)
     if num_reads_per_time is not None:
-        render_read_counts(inferred_df, num_reads_per_time, ax)
+        render_read_counts(data, num_reads_per_time, ax)
 
     plt.savefig(plots_out_path, bbox_inches='tight')
 
 
 def plot_posterior_abundances(
-        times: List[int],
+        times: List[float],
         posterior: AbstractVariationalPosterior,
         population: Population,
         plots_out_path: str,
@@ -101,7 +130,7 @@ def plot_posterior_abundances(
             for s, strain in enumerate(population.strains)
             for t, abundance_t in enumerate(abundance_samples)
         ],
-        dtype=[('Time', int), ('Strain', '<U20'), ('Abundance', float), ('Truth', '<U10')]
+        dtype=[('Time', float), ('Strain', '<U20'), ('Abundance', float), ('Truth', '<U10')]
     ))
 
     if true_abundances is not None:
@@ -112,7 +141,7 @@ def plot_posterior_abundances(
                 for s, strain in enumerate(population.strains)
                 for t, abundance_t in enumerate(true_abundances)
             ],
-            dtype=[('Time', int), ('Strain', '<U20'), ('Abundance', float), ('Truth', '<U10')]
+            dtype=[('Time', float), ('Strain', '<U20'), ('Abundance', float), ('Truth', '<U10')]
         )), data])
 
     ax = sns.lineplot(
@@ -149,7 +178,7 @@ def render_read_counts(dataframe: pd.DataFrame,
     ax2.xaxis.set_label_position("bottom")
 
     # Offset the twin axis below the host
-    ax2.spines["bottom"].set_position(("axes", -0.10))
+    ax2.spines["bottom"].set_position(("axes", -0.13))
 
     # Set tick position
     ax2.set_xticks(dataframe.Time.values)

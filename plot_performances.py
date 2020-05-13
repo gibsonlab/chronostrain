@@ -10,11 +10,15 @@ def parse_args():
     parser.add_argument('-t', '--trial', required=True, action='append', nargs=2,
                         help='A specification of a single trial: (num_reads, file_path). '
                              'Repeat to append.')
-    parser.add_argument('-g', '--ground_truth_path', required=True, type='str')
+    parser.add_argument('-g', '--ground_truth_path', required=True, type=str)
     parser.add_argument('-o', '--output_path', required=True, type=str,
                         help='The file path to save the output plot to.')
     parser.add_argument('--title', required=False, type=str, default=None,
                         help='The title for the plot.')
+
+    parser.add_argument('--font_size', required=False, type=int, default=22)
+    parser.add_argument('--thickness', required=False, type=int, default=1)
+
     return parser.parse_args()
 
 
@@ -36,7 +40,6 @@ def get_dir_structure(trial_list):
 
 
 def main():
-    logger.info("Pipeline for inference started.")
     args = parse_args()
 
     read_depths, abundance_paths = get_dir_structure(args.trial)
@@ -45,5 +48,12 @@ def main():
         abundance_replicate_paths=abundance_paths,
         true_abundance_path=args.ground_truth_path,
         out_path=args.output_path,
-        title=args.title
+        title=args.title,
+        font_size=args.font_size,
+        thickness=args.thickness
     )
+    logger.info("Output the performance plot to {}".format(args.output_path))
+
+
+if __name__ == "__main__":
+    main()
