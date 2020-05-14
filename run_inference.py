@@ -289,7 +289,6 @@ def plot_em_result(
         plots_out_path: str,
         disable_time_consistency: bool,
         disable_quality: bool,
-        abundance_diff: float = None,
         true_path: str = None):
     """
     Draw a plot of the abundances, and save to a file.
@@ -297,7 +296,6 @@ def plot_em_result(
     :param reads: The collection of reads as input.
     :param result_path: The path to the learned abundances.
     :param plots_out_path: The path to save the plots to.
-    :param abundance_diff: The squared-norm difference between inferred abundances and ground-truth abundances.
     :param disable_time_consistency: Whether or not the inference algorithm was performed with time-consistency.
     :param disable_quality: Whether or not quality scores were used.
     :param true_path: The path to the ground truth abundance file.
@@ -307,12 +305,11 @@ def plot_em_result(
     num_reads_per_time = list(map(len, reads))
     avg_read_depth_over_time = sum(num_reads_per_time) / len(num_reads_per_time)
 
-    # title = "Average Read Depth over Time: " + str(round(avg_read_depth_over_time, 1)) + "\n" + \
-    #         "Read Length: " + str(len(reads[0][0].seq)) + "\n" + \
-    #         "Algorithm: Expectation-Maximization" + "\n" + \
-    #         ('Time consistency off\n' if disable_time_consistency else '') + \
-    #         ('Quality score off\n' if disable_quality else '')
-    title = "Algorithm: Expectation-Maximization"
+    title = "Average Read Depth over Time: " + str(round(avg_read_depth_over_time, 1)) + "\n" + \
+            "Read Length: " + str(len(reads[0][0].seq)) + "\n" + \
+            "Algorithm: Expectation-Maximization" + "\n" + \
+            ('Time consistency off\n' if disable_time_consistency else '') + \
+            ('Quality score off\n' if disable_quality else '')
 
     if true_path:
         # title += "\nSquare-Norm Abundances Difference: " + str(round(abundance_diff, 3))
@@ -346,12 +343,11 @@ def plot_variational_result(
     num_reads_per_time = list(map(len, reads))
     avg_read_depth_over_time = sum(num_reads_per_time) / len(num_reads_per_time)
 
-    # title = "Average Read Depth over Time: " + str(round(avg_read_depth_over_time, 1)) + "\n" + \
-    #         "Read Length: " + str(len(reads[0][0].seq)) + "\n" + \
-    #         "Algorithm: " + method + "\n" + \
-    #         ('Time consistency off\n' if disable_time_consistency else '') + \
-    #         ('Quality score off\n' if disable_quality else '')
-    title = "Algorithm: " + method
+    title = "Average Read Depth over Time: " + str(round(avg_read_depth_over_time, 1)) + "\n" + \
+            "Read Length: " + str(len(reads[0][0].seq)) + "\n" + \
+            "Algorithm: " + method + "\n" + \
+            ('Time consistency off\n' if disable_time_consistency else '') + \
+            ('Quality score off\n' if disable_quality else '')
 
     plotter.plot_posterior_abundances(
         times=times,
