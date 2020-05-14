@@ -137,7 +137,7 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
 
             # ESS criterion for resampling.
             N = self.num_update_samples
-            do_resample = W_normalized.pow(2).sum().inverse().item() < (N / 2)
+            do_resample = W_normalized.pow(2).sum().reciprocal().item() < (N / 2)
             if do_resample:
                 children = Categorical(probs=W_normalized).sample([N])
                 X_prev = X[children]
@@ -171,11 +171,11 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
         :param weights: a length N vector of sequential sample weights.
         :return the difference (in L2 norm) of phi.
         """
+        N = X_t.size(0)
         log_statistic = (multi_logit(X_t, dim=1)
                          .mm(self.model.get_fragment_frequencies().t())
                          .log())  # N x F
-        tilt = ((log_statistic * weights[:, None])
-                .mean(dim=0)
+        tilt = (weights.view(1, N).mm(log_statistic)
                 .exp()
                 .view(size=[1, self.model.num_fragments()]))  # 1 x F tensor
 
@@ -185,20 +185,46 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
         self.phi[t] = updated_phi_t
         return diff
 
-    def sample(self, num_samples=1) -> List[torch.Tensor]:
+    def sample(self, num_samples=1,
+               rejection_constant_init_log: float = -float("inf"),
+               burnin: int = 2) -> List[torch.Tensor]:
         """
-        TODO: perform rejection sampling.
+        Perform rejection sampling.
+        :param burnin:
+        :param rejection_constant_init_log:
         :param num_samples:
         """
-        exit(1)
+        logger.debug("Sampling from mean-field posterior. "
+                     "Using rejection sampling (may take a while; try lowering rejection_constant_upper_bound.).")
+        S = self.model.num_strains()
         X = []
         for t in range(self.model.num_times()):
-            if t == 0:
-                sample, _ = self.sample_t0(num_samples=num_samples)
-                X.append(sample)
-            else:
-                sample, _ = self.sample_t(t=t, X_prev=X[t-1])
-                X.append(sample)
+            x_t = torch.empty(size=[num_samples, S-1], device=self.device)
+            for i in range(num_samples):
+                c = rejection_constant_init_log
+                logger.debug("Sample \# {i}".format(i=i))
+                x = None
+                reject = True
+                initial_samples = 0
+                while reject or initial_samples < burnin:
+                    if t == 0:
+                        x_prev = self.model.mu
+                        x, proposal_log_likelihood = self.sample_t0(num_samples=1)
+                    else:
+                        x_prev = X[t-1][i].view(1, S-1)
+                        x, proposal_log_likelihood = self.sample_t(t=t, X_prev=x_prev)
+
+                    log_ll_diff = (self.actual_log_likelihood(t, X_t=x, X_prev=x_prev) - proposal_log_likelihood).item()
+                    # print("log ll diff: ", log_ll_diff)
+                    thresh = log_ll_diff - c
+                    # print("thresh = ", thresh)
+                    reject = torch.rand(1, device=self.device).log().item() > thresh
+                    initial_samples = initial_samples + (0 if reject else 1)
+                    # print("reject = ", reject, " initial_samples = ", initial_samples)
+                    c = max(c, log_ll_diff)
+                    # print("new constant = ", c)
+                x_t[i] = x
+            X.append(x_t)
         return X
 
     def sample_t0(self, num_samples: int = 1) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -241,7 +267,7 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
                 precision_matrix=precision,
             )
         except Exception as e:
-            print("Gaussian precision matrix not positive definite. Time t = {}".format(t))
+            logger.error("Gaussian precision matrix not positive definite. Time t = {}".format(t))
             raise e
 
 
@@ -329,10 +355,10 @@ class SecondOrderVariationalSolver(AbstractModelSolver):
             secs_elapsed = time_est.stopwatch_click()
             time_est.increment(secs_elapsed)
 
-            # has_converged = (last_diff < thresh)
-            # if has_converged:
-            #     logger.info("Convergence criterion ({th}) met; terminating optimization early.".format(th=thresh))
-            #     break
+            has_converged = (last_diff < thresh)
+            if has_converged:
+                logger.info("Convergence criterion ({th}) met; terminating optimization early.".format(th=thresh))
+                break
 
             if i % print_debug_every == 0:
                 logger.info("Iteration {i} "

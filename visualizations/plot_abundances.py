@@ -83,20 +83,22 @@ def plot_abundance_dataframe(
         font_size: int = 12,
         thickness: int = 1):
     plt.rcParams.update({'font.size': font_size})
-    ax = sns.lineplot(x="Time", y="Abundance",
-                      hue="Strain", data=data, style="Truth",
-                      markers=True, legend=draw_legend,
+    ax = sns.lineplot(x="Time",
+                      y="Abundance",
+                      hue="Strain",
+                      data=data,
+                      style="Truth",
+                      markers=True,
+                      legend='full' if draw_legend else False,
                       size="Truth",
                       sizes=[thickness, thickness])
-    ax.set_ylim([-0.0, 0.7])
+    ax.set_ylim([0.0, 1.0])
     xlim = [data['Time'].min(), data['Time'].max()]
     xlim[0] = xlim[0] - (xlim[1] - xlim[0]) * 0.05
     xlim[1] = xlim[1] + (xlim[1] - xlim[0]) * 0.05
     ax.set_xlim(xlim)
 
     ax.set_xticks(data.Time.values)
-    if draw_legend:
-        plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
     if title is not None:
         plt.title(title)
     if num_reads_per_time is not None:
@@ -112,7 +114,7 @@ def plot_posterior_abundances(
         plots_out_path: str,
         truth_path: str,
         draw_legend: bool,
-        num_samples: int = 10000,
+        num_samples: int = 500,
         num_reads_per_time: List[int] = None,
         title: str = None,
         font_size: int = 12,
@@ -155,13 +157,10 @@ def plot_posterior_abundances(
         data=data,
         style="Truth",
         markers=True,
-        legend=draw_legend,
+        legend='full' if draw_legend else False,
         size="Truth",
         sizes=[thickness, thickness]
     )
-
-    if draw_legend:
-        plt.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
     if title is not None:
         plt.title(title)
     if num_reads_per_time is not None:

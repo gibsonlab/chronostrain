@@ -42,7 +42,10 @@ def compute_read_likelihoods(
         reads: List[List[SequenceRead]],
         logarithm: bool,
         device) -> List[torch.Tensor]:
-    fragment_space = model.bacteria_pop.get_fragment_space(model.read_length)
+    """
+    Returns a list of (F x N) tensors, each containing the time-t read likelihoods.
+    """
+    fragment_space = model.get_fragment_space()
 
     start_time = current_time_millis()
     logger.debug("Computing read-fragment likelihoods...")
@@ -58,11 +61,16 @@ def compute_read_likelihoods(
             ] for f in fragment_space.get_fragments()
         ], device=device, dtype=torch.double)
 
-    errors = Parallel(n_jobs=num_cores)(delayed(create_matrix)(k) for k in tqdm(range(len(model.times))))
-
-    # ref: https://medium.com/@mjschillawski/quick-and-easy-parallelization-in-python-32cb9027e490
-    # TODO: Some 'future warnings' are being thrown about saving tensors (in the subprocesses).
-    # TODO: Maybe find another parallelization alternative.
+    parallel = False
+    if parallel:
+        errors = Parallel(n_jobs=num_cores)(delayed(create_matrix)(k) for k in tqdm(range(len(model.times))))
+        # ref: https://medium.com/@mjschillawski/quick-and-easy-parallelization-in-python-32cb9027e490
+        # TODO: Some 'future warnings' are being thrown about saving tensors (in the subprocesses).
+        # TODO: Maybe find another parallelization alternative.
+    else:
+        errors = [
+            create_matrix(k) for k in range(len(model.times))
+        ]
     logger.debug("Computed fragment errors in {} min.".format(millis_elapsed(start_time) / 60000))
 
     return errors

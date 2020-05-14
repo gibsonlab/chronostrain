@@ -41,10 +41,13 @@ class EMSolver(AbstractModelSolver):
         self.device = torch_device
         self.model.get_fragment_frequencies()
 
+        # if disable_quality:
+        #     logger.info("EM solve() called with disable_quality = True. Will simulate mappings from read likelihoods.")
+        #     self.do_noisy_mapping()
+
     def solve(self,
               iters: int = 1000,
               thresh: float = 1e-5,
-              disable_quality: bool = False,
               gradient_clip: float = 1e2,
               q_smoothing: float = 0.,
               initialization=None,
@@ -61,8 +64,6 @@ class EMSolver(AbstractModelSolver):
         :param print_debug_every: The number of iterations to skip between debug logging summary.
         :return: The estimated abundances
         """
-        if disable_quality:
-            logger.debug("EM solve() called with disable_quality = True. Will simulate mappings from read likelihoods.")
 
         if initialization is None:
             # T x S array representing a time-indexed, S-dimensional brownian motion.
@@ -107,11 +108,21 @@ class EMSolver(AbstractModelSolver):
                     diff=diff
                 ))
             k += 1
-        logger.info("Finished {k} iterations.".format(k=k-1))
+        logger.info("Finished {k} iterations.".format(k=k))
 
         abundances = [multi_logit(gaussian, dim=0) for gaussian in brownian_motion]
         normalized_abundances = torch.stack(abundances).to(self.device)
         return normalized_abundances
+
+    def do_noisy_mapping(self):
+        noisy_mappings = []
+        for likelihoods_t in self.read_likelihoods:
+            argmax_locs = likelihoods_t.argmax(dim=0)
+            argmax_mapping = torch.zeros(size=likelihoods_t.size(), device=self.device)
+
+            j = torch.arange(likelihoods_t.size(1)).long()
+            argmax_mapping[argmax_locs, j] = 1
+        self.read_likelihoods = noisy_mappings
 
     def em_update_new(
             self,
@@ -149,10 +160,6 @@ class EMSolver(AbstractModelSolver):
 
             sigmoid = y[t]
             sigmoid_jacobian = torch.diag(sigmoid) - torch.ger(sigmoid, sigmoid)
-            # sigmoid_jacobian = torch.ger(sigmoid, 1-sigmoid) - \
-            #                    torch.diag(sigmoid).mm(
-            #                        torch.ones(S, S, device=self.device) - torch.eye(S, device=self.device)
-            #                    )
 
             # Chopping off the last row corresponds to multi_logit appending zeros at the end.
             x_gradient[t] = x_gradient[t] + sigmoid_jacobian[:-1, :].mv(

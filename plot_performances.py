@@ -7,8 +7,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Perform inference on time-series reads.")
 
     # Input specification.
-    parser.add_argument('-t', '--trial', required=True, action='append', nargs=2,
-                        help='A specification of a single trial: (num_reads, file_path). '
+    parser.add_argument('-t', '--trial', required=True, action='append', nargs=3,
+                        help='A specification of a single trial: (id, num_reads, file_path). '
                              'Repeat to append.')
     parser.add_argument('-g', '--ground_truth_path', required=True, type=str)
     parser.add_argument('-o', '--output_path', required=True, type=str,
@@ -18,39 +18,26 @@ def parse_args():
 
     parser.add_argument('--font_size', required=False, type=int, default=22)
     parser.add_argument('--thickness', required=False, type=int, default=1)
+    parser.add_argument('--draw_legend', action="store_true")
 
     return parser.parse_args()
 
 
-def get_dir_structure(trial_list):
-    read_depths = [int(trial[0]) for trial in trial_list]
-    read_depths.sort()
-
-    abundance_paths = [[] for _ in read_depths]
-    depths_dict = {depth: i for i, depth in enumerate(read_depths)}
-
-    for trial in trial_list:
-        abundance_paths[
-            depths_dict[int(trial[0])]
-        ].append(
-            trial[1]
-        )
-
-    return read_depths, abundance_paths
-
-
 def main():
     args = parse_args()
+    trials = [
+        (id, int(num_reads_str), file_path)
+        for (id, num_reads_str, file_path) in args.trial
+    ]
 
-    read_depths, abundance_paths = get_dir_structure(args.trial)
     plot_performance_degradation(
-        read_depths=read_depths,
-        abundance_replicate_paths=abundance_paths,
+        trials=trials,
         true_abundance_path=args.ground_truth_path,
         out_path=args.output_path,
         title=args.title,
         font_size=args.font_size,
-        thickness=args.thickness
+        thickness=args.thickness,
+        draw_legend=args.draw_legend
     )
     logger.info("Output the performance plot to {}".format(args.output_path))
 

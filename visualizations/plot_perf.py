@@ -1,7 +1,6 @@
-from typing import List
+from typing import List, Tuple
 
 import numpy as np
-import torch
 import seaborn as sns
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -10,47 +9,49 @@ from util.io.model_io import load_abundances
 
 
 def plot_performance_degradation(
-        read_depths: List[int],
-        abundance_replicate_paths: List[List[str]],
+        trials: List[Tuple[str, int, str]],
         true_abundance_path: str,
         out_path: str,
         title: str = None,
+        draw_legend: bool = True,
         font_size: int = 18,
         thickness: int = 1
 ):
     """
-    :param read_depths: A list of read depths.
-    :param abundance_replicate_paths: A nested list of paths to abundance CSVs.
-    Indexed in order of: 1) read depth, 2) trial for that read depth.
+    :param trials: The list of tuples (ID, num_reads, abundance_csv_path)
     :param true_abundance_path: A path to the ground truth.
     :param out_path: the file path to save the plot to.
     :param title: The title of the figure (default: None).
+    :param thickness:
+    :param font_size:
     """
     true_abundances = load_abundances(true_abundance_path)[1]
+    ids = set()
 
     abundance_diffs = []
-    for i, read_depth in enumerate(read_depths):
-        for path in abundance_replicate_paths[i]:
-            _, abundances, _ = load_abundances(path, torch_device=torch.device("cpu"))
-            diff = (abundances - true_abundances).norm().item()
-            abundance_diffs.append(('diff:', read_depth, diff))
+    for (id, num_reads, path) in trials:
+        _, abundances, _ = load_abundances(path)
+        diff = (abundances - true_abundances).norm().item()
+        abundance_diffs.append((id, num_reads, diff))
+        ids.add(id)
     df = pd.DataFrame(np.array(
         abundance_diffs,
-        dtype=[('label', '<U10'), ('Read count', int), ('L2 error', float)]
+        dtype=[('Label', '<U10'), ('Read count', int), ('L2 error', float)]
     ))
+    print(df)
 
     plt.rcParams.update({'font.size': font_size})
 
     ax = sns.lineplot(
         x='Read count',
         y='L2 error',
+        hue='Label',
         ci='sd',
         data=df,
-        legend=False,
-        sizes=[thickness],
-        size='label'
+        legend='full' if draw_legend else False,
+        size='Label',
+        sizes=[thickness for _ in ids],
     )
-    ax.set_ylim([0., 1.])
 
     if title:
         plt.title(title)

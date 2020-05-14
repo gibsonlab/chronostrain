@@ -90,15 +90,19 @@ def perform_em(
         iters: int,
         learning_rate: float):
 
+    q_smoothing = 1e-30
+
     # ==== Run the solver.
     if not disable_time_consistency:
-        solver = em.EMSolver(model, reads, torch_device=default_device, lr=learning_rate)
+        solver = em.EMSolver(model, reads,
+                             torch_device=default_device,
+                             lr=learning_rate)
         abundances = solver.solve(
             iters=iters,
-            disable_quality=disable_quality,
             print_debug_every=1000,
             thresh=1e-5,
-            gradient_clip=1e5)
+            gradient_clip=1e5,
+            q_smoothing=q_smoothing)
     else:
         logger.info("Flag --disable_time_consistency turned on; Performing inference on each sample independently.")
 
@@ -110,13 +114,15 @@ def perform_em(
                 time_points=[1],
                 disable_quality=disable_quality
             )
-            instance_solver = em.EMSolver(pseudo_model, [reads_t], torch_device=default_device, lr=learning_rate)
+            instance_solver = em.EMSolver(pseudo_model, [reads_t],
+                                          torch_device=default_device,
+                                          lr=learning_rate)
             abundances_t = instance_solver.solve(
                 iters=10000,
-                disable_quality=disable_quality,
                 print_debug_every=1000,
-                thresh=1e-8,
-                gradient_clip=1e5)
+                thresh=1e-5,
+                gradient_clip=1e5,
+                q_smoothing=q_smoothing)
             return abundances_t[0]  # There are only abundances for one time point.
 
         # Generate fragment space (stored and shared in Population instance) before running times in parallel.
@@ -272,7 +278,7 @@ def perform_vi(
         disable_quality=disable_quality,
         truth_path=ground_truth_path,
         plots_out_path=plots_out_path,
-        num_samples=100
+        num_samples=15
     )
     logger.info("Plots saved to {}.".format(plots_out_path))
 
@@ -376,8 +382,8 @@ def create_model(population: Population,
     tau = 1
 
     if disable_quality:
-        logger.info("Flag --disable_quality turned on; Quality scores are diabled.")
-        error_model = NoiselessErrorModel()
+        logger.info("Flag --disable_quality turned on; Quality scores are diabled. Initializing NoiselessErrorModel.")
+        error_model = NoiselessErrorModel(mismatch_likelihood=0.)
     else:
         error_model = FastQErrorModel(read_len=window_size)
 
