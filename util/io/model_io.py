@@ -20,12 +20,34 @@ from util.io.filesystem import convert_size, get_filesize_bytes
 from util.io.logger import logger
 
 
+def save_abundances_by_path(
+        population: Population,
+        time_points: List[int],
+        abundances: torch.Tensor,
+        out_path: str):
+    path = Path(out_path)
+    parent = Path(path.parent)
+    parent.mkdir(parents=True, exist_ok=True)
+
+    with open(out_path, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile, delimiter=',', quoting=csv.QUOTE_ALL)
+        writer.writerow(["T"] + [strain.name for strain in population.strains])
+        # for k, abundance in enumerate(abundances):
+        for t in range(len(time_points)):
+            writer.writerow([time_points[t]] + [x.item() for x in abundances[t]])
+    logger.info("Abundances output successfully to file {}. ({})".format(
+        out_path, convert_size(get_filesize_bytes(out_path))
+    ))
+    return out_path
+
+
 def save_abundances(
         population: Population,
         time_points: List[int],
         abundances: torch.Tensor,
+        out_dir: str,
         out_filename: str,
-        out_dir: str = None):
+):
     """
     Save the time-indexed abundance profile to disk. Output format is CSV.
 
@@ -43,17 +65,7 @@ def save_abundances(
         out_path = os.path.join(out_dir, out_filename)
     else:
         out_path = out_filename
-
-    with open(out_path, 'w', newline='') as csvfile:
-        writer = csv.writer(csvfile, delimiter=',', quoting=csv.QUOTE_ALL)
-        writer.writerow(["T"] + [strain.name for strain in population.strains])
-        # for k, abundance in enumerate(abundances):
-        for t in range(len(time_points)):
-            writer.writerow([time_points[t]] + [x.item() for x in abundances[t]])
-    logger.info("Abundances output successfully to file {}. ({})".format(
-        out_path, convert_size(get_filesize_bytes(out_path))
-    ))
-    return out_path
+    return save_abundances_by_path(population, time_points, abundances, out_path)
 
 
 def load_abundances(file_path: str, torch_device=torch.device("cpu")) -> Tuple[List[int], torch.Tensor, List[str]]:

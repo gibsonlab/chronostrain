@@ -4,12 +4,11 @@
   Author: Younhun Kim
 """
 
-from typing import List, Tuple
+from typing import List
 import torch
 from torch.distributions.multivariate_normal import MultivariateNormal
-from torch.distributions.categorical import Categorical
-from torch.nn.functional import softmax
 
+from algs.vi import AbstractVariationalPosterior
 from model.reads import SequenceRead
 
 from algs.base import AbstractModelSolver, compute_read_likelihoods
@@ -18,7 +17,7 @@ from util.io.logger import logger
 from util.benchmarking import RuntimeEstimator
 
 
-class MeanFieldPosterior:
+class GaussianPosterior(AbstractVariationalPosterior):
     def __init__(
             self,
             times: int,
@@ -52,7 +51,7 @@ class MeanFieldPosterior:
         #                            = TRANSITION[t+1]*y - A
         self.means = [
             torch.nn.Parameter(
-                torch.zeros(strains, device=device, dtype=torch.double),
+                torch.zeros(strains - 1, device=device, dtype=torch.double),
                 requires_grad=True
             )
             for _ in range(times)
@@ -62,119 +61,88 @@ class MeanFieldPosterior:
         # These describe the means of the conditional distribution X_{t+1} | X_{t}.
         self.transitions = [
             torch.nn.Parameter(
-                torch.eye(strains, strains, device=device, dtype=torch.double),
+                torch.eye(strains - 1, strains - 1, device=device, dtype=torch.double),
                 requires_grad=True
             )
             for _ in range(times-1)
         ]
 
         # Represents the time-t covariances.
-        # Describes the conditional covariances Cov(X_{t+1} | X_{t}) -->
+        # Describes the CONDITIONAL covariances Cov(X_{t+1} | X_{t}) -->
         # think of "Sigma_{i,j}" as the (time-i, time-j) block of the complete Covariance matrix.
         # t > 1: Sigma_{t+1,t+1} - Sigma_{t+1,t}*inv(Sigma_{t,t})*Sigma_{t,t+1}
         # t = 1: Sigma_{1,1}
-        self.covariances = [
+        self.cond_covar_cholesky = [
             torch.nn.Parameter(
-                torch.eye(strains, device=device, dtype=torch.double),
+                torch.eye(strains - 1, device=device, dtype=torch.double),
                 requires_grad=True
             )
             for _ in range(times)
-        ]
-
-        # The categorical weights for each time point.
-        self.frag_weights = [
-            torch.nn.Parameter(
-                torch.ones(size=[read_counts[t], fragments], device=device, dtype=torch.double),
-                requires_grad=True
-            ) for t in range(times)
         ]
 
     def params(self) -> List[torch.nn.Parameter]:
         """
         Return a list of all learnable parameters (e.g. Parameter instances with requires_grad=True).
         """
-        return self.means + self.transitions + self.covariances + self.frag_weights
+        return self.means + self.transitions + self.cond_covar_cholesky
 
-    def sample(self, num_samples=1, apply_softmax=False) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
-        # Indexing: (time) x (sample idx) x (distribution dimension)
-        X = self.rand_sample_X(num_samples)
-        if apply_softmax:
-            X = [softmax(x_t, dim=1) for x_t in X]
-        F = self.rand_sample_F(num_samples)
-        return X, F
+    def log_likelihood(self, X) -> torch.Tensor:
+        return self.log_likelihood_X(X)
 
-    def log_likelihood(self, X, F) -> torch.Tensor:
-        return self.log_likelihood_X(X) + self.log_likelihood_F(F)
-
-    def rand_sample_X(self, num_samples) -> List[torch.Tensor]:
+    def sample(self, num_samples=1) -> List[torch.Tensor]:
         # Dimension indexing: (T instances of N x S tensors)
         X = [torch.empty(1) for _ in range(self.times)]
-        prev_x = None
         for t in range(self.times):
             if t == 0:
                 X[0] = MultivariateNormal(
-                    loc=self.means[0].repeat(num_samples, 1),
-                    covariance_matrix=self.covariances[0]
+                    loc=self.means[0].expand(num_samples, -1),
+                    covariance_matrix=self.cond_covar_cholesky[0].t().mm(self.cond_covar_cholesky[0])
                 ).sample().to(self.device)
             else:
                 X[t] = MultivariateNormal(
-                    loc=prev_x.mm(self.transitions[t]) - self.means[t].repeat(num_samples, 1),
-                    covariance_matrix=self.covariances[t]
+                    loc=((X[t-1] - self.means[t-1].expand(num_samples, -1))
+                         .mm(self.transitions[t-1])
+                         + self.means[t].expand(num_samples, -1)),
+                    covariance_matrix=self.cond_covar_cholesky[t].t().mm(self.cond_covar_cholesky[t])
                 ).sample().to(self.device)
             X[t].requires_grad = False
-            prev_x = X[t]
         return X
-
-    def rand_sample_F(self, num_samples) -> List[torch.Tensor]:
-        # Indexing: (T instances of N x R tensors)
-        F = [
-            (Categorical(self.frag_weights[t])
-             .sample([num_samples])
-             .to(self.device))
-            for t in range(self.times)
-        ]
-        for t in range(self.times):
-            F[t].requires_grad = False
-        return F
 
     def log_likelihood_X(self, X: List[torch.Tensor]) -> torch.Tensor:
         N = X[0].size(0)
         ans = torch.zeros(N, dtype=torch.double, device=self.device)
 
-        print("COVARIANCE MATRIX:")
-        print(self.covariances[0])
-        print("HERE!")
-
-        logger.info("Posterior sample:")
-        sample_x, sample_f = self.sample(num_samples=1, apply_softmax=True)
-        logger.info("X: {}".format(sample_x))
-        logger.info("F: {}".format(sample_f))
-
-        print("**********************")
-
-
-
         for t in range(self.times):
             if t == 0:
                 dist = MultivariateNormal(
-                    loc=self.means[0].repeat(N, 1),
-                    covariance_matrix=self.covariances[0]
+                    loc=self.means[0].expand(N, -1),
+                    covariance_matrix=self.cond_covar_cholesky[0].t().mm(self.cond_covar_cholesky[0])
                 )
             else:
                 dist = MultivariateNormal(
-                    loc=X[t-1].mm(self.transitions[t]) - self.means[t].repeat(N, 1),
-                    covariance_matrix=self.covariances[t]
+                    loc=((X[t-1] - self.means[t-1].expand(N, -1))
+                         .mm(self.transitions[t-1])
+                         + self.means[t].expand(N, -1)),
+                    covariance_matrix=self.cond_covar_cholesky[t].t().mm(self.cond_covar_cholesky[t])
                 )
             ans = ans + dist.log_prob(X[t])
         return ans
 
-    def log_likelihood_F(self, F: List[torch.Tensor]) -> torch.Tensor:
-        N = F[0].size(0)
-        ans = torch.zeros(N, dtype=torch.double, device=self.device)
+    def get_means_detached(self):
+        return [mean.detach() for mean in self.means]
+
+    def get_variances_detached(self):
+        variances = []
+        prev_covariance = None
         for t in range(self.times):
-            dist = Categorical(self.frag_weights[t])
-            ans = ans + dist.log_prob(F[t]).sum(dim=1)
-        return ans
+            if t == 0:
+                covariance = self.cond_covar_cholesky[0].t().mm(self.cond_covar_cholesky[0])
+            else:
+                covariance = self.cond_covar_cholesky[t].t().mm(self.cond_covar_cholesky[t]) \
+                             + self.transitions[t-1].mm(prev_covariance.mm(self.transitions[t-1].t()))
+            variances.append(covariance.diagonal().detach())
+            prev_covariance = covariance
+        return variances
 
 
 class BBVISolver(AbstractModelSolver):
@@ -190,14 +158,14 @@ class BBVISolver(AbstractModelSolver):
         self.model = model
         self.data = data
         self.device = device
-        self.posterior = MeanFieldPosterior(
+        self.posterior = GaussianPosterior(
             times=model.num_times(),
             strains=model.num_strains(),
             fragments=model.num_fragments(),
             read_counts=[len(reads) for reads in data],
             device=device
         )
-        self.read_log_likelihoods = compute_read_likelihoods(self.model, self.data, logarithm=True, device=device)
+        self.read_likelihoods = compute_read_likelihoods(self.model, self.data, logarithm=False, device=device)
 
     def elbo_estimate(self, num_samples=1000):
         """
@@ -205,57 +173,62 @@ class BBVISolver(AbstractModelSolver):
         https://arxiv.org/abs/1401.0118.
         (No re-parametrization trick, no Rao-Blackwell-ization.)
         """
-        (X_samples, F_samples) = self.posterior.sample(num_samples=num_samples)
-
-        posterior_ll = self.posterior.log_likelihood(
-            X=X_samples,
-            F=F_samples
-        )
+        X_samples = self.posterior.sample(num_samples=num_samples)
+        posterior_ll = self.posterior.log_likelihood(X_samples)
         posterior_ll_grad_disabled = posterior_ll.detach()
-
-        generative_ll = self.model.log_likelihood_torch(
-            X=X_samples,
-            F=F_samples,
-            read_log_likelihoods=self.read_log_likelihoods,
-            device=self.device
-        )
-
+        generative_ll = self.model.log_likelihood_x(X=X_samples, read_likelihoods=self.read_likelihoods)
         elbo_samples = posterior_ll * (generative_ll - posterior_ll_grad_disabled)
         return elbo_samples.mean()
 
     def solve(self,
-              optim_class=torch.optim.SGD,
+              optim_class=torch.optim.Adam,
               optim_args=None,
               iters=4000,
-              num_samples=1000,
+              num_samples=8000,
               print_debug_every=200):
-
         if optim_args is None:
-            optim_args = {'lr': 1e-7}
+            optim_args = {'lr': 1e-3, 'betas': (0.9, 0.999), 'eps': 1e-8, 'weight_decay': 0.}
         optimizer = optim_class(
             self.posterior.params(),
             **optim_args
         )
 
-        logger.debug("BBVI algorithm started. (Gradient method, Target iterations={})".format(
-            iters
+        logger.debug("BBVI algorithm started. (Gradient method, Target iterations={it})".format(
+            it=iters
         ))
-        time_est = RuntimeEstimator(total_iters=iters, horizon=5)
+        time_est = RuntimeEstimator(total_iters=iters, horizon=print_debug_every)
         for i in range(1, iters+1, 1):
             time_est.stopwatch_click()
 
-            loss = -self.elbo_estimate(num_samples=num_samples)
-            print("ELBO loss = {}".format(loss))
+            elbo_loss = -self.elbo_estimate(num_samples=num_samples)
             optimizer.zero_grad()
-            loss.backward()
+            elbo_loss.backward()
             optimizer.step()
 
             secs_elapsed = time_est.stopwatch_click()
             time_est.increment(secs_elapsed)
 
             if i % print_debug_every == 0:
-                logger.debug("Iteration {i} | time left: {t} min. | Last ELBO = {loss}".format(
-                    i=i,
-                    t=time_est.time_left() // 60,
-                    loss=-loss.item()
-                ))
+                gradient_mean = 0.
+                for param in self.posterior.means:
+                    gradient_mean += param.grad.norm(p=2).item()
+
+                gradient_variance = 0.
+                for param in self.posterior.cond_covar_cholesky:
+                    gradient_variance += param.grad.norm(p=2).item()
+
+                gradient_transition = 0.
+                for param in self.posterior.transitions:
+                    gradient_transition += param.grad.norm(p=2).item()
+
+                logger.info("Iteration {i} "
+                            "| time left: {t:.2f} min. "
+                            "| Last ELBO = {elbo:.2f} "
+                            "| Gradient norms = (mean: {gradm:.2f}, covar: {gradc:.2f}, trans: {gradt:.2f})"
+                            .format(i=i,
+                                    t=time_est.time_left() / 60000,
+                                    elbo=-elbo_loss.item(),
+                                    gradm=gradient_mean,
+                                    gradc=gradient_variance,
+                                    gradt=gradient_transition)
+                            )

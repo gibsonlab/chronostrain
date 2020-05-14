@@ -12,7 +12,6 @@ from model.reads import AbstractErrorModel, SequenceRead
 from util.io.logger import logger
 
 from torch.distributions.multivariate_normal import MultivariateNormal
-from torch.distributions.categorical import Categorical
 from util.torch import multi_logit
 
 
@@ -55,57 +54,59 @@ class GenerativeModel:
         """
         return self.bacteria_pop.get_strain_fragment_frequencies(window_size=self.read_length)
 
-    def log_likelihood_torch(
-            self,
-            X: List[torch.Tensor],
-            F: List[torch.Tensor],
-            read_log_likelihoods: List[torch.Tensor],
-            device) -> torch.Tensor:
+    def log_likelihood_x(self,
+                         X: List[torch.Tensor],
+                         read_likelihoods: List[torch.Tensor]) -> torch.Tensor:
         """
         Computes the joint log-likelihood of X, F, and R according to this generative model.
         Let N be the number of samples.
         :param X: The (S-1)-dimensional Gaussian trajectory, indexed (T x N x S-1) as a List of 2-d tensors.
         :param F: The per-read (R reads) sampled fragments, indexed (T x N x R_t) as a list of 2-d tensors.
         :param read_log_likelihoods: A precomputed list of tensors containing read-fragment log likelihoods
-          (output of compute_read_likelihoods(logarithm=True).)
+          (output of compute_read_likelihoods(logarithm=False).)
         :param device: The torch device to run the calculations on.
         :return: The log-likelihood from the generative model. Outputs a length-N
         tensor (one log-likelihood for each sample).
         """
-        N = X[0].size(0)
-        ans = torch.zeros(N, dtype=torch.double, device=device)
-        prev_x = self.mu.to(device=device)
-        for t in range(len(X)):
-            # ==== Note:
-            # each x_t is an N x S matrix.
-            x_t = X[t]
-            dist = MultivariateNormal(
-                loc=prev_x,
-                covariance_matrix=self.time_scale(t) * torch.eye(self.num_strains()-1, device=device)
+        ans = torch.zeros(size=[X[0].size(0)], device=X[0].device)
+        for t, X_t in enumerate(X):
+            ans = ans + self.log_likelihood_xt(
+                t=0,
+                X=X_t,
+                X_prev=X[t-1] if t > 0 else None,
+                read_likelihoods=read_likelihoods[t]
             )
-            ans = ans + dist.log_prob(x_t)
-            prev_x = x_t
-
-            # ==== Note:
-            # y_t is an N x S matrix.
-            # W is a F x S matrix, want to end up with an N x F matrix.
-            # Proper dimension ordering is y_t * transpose(W).
-            y_t = multi_logit(x_t, dim=1)
-            frag_freqs = self.get_fragment_frequencies()  # the W matrix
-            z_t = y_t.mm(frag_freqs.transpose(0, 1))  # an N x F matrix, each row is a frag frequency vector.
-
-            # ==== Note:
-            # each f_t is an N x R_t matrix; sum categorical log-likelihoods over reads (for each sampled z_t).
-            # Note that the transpose is very important; z is (N x F), f_t.t() is (R_t x N) so that
-            # the output is (R_t x N) -> each column is the n-th likelihood vector of all the reads.
-            f_t = F[t]
-            ans = ans + Categorical(z_t).log_prob(f_t.t()).sum(0)
-
-            # E_t is an F x N matrix.
-            E_t = read_log_likelihoods[t]
-            for i in range(E_t.size(1)):
-                ans = ans + E_t[f_t[:, i], i]
         return ans
+
+    def log_likelihood_xt(self,
+                          t: int,
+                          X: torch.Tensor,
+                          X_prev: torch.Tensor,
+                          read_likelihoods: torch.Tensor):
+        """
+        :param t: the time index (0 thru T-1)
+        :param X: (N x S-1) tensor of time (t) samples.
+        :param X_prev: (N x S-1) tensor of time (t-1) samples. (None if t=0).
+        :param read_likelihoods: An (F x R_t) matrix of conditional read probabilities.
+        :return: The joint log-likelihood p(X_t, Reads_t | X_{t-1}).
+        """
+        # Gaussian part
+        N = X.size(0)
+        if t == 0:
+            center = self.mu.repeat(N, 1)
+        else:
+            center = X_prev
+        covariance = self.time_scale(t) * torch.eye(self.num_strains() - 1, device=self.torch_device)
+        gaussian_log_probs = MultivariateNormal(loc=center, covariance_matrix=covariance).log_prob(X)
+
+        # Reads likelihood calculation, conditioned on the Gaussian part.
+        data_log_probs = (multi_logit(X, dim=1)
+                          .mm(self.get_fragment_frequencies().t())
+                          .mm(read_likelihoods)
+                          .log()
+                          .sum(dim=1))
+
+        return gaussian_log_probs + data_log_probs
 
     def sample_abundances_and_reads(
             self,

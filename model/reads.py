@@ -111,7 +111,7 @@ class AbstractTrainableErrorModel(AbstractErrorModel):
 class NoiselessErrorModel(AbstractErrorModel):
     def __init__(self, mismatch_likelihood: float = 1e-20):
         super().__init__()
-        self.mismatch_log_likelihood = math.log(mismatch_likelihood)
+        self.mismatch_log_likelihood = math.log(mismatch_likelihood) if mismatch_likelihood != 0 else -float("inf")
         self.match_log_likelihood = math.log(1 - mismatch_likelihood)
 
     def compute_log_likelihood(self, fragment: Fragment, read: SequenceRead) -> float:

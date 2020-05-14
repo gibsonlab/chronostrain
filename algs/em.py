@@ -41,10 +41,15 @@ class EMSolver(AbstractModelSolver):
         self.device = torch_device
         self.model.get_fragment_frequencies()
 
+        # if disable_quality:
+        #     logger.info("EM solve() called with disable_quality = True. Will simulate mappings from read likelihoods.")
+        #     self.do_noisy_mapping()
+
     def solve(self,
               iters: int = 1000,
               thresh: float = 1e-5,
               gradient_clip: float = 1e2,
+              q_smoothing: float = 0.,
               initialization=None,
               print_debug_every=200
               ):
@@ -59,6 +64,7 @@ class EMSolver(AbstractModelSolver):
         :param print_debug_every: The number of iterations to skip between debug logging summary.
         :return: The estimated abundances
         """
+
         if initialization is None:
             # T x S array representing a time-indexed, S-dimensional brownian motion.
             brownian_motion = torch.ones(
@@ -72,11 +78,15 @@ class EMSolver(AbstractModelSolver):
             iters,
             thresh
         ))
-        time_est = RuntimeEstimator(total_iters=iters, horizon=5)
+        time_est = RuntimeEstimator(total_iters=iters, horizon=print_debug_every)
         k = 1
         while k <= iters:
             time_est.stopwatch_click()
-            updated_brownian_motion = self.em_update_new(brownian_motion, gradient_clip=gradient_clip)
+            updated_brownian_motion = self.em_update_new(
+                brownian_motion,
+                gradient_clip=gradient_clip,
+                q_smoothing=q_smoothing
+            )
             secs_elapsed = time_est.stopwatch_click()
             time_est.increment(secs_elapsed)
 
@@ -98,16 +108,27 @@ class EMSolver(AbstractModelSolver):
                     diff=diff
                 ))
             k += 1
-        logger.info("Finished {k} iterations.".format(k=k-1))
+        logger.info("Finished {k} iterations.".format(k=k))
 
         abundances = [multi_logit(gaussian, dim=0) for gaussian in brownian_motion]
         normalized_abundances = torch.stack(abundances).to(self.device)
         return normalized_abundances
 
+    def do_noisy_mapping(self):
+        noisy_mappings = []
+        for likelihoods_t in self.read_likelihoods:
+            argmax_locs = likelihoods_t.argmax(dim=0)
+            argmax_mapping = torch.zeros(size=likelihoods_t.size(), device=self.device)
+
+            j = torch.arange(likelihoods_t.size(1)).long()
+            argmax_mapping[argmax_locs, j] = 1
+        self.read_likelihoods = noisy_mappings
+
     def em_update_new(
             self,
             x: torch.Tensor,
-            gradient_clip: float
+            gradient_clip: float,
+            q_smoothing: float = 0.
     ):
         T, S = x.size()
         S = S + 1
@@ -134,14 +155,11 @@ class EMSolver(AbstractModelSolver):
         for t in range(T):
             # Scale each row by Z_t, and normalize.
             Z_t = self.model.strain_abundance_to_frag_abundance(y[t].view(S, 1))
-            Q = self.get_frag_likelihoods(t) * Z_t  # Scale each row by Z_t's entries.
+            Q = (self.get_frag_likelihoods(t)) * Z_t + q_smoothing
             Q = (Q / Q.sum(dim=0)[None, :]).sum(dim=1) / Z_t.view(F)
 
             sigmoid = y[t]
-            sigmoid_jacobian = torch.ger(sigmoid, 1-sigmoid) - \
-                               torch.diag(sigmoid).mm(
-                                   torch.ones(S, S, device=self.device) - torch.eye(S, device=self.device)
-                               )
+            sigmoid_jacobian = torch.diag(sigmoid) - torch.ger(sigmoid, sigmoid)
 
             # Chopping off the last row corresponds to multi_logit appending zeros at the end.
             x_gradient[t] = x_gradient[t] + sigmoid_jacobian[:-1, :].mv(

@@ -2,9 +2,11 @@
 
 Required packages:
 
-- numpy
-- scipy
-- pytorch
+- PyTorch
+- Seaborn
+- Joblib
+- tqdm
+- BioPython
 
 
 Accession reference CSV file example (ncbi_refs.csv):

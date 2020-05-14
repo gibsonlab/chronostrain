@@ -50,7 +50,7 @@ def parse_args():
                              'A list of integers. Each value represents a time point in the dataset.')
 
     # Optional params
-    parser.add_argument('-s', '--seed', required=False, type=int, default=31415,
+    parser.add_argument('-s', '--seed', required=False, type=int, default=None,
                         help='<Optional> Seed for randomness (for reproducibility).')
     parser.add_argument('-p', '--out_prefix', required=False, default='sim',
                         help='<Optional> File prefix for the read files. '
@@ -70,7 +70,7 @@ def sample_reads(
         time_points: List[float],
         disable_quality: bool,
         abundances: torch.Tensor = None,
-        seed: int = 31415) -> Tuple[torch.Tensor, List[List[SequenceRead]]]:
+        seed: int = None) -> Tuple[torch.Tensor, List[List[SequenceRead]]]:
     """
     Sample sequence reads from the generative model, using either a pre-specified abundance profile or using
     random samples.
@@ -86,7 +86,8 @@ def sample_reads(
     :param seed: (Optional, default:31415) The random seed to use for sampling (to encourage reproducibility).
     :return: (1) The relative abundance profile and (2) the sampled reads (time-indexed).
     """
-    torch.manual_seed(seed)
+    if seed:
+        torch.manual_seed(seed)
 
     # Default/unbiased parameters for prior.
     mu = torch.zeros(len(population.strains) - 1, device=default_device)  # One dimension for each strain
@@ -109,8 +110,8 @@ def sample_reads(
                                           torch_device=default_device)
 
     if len(read_depths) != len(time_points):
-        logger.warn("Not enough read depths specified for time points. "
-                    "Defaulting to {} per time point.".format(read_depths[0]))
+        logger.warning("Not enough read depths specified for time points. "
+                       "Defaulting to {} per time point.".format(read_depths[0]))
         read_depths = [read_depths[0]]*len(time_points)
 
     if abundances is not None:
@@ -165,7 +166,6 @@ def main():
 
     # ========== Create Population instance.
     if accessions:
-        print(database.get_strains(accessions))
         population = Population(database.get_strains(accessions), torch_device=default_device)
     else:
         population = Population(database.all_strains(), torch_device=default_device)
@@ -201,3 +201,4 @@ if __name__ == "__main__":
         main()
     except Exception as e:
         logger.exception(e)
+        exit(1)

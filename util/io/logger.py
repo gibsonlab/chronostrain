@@ -5,7 +5,7 @@ import logging.config
 _config_filename = 'log_config.ini'
 
 
-def get_logger(key='root'):
+def get_logger(key='customLogger'):
     return logging.getLogger(key)
 
 
