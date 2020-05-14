@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e
 
+# Represents the planted sparse case, where the reads were sampled from a different abundance profile
+# than the ground truth (Due to bias).
+# See Figure 2 of paper.
+
 TESTNAME="em_perf_sparse"
 depth=500
 for sparse_depth in 10 50 100 150 200 250 300 350 400 450 500 550 600 650 600 650 700
