@@ -45,7 +45,7 @@ def parse_args():
                         help='<Required if -t not specified> '
                              'A path to a CSV file containing the time-indexed relative abundances for each strain.')
 
-    parser.add_argument('-t', '--time_points', required=False, type=int, nargs="+",
+    parser.add_argument('-t', '--time_points', required=False, type=float, nargs="+",
                         help='<Required if -b not specified> '
                              'A list of integers. Each value represents a time point in the dataset.')
 

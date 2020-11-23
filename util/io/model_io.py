@@ -22,7 +22,7 @@ from util.io.logger import logger
 
 def save_abundances_by_path(
         population: Population,
-        time_points: List[int],
+        time_points: List[float],
         abundances: torch.Tensor,
         out_path: str):
     path = Path(out_path)
@@ -43,7 +43,7 @@ def save_abundances_by_path(
 
 def save_abundances(
         population: Population,
-        time_points: List[int],
+        time_points: List[float],
         abundances: torch.Tensor,
         out_dir: str,
         out_filename: str,
@@ -102,7 +102,7 @@ def load_abundances(file_path: str, torch_device=torch.device("cpu")) -> Tuple[L
 
 def save_reads_to_fastq(
         sampled_reads: List[List[SequenceRead]],
-        time_points: List[int],
+        time_points: List[float],
         out_dir: str,
         out_prefix: str):
     """
@@ -115,7 +115,7 @@ def save_reads_to_fastq(
     prefix_format = '{}_reads_t{}.fastq'
     total_sz = 0
     for i, t in enumerate(time_points):
-        filename = prefix_format.format(out_prefix, t)
+        filename = prefix_format.format(out_prefix, str(t).replace('.', '_'))
         out_path = os.path.join(out_dir, filename)
         save_timeslice_to_fastq(sampled_reads[i], out_path)
         total_sz += get_filesize_bytes(out_path)

@@ -51,7 +51,7 @@ class Population:
         if window_size in self.fragment_space_map.keys():
             return self.fragment_space_map[window_size]
 
-        logger.info("Constructing fragment space for window size {}...".format(window_size))
+        logger.debug("Constructing fragment space for window size {}...".format(window_size))
         fragment_space = FragmentSpace()
         for strain in self.strains:
             for marker in strain.markers:
@@ -59,7 +59,7 @@ class Population:
                     fragment_space.add_seq(seq, metadata=strain.name + "Pos" + str(pos))
 
         self.fragment_space_map[window_size] = fragment_space
-        logger.info("Finished constructing fragment space.")
+        logger.debug("Finished constructing fragment space.")
 
         return fragment_space
 

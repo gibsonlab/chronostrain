@@ -19,6 +19,7 @@ def plot_abundances_comparison(
             draw_legend: bool,
             num_reads_per_time: List[int] = None,
             title: str = None,
+            ylim: List[float] = None,
             font_size: int = 12,
             thickness: int = 1):
 
@@ -43,8 +44,9 @@ def plot_abundances_comparison(
         draw_legend=draw_legend,
         num_reads_per_time=num_reads_per_time,
         title=title,
+        ylim=ylim,
         font_size=font_size,
-        thickness=thickness
+        thickness=[thickness, thickness]
     )
 
 
@@ -54,6 +56,7 @@ def plot_abundances(
         draw_legend: bool,
         num_reads_per_time: List[int] = None,
         title: str = None,
+        ylim: List[float] = None,
         font_size: int = 12,
         thickness: int = 1):
 
@@ -69,8 +72,9 @@ def plot_abundances(
         draw_legend=draw_legend,
         num_reads_per_time=num_reads_per_time,
         title=title,
+        ylim=ylim,
         font_size=font_size,
-        thickness=thickness
+        thickness=[thickness]
     )
 
 
@@ -80,8 +84,9 @@ def plot_abundance_dataframe(
         draw_legend: bool,
         num_reads_per_time: List[int] = None,
         title: str = None,
+        ylim: List[float] = None,
         font_size: int = 12,
-        thickness: int = 1):
+        thickness=(1,1)):
     plt.rcParams.update({'font.size': font_size})
     ax = sns.lineplot(x="Time",
                       y="Abundance",
@@ -91,8 +96,11 @@ def plot_abundance_dataframe(
                       markers=True,
                       legend='full' if draw_legend else False,
                       size="Truth",
-                      sizes=[thickness, thickness])
-    ax.set_ylim([0.0, 1.0])
+                      sizes=thickness)
+    if ylim is None:
+        ax.set_ylim([0.0, 1.0])
+    else:
+        ax.set_ylim(ylim)
     xlim = [data['Time'].min(), data['Time'].max()]
     xlim[0] = xlim[0] - (xlim[1] - xlim[0]) * 0.05
     xlim[1] = xlim[1] + (xlim[1] - xlim[0]) * 0.05
@@ -104,7 +112,7 @@ def plot_abundance_dataframe(
     if num_reads_per_time is not None:
         render_read_counts(data, num_reads_per_time, ax)
 
-    plt.savefig(plots_out_path, bbox_inches='tight')
+    plt.savefig(plots_out_path, bbox_inches='tight', format="pdf")
 
 
 def plot_posterior_abundances(

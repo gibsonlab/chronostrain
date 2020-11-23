@@ -60,11 +60,9 @@ class GenerativeModel:
         """
         Computes the joint log-likelihood of X, F, and R according to this generative model.
         Let N be the number of samples.
-        :param X: The (S-1)-dimensional Gaussian trajectory, indexed (T x N x S-1) as a List of 2-d tensors.
-        :param F: The per-read (R reads) sampled fragments, indexed (T x N x R_t) as a list of 2-d tensors.
-        :param read_log_likelihoods: A precomputed list of tensors containing read-fragment log likelihoods
+        :param X: The S-dimensional Gaussian trajectory, indexed (T x N x S) as a List of 2-d tensors.
+        :param read_likelihoods: A precomputed list of tensors containing read-fragment log likelihoods
           (output of compute_read_likelihoods(logarithm=False).)
-        :param device: The torch device to run the calculations on.
         :return: The log-likelihood from the generative model. Outputs a length-N
         tensor (one log-likelihood for each sample).
         """
@@ -85,8 +83,8 @@ class GenerativeModel:
                           read_likelihoods: torch.Tensor):
         """
         :param t: the time index (0 thru T-1)
-        :param X: (N x S-1) tensor of time (t) samples.
-        :param X_prev: (N x S-1) tensor of time (t-1) samples. (None if t=0).
+        :param X: (N x S) tensor of time (t) samples.
+        :param X_prev: (N x S) tensor of time (t-1) samples. (None if t=0).
         :param read_likelihoods: An (F x R_t) matrix of conditional read probabilities.
         :return: The joint log-likelihood p(X_t, Reads_t | X_{t-1}).
         """
@@ -96,7 +94,7 @@ class GenerativeModel:
             center = self.mu.repeat(N, 1)
         else:
             center = X_prev
-        covariance = self.time_scale(t) * torch.eye(self.num_strains() - 1, device=self.torch_device)
+        covariance = self.time_scale(t) * torch.eye(self.num_strains(), device=self.torch_device)
         gaussian_log_probs = MultivariateNormal(loc=center, covariance_matrix=covariance).log_prob(X)
 
         # Reads likelihood calculation, conditioned on the Gaussian part.

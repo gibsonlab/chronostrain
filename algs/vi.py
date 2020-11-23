@@ -57,14 +57,14 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
         sigma = multi_logit(X, dim=1)  # N x S
         Wf_dot_sigma = sigma.mv(W_f)  # N-dim vector.
 
-        sigma_deriv = self.sigmoid_derivative(X)  # N x S-1 x S
+        sigma_deriv = self.sigmoid_derivative(X)  # N x S x S
 
         # Gradient clipping for stability.
         deriv_norm = sigma_deriv.norm(p=2, dim=[1, 2], keepdim=True)
         clip_idx = (deriv_norm > clipping).view(X.size(0))
         sigma_deriv[clip_idx] = (sigma_deriv[clip_idx] / deriv_norm[clip_idx]) * clipping
 
-        sigma_deriv_times_Wf = (sigma_deriv.matmul(W_f.view(size=[S, 1])))  # N x S-1 x 1
+        sigma_deriv_times_Wf = (sigma_deriv.matmul(W_f.view(size=[S, 1])))  # N x S x 1
         return W_f, Wf_dot_sigma, sigma_deriv_times_Wf
 
     def hessian_G_f(self,
@@ -75,30 +75,30 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
         N = X.size(0)
         S = self.model.num_strains()
 
-        h1 = -Wf_dot_sigma.pow(exponent=-2).expand([S-1, S-1, -1]).permute([2, 0, 1]) * (
-            sigma_deriv_times_Wf.matmul(sigma_deriv_times_Wf.transpose(1, 2))  # N x S-1 x S-1
+        h1 = -Wf_dot_sigma.pow(exponent=-2).expand([S, S, -1]).permute([2, 0, 1]) * (
+            sigma_deriv_times_Wf.matmul(sigma_deriv_times_Wf.transpose(1, 2))  # N x S x S
         )
 
-        sigma_second_deriv = self.sigmoid_hessian(X)  # N x (S-1) x (S-1) x S
-        h2 = Wf_dot_sigma.reciprocal().expand([S-1, S-1, -1]).permute([2, 0, 1]) * (
-            sigma_second_deriv.matmul(W_f.view(size=[S, 1])).view(N, S-1, S-1)
+        sigma_second_deriv = self.sigmoid_hessian(X)  # N x S x S x S
+        h2 = Wf_dot_sigma.reciprocal().expand([S, S, -1]).permute([2, 0, 1]) * (
+            sigma_second_deriv.matmul(W_f.view(size=[S, 1])).view(N, S, S)
         )
 
-        return h1 + h2  # N x S-1 x S-1
+        return h1 + h2  # N x S x S
 
     def grad_G_f(self, X: torch.Tensor, Wf_dot_sigma: torch.Tensor, sigma_deriv_times_Wf: torch.Tensor):
         N = X.size(0)
         S = self.model.num_strains()
-        return Wf_dot_sigma.reciprocal().expand([S-1, -1]).t() * sigma_deriv_times_Wf.view(size=[N, S-1])  # N x S-1
+        return Wf_dot_sigma.reciprocal().expand([S, -1]).t() * sigma_deriv_times_Wf.view(size=[N, S])  # N x S
 
     def VH_t(self, t: int, X_t: torch.Tensor, clipping=float("inf")):
         """
         Returns the pair V(X_t), H(X_t), the data-weighted sigmoid gradients and Hessians.
 
         :param t: the time index (for looking up read likelihoods)
-        :param X_t: the Gaussian (an N x S-1 tensor, rows indexed over samples).
+        :param X_t: the Gaussian (an N x S tensor, rows indexed over samples).
         :param clipping: A gradient clipping threshold (in frobenius norm).
-        :return: V (an N x S-1 tensor) and H (an N x S-1 x S-1 tensor).
+        :return: V (an N x S tensor) and H (an N x S x S tensor).
         """
         V = torch.zeros(X_t.size(0), X_t.size(1), device=self.device)
         H = torch.zeros(X_t.size(0), X_t.size(1), X_t.size(1), device=self.device)
@@ -108,7 +108,7 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
             phi_sum = self.phi[t][f].sum()
             H = H + self.hessian_G_f(X_t, W_f, Wf_dot_sigma, sigma_deriv_times_Wf) * phi_sum
             V = V + self.grad_G_f(X_t, Wf_dot_sigma, sigma_deriv_times_Wf) * phi_sum
-        return V, H  # (N x S-1) and (N x S-1 x S-1)
+        return V, H  # (N x S) and (N x S x S)
 
     def update(self) -> float:
         diff = 0.
@@ -166,8 +166,8 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
         Update the model paramters (phi) from sequential importance samples.
 
         :param t: the time index of current sample.
-        :param X_t: (N x S-1) tensor of proposal samples.
-        :param X_prev: (N x S-1) tensor of parent samples (with row indices matching X_t).
+        :param X_t: (N x S) tensor of proposal samples.
+        :param X_prev: (N x S) tensor of parent samples (with row indices matching X_t).
         :param weights: a length N vector of sequential sample weights.
         :return the difference (in L2 norm) of phi.
         """
@@ -199,7 +199,7 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
         S = self.model.num_strains()
         X = []
         for t in range(self.model.num_times()):
-            x_t = torch.empty(size=[num_samples, S-1], device=self.device)
+            x_t = torch.empty(size=[num_samples, S], device=self.device)
             for i in range(num_samples):
                 c = rejection_constant_init_log
                 logger.debug("Sample \# {i}".format(i=i))
@@ -211,7 +211,7 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
                         x_prev = self.model.mu
                         x, proposal_log_likelihood = self.sample_t0(num_samples=1)
                     else:
-                        x_prev = X[t-1][i].view(1, S-1)
+                        x_prev = X[t-1][i].view(1, S)
                         x, proposal_log_likelihood = self.sample_t(t=t, X_prev=x_prev)
 
                     log_ll_diff = (self.actual_log_likelihood(t, X_t=x, X_prev=x_prev) - proposal_log_likelihood).item()
@@ -230,9 +230,9 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
     def sample_t0(self, num_samples: int = 1) -> Tuple[torch.Tensor, torch.Tensor]:
         S = self.model.num_strains()
         center = self.mu
-        V, H = self.VH_t(t=0, X_t=center.view(size=[1, S - 1]), clipping=self.clipping)
-        precision = self.stdev_scale[0] * torch.eye(S - 1, device=self.device) / (self.model.time_scale(0) ** 2) - H.view(S - 1, S - 1)
-        loc = precision.inverse().matmul(V.view(S - 1, 1)).view(size=[S - 1]) + self.mu
+        V, H = self.VH_t(t=0, X_t=center.view(size=[1, S]), clipping=self.clipping)
+        precision = self.stdev_scale[0] * torch.eye(S, device=self.device) / (self.model.time_scale(0) ** 2) - H.view(S, S)
+        loc = precision.inverse().matmul(V.view(S, 1)).view(size=[S]) + self.mu
 
         try:
             dist_0 = MultivariateNormal(
@@ -252,14 +252,14 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
         S = self.model.num_strains()
         V, H = self.VH_t(t=t, X_t=X_prev, clipping=self.clipping)
 
-        # N x S-1 x S-1
-        precision = self.stdev_scale[t] * torch.eye(S-1, device=self.device).expand([N, -1, -1]) \
+        # N x S x S
+        precision = self.stdev_scale[t] * torch.eye(S, device=self.device).expand([N, -1, -1]) \
                     / (self.model.time_scale(t) ** 2) \
                     - H
 
         loc = X_prev + precision.inverse().matmul(
-            V.view(size=[N, S-1, 1])
-        ).view(size=[N, S-1])
+            V.view(size=[N, S, 1])
+        ).view(size=[N, S])
 
         try:
             dist = MultivariateNormal(
@@ -282,9 +282,9 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
         deriv = sigmoid.matmul(sigmoid.transpose(1, 2))
         for n in range(N):
             deriv[n] = torch.diag(sigmoid[n].view(S)) - deriv[n]
-        return deriv[:, :-1, :]  # N x S-1 x S
+        return deriv[:, :-1, :]  # N x S x S
 
-    def sigmoid_hessian(self, X: torch.Tensor) -> torch.Tensor:  # N x (S-1) x (S-1) x S
+    def sigmoid_hessian(self, X: torch.Tensor) -> torch.Tensor:  # N x S x S x S
         """
         The formula is:
         dS_k / (dx_i dx_j)

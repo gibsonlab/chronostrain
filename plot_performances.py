@@ -19,6 +19,7 @@ def parse_args():
     parser.add_argument('--font_size', required=False, type=int, default=22)
     parser.add_argument('--thickness', required=False, type=int, default=1)
     parser.add_argument('--draw_legend', action="store_true")
+    parser.add_argument('--legend_labels', required=False, type=str, nargs='+')
 
     return parser.parse_args()
 
@@ -37,7 +38,8 @@ def main():
         title=args.title,
         font_size=args.font_size,
         thickness=args.thickness,
-        draw_legend=args.draw_legend
+        draw_legend=args.draw_legend,
+        legend_labels=args.legend_labels
     )
     logger.info("Output the performance plot to {}".format(args.output_path))
 

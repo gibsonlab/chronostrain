@@ -59,8 +59,8 @@ class EMSolver(AbstractModelSolver):
         :param thresh: the threshold that determines the convergence criterion (implemented as Frobenius norm of
         abundances).
         :param gradient_clip: An upper bound on the Frobenius norm of the underlying GP trajectory
-        (as a T x S-1 matrix).
-        :param initialization: A (T x S-1) matrix of time-series abundances. If not specified, set to all-zeros matrix.
+        (as a T x S matrix).
+        :param initialization: A (T x S) matrix of time-series abundances. If not specified, set to all-zeros matrix.
         :param print_debug_every: The number of iterations to skip between debug logging summary.
         :return: The estimated abundances
         """
@@ -131,10 +131,9 @@ class EMSolver(AbstractModelSolver):
             q_smoothing: float = 0.
     ):
         T, S = x.size()
-        S = S + 1
 
         F = self.model.num_fragments()
-        x_gradient = torch.zeros(size=x.size(), device=self.device)  # T x S-1 tensor.
+        x_gradient = torch.zeros(size=x.size(), device=self.device)  # T x S tensor.
 
         # ====== Gaussian part
         if T > 1:
@@ -167,15 +166,13 @@ class EMSolver(AbstractModelSolver):
             )
 
         # ==== Gradient clipping.
-        grad_t_norm = x_gradient.norm(p=2).item()
-        if grad_t_norm > gradient_clip:
-            x_gradient = x_gradient * gradient_clip / grad_t_norm
-
+        x_gradient[x_gradient > gradient_clip] = gradient_clip
+        x_gradient[x_gradient < -gradient_clip] = -gradient_clip
 
         updated_x = x + self.lr * x_gradient
 
-        # ==== Re-center to zero to prevent drift.
-        # updated_x = updated_x - (updated_x.mean() * torch.ones(size=updated_x.size(), device=self.device))
+        # ==== Re-center to zero to prevent drift. (Adding constant to each component does not change softmax.)
+        updated_x = updated_x - (updated_x.mean() * torch.ones(size=updated_x.size(), device=self.device))
 
         return updated_x
 

@@ -18,9 +18,6 @@ import multiprocessing
 from joblib import Parallel, delayed
 from tqdm import tqdm
 
-num_cores = multiprocessing.cpu_count()
-# num_cores = 1
-
 
 class AbstractModelSolver(metaclass=ABCMeta):
     def __init__(self, model: GenerativeModel, data: List[List[SequenceRead]]):
@@ -41,10 +38,13 @@ def compute_read_likelihoods(
         model: GenerativeModel,
         reads: List[List[SequenceRead]],
         logarithm: bool,
-        device) -> List[torch.Tensor]:
+        device: torch.DeviceObjType,
+        num_cores: int = None) -> List[torch.Tensor]:
     """
     Returns a list of (F x N) tensors, each containing the time-t read likelihoods.
     """
+    if num_cores is None:
+        num_cores = multiprocessing.cpu_count()
     fragment_space = model.get_fragment_space()
 
     start_time = current_time_millis()

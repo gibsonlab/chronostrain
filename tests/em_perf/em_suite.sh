@@ -1,8 +1,6 @@
 #!/bin/bash
 set -e
 
-# Generate empirical performance of
-
 TESTNAME="em_perf"
 ACCESSION="tests/em_perf/ncbi_refs.csv"
 SRC_ABUNDANCE="tests/em_perf/true_abundances.csv"
@@ -36,7 +34,7 @@ do
 		"data/simulated_reads/$TESTNAME/depth_$depth-trial_$trial/sim_reads_t10.fastq" \
 		"data/simulated_reads/$TESTNAME/depth_$depth-trial_$trial/sim_reads_t11.fastq" \
 		"data/simulated_reads/$TESTNAME/depth_$depth-trial_$trial/sim_reads_t17.fastq" \
-		--true_abundance_path "data/simulated_reads/$TESTNAME/depth_$depth-trial_$trial/sim_abundances.csv" \
+		--true_abundance_path "tests/$TESTNAME/true_abundances_renormalized.csv" \
 		--accession_path "$ACCESSION" \
 		--time_points 1 2 3 4 5 10 11 17 \
 		--method "em" \
@@ -49,7 +47,7 @@ do
     python3 plot_abundance_output.py \
     --abundance_path "data/output/test_$TESTNAME/depth_$depth-trial_$trial/EM_result_$TESTNAME.csv" \
     --output_path "data/output/test_$TESTNAME/depth_$depth-trial_$trial/plot.png" \
-    --ground_truth_path "tests/$TESTNAME/true_abundances.csv" \
+    --ground_truth_path "tests/$TESTNAME/true_abundances_renormalized.csv" \
     --font_size 18 \
     --thickness 3
   done
@@ -66,7 +64,7 @@ do
 done
 
 python3 plot_performances.py \
---ground_truth_path "tests/em_perf/true_abundances.csv" \
+--ground_truth_path "tests/em_perf/true_abundances_renormalized.csv" \
 --output_path "data/output/test_$TESTNAME/performance_plot.png" \
 --font_size 18 \
 --thickness 3 \

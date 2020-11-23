@@ -21,6 +21,7 @@ def parse_args():
                         help='The title for the plot.')
     parser.add_argument('--font_size', required=False, type=int, default=22)
     parser.add_argument('--thickness', required=False, type=int, default=1)
+    parser.add_argument('--ylim', required=False, type=float, nargs='+')
 
     return parser.parse_args()
 
@@ -40,7 +41,8 @@ def main():
             draw_legend=False,
             num_reads_per_time=num_reads,
             font_size=args.font_size,
-            thickness=args.thickness
+            thickness=args.thickness,
+            ylim=args.ylim
         )
     else:
         plot_abundances(
@@ -49,7 +51,8 @@ def main():
             plots_out_path=args.output_path,
             draw_legend=False,
             font_size=args.font_size,
-            thickness=args.thickness
+            thickness=args.thickness,
+            ylim=args.ylim
         )
     logger.info("Plots saved to {}".format(args.output_path))
 

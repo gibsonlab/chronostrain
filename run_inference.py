@@ -45,7 +45,7 @@ def parse_args():
     parser.add_argument('-a', '--accession_path', required=True, type=str,
                         help='<Required> A path to the CSV file listing the strains to sample from. '
                              'See README for the expected format.')
-    parser.add_argument('-t', '--time_points', required=True, nargs='+', type=int,
+    parser.add_argument('-t', '--time_points', required=True, nargs='+', type=float,
                         help='<Required> A list of integers. Each value represents a time point in the dataset.')
     parser.add_argument('-m', '--method', choices=['em', 'vi', 'bbvi', 'vsmc'], required=True,
                         help='<Required> A keyword specifying the inference method.')
@@ -141,21 +141,12 @@ def perform_em(
     )
     logger.info("Abundances saved to {}.".format(output_path))
 
-    # ==== Get difference between learned abundances and ground-truth abundances.
-    diff = None
-    if ground_truth_path:
-        _, predicted_abundances, _ = load_abundances(file_path=output_path, torch_device=default_device)
-        _, actual_abundances, _ = load_abundances(file_path=ground_truth_path, torch_device=default_device)
-        diff = torch.norm(predicted_abundances - actual_abundances, p='fro').item()
-        logger.debug("Abundance squared-norm difference: {}".format(diff))
-
     # ==== Plot the learned abundances.
     logger.info("Done. Saving plot of learned abundances.")
     plot_em_result(
         reads=reads,
         result_path=output_path,
         true_path=ground_truth_path,
-        abundance_diff=diff,
         plots_out_path=plots_out_path,
         disable_time_consistency=disable_time_consistency,
         disable_quality=disable_quality
@@ -373,7 +364,7 @@ def create_model(population: Population,
     @param disable_quality: A flag to indicate whether or not to use NoiselessErrorModel.
     @return A Generative model object.
     """
-    mu = torch.zeros(len(population.strains)-1, device=default_device)
+    mu = torch.zeros(len(population.strains), device=default_device)
     tau_1 = 1
     tau = 1
 
