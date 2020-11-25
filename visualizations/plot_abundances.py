@@ -9,7 +9,7 @@ import pandas as pd
 from algs.vi import AbstractVariationalPosterior
 from model.bacteria import Population
 from util.io.model_io import load_abundances
-from util.torch import multi_logit
+from torch.nn.functional import softmax
 
 
 def plot_abundances_comparison(
@@ -134,7 +134,7 @@ def plot_posterior_abundances(
         _, true_abundances, accessions = load_abundances(truth_path, torch_device=torch.device("cpu"))
         truth_acc_dict = {acc: i for i, acc in enumerate(accessions)}
 
-    abundance_samples = [multi_logit(x_t, dim=1) for x_t in posterior.sample(num_samples=num_samples)]
+    abundance_samples = [softmax(x_t, dim=1) for x_t in posterior.sample(num_samples=num_samples)]
     data = pd.DataFrame(np.array(
         [
             (times[t], strain.name, abundance_t[i, s].item(), 'Learned')

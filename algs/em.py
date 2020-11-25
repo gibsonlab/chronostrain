@@ -7,13 +7,14 @@ from model.reads import SequenceRead
 from model.generative import GenerativeModel
 
 import torch
+from torch.nn.functional import softmax
 
-from util.torch import multi_logit
+# from util.torch import multi_logit
 
 torch.set_default_dtype(torch.float64)
 
 # ===========================================================================================
-# =============== Expectation-Maximization (for getting a MAP estimator) ====================
+# =============== Expectation-Maximization (for computing a MAP estimator) ==================
 # ===========================================================================================
 
 
@@ -33,7 +34,7 @@ class EMSolver(AbstractModelSolver):
         :param generative_model: The underlying generative model with prior parameters.
         :param data: the observed data, a time-indexed list of read collections.
         :param torch_device: the torch device to operate on. (Recommended: CUDA if available.)
-        :param lr: the learning rate (default: 1e-3
+        :param lr: the learning rate (default: 1e-3)
         """
         super().__init__(generative_model, data)
         self.read_likelihoods = compute_read_likelihoods(self.model, self.data, logarithm=False, device=torch_device)
@@ -91,7 +92,7 @@ class EMSolver(AbstractModelSolver):
             time_est.increment(secs_elapsed)
 
             diff = torch.norm(
-                multi_logit(updated_brownian_motion, dim=1) - multi_logit(brownian_motion, dim=1),
+                softmax(updated_brownian_motion, dim=1) - softmax(brownian_motion, dim=1),
                 p='fro'
             )
 
@@ -110,9 +111,10 @@ class EMSolver(AbstractModelSolver):
             k += 1
         logger.info("Finished {k} iterations.".format(k=k))
 
-        abundances = [multi_logit(gaussian, dim=0) for gaussian in brownian_motion]
-        normalized_abundances = torch.stack(abundances).to(self.device)
-        return normalized_abundances
+        return softmax(brownian_motion, dim=1).to(self.device)
+        # abundances = [softmax(gaussian, dim=) for gaussian in brownian_motion]
+        # normalized_abundances = torch.stack(abundances).to(self.device)
+        # return normalized_abundances
 
     def do_noisy_mapping(self):
         noisy_mappings = []
@@ -150,7 +152,8 @@ class EMSolver(AbstractModelSolver):
                     x_gradient[t] = variance_scaling_prev * (x[t] - x[t-1]) + variance_scaling_next * (x[t] - x[t+1])
 
         # ====== Sigmoidal part
-        y = multi_logit(x, dim=1)
+        # y = multi_logit(x, dim=1)
+        y = softmax(x, dim=1)
         for t in range(T):
             # Scale each row by Z_t, and normalize.
             Z_t = self.model.strain_abundance_to_frag_abundance(y[t].view(S, 1))

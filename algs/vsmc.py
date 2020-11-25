@@ -15,7 +15,7 @@ from algs.base import AbstractModelSolver, compute_read_likelihoods
 from util.benchmarking import RuntimeEstimator
 
 from util.io.logger import logger
-from util.torch import multi_logit
+from torch.nn.functional import softmax
 
 
 class VariationalSequentialPosterior(AbstractVariationalPosterior):
@@ -97,7 +97,7 @@ class VariationalSequentialPosterior(AbstractVariationalPosterior):
         # Indexing: (time) x (sample idx) x (distribution dimension)
         X = self.rand_sample_X(num_samples)
         if apply_softmax:
-            X = [multi_logit(x_t, dim=1) for x_t in X]
+            X = [softmax(x_t, dim=1) for x_t in X]
         return X
 
     def rand_sample_X(self, num_samples) -> List[torch.Tensor]:

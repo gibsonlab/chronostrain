@@ -8,7 +8,7 @@ from model.generative import GenerativeModel
 from model.reads import SequenceRead
 from algs.base import AbstractModelSolver, compute_read_likelihoods
 
-from util.torch import multi_logit
+from torch.nn.functional import softmax
 from util.benchmarking import RuntimeEstimator
 from util.io.logger import logger
 
@@ -54,7 +54,7 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
         S = self.model.num_strains()
 
         W_f = self.model.get_fragment_frequencies()[f]  # S-dim vector.
-        sigma = multi_logit(X, dim=1)  # N x S
+        sigma = softmax(X, dim=1)  # N x S
         Wf_dot_sigma = sigma.mv(W_f)  # N-dim vector.
 
         sigma_deriv = self.sigmoid_derivative(X)  # N x S x S
@@ -153,7 +153,7 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
         return (
                 (1 / self.model.time_scale(t) ** 2) * (X_t - X_prev).norm(p='fro', dim=1)
                 +
-                (multi_logit(X_t, dim=1).mm(self.model.get_fragment_frequencies().t())).log().mv(
+                (softmax(X_t, dim=1).mm(self.model.get_fragment_frequencies().t())).log().mv(
                     self.phi[t].sum(dim=1)
                 )
         )  # length N
@@ -167,12 +167,11 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
 
         :param t: the time index of current sample.
         :param X_t: (N x S) tensor of proposal samples.
-        :param X_prev: (N x S) tensor of parent samples (with row indices matching X_t).
         :param weights: a length N vector of sequential sample weights.
         :return the difference (in L2 norm) of phi.
         """
         N = X_t.size(0)
-        log_statistic = (multi_logit(X_t, dim=1)
+        log_statistic = (softmax(X_t, dim=1)
                          .mm(self.model.get_fragment_frequencies().t())
                          .log())  # N x F
         tilt = (weights.view(1, N).mm(log_statistic)
@@ -278,7 +277,7 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
     def sigmoid_derivative(self, X: torch.Tensor) -> torch.Tensor:
         N = X.size(0)
         S = self.model.num_strains()
-        sigmoid = multi_logit(X, dim=1).view(N, S, 1)
+        sigmoid = softmax(X, dim=1).view(N, S, 1)
         deriv = sigmoid.matmul(sigmoid.transpose(1, 2))
         for n in range(N):
             deriv[n] = torch.diag(sigmoid[n].view(S)) - deriv[n]
@@ -300,7 +299,7 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
         """
         N = X.size(0)
         S = self.model.num_strains()
-        sigmoid = multi_logit(X, dim=1).view(N, S, 1)
+        sigmoid = softmax(X, dim=1).view(N, S, 1)
         hess = sigmoid.matmul(sigmoid.transpose(1, 2)).view(N, S, S, 1).matmul(
             sigmoid.expand([S, -1, -1, -1]).permute([1, 0, 3, 2])
         )  # N x S x S x S

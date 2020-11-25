@@ -12,7 +12,7 @@ from model.reads import AbstractErrorModel, SequenceRead
 from util.io.logger import logger
 
 from torch.distributions.multivariate_normal import MultivariateNormal
-from util.torch import multi_logit
+from torch.nn.functional import softmax
 
 
 class GenerativeModel:
@@ -98,7 +98,7 @@ class GenerativeModel:
         gaussian_log_probs = MultivariateNormal(loc=center, covariance_matrix=covariance).log_prob(X)
 
         # Reads likelihood calculation, conditioned on the Gaussian part.
-        data_log_probs = (multi_logit(X, dim=1)
+        data_log_probs = (softmax(X, dim=1)
                           .mm(self.get_fragment_frequencies().t())
                           .mm(read_likelihoods)
                           .log()
@@ -194,7 +194,7 @@ class GenerativeModel:
         :return: A T x S tensor; each row is an abundance profile for a time point.
         """
         gaussians = self._sample_brownian_motion()
-        return multi_logit(gaussians, dim=1)
+        return softmax(gaussians, dim=1)
 
     def strain_abundance_to_frag_abundance(self, strain_abundances: torch.Tensor) -> torch.Tensor:
         """
