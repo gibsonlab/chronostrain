@@ -9,6 +9,8 @@ import torch
 class Marker:
     name: str
     seq: str
+    head: str
+    tail: str
 
     def __repr__(self):
         return "Marker[{}:{}]".format(self.name, self.seq)
