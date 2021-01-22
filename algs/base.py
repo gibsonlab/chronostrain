@@ -10,6 +10,7 @@ from abc import ABCMeta, abstractmethod
 from typing import List
 from model.generative import GenerativeModel
 from model.reads import SequenceRead
+from util.cache.data_cache import CachedComputation
 
 from util.io.logger import logger
 from util.benchmarking import current_time_millis, millis_elapsed
@@ -20,9 +21,26 @@ from tqdm import tqdm
 
 
 class AbstractModelSolver(metaclass=ABCMeta):
-    def __init__(self, model: GenerativeModel, data: List[List[SequenceRead]]):
+    def __init__(self,
+                 model: GenerativeModel,
+                 data: List[List[SequenceRead]],
+                 device: torch.device,
+                 cache_tag: str,
+                 read_likelihoods: List[torch.Tensor] = None):
         self.model = model
         self.data = data
+        self.device = device
+        self.cache_tag = cache_tag
+        if read_likelihoods is None:
+            self.read_likelihoods = CachedComputation(compute_read_likelihoods, cache_tag=cache_tag).call(
+                "read_likelihoods.pkl",
+                model=model,
+                reads=data,
+                logarithm=False,
+                device=device
+            )
+        else:
+            self.read_likelihoods = read_likelihoods
 
     @abstractmethod
     def solve(self, *args, **kwargs):
@@ -33,12 +51,12 @@ class AbstractModelSolver(metaclass=ABCMeta):
 # ========================= Helper functions ========================
 # ===================================================================
 
-# Helper function for both EM and VI
+# Helper function
 def compute_read_likelihoods(
         model: GenerativeModel,
         reads: List[List[SequenceRead]],
         logarithm: bool,
-        device: torch.DeviceObjType,
+        device: torch.device,
         num_cores: int = None) -> List[torch.Tensor]:
     """
     Returns a list of (F x N) tensors, each containing the time-t read likelihoods.
@@ -69,7 +87,7 @@ def compute_read_likelihoods(
         # TODO: Maybe find another parallelization alternative.
     else:
         errors = [
-            create_matrix(k) for k in range(len(model.times))
+            create_matrix(k) for k in tqdm(range(len(model.times)))
         ]
     logger.debug("Computed fragment errors in {} min.".format(millis_elapsed(start_time) / 60000))
 

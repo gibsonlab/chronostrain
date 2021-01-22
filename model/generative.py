@@ -51,6 +51,7 @@ class GenerativeModel:
         """
         Outputs the (F x S) matrix representing the strain-specific fragment frequencies.
         Is a wrapper for Population.get_strain_fragment_frequencies().
+        (Corresponds to the matrix "W" in writeup.)
         """
         return self.bacteria_pop.get_strain_fragment_frequencies(window_size=self.read_length)
 

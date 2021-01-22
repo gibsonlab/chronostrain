@@ -30,8 +30,8 @@ python3 run_inference.py \
 --time_points 1.0 1.1 1.2 \
 --method "em" \
 -trim 150 \
---out_path "data/output/test_$TESTNAME/depth_$sparse_depth-trial_$trial/EM_result_$TESTNAME.csv" \
---plots_path "data/output/test_$TESTNAME/depth_$sparse_depth-trial_$trial/EM_result_${TESTNAME}_plot.png" \
+--out_path "data/output/$TESTNAME/depth_$sparse_depth-trial_$trial/EM_result_$TESTNAME.csv" \
+--plots_path "data/output/$TESTNAME/depth_$sparse_depth-trial_$trial/EM_result_${TESTNAME}_plot.png" \
 --iters 20000
 
 # Time consistency off
@@ -45,7 +45,7 @@ python3 run_inference.py \
 --time_points 1.0 1.1 1.2 \
 --method "em" \
 -trim 150 \
---out_path "data/output/test_$TESTNAME/depth_$sparse_depth-trial_$trial-timeoff/EM_result_$TESTNAME.csv" \
---plots_path "data/output/test_$TESTNAME/depth_$sparse_depth-trial_$trial-timeoff/EM_result_${TESTNAME}_plot.png" \
+--out_path "data/output/$TESTNAME/depth_$sparse_depth-trial_$trial-timeoff/EM_result_$TESTNAME.csv" \
+--plots_path "data/output/$TESTNAME/depth_$sparse_depth-trial_$trial-timeoff/EM_result_${TESTNAME}_plot.png" \
 --iters 20000 \
 --disable_time_consistency

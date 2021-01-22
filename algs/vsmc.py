@@ -121,9 +121,8 @@ class VariationalSequentialPosterior(AbstractVariationalPosterior):
 
 
 class VSMCSolver(AbstractModelSolver):
-    def __init__(self, model: GenerativeModel, data: List[List[SequenceRead]], torch_device):
-        super().__init__(model, data)
-        self.read_likelihoods = compute_read_likelihoods(model, data, logarithm=False, device=torch_device)
+    def __init__(self, model: GenerativeModel, data: List[List[SequenceRead]], torch_device, cache_tag: str):
+        super().__init__(model, data, torch_device, cache_tag)
         self.posterior = VariationalSequentialPosterior(
             num_times=model.num_times(),
             num_strains=model.num_strains(),

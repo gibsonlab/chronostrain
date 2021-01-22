@@ -26,21 +26,20 @@ class EMSolver(AbstractModelSolver):
             self,
             generative_model: GenerativeModel,
             data: List[List[SequenceRead]],
-            torch_device,
-            lr: float = 1e-3):
+            device: torch.device,
+            cache_tag: str,
+            lr: float = 1e-3,
+            read_likelihoods: List[torch.Tensor] = None):
         """
         Instantiates an EMSolver instance.
 
         :param generative_model: The underlying generative model with prior parameters.
         :param data: the observed data, a time-indexed list of read collections.
-        :param torch_device: the torch device to operate on. (Recommended: CUDA if available.)
+        :param device: the torch device to operate on. (Recommended: CUDA if available.)
         :param lr: the learning rate (default: 1e-3)
         """
-        super().__init__(generative_model, data)
-        self.read_likelihoods = compute_read_likelihoods(self.model, self.data, logarithm=False, device=torch_device)
+        super().__init__(generative_model, data, device, cache_tag, read_likelihoods=read_likelihoods)
         self.lr = lr
-        self.device = torch_device
-        self.model.get_fragment_frequencies()
 
         # if disable_quality:
         #     logger.info("EM solve() called with disable_quality = True. Will simulate mappings from read likelihoods.")
@@ -69,7 +68,7 @@ class EMSolver(AbstractModelSolver):
         if initialization is None:
             # T x S array representing a time-indexed, S-dimensional brownian motion.
             brownian_motion = torch.ones(
-                size=[len(self.model.times), len(self.model.bacteria_pop.strains) - 1],
+                size=[len(self.model.times), len(self.model.bacteria_pop.strains)],
                 device=self.device
             )
         else:
@@ -161,10 +160,10 @@ class EMSolver(AbstractModelSolver):
             Q = (Q / Q.sum(dim=0)[None, :]).sum(dim=1) / Z_t.view(F)
 
             sigmoid = y[t]
-            sigmoid_jacobian = torch.diag(sigmoid) - torch.ger(sigmoid, sigmoid)
+            sigmoid_jacobian = torch.diag(sigmoid) - torch.ger(sigmoid, sigmoid)  # symmetric matrix.
 
             # Chopping off the last row corresponds to multi_logit appending zeros at the end.
-            x_gradient[t] = x_gradient[t] + sigmoid_jacobian[:-1, :].mv(
+            x_gradient[t] = x_gradient[t] + sigmoid_jacobian.mv(
                 self.model.get_fragment_frequencies().t().mv(Q)
             )
 
@@ -181,7 +180,7 @@ class EMSolver(AbstractModelSolver):
 
     def get_frag_likelihoods(self, t: int):
         """
-        Look up the fragment error matrix for timeslice t.
+        Look up the fragment error matrix for timeslice t. (corresponds to \epsilon^t from writeup.)
 
         :param t: the time index (not the actual value).
         :return: An (F x N) matrix representing the read likelihoods according to the error model.

@@ -26,9 +26,9 @@ python run_inference.py \
 --true_abundance_path "data/simulated_reads/$TESTNAME/sim_abundances.csv" \
 --accession_path "tests/$TESTNAME/ncbi_refs.csv" \
 --time_points 1 2 4 6 7 8 10 \
---method "em" \
+--method "bbvi" \
 --seed 123 \
---out_dir "data/output/test_$TESTNAME" \
+--out_dir "data/output/$TESTNAME" \
 --out_file "EM_result_$TESTNAME.csv" \
 --plots_file "EM_result_${TESTNAME}_plot.png" \
 -trim 200
@@ -46,7 +46,7 @@ python run_inference.py \
 --true_abundance_path "data/simulated_reads/$TESTNAME/sim_abundances.csv" \
 --accession_path "tests/$TESTNAME/ncbi_refs.csv" \
 --time_points 1 2 4 6 7 8 10 \
---method "em" \
+--method "bbvi" \
 --seed 123 \
 --out_dir "data/output/test_${TESTNAME}_time_off" \
 --out_file "EM_result_${TESTNAME}_time_off.csv" \

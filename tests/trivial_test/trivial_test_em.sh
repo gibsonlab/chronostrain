@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-TESTNAME="2strains"
+TESTNAME="trivial_test"
 
 cd ../..
 python simulate_reads.py \
@@ -9,9 +9,9 @@ python simulate_reads.py \
 --out_dir "./data/simulated_reads/$TESTNAME" \
 --accession_path "tests/$TESTNAME/ncbi_refs.csv" \
 --abundance_path "tests/$TESTNAME/strain_abundances.csv" \
---num_reads 500 \
+--num_reads 1 \
 --read_length 150 \
--trim 2500
+-trim 200
 
 # Time consistency on
 python run_inference.py \
@@ -28,9 +28,10 @@ python run_inference.py \
 --time_points 1 2 4 6 7 8 10 \
 --method "em" \
 --seed 123 \
---out_path "data/output/$TESTNAME/EM_result_$TESTNAME.csv" \
---plots_path "data/output/$TESTNAME/EM_result_${TESTNAME}_plot.png" \
--trim 2500
+--out_dir "data/output/$TESTNAME" \
+--out_file "EM_result_$TESTNAME.csv" \
+--plots_file "EM_result_${TESTNAME}_plot.png" \
+-trim 200
 
 # Time consistency off
 python run_inference.py \
@@ -47,7 +48,8 @@ python run_inference.py \
 --time_points 1 2 4 6 7 8 10 \
 --method "em" \
 --seed 123 \
---out_path "data/output/test_${TESTNAME}_time_off/EM_result_${TESTNAME}_time_off.csv" \
---plots_path "data/output/test_${TESTNAME}_time_off/EM_result_${TESTNAME}_plot_time_off.png" \
--trim 2500 \
+--out_dir "data/output/test_${TESTNAME}_time_off" \
+--out_file "EM_result_${TESTNAME}_time_off.csv" \
+--plots_file "EM_result_${TESTNAME}_plot_time_off.png" \
+-trim 200 \
 --disable_time_consistency

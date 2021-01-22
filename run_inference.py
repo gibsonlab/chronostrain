@@ -6,8 +6,7 @@
 
 import argparse
 
-from algs.vi import SecondOrderVariationalSolver
-from algs.vsmc import VariationalSequentialPosterior
+from algs.vi import SecondOrderVariationalSolver, AbstractVariationalPosterior
 from database.base import *
 
 import torch
@@ -15,7 +14,7 @@ import torch
 from model.generative import GenerativeModel
 from model.bacteria import Population
 from model.reads import SequenceRead, FastQErrorModel, NoiselessErrorModel
-from algs import em, vsmc, bbvi
+from algs import em, vsmc, bbvi, em_alt
 from visualizations import plot_abundances as plotter
 
 from typing import List
@@ -28,6 +27,7 @@ from tqdm import tqdm
 
 # ============================= Constants =================================
 default_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# default_device = torch.device("cpu")
 torch.set_default_tensor_type(torch.DoubleTensor)
 
 num_cores = multiprocessing.cpu_count()
@@ -47,7 +47,7 @@ def parse_args():
                              'See README for the expected format.')
     parser.add_argument('-t', '--time_points', required=True, nargs='+', type=float,
                         help='<Required> A list of integers. Each value represents a time point in the dataset.')
-    parser.add_argument('-m', '--method', choices=['em', 'vi', 'bbvi', 'vsmc'], required=True,
+    parser.add_argument('-m', '--method', choices=['em', 'vi', 'bbvi', 'vsmc', 'emalt'], required=True,
                         help='<Required> A keyword specifying the inference method.')
 
     # Output specification.
@@ -70,7 +70,7 @@ def parse_args():
                         help='<Flag> Turn off time consistency (perform separate inference on each time point).')
     parser.add_argument('--iters', required=False, type=int, default=10000,
                         help='<Optional> The number of iterations to run, if using EM or VI. Default: 10000')
-    parser.add_argument('--num_samples', required=False, type=int, default=10000,
+    parser.add_argument('--num_samples', required=False, type=int, default=100,
                         help='<Optional> The number of samples to use for monte-carlo estimation '
                              '(for Variational solution).')
     parser.add_argument('-lr', '--learning_rate', required=False, type=float, default=1e-5,
@@ -88,14 +88,17 @@ def perform_em(
         disable_time_consistency: bool,
         disable_quality: bool,
         iters: int,
+        cache_tag: str,
         learning_rate: float):
 
     q_smoothing = 1e-30
 
     # ==== Run the solver.
     if not disable_time_consistency:
-        solver = em.EMSolver(model, reads,
-                             torch_device=default_device,
+        solver = em.EMSolver(model,
+                             reads,
+                             device=default_device,
+                             cache_tag=cache_tag,
                              lr=learning_rate)
         abundances = solver.solve(
             iters=iters,
@@ -114,8 +117,10 @@ def perform_em(
                 time_points=[1],
                 disable_quality=disable_quality
             )
-            instance_solver = em.EMSolver(pseudo_model, [reads_t],
-                                          torch_device=default_device,
+            instance_solver = em.EMSolver(pseudo_model,
+                                          [reads_t],
+                                          device=default_device,
+                                          cache_tag=cache_tag,
                                           lr=learning_rate)
             abundances_t = instance_solver.solve(
                 iters=10000,
@@ -154,6 +159,59 @@ def perform_em(
     logger.info("Plots saved to {}.".format(plots_out_path))
 
 
+def perform_em_alt(
+        reads: List[List[SequenceRead]],
+        model: GenerativeModel,
+        abnd_out_path: str,
+        plots_out_path: str,
+        ground_truth_path: str,
+        disable_time_consistency: bool,
+        disable_quality: bool,
+        iters: int,
+        cache_tag: str,
+        learning_rate: float):
+
+    # ==== Run the solver.
+    if not disable_time_consistency:
+        solver = em_alt.EMAlternateSolver(model,
+                                          reads,
+                                          device=default_device,
+                                          cache_tag=cache_tag,
+                                          lr=learning_rate)
+        abundances, strains = solver.solve(
+            max_iters=iters,
+            print_debug_every=1,
+            x_opt_thresh=1e-5
+        )
+    else:
+        raise NotImplementedError()
+
+    for t in range(len(reads)):
+        for read, strain in zip(reads[t], strains[t]):
+            logger.debug("{} -> {}".format(read.metadata, strain))
+
+    # ==== Save the learned abundances.
+    output_path = save_abundances_by_path(
+        population=model.bacteria_pop,
+        time_points=model.times,
+        abundances=abundances,
+        out_path=abnd_out_path
+    )
+    logger.info("Abundances saved to {}.".format(output_path))
+
+    # ==== Plot the learned abundances.
+    logger.info("Done. Saving plot of learned abundances.")
+    plot_em_result(
+        reads=reads,
+        result_path=output_path,
+        true_path=ground_truth_path,
+        plots_out_path=plots_out_path,
+        disable_time_consistency=disable_time_consistency,
+        disable_quality=disable_quality
+    )
+    logger.info("Plots saved to {}.".format(plots_out_path))
+
+
 def perform_vsmc(
         model: GenerativeModel,
         reads: List[List[SequenceRead]],
@@ -163,11 +221,12 @@ def perform_vsmc(
         learning_rate: float,
         num_samples: int,
         ground_truth_path: str,
-        plots_out_path: str):
+        plots_out_path: str,
+        cache_tag: str):
 
     # ==== Run the solver.
     if not disable_time_consistency:
-        solver = vsmc.VSMCSolver(model=model, data=reads, torch_device=default_device)
+        solver = vsmc.VSMCSolver(model=model, data=reads, torch_device=default_device, cache_tag=cache_tag)
         solver.solve(
             optim_class=torch.optim.Adam,
             optim_args={'lr': learning_rate, 'betas': (0.7, 0.7), 'eps': 1e-7, 'weight_decay': 0.},
@@ -203,11 +262,12 @@ def perform_bbvi(
         learning_rate: float,
         num_samples: int,
         ground_truth_path: str,
-        plots_out_path: str):
+        plots_out_path: str,
+        cache_tag: str):
 
     # ==== Run the solver.
     if not disable_time_consistency:
-        solver = bbvi.BBVISolver(model=model, data=reads, device=default_device)
+        solver = bbvi.BBVISolver(model=model, data=reads, device=default_device, cache_tag=cache_tag)
         solver.solve(
             optim_class=torch.optim.Adam,
             optim_args={'lr': learning_rate, 'betas': (0.9, 0.999), 'eps': 1e-7, 'weight_decay': 0.},
@@ -242,11 +302,12 @@ def perform_vi(
         iters: int,
         num_samples: int,
         ground_truth_path: str,
-        plots_out_path: str):
+        plots_out_path: str,
+        cache_tag: str):
 
     # ==== Run the solver.
     if not disable_time_consistency:
-        solver = SecondOrderVariationalSolver(model, reads, default_device)
+        solver = SecondOrderVariationalSolver(model, reads, default_device, cache_tag)
         posterior = solver.solve(
             iters=iters,
             num_montecarlo_samples=num_samples,
@@ -322,10 +383,10 @@ def plot_em_result(
 
 def plot_variational_result(
         method: str,
-        times: List[int],
+        times: List[float],
         population: Population,
         reads: List[List[SequenceRead]],
-        posterior: VariationalSequentialPosterior,
+        posterior: AbstractVariationalPosterior,
         disable_time_consistency: bool,
         disable_quality: bool,
         plots_out_path: str,
@@ -431,6 +492,10 @@ def main():
     1) 'em' runs Expectation-Maximization. Saves the learned abundances and plots them.
     2) 'bbvi' runs black-box VI and saves the learned posterior parametrization (as tensors).
     """
+    cache_tag = "{}_{}".format(
+        args.method,
+        ''.join(args.read_files)
+    )
 
     if args.method == 'em':
         logger.info("Solving using Expectation-Maximization.")
@@ -443,7 +508,8 @@ def main():
             disable_time_consistency=args.disable_time_consistency,
             disable_quality=args.disable_quality,
             iters=args.iters,
-            learning_rate=args.learning_rate
+            learning_rate=args.learning_rate,
+            cache_tag=cache_tag
         )
     elif args.method == 'bbvi':
         logger.info("Solving using Black-Box Variational Inference.")
@@ -456,7 +522,8 @@ def main():
             num_samples=args.num_samples,
             ground_truth_path=args.true_abundance_path,
             plots_out_path=args.plots_path,
-            learning_rate=args.learning_rate
+            learning_rate=args.learning_rate,
+            cache_tag=cache_tag
         )
     elif args.method == 'vsmc':
         logger.info("Solving using Variational Sequential Monte-Carlo.")
@@ -469,7 +536,8 @@ def main():
             num_samples=args.num_samples,
             ground_truth_path=args.true_abundance_path,
             plots_out_path=args.plots_path,
-            learning_rate=args.learning_rate
+            learning_rate=args.learning_rate,
+            cache_tag=cache_tag
         )
     elif args.method == 'vi':
         logger.info("Solving using Variational Inference (Second-order mean-field solution).")
@@ -481,7 +549,22 @@ def main():
             iters=args.iters,
             num_samples=args.num_samples,
             ground_truth_path=args.true_abundance_path,
-            plots_out_path=args.plots_path
+            plots_out_path=args.plots_path,
+            cache_tag=cache_tag
+        )
+    elif args.method == 'emalt':
+        logger.info("Solving using Alt-EM.")
+        perform_em_alt(
+            reads=reads,
+            model=model,
+            abnd_out_path=args.out_path,
+            plots_out_path=args.plots_path,
+            ground_truth_path=args.true_abundance_path,
+            disable_time_consistency=args.disable_time_consistency,
+            disable_quality=args.disable_quality,
+            iters=args.iters,
+            learning_rate=args.learning_rate,
+            cache_tag=cache_tag
         )
     else:
         raise ValueError("{} is not an implemented method.".format(args.method))

@@ -1,3 +1,10 @@
+"""
+vi.py
+This is the second-order approximation solution for VI derived in a previous writeup.
+(Note: doesn't work as well as mean-field BBVI.)
+"""
+
+
 from abc import ABCMeta, abstractmethod
 from typing import List, Tuple
 
@@ -6,7 +13,7 @@ from torch.distributions import MultivariateNormal, Categorical
 
 from model.generative import GenerativeModel
 from model.reads import SequenceRead
-from algs.base import AbstractModelSolver, compute_read_likelihoods
+from algs.base import AbstractModelSolver
 
 from torch.nn.functional import softmax
 from util.benchmarking import RuntimeEstimator
@@ -322,10 +329,10 @@ class SecondOrderVariationalSolver(AbstractModelSolver):
     def __init__(self,
                  model: GenerativeModel,
                  data: List[List[SequenceRead]],
-                 torch_device):
-        super().__init__(model, data)
+                 torch_device,
+                 cache_tag: str):
+        super().__init__(model, data, torch_device, cache_tag)
         self.device = torch_device
-        self.read_likelihoods = compute_read_likelihoods(model=model, reads=data, logarithm=False, device=torch_device)
 
     def solve(self,
               iters=4000,

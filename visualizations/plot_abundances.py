@@ -134,7 +134,10 @@ def plot_posterior_abundances(
         _, true_abundances, accessions = load_abundances(truth_path, torch_device=torch.device("cpu"))
         truth_acc_dict = {acc: i for i, acc in enumerate(accessions)}
 
-    abundance_samples = [softmax(x_t, dim=1) for x_t in posterior.sample(num_samples=num_samples)]
+    abundance_samples = [
+        softmax(x_t, dim=1)
+        for x_t in posterior.sample(num_samples=num_samples)
+    ]
     data = pd.DataFrame(np.array(
         [
             (times[t], strain.name, abundance_t[i, s].item(), 'Learned')
@@ -144,6 +147,7 @@ def plot_posterior_abundances(
         ],
         dtype=[('Time', float), ('Strain', '<U20'), ('Abundance', float), ('Truth', '<U10')]
     ))
+    sizes = [thickness]
 
     if true_abundances is not None:
         true_abundances = true_abundances[0:len(times)]  # TODO remove when done debugging.
@@ -155,6 +159,11 @@ def plot_posterior_abundances(
             ],
             dtype=[('Time', float), ('Strain', '<U20'), ('Abundance', float), ('Truth', '<U10')]
         )), data])
+        sizes = sizes + [thickness]
+
+    data.to_csv("data/output/trivial_test/samples.csv")
+    print("Generated {} samples for plotting.".format(num_samples))
+    print(data)
 
     plt.rcParams.update({'font.size': font_size})
     ax = sns.lineplot(
@@ -167,7 +176,7 @@ def plot_posterior_abundances(
         markers=True,
         legend='full' if draw_legend else False,
         size="Truth",
-        sizes=[thickness, thickness]
+        sizes=sizes
     )
     if title is not None:
         plt.title(title)

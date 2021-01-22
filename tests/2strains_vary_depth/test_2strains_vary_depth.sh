@@ -32,8 +32,8 @@ do
   --time_points 1 2 4 6 7 8 10 15 \
   --method "em" \
   --seed 123 \
-  --out_path "data/output/test_$TESTNAME/depth_$depth/EM_result_$TESTNAME.csv" \
-  --plots_path "data/output/test_$TESTNAME/depth_$depth/EM_result_${TESTNAME}_plot.png" \
+  --out_path "data/output/$TESTNAME/depth_$depth/EM_result_$TESTNAME.csv" \
+  --plots_path "data/output/$TESTNAME/depth_$depth/EM_result_${TESTNAME}_plot.png" \
   -trim 2500
 
    # Time consistency off
