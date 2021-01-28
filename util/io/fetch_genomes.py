@@ -6,7 +6,7 @@ from util.io.logger import logger
 from util.io.filesystem import convert_size, get_filesize_bytes
 from dataclasses import dataclass
 
-_base_dir = "/data"
+_base_dir = "data"
 _fasta_filename = "{accession}.fasta"
 _genbank_filename = "{accession}.gb"
 _ncbi_fasta_api_url = "https://www.ncbi.nlm.nih.gov/search/api/sequence/{accession}/?report=fasta"

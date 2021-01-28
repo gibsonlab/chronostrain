@@ -8,7 +8,7 @@ import re
 from typing import List
 from util.io.logger import logger
 
-_DEFAULT_DATA_DIR = "/data"
+_DEFAULT_DATA_DIR = "data"
 
 
 class AbstractStrainDatabase(metaclass=ABCMeta):
