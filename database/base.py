@@ -31,24 +31,24 @@ class AbstractStrainDatabase(metaclass=ABCMeta):
         return [self.get_strain(s_id) for s_id in strain_ids]
 
 
-class SimpleCSVStrainDatabase(AbstractStrainDatabase):
+class SimpleJSONStrainDatabase(AbstractStrainDatabase):
     """
     A Simple implementation that treats each complete strain genome and optional specified subsequences as markers.
     """
 
-    def __init__(self, csv_refs, trim_debug=None):
+    def __init__(self, json_refs, trim_debug=None):
         """
-        :param csv_refs: CSV file specifying accession numbers and optional marker locus tags.
+        :param json_refs: JSON file specifying accession numbers and marker locus tags.
         """
         if trim_debug:
             logger.debug("[SimpleCSVStrainDatabase: initialized in debug mode. Trim length = {L}]".format(L=trim_debug))
         self.strain_to_markers = {}
-        self.csv_refs = csv_refs
+        self.json_refs = json_refs
         self.trim_debug = trim_debug
         super().__init__()
 
     def __load__(self):
-        strain_info_map = fetch_sequences(refs_file_csv=self.csv_refs)
+        strain_info_map = fetch_sequences(refs_file_json=self.json_refs)
         for strain_accession in strain_info_map.keys():
 
             input_file_path = os.path.join(_DEFAULT_DATA_DIR, strain_accession + ".fasta")
@@ -57,13 +57,13 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
             genome = ''.join(lines)
             if self.trim_debug is not None:
                 genome = genome[:self.trim_debug]
-            markers = [Marker(name=strain_accession, seq=genome, metadata=None)]  # Each genome's marker is its own genome.
+            markers = []
             if 'subsequences' in strain_info_map[strain_accession].keys():
                 for subsequence in strain_info_map[strain_accession]['subsequences'].keys():
                     markers.append(Marker(
                         name = subsequence,
                         seq = strain_info_map[strain_accession]['subsequences'][subsequence].get_subsequence(genome),
-                        metadata = MarkerMetadata(parent=markers[0],
+                        metadata = MarkerMetadata(parent=strain_accession,
                             subsequence_name = strain_info_map[strain_accession]['subsequences'][subsequence].name
                         )
                     ))

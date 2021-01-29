@@ -1,6 +1,6 @@
 import os
 import re
-import csv
+import json
 import urllib.request as urllib
 from util.io.logger import logger
 from util.io.filesystem import convert_size, get_filesize_bytes
@@ -51,36 +51,25 @@ def fetch_filenames(accession):
     return (get_fasta_filename(accession), get_genbank_filename(accession))
 
 
-def fetch_sequences(refs_file_csv: str):
+def fetch_sequences(refs_file_json: str):
     """
-    Read CSV file, and download FASTA from accessions if doesn't exist.
-    :return: a dictionary mapping accessions to strain-accession-filename wrappers.
+    Read JSON file, and download FASTA from accessions if doesn't exist.
+    :return: a dictionary mapping accessions to strain-accession-filename-subsequences
+             wrappers.
     """
     strains_map = {}
 
-    line_count = 0
-    with open(refs_file_csv, "r") as f:
-        csv_reader = csv.reader(f)
-        for row in csv_reader:
-            if line_count == 0:
-                line_count += 1
-                continue
-            strain_name = row[0]
-            accession = row[1]
-            fasta_filename, genbank_filename = fetch_filenames(accession)
-            strains_map[accession] = {
-                "strain": strain_name,
-                "accession": accession,
+    with open(refs_file_json, "rb") as f:
+        strain_infos = json.load(f, object_hook = lambda info: StrainInfo(info))
+        for info in strain_infos:
+            info.validate()
+            fasta_filename, genbank_filename = fetch_filenames(info['accession'])
+            strains_map[info['accession']] = {
+                "strain": info['name'],
+                "accession": info['accession'],
                 "file": fasta_filename,
+                "subsequences": parse_genbank_tags(genbank_filename, info['tags'])
             }
-            if len(row) == 3:
-                regions_of_interest = row[2].split()
-                tag_to_name = {}
-                for region in regions_of_interest:
-                    tag_to_name[region.split(':')[0]] = region.split(':')[1]
-                strains_map[accession]["subsequences"] = parse_genbank_tags(genbank_filename, tag_to_name)
-            line_count += 1
-
 
     logger.info("Found {} records.".format(len(strains_map.keys())))
     return strains_map
@@ -146,6 +135,24 @@ def parse_genbank_tags(filename, tags_to_names):
     genbank_file.close()
     return tag_to_index
     
+
+class StrainInfo(dict):
+    def __getattr__(self, key):
+        return self[key]
+ 
+    def __setattr__(self, key, value):
+        if key not in ['name', 'accession', 'tags']:
+            logger.error('Invalid attribute name in refs JSON')
+            raise KeyError
+        self[lower(key)] = value
+
+    def validate(self):
+        if 'name' not in self.keys() or 'accession' not in self.keys() or 'tags' not in self.keys():
+            logger.error('Missing name, accession, or tags for entry in refs JSON: ' + str(self))
+            class StrainInfoIncompleteError(Exception):
+                pass
+            raise StrainInfoIncompleteError
+
 
 @dataclass
 class SubsequenceMetadata:
