@@ -6,14 +6,25 @@ import torch
 
 
 @dataclass
+class MarkerMetadata:
+    parent: str
+    subsequence_name: str
+    
+    def __repr__(self):
+        return "{}-{}".format(self.parent, self.subsequence_name)
+        
+    def __str__(self):
+        return self.__repr__()
+
+
+@dataclass
 class Marker:
     name: str
     seq: str
-    head: str
-    tail: str
+    metadata: MarkerMetadata
 
     def __repr__(self):
-        return "Marker[{}:{}]".format(self.name, self.seq)
+        return "Marker[{}:{}]".format(self.name, self.seq) if MarkerMetadata is None else "Marker[{}:{}]".format(self.metadata, self.seq)
 
     def __str__(self):
         return self.__repr__()
