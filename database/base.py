@@ -31,7 +31,7 @@ class AbstractStrainDatabase(metaclass=ABCMeta):
         return [self.get_strain(s_id) for s_id in strain_ids]
 
 
-class SimpleJSONStrainDatabase(AbstractStrainDatabase):
+class SimpleCSVStrainDatabase(AbstractStrainDatabase):
     """
     A Simple implementation that treats each complete strain genome and optional specified subsequences as markers.
     """
@@ -64,13 +64,22 @@ class SimpleJSONStrainDatabase(AbstractStrainDatabase):
                         name = subsequence,
                         seq = strain_info_map[strain_accession]['subsequences'][subsequence].get_subsequence(genome),
                         metadata = MarkerMetadata(parent=strain_accession,
-                            subsequence_name = strain_info_map[strain_accession]['subsequences'][subsequence].name
+                            subsequence_name = strain_info_map[strain_accession]['subsequences'][subsequence].name,
+                            parent_genome_length = len(genome)
                         )
                     ))
-            self.strain_to_markers[strain_accession] = markers
+            if len(markers) > 0:
+                self.strain_to_markers[strain_accession] = markers
 
     def get_strain(self, strain_id: str) -> Strain:
-        return Strain(name=strain_id, markers=self.strain_to_markers[strain_id])
+        return Strain(
+            name=strain_id,
+            markers=self.strain_to_markers[strain_id],
+            genome_length = self.strain_to_markers[strain_id][0].metadata.parent_genome_length
+        )
 
     def all_strains(self) -> List[Strain]:
-        return [Strain(name=s_id, markers=markers) for (s_id, markers) in self.strain_to_markers.items()]
+        return [
+            Strain(name=s_id, markers=markers, genome_length=markers[0].metadata.parent_genome_length)
+            for (s_id, markers) in self.strain_to_markers.items()
+        ]

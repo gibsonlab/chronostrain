@@ -8,6 +8,7 @@ import torch
 @dataclass
 class MarkerMetadata:
     parent: str
+    parent_genome_length: int
     subsequence_name: str
     
     def __repr__(self):
