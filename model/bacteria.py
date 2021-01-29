@@ -34,6 +34,7 @@ class Marker:
 class Strain:
     name: str
     markers: List[Marker]
+    genome_length: int
 
     def __repr__(self):
         return "Strain({})".format(self.name)
@@ -99,7 +100,9 @@ class Population:
                     frag_freqs[fragment_space.get_fragment(subseq).index][col] += 1
 
         # normalize each col to sum to 1.
-        frag_freqs = frag_freqs / torch.sum(frag_freqs, dim=0)
+        frag_freqs = frag_freqs / torch.tensor([
+            [strain.genome_length - window_size + 1] for strain in self.strains
+        ], device=self.torch_device)
 
         self.fragment_frequencies_map[window_size] = frag_freqs
         logger.debug("Finished constructing fragment frequencies for window size {}.".format(window_size))
