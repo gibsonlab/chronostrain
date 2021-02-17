@@ -237,7 +237,10 @@ class SubsequenceLoader:
 
         for marker_name in names_to_primers.keys():
             forward_primer_regex = self.parse_fasta_regex(names_to_primers[marker_name][0])
-            reverse_primer_regex = self.parse_fasta_regex(names_to_primers[marker_name][1])
+            # Reverse is read from the opposite end of the complement strand, so we reverse and complement
+            reverse_primer_regex = self.complement_regex(
+                self.parse_fasta_regex(names_to_primers[marker_name][1][::-1])
+            )
             match_indices = self.find_primer_match(forward_primer_regex, reverse_primer_regex)
             if match_indices is not None:
                 subsequences.append(SubsequenceMetadata(
@@ -246,9 +249,9 @@ class SubsequenceLoader:
                     complement = False
                 ))
                 continue
-            forward_primer_regex = self.complement_regex(forward_primer_regex)
-            reverse_primer_regex = self.complement_regex(reverse_primer_regex)
-            match_indices = self.find_primer_match(forward_primer_regex, reverse_primer_regex)
+            forward_primer_regex = self.complement_regex(self.parse_fasta_regex(names_to_primers[marker_name][0][::-1]))
+            reverse_primer_regex = self.parse_fasta_regex(names_to_primers[marker_name][1])
+            match_indices = self.find_primer_match(reverse_primer_regex, forward_primer_regex)
             if match_indices is not None:
                 subsequences.append(SubsequenceMetadata(
                     name = marker_name, ID = '-'.join(names_to_primers[marker_name]),

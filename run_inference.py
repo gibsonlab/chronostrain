@@ -457,7 +457,7 @@ def main():
     # ==== Create database instance.
     logger.info("Loading from marker database {}.".format(args.accession_path))
     db = SimpleCSVStrainDatabase(args.accession_path, trim_debug=args.marker_trim_len)
-
+    print(db.strain_to_markers)
     # ==== Load Population instance from database info
     population = Population(
         strains=db.all_strains(),

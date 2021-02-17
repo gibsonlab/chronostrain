@@ -15,7 +15,7 @@
     {
         "markers": [
             	    {"type":"tag", "id":"ECOLIN_01070", "name":"16S"},
-                    {"type": "primer", "forward": "AACGTTAGA", "reverse": "CCTGGTCG", "name": "16S_V4"}
+                    {"type": "primer", "forward": "GTGCCAGCMGCCGCGGTAA", "reverse": "GGACTACHVGGGTWTCTAAT", "name": "16S_V4"}
                 ],
         "name": "escherichia coli nissle 1917",
         "accession": "CP007799.1"
