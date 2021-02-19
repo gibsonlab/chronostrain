@@ -10,7 +10,7 @@ import torch
 from util.io.logger import logger
 
 from typing import List, Tuple
-from database.base import SimpleCSVStrainDatabase
+from database import SimpleCSVStrainDatabase
 
 from model import generative, reads
 from model.bacteria import Population
