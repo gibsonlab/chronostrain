@@ -7,12 +7,11 @@ import torch
 
 @dataclass
 class MarkerMetadata:
-    parent: str
-    parent_genome_length: int
-    subsequence_name: str
+    strain_accession: str
+    subseq_name: str
     
     def __repr__(self):
-        return "{}-{}".format(self.parent, self.subsequence_name)
+        return "{}-{}".format(self.strain_accession, self.subseq_name)
         
     def __str__(self):
         return self.__repr__()
