@@ -77,7 +77,7 @@ class SubsequenceLoader:
             return None
         
         max_index = self.get_genome_length()
-        return Subsequence(
+        return NucleotideSubsequence(
             name=sequence_name,
             id=locus_tag,
             start_index=max(0, int(indices[0])-100),
@@ -162,7 +162,7 @@ class SubsequenceLoader:
             )
             match_indices = self.find_primer_match(forward_primer_regex, reverse_primer_regex)
             if match_indices is not None:
-                subsequences.append(Subsequence(
+                subsequences.append(NucleotideSubsequence(
                     name=marker_name,
                     id='-'.join(names_to_primers[marker_name]),
                     start_index=match_indices[0],
@@ -174,7 +174,7 @@ class SubsequenceLoader:
             reverse_primer_regex = self.parse_fasta_regex(names_to_primers[marker_name][1])
             match_indices = self.find_primer_match(reverse_primer_regex, forward_primer_regex)
             if match_indices is not None:
-                subsequences.append(Subsequence(
+                subsequences.append(NucleotideSubsequence(
                     name=marker_name,
                     id='-'.join(names_to_primers[marker_name]),
                     start_index=match_indices[0],
@@ -185,18 +185,18 @@ class SubsequenceLoader:
         return subsequences
 
 
-class Subsequence:
+class NucleotideSubsequence:
     def __init__(self, name: str, id: str, start_index: int, end_index: int, complement: bool):
         self.name = name
         self.id = id
         self.start_index = start_index
         self.end_index = end_index
         self.complement = complement
+        self.complement_translation = {'A': 'T', 'T': 'A', 'G': 'C', 'C': 'G'}
 
-    def get_subsequence(self, genome: str):
-        complement_translation = {'A': 'T', 'T':'A', 'G':'C', 'C':'G'}
-        complement_func = (lambda base: complement_translation[base]) if self.complement else lambda base: base
+    def get_subsequence(self, nucleotides: str):
+        complement_func = (lambda base: self.complement_translation[base]) if self.complement else lambda base: base
         subsequence = ''
-        for base in genome[self.start_index:self.end_index]:
+        for base in nucleotides[self.start_index:self.end_index]:
             subsequence += complement_func(base)
         return subsequence
