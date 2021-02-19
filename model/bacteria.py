@@ -7,11 +7,11 @@ import torch
 
 @dataclass
 class MarkerMetadata:
-    parent: str
-    subsequence_name: str
+    strain_accession: str
+    subseq_name: str
     
     def __repr__(self):
-        return "{}-{}".format(self.parent, self.subsequence_name)
+        return "{}-{}".format(self.strain_accession, self.subseq_name)
         
     def __str__(self):
         return self.__repr__()
@@ -101,7 +101,7 @@ class Population:
 
         # normalize each col to sum to 1.
         frag_freqs = frag_freqs / torch.tensor([
-            [strain.genome_length - window_size + 1] for strain in self.strains
+            [strain.genome_length - window_size + 1 for strain in self.strains]
         ], device=self.torch_device)
 
         self.fragment_frequencies_map[window_size] = frag_freqs

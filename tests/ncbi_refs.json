@@ -1,18 +1,3 @@
-# microbiome_tracking
-
-Required packages:
-
-- PyTorch
-- Seaborn
-- Joblib
-- tqdm
-- BioPython
-
-
-Accession reference CSV file example (test/ncbi_refs.json):
-
---------------------------------
-```
 [
     {
         "markers": [
@@ -29,12 +14,10 @@ Accession reference CSV file example (test/ncbi_refs.json):
     },
     {
         "markers": [
-                    {"type":"tag", "id":"ECOLIN_01070", "name":"16S"},
+            	    {"type":"tag", "id":"ECOLIN_01070", "name":"16S"},
                     {"type": "primer", "forward": "GTGCCAGCMGCCGCGGTAA", "reverse": "GGACTACHVGGGTWTCTAAT", "name": "16S_V4"}
                 ],
         "name": "escherichia coli nissle 1917",
         "accession": "CP007799.1"
     }
 ]
-```
---------------------------------

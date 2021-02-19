@@ -7,7 +7,7 @@
 import argparse
 
 from algs.vi import SecondOrderVariationalSolver, AbstractVariationalPosterior
-from database.base import *
+from database import JSONStrainDatabase, SimpleCSVStrainDatabase
 
 import torch
 
@@ -456,8 +456,11 @@ def main():
 
     # ==== Create database instance.
     logger.info("Loading from marker database {}.".format(args.accession_path))
-    db = SimpleCSVStrainDatabase(args.accession_path, trim_debug=args.marker_trim_len)
-
+    if args.accession_path.endswith(".csv"):
+        db = SimpleCSVStrainDatabase(args.accession_path, trim_debug=args.marker_trim_len)
+    else:
+        db = JSONStrainDatabase(args.accession_path)
+    print(db.strain_to_markers)
     # ==== Load Population instance from database info
     population = Population(
         strains=db.all_strains(),
