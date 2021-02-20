@@ -48,7 +48,7 @@ class JSONStrainDatabase(AbstractStrainDatabase):
             markers = []
             for subsequence_data in sequence_loader.get_marker_subsequences():
                 markers.append(Marker(
-                    name=subsequence_data.ID,
+                    name=subsequence_data.id,
                     seq=subsequence_data.get_subsequence(genome),
                     metadata=MarkerMetadata(
                         strain_accession=strain_accession,
@@ -75,6 +75,20 @@ class JSONStrainDatabase(AbstractStrainDatabase):
         :return: a dictionary mapping accessions to strain-accession-filename-subsequences
                  wrappers.
         """
-        with open(self.json_refs, "rb") as f:
+        with open(self.json_refs, "r") as f:
             for strain_dict in json.load(f):
                 yield parse_strain_info(strain_dict)
+
+    def dump_markers_to_fasta(self, directory: str):
+        resulting_filenames = []
+        for accession in self.strains.keys():
+            for marker in self.strains[accession].markers:
+                resulting_filenames.append(directory + accession + '-' + marker.metadata.subseq_name + '.fasta')
+                with open(directory + accession + '-' + marker.metadata.subseq_name + '.fasta', 'w') as f:
+                    f.write('>' + accession + '-' + marker.metadata.subseq_name + '\n')
+                    for i in range(len(marker.seq)):
+                        f.write(marker.seq[i])
+                        if (i + 1) % 70 == 0:
+                             f.write('\n')
+        return resulting_filenames
+
