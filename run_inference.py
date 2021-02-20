@@ -11,6 +11,7 @@ from database import JSONStrainDatabase
 
 import torch
 
+from filter import Filter
 from model.generative import GenerativeModel
 from model.bacteria import Population
 from model.reads import SequenceRead, FastQErrorModel, NoiselessErrorModel
@@ -40,8 +41,10 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Perform inference on time-series reads.")
 
     # Input specification.
+    parser.add_argument('-b', '--base_path', required=True, type=str,
+                        help='<Required> Directory containing read files')
     parser.add_argument('-r', '--read_files', nargs='+', required=True,
-                        help='<Required> List of paths to read files; minimum 1.')
+                        help='<Required> List of read filenames; minimum 1.')
     parser.add_argument('-a', '--accession_path', required=True, type=str,
                         help='<Required> A path to the CSV file listing the strains to sample from. '
                              'See README for the expected format.')
@@ -49,6 +52,8 @@ def parse_args():
                         help='<Required> A list of integers. Each value represents a time point in the dataset.')
     parser.add_argument('-m', '--method', choices=['em', 'vi', 'bbvi', 'vsmc', 'emalt'], required=True,
                         help='<Required> A keyword specifying the inference method.')
+    parser.add_argument('-l', '--read_length', required=True, type=int,
+                        help='<Required> Length of each read')
 
     # Output specification.
     parser.add_argument('-of', '--out_path', required=True, type=str,
@@ -457,7 +462,6 @@ def main():
     # ==== Create database instance.
     logger.info("Loading from marker database {}.".format(args.accession_path))
     db = JSONStrainDatabase(args.accession_path, trim_debug=args.marker_trim_len)
-    print(db.strain_to_markers)
     # ==== Load Population instance from database info
     population = Population(
         strains=db.all_strains(),
@@ -465,15 +469,18 @@ def main():
     )
 
     # ==== Load reads and validate.
-    logger.info("Loading time-series read files.")
-    reads = load_fastq_reads(file_paths=args.read_files)
-    logger.info("Performing inference using method '{}'.".format(args.method))
-
-    if len(reads) != len(args.time_points):
+    if len(args.read_files) != len(args.time_points):
         raise ValueError("There must be exactly one set of reads for each time point specified.")
 
     if len(args.time_points) != len(set(args.time_points)):
         raise ValueError("Specified sample times must be distinct.")
+
+    filter = Filter(db.dump_markers_to_fasta(args.base_path), args.base_path, args.read_files, args.time_points)
+    filtered_read_files = filter.apply_filter(args.read_length)
+
+    logger.info("Loading time-series read files.")
+    reads = load_fastq_reads(file_paths=filtered_read_files)
+    logger.info("Performing inference using method '{}'.".format(args.method))
 
     # ==== Create model instance
     model = create_model(

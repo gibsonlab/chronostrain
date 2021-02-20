@@ -179,7 +179,7 @@ class SubsequenceLoader:
                     id='-'.join(names_to_primers[marker_name]),
                     start_index=match_indices[0],
                     end_index=match_indices[1],
-                    complement=True
+                    complement=False
                 ))
 
         return subsequences

@@ -1,7 +1,7 @@
 import json
 from typing import List
 
-from database.base import AbstractStrainDatabase, SubsequenceLoader
+from database.base import AbstractStrainDatabase, SubsequenceLoader, StrainEntryError
 from model.bacteria import Marker, MarkerMetadata, Strain
 from util.io.fetch_genomes import fetch_filenames
 from util.io.logger import logger
@@ -51,21 +51,13 @@ class JSONStrainDatabase(AbstractStrainDatabase):
             markers = []
             for subsequence_data in sequence_loader.get_marker_subsequences():
                 markers.append(Marker(
-                    name=subsequence_data.ID,
+                    name=subsequence_data.id,
                     seq=subsequence_data.get_subsequence(genome),
                     metadata=MarkerMetadata(
                         strain_accession=strain_accession,
                         subseq_name=subsequence_data.name
                     )
                 ))
-                x = Marker(
-                    name=subsequence_data.ID,
-                    seq=subsequence_data.get_subsequence(genome),
-                    metadata=MarkerMetadata(
-                        strain_accession=strain_accession,
-                        subseq_name=subsequence_data.name
-                    )
-                )
             self.strains[strain_accession] = Strain(
                 name="{}:{}".format(strain_name, strain_accession),
                 markers=markers,
@@ -86,7 +78,20 @@ class JSONStrainDatabase(AbstractStrainDatabase):
         :return: a dictionary mapping accessions to strain-accession-filename-subsequences
                  wrappers.
         """
-        with open(self.json_refs, "rb") as f:
-            strain_infos = json.load(f, object_hook=parse_strain_info)
-            for name, accession, markers in strain_infos:
-                yield name, accession, markers
+        with open(self.json_refs, "r") as f:
+            for strain_dict in json.load(f):
+                yield parse_strain_info(strain_dict)
+
+    def dump_markers_to_fasta(self, directory: str):
+        resulting_filenames = []
+        for accession in self.strains.keys():
+            for marker in self.strains[accession].markers:
+                resulting_filenames.append(directory + accession + '-' + marker.metadata.subseq_name + '.fasta')
+                with open(directory + accession + '-' + marker.metadata.subseq_name + '.fasta', 'w') as f:
+                    f.write('>' + accession + '-' + marker.metadata.subseq_name + '\n')
+                    for i in range(len(marker.seq)):
+                        f.write(marker.seq[i])
+                        if (i + 1) % 70 == 0:
+                             f.write('\n')
+        return resulting_filenames
+
