@@ -1,14 +1,14 @@
 from typing import List
-from chronostrain.model.reads import SequenceRead
-from chronostrain.model.generative import GenerativeModel
-from chronostrain.util.benchmarking import RuntimeEstimator
-from chronostrain.util.io.logger import logger
-from chronostrain.algs.base import AbstractModelSolver
-
 import torch
 from torch.nn.functional import softmax
 
-torch.set_default_dtype(torch.float64)
+from chronostrain.config import cfg
+from chronostrain.util.io.logger import logger
+from chronostrain.model.reads import SequenceRead
+from chronostrain.model.generative import GenerativeModel
+from chronostrain.util.benchmarking import RuntimeEstimator
+from chronostrain.algs.base import AbstractModelSolver
+
 
 # ===========================================================================================
 # =============== Expectation-Maximization (for computing a MAP estimator) ==================
@@ -23,7 +23,6 @@ class EMSolver(AbstractModelSolver):
             self,
             generative_model: GenerativeModel,
             data: List[List[SequenceRead]],
-            device: torch.device,
             cache_tag: str,
             lr: float = 1e-3,
             read_likelihoods: List[torch.Tensor] = None):
@@ -35,10 +34,11 @@ class EMSolver(AbstractModelSolver):
         :param device: the torch device to operate on. (Recommended: CUDA if available.)
         :param lr: the learning rate (default: 1e-3)
         """
-        super().__init__(generative_model, data, device, cache_tag, read_likelihoods=read_likelihoods)
+        super().__init__(generative_model, data, cache_tag, read_likelihoods=read_likelihoods)
         self.lr = lr
 
-        # if disable_quality:
+        # ==== Experimental. Probably is not useful right now.
+        # if not cfg.model_cfg.use_quality_scores:
         #     logger.info("EM solve() called with disable_quality = True. Will simulate mappings from read likelihoods.")
         #     self.do_noisy_mapping()
 
@@ -66,7 +66,7 @@ class EMSolver(AbstractModelSolver):
             # T x S array representing a time-indexed, S-dimensional brownian motion.
             brownian_motion = torch.ones(
                 size=[len(self.model.times), len(self.model.bacteria_pop.strains)],
-                device=self.device
+                device=cfg.torch_cfg.device
             )
         else:
             brownian_motion = initialization
@@ -107,16 +107,16 @@ class EMSolver(AbstractModelSolver):
             k += 1
         logger.info("Finished {k} iterations.".format(k=k))
 
-        return softmax(brownian_motion, dim=1).to(self.device)
+        return softmax(brownian_motion, dim=1).to(cfg.torch_cfg.device)
         # abundances = [softmax(gaussian, dim=) for gaussian in brownian_motion]
-        # normalized_abundances = torch.stack(abundances).to(self.device)
+        # normalized_abundances = torch.stack(abundances).to(cfg.torch_cfg.device)
         # return normalized_abundances
 
     def do_noisy_mapping(self):
         noisy_mappings = []
         for likelihoods_t in self.read_likelihoods:
             argmax_locs = likelihoods_t.argmax(dim=0)
-            argmax_mapping = torch.zeros(size=likelihoods_t.size(), device=self.device)
+            argmax_mapping = torch.zeros(size=likelihoods_t.size(), device=cfg.torch_cfg.device)
 
             j = torch.arange(likelihoods_t.size(1)).long()
             argmax_mapping[argmax_locs, j] = 1
@@ -131,7 +131,7 @@ class EMSolver(AbstractModelSolver):
         T, S = x.size()
 
         F = self.model.num_fragments()
-        x_gradient = torch.zeros(size=x.size(), device=self.device)  # T x S tensor.
+        x_gradient = torch.zeros(size=x.size(), device=cfg.torch_cfg.device)  # T x S tensor.
 
         # ====== Gaussian part
         if T > 1:
@@ -171,7 +171,7 @@ class EMSolver(AbstractModelSolver):
         updated_x = x + self.lr * x_gradient
 
         # ==== Re-center to zero to prevent drift. (Adding constant to each component does not change softmax.)
-        updated_x = updated_x - (updated_x.mean() * torch.ones(size=updated_x.size(), device=self.device))
+        updated_x = updated_x - (updated_x.mean() * torch.ones(size=updated_x.size(), device=cfg.torch_cfg.device))
 
         return updated_x
 

@@ -1,0 +1,22 @@
+### Note: If using relative paths, should be based on the execution path of main python script.
+[Model]
+USE_QUALITY_SCORES=True
+
+# Number of CPU cores to utilize. (Provides some benefit, could be better optimized. Experimental)
+NUM_CORES=4
+
+[PyTorch]
+# Device to use torch on. Either `cpu` or `cuda`.
+DEVICE=cpu
+
+DEFAULT_DTYPE=float64
+
+[Database]
+# CSV or JSON path to Database dir.
+DB_PATH=./ncbi_refs.json
+
+# Directory to save all FASTA/Genbank files to.
+DATA_DIR=./data/
+
+# Maximum allowed length of markers, to determine `best-fit` (longest) markers from a regex-based primer match.
+MARKER_MAX_LEN=300

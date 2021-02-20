@@ -12,11 +12,12 @@ import torch
 from torch.nn.functional import softmax
 from torch.distributions import MultivariateNormal, Categorical
 
+from chronostrain.config import cfg
+from chronostrain.util.io.logger import logger
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.reads import SequenceRead
 from chronostrain.algs.base import AbstractModelSolver
 from chronostrain.util.benchmarking import RuntimeEstimator
-from chronostrain.util.io.logger import logger
 
 
 class AbstractVariationalPosterior(metaclass=ABCMeta):
@@ -38,21 +39,19 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
                  read_counts: List[int],
                  num_update_samples: int,
                  read_likelihoods: List[torch.Tensor],
-                 device,
                  clipping: float = float("inf"),
                  stdev_scale: float = List[float]):
         self.model = model
         self.read_counts = read_counts
-        self.device = device
         self.num_update_samples = num_update_samples
         self.read_likelihoods = read_likelihoods
         self.clipping = clipping
         self.stdev_scale = stdev_scale
 
         # Variational parameters
-        self.mu = torch.zeros(size=[model.num_strains()-1], device=self.device)
+        self.mu = torch.zeros(size=[model.num_strains()-1], device=cfg.torch_cfg.device)
         self.phi = [
-            (1 / model.num_fragments()) * torch.ones(size=[model.num_fragments(), read_counts[t]], device=self.device)
+            (1 / model.num_fragments()) * torch.ones(size=[model.num_fragments(), read_counts[t]], device=cfg.torch_cfg.device)
             for t in range(model.num_times())
         ]  # each is an F x R_t tensor.
 
@@ -106,8 +105,8 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
         :param clipping: A gradient clipping threshold (in frobenius norm).
         :return: V (an N x S tensor) and H (an N x S x S tensor).
         """
-        V = torch.zeros(X_t.size(0), X_t.size(1), device=self.device)
-        H = torch.zeros(X_t.size(0), X_t.size(1), X_t.size(1), device=self.device)
+        V = torch.zeros(X_t.size(0), X_t.size(1), device=cfg.torch_cfg.device)
+        H = torch.zeros(X_t.size(0), X_t.size(1), X_t.size(1), device=cfg.torch_cfg.device)
         for f in range(self.model.num_fragments()):
             # TODO optimize these operations (they are extremely slow).
             W_f, Wf_dot_sigma, sigma_deriv_times_Wf = self.deriv_precomputation(f, X_t, clipping=clipping)
@@ -121,7 +120,7 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
 
         # for resampling.
         X_prev = self.model.mu
-        log_w_prev = torch.zeros(size=[self.num_update_samples], device=self.device)
+        log_w_prev = torch.zeros(size=[self.num_update_samples], device=cfg.torch_cfg.device)
 
         # Get the samples.
         for t in range(self.model.num_times()):
@@ -147,7 +146,7 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
             if do_resample:
                 children = Categorical(probs=W_normalized).sample([N])
                 X_prev = X[children]
-                W_normalized = (1 / N) * torch.ones(size=[N], device=self.device)
+                W_normalized = (1 / N) * torch.ones(size=[N], device=cfg.torch_cfg.device)
                 log_w_prev = W_normalized.log()
             else:
                 log_w_prev = log_w
@@ -204,7 +203,7 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
         S = self.model.num_strains()
         X = []
         for t in range(self.model.num_times()):
-            x_t = torch.empty(size=[num_samples, S], device=self.device)
+            x_t = torch.empty(size=[num_samples, S], device=cfg.torch_cfg.device)
             for i in range(num_samples):
                 c = rejection_constant_init_log
                 logger.debug("Sample \# {i}".format(i=i))
@@ -223,7 +222,7 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
                     # print("log ll diff: ", log_ll_diff)
                     thresh = log_ll_diff - c
                     # print("thresh = ", thresh)
-                    reject = torch.rand(1, device=self.device).log().item() > thresh
+                    reject = torch.rand(1, device=cfg.torch_cfg.device).log().item() > thresh
                     initial_samples = initial_samples + (0 if reject else 1)
                     # print("reject = ", reject, " initial_samples = ", initial_samples)
                     c = max(c, log_ll_diff)
@@ -236,7 +235,7 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
         S = self.model.num_strains()
         center = self.mu
         V, H = self.VH_t(t=0, X_t=center.view(size=[1, S]), clipping=self.clipping)
-        precision = self.stdev_scale[0] * torch.eye(S, device=self.device) / (self.model.time_scale(0) ** 2) - H.view(S, S)
+        precision = self.stdev_scale[0] * torch.eye(S, device=cfg.torch_cfg.device) / (self.model.time_scale(0) ** 2) - H.view(S, S)
         loc = precision.inverse().matmul(V.view(S, 1)).view(size=[S]) + self.mu
 
         try:
@@ -258,7 +257,7 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
         V, H = self.VH_t(t=t, X_t=X_prev, clipping=self.clipping)
 
         # N x S x S
-        precision = self.stdev_scale[t] * torch.eye(S, device=self.device).expand([N, -1, -1]) \
+        precision = self.stdev_scale[t] * torch.eye(S, device=cfg.torch_cfg.device).expand([N, -1, -1]) \
                     / (self.model.time_scale(t) ** 2) \
                     - H
 
@@ -328,10 +327,8 @@ class SecondOrderVariationalSolver(AbstractModelSolver):
     def __init__(self,
                  model: GenerativeModel,
                  data: List[List[SequenceRead]],
-                 torch_device,
                  cache_tag: str):
-        super().__init__(model, data, torch_device, cache_tag)
-        self.device = torch_device
+        super().__init__(model, data, cache_tag)
 
     def solve(self,
               iters=4000,
@@ -345,7 +342,7 @@ class SecondOrderVariationalSolver(AbstractModelSolver):
             read_counts=[len(reads) for reads in self.data],
             num_update_samples=num_montecarlo_samples,
             read_likelihoods=self.read_likelihoods,
-            device=self.device,
+            device=cfg.torch_cfg.device,
             clipping=clipping,
             stdev_scale=stdev_scale
         )

@@ -4,36 +4,25 @@
   Run to perform inference on specified reads.
 """
 
+import torch
+from typing import List
 import argparse
 
-from algs.vi import SecondOrderVariationalSolver, AbstractVariationalPosterior
-from database import JSONStrainDatabase, SimpleCSVStrainDatabase
-
-import torch
-
 from filter import Filter
-from model.generative import GenerativeModel
-from model.bacteria import Population
-from model.reads import SequenceRead, FastQErrorModel, NoiselessErrorModel
-from algs import em, vsmc, bbvi, em_alt
-from visualizations import plot_abundances as plotter
+from chronostrain import logger, cfg
+from chronostrain.algs.vi import SecondOrderVariationalSolver, AbstractVariationalPosterior
+from chronostrain.database import JSONStrainDatabase, SimpleCSVStrainDatabase
+from chronostrain.model.generative import GenerativeModel
+from chronostrain.model.bacteria import Population
+from chronostrain.model.reads import SequenceRead, FastQErrorModel, NoiselessErrorModel
+from chronostrain.algs import em, vsmc, bbvi, em_alt
+from chronostrain.visualizations import plot_abundances as plotter
+from chronostrain.util.io.model_io import load_fastq_reads, save_abundances_by_path
 
-from typing import List
-from util.io.logger import logger
-from util.io.model_io import load_fastq_reads, load_abundances, save_abundances_by_path
-
-import multiprocessing
-from joblib import Parallel, delayed
 from tqdm import tqdm
 
 # ============================= Constants =================================
-default_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-# default_device = torch.device("cpu")
-torch.set_default_tensor_type(torch.DoubleTensor)
 
-num_cores = multiprocessing.cpu_count()
-
-_data_dir = "data"
 # =========================== END Constants ===============================
 
 
@@ -102,7 +91,6 @@ def perform_em(
     if not disable_time_consistency:
         solver = em.EMSolver(model,
                              reads,
-                             device=default_device,
                              cache_tag=cache_tag,
                              lr=learning_rate)
         abundances = solver.solve(
@@ -124,7 +112,6 @@ def perform_em(
             )
             instance_solver = em.EMSolver(pseudo_model,
                                           [reads_t],
-                                          device=default_device,
                                           cache_tag=cache_tag,
                                           lr=learning_rate)
             abundances_t = instance_solver.solve(
@@ -139,7 +126,7 @@ def perform_em(
         model.get_fragment_space()
 
         # Run jobs distributed across processes.
-        abundances = Parallel(n_jobs=num_cores)(delayed(get_abundances)(reads_t) for reads_t in tqdm(reads))
+        abundances = [get_abundances(reads_t) for reads_t in tqdm(reads)]
         abundances = torch.stack(abundances)
 
     # ==== Save the learned abundances.
@@ -180,7 +167,6 @@ def perform_em_alt(
     if not disable_time_consistency:
         solver = em_alt.EMAlternateSolver(model,
                                           reads,
-                                          device=default_device,
                                           cache_tag=cache_tag,
                                           lr=learning_rate)
         abundances, strains = solver.solve(
@@ -231,7 +217,7 @@ def perform_vsmc(
 
     # ==== Run the solver.
     if not disable_time_consistency:
-        solver = vsmc.VSMCSolver(model=model, data=reads, torch_device=default_device, cache_tag=cache_tag)
+        solver = vsmc.VSMCSolver(model=model, data=reads, cache_tag=cache_tag)
         solver.solve(
             optim_class=torch.optim.Adam,
             optim_args={'lr': learning_rate, 'betas': (0.7, 0.7), 'eps': 1e-7, 'weight_decay': 0.},
@@ -272,7 +258,7 @@ def perform_bbvi(
 
     # ==== Run the solver.
     if not disable_time_consistency:
-        solver = bbvi.BBVISolver(model=model, data=reads, device=default_device, cache_tag=cache_tag)
+        solver = bbvi.BBVISolver(model=model, data=reads, cache_tag=cache_tag)
         solver.solve(
             optim_class=torch.optim.Adam,
             optim_args={'lr': learning_rate, 'betas': (0.9, 0.999), 'eps': 1e-7, 'weight_decay': 0.},
@@ -312,7 +298,7 @@ def perform_vi(
 
     # ==== Run the solver.
     if not disable_time_consistency:
-        solver = SecondOrderVariationalSolver(model, reads, default_device, cache_tag)
+        solver = SecondOrderVariationalSolver(model, reads, cache_tag)
         posterior = solver.solve(
             iters=iters,
             num_montecarlo_samples=num_samples,
@@ -430,7 +416,7 @@ def create_model(population: Population,
     @param disable_quality: A flag to indicate whether or not to use NoiselessErrorModel.
     @return A Generative model object.
     """
-    mu = torch.zeros(len(population.strains), device=default_device)
+    mu = torch.zeros(len(population.strains), device=cfg.torch_cfg.device)
     tau_1 = 1
     tau = 1
 
@@ -447,8 +433,7 @@ def create_model(population: Population,
         mu=mu,
         tau_1=tau_1,
         tau=tau,
-        read_error_model=error_model,
-        torch_device=default_device
+        read_error_model=error_model
     )
 
     return model
@@ -467,8 +452,7 @@ def main():
         db = JSONStrainDatabase(args.accession_path)
     # ==== Load Population instance from database info
     population = Population(
-        strains=db.all_strains(),
-        torch_device=default_device
+        strains=db.all_strains()
     )
 
     # ==== Load reads and validate.
@@ -478,8 +462,8 @@ def main():
     if len(args.time_points) != len(set(args.time_points)):
         raise ValueError("Specified sample times must be distinct.")
 
-    filter = Filter(db.dump_markers_to_fasta(args.base_path), args.base_path, args.read_files, args.time_points)
-    filtered_read_files = filter.apply_filter(args.read_length)
+    filt = Filter(db.dump_markers_to_fasta(), args.base_path, args.read_files, args.time_points)
+    filtered_read_files = filt.apply_filter(args.read_length)
 
     logger.info("Loading time-series read files.")
     reads = load_fastq_reads(file_paths=filtered_read_files)

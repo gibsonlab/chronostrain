@@ -6,21 +6,14 @@
 
 import argparse
 import torch
-
-from util.io.logger import logger
-
 from typing import List, Tuple
-from database import SimpleCSVStrainDatabase
 
-from model import generative, reads
-from model.bacteria import Population
-from model.reads import SequenceRead
-from util.io.model_io import save_reads_to_fastq, save_abundances, load_abundances
-
-_data_dir = "data"
-
-default_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-torch.set_default_tensor_type(torch.DoubleTensor)
+from chronostrain import logger, cfg
+from chronostrain.database import SimpleCSVStrainDatabase
+from chronostrain.model import generative, reads
+from chronostrain.model.bacteria import Population
+from chronostrain.model.reads import SequenceRead
+from chronostrain.util.io.model_io import save_reads_to_fastq, save_abundances, load_abundances
 
 
 def parse_args():
@@ -90,7 +83,7 @@ def sample_reads(
         torch.manual_seed(seed)
 
     # Default/unbiased parameters for prior.
-    mu = torch.zeros(len(population.strains) - 1, device=default_device)  # One dimension for each strain
+    mu = torch.zeros(len(population.strains) - 1, device=cfg.torch_cfg.device)  # One dimension for each strain
     tau_1 = 1
     tau = 1
 
@@ -106,8 +99,7 @@ def sample_reads(
                                           tau=tau,
                                           bacteria_pop=population,
                                           read_length=read_length,
-                                          read_error_model=my_error_model,
-                                          torch_device=default_device)
+                                          read_error_model=my_error_model)
 
     if len(read_depths) != len(time_points):
         logger.warning("Not enough read depths specified for time points. "
@@ -155,8 +147,7 @@ def main():
     if args.abundance_path:
         logger.debug("Parsing abundance file...")
         time_points, abundances, accessions = load_abundances(
-            file_path=args.abundance_path,
-            torch_device=default_device
+            file_path=args.abundance_path
         )
     else:
         time_points = args.time_points
@@ -166,9 +157,9 @@ def main():
 
     # ========== Create Population instance.
     if accessions:
-        population = Population(database.get_strains(accessions), torch_device=default_device)
+        population = Population(database.get_strains(accessions))
     else:
-        population = Population(database.all_strains(), torch_device=default_device)
+        population = Population(database.all_strains())
 
     # ========== Sample reads.
     logger.debug("Sampling reads...")

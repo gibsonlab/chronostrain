@@ -2,9 +2,9 @@ import torch
 from dataclasses import dataclass
 from typing import List
 
+from chronostrain.config import cfg
 from chronostrain.model.fragments import FragmentSpace
 from chronostrain.util.io.logger import logger
-
 
 
 @dataclass
@@ -46,7 +46,7 @@ class Strain:
 
 
 class Population:
-    def __init__(self, strains: List[Strain], torch_device):
+    def __init__(self, strains: List[Strain]):
         """
         :param strains: a list of Strain instances.
         """
@@ -57,7 +57,6 @@ class Population:
         self.strains = strains  # A list of Strain objects.
         self.fragment_space_map = {}  # Maps window sizes (ints) to their corresponding fragment space (list of strings)
         self.fragment_frequencies_map = {}  # Maps window sizes to their corresponding fragment frequencies matrices.
-        self.torch_device = torch_device
 
     def get_fragment_space(self, window_size) -> FragmentSpace:
         """
@@ -92,7 +91,7 @@ class Population:
 
         # For each strain, fill out the column.
         fragment_space = self.get_fragment_space(window_size)
-        frag_freqs = torch.zeros(fragment_space.size(), len(self.strains), device=self.torch_device)
+        frag_freqs = torch.zeros(fragment_space.size(), len(self.strains), device=cfg.torch_cfg.device)
 
         logger.debug("Constructing fragment frequencies for window size {}...".format(window_size))
 
@@ -104,7 +103,7 @@ class Population:
         # normalize each col to sum to 1.
         frag_freqs = frag_freqs / torch.tensor([
             [strain.genome_length - window_size + 1 for strain in self.strains]
-        ], device=self.torch_device)
+        ], device=cfg.torch_cfg.device)
 
         self.fragment_frequencies_map[window_size] = frag_freqs
         logger.debug("Finished constructing fragment frequencies for window size {}.".format(window_size))

@@ -1,3 +1,5 @@
 from .util.io.logger import logger
-
-__all__ = ['algs', 'database', 'model']
+from .config import cfg
+from .algs import *
+from .database import *
+from .model import *

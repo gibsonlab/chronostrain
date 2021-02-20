@@ -1,16 +1,16 @@
 import torch
 from typing import List
 
+from chronostrain.config import cfg
+from chronostrain.util.io.logger import logger
 from chronostrain.algs.em import EMSolver
 from chronostrain.util.benchmarking import RuntimeEstimator
-from chronostrain.util.io.logger import logger
 from chronostrain.algs.base import AbstractModelSolver
 from chronostrain.model.reads import SequenceRead
 from chronostrain.model.generative import GenerativeModel
 
 from torch.nn.functional import softmax
 
-torch.set_default_dtype(torch.float64)
 
 # ===========================================================================================
 # =============== Expectation-Maximization (for computing a MAP estimator) ==================
@@ -25,7 +25,6 @@ class EMAlternateSolver(AbstractModelSolver):
             self,
             generative_model: GenerativeModel,
             data: List[List[SequenceRead]],
-            device: torch.device,
             cache_tag: str,
             lr: float = 1e-3):
         """
@@ -33,13 +32,12 @@ class EMAlternateSolver(AbstractModelSolver):
 
         :param generative_model: The underlying generative model with prior parameters.
         :param data: the observed data, a time-indexed list of read collections.
-        :param device: the torch device to operate on. (Recommended: CUDA if available.)
         :param lr: the learning rate (default: 1e-3)
         """
-        super().__init__(generative_model, data, device, cache_tag)
+        super().__init__(generative_model, data, cache_tag)
         self.lr = lr
         self.T = len(self.data)
-        self.num_reads_per_t = torch.tensor([len(self.data[t]) for t in range(self.T)], device=self.device)
+        self.num_reads_per_t = torch.tensor([len(self.data[t]) for t in range(self.T)], device=cfg.torch_cfg.device)
 
     def solve(self,
               max_iters: int = 1000,
@@ -48,7 +46,6 @@ class EMAlternateSolver(AbstractModelSolver):
               ):
         em_solver = EMSolver(generative_model=self.model,
                              data=self.data,
-                             device=self.device,
                              cache_tag=self.cache_tag,
                              lr=self.lr,
                              read_likelihoods=self.read_likelihoods)
@@ -128,9 +125,9 @@ class EMAlternateSolver(AbstractModelSolver):
             Strain assignment indicators 
             ([t][s] entry equals the number of reads at time t assigned to strain s)
             """
-            strain_asgn_indicators = torch.zeros(size=brownian_motion.size(), device=self.device)
+            strain_asgn_indicators = torch.zeros(size=brownian_motion.size(), device=cfg.torch_cfg.device)
             for t in range(self.T):
-                strain_t = torch.tensor(strain_assignments[t], device=self.device)
+                strain_t = torch.tensor(strain_assignments[t], device=cfg.torch_cfg.device)
                 uniques, counts = torch.unique(strain_t, return_counts=True)
                 for s, count in zip(uniques, counts):
                     strain_asgn_indicators[t][s] = count
@@ -178,7 +175,7 @@ class EMAlternateSolver(AbstractModelSolver):
             strain_asgn_indicators: torch.Tensor,
             x: torch.Tensor
     ):
-        x_gradient = torch.zeros(size=x.size(), device=self.device)  # T x S tensor.
+        x_gradient = torch.zeros(size=x.size(), device=cfg.torch_cfg.device)  # T x S tensor.
         # ====== Gaussian part
         if self.T > 1:
             for t in range(self.T):
@@ -201,7 +198,7 @@ class EMAlternateSolver(AbstractModelSolver):
         updated_x = x + (self.lr * x_gradient)
 
         # # ==== Re-center to zero to prevent drift. (Adding constant to each component does not change softmax.)
-        # updated_x = updated_x - (updated_x.mean() * torch.ones(size=updated_x.size(), device=self.device))
+        # updated_x = updated_x - (updated_x.mean() * torch.ones(size=updated_x.size(), device=cfg.torch_cfg.device))
 
         return updated_x
 

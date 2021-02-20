@@ -8,11 +8,11 @@ import math
 
 from abc import ABCMeta, abstractmethod
 from typing import List
+
+from chronostrain import logger, cfg
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.reads import SequenceRead
 from chronostrain.util.caching.data_cache import CachedComputation
-
-from chronostrain.util.io.logger import logger
 from chronostrain.util.benchmarking import current_time_millis, millis_elapsed
 
 import multiprocessing
@@ -24,20 +24,17 @@ class AbstractModelSolver(metaclass=ABCMeta):
     def __init__(self,
                  model: GenerativeModel,
                  data: List[List[SequenceRead]],
-                 device: torch.device,
                  cache_tag: str,
                  read_likelihoods: List[torch.Tensor] = None):
         self.model = model
         self.data = data
-        self.device = device
         self.cache_tag = cache_tag
         if read_likelihoods is None:
             self.read_likelihoods = CachedComputation(compute_read_likelihoods, cache_tag=cache_tag).call(
                 "read_likelihoods.pkl",
                 model=model,
                 reads=data,
-                logarithm=False,
-                device=device
+                logarithm=False
             )
         else:
             self.read_likelihoods = read_likelihoods
@@ -55,14 +52,10 @@ class AbstractModelSolver(metaclass=ABCMeta):
 def compute_read_likelihoods(
         model: GenerativeModel,
         reads: List[List[SequenceRead]],
-        logarithm: bool,
-        device: torch.device,
-        num_cores: int = None) -> List[torch.Tensor]:
+        logarithm: bool) -> List[torch.Tensor]:
     """
     Returns a list of (F x N) tensors, each containing the time-t read likelihoods.
     """
-    if num_cores is None:
-        num_cores = multiprocessing.cpu_count()
     fragment_space = model.get_fragment_space()
 
     start_time = current_time_millis()
@@ -77,11 +70,11 @@ def compute_read_likelihoods(
                 else math.exp(model.error_model.compute_log_likelihood(f, r))
                 for r in reads[k]
             ] for f in fragment_space.get_fragments()
-        ], device=device, dtype=torch.double)
+        ], device=cfg.torch_cfg.device, dtype=torch.double)
 
     parallel = False
     if parallel:
-        errors = Parallel(n_jobs=num_cores)(delayed(create_matrix)(k) for k in tqdm(range(len(model.times))))
+        errors = Parallel(n_jobs=cfg.model_cfg.num_cores)(delayed(create_matrix)(k) for k in tqdm(range(len(model.times))))
         # ref: https://medium.com/@mjschillawski/quick-and-easy-parallelization-in-python-32cb9027e490
         # TODO: Some 'future warnings' are being thrown about saving tensors (in the subprocesses).
         # TODO: Maybe find another parallelization alternative.

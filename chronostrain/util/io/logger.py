@@ -4,7 +4,7 @@ import logging.config
 
 
 __name__ = "ChronostrainLogger"
-__cfg__ = os.getenv("CHRONOSTRAIN_LOG_INI", "log_config.ini")
+__ini__ = os.getenv("CHRONOSTRAIN_LOG_INI", "log_config.ini")
 
 
 class InfoFilter(logging.Filter):
@@ -16,7 +16,7 @@ class InfoFilter(logging.Filter):
 __config_loaded__ = False
 if not __config_loaded__:
     try:
-        logging.config.fileConfig(__cfg__)
+        logging.config.fileConfig(__ini__)
         logger = logging.getLogger(__name__)
     except FileNotFoundError as e:
         print("[chronostrain.util.io.logger] Configuration `log_config.ini` not found. "

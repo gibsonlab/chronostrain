@@ -1,11 +1,11 @@
 import csv
-import os
 import re
 from typing import List
 
-from chronostrain.database.base import AbstractStrainDatabase, StrainEntryError, _DEFAULT_DATA_DIR
+from chronostrain.config import cfg
+from chronostrain.database.base import AbstractStrainDatabase, StrainEntryError
 from chronostrain.model.bacteria import Strain, Marker
-from chronostrain.util.io.fetch_genomes import fetch_filenames
+from chronostrain.util.io.ncbi import fetch_fasta
 from chronostrain.util.io.logger import logger
 
 
@@ -26,15 +26,18 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
         super().__init__()
 
     def __load__(self):
-        for strain_name, accession, filename in self.strain_entries():
-            input_file_path = os.path.join(_DEFAULT_DATA_DIR, accession + ".fasta")
-            with open(input_file_path) as file:
+        for strain_name, accession, fasta_filename in self.strain_entries():
+            with open(fasta_filename, "r") as file:
                 lines = [re.sub('[^AGCT]+', '', line.split(sep=" ")[-1]) for line in file]
             genome = ''.join(lines)
             if self.trim_debug is not None:
                 genome = genome[:self.trim_debug]
             markers = [Marker(name=strain_name, seq=genome)]  # Each genome's marker is its own genome.
-            self.strains[accession] = Strain(name="{}:{}".format(strain_name, accession), markers=markers)
+            self.strains[accession] = Strain(
+                name="{}:{}".format(strain_name, accession),
+                markers=markers,
+                genome_length=len(genome)
+            )
 
     def get_strain(self, strain_id: str) -> Strain:
         """
@@ -64,6 +67,6 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
                     )
                 strain_name = row[0]
                 accession = row[1]
-                filename = fetch_filenames(accession)[0]
-                yield strain_name, accession, filename
+                fasta_filename = fetch_fasta(accession, base_dir=cfg.database_cfg.data_dir)
+                yield strain_name, accession, fasta_filename
         logger.info("Found {} records.".format(line_count - 1))

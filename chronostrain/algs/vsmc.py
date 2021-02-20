@@ -8,12 +8,13 @@ from torch.distributions import MultivariateNormal, Categorical
 from torch.nn.functional import softmax
 from typing import List
 
+from chronostrain.config import cfg
+from chronostrain.util.io.logger import logger
 from chronostrain.algs.vi import AbstractVariationalPosterior
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.reads import SequenceRead
 from chronostrain.algs.base import AbstractModelSolver
 from chronostrain.util.benchmarking import RuntimeEstimator
-from chronostrain.util.io.logger import logger
 
 
 class VariationalSequentialPosterior(AbstractVariationalPosterior):
@@ -23,13 +24,11 @@ class VariationalSequentialPosterior(AbstractVariationalPosterior):
             num_strains: int,
             num_fragments: int,
             read_counts: List[int],
-            device
     ):
         self.times = num_times
         self.strains = num_strains
         self.fragments = num_fragments
         self.read_counts = read_counts
-        self.device = device
 
         # ================= Learnable parameters:
         # The mean parameters of the GP.
@@ -39,7 +38,7 @@ class VariationalSequentialPosterior(AbstractVariationalPosterior):
         #
         self.means = [
             torch.nn.Parameter(
-                torch.zeros(num_strains-1, device=device, dtype=torch.double),
+                torch.zeros(num_strains-1, device=cfg.torch_cfg.device, dtype=torch.double),
                 requires_grad=True
             )
             for _ in range(num_times)
@@ -49,7 +48,7 @@ class VariationalSequentialPosterior(AbstractVariationalPosterior):
         # These describe the means of the conditional distribution X_{t+1} | X_{t}.
         self.transitions = [
             torch.nn.Parameter(
-                torch.eye(num_strains-1, num_strains-1, device=device, dtype=torch.double),
+                torch.eye(num_strains-1, num_strains-1, device=cfg.torch_cfg.device, dtype=torch.double),
                 requires_grad=True
             )
             for _ in range(num_times - 1)
@@ -62,7 +61,7 @@ class VariationalSequentialPosterior(AbstractVariationalPosterior):
         # t = 1: Sigma_{1,1}
         self.cond_covar_cholesky = [
             torch.nn.Parameter(
-                torch.eye(num_strains-1, device=device, dtype=torch.double),
+                torch.eye(num_strains-1, device=cfg.torch_cfg.device, dtype=torch.double),
                 requires_grad=True
             )
             for _ in range(num_times)
@@ -106,29 +105,27 @@ class VariationalSequentialPosterior(AbstractVariationalPosterior):
                 X[0] = MultivariateNormal(
                     loc=self.means[0].expand(num_samples, -1),
                     covariance_matrix=self.cond_covar_cholesky[0].t().mm(self.cond_covar_cholesky[0])
-                ).sample().to(self.device)
+                ).sample().to(cfg.torch_cfg.device)
             else:
                 X[t] = MultivariateNormal(
                     loc=((X[t-1] - self.means[t-1].expand(num_samples, -1))
                          .mm(self.transitions[t-1])
                          + self.means[t].expand(num_samples, -1)),
                     covariance_matrix=self.cond_covar_cholesky[t].t().mm(self.cond_covar_cholesky[t])
-                ).sample().to(self.device)
+                ).sample().to(cfg.torch_cfg.device)
             X[t].requires_grad = False
         return X
 
 
 class VSMCSolver(AbstractModelSolver):
-    def __init__(self, model: GenerativeModel, data: List[List[SequenceRead]], torch_device, cache_tag: str):
-        super().__init__(model, data, torch_device, cache_tag)
+    def __init__(self, model: GenerativeModel, data: List[List[SequenceRead]], cache_tag: str):
+        super().__init__(model, data, cache_tag)
         self.posterior = VariationalSequentialPosterior(
             num_times=model.num_times(),
             num_strains=model.num_strains(),
             num_fragments=model.num_fragments(),
             read_counts=[len(reads) for reads in data],
-            device=torch_device
         )
-        self.device = torch_device
 
     def elbo_surrogate_estimate(self, num_samples) -> torch.Tensor:
         """

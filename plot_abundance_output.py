@@ -1,7 +1,7 @@
 import argparse
 
-from util.io.logger import logger
-from visualizations.plot_abundances import plot_abundances_comparison, plot_abundances
+from chronostrain import logger
+from chronostrain.visualizations.plot_abundances import plot_abundances_comparison, plot_abundances
 
 
 def parse_args():

@@ -14,6 +14,7 @@ from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
+from chronostrain.config import cfg
 from chronostrain.model.bacteria import Population
 from chronostrain.model.reads import SequenceRead
 from chronostrain.util.io.filesystem import convert_size, get_filesize_bytes
@@ -68,7 +69,7 @@ def save_abundances(
     return save_abundances_by_path(population, time_points, abundances, out_path)
 
 
-def load_abundances(file_path: str, torch_device=torch.device("cpu")) -> Tuple[List[int], torch.Tensor, List[str]]:
+def load_abundances(file_path: str) -> Tuple[List[int], torch.Tensor, List[str]]:
     """
     Read time-indexed abundances from file.
 
@@ -93,7 +94,7 @@ def load_abundances(file_path: str, torch_device=torch.device("cpu")) -> Tuple[L
             abundances = torch.tensor(
                 [float(val) for val in row[1:]],
                 dtype=torch.double,
-                device=torch_device
+                device=cfg.torch_cfg.device
             )
             time_points.append(time_point)
             strain_abundances.append(abundances)

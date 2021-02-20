@@ -8,6 +8,7 @@ import torch
 from torch.distributions.multivariate_normal import MultivariateNormal
 from torch.nn.functional import softmax
 
+from chronostrain.config import cfg
 from chronostrain.model.bacteria import Population
 from chronostrain.model.fragments import FragmentSpace
 from chronostrain.model.reads import AbstractErrorModel, SequenceRead
@@ -22,8 +23,7 @@ class GenerativeModel:
                  tau: float,
                  bacteria_pop: Population,
                  read_error_model: AbstractErrorModel,
-                 read_length: int,
-                 torch_device):
+                 read_length: int):
 
         self.times = times  # array of time points
         self.mu = mu  # mean for X_1
@@ -32,7 +32,6 @@ class GenerativeModel:
         self.error_model = read_error_model
         self.bacteria_pop = bacteria_pop
         self.read_length = read_length
-        self.torch_device = torch_device
 
     def num_times(self) -> int:
         return len(self.times)
@@ -94,7 +93,7 @@ class GenerativeModel:
             center = self.mu.repeat(N, 1)
         else:
             center = X_prev
-        covariance = self.time_scale(t) * torch.eye(self.num_strains(), device=self.torch_device)
+        covariance = self.time_scale(t) * torch.eye(self.num_strains(), device=cfg.torch_cfg.device)
         gaussian_log_probs = MultivariateNormal(loc=center, covariance_matrix=covariance).log_prob(X)
 
         # Reads likelihood calculation, conditioned on the Gaussian part.
@@ -177,7 +176,7 @@ class GenerativeModel:
         Initial covariance is tau_1, while subsequent variance scaling is tau.
         """
         brownian_motion = []
-        covariance = torch.eye(list(self.mu.size())[0], device=self.torch_device)  # Initialize covariance matrix
+        covariance = torch.eye(list(self.mu.size())[0], device=cfg.torch_cfg.device)  # Initialize covariance matrix
         center = self.mu  # Initialize mean vector.
 
         for time_idx in range(len(self.times)):

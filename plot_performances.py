@@ -1,6 +1,6 @@
 import argparse
-from util.io.logger import logger
-from visualizations.plot_perf import plot_performance_degradation
+from chronostrain import logger
+from chronostrain.visualizations.plot_perf import plot_performance_degradation
 
 
 def parse_args():

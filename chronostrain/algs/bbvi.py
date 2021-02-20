@@ -11,12 +11,12 @@ from typing import List, Tuple
 import torch
 from torch.distributions.multivariate_normal import MultivariateNormal
 
+from chronostrain.config import cfg
+from chronostrain.util.io.logger import logger
 from chronostrain.algs.vi import AbstractVariationalPosterior
 from chronostrain.model.reads import SequenceRead
-
-from chronostrain.algs.base import AbstractModelSolver, compute_read_likelihoods
+from chronostrain.algs.base import AbstractModelSolver
 from chronostrain.model.generative import GenerativeModel
-from chronostrain.util.io.logger import logger
 from chronostrain.util.benchmarking import RuntimeEstimator
 
 
@@ -27,7 +27,6 @@ class GaussianPosterior(AbstractVariationalPosterior):
             strains: int,
             fragments: int,
             read_counts: List[int],
-            device
     ):
         """
         Mean-field assumption:
@@ -37,14 +36,12 @@ class GaussianPosterior(AbstractVariationalPosterior):
         :param strains: Number of strains, S.
         :param fragments: Number of fragments, F.
         :param read_counts: Number of reads per time point.
-        :param device: the device to use for pytorch. (Default: CUDA if available).
         """
         # Check: might need this to be a matrix, not a vector.
         self.times = times
         self.strains = strains
         self.fragments = fragments
         self.read_counts = read_counts
-        self.device = device
 
         # ================= Learnable parameters:
         # The mean parameters of the GP.
@@ -54,7 +51,7 @@ class GaussianPosterior(AbstractVariationalPosterior):
         #                            = TRANSITION[t+1]*y - A
         self.means = [
             torch.nn.Parameter(
-                torch.zeros(strains, device=device, dtype=torch.double),
+                torch.zeros(strains, device=cfg.torch_cfg.device, dtype=torch.double),
                 requires_grad=True
             )
             for _ in range(times)
@@ -64,7 +61,7 @@ class GaussianPosterior(AbstractVariationalPosterior):
         # These describe the means of the conditional distribution X_{t+1} | X_{t}.
         self.transitions = [
             torch.nn.Parameter(
-                torch.zeros(strains, strains, device=device, dtype=torch.double),
+                torch.zeros(strains, strains, device=cfg.torch_cfg.device, dtype=torch.double),
                 requires_grad=True
             )
             for _ in range(times-1)
@@ -77,7 +74,7 @@ class GaussianPosterior(AbstractVariationalPosterior):
         # t = 1: Sigma_{1,1}
         self.cond_covar_cholesky = [
             torch.nn.Parameter(
-                torch.eye(strains, device=device, dtype=torch.double),
+                torch.eye(strains, device=cfg.torch_cfg.device, dtype=torch.double),
                 requires_grad=True
             )
             for _ in range(times)
@@ -95,8 +92,8 @@ class GaussianPosterior(AbstractVariationalPosterior):
     def sample(self, num_samples=1) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
         # Proxy for non-standard Gaussian
         std_gaussian = MultivariateNormal(
-            loc=torch.zeros(self.strains, dtype=torch.double, device=self.device),
-            covariance_matrix=torch.eye(self.strains, self.strains, dtype=torch.double, device=self.device)
+            loc=torch.zeros(self.strains, dtype=torch.double, device=cfg.torch_cfg.device),
+            covariance_matrix=torch.eye(self.strains, self.strains, dtype=torch.double, device=cfg.torch_cfg.device)
         )
 
         E_samples = [std_gaussian.sample(sample_shape=torch.Size([num_samples])) for _ in range(self.times)]
@@ -118,8 +115,8 @@ class GaussianPosterior(AbstractVariationalPosterior):
     def sample_with_likelihoods(self, num_samples=1):
         # Proxy for non-standard Gaussian
         std_gaussian = MultivariateNormal(
-            loc=torch.zeros(self.strains, dtype=torch.double, device=self.device),
-            covariance_matrix=torch.eye(self.strains, self.strains, dtype=torch.double, device=self.device)
+            loc=torch.zeros(self.strains, dtype=torch.double, device=cfg.torch_cfg.device),
+            covariance_matrix=torch.eye(self.strains, self.strains, dtype=torch.double, device=cfg.torch_cfg.device)
         )
 
         E_samples = [std_gaussian.sample(sample_shape=torch.Size([num_samples])) for _ in range(self.times)]
@@ -148,7 +145,7 @@ class GaussianPosterior(AbstractVariationalPosterior):
 
     # def log_likelihood_X(self, E: List[torch.Tensor]) -> torch.Tensor:
     #     N = X[0].size(0)
-    #     ans = torch.zeros(N, dtype=torch.double, device=self.device)
+    #     ans = torch.zeros(N, dtype=torch.double, device=cfg.torch_cfg.device)
     #
     #     for t in range(self.times):
     #         if t == 0:
@@ -191,15 +188,13 @@ class BBVISolver(AbstractModelSolver):
     def __init__(self,
                  model: GenerativeModel,
                  data: List[List[SequenceRead]],
-                 device: torch.device,
                  cache_tag: str):
-        super(BBVISolver, self).__init__(model, data, device, cache_tag)
+        super().__init__(model, data, cache_tag)
         self.posterior = GaussianPosterior(
             times=model.num_times(),
             strains=model.num_strains(),
             fragments=model.num_fragments(),
             read_counts=[len(reads) for reads in data],
-            device=device
         )
 
     def elbo_estimate(self, num_samples=1000):
