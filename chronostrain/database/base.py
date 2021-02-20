@@ -1,9 +1,7 @@
 from abc import abstractmethod, ABCMeta
-
-from chronostrain.model.bacteria import Strain
-
 import re
 from typing import List
+from chronostrain.model.bacteria import Strain
 from chronostrain.util.io.logger import logger
 
 _DEFAULT_DATA_DIR = "data"

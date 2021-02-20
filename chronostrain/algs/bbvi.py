@@ -11,13 +11,13 @@ from typing import List, Tuple
 import torch
 from torch.distributions.multivariate_normal import MultivariateNormal
 
-from algs.vi import AbstractVariationalPosterior
-from model.reads import SequenceRead
+from chronostrain.algs.vi import AbstractVariationalPosterior
+from chronostrain.model.reads import SequenceRead
 
-from algs.base import AbstractModelSolver, compute_read_likelihoods
-from model.generative import GenerativeModel
-from util.io.logger import logger
-from util.benchmarking import RuntimeEstimator
+from chronostrain.algs.base import AbstractModelSolver, compute_read_likelihoods
+from chronostrain.model.generative import GenerativeModel
+from chronostrain.util.io.logger import logger
+from chronostrain.util.benchmarking import RuntimeEstimator
 
 
 class GaussianPosterior(AbstractVariationalPosterior):

@@ -1,13 +1,12 @@
 import torch
-
-from algs.em import EMSolver
-from util.benchmarking import RuntimeEstimator
-from util.io.logger import logger
-from algs.base import AbstractModelSolver
-
 from typing import List
-from model.reads import SequenceRead
-from model.generative import GenerativeModel
+
+from chronostrain.algs.em import EMSolver
+from chronostrain.util.benchmarking import RuntimeEstimator
+from chronostrain.util.io.logger import logger
+from chronostrain.algs.base import AbstractModelSolver
+from chronostrain.model.reads import SequenceRead
+from chronostrain.model.generative import GenerativeModel
 
 from torch.nn.functional import softmax
 

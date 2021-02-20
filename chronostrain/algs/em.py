@@ -1,15 +1,12 @@
-from util.benchmarking import RuntimeEstimator
-from util.io.logger import logger
-from algs.base import AbstractModelSolver, compute_read_likelihoods
-
 from typing import List
-from model.reads import SequenceRead
-from model.generative import GenerativeModel
+from chronostrain.model.reads import SequenceRead
+from chronostrain.model.generative import GenerativeModel
+from chronostrain.util.benchmarking import RuntimeEstimator
+from chronostrain.util.io.logger import logger
+from chronostrain.algs.base import AbstractModelSolver
 
 import torch
 from torch.nn.functional import softmax
-
-# from util.torch import multi_logit
 
 torch.set_default_dtype(torch.float64)
 
