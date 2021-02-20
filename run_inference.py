@@ -8,6 +8,7 @@ import argparse
 
 from algs.vi import SecondOrderVariationalSolver, AbstractVariationalPosterior
 from database import JSONStrainDatabase, SimpleCSVStrainDatabase
+from algs.bbvi_reparamtrization import BBVISolver
 
 import torch
 
@@ -334,7 +335,22 @@ def perform_vi(
     )
     logger.info("Plots saved to {}.".format(plots_out_path))
 
+def perform_bbvi_reparametrization(
+        model: GenerativeModel,
+        reads: List[List[SequenceRead]],
+        disable_time_consistency: bool,
+        disable_quality: bool,
+        iters: int,
+        num_samples: int,
+        ground_truth_path: str,
+        plots_out_path: str):
 
+    # ==== Run the solver.
+    if not disable_time_consistency:
+        solver = BBVISolver(model, reads, default_device)
+        solver.run_vi(iters, 1e-5)
+
+    logger.info("BBVI Complete")
 def plot_em_result(
         reads: List[List[SequenceRead]],
         result_path: str,
@@ -569,6 +585,19 @@ def main():
             learning_rate=args.learning_rate,
             cache_tag=cache_tag
         )
+    elif args.method == 'bbvi_reparametrization':
+        logger.info("Solving using Black-Box Variational Inference.")
+        perform_bbvi_ss(
+            model=model,
+            reads=reads,
+            disable_time_consistency=args.disable_time_consistency,
+            disable_quality=args.disable_quality,
+            iters=args.iters,
+            num_samples=args.num_samples,
+            ground_truth_path=args.true_abundance_path,
+            plots_out_path=args.plots_path
+        )
+
     else:
         raise ValueError("{} is not an implemented method.".format(args.method))
 
