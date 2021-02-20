@@ -3,8 +3,9 @@ import logging
 import logging.config
 
 
+__env_key__ = "CHRONOSTRAIN_LOG_INI"
 __name__ = "ChronostrainLogger"
-__ini__ = os.getenv("CHRONOSTRAIN_LOG_INI", "log_config.ini")
+__ini__ = os.getenv(__env_key__, "log_config.ini")
 
 
 class InfoFilter(logging.Filter):
@@ -19,9 +20,7 @@ if not __config_loaded__:
         logging.config.fileConfig(__ini__)
         logger = logging.getLogger(__name__)
     except FileNotFoundError as e:
-        print("[chronostrain.util.io.logger] Configuration `log_config.ini` not found. "
-              "Create this configuration file, "
-              "or specify an existing configuration using environment variable `CHRONOSTRAIN_LOG_INI`.")
+        raise FileNotFoundError("No logging INI file found. Create a `log_config.ini` file, or set the `{}` environment variable to point to the right configuration.".format(__env_key__))
 
         # Default behavior: direct all INFO/WARNING/ERROR to stdout.
         stdout_handler = logging.StreamHandler(sys.stdout)
