@@ -31,23 +31,20 @@ class JSONStrainDatabase(AbstractStrainDatabase):
     A Simple implementation that treats each complete strain genome and optional specified subsequences as markers.
     """
 
-    def __init__(self, json_refs, trim_debug=None):
+    def __init__(self, json_refs):
         """
         :param json_refs: JSON file specifying accession numbers and marker locus tags.
         """
-        if trim_debug:
-            logger.debug("[SimpleCSVStrainDatabase: initialized in debug mode. Trim length = {L}]".format(L=trim_debug))
         self.strains = dict()  # accession -> Strain
         self.json_refs = json_refs
-        self.trim_debug = trim_debug
         super().__init__()
 
     def __load__(self):
-        for strain_name, strain_accession, strain_markers in self.fetch_sequences():
+        for strain_name, strain_accession, strain_markers in self.strain_entries():
             fasta_filename, genbank_filename = fetch_filenames(strain_accession)
             sequence_loader = SubsequenceLoader(fasta_filename, genbank_filename, strain_markers)
 
-            genome = sequence_loader.get_full_genome(self.trim_debug)
+            genome = sequence_loader.get_full_genome()
             markers = []
             for subsequence_data in sequence_loader.get_marker_subsequences():
                 markers.append(Marker(
@@ -72,7 +69,7 @@ class JSONStrainDatabase(AbstractStrainDatabase):
     def all_strains(self) -> List[Strain]:
         return list(self.strains.values())
 
-    def fetch_sequences(self):
+    def strain_entries(self):
         """
         Read JSON file, and download FASTA from accessions if doesn't exist.
         :return: a dictionary mapping accessions to strain-accession-filename-subsequences
