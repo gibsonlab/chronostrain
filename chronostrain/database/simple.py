@@ -3,10 +3,10 @@ import os
 import re
 from typing import List
 
-from database.base import AbstractStrainDatabase, StrainEntryError, _DEFAULT_DATA_DIR
-from model.bacteria import Strain, Marker
-from util.io.fetch_genomes import fetch_filenames
-from util.io.logger import logger
+from chronostrain.database.base import AbstractStrainDatabase, StrainEntryError, _DEFAULT_DATA_DIR
+from chronostrain.model.bacteria import Strain, Marker
+from chronostrain.util.io.fetch_genomes import fetch_filenames
+from chronostrain.util.io.logger import logger
 
 
 class SimpleCSVStrainDatabase(AbstractStrainDatabase):

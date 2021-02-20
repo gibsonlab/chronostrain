@@ -1,10 +1,10 @@
 import json
 from typing import List
 
-from database.base import AbstractStrainDatabase, SubsequenceLoader, StrainEntryError
-from model.bacteria import Marker, MarkerMetadata, Strain
-from util.io.fetch_genomes import fetch_filenames
-from util.io.logger import logger
+from chronostrain.database.base import AbstractStrainDatabase, SubsequenceLoader, StrainEntryError
+from chronostrain.model.bacteria import Marker, MarkerMetadata, Strain
+from chronostrain.util.io.fetch_genomes import fetch_filenames
+from chronostrain.util.io.logger import logger
 
 
 def parse_strain_info(json_dict):
@@ -55,14 +55,6 @@ class JSONStrainDatabase(AbstractStrainDatabase):
                         subseq_name=subsequence_data.name
                     )
                 ))
-                x = Marker(
-                    name=subsequence_data.ID,
-                    seq=subsequence_data.get_subsequence(genome),
-                    metadata=MarkerMetadata(
-                        strain_accession=strain_accession,
-                        subseq_name=subsequence_data.name
-                    )
-                )
             self.strains[strain_accession] = Strain(
                 name="{}:{}".format(strain_name, strain_accession),
                 markers=markers,
@@ -84,6 +76,5 @@ class JSONStrainDatabase(AbstractStrainDatabase):
                  wrappers.
         """
         with open(self.json_refs, "rb") as f:
-            strain_infos = json.load(f, object_hook=parse_strain_info)
-            for name, accession, markers in strain_infos:
-                yield name, accession, markers
+            for strain_dict in json.load(f):
+                yield parse_strain_info(strain_dict)

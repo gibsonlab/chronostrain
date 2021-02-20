@@ -2,17 +2,16 @@
  generative.py
  Contains classes for representing the generative model.
 """
+from typing import List, Tuple
 
 import torch
-
-from typing import List, Tuple
-from model.bacteria import Population
-from model.fragments import FragmentSpace
-from model.reads import AbstractErrorModel, SequenceRead
-from util.io.logger import logger
-
 from torch.distributions.multivariate_normal import MultivariateNormal
 from torch.nn.functional import softmax
+
+from chronostrain.model.bacteria import Population
+from chronostrain.model.fragments import FragmentSpace
+from chronostrain.model.reads import AbstractErrorModel, SequenceRead
+from chronostrain.util.io.logger import logger
 
 
 class GenerativeModel:

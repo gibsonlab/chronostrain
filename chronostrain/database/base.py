@@ -1,10 +1,10 @@
 from abc import abstractmethod, ABCMeta
 
-from model.bacteria import Strain
+from chronostrain.model.bacteria import Strain
 
 import re
 from typing import List
-from util.io.logger import logger
+from chronostrain.util.io.logger import logger
 
 _DEFAULT_DATA_DIR = "data"
 _MAXIMUM_MARKER_LEN = 2000

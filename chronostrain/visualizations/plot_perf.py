@@ -6,7 +6,7 @@ import seaborn as sns
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from util.io.model_io import load_abundances
+from chronostrain.util.io.model_io import load_abundances
 
 
 def plot_performance_degradation(

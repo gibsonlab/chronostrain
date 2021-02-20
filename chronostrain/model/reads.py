@@ -5,7 +5,8 @@
 import math
 from abc import ABCMeta, abstractmethod
 import torch
-from model.fragments import Fragment
+
+from chronostrain.model.fragments import Fragment
 
 
 # ============= Utility functions

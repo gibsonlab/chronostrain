@@ -8,12 +8,12 @@ import math
 
 from abc import ABCMeta, abstractmethod
 from typing import List
-from model.generative import GenerativeModel
-from model.reads import SequenceRead
-from util.cache.data_cache import CachedComputation
+from chronostrain.model.generative import GenerativeModel
+from chronostrain.model.reads import SequenceRead
+from chronostrain.util.caching.data_cache import CachedComputation
 
-from util.io.logger import logger
-from util.benchmarking import current_time_millis, millis_elapsed
+from chronostrain.util.io.logger import logger
+from chronostrain.util.benchmarking import current_time_millis, millis_elapsed
 
 import multiprocessing
 from joblib import Parallel, delayed

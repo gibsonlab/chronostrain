@@ -4,18 +4,16 @@ Monte-Carlo Variational Inference
 """
 
 import torch
+from torch.distributions import MultivariateNormal, Categorical
+from torch.nn.functional import softmax
 from typing import List
 
-from torch.distributions import MultivariateNormal, Categorical
-
-from algs.vi import AbstractVariationalPosterior
-from model.generative import GenerativeModel
-from model.reads import SequenceRead
-from algs.base import AbstractModelSolver, compute_read_likelihoods
-from util.benchmarking import RuntimeEstimator
-
-from util.io.logger import logger
-from torch.nn.functional import softmax
+from chronostrain.algs.vi import AbstractVariationalPosterior
+from chronostrain.model.generative import GenerativeModel
+from chronostrain.model.reads import SequenceRead
+from chronostrain.algs.base import AbstractModelSolver
+from chronostrain.util.benchmarking import RuntimeEstimator
+from chronostrain.util.io.logger import logger
 
 
 class VariationalSequentialPosterior(AbstractVariationalPosterior):

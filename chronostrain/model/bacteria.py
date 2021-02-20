@@ -1,8 +1,10 @@
+import torch
 from dataclasses import dataclass
 from typing import List
-from model.fragments import FragmentSpace
-from util.io.logger import logger
-import torch
+
+from chronostrain.model.fragments import FragmentSpace
+from chronostrain.util.io.logger import logger
+
 
 
 @dataclass

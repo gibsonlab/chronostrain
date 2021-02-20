@@ -1,8 +1,7 @@
 import os
-import re
 import urllib.request as urllib
-from util.io.logger import logger
-from util.io.filesystem import convert_size, get_filesize_bytes
+from chronostrain.util.io.logger import logger
+from chronostrain.util.io.filesystem import convert_size, get_filesize_bytes
 
 _base_dir = "data"
 _fasta_filename = "{accession}.fasta"

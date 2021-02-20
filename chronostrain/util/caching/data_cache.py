@@ -8,7 +8,7 @@
 """
 import os
 from typing import Callable
-from util.io.logger import logger
+from chronostrain.util.io.logger import logger
 import pickle
 import hashlib
 

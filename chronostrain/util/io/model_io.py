@@ -14,10 +14,10 @@ from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
-from model.bacteria import Population
-from model.reads import SequenceRead
-from util.io.filesystem import convert_size, get_filesize_bytes
-from util.io.logger import logger
+from chronostrain.model.bacteria import Population
+from chronostrain.model.reads import SequenceRead
+from chronostrain.util.io.filesystem import convert_size, get_filesize_bytes
+from chronostrain.util.io.logger import logger
 
 
 def save_abundances_by_path(
@@ -176,13 +176,3 @@ def load_fastq_reads(file_paths: List[str]) -> List[List[SequenceRead]]:
         reads.append(reads_t)
 
     return reads
-
-
-def get_all_accessions_csv(data_dir: str, accession_csv_file: str) -> List[str]:
-    accessions = []
-    file_path = os.path.join(data_dir, accession_csv_file)
-    with open(file_path) as csvfile:
-        reader = csv.DictReader(csvfile)
-        for row in reader:
-            accessions.append(row['Accession'])
-    return accessions

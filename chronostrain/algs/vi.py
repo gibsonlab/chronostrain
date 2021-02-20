@@ -9,15 +9,14 @@ from abc import ABCMeta, abstractmethod
 from typing import List, Tuple
 
 import torch
+from torch.nn.functional import softmax
 from torch.distributions import MultivariateNormal, Categorical
 
-from model.generative import GenerativeModel
-from model.reads import SequenceRead
-from algs.base import AbstractModelSolver
-
-from torch.nn.functional import softmax
-from util.benchmarking import RuntimeEstimator
-from util.io.logger import logger
+from chronostrain.model.generative import GenerativeModel
+from chronostrain.model.reads import SequenceRead
+from chronostrain.algs.base import AbstractModelSolver
+from chronostrain.util.benchmarking import RuntimeEstimator
+from chronostrain.util.io.logger import logger
 
 
 class AbstractVariationalPosterior(metaclass=ABCMeta):

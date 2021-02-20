@@ -1,5 +1,10 @@
 [loggers]
-keys=root,customLogger
+keys=ChronostrainLogger
+
+[logger_ChronostrainLogger]
+level=DEBUG
+qualname=customLogger
+handlers=consoleHandler, fileHandler
 
 [handlers]
 keys=consoleHandler,fileHandler
@@ -27,12 +32,3 @@ datefmt=
 
 [formatter_complexFormatter]
 format=%(asctime)s [%(levelname)s] [%(module)s (%(lineno)d)] - %(message)s
-
-[logger_root]
-level=INFO
-handlers=
-
-[logger_customLogger]
-level=DEBUG
-qualname=customLogger
-handlers=consoleHandler, fileHandler
