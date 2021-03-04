@@ -17,4 +17,5 @@ def _load(ini_path) -> ChronostrainConfig:
     return _config
 
 
+# ============= Create configuration instance. ===========
 cfg = _load(__ini__)

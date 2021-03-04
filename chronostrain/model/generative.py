@@ -2,9 +2,11 @@
  generative.py
  Contains classes for representing the generative model.
 """
+import sys
 from typing import List, Tuple
 
 import torch
+from tqdm import tqdm
 from torch.distributions.multivariate_normal import MultivariateNormal
 from torch.nn.functional import softmax
 
@@ -147,7 +149,7 @@ class GenerativeModel:
         reads_list = []
 
         # For each time point, convert to fragment abundances and sample each read.
-        for t in range(len(read_depths)):
+        for t in tqdm(range(len(read_depths)), file=sys.stdout):
             logger.debug("Sampling reads for t = {}.".format(self.times[t]))
             read_depth = read_depths[t]
             strain_abundance = abundances[t]

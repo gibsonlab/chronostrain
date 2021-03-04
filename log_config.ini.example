@@ -4,7 +4,7 @@ keys=root,ChronostrainLogger
 # ================== LOGGERS ================
 [logger_ChronostrainLogger]
 level=DEBUG
-qualname=customLogger
+qualname=ChronostrainLogger
 handlers=consoleHandler,fileHandler
 
 # Root must always be defined. Suppress by providing no handlers.

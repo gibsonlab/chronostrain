@@ -27,8 +27,8 @@ def parse_args():
 def main():
     args = parse_args()
     trials = [
-        (id, int(num_reads_str), file_path)
-        for (id, num_reads_str, file_path) in args.trial
+        (trial_id, int(num_reads_str), file_path)
+        for (trial_id, num_reads_str, file_path) in args.trial
     ]
 
     plot_performance_degradation(

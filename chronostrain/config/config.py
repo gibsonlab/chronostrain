@@ -1,8 +1,11 @@
+import importlib
 from abc import ABCMeta, abstractmethod
 from typing import Tuple, Any
 from pathlib import Path
 
 import torch
+
+import chronostrain
 
 
 class ConfigurationParseError(BaseException):
@@ -28,22 +31,34 @@ class AbstractConfig(metaclass=ABCMeta):
 
 
 class DatabaseConfig(AbstractConfig):
-    def __init__(self, cfg: dict):
+    def __init__(self, cfg: dict, args_cfg: dict):
         super().__init__("Database")
-        self.database_path, self.data_dir, self.marker_max_len = self.parse(cfg)
+        self.args_cfg = args_cfg
+        self.class_name, self.kwargs, self.data_dir = self.parse(cfg)
 
-    def parse_impl(self, cfg: dict) -> Tuple[str, str, int]:
-        path = cfg["DB_PATH"]
+    def parse_impl(self, cfg: dict) -> Tuple[str, dict, str]:
+        class_name = cfg["DB_CLASS"]
 
         datadir = cfg["DATA_DIR"]
         Path(datadir).mkdir(parents=True, exist_ok=True)
 
-        m_str = cfg["MARKER_MAX_LEN"].strip()
-        try:
-            marker_max_len = int(m_str)
-        except ValueError:
-            raise ConfigurationParseError("Token `MARKER_MAX_LEN`: Expected integer, got `{}`".format(m_str))
-        return path, datadir, marker_max_len
+        kwargs = {
+            key: (value if value != 'None' else None)
+            for key, value in self.args_cfg.items()
+        }
+
+        return class_name, kwargs, datadir
+
+    def get_database(self):
+        module_name, class_name = self.class_name.rsplit(".", 1)
+        class_ = getattr(importlib.import_module(module_name), class_name)
+        db_obj = class_(**self.kwargs)
+        if not isinstance(db_obj, chronostrain.database.AbstractStrainDatabase):
+            raise RuntimeError("Specified database class {} is not a subclass of {}".format(
+                self.class_name,
+                chronostrain.database.AbstractStrainDatabase.__class__.__name__
+            ))
+        return db_obj
 
 
 class ModelConfig(AbstractConfig):
@@ -58,7 +73,9 @@ class ModelConfig(AbstractConfig):
         elif q_token == "false":
             use_quality_scores = False
         else:
-            raise ConfigurationParseError("Field `USE_QUALITY_SCORES`: Expected `true` or `false`, got `{}`".format(q_token))
+            raise ConfigurationParseError(
+                "Field `USE_QUALITY_SCORES`: Expected `true` or `false`, got `{}`".format(q_token)
+            )
 
         n_cores_token = cfg["NUM_CORES"]
         try:
@@ -117,17 +134,23 @@ class TorchConfig(AbstractConfig):
         elif device_token == "cpu":
             device = torch.device("cpu")
         else:
-            raise ConfigurationParseError("Field `DEVICE`:Invalid or unsupported device token `{}`".format(device_token))
+            raise ConfigurationParseError(
+                "Field `DEVICE`:Invalid or unsupported device token `{}`".format(device_token)
+            )
         return device, cfg["DEFAULT_DTYPE"]
 
 
 class ChronostrainConfig(AbstractConfig):
     def __init__(self, cfg: dict):
         super().__init__("ChronoStrain")
-
-        (self.database_cfg,
-         self.model_cfg,
-         self.torch_cfg) = self.parse(cfg)
+        database_cfg, model_cfg, torch_cfg = self.parse(cfg)
+        self.database_cfg: DatabaseConfig = database_cfg
+        self.model_cfg: ModelConfig = model_cfg
+        self.torch_cfg: TorchConfig = torch_cfg
 
     def parse_impl(self, cfg: dict) -> Tuple[DatabaseConfig, ModelConfig, TorchConfig]:
-        return DatabaseConfig(cfg["Database"]), ModelConfig(cfg["Model"]), TorchConfig(cfg["PyTorch"])
+        return (
+            DatabaseConfig(cfg["Database"], cfg["Database.args"]),
+            ModelConfig(cfg["Model"]),
+            TorchConfig(cfg["PyTorch"])
+        )

@@ -218,7 +218,7 @@ class RampUpRampDownDistribution(AbstractQScoreDistribution):
         for i, count in enumerate(lengths):
             quality_vector[cur_pos:cur_pos + count] = self.quality_score_values[q_idx]
             cur_pos = cur_pos + count
-            if q_idx == self.quality_score_values.size(0) - 1:
+            if q_idx == self.quality_score_values.size()[0] - 1:
                 incr = -incr
             q_idx = q_idx + incr
 
@@ -385,7 +385,7 @@ class FastQErrorModel(AbstractErrorModel):
         qvec = self.q_dist.sample_qvec()
         noisy_fragment_chars = ['' for _ in range(self.read_len)]
         error_probs = FastQErrorModel.compute_error_prob(qvec)
-        error_locs = (torch.rand(size=error_probs.size()) < error_probs)
+        error_locs: torch.Tensor = (torch.rand(size=error_probs.size()) < error_probs)
         for k in range(len(fragment)):
             if error_locs[k].item():
                 noisy_fragment_chars[k] = mutate_acgt(fragment[k])

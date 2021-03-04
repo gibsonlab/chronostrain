@@ -25,3 +25,9 @@ class AbstractStrainDatabase(metaclass=ABCMeta):
 
 class StrainEntryError(BaseException):
     pass
+
+
+class StrainNotFoundError(BaseException):
+    def __init__(self, strain_id):
+        self.strain_id = strain_id
+        super().__init__("Strain id `{}` not found in database.".format(strain_id))

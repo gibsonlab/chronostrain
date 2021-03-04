@@ -1,7 +1,6 @@
 from typing import List
 
 import numpy as np
-import torch
 import seaborn as sns
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -86,7 +85,7 @@ def plot_abundance_dataframe(
         title: str = None,
         ylim: List[float] = None,
         font_size: int = 12,
-        thickness=(1,1)):
+        thickness=(1, 1)):
     plt.rcParams.update({'font.size': font_size})
     ax = sns.lineplot(x="Time",
                       y="Abundance",
@@ -131,7 +130,7 @@ def plot_posterior_abundances(
     true_abundances = None
     truth_acc_dict = None
     if truth_path:
-        _, true_abundances, accessions = load_abundances(truth_path, torch_device=torch.device("cpu"))
+        _, true_abundances, accessions = load_abundances(truth_path)
         truth_acc_dict = {acc: i for i, acc in enumerate(accessions)}
 
     abundance_samples = [

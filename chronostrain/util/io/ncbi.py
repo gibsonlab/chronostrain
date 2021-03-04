@@ -1,3 +1,6 @@
+'''
+    A python wrapper implementation of relevant NCBI API calls.
+'''
 import os
 import urllib.request, urllib.error
 
@@ -8,6 +11,10 @@ _fasta_filename = "{accession}.fasta"
 _genbank_filename = "{accession}.gb"
 _ncbi_fasta_api_url = "https://www.ncbi.nlm.nih.gov/search/api/sequence/{accession}/?report=fasta"
 _ncbi_genbank_api_url = "https://www.ncbi.nlm.nih.gov/sviewer/viewer.cgi?tool=portal&save=file&log$=seqview&db=nuccore&report=genbank&id={accession}&conwithfeat=on&basic_feat=on&hide-sequence=on&hide-cdd=on"
+
+
+class NCBIAPIException(BaseException):
+    pass
 
 
 def _fasta_get(accession: str) -> str:
@@ -45,26 +52,23 @@ def genbank_filename(accession: str, base_dir: str) -> str:
 def fetch_fasta(accession: str, base_dir: str) -> str:
     filename = fasta_filename(accession, base_dir)
     url = _fasta_get(accession)
-    if _fetch_from_api(accession, filename, url):
-        raise RuntimeError("Couldn't access NCBI's fasta API.")
-    else:
-        return filename
+    _fetch_from_api(accession, filename, url)
+    return filename
 
 
 def fetch_genbank(accession: str, base_dir: str) -> str:
     filename = genbank_filename(accession, base_dir)
     url = _genbank_get(accession)
-    if _fetch_from_api(accession, filename, url):
-        raise RuntimeError("Couldn't access NCBI's genbank API.")
-    else:
-        return filename
+    _fetch_from_api(accession, filename, url)
+    return filename
 
 
-def _fetch_from_api(accession: str, filename: str, url: str):
+def _fetch_from_api(accession: str, filename: str, url: str) -> bool:
     """
     Check if file exists. If not, try to download the files.
     :param filename: The target file to check.
     :param url: The url to access.
+    :return: True if successful, False otherwise.
     """
     if os.path.exists(filename):
         logger.info("[{}] file found: {}".format(accession, filename))
@@ -72,20 +76,18 @@ def _fetch_from_api(accession: str, filename: str, url: str):
         logger.info("[{}] file \"{}\" not found. Downloading... ".format(accession, filename))
 
         try:
+            logger.info("HTTP GET {}".format(url))
             conn = urllib.request.urlopen(url)
         except urllib.error.HTTPError as e:
-            logger.error("NCBI API Error {code} [{url}]".format(
+            raise NCBIAPIException("NCBI API Error {code} [{url}]".format(
                 code=e.code,
                 url=url
             ))
-            return False
         except urllib.error.URLError as e:
-            logger.error("URLError: {}".format(e.reason))
-            return False
+            raise NCBIAPIException("URLError: {}".format(e.reason))
         else:
             with open(filename, 'w') as f:
                 f.write(str(conn.read()).replace('\\r','').replace('\\n','\n'))
                 logger.info("[{ac}] download completed. ({sz})".format(
                     ac=accession, sz=convert_size(get_filesize_bytes(filename))
                 ))
-            return True

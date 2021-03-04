@@ -8,8 +8,10 @@
 import os
 import setuptools
 
-thelibFolder = os.path.dirname(os.path.realpath(__file__))
-requirementPath = thelibFolder + '/requirements.txt'
+lib_dir = os.path.dirname(os.path.realpath(__file__))
+
+# Package requirements: Parse from `requirements.txt`.
+requirementPath = lib_dir + '/requirements.txt'
 requirements = []
 if os.path.isfile(requirementPath):
     with open(requirementPath, "r") as f:
@@ -20,10 +22,10 @@ setuptools.setup(
     version="0.0.1",
     author="Younhun Kim",
     author_email="younhun@mit.edu",
-    url="https://github.com/gibson",
+    url="https://github.com/gibsonlab/chronostrain",
     classifiers=[
         "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: MIT License",
+        "License :: <TODO>",
         "Operating System :: Unix",
     ],
     packages=setuptools.find_packages(),

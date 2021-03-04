@@ -13,10 +13,11 @@ DEFAULT_DTYPE=float64
 
 [Database]
 # CSV or JSON path to Database dir.
-DB_PATH=./ncbi_refs.json
+DB_CLASS=chronostrain.JSONStrainDatabase
 
 # Directory to save all FASTA/Genbank files to.
 DATA_DIR=./data/
 
-# Maximum allowed length of markers, to determine `best-fit` (longest) markers from a regex-based primer match.
-MARKER_MAX_LEN=300
+[Database.args]
+ENTRIES_FILE=./ncbi_refs.json
+marker_max_len=500

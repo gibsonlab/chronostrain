@@ -52,6 +52,7 @@ class FragmentSpace:
         If the seq is already in the space, nothing happens.
 
         :param seq: A string to add to the space.
+        :param metadata: The fragment-specific metadata to add (useful for record-keeping on toy data).
         :return: the Fragment instance that got added.
         """
         if self.contains_seq(seq):

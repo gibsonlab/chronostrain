@@ -1,6 +1,6 @@
 import torch
 from dataclasses import dataclass
-from typing import List
+from typing import List, Union
 
 from chronostrain.config import cfg
 from chronostrain.model.fragments import FragmentSpace
@@ -23,7 +23,7 @@ class MarkerMetadata:
 class Marker:
     name: str
     seq: str
-    metadata: MarkerMetadata
+    metadata: Union[MarkerMetadata, None]
 
     def __repr__(self):
         return "Marker[{}:{}]".format(self.name, self.seq) if MarkerMetadata is None else "Marker[{}:{}]".format(self.metadata, self.seq)

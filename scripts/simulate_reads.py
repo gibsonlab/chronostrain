@@ -1,7 +1,7 @@
 #!/bin/python3
 """
   simulate_reads.py
-  Run to simulate reads from genomes specified by accession numbers.
+  Run to simulate reads from genomes specified by raccession numbers.
 """
 
 import argparse
@@ -9,7 +9,7 @@ import torch
 from typing import List, Tuple
 
 from chronostrain import logger, cfg
-from chronostrain.database import SimpleCSVStrainDatabase
+from chronostrain.database import SimpleCSVStrainDatabase, StrainNotFoundError
 from chronostrain.model import generative, reads
 from chronostrain.model.bacteria import Population
 from chronostrain.model.reads import SequenceRead
@@ -21,10 +21,6 @@ def parse_args():
 
     parser.add_argument('-o', '--out_dir', required=True, type=str,
                         help='<Required> Directory to save the reads.')
-
-    parser.add_argument('-a', '--accession_path', required=True, type=str,
-                        help='<Required> A path to the CSV file listing the strains to sample from. '
-                             'See README for the expected format.')
 
     parser.add_argument('-n', '--num_reads', required=True, type=int, nargs='+',
                         help='<Required> Numbers of the reads to sample at each time point. '
@@ -48,10 +44,6 @@ def parse_args():
     parser.add_argument('-p', '--out_prefix', required=False, default='sim',
                         help='<Optional> File prefix for the read files. '
                              'Files are saved in the format [PREFIX]_reads_t[TIME].fastq. (Default: "sim")')
-    parser.add_argument('-trim', '--marker_trim_len', required=False, type=int,
-                        help='<Optional> An integer to trim markers down to. (For testing/debugging.)')
-    parser.add_argument('--disable_quality', action="store_true",
-                        help='<Flag> Turn off effect of quality scores.')
 
     return parser.parse_args()
 
@@ -102,8 +94,8 @@ def sample_reads(
                                           read_error_model=my_error_model)
 
     if len(read_depths) != len(time_points):
-        logger.warning("Not enough read depths specified for time points. "
-                       "Defaulting to {} per time point.".format(read_depths[0]))
+        logger.warning("Not enough read depths (len={}) specified for time points (len={}). "
+                       "Defaulting to {} per time point.".format(len(read_depths), len(time_points), read_depths[0]))
         read_depths = [read_depths[0]]*len(time_points)
 
     if abundances is not None:
@@ -139,7 +131,7 @@ def main():
     # Note: The usage of "SimpleCSVStrainDatabase" initializes the strain information so that each strain's (unique)
     # marker is its own genome.
     # ==============================================
-    database = SimpleCSVStrainDatabase(args.accession_path, trim_debug=args.marker_trim_len)
+    database = cfg.database_cfg.get_database()
 
     # ========= Load abundances and accessions.
     abundances = None
@@ -157,7 +149,14 @@ def main():
 
     # ========== Create Population instance.
     if accessions:
-        population = Population(database.get_strains(accessions))
+        try:
+            population = Population(database.get_strains(accessions))
+        except StrainNotFoundError as e:
+            print("Strain `{}` from abundances file `{}` not found in database.".format(
+                e.strain_id,
+                args.abundance_path
+            ))
+            raise e
     else:
         population = Population(database.all_strains())
 
@@ -168,7 +167,7 @@ def main():
         read_depths=args.num_reads,
         abundances=abundances,
         read_length=args.read_length,
-        disable_quality=args.disable_quality,
+        disable_quality=(not cfg.model_cfg.use_quality_scores),
         time_points=time_points,
         seed=args.seed
     )
@@ -188,8 +187,4 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as e:
-        logger.exception(e)
-        exit(1)
+    main()

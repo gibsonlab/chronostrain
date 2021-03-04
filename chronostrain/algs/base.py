@@ -12,10 +12,9 @@ from typing import List
 from chronostrain import logger, cfg
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.reads import SequenceRead
-from chronostrain.util.caching.data_cache import CachedComputation
+from chronostrain.util.data_cache import CachedComputation
 from chronostrain.util.benchmarking import current_time_millis, millis_elapsed
 
-import multiprocessing
 from joblib import Parallel, delayed
 from tqdm import tqdm
 

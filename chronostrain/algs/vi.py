@@ -316,7 +316,7 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
             hess[n] = 2*hess[n] - cross.permute([0, 1, 2]) - cross.permute([1, 2, 0]) - cross.permute([2, 0, 1])
             for i in range(S):
                 hess[n, i, i, i] = hess[n, i, i, i] + sigmoid[n, i, 0]
-        return hess[:, :-1, :-1, :]  # cut off the last variable for multi_logit
+        return hess
 
 
 class SecondOrderVariationalSolver(AbstractModelSolver):

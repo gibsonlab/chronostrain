@@ -8,10 +8,8 @@ import torch
 from typing import List
 import argparse
 
-from filter import Filter
 from chronostrain import logger, cfg
 from chronostrain.algs.vi import SecondOrderVariationalSolver, AbstractVariationalPosterior
-from chronostrain.database import JSONStrainDatabase, SimpleCSVStrainDatabase
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.bacteria import Population
 from chronostrain.model.reads import SequenceRead, FastQErrorModel, NoiselessErrorModel
@@ -20,6 +18,8 @@ from chronostrain.visualizations import plot_abundances as plotter
 from chronostrain.util.io.model_io import load_fastq_reads, save_abundances_by_path
 
 from tqdm import tqdm
+
+from .filter import Filter
 
 # ============================= Constants =================================
 
@@ -34,9 +34,6 @@ def parse_args():
                         help='<Required> Directory containing read files')
     parser.add_argument('-r', '--read_files', nargs='+', required=True,
                         help='<Required> List of read filenames; minimum 1.')
-    parser.add_argument('-a', '--accession_path', required=True, type=str,
-                        help='<Required> A path to the CSV file listing the strains to sample from. '
-                             'See README for the expected format.')
     parser.add_argument('-t', '--time_points', required=True, nargs='+', type=float,
                         help='<Required> A list of integers. Each value represents a time point in the dataset.')
     parser.add_argument('-m', '--method', choices=['em', 'vi', 'bbvi', 'vsmc', 'emalt'], required=True,
@@ -56,10 +53,6 @@ def parse_args():
     parser.add_argument('-truth', '--true_abundance_path', required=False, type=str,
                         help='<Optional> The CSV file path containing the ground truth relative abundances for each '
                              'strain by time point. For benchmarking.')
-    parser.add_argument('-trim', '--marker_trim_len', required=False, type=int,
-                        help='<Optional> An integer to trim markers down to. For testing/debugging.')
-    parser.add_argument('--disable_quality', action="store_true",
-                        help='<Flag> Turn off effect of quality scores.')
     parser.add_argument('--disable_time_consistency', action="store_true",
                         help='<Flag> Turn off time consistency (perform separate inference on each time point).')
     parser.add_argument('--iters', required=False, type=int, default=10000,
@@ -445,11 +438,8 @@ def main():
     torch.manual_seed(args.seed)
 
     # ==== Create database instance.
-    logger.info("Loading from marker database {}.".format(args.accession_path))
-    if args.accession_path.endswith(".csv"):
-        db = SimpleCSVStrainDatabase(args.accession_path, trim_debug=args.marker_trim_len)
-    else:
-        db = JSONStrainDatabase(args.accession_path)
+    db = cfg.database_cfg.get_database()
+
     # ==== Load Population instance from database info
     population = Population(
         strains=db.all_strains()
@@ -474,7 +464,7 @@ def main():
         population=population,
         window_size=len(reads[0][0].seq),
         time_points=args.time_points,
-        disable_quality=args.disable_quality
+        disable_quality=not cfg.model_cfg.use_quality_scores
     )
 
     logger.debug("Strain keys:")
@@ -500,7 +490,7 @@ def main():
             plots_out_path=args.plots_path,
             ground_truth_path=args.true_abundance_path,
             disable_time_consistency=args.disable_time_consistency,
-            disable_quality=args.disable_quality,
+            disable_quality=not cfg.model_cfg.use_quality_scores,
             iters=args.iters,
             learning_rate=args.learning_rate,
             cache_tag=cache_tag
@@ -511,7 +501,7 @@ def main():
             model=model,
             reads=reads,
             disable_time_consistency=args.disable_time_consistency,
-            disable_quality=args.disable_quality,
+            disable_quality=not cfg.model_cfg.use_quality_scores,
             iters=args.iters,
             num_samples=args.num_samples,
             ground_truth_path=args.true_abundance_path,
@@ -525,7 +515,7 @@ def main():
             model=model,
             reads=reads,
             disable_time_consistency=args.disable_time_consistency,
-            disable_quality=args.disable_quality,
+            disable_quality=not cfg.model_cfg.use_quality_scores,
             iters=args.iters,
             num_samples=args.num_samples,
             ground_truth_path=args.true_abundance_path,
@@ -539,7 +529,7 @@ def main():
             model=model,
             reads=reads,
             disable_time_consistency=args.disable_time_consistency,
-            disable_quality=args.disable_quality,
+            disable_quality=not cfg.model_cfg.use_quality_scores,
             iters=args.iters,
             num_samples=args.num_samples,
             ground_truth_path=args.true_abundance_path,
@@ -555,7 +545,7 @@ def main():
             plots_out_path=args.plots_path,
             ground_truth_path=args.true_abundance_path,
             disable_time_consistency=args.disable_time_consistency,
-            disable_quality=args.disable_quality,
+            disable_quality=not cfg.model_cfg.use_quality_scores,
             iters=args.iters,
             learning_rate=args.learning_rate,
             cache_tag=cache_tag

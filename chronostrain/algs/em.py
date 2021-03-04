@@ -148,7 +148,6 @@ class EMSolver(AbstractModelSolver):
                     x_gradient[t] = variance_scaling_prev * (x[t] - x[t-1]) + variance_scaling_next * (x[t] - x[t+1])
 
         # ====== Sigmoidal part
-        # y = multi_logit(x, dim=1)
         y = softmax(x, dim=1)
         for t in range(T):
             # Scale each row by Z_t, and normalize.
@@ -159,7 +158,6 @@ class EMSolver(AbstractModelSolver):
             sigmoid = y[t]
             sigmoid_jacobian = torch.diag(sigmoid) - torch.ger(sigmoid, sigmoid)  # symmetric matrix.
 
-            # Chopping off the last row corresponds to multi_logit appending zeros at the end.
             x_gradient[t] = x_gradient[t] + sigmoid_jacobian.mv(
                 self.model.get_fragment_frequencies().t().mv(Q)
             )
