@@ -2,9 +2,10 @@
 set -e
 
 TESTNAME="nissle_data"
+cd ../..
 
 # Time consistency off
-python run_inference.py \
+python scripts/run_inference.py \
 --base_path "data/simulated_reads/$TESTNAME/" \
 --read_files "all_reads.fq" \
 --true_abundance_path "data/simulated_reads/$TESTNAME/sim_abundances.csv" \

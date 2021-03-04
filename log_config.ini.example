@@ -1,11 +1,18 @@
 [loggers]
-keys=ChronostrainLogger
+keys=root,ChronostrainLogger
 
+# ================== LOGGERS ================
 [logger_ChronostrainLogger]
 level=DEBUG
 qualname=customLogger
-handlers=consoleHandler, fileHandler
+handlers=consoleHandler,fileHandler
 
+# Root must always be defined. Suppress by providing no handlers.
+[logger_root]
+level=INFO
+handlers=
+
+# ================== HANDLERS ================
 [handlers]
 keys=consoleHandler,fileHandler
 
@@ -16,13 +23,17 @@ formatter=simpleFormatter
 args=(sys.stdout,)
 
 [handler_fileHandler]
-class=handlers.TimedRotatingFileHandler
+class=handlers.MakeDirTimedRotatingFileHandler
 level=DEBUG
 interval=midnight
 backupCount=5
 formatter=complexFormatter
-args=('logs/run.log',)
 
+# Look for environment variable CHRONOSTRAIN_LOG_FILEPATH.
+# Use `logs/run.log` as a default.
+args=(os.getenv("CHRONOSTRAIN_LOG_FILEPATH",default="logs/run.log"),)
+
+# ================== FORMATTERS ================
 [formatters]
 keys=simpleFormatter,complexFormatter
 
