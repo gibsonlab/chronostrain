@@ -9,7 +9,6 @@ python scripts/run_inference.py \
 --base_path "data/simulated_reads/$TESTNAME/" \
 --read_files "all_reads.fq" \
 --true_abundance_path "data/simulated_reads/$TESTNAME/sim_abundances.csv" \
---accession_path "tests/$TESTNAME/ncbi_refs.json" \
 --time_points 1 \
 --method "em" \
 --read_length 150 \

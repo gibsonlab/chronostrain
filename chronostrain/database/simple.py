@@ -74,6 +74,7 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
                     )
                 strain_name = row[0]
                 accession = row[1]
+                logger.debug("Loading entry {}...".format(accession))
                 fasta_filename = fetch_fasta(accession, base_dir=cfg.database_cfg.data_dir)
                 yield strain_name, accession, fasta_filename
-        logger.debug("Found {} records.".format(line_count - 1))
+        logger.info("Found {} records.".format(line_count - 1))

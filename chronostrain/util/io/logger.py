@@ -61,7 +61,7 @@ def default_logger():
     formatter = logging.Formatter("%(asctime)s [%(levelname)s] [%(module)s.py (%(lineno)d)] - %(message)s")
 
     stdout_handler = logging.StreamHandler(sys.stdout)
-    stdout_handler.addFilter(InfoFilter())
+    stdout_handler.addFilter(InfoFilter())  # Filter out ERROR/WARNING/CRITICAL from stdout.
     stdout_handler.setLevel(logging.INFO)
     stdout_handler.setFormatter(formatter)
 

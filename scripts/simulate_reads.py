@@ -124,7 +124,7 @@ def sample_reads(
 
 
 def main():
-    logger.info("Pipeline for read simulation started.")
+    logger.info("Read simulation started.")
     args = parse_args()
 
     # ==============================================
@@ -183,7 +183,6 @@ def main():
         out_dir=args.out_dir,
         out_filename='{}_abundances.csv'.format(args.out_prefix)
     )
-    logger.info("Reads finished sampling.")
 
 
 if __name__ == "__main__":
