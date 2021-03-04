@@ -57,7 +57,7 @@ There are currently two types of markers supported: "tag" and "primer".
     ChronoStrain will perform a matching search for both; if more than one is found, it takes the shortest one. (TODO copy number?)
 
 --------------------------------
-```
+```json
 [
     {
         "name": "bacteroides fragilis", 
