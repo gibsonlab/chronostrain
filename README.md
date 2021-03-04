@@ -18,6 +18,9 @@ cd chronostrain
 pip install .
 ```
 
+Alternatively, one can include the cloned repository's directory to `PYTHONPATH` 
+(at the cost of having to install the dependencies manually).
+
 ### Core Package: Quickstart (Unix)
 
 By default, ChronoStrain automatically looks for two configuration files, `chronostrain.ini` and `log_config.ini` 
