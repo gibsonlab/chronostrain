@@ -19,5 +19,6 @@ DB_CLASS=chronostrain.JSONStrainDatabase
 DATA_DIR=./data/
 
 [Database.args]
+# Arguments to pass to the __init__ method of the database class specified in DB_CLASS.
 ENTRIES_FILE=./ncbi_refs.json
 marker_max_len=500
