@@ -11,6 +11,13 @@
 
 ## Installation/Configuration
 
+As of 2/29/2021, a simple `pip install` suffices:
+
+```bash
+cd chronostrain
+pip install .
+```
+
 ### Core Package: Quickstart (Unix)
 
 By default, ChronoStrain automatically looks for two configuration files, `chronostrain.ini` and `log_config.ini` 
