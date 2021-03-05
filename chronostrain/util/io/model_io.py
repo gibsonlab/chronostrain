@@ -105,9 +105,10 @@ def save_reads_to_fastq(
         sampled_reads: List[List[SequenceRead]],
         time_points: List[float],
         out_dir: str,
-        out_prefix: str):
+        out_prefix: str) -> List[str]:
     """
     Save the sampled reads to a fastq file, one for each timepoint.
+    :return: A list of filenames (without parent directory) to which the reads were saved, in order of input timepoints.
     """
     Path(out_dir).mkdir(parents=True, exist_ok=True)
     if len(sampled_reads) != len(time_points):
@@ -115,8 +116,11 @@ def save_reads_to_fastq(
 
     prefix_format = '{}_reads_t{}.fastq'
     total_sz = 0
+
+    read_files = []
     for i, t in enumerate(time_points):
         filename = prefix_format.format(out_prefix, str(t).replace('.', '_'))
+        read_files.append(filename)
         out_path = os.path.join(out_dir, filename)
         save_timeslice_to_fastq(sampled_reads[i], out_path)
         total_sz += get_filesize_bytes(out_path)
@@ -126,6 +130,8 @@ def save_reads_to_fastq(
         f=os.path.join(out_dir, prefix_format.format(out_prefix, '*')),
         sz=convert_size(total_sz)
     ))
+
+    return read_files
 
 
 def save_timeslice_to_fastq(

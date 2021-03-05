@@ -5,6 +5,8 @@
 """
 
 import argparse
+import os
+
 import torch
 from typing import List, Tuple
 
@@ -123,6 +125,12 @@ def sample_reads(
     return abundances, time_indexed_reads
 
 
+def save_input_csv(time_points, out_dir, out_filename, read_files):
+    with open(os.path.join(out_dir, out_filename), "w") as f:
+        for t, read_file in zip(time_points, read_files):
+            print("\"{}\",\"{}\"".format(t, read_file), file=f)
+
+
 def main():
     logger.info("Read simulation started.")
     args = parse_args()
@@ -169,7 +177,7 @@ def main():
 
     # ========== Save sampled reads to file.
     logger.debug("Saving samples to file...")
-    save_reads_to_fastq(sampled_reads, time_points, args.out_dir, args.out_prefix)
+    read_files = save_reads_to_fastq(sampled_reads, time_points, args.out_dir, args.out_prefix)
     logger.debug("Saving abundances to file...")
     save_abundances(
         population=population,
@@ -177,6 +185,13 @@ def main():
         abundances=abundances,
         out_dir=args.out_dir,
         out_filename='{}_abundances.csv'.format(args.out_prefix)
+    )
+
+    save_input_csv(
+        time_points=time_points,
+        out_dir=args.out_dir,
+        out_filename='input_files.csv',
+        read_files=read_files
     )
 
 

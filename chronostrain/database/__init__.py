@@ -1,3 +1,3 @@
 from .base import AbstractStrainDatabase, StrainEntryError, StrainNotFoundError
 from .json import JSONStrainDatabase
-from .simple import SimpleCSVStrainDatabase
+from .simple_csv import SimpleCSVStrainDatabase

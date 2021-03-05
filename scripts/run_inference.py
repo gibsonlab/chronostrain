@@ -3,10 +3,13 @@
   run_inference.py
   Run to perform inference on specified reads.
 """
+import csv
+import os
 
 import torch
-from typing import List
+from typing import List, Tuple
 import argparse
+from tqdm import tqdm
 
 from chronostrain import logger, cfg
 from chronostrain.algs.vi import SecondOrderVariationalSolver, AbstractVariationalPosterior
@@ -17,9 +20,7 @@ from chronostrain.algs import em, vsmc, bbvi, em_alt
 from chronostrain.visualizations import plot_abundances as plotter
 from chronostrain.util.io.model_io import load_fastq_reads, save_abundances_by_path
 
-from tqdm import tqdm
-
-from .filter import Filter
+from filter import Filter
 
 # ============================= Constants =================================
 
@@ -30,22 +31,17 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Perform inference on time-series reads.")
 
     # Input specification.
-    parser.add_argument('-b', '--base_path', required=True, type=str,
-                        help='<Required> Directory containing read files')
-    parser.add_argument('-r', '--read_files', nargs='+', required=True,
-                        help='<Required> List of read filenames; minimum 1.')
-    parser.add_argument('-t', '--time_points', required=True, nargs='+', type=float,
-                        help='<Required> A list of integers. Each value represents a time point in the dataset.')
+    parser.add_argument('-b', '--reads_dir', required=True, type=str,
+                        help='<Required> Directory containing read files. The directory requires a `input_files.csv` '
+                             'which contains information about the input reads and corresponding time points.')
     parser.add_argument('-m', '--method', choices=['em', 'vi', 'bbvi', 'vsmc', 'emalt'], required=True,
                         help='<Required> A keyword specifying the inference method.')
     parser.add_argument('-l', '--read_length', required=True, type=int,
                         help='<Required> Length of each read')
 
     # Output specification.
-    parser.add_argument('-of', '--out_path', required=True, type=str,
+    parser.add_argument('-o', '--out_dir', required=True, type=str,
                         help='<Required> The file path to save learned outputs to.')
-    parser.add_argument('-pf', '--plots_path', required=True, type=str,
-                        help='<Required> The file path to save plots to.')
 
     # Optional params
     parser.add_argument('-s', '--seed', required=False, type=int, default=31415,
@@ -55,6 +51,8 @@ def parse_args():
                              'strain by time point. For benchmarking.')
     parser.add_argument('--disable_time_consistency', action="store_true",
                         help='<Flag> Turn off time consistency (perform separate inference on each time point).')
+    parser.add_argument('--skip_filter', action="store_true",
+                        help='<Flag> Turn off read filtering.')
     parser.add_argument('--iters', required=False, type=int, default=10000,
                         help='<Optional> The number of iterations to run, if using EM or VI. Default: 10000')
     parser.add_argument('--num_samples', required=False, type=int, default=100,
@@ -399,7 +397,7 @@ def plot_variational_result(
 
 def create_model(population: Population,
                  window_size: int,
-                 time_points: List[int],
+                 time_points: List[float],
                  disable_quality: bool):
     """
     Simple wrapper for creating a generative model.
@@ -432,6 +430,23 @@ def create_model(population: Population,
     return model
 
 
+def get_input_files(base_dir) -> Tuple[List[str], List[float]]:
+    time_points = []
+    read_files = []
+
+    input_specification_path = os.path.join(base_dir, "input_files.csv")
+    try:
+        with open(input_specification_path, "r") as f:
+            input_specs = csv.reader(f, delimiter=',', quotechar='"')
+            for item in input_specs:
+                time_points.append(float(item[0]))
+                read_files.append(os.path.join(base_dir, item[1]))
+    except FileNotFoundError:
+        raise FileNotFoundError("Missing required file `input_files.csv` in directory {}.".format(base_dir)) from None
+
+    return read_files, time_points
+
+
 def main():
     logger.info("Pipeline for inference started.")
     args = parse_args()
@@ -445,25 +460,32 @@ def main():
         strains=db.all_strains()
     )
 
+    read_files, time_points = get_input_files(args.reads_dir)
+
     # ==== Load reads and validate.
-    if len(args.read_files) != len(args.time_points):
+    if len(read_files) != len(time_points):
         raise ValueError("There must be exactly one set of reads for each time point specified.")
 
-    if len(args.time_points) != len(set(args.time_points)):
+    if len(time_points) != len(set(time_points)):
         raise ValueError("Specified sample times must be distinct.")
 
-    filt = Filter(db.dump_markers_to_fasta(), args.base_path, args.read_files, args.time_points)
-    filtered_read_files = filt.apply_filter(args.read_length)
+    if not args.skip_filter:
+        logger.info("Performing filter on reads.")
+        filt = Filter(db.dump_markers_to_fasta(), read_files, time_points)
+        filtered_read_files = filt.apply_filter(args.read_length)
+        logger.info("Loading filtered time-series read files.")
+        reads = load_fastq_reads(file_paths=filtered_read_files)
+    else:
+        logger.info("Loading time-series read files.")
+        reads = load_fastq_reads(file_paths=read_files)
 
-    logger.info("Loading time-series read files.")
-    reads = load_fastq_reads(file_paths=filtered_read_files)
     logger.info("Performing inference using method '{}'.".format(args.method))
 
     # ==== Create model instance
     model = create_model(
         population=population,
         window_size=len(reads[0][0].seq),
-        time_points=args.time_points,
+        time_points=time_points,
         disable_quality=not cfg.model_cfg.use_quality_scores
     )
 
@@ -478,16 +500,18 @@ def main():
     """
     cache_tag = "{}_{}".format(
         args.method,
-        ''.join(args.read_files)
+        ''.join(read_files)
     )
 
     if args.method == 'em':
         logger.info("Solving using Expectation-Maximization.")
+        out_path = os.path.join(args.out_dir, "abundances.csv")
+        plots_path = os.path.join(args.out_dir, "plot.png")
         perform_em(
             reads=reads,
             model=model,
-            abnd_out_path=args.out_path,
-            plots_out_path=args.plots_path,
+            abnd_out_path=out_path,
+            plots_out_path=plots_path,
             ground_truth_path=args.true_abundance_path,
             disable_time_consistency=args.disable_time_consistency,
             disable_quality=not cfg.model_cfg.use_quality_scores,
@@ -497,6 +521,8 @@ def main():
         )
     elif args.method == 'bbvi':
         logger.info("Solving using Black-Box Variational Inference.")
+        out_path = os.path.join(args.out_dir, "abundances.csv")
+        plots_path = os.path.join(args.out_dir, "plot.png")
         perform_bbvi(
             model=model,
             reads=reads,
@@ -505,12 +531,13 @@ def main():
             iters=args.iters,
             num_samples=args.num_samples,
             ground_truth_path=args.true_abundance_path,
-            plots_out_path=args.plots_path,
+            plots_out_path=plots_path,
             learning_rate=args.learning_rate,
             cache_tag=cache_tag
         )
     elif args.method == 'vsmc':
         logger.info("Solving using Variational Sequential Monte-Carlo.")
+        plots_path = os.path.join(args.out_dir, "plot.png")
         perform_vsmc(
             model=model,
             reads=reads,
@@ -519,12 +546,13 @@ def main():
             iters=args.iters,
             num_samples=args.num_samples,
             ground_truth_path=args.true_abundance_path,
-            plots_out_path=args.plots_path,
+            plots_out_path=plots_path,
             learning_rate=args.learning_rate,
             cache_tag=cache_tag
         )
     elif args.method == 'vi':
         logger.info("Solving using Variational Inference (Second-order mean-field solution).")
+        plots_path = os.path.join(args.out_dir, "plot.png")
         perform_vi(
             model=model,
             reads=reads,
@@ -533,16 +561,18 @@ def main():
             iters=args.iters,
             num_samples=args.num_samples,
             ground_truth_path=args.true_abundance_path,
-            plots_out_path=args.plots_path,
+            plots_out_path=plots_path,
             cache_tag=cache_tag
         )
     elif args.method == 'emalt':
+        out_path = os.path.join(args.out_dir, "abundances.csv")
+        plots_path = os.path.join(args.out_dir, "plot.png")
         logger.info("Solving using Alt-EM.")
         perform_em_alt(
             reads=reads,
             model=model,
-            abnd_out_path=args.out_path,
-            plots_out_path=args.plots_path,
+            abnd_out_path=out_path,
+            plots_out_path=plots_path,
             ground_truth_path=args.true_abundance_path,
             disable_time_consistency=args.disable_time_consistency,
             disable_quality=not cfg.model_cfg.use_quality_scores,

@@ -20,11 +20,10 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
         :param trim_debug: If an int is passed, the genome is trimmed down to the first `trim_debug` characters.
         If None, entire genome is used.
         """
-        if trim_debug:
-            logger.debug("[SimpleCSVStrainDatabase: initialized in debug mode. Trim length = {L}]".format(L=trim_debug))
         self.strains = dict()
         self.entries_file = entries_file
         if trim_debug is not None:
+            logger.debug("[SimpleCSVStrainDatabase: initialized in debug mode. Trim length = {L}]".format(L=trim_debug))
             self.trim_debug = int(trim_debug)
         super().__init__()
 

@@ -53,8 +53,7 @@ class CachedComputation(object):
             data = self.loader(cache_path)
             logger.debug("[Cache {}] Loaded pre-computed file {}.".format(self.cache_hex, filename))
             return data
-        except Exception as e:
-            logger.exception(e)
+        except FileNotFoundError:
             logger.debug("[Cache {}] Could not load cached file {}. Recomputing.".format(self.cache_hex, filename))
 
         data = self.fn(*args, **kwargs)
