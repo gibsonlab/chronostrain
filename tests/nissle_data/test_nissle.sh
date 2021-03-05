@@ -12,8 +12,7 @@ python scripts/run_inference.py \
 --method "em" \
 --read_length 150 \
 --seed 123 \
---out_path "data/output/test_${TESTNAME}_time_off/EM_result_${TESTNAME}_time_off.csv" \
---plots_path "data/output/test_${TESTNAME}_time_off/EM_result_${TESTNAME}_plot_time_off.png" \
+--out_dir "data/output/test_${TESTNAME}" \
 --disable_time_consistency
 
 
