@@ -9,6 +9,7 @@
 import os
 from typing import Callable
 from chronostrain.util.io.logger import logger
+from chronostrain import cfg
 import pickle
 import hashlib
 
@@ -18,15 +19,14 @@ class CachedComputation(object):
                  fn: Callable,
                  cache_tag: str,
                  save: Callable = None,
-                 load: Callable = None,
-                 cache_root_dir=os.path.join(".", "cache")):
+                 load: Callable = None):
         """
         :param save: A function or Callable which takes (1) a filepath and (2) a python object as input to
         save the designated object to the specified file.
         :param load: A function or Callable which takes a filepath as input to load some object from the file.
         """
         self.fn = fn
-        self.cache_root_dir = cache_root_dir
+        self.cache_root_dir = cfg.model_cfg.cache_dir
         self.saver = save
         self.loader = load
         if self.saver is None:
@@ -51,12 +51,12 @@ class CachedComputation(object):
         # Try to retrieve from cache.
         try:
             data = self.loader(cache_path)
-            logger.debug("[Cache {}] Loaded pre-computed file {}.".format(self.cache_hex, filename))
+            logger.debug("[Cache {}] Loaded pre-computed file {}.".format(self.cache_hex, cache_path))
             return data
         except FileNotFoundError:
-            logger.debug("[Cache {}] Could not load cached file {}. Recomputing.".format(self.cache_hex, filename))
+            logger.debug("[Cache {}] Could not load cached file {}. Recomputing.".format(self.cache_hex, cache_path))
 
         data = self.fn(*args, **kwargs)
         self.saver(cache_path, data)
-        logger.debug("[Cache {}] Saved {}.".format(self.cache_hex, filename))
+        logger.debug("[Cache {}] Saved {}.".format(self.cache_hex, cache_path))
         return data

@@ -64,9 +64,9 @@ class DatabaseConfig(AbstractConfig):
 class ModelConfig(AbstractConfig):
     def __init__(self, cfg: dict):
         super().__init__("Model")
-        self.use_quality_scores, self.num_cores = self.parse(cfg)
+        self.use_quality_scores, self.num_cores, self.cache_dir = self.parse(cfg)
 
-    def parse_impl(self, cfg: dict) -> Tuple[bool, int]:
+    def parse_impl(self, cfg: dict) -> Tuple[bool, int, str]:
         q_token = cfg["USE_QUALITY_SCORES"].strip().lower()
         if q_token == "true":
             use_quality_scores = True
@@ -83,7 +83,9 @@ class ModelConfig(AbstractConfig):
         except ValueError:
             raise ConfigurationParseError("Field `NUM_CORES`: Expected int, got `{}`".format(n_cores_token))
 
-        return use_quality_scores, n_cores
+        cache_dir = cfg["CACHE_DIR"]
+
+        return use_quality_scores, n_cores, cache_dir
 
 
 class TorchConfig(AbstractConfig):
