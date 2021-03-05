@@ -4,7 +4,7 @@ set -e
 TESTNAME="trivial_test"
 
 cd ../..
-python simulate_reads.py \
+python scripts/simulate_reads.py \
 --seed 123 \
 --out_dir "./data/simulated_reads/$TESTNAME" \
 --accession_path "tests/$TESTNAME/ncbi_refs.csv" \

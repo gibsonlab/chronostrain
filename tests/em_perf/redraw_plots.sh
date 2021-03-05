@@ -2,6 +2,7 @@
 set -e
 
 TESTNAME="em_perf"
+cd ../..
 
 #for depth in 10 100 200 300 400 500 600 700 800 900
 #for depth in 500
@@ -28,7 +29,7 @@ done
 
 echo $trial_params
 
-python3 plot_performances.py \
+python3 scripts/plot_performances.py \
 --ground_truth_path "tests/em_perf/true_abundances.csv" \
 --output_path "data/output/$TESTNAME/performance_plot.png" \
 --font_size 18 \

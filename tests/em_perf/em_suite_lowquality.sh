@@ -8,6 +8,7 @@ ACCESSION="tests/em_perf/ncbi_refs.csv"
 SRC_ABUNDANCE="tests/em_perf/true_abundances.csv"
 TRIM=500
 ITERS=50000
+cd ../..
 
 echo "----------------------------------- testname ${TESTNAME} -----------------------------------"
 
@@ -16,7 +17,7 @@ do
   for trial in 1 2 3 4 5 6 7 8 9 10
   do
     echo "------------------------------------ Sample Reads (depth $depth, trial $trial) ------------------------------"
-    python3 simulate_reads.py \
+    python3 scripts/simulate_reads.py \
 		--out_dir "./data/simulated_reads/$TESTNAME/depth_$depth-trial_$trial/" \
 		--accession_path "$ACCESSION" \
 		--abundance_path "$SRC_ABUNDANCE" \
@@ -33,7 +34,7 @@ do
   for trial in 1 2 3 4 5 6 7 8 9 10
   do
     echo "-------------------------------- Inference (Quality on, depth $depth, trial $trial) ------------------------"
-	  python3 run_inference.py \
+	  python3 scripts/run_inference.py \
 		--read_files \
 		"data/simulated_reads/$TESTNAME/depth_$depth-trial_$trial/sim_reads_t1.fastq" \
 		"data/simulated_reads/$TESTNAME/depth_$depth-trial_$trial/sim_reads_t2.fastq" \
@@ -52,7 +53,7 @@ do
 		-trim $TRIM \
 		--iters $ITERS
 
-    python3 plot_abundance_output.py \
+    python3 scripts/plot_abundance_output.py \
     --abundance_path "data/output/$TESTNAME/depth_$depth-trial_$trial/EM_result_$TESTNAME.csv" \
     --output_path "data/output/$TESTNAME/depth_$depth-trial_$trial/plot.png" \
     --ground_truth_path "tests/em_perf/true_abundances.csv" \
@@ -68,7 +69,7 @@ do
   for trial in 1 2 3 4 5 6 7 8 9 10
   do
     echo "------------------------------- Inference (Quality off, depth $depth, trial $trial) ------------------------"
-    python3 run_inference.py \
+    python3 scripts/run_inference.py \
 		--read_files \
 		"data/simulated_reads/$TESTNAME/depth_$depth-trial_$trial/sim_reads_t1.fastq" \
 		"data/simulated_reads/$TESTNAME/depth_$depth-trial_$trial/sim_reads_t2.fastq" \
@@ -88,7 +89,7 @@ do
 		--iters $ITERS \
 		--disable_quality
 
-    python3 plot_abundance_output.py \
+    python3 scripts/plot_abundance_output.py \
     --abundance_path "data/output/test_${TESTNAME_qoff}/depth_$depth-trial_$trial/EM_result_${TESTNAME_qoff}.csv" \
     --output_path "data/output/test_${TESTNAME_qoff}/depth_$depth-trial_$trial/plot.png" \
     --ground_truth_path "tests/em_perf/true_abundances.csv" \
@@ -109,7 +110,7 @@ do
   done
 done
 
-python3 plot_performances.py \
+python3 scripts/plot_performances.py \
 --ground_truth_path "tests/em_perf/true_abundances.csv" \
 --output_path "data/output/$TESTNAME/performance_plot.png" \
 --font_size 18 \

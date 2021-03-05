@@ -7,7 +7,7 @@ cd ../..
 
 for depth in 10 50 100 200 300 400 500
 do
-  python simulate_reads.py \
+  python scripts/simulate_reads.py \
   --seed 123 \
   --out_dir "./data/simulated_reads/$TESTNAME/depth_$depth/" \
   --accession_path "tests/$TESTNAME/ncbi_refs.csv" \
@@ -17,7 +17,7 @@ do
   -trim 2500
 
   # Time consistency on
-  python run_inference.py \
+  python scripts/run_inference.py \
   --read_files \
   "data/simulated_reads/$TESTNAME/depth_$depth/sim_reads_t1.fastq" \
   "data/simulated_reads/$TESTNAME/depth_$depth/sim_reads_t2.fastq" \
@@ -37,7 +37,7 @@ do
   -trim 2500
 
    # Time consistency off
-  python run_inference.py \
+  python scripts/run_inference.py \
   --read_files \
   "data/simulated_reads/$TESTNAME/depth_$depth/sim_reads_t1.fastq" \
   "data/simulated_reads/$TESTNAME/depth_$depth/sim_reads_t2.fastq" \

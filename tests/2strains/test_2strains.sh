@@ -4,7 +4,7 @@ set -e
 TESTNAME="2strains"
 
 cd ../..
-python simulate_reads.py \
+python scripts/simulate_reads.py \
 --seed 123 \
 --out_dir "./data/simulated_reads/$TESTNAME" \
 --accession_path "tests/$TESTNAME/ncbi_refs.csv" \
@@ -14,7 +14,7 @@ python simulate_reads.py \
 -trim 2500
 
 # Time consistency on
-python run_inference.py \
+python scripts/run_inference.py \
 --read_files \
 "data/simulated_reads/$TESTNAME/sim_reads_t1.fastq" \
 "data/simulated_reads/$TESTNAME/sim_reads_t2.fastq" \
@@ -33,7 +33,7 @@ python run_inference.py \
 -trim 2500
 
 # Time consistency off
-python run_inference.py \
+python scripts/run_inference.py \
 --read_files \
 "data/simulated_reads/$TESTNAME/sim_reads_t1.fastq" \
 "data/simulated_reads/$TESTNAME/sim_reads_t2.fastq" \
