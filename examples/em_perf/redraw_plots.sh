@@ -12,7 +12,7 @@ cd ../..
 #    python3 plot_abundance_output.py \
 #    --abundance_path "data/output/$TESTNAME/depth_$depth-trial_$trial/EM_result_$TESTNAME.csv" \
 #    --output_path "data/output/$TESTNAME/depth_$depth-trial_$trial/plot.png" \
-#    --ground_truth_path "tests/em_perf/true_abundances.csv" \
+#    --ground_truth_path "examples/em_perf/true_abundances.csv" \
 #    --font_size 18 \
 #    --thickness 3
 #  done
@@ -30,7 +30,7 @@ done
 echo $trial_params
 
 python3 scripts/plot_performances.py \
---ground_truth_path "tests/em_perf/true_abundances.csv" \
+--ground_truth_path "examples/em_perf/true_abundances.csv" \
 --output_path "data/output/$TESTNAME/performance_plot.png" \
 --font_size 18 \
 --thickness 3 \

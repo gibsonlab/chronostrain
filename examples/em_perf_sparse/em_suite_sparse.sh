@@ -12,8 +12,8 @@ trial=1
 
 python3 simulate_reads.py \
 --out_dir "./data/simulated_reads/$TESTNAME/depth_$sparse_depth-trial_$trial/" \
---accession_path "tests/$TESTNAME/ncbi_refs.csv" \
---abundance_path "tests/$TESTNAME/true_abundances_biased.csv" \
+--accession_path "examples/$TESTNAME/ncbi_refs.csv" \
+--abundance_path "examples/$TESTNAME/true_abundances_biased.csv" \
 --num_reads $depth $sparse_depth $depth \
 --read_length 150 \
 -trim 150 \
@@ -25,8 +25,8 @@ python3 run_inference.py \
 "data/simulated_reads/$TESTNAME/depth_$sparse_depth-trial_$trial/sim_reads_t1_0.fastq" \
 "data/simulated_reads/$TESTNAME/depth_$sparse_depth-trial_$trial/sim_reads_t1_1.fastq" \
 "data/simulated_reads/$TESTNAME/depth_$sparse_depth-trial_$trial/sim_reads_t1_2.fastq" \
---true_abundance_path "tests/$TESTNAME/true_abundances.csv" \
---accession_path "tests/$TESTNAME/ncbi_refs.csv" \
+--true_abundance_path "examples/$TESTNAME/true_abundances.csv" \
+--accession_path "examples/$TESTNAME/ncbi_refs.csv" \
 --time_points 1.0 1.1 1.2 \
 --method "em" \
 -trim 150 \
@@ -40,8 +40,8 @@ python3 run_inference.py \
 "data/simulated_reads/$TESTNAME/depth_$sparse_depth-trial_$trial/sim_reads_t1_0.fastq" \
 "data/simulated_reads/$TESTNAME/depth_$sparse_depth-trial_$trial/sim_reads_t1_1.fastq" \
 "data/simulated_reads/$TESTNAME/depth_$sparse_depth-trial_$trial/sim_reads_t1_2.fastq" \
---true_abundance_path "tests/$TESTNAME/true_abundances.csv" \
---accession_path "tests/$TESTNAME/ncbi_refs.csv" \
+--true_abundance_path "examples/$TESTNAME/true_abundances.csv" \
+--accession_path "examples/$TESTNAME/ncbi_refs.csv" \
 --time_points 1.0 1.1 1.2 \
 --method "em" \
 -trim 150 \

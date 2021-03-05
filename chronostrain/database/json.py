@@ -197,7 +197,7 @@ class SubsequenceLoader:
 
         self.full_genome = None  # Lazy loading in get_full_genome() and get_genome_length()
         self.genome_length = None
-        self.marker_max_len = marker_max_len
+        self.marker_max_len = int(marker_max_len)
 
     def get_full_genome(self, trim_debug=None) -> str:
         if self.full_genome is None:
@@ -225,6 +225,9 @@ class SubsequenceLoader:
         return self.get_subsequences_from_tags() + self.get_subsequences_from_primers()
 
     def get_subsequences_from_tags(self) -> List[NucleotideSubsequence]:
+        if len(self.tag_entries) == 0:
+            return []
+
         tags_to_entries = {
             entry.locus_id: entry
             for entry in self.tag_entries
@@ -237,6 +240,10 @@ class SubsequenceLoader:
         subsequences = []
 
         with open(self.genbank_filename, 'rb') as genbank_file:
+            logger.debug("Parsing tags {} from genbank file {}.".format(
+                str(list(tags_to_entries.keys())),
+                self.genbank_filename
+            ))
             for line in genbank_file:
                 # Split on >1 space
                 split_line = re.split(r'\s{2,}', line.decode('utf-8').strip())
@@ -283,6 +290,7 @@ class SubsequenceLoader:
         subsequences = []
 
         for entry in self.primer_entries:
+            logger.debug("Performing regex search for primer {}-{}.".format(entry.forward, entry.reverse))
             '''
             Try both possibilities. (forward/reverse both in 5' -> 3', versus both 3' -> 5')
             '''
@@ -399,6 +407,7 @@ class JSONStrainDatabase(AbstractStrainDatabase):
             )
             if len(markers) == 0:
                 logger.warn("No markers parsed for entry {}.".format(strain_entry))
+            print(self.strains)
 
     def get_strain(self, strain_id: str) -> Strain:
         if strain_id not in self.strains:

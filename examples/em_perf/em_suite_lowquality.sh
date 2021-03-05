@@ -4,8 +4,8 @@ set -e
 TESTNAME="em_perf_lowquality"
 TESTNAME_qoff="em_perf_argmax_lowquality"
 SPARSE_DEPTH="10"
-ACCESSION="tests/em_perf/ncbi_refs.csv"
-SRC_ABUNDANCE="tests/em_perf/true_abundances.csv"
+ACCESSION="examples/em_perf/ncbi_refs.csv"
+SRC_ABUNDANCE="examples/em_perf/true_abundances.csv"
 TRIM=500
 ITERS=50000
 cd ../..
@@ -56,7 +56,7 @@ do
     python3 scripts/plot_abundance_output.py \
     --abundance_path "data/output/$TESTNAME/depth_$depth-trial_$trial/EM_result_$TESTNAME.csv" \
     --output_path "data/output/$TESTNAME/depth_$depth-trial_$trial/plot.png" \
-    --ground_truth_path "tests/em_perf/true_abundances.csv" \
+    --ground_truth_path "examples/em_perf/true_abundances.csv" \
     --font_size 18 \
     --thickness 3
   done
@@ -92,7 +92,7 @@ do
     python3 scripts/plot_abundance_output.py \
     --abundance_path "data/output/test_${TESTNAME_qoff}/depth_$depth-trial_$trial/EM_result_${TESTNAME_qoff}.csv" \
     --output_path "data/output/test_${TESTNAME_qoff}/depth_$depth-trial_$trial/plot.png" \
-    --ground_truth_path "tests/em_perf/true_abundances.csv" \
+    --ground_truth_path "examples/em_perf/true_abundances.csv" \
     --font_size 18 \
     --thickness 3
   done
@@ -111,7 +111,7 @@ do
 done
 
 python3 scripts/plot_performances.py \
---ground_truth_path "tests/em_perf/true_abundances.csv" \
+--ground_truth_path "examples/em_perf/true_abundances.csv" \
 --output_path "data/output/$TESTNAME/performance_plot.png" \
 --font_size 18 \
 --thickness 3 \

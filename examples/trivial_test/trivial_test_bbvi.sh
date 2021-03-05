@@ -7,8 +7,8 @@ cd ../..
 python simulate_reads.py \
 --seed 123 \
 --out_dir "./data/simulated_reads/$TESTNAME" \
---accession_path "tests/$TESTNAME/ncbi_refs.csv" \
---abundance_path "tests/$TESTNAME/strain_abundances.csv" \
+--accession_path "examples/$TESTNAME/ncbi_refs.csv" \
+--abundance_path "examples/$TESTNAME/strain_abundances.csv" \
 --num_reads 1 \
 --read_length 150 \
 -trim 200
@@ -24,7 +24,7 @@ python run_inference.py \
 "data/simulated_reads/$TESTNAME/sim_reads_t8.fastq" \
 "data/simulated_reads/$TESTNAME/sim_reads_t10.fastq" \
 --true_abundance_path "data/simulated_reads/$TESTNAME/sim_abundances.csv" \
---accession_path "tests/$TESTNAME/ncbi_refs.csv" \
+--accession_path "examples/$TESTNAME/ncbi_refs.csv" \
 --time_points 1 2 4 6 7 8 10 \
 --method "bbvi" \
 --seed 123 \
@@ -44,7 +44,7 @@ python run_inference.py \
 "data/simulated_reads/$TESTNAME/sim_reads_t8.fastq" \
 "data/simulated_reads/$TESTNAME/sim_reads_t10.fastq" \
 --true_abundance_path "data/simulated_reads/$TESTNAME/sim_abundances.csv" \
---accession_path "tests/$TESTNAME/ncbi_refs.csv" \
+--accession_path "examples/$TESTNAME/ncbi_refs.csv" \
 --time_points 1 2 4 6 7 8 10 \
 --method "bbvi" \
 --seed 123 \

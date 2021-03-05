@@ -10,8 +10,8 @@ do
   python scripts/simulate_reads.py \
   --seed 123 \
   --out_dir "./data/simulated_reads/$TESTNAME/depth_$depth/" \
-  --accession_path "tests/$TESTNAME/ncbi_refs.csv" \
-  --abundance_path "tests/$TESTNAME/strain_abundances.csv" \
+  --accession_path "examples/$TESTNAME/ncbi_refs.csv" \
+  --abundance_path "examples/$TESTNAME/strain_abundances.csv" \
   --num_reads $depth \
   --read_length 150 \
   -trim 2500
@@ -27,7 +27,7 @@ do
   "data/simulated_reads/$TESTNAME/depth_$depth/sim_reads_t10.fastq" \
   "data/simulated_reads/$TESTNAME/depth_$depth/sim_reads_t15.fastq" \
   --true_abundance_path "data/simulated_reads/$TESTNAME/depth_$depth/sim_abundances.csv" \
-  --accession_path "tests/$TESTNAME/ncbi_refs.csv" \
+  --accession_path "examples/$TESTNAME/ncbi_refs.csv" \
   --time_points 1 2 3 4 5 10 15 \
   --method "em" \
   --seed 123 \
@@ -46,7 +46,7 @@ do
   "data/simulated_reads/$TESTNAME/depth_$depth/sim_reads_t10.fastq" \
   "data/simulated_reads/$TESTNAME/depth_$depth/sim_reads_t15.fastq" \
   --true_abundance_path "data/simulated_reads/$TESTNAME/depth_$depth/sim_abundances.csv" \
-  --accession_path "tests/$TESTNAME/ncbi_refs.csv" \
+  --accession_path "examples/$TESTNAME/ncbi_refs.csv" \
   --time_points 1 2 3 4 5 10 15 \
   --method "em" \
   --seed 123 \
