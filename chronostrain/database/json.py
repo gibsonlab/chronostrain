@@ -1,6 +1,8 @@
+from __future__ import annotations
 import os
 import re
 import json
+from dataclasses import dataclass
 from typing import List, Tuple, Union
 
 from chronostrain.config import cfg
@@ -13,24 +15,133 @@ from chronostrain.util.io.logger import logger
 _complement_translation = {'A': 'T', 'T': 'A', 'G': 'C', 'C': 'G'}
 
 
-def parse_strain_info(json_dict) -> Tuple[str, str, List[dict]]:
-    try:
-        name = json_dict["name"]
-    except KeyError:
-        raise StrainEntryError("Missing entry `name` from json entry.")
+# =====================================================================
+# JSON entry dataclasses. Each class implements a deserialize() method.
+# =====================================================================
 
-    try:
-        accession = json_dict["accession"]
-    except KeyError:
-        raise StrainEntryError("Missing entry `accession` from json entry.")
+@dataclass
+class StrainEntry:
+    name: str
+    accession: str
+    marker_entries: List[MarkerEntry]
+    index: int
 
-    try:
-        markers = json_dict["markers"]
-    except KeyError:
-        raise StrainEntryError("Missing entry `markers` from json entry.")
+    def __str__(self):
+        return "(Strain Entry #{}: {})".format(
+            self.index,
+            self.name
+        )
 
-    return name, accession, markers
+    def __repr__(self):
+        return "{}(idx={},acc={})".format(
+            self.__class__.__name__,
+            self.index,
+            self.accession
+        )
 
+    @staticmethod
+    def deserialize(json_dict: dict, idx: int):
+        try:
+            name = json_dict["name"]
+        except KeyError:
+            raise StrainEntryError("Missing entry `name` from json entry.")
+
+        try:
+            accession = json_dict["accession"]
+        except KeyError:
+            raise StrainEntryError("Missing entry `accession` from json entry.")
+
+        try:
+            markers_arr = (json_dict["markers"])
+        except KeyError:
+            raise StrainEntryError("Missing entry `markers` from json entry.")
+
+        marker_entries = []
+        entry = StrainEntry(name=name, accession=accession, marker_entries=marker_entries, index=idx)
+        for idx, marker_dict in enumerate(markers_arr):
+            marker_entries.append(MarkerEntry.deserialize(marker_dict, idx, entry))
+        return entry
+
+
+@dataclass
+class MarkerEntry:
+    name: str
+    index: int
+    parent: StrainEntry
+
+    @staticmethod
+    def deserialize(entry_dict: dict, idx: int, parent: StrainEntry) -> MarkerEntry:
+        marker_type = entry_dict['type']
+        if marker_type == 'tag':
+            return TagMarkerEntry.deserialize(entry_dict, idx, parent)
+        elif marker_type == 'primer':
+            return PrimerMarkerEntry.deserialize(entry_dict, idx, parent)
+        else:
+            raise StrainEntryError("Unexpected type `{}` in marker entry {} of {}".format(marker_type, idx, parent))
+
+
+@dataclass
+class TagMarkerEntry(MarkerEntry):
+    locus_id: str
+
+    def __str__(self):
+        return "(Tag Marker Entry #{} of {}: {})".format(
+            self.index,
+            self.parent.accession,
+            self.name
+        )
+
+    def __repr__(self):
+        return "{}(parent={},idx={},locus_id={})".format(
+            self.__class__.__name__,
+            self.parent.accession,
+            self.index,
+            self.locus_id
+        )
+
+    @staticmethod
+    def deserialize(entry_dict: dict, idx: int, parent: StrainEntry) -> TagMarkerEntry:
+        return TagMarkerEntry(name=entry_dict['name'],
+                              index=idx,
+                              locus_id=entry_dict['locus_id'],
+                              parent=parent)
+
+
+@dataclass
+class PrimerMarkerEntry(MarkerEntry):
+    forward: str
+    reverse: str
+
+    def __str__(self):
+        return "(Primer Marker Entry #{} of {}: {}-{})".format(
+            self.index,
+            self.parent.accession,
+            self.forward[:4] + "..." if len(self.forward) > 4 else self.forward,
+            self.reverse[:4] + "..." if len(self.reverse) > 4 else self.reverse,
+        )
+
+    def __repr__(self):
+        return "{}(parent={},idx={},fwd={},rev={})".format(
+            self.__class__.__name__,
+            self.parent.accession,
+            self.index,
+            self.forward,
+            self.reverse
+        )
+
+    @staticmethod
+    def deserialize(entry_dict: dict, idx: int, parent: StrainEntry) -> PrimerMarkerEntry:
+        return PrimerMarkerEntry(name=entry_dict['name'],
+                                 index=idx,
+                                 forward=entry_dict['forward'],
+                                 reverse=entry_dict['reverse'],
+                                 parent=parent)
+
+
+# =================================================================
+#  Sequence parsers. Operates on strings (nucleotide sequences)
+#  to extract desired subsequences.
+# =================================================================
 
 class NucleotideSubsequence:
     def __init__(self, name: str, id: str, start_index: int, end_index: int, complement: bool):
@@ -66,10 +177,24 @@ class SubsequenceLoader:
     A class designed to extract specific marker subsequences from NCBI, by pulling substrings from NCBI's database.
     """
 
-    def __init__(self, fasta_filename, genbank_filename, marker_info: List[dict], marker_max_len: int):
+    def __init__(self,
+                 fasta_filename: str,
+                 genbank_filename: str,
+                 marker_entries: List[MarkerEntry],
+                 marker_max_len: int):
         self.fasta_filename = fasta_filename
         self.genbank_filename = genbank_filename
-        self.marker_info = marker_info
+
+        self.tag_entries: List[TagMarkerEntry] = []
+        self.primer_entries: List[PrimerMarkerEntry] = []
+        for entry in marker_entries:
+            if isinstance(entry, TagMarkerEntry):
+                self.tag_entries.append(entry)
+            elif isinstance(entry, PrimerMarkerEntry):
+                self.primer_entries.append(entry)
+            else:
+                raise NotImplementedError("Entry class `{}` not implemented.".format(entry.__class__.__name__))
+
         self.full_genome = None  # Lazy loading in get_full_genome() and get_genome_length()
         self.genome_length = None
         self.marker_max_len = marker_max_len
@@ -97,42 +222,18 @@ class SubsequenceLoader:
         This method parses either type, depending on the 'type' field.
         :return: A list of marker instances.
         """
-        locus_tags_to_names = {}
-        names_to_primers = {}
-        for marker in self.marker_info:
-            if marker['type'] == 'tag':
-                locus_tags_to_names[marker['id']] = marker['name']
-            elif marker['type'] == 'primer':
-                names_to_primers[marker['name']] = (marker['forward'], marker['reverse'])
-        return self.get_subsequences_from_locus_tags(locus_tags_to_names) + self.get_subsequences_from_primers(
-            names_to_primers)
+        return self.get_subsequences_from_tags() + self.get_subsequences_from_primers()
 
-    def parse_index_tag(self, index_tag: str, sequence_name, locus_tag) -> NucleotideSubsequence:
-        """
-        Parses a genome location tag, e.g. "complement(312..432)" to create SubsequenceMetadata
-        and pads indices by 100bp
-        """
-        indices = re.findall(r'[0-9]+', index_tag)
-        if not len(indices) == 2:
-            raise StrainEntryError('Encountered match to malformed tag: {}'.format(index_tag))
+    def get_subsequences_from_tags(self) -> List[NucleotideSubsequence]:
+        tags_to_entries = {
+            entry.locus_id: entry
+            for entry in self.tag_entries
+        }
 
-        max_index = self.get_genome_length()
-        return NucleotideSubsequence(
-            name=sequence_name,
-            id=locus_tag,
-            start_index=max(0, int(indices[0]) - 100),
-            end_index=min(int(indices[1]) + 100, max_index),
-            complement='complement' in index_tag
-        )
+        tags_found = set()
 
-    def get_subsequences_from_locus_tags(self, tags_to_names: dict) -> List[NucleotideSubsequence]:
-        """
-        :param tags_to_names: Dictionary of locus tags to the name of their subsequence
-        :return: List of SubsequenceMetadata deriving from all matched tags in the genbank file
-        """
         chunk_designation = None
-        potential_index_tag = ''
-        locus_tags = set(tags_to_names.keys())
+        index_tag = ''
         subsequences = []
 
         with open(self.genbank_filename, 'rb') as genbank_file:
@@ -144,16 +245,70 @@ class SubsequenceLoader:
                     chunk_designation = split_line[0]
                     if chunk_designation == 'gene':
                         # The first line of a gene chunk is the index tag
-                        potential_index_tag = split_line[1]
+                        index_tag = split_line[1]
 
                 if chunk_designation == 'gene':
                     if 'locus_tag' in split_line[-1]:
                         # Tags are declared by: /locus_tag=""
                         tag = split_line[-1].split('"')[1]
-                        if tag in locus_tags:
-                            subsequences.append(self.parse_index_tag(potential_index_tag, tags_to_names[tag], tag))
+                        if tag in tags_to_entries:
+                            tags_found.add(tag)
+                            subsequences.append(self._parse_index_tag(index_tag, tags_to_entries[tag]))
 
-        return [sequence for sequence in subsequences if sequence is not None]
+        for tag, entry in tags_to_entries.items():
+            if tag not in tags_found:
+                logger.warn("Unable to find matches for tag entry {}.".format(entry))
+
+        return subsequences
+
+    def _parse_index_tag(self, index_tag: str, entry: TagMarkerEntry) -> NucleotideSubsequence:
+        """
+        Parses a genome location tag, e.g. "complement(312..432)" to create SubsequenceMetadata
+        and pads indices by 100bp
+        """
+        indices = re.findall(r'[0-9]+', index_tag)
+        if not len(indices) == 2:
+            raise StrainEntryError('Encountered match to malformed tag: {}'.format(index_tag))
+
+        max_index = self.get_genome_length()
+        return NucleotideSubsequence(
+            name=entry.name,
+            id=entry.locus_id,
+            start_index=max(0, int(indices[0]) - 100),
+            end_index=min(int(indices[1]) + 100, max_index),
+            complement='complement' in index_tag
+        )
+
+    def get_subsequences_from_primers(self) -> List[NucleotideSubsequence]:
+        subsequences = []
+
+        for entry in self.primer_entries:
+            '''
+            Try both possibilities. (forward/reverse both in 5' -> 3', versus both 3' -> 5')
+            '''
+            result = self._regex_match_primers(entry.forward, entry.reverse)
+            if result is None:
+                result = self._regex_match_primers(entry.reverse, entry.forward)
+
+            if result is None:
+                logger.warn("Couldn't find matches for primer entry {}.".format(
+                    str(entry)
+                ))
+            else:
+                subsequences.append(NucleotideSubsequence(
+                    name=entry.name,
+                    id='-'.join([entry.forward, entry.reverse]),
+                    start_index=result[0],
+                    end_index=result[1],
+                    complement=False
+                ))
+
+        return subsequences
+
+    def _regex_match_primers(self, forward: str, reverse: str) -> Union[None, Tuple[int, int]]:
+        forward_primer_regex = self.parse_fasta_regex(forward)
+        reverse_primer_regex = self.complement_regex(self.parse_fasta_regex(reverse[::-1]))
+        return self.find_primer_match(forward_primer_regex, reverse_primer_regex)
 
     @staticmethod
     def parse_fasta_regex(sequence):
@@ -191,43 +346,14 @@ class SubsequenceLoader:
                     best_match = ((forward_match.start(), reverse_match.end()), match_length)
         return best_match[0]
 
-    def get_subsequences_from_primers(self, names_to_primers: dict) -> List[NucleotideSubsequence]:
-        subsequences = []
 
-        for marker_name in names_to_primers.keys():
-            forward_primer_regex = self.parse_fasta_regex(names_to_primers[marker_name][0])
-            # Reverse is read from the opposite end of the complement strand, so we reverse and complement
-            reverse_primer_regex = self.complement_regex(
-                self.parse_fasta_regex(names_to_primers[marker_name][1][::-1])
-            )
-            match_indices = self.find_primer_match(forward_primer_regex, reverse_primer_regex)
-            if match_indices is not None:
-                subsequences.append(NucleotideSubsequence(
-                    name=marker_name,
-                    id='-'.join(names_to_primers[marker_name]),
-                    start_index=match_indices[0],
-                    end_index=match_indices[1],
-                    complement=False
-                ))
-                continue
-            forward_primer_regex = self.complement_regex(self.parse_fasta_regex(names_to_primers[marker_name][0][::-1]))
-            reverse_primer_regex = self.parse_fasta_regex(names_to_primers[marker_name][1])
-            match_indices = self.find_primer_match(reverse_primer_regex, forward_primer_regex)
-            if match_indices is not None:
-                subsequences.append(NucleotideSubsequence(
-                    name=marker_name,
-                    id='-'.join(names_to_primers[marker_name]),
-                    start_index=match_indices[0],
-                    end_index=match_indices[1],
-                    complement=False
-                ))
-
-        return subsequences
-
+# ====================================
+# The main database implementation.
+# ====================================
 
 class JSONStrainDatabase(AbstractStrainDatabase):
     """
-    A Simple implementation that treats each complete strain genome and optional specified subsequences as markers.
+    A implementation which defines strains as collections of markers, using the JSON format found in the example.
     """
 
     def __init__(self, entries_file, marker_max_len):
@@ -241,13 +367,17 @@ class JSONStrainDatabase(AbstractStrainDatabase):
 
     def __load__(self):
         logger.info("Loading from JSON marker database file {}.".format(self.entries_file))
-        for strain_name, strain_accession, strain_markers in self.strain_entries():
-            fasta_filename = fetch_fasta(strain_accession, base_dir=cfg.database_cfg.data_dir)
-            genbank_filename = fetch_genbank(strain_accession, base_dir=cfg.database_cfg.data_dir)
+        for strain_entry in self.strain_entries():
+            fasta_filename = fetch_fasta(strain_entry.accession, base_dir=cfg.database_cfg.data_dir)
+            genbank_filename = fetch_genbank(strain_entry.accession, base_dir=cfg.database_cfg.data_dir)
+
+            # TODO only do regex searches if can't load from disk. Try to load from disk first
+            # TODO when implementing this, be wary of copy numbers (need to decide when/where to handle it.)
+
             sequence_loader = SubsequenceLoader(
                 fasta_filename=fasta_filename,
                 genbank_filename=genbank_filename,
-                marker_info=strain_markers,
+                marker_entries=strain_entry.marker_entries,
                 marker_max_len=self.marker_max_len
             )
 
@@ -258,17 +388,17 @@ class JSONStrainDatabase(AbstractStrainDatabase):
                     name=subsequence_data.id,
                     seq=subsequence_data.get_subsequence(genome),
                     metadata=MarkerMetadata(
-                        strain_accession=strain_accession,
+                        strain_accession=strain_entry.accession,
                         subseq_name=subsequence_data.name
                     )
                 ))
-            self.strains[strain_accession] = Strain(
-                name="{}:{}".format(strain_name, strain_accession),
+            self.strains[strain_entry.accession] = Strain(
+                name="{}:{}".format(strain_entry.name, strain_entry.accession),
                 markers=markers,
                 genome_length=sequence_loader.get_genome_length()
             )
             if len(markers) == 0:
-                logger.warn("No markers parsed for strain {}.".format(strain_accession))
+                logger.warn("No markers parsed for entry {}.".format(strain_entry))
 
     def get_strain(self, strain_id: str) -> Strain:
         if strain_id not in self.strains:
@@ -279,15 +409,16 @@ class JSONStrainDatabase(AbstractStrainDatabase):
     def all_strains(self) -> List[Strain]:
         return list(self.strains.values())
 
-    def strain_entries(self) -> Tuple[str, str, dict]:
+    def strain_entries(self) -> List[StrainEntry]:
         """
-        Read JSON file, and download FASTA from accessions if doesn't exist.
-        :return: a dictionary mapping accessions to strain-accession-filename-subsequences
-                 wrappers.
+        Deserialize JSON into StrainEntry instances.
         """
         with open(self.entries_file, "r") as f:
-            for strain_dict in json.load(f):
-                yield parse_strain_info(strain_dict)
+            return [StrainEntry.deserialize(strain_dict, idx) for idx, strain_dict in enumerate(json.load(f))]
+
+    @staticmethod
+    def marker_filename(accession: str, name: str):
+        return "{acc}-{seq}.fasta".format(acc=accession, seq=name)
 
     def dump_markers_to_fasta(self):
         """
@@ -301,7 +432,7 @@ class JSONStrainDatabase(AbstractStrainDatabase):
             for marker in self.strains[accession].markers:
                 filepath = os.path.join(
                     cfg.database_cfg.data_dir,
-                    "{acc}-{seq}.fasta".format(acc=accession, seq=marker.metadata.subseq_name)
+                    self.marker_filename(accession, marker.metadata.subseq_name)
                 )
 
                 resulting_filenames.append(filepath)

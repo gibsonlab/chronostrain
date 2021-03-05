@@ -1,125 +1,11 @@
 """
- reads.py
- Contains classes for the error model of reads.
+    Classes written for simple toy examples, modelling deterministic Q scores
+    and noisy reads (conditioned on these q-scores).
 """
-import math
-from abc import ABCMeta, abstractmethod
 import torch
 
-from chronostrain.model.fragments import Fragment
-
-
-# ============= Utility functions
-def mutate_acgt(base):
-    i = torch.randint(low=0, high=3, size=[1]).item()
-    bases = {'A', 'C', 'G', 'T'}
-    bases.remove(base)
-    return list(bases)[i]
-
-# ============= END Utility functions
-
-
-class SequenceRead:
-    """
-    A class representing a sequence-quality vector pair.
-    """
-    def __init__(self, seq: str, quality: torch.Tensor, metadata: str):
-        if len(seq) != len(quality):
-            raise ValueError(
-                "Length of nucleotide sequence ({}) must agree with length of quality score sequence ({})".format(
-                    len(seq), len(quality)
-                )
-            )
-        self.seq = seq
-        self.quality = quality
-        self.metadata = metadata
-
-
-class AbstractQScoreDistribution(metaclass=ABCMeta):
-    """
-    Parent class for all Q-score distributions.
-    """
-
-    def __init__(self, length):
-        self.length = length
-
-    @abstractmethod
-    def compute_log_likelihood(self, qvec) -> float:
-        """
-        Compute the likelihood of a given q-vector.
-        :param qvec: The query.
-        :return: the marginal probability P(qvec).
-        """
-        pass
-
-    @abstractmethod
-    def sample_qvec(self) -> list:
-        """
-        Obtain a random sample.
-        :return: A quality score vector from the specified distribution.
-        """
-        pass
-
-
-class AbstractErrorModel(metaclass=ABCMeta):
-    """
-    Parent class for all fragment-to-read error models.
-    """
-
-    @abstractmethod
-    def compute_log_likelihood(self, fragment: Fragment, read: SequenceRead) -> float:
-        """
-        Compute the log probability of observing the read, conditional on the fragment.
-        :param fragment: The source fragment (a String)
-        :param read: The read (of type SequenceRead)
-        :return: the value P(read | fragment).
-        """
-        pass
-
-    @abstractmethod
-    def sample_noisy_read(self, fragment: str, metadata: str = "") -> SequenceRead:
-        """
-        Obtain a random read (q-vec and sequence pair) from a given fragment.
-
-        :param fragment: The source fragment.
-        :param metadata: The metadata to store in the read.
-        :return: A list of reads sampled according to their probabilities.
-        """
-        pass
-
-
-class AbstractTrainableErrorModel(AbstractErrorModel):
-    """
-    Parent class of all trainable read error models.
-    """
-
-    @abstractmethod
-    def train_from_data(self, reads, fragments, iters):
-        """
-        Attempt to train the error model from data.
-        :param reads: A list of reads from a dataset.
-        :param fragments: The corresponding collection of fragments.
-        :param iters: the number of iterations.
-        :return: None
-        """
-        pass
-
-
-# ======================================================================================
-# ==================================== IMPLEMENTATIONS =================================
-# ======================================================================================
-
-class NoiselessErrorModel(AbstractErrorModel):
-    def __init__(self, mismatch_likelihood: float = 1e-20):
-        super().__init__()
-        self.mismatch_log_likelihood = math.log(mismatch_likelihood) if mismatch_likelihood != 0 else -float("inf")
-        self.match_log_likelihood = math.log(1 - mismatch_likelihood)
-
-    def compute_log_likelihood(self, fragment: Fragment, read: SequenceRead) -> float:
-        return self.match_log_likelihood if fragment.seq == read.seq else self.mismatch_log_likelihood
-
-    def sample_noisy_read(self, fragment: str, metadata: str = "") -> SequenceRead:
-        return SequenceRead(fragment, quality=torch.ones(len(fragment))*1000, metadata=metadata)
+from chronostrain.model import Fragment
+from chronostrain.model.reads.base import SequenceRead, AbstractErrorModel, AbstractQScoreDistribution
 
 
 class RampUpRampDownDistribution(AbstractQScoreDistribution):
@@ -225,10 +111,6 @@ class RampUpRampDownDistribution(AbstractQScoreDistribution):
         return quality_vector
 
 
-# ========================================================================
-# ===== Basic implementation (0~5-scale quality score) ===================
-# ========================================================================
-
 class BasicQScoreDistribution(RampUpRampDownDistribution):
 
     def __init__(self, length: int):
@@ -332,64 +214,3 @@ class BasicErrorModel(AbstractErrorModel):
         noisy_fragment_string = ''.join(noisy_fragment_chars)
         seq_read = SequenceRead(noisy_fragment_string, quality_score_vector, metadata=metadata)
         return seq_read
-
-
-# ======================================================================
-# =========== FastQ implementation =====================================
-# ======================================================================
-
-class BasicPhredScoreDistribution(RampUpRampDownDistribution):
-    """
-        An implementation of the quality score ramp-up ramp-down model, where the quality values are PHRED scores.
-        ref: https://en.wikipedia.org/wiki/Phred_quality_score
-    """
-
-    def __init__(self, length):
-        super().__init__(
-            length,
-            quality_score_values=torch.tensor([10, 20, 30, 40, 50]),
-            distribution=torch.tensor([0.05, 0.15, 0.30, 0.25, 0.25])
-        )
-
-
-# class PhredScoreDistribution(AbstractQScoreDistribution):
-#     # TODO: Implement something more sophisticated than a slow ramp up of and ramp down of quality
-#     # TODO: over the nucleotides. Monte Carlo simulations?
-#     pass
-
-
-class FastQErrorModel(AbstractErrorModel):
-    """
-    A simple error model, based on reads of a fixed length, and q-vectors coming from an instance of
-    BasicPhredScoreDistribution.
-    """
-
-    def __init__(self, read_len=150):
-        self.read_len = read_len
-        self.q_dist = BasicPhredScoreDistribution(read_len)
-
-    @staticmethod
-    def compute_error_prob(q: torch.Tensor) -> torch.Tensor:
-        return torch.pow(10, -q.to(dtype=torch.double)/10)
-
-    def compute_log_likelihood(self, fragment: Fragment, read: SequenceRead) -> float:
-        error_prob = FastQErrorModel.compute_error_prob(read.quality)
-        matches = torch.tensor([
-            fragment.seq[k] == read.seq[k] for k in range(len(fragment.seq))
-        ]).to(dtype=torch.double)
-
-        return ((torch.ones(1, device=error_prob.device) - error_prob) * matches + 
-                (error_prob/3) * (torch.ones(1, device=error_prob.device) - matches)).log().sum().item()
-
-    def sample_noisy_read(self, fragment: str, metadata="") -> SequenceRead:
-        qvec = self.q_dist.sample_qvec()
-        noisy_fragment_chars = ['' for _ in range(self.read_len)]
-        error_probs = FastQErrorModel.compute_error_prob(qvec)
-        error_locs: torch.Tensor = (torch.rand(size=error_probs.size()) < error_probs)
-        for k in range(len(fragment)):
-            if error_locs[k].item():
-                noisy_fragment_chars[k] = mutate_acgt(fragment[k])
-            else:
-                noisy_fragment_chars[k] = fragment[k]
-
-        return SequenceRead(''.join(noisy_fragment_chars), qvec, metadata=metadata)
