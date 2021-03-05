@@ -12,7 +12,7 @@ from chronostrain import logger, cfg
 from chronostrain.algs.vi import SecondOrderVariationalSolver, AbstractVariationalPosterior
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.bacteria import Population
-from chronostrain.model.reads import SequenceRead, FastQErrorModel, NoiselessErrorModel
+from chronostrain.model.reads import SequenceRead, BasicFastQErrorModel, NoiselessErrorModel
 from chronostrain.algs import em, vsmc, bbvi, em_alt
 from chronostrain.visualizations import plot_abundances as plotter
 from chronostrain.util.io.model_io import load_fastq_reads, save_abundances_by_path
@@ -417,7 +417,7 @@ def create_model(population: Population,
         logger.info("Flag --disable_quality turned on; Quality scores are diabled. Initializing NoiselessErrorModel.")
         error_model = NoiselessErrorModel(mismatch_likelihood=0.)
     else:
-        error_model = FastQErrorModel(read_len=window_size)
+        error_model = BasicFastQErrorModel(read_len=window_size)
 
     model = GenerativeModel(
         bacteria_pop=population,

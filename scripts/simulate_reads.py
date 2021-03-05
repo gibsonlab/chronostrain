@@ -9,7 +9,7 @@ import torch
 from typing import List, Tuple
 
 from chronostrain import logger, cfg
-from chronostrain.database import SimpleCSVStrainDatabase, StrainNotFoundError
+from chronostrain.database import StrainNotFoundError
 from chronostrain.model import generative, reads
 from chronostrain.model.bacteria import Population
 from chronostrain.model.reads import SequenceRead
@@ -84,7 +84,7 @@ def sample_reads(
         logger.info("Flag --disable_quality turned on; Quality scores are diabled.")
         my_error_model = reads.NoiselessErrorModel()
     else:
-        my_error_model = reads.FastQErrorModel(read_len=read_length)
+        my_error_model = reads.BasicFastQErrorModel(read_len=read_length)
     my_model = generative.GenerativeModel(times=time_points,
                                           mu=mu,
                                           tau_1=tau_1,
@@ -126,11 +126,6 @@ def sample_reads(
 def main():
     logger.info("Read simulation started.")
     args = parse_args()
-
-    # ==============================================
-    # Note: The usage of "SimpleCSVStrainDatabase" initializes the strain information so that each strain's (unique)
-    # marker is its own genome.
-    # ==============================================
     database = cfg.database_cfg.get_database()
 
     # ========= Load abundances and accessions.
