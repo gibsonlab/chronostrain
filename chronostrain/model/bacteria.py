@@ -85,7 +85,7 @@ class Population:
         :return: An (F x S) matrix, where each column is a strain-specific frequency vector of fragments.
         """
 
-        # Lazy initialization
+        # Lazy initialization; Return if already initialized.
         if window_size in self.fragment_frequencies_map.keys():
             return self.fragment_frequencies_map[window_size]
 

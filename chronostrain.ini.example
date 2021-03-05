@@ -5,6 +5,9 @@ USE_QUALITY_SCORES=True
 # Number of CPU cores to utilize. (Provides some benefit, could be better optimized. Experimental)
 NUM_CORES=4
 
+# Cache directory for saved computation.
+CACHE_DIR=./cache
+
 [PyTorch]
 # Device to use torch on. Either `cpu` or `cuda`.
 DEVICE=cpu

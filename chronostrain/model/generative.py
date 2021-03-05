@@ -137,6 +137,11 @@ class GenerativeModel:
     def sample_timed_reads(self, abundances: torch.Tensor, read_depths: List[int]) -> List[List[SequenceRead]]:
         S = self.num_strains()
         F = self.num_fragments()
+        num_timepoints = len(read_depths)
+
+        # Invoke call to force intialization.
+        self.bacteria_pop.get_strain_fragment_frequencies(self.read_length)
+
         logger.debug("Sampling reads, conditioned on abundances.")
 
         if abundances.size(0) != len(self.times):
@@ -149,7 +154,7 @@ class GenerativeModel:
         reads_list = []
 
         # For each time point, convert to fragment abundances and sample each read.
-        for t in tqdm(range(len(read_depths)), file=sys.stdout):
+        for t in tqdm(range(num_timepoints), file=sys.stdout):
             read_depth = read_depths[t]
             strain_abundance = abundances[t]
             frag_abundance = self.strain_abundance_to_frag_abundance(strain_abundance.view(S, 1)).view(F)
