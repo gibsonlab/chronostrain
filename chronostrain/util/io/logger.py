@@ -11,9 +11,13 @@ __name__ = "ChronostrainLogger"
 __ini__ = os.getenv(__env_key__, "log_config.ini")
 
 
-class InfoFilter(logging.Filter):
+class LoggingLevelFilter(logging.Filter):
+    def __init__(self, levels):
+        super().__init__()
+        self.levels = levels
+
     def filter(self, rec):
-        return rec.levelno == logging.INFO
+        return rec.levelno in self.levels
 
 
 def mkdir_path(path):
@@ -57,20 +61,21 @@ class MakeDirTimedRotatingFileHandler(logging.handlers.TimedRotatingFileHandler)
 
 
 def default_logger():
-    # Default behavior: direct all INFO/WARNING/ERROR to stdout.
-    formatter = logging.Formatter("%(asctime)s [%(levelname)s] [%(module)s.py (%(lineno)d)] - %(message)s")
+    logger = logging.getLogger("DefaultLogger")
+    logger.setLevel(logging.DEBUG)
 
     stdout_handler = logging.StreamHandler(sys.stdout)
-    stdout_handler.addFilter(InfoFilter())  # Filter out ERROR/WARNING/CRITICAL from stdout.
-    stdout_handler.setLevel(logging.INFO)
-    stdout_handler.setFormatter(formatter)
+    stdout_handler.addFilter(LoggingLevelFilter([logging.INFO, logging.DEBUG]))
+    stdout_handler.setLevel(logging.DEBUG)
+    stdout_formatter = logging.Formatter("%(message)s")
+    stdout_handler.setFormatter(stdout_formatter)
 
     stderr_handler = logging.StreamHandler(sys.stderr)
+    stderr_handler.addFilter(LoggingLevelFilter([logging.ERROR, logging.WARNING, logging.CRITICAL]))
     stderr_handler.setLevel(logging.ERROR)
-    stdout_handler.setFormatter(formatter)
+    stderr_formatter = logging.Formatter("[%(module)s.py (%(lineno)d)] - %(message)s")
+    stderr_handler.setFormatter(stderr_formatter)
 
-    logger = logging.getLogger("DefaultLogger")
-    logger.setLevel(logging.INFO)
     logger.addHandler(stdout_handler)
     logger.addHandler(stderr_handler)
     return logger
@@ -79,16 +84,10 @@ def default_logger():
 # ============= Create logger instance. ===========
 logging.handlers.MakeDirTimedRotatingFileHandler = MakeDirTimedRotatingFileHandler
 if not os.path.exists(__ini__):
-    print("No logging INI file found. "
-          "Create a `log_config.ini` file, "
-          "or set the `{}` environment variable to point to the right configuration.".format(__env_key__))
-    print("Loading default settings (stdout=INFO, stderr=ERROR).")
     logger = default_logger()
 else:
     try:
         logging.config.fileConfig(__ini__)
         logger = logging.getLogger(__name__)
-    except KeyError as e:
-        print("Key error while looking for loggers. "
-              "Make sure INI file defines logger with key `{}` .".format(__name__))
-        raise e
+    except KeyError:
+        raise KeyError("Make sure INI file defines logger with key `{}` .".format(__name__)) from None
