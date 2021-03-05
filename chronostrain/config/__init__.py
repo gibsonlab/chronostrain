@@ -1,5 +1,6 @@
 import os
 from configparser import ConfigParser
+from chronostrain import logger
 from .config import ConfigurationParseError
 from .config import AbstractConfig, ChronostrainConfig, DatabaseConfig, ModelConfig
 
@@ -14,6 +15,7 @@ def _load(ini_path) -> ChronostrainConfig:
     cfg_parser = ConfigParser()
     cfg_parser.read(ini_path)
     _config = ChronostrainConfig(dict(cfg_parser))
+    logger.debug("Loaded chronostrain INI from {}.".format(ini_path))
     return _config
 
 
