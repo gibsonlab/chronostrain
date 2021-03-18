@@ -16,7 +16,7 @@ DEFAULT_DTYPE=float64
 
 [Database]
 # CSV or JSON path to Database dir.
-DB_CLASS=chronostrain.JSONStrainDatabase
+DB_CLASS=chronostrain.database.JSONStrainDatabase
 
 # Directory to save all FASTA/Genbank files to.
 DATA_DIR=./data/

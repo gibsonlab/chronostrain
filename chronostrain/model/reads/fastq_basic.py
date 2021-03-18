@@ -34,6 +34,7 @@ class BasicFastQErrorModel(AbstractErrorModel):
         return torch.pow(10, -q.to(dtype=torch.double)/10)
 
     def compute_log_likelihood(self, fragment: Fragment, read: SequenceRead) -> float:
+        # TODO use q_dist log prob.
         error_prob = BasicFastQErrorModel.compute_error_prob(read.quality)
         matches = torch.tensor([
             fragment.seq[k] == read.seq[k] for k in range(len(fragment.seq))

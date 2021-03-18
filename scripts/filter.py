@@ -101,9 +101,9 @@ def filter_file(sam_file, output_base_path):
 	'''
 	try:
 		sam_file = open(sam_file, 'r')
-		result_metadata = open(output_base_path + 'Metadata.tsv', 'w')
-		result_fq = open(output_base_path + 'Reads.fq', 'w')
-		result_full_alignment = open(output_base_path + 'Alignments.sam', 'w')
+		result_metadata = open(os.path.join(output_base_path, 'Metadata.tsv'), 'w')
+		result_fq = open(os.path.join(output_base_path, 'Reads.fq'), 'w')
+		result_full_alignment = open(os.path.join(output_base_path, 'Alignments.sam'), 'w')
 	except IOError as e:
 		logger.error(e)
 		sys.exit()
@@ -134,8 +134,8 @@ def filter_file(sam_file, output_base_path):
 
 class Filter:
 	def __init__(self, reference_file_paths: list, read_base_path: str, reads_filenames: list, time_points: list):
-		self.base_path = os.getcwd() + '/' + read_base_path
-		self.reference_paths = [os.getcwd() + '/' + path for path in reference_file_paths]
+		self.base_path = os.path.join(os.getcwd(), read_base_path)
+		self.reference_paths = [os.path.join(os.getcwd(), path) for path in reference_file_paths]
 		self.reads_filenames = reads_filenames
 		self.time_points = time_points
 
@@ -158,13 +158,30 @@ class Filter:
 	def apply_filter(self, read_length: int):
 		resulting_files = []
 		for time_point, reads_filename in zip(self.time_points, self.reads_filenames):
-			intermediate_files = [self.base_path + 'tmp_' + reference_path.split('/')[-1][:-6] + '.sam' for reference_path in self.reference_paths]
+			intermediate_files = [
+				os.path.join(self.base_path, "tmp_{}.sam".format(
+					os.path.splitext(os.path.split(reference_path)[-1])[0]
+				))
+				for reference_path in self.reference_paths
+			]
 			for f in intermediate_files:
 				file = open(f, 'w')
 				file.close()
-			call_cora(read_length, self.reference_paths, self.base_path + 'hom_tables/', self.base_path + reads_filename, intermediate_files)
+
+			call_cora(
+				read_length=read_length,
+				reference_paths=self.reference_paths,
+				hom_table_path=os.path.join(self.base_path, 'hom_tables'),
+				read_path=os.path.join(self.base_path, reads_filename),
+				output_paths=intermediate_files
+			)
 			for reference_path in self.reference_paths:
-				filter_file(self.base_path + 'tmp_' + reference_path.split('/')[-1][:-6] + '.sam', self.base_path + str(time_point) + '-Passed' + reference_path.split('/')[-1][:-6])
+				ref_fasta_file = os.path.split(reference_path)[-1]
+				ref_base_name = os.path.splitext(ref_fasta_file)[0]
+
+				sam_file = os.path.join(self.base_path, "tmp_{}.sam".format(ref_base_name))
+				output_base_path = os.path.join(self.base_path, "{}-Passed".format(str(time_point)), ref_base_name)
+				filter_file(sam_file, output_base_path)
 			self.cleanup_intermediate_files(intermediate_files)
 			resulting_files.append(self.cat_resulting_reads([self.base_path + str(time_point) + '-Passed' + reference_path.split('/')[-1][:-6] + 'Reads.fq' for reference_path in self.reference_paths], time_point))
 		return resulting_files

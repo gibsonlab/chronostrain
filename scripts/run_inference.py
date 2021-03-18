@@ -471,7 +471,7 @@ def main():
 
     if not args.skip_filter:
         logger.info("Performing filter on reads.")
-        filt = Filter(db.dump_markers_to_fasta(), read_files, time_points)
+        filt = Filter(db.dump_markers_to_fasta(), args.reads_dir, read_files, time_points)
         filtered_read_files = filt.apply_filter(args.read_length)
         logger.info("Loading filtered time-series read files.")
         reads = load_fastq_reads(file_paths=filtered_read_files)
