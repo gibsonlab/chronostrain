@@ -38,8 +38,8 @@ args=(os.getenv("CHRONOSTRAIN_LOG_FILEPATH",default="logs/run.log"),)
 keys=simpleFormatter,complexFormatter
 
 [formatter_simpleFormatter]
-format=%(asctime)s [%(levelname)s] [%(module)s.py (L%(lineno)d)] - %(message)s
+format=%(asctime)s [%(levelname)s] [%(filename)s (L%(lineno)d)] - %(message)s
 datefmt=
 
 [formatter_complexFormatter]
-format=%(asctime)s [%(levelname)s] [%(module)s.py (L%(lineno)d)] - %(message)s
+format=%(asctime)s [%(levelname)s] [%(filename)s (L%(lineno)d)] - %(message)s
