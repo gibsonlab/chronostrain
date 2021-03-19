@@ -430,7 +430,7 @@ def create_model(population: Population,
     return model
 
 
-def get_input_files(base_dir) -> Tuple[List[str], List[float]]:
+def get_input_paths(base_dir) -> Tuple[List[str], List[float]]:
     time_points = []
     read_files = []
 
@@ -460,10 +460,10 @@ def main():
         strains=db.all_strains()
     )
 
-    read_files, time_points = get_input_files(args.reads_dir)
+    read_paths, time_points = get_input_paths(args.reads_dir)
 
     # ==== Load reads and validate.
-    if len(read_files) != len(time_points):
+    if len(read_paths) != len(time_points):
         raise ValueError("There must be exactly one set of reads for each time point specified.")
 
     if len(time_points) != len(set(time_points)):
@@ -471,13 +471,13 @@ def main():
 
     if not args.skip_filter:
         logger.info("Performing filter on reads.")
-        filt = Filter(db.dump_markers_to_fasta(), args.reads_dir, read_files, time_points)
+        filt = Filter(db.dump_markers_to_fasta(), read_paths, time_points, cora_path=cfg.filter_cfg.cora_path)
         filtered_read_files = filt.apply_filter(args.read_length)
         logger.info("Loading filtered time-series read files.")
         reads = load_fastq_reads(file_paths=filtered_read_files)
     else:
         logger.info("Loading time-series read files.")
-        reads = load_fastq_reads(file_paths=read_files)
+        reads = load_fastq_reads(file_paths=read_paths)
 
     logger.info("Performing inference using method '{}'.".format(args.method))
 

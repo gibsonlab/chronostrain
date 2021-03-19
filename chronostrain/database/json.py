@@ -303,6 +303,7 @@ class SubsequenceLoader:
                     str(entry)
                 ))
             else:
+                logger.debug("Found primer match: ({},{})".format(result[0], result[1]))
                 subsequences.append(NucleotideSubsequence(
                     name=entry.name,
                     id='-'.join([entry.forward, entry.reverse]),
@@ -407,7 +408,6 @@ class JSONStrainDatabase(AbstractStrainDatabase):
             )
             if len(markers) == 0:
                 logger.warn("No markers parsed for entry {}.".format(strain_entry))
-            print(self.strains)
 
     def get_strain(self, strain_id: str) -> Strain:
         if strain_id not in self.strains:

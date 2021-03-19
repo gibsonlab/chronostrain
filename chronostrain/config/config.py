@@ -142,17 +142,28 @@ class TorchConfig(AbstractConfig):
         return device, cfg["DEFAULT_DTYPE"]
 
 
+class FilteringConfig(AbstractConfig):
+    def __init__(self, cfg: dict):
+        super().__init__("Filtering")
+        self.cora_path = self.parse(cfg)
+
+    def parse_impl(self, cfg: dict) -> str:
+        return cfg["CORA_PATH"]
+
+
 class ChronostrainConfig(AbstractConfig):
     def __init__(self, cfg: dict):
         super().__init__("ChronoStrain")
-        database_cfg, model_cfg, torch_cfg = self.parse(cfg)
+        database_cfg, model_cfg, torch_cfg, filter_cfg = self.parse(cfg)
         self.database_cfg: DatabaseConfig = database_cfg
         self.model_cfg: ModelConfig = model_cfg
         self.torch_cfg: TorchConfig = torch_cfg
+        self.filter_cfg: FilteringConfig = filter_cfg
 
-    def parse_impl(self, cfg: dict) -> Tuple[DatabaseConfig, ModelConfig, TorchConfig]:
+    def parse_impl(self, cfg: dict) -> Tuple[DatabaseConfig, ModelConfig, TorchConfig, FilteringConfig]:
         return (
             DatabaseConfig(cfg["Database"], cfg["Database.args"]),
             ModelConfig(cfg["Model"]),
-            TorchConfig(cfg["PyTorch"])
+            TorchConfig(cfg["PyTorch"]),
+            FilteringConfig(cfg["Filtering"])
         )
