@@ -145,10 +145,10 @@ class TorchConfig(AbstractConfig):
 class FilteringConfig(AbstractConfig):
     def __init__(self, cfg: dict):
         super().__init__("Filtering")
-        self.cora_path = self.parse(cfg)
+        self.align_cmd = self.parse(cfg)
 
     def parse_impl(self, cfg: dict) -> str:
-        return cfg["CORA_PATH"]
+        return cfg["ALIGNER_CMD"]
 
 
 class ChronostrainConfig(AbstractConfig):

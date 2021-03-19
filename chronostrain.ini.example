@@ -27,5 +27,5 @@ ENTRIES_FILE=./ncbi_refs.json
 marker_max_len=500
 
 [Filtering]
-# Absolute file path to the Cora executable.
-CORA_PATH=/usr/bin/cora
+# Absolute file path to the aligner executable. (Currently only supporting 'bwa'.)
+ALIGNER_CMD=/usr/bin/bwa

@@ -7,7 +7,7 @@ from typing import List, Tuple, Union
 
 from chronostrain.config import cfg
 from chronostrain.database.base import AbstractStrainDatabase, StrainEntryError, StrainNotFoundError
-from chronostrain.model.bacteria import Marker, MarkerMetadata, Strain
+from chronostrain.model.bacteria import Marker, MarkerMetadata, Strain, StrainMetadata
 from chronostrain.util.io.ncbi import fetch_fasta, fetch_genbank
 from chronostrain.util.io.logger import logger
 
@@ -393,19 +393,30 @@ class JSONStrainDatabase(AbstractStrainDatabase):
             genome = sequence_loader.get_full_genome()
             markers = []
             for subsequence_data in sequence_loader.get_marker_subsequences():
+                marker_filepath = os.path.join(
+                    cfg.database_cfg.data_dir,
+                    self.marker_filename(strain_entry.accession, subsequence_data.name)
+                )
                 markers.append(Marker(
                     name=subsequence_data.id,
                     seq=subsequence_data.get_subsequence(genome),
                     metadata=MarkerMetadata(
                         strain_accession=strain_entry.accession,
-                        subseq_name=subsequence_data.name
+                        subseq_name=subsequence_data.name,
+                        file_path=marker_filepath
                     )
                 ))
+
             self.strains[strain_entry.accession] = Strain(
                 name="{}:{}".format(strain_entry.name, strain_entry.accession),
                 markers=markers,
-                genome_length=sequence_loader.get_genome_length()
-            )
+                genome_length=sequence_loader.get_genome_length(),
+                metadata=StrainMetadata(
+                    ncbi_accession=strain_entry.accession,
+                    name=strain_entry.name,
+                    file_path=fasta_filename
+                ))
+
             if len(markers) == 0:
                 logger.warn("No markers parsed for entry {}.".format(strain_entry))
 
@@ -429,28 +440,11 @@ class JSONStrainDatabase(AbstractStrainDatabase):
     def marker_filename(accession: str, name: str):
         return "{acc}-{seq}.fasta".format(acc=accession, seq=name)
 
-    def dump_markers_to_fasta(self):
-        """
-        For each accession-marker pair, write the sequence to disk.
-        Resulting filename is `<accession>-<marker name>.fasta`.
-        :return:
-        """
-        resulting_filenames = []
-
-        for accession in self.strains.keys():
-            for marker in self.strains[accession].markers:
-                filepath = os.path.join(
-                    cfg.database_cfg.data_dir,
-                    self.marker_filename(accession, marker.metadata.subseq_name)
-                )
-
-                resulting_filenames.append(filepath)
-
-                with open(filepath, 'w') as f:
-                    f.write('>' + accession + '-' + marker.metadata.subseq_name + '\n')
-                    for i in range(len(marker.seq)):
-                        f.write(marker.seq[i])
-                        if (i + 1) % 70 == 0:
-                            f.write('\n')
-
-        return resulting_filenames
+    @staticmethod
+    def save_marker_to_fasta(marker: Marker, filepath):
+        with open(filepath, 'w') as f:
+            print(">{}-{}".format(marker.metadata.strain_accession, marker.metadata.subseq_name), file=f)
+            for i in range(len(marker.seq)):
+                f.write(marker.seq[i])
+                if (i + 1) % 70 == 0:
+                    f.write('\n')

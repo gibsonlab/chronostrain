@@ -471,7 +471,12 @@ def main():
 
     if not args.skip_filter:
         logger.info("Performing filter on reads.")
-        filt = Filter(db.dump_markers_to_fasta(), read_paths, time_points, cora_path=cfg.filter_cfg.cora_path)
+        filt = Filter(
+            reference_file_paths=[strain.metadata.file_path for strain in population.strains],
+            reads_paths=read_paths,
+            time_points=time_points,
+            align_cmd=cfg.filter_cfg.align_cmd
+        )
         filtered_read_files = filt.apply_filter(args.read_length)
         logger.info("Loading filtered time-series read files.")
         reads = load_fastq_reads(file_paths=filtered_read_files)

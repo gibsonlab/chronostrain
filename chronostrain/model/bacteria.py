@@ -11,12 +11,20 @@ from chronostrain.util.io.logger import logger
 class MarkerMetadata:
     strain_accession: str
     subseq_name: str
+    file_path: str
     
     def __repr__(self):
         return "{}-{}".format(self.strain_accession, self.subseq_name)
         
     def __str__(self):
         return self.__repr__()
+
+
+@dataclass
+class StrainMetadata:
+    ncbi_accession: str
+    name: str
+    file_path: str
 
 
 @dataclass
@@ -37,6 +45,7 @@ class Strain:
     name: str
     markers: List[Marker]
     genome_length: int
+    metadata: StrainMetadata
 
     def __repr__(self):
         return "Strain({})".format(self.name)

@@ -4,7 +4,7 @@ from typing import List
 
 from chronostrain.config import cfg
 from chronostrain.database.base import AbstractStrainDatabase, StrainEntryError, StrainNotFoundError
-from chronostrain.model.bacteria import Strain, Marker
+from chronostrain.model.bacteria import Strain, Marker, StrainMetadata
 from chronostrain.util.io.ncbi import fetch_fasta
 from chronostrain.util.io.logger import logger
 
@@ -39,7 +39,12 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
             self.strains[accession] = Strain(
                 name="{}:{}".format(strain_name, accession),
                 markers=markers,
-                genome_length=len(genome)
+                genome_length=len(genome),
+                metadata=StrainMetadata(
+                    ncbi_accession=accession,
+                    name=strain_name,
+                    file_path=fasta_filename
+                )
             )
 
     def get_strain(self, strain_id: str) -> Strain:

@@ -86,7 +86,7 @@ def _fetch_from_api(accession: str, filename: str, url: str):
             raise NCBIAPIException("URLError: {}".format(e.reason))
         else:
             with open(filename, 'w') as f:
-                content = str(conn.read()).replace('\\r', '').replace('\\n', '\n')
+                content = str(conn.read().decode("utf-8")).replace('\\r', '').replace('\\n', '\n')
                 if content.startswith("# ERROR"):
                     raise NCBIAPIException("Error encountered from {url}. Message=`{msg}`".format(
                         url=url,
