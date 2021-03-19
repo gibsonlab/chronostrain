@@ -500,7 +500,7 @@ def main():
     """
     cache_tag = "{}_{}".format(
         args.method,
-        ''.join(read_files)
+        ''.join(read_paths)
     )
 
     if args.method == 'em':
