@@ -27,4 +27,5 @@ ENTRIES_FILE=./ncbi_refs.json
 marker_max_len=500
 
 [Filtering]
-CORA_PATH=/mnt/f/cora/bin/cora/cora
+# Absolute file path to the Cora executable.
+CORA_PATH=/usr/bin/cora
