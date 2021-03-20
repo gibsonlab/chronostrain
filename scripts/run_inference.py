@@ -97,7 +97,7 @@ def perform_em(
             population = model.bacteria_pop
             pseudo_model = create_model(
                 population=population,
-                window_size=len(reads_t[0].seq),
+                window_size=len(reads_t[0]),
                 time_points=[1],
                 disable_quality=disable_quality
             )
@@ -340,7 +340,7 @@ def plot_em_result(
     avg_read_depth_over_time = sum(num_reads_per_time) / len(num_reads_per_time)
 
     title = "Average Read Depth over Time: " + str(round(avg_read_depth_over_time, 1)) + "\n" + \
-            "Read Length: " + str(len(reads[0][0].seq)) + "\n" + \
+            "Read Length: " + str(len(reads[0][0])) + "\n" + \
             "Algorithm: Expectation-Maximization" + "\n" + \
             ('Time consistency off\n' if disable_time_consistency else '') + \
             ('Quality score off\n' if disable_quality else '')
@@ -378,7 +378,7 @@ def plot_variational_result(
     avg_read_depth_over_time = sum(num_reads_per_time) / len(num_reads_per_time)
 
     title = "Average Read Depth over Time: " + str(round(avg_read_depth_over_time, 1)) + "\n" + \
-            "Read Length: " + str(len(reads[0][0].seq)) + "\n" + \
+            "Read Length: " + str(len(reads[0][0])) + "\n" + \
             "Algorithm: " + method + "\n" + \
             ('Time consistency off\n' if disable_time_consistency else '') + \
             ('Quality score off\n' if disable_quality else '')
@@ -489,7 +489,7 @@ def main():
     # ==== Create model instance
     model = create_model(
         population=population,
-        window_size=len(reads[0][0].seq),
+        window_size=len(reads[0][0]),
         time_points=time_points,
         disable_quality=not cfg.model_cfg.use_quality_scores
     )

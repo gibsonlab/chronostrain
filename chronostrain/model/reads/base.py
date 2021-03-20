@@ -1,25 +1,49 @@
 """
     Contains abstract classes. See the other python files for implementations.
 """
-import torch
+from typing import Union
+
+import numpy as np
 from abc import abstractmethod, ABCMeta
 from chronostrain.model import Fragment
+from chronostrain.util.sequences import nucleotides_to_z4, z4_to_nucleotides
 
 
 class SequenceRead:
     """
     A class representing a sequence-quality vector pair.
     """
-    def __init__(self, seq: str, quality: torch.Tensor, metadata: str):
+    def __init__(self, seq: Union[str, np.ndarray], quality: np.array, metadata: str):
         if len(seq) != len(quality):
             raise ValueError(
                 "Length of nucleotide sequence ({}) must agree with length of quality score sequence ({})".format(
                     len(seq), len(quality)
                 )
             )
-        self.seq = seq
-        self.quality = quality
-        self.metadata = metadata
+        if type(seq) == str:
+            self.seq: np.ndarray = nucleotides_to_z4(seq)
+        elif type(seq) == np.ndarray:
+            self.seq = seq
+        self.quality: np.array = quality
+        self.metadata: str = metadata
+
+    def nucleotide_content(self) -> str:
+        return z4_to_nucleotides(self.seq)
+
+    def __str__(self):
+        return "[SEQ:{},QUAL:{}]".format(
+            z4_to_nucleotides(self.seq),
+            self.quality.numpy()
+        )
+
+    def __repr__(self):
+        return "[SEQ:{},QUAL:{}]".format(
+            self.seq,
+            self.quality.numpy()
+        )
+
+    def __len__(self):
+        return self.seq.shape[0]
 
 
 class AbstractErrorModel(metaclass=ABCMeta):
@@ -39,7 +63,7 @@ class AbstractErrorModel(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def sample_noisy_read(self, fragment: str, metadata: str = "") -> SequenceRead:
+    def sample_noisy_read(self, fragment: Fragment, metadata: str = "") -> SequenceRead:
         """
         Obtain a random read (q-vec and sequence pair) from a given fragment.
 
@@ -77,7 +101,7 @@ class AbstractQScoreDistribution(metaclass=ABCMeta):
         self.length = length
 
     @abstractmethod
-    def compute_log_likelihood(self, qvec) -> float:
+    def compute_log_likelihood(self, qvec: np.array) -> float:
         """
         Compute the likelihood of a given q-vector.
         :param qvec: The query.
@@ -86,7 +110,7 @@ class AbstractQScoreDistribution(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def sample_qvec(self) -> list:
+    def sample_qvec(self) -> np.array:
         """
         Obtain a random sample.
         :return: A quality score vector from the specified distribution.

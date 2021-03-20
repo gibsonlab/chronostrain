@@ -245,6 +245,6 @@ class GenerativeModel:
         # Draw a read from each fragment.
         for i in range(num_samples):
             frag = frag_space.get_fragment_by_index(frag_indexed_samples[i].item())
-            frag_samples.append(self.error_model.sample_noisy_read(frag.seq, metadata=(metadata + "|" + frag.metadata)))
+            frag_samples.append(self.error_model.sample_noisy_read(frag, metadata=(metadata + "|" + frag.metadata)))
 
         return frag_samples
