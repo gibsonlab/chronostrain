@@ -5,8 +5,8 @@ import os
 import urllib.request
 import urllib.error
 
-from chronostrain.util.io.logger import logger
-from chronostrain.util.io.filesystem import convert_size, get_filesize_bytes
+from chronostrain.util.logger import logger
+from chronostrain.util.filesystem import convert_size, get_filesize_bytes
 
 
 _fasta_filename = "{accession}.fasta"

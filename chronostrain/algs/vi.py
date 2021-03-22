@@ -13,7 +13,7 @@ from torch.nn.functional import softmax
 from torch.distributions import MultivariateNormal, Categorical
 
 from chronostrain.config import cfg
-from chronostrain.util.io.logger import logger
+from chronostrain.util.logger import logger
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.reads import SequenceRead
 from chronostrain.algs.base import AbstractModelSolver

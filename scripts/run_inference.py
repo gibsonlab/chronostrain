@@ -18,7 +18,7 @@ from chronostrain.model.bacteria import Population
 from chronostrain.model.reads import SequenceRead, BasicFastQErrorModel, NoiselessErrorModel
 from chronostrain.algs import em, vsmc, bbvi, em_alt
 from chronostrain.visualizations import plot_abundances as plotter
-from chronostrain.util.io.model_io import load_fastq_reads, save_abundances_by_path
+from chronostrain.model.io import load_fastq_reads, save_abundances_by_path
 
 from filter import Filter
 

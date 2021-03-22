@@ -26,8 +26,11 @@ class Fragment:
         else:
             self.metadata = metadata
 
+    def nucleotide_content(self) -> str:
+        return z4_to_nucleotides(self.seq)
+
     def __str__(self):
-        acgt_seq = z4_to_nucleotides(self.seq)
+        acgt_seq = self.nucleotide_content()
         return "Fragment({}:{}:{})".format(
             self.index,
             self.metadata if self.metadata else "",

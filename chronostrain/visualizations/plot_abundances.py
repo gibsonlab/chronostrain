@@ -7,7 +7,7 @@ import pandas as pd
 
 from chronostrain.algs.vi import AbstractVariationalPosterior
 from chronostrain.model.bacteria import Population
-from chronostrain.util.io.model_io import load_abundances
+from chronostrain.model.io import load_abundances
 from torch.nn.functional import softmax
 
 

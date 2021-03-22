@@ -14,7 +14,7 @@ from chronostrain.config import cfg
 from chronostrain.model.bacteria import Population
 from chronostrain.model.fragments import FragmentSpace
 from chronostrain.model.reads import AbstractErrorModel, SequenceRead
-from chronostrain.util.io.logger import logger
+from chronostrain.util.logger import logger
 
 
 class GenerativeModel:

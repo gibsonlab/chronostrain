@@ -3,7 +3,7 @@ import torch
 from torch.nn.functional import softmax
 
 from chronostrain.config import cfg
-from chronostrain.util.io.logger import logger
+from chronostrain.util.logger import logger
 from chronostrain.model.reads import SequenceRead
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.util.benchmarking import RuntimeEstimator
