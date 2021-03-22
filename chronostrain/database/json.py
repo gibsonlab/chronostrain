@@ -5,19 +5,21 @@ import json
 from dataclasses import dataclass
 from typing import List, Tuple, Union
 
+from Bio import SeqIO
+
 from chronostrain.config import cfg
 from chronostrain.database.base import AbstractStrainDatabase, StrainEntryError, StrainNotFoundError
 from chronostrain.model.bacteria import Marker, MarkerMetadata, Strain, StrainMetadata
-from chronostrain.util.io.ncbi import fetch_fasta, fetch_genbank
-from chronostrain.util.io.logger import logger
+from chronostrain.util.ncbi import fetch_fasta, fetch_genbank
+from chronostrain.util.logger import logger
 
-
-_complement_translation = {'A': 'T', 'T': 'A', 'G': 'C', 'C': 'G'}
+from chronostrain.util.sequences import complement_seq, reverse_complement_seq
 
 
 # =====================================================================
 # JSON entry dataclasses. Each class implements a deserialize() method.
 # =====================================================================
+
 
 @dataclass
 class StrainEntry:
@@ -151,14 +153,12 @@ class NucleotideSubsequence:
         self.end_index = end_index
         self.complement = complement
 
-    def get_subsequence(self, nucleotides: str):
-        if self.complement:
-            subsequence = nucleotides[self.start_index:self.end_index]
+    def get_subsequence(self, nucleotides: str) -> str:
+        subseq = nucleotides[self.start_index:self.end_index]
+        if not self.complement:
+            return subseq
         else:
-            subsequence = ''.join([
-                _complement_translation[base] for base in nucleotides[self.start_index:self.end_index]
-            ])
-        return subsequence
+            return reverse_complement_seq(subseq)
 
     def __str__(self):
         return self.__repr__()
@@ -235,56 +235,31 @@ class SubsequenceLoader:
 
         tags_found = set()
 
-        chunk_designation = None
-        index_tag = ''
         subsequences = []
 
-        with open(self.genbank_filename, 'rb') as genbank_file:
-            logger.debug("Parsing tags {} from genbank file {}.".format(
-                str(list(tags_to_entries.keys())),
-                self.genbank_filename
-            ))
-            for line in genbank_file:
-                # Split on >1 space
-                split_line = re.split(r'\s{2,}', line.decode('utf-8').strip())
+        for record in SeqIO.parse(self.genbank_filename, format="genbank"):
+            for feature in record.features:
+                if feature.type == "gene" and "locus_tag" in feature.qualifiers:
+                    locus_tag = feature.qualifiers["locus_tag"][0]
+                    if locus_tag in tags_to_entries:
+                        # Found a match for the specified locus_tag.
+                        tags_found.add(locus_tag)
+                        tag_entry = tags_to_entries[locus_tag]
+                        loc = feature.location
 
-                if len(split_line) == 2:
-                    chunk_designation = split_line[0]
-                    if chunk_designation == 'gene':
-                        # The first line of a gene chunk is the index tag
-                        index_tag = split_line[1]
-
-                if chunk_designation == 'gene':
-                    if 'locus_tag' in split_line[-1]:
-                        # Tags are declared by: /locus_tag=""
-                        tag = split_line[-1].split('"')[1]
-                        if tag in tags_to_entries:
-                            tags_found.add(tag)
-                            subsequences.append(self._parse_index_tag(index_tag, tags_to_entries[tag]))
+                        subsequences.append(NucleotideSubsequence(
+                            name=tag_entry.name,
+                            id=tag_entry.locus_id,
+                            start_index=loc.start,
+                            end_index=loc.end,
+                            complement=loc.strand == -1
+                        ))
 
         for tag, entry in tags_to_entries.items():
             if tag not in tags_found:
                 logger.warn("Unable to find matches for tag entry {}.".format(entry))
 
         return subsequences
-
-    def _parse_index_tag(self, index_tag: str, entry: TagMarkerEntry) -> NucleotideSubsequence:
-        """
-        Parses a genome location tag, e.g. "complement(312..432)" to create SubsequenceMetadata
-        and pads indices by 100bp
-        """
-        indices = re.findall(r'[0-9]+', index_tag)
-        if not len(indices) == 2:
-            raise StrainEntryError('Encountered match to malformed tag: {}'.format(index_tag))
-
-        max_index = self.get_genome_length()
-        return NucleotideSubsequence(
-            name=entry.name,
-            id=entry.locus_id,
-            start_index=max(0, int(indices[0]) - 100),
-            end_index=min(int(indices[1]) + 100, max_index),
-            complement='complement' in index_tag
-        )
 
     def get_subsequences_from_primers(self) -> List[NucleotideSubsequence]:
         subsequences = []
@@ -316,7 +291,7 @@ class SubsequenceLoader:
 
     def _regex_match_primers(self, forward: str, reverse: str) -> Union[None, Tuple[int, int]]:
         forward_primer_regex = self.parse_fasta_regex(forward)
-        reverse_primer_regex = self.complement_regex(self.parse_fasta_regex(reverse[::-1]))
+        reverse_primer_regex = complement_seq(self.parse_fasta_regex(reverse[::-1]), ignore_keyerror=True)
         return self.find_primer_match(forward_primer_regex, reverse_primer_regex)
 
     @staticmethod
@@ -332,16 +307,6 @@ class SubsequenceLoader:
         for char in sequence:
             sequence_regex += fasta_translation[char]
         return sequence_regex
-
-    @staticmethod
-    def complement_regex(regex):
-        complemented_regex = ''
-        for char in regex:
-            if char in _complement_translation.keys():
-                complemented_regex += _complement_translation[char]
-            else:
-                complemented_regex += char
-        return complemented_regex
 
     def find_primer_match(self, forward_regex, reverse_regex) -> Union[None, Tuple[int, int]]:
         best_match = (None, self.marker_max_len)
