@@ -89,45 +89,37 @@ class ModelConfig(AbstractConfig):
 
 
 class TorchConfig(AbstractConfig):
+    torch_dtypes = {
+        "float": torch.float,
+        "float16": torch.float16,
+        "float32": torch.float32,
+        "float64": torch.float64,
+        "double": torch.double,
+        "bfloat16": torch.bfloat16,
+        "half": torch.half,
+        "uint8": torch.uint8,
+        "int": torch.int,
+        "int8": torch.int8,
+        "int16": torch.int16,
+        "int32": torch.int32,
+        "int64": torch.int64,
+        "short": torch.short,
+        "long": torch.long,
+        "complex32": torch.complex32,
+        "complex64": torch.complex64,
+        "complex128": torch.complex128,
+        "cfloat": torch.cfloat,
+        "cdouble": torch.cdouble,
+        "quint8": torch.quint8,
+        "qint8": torch.qint8,
+        "qint32": torch.qint32,
+        "bool": torch.bool
+    }
+
     def __init__(self, cfg: dict):
         super().__init__("PyTorch")
         (self.device, self.default_dtype) = self.parse(cfg)
-
-        # Initialize torch settings.
-        torch_dtypes = {
-            "float": torch.float,
-            "float16": torch.float16,
-            "float32": torch.float32,
-            "float64": torch.float64,
-            "double": torch.double,
-            "bfloat16": torch.bfloat16,
-            "half": torch.half,
-            "uint8": torch.uint8,
-            "int": torch.int,
-            "int8": torch.int8,
-            "int16": torch.int16,
-            "int32": torch.int32,
-            "int64": torch.int64,
-            "short": torch.short,
-            "long": torch.long,
-            "complex32": torch.complex32,
-            "complex64": torch.complex64,
-            "complex128": torch.complex128,
-            "cfloat": torch.cfloat,
-            "cdouble": torch.cdouble,
-            "quint8": torch.quint8,
-            "qint8": torch.qint8,
-            "qint32": torch.qint32,
-            "bool": torch.bool
-        }
-
-        try:
-            dtype = torch_dtypes[self.default_dtype]
-            torch.set_default_dtype(dtype)
-        except KeyError:
-            raise ConfigurationParseError("Invalid dtype token `{}`.".format(
-                self.default_dtype
-            ))
+        torch.set_default_dtype(self.default_dtype)
 
     def parse_impl(self, cfg: dict) -> Tuple[torch.device, Any]:
         device_token = cfg["DEVICE"]
@@ -139,7 +131,17 @@ class TorchConfig(AbstractConfig):
             raise ConfigurationParseError(
                 "Field `DEVICE`:Invalid or unsupported device token `{}`".format(device_token)
             )
-        return device, cfg["DEFAULT_DTYPE"]
+
+        dtype_str = cfg["DEFAULT_DTYPE"]
+
+        try:
+            default_dtype = TorchConfig.torch_dtypes[dtype_str]
+        except KeyError:
+            raise ConfigurationParseError("Invalid dtype token `{}`.".format(
+                dtype_str
+            ))
+
+        return device, default_dtype
 
 
 class FilteringConfig(AbstractConfig):

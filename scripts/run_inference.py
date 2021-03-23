@@ -13,10 +13,10 @@ from tqdm import tqdm
 
 from chronostrain import logger, cfg
 from chronostrain.algs.vi import SecondOrderVariationalSolver, AbstractVariationalPosterior
+from chronostrain.algs import em, vsmc, bbvi, em_alt, bbvi_reparam
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.bacteria import Population
 from chronostrain.model.reads import SequenceRead, BasicFastQErrorModel, NoiselessErrorModel
-from chronostrain.algs import em, vsmc, bbvi, em_alt
 from chronostrain.visualizations import plot_abundances as plotter
 from chronostrain.model.io import load_fastq_reads, save_abundances_by_path
 
@@ -34,7 +34,9 @@ def parse_args():
     parser.add_argument('-b', '--reads_dir', required=True, type=str,
                         help='<Required> Directory containing read files. The directory requires a `input_files.csv` '
                              'which contains information about the input reads and corresponding time points.')
-    parser.add_argument('-m', '--method', choices=['em', 'vi', 'bbvi', 'vsmc', 'emalt'], required=True,
+    parser.add_argument('-m', '--method',
+                        choices=['em', 'vi', 'bbvi', 'vsmc', 'emalt', 'bbvi_reparametrization'],
+                        required=True,
                         help='<Required> A keyword specifying the inference method.')
     parser.add_argument('-l', '--read_length', required=True, type=int,
                         help='<Required> Length of each read')
@@ -274,6 +276,37 @@ def perform_bbvi(
         plots_out_path=plots_out_path
     )
     logger.info("Plots saved to {}.".format(plots_out_path))
+
+
+def perform_bbvi_reparametrization(
+        model: GenerativeModel,
+        reads: List[List[SequenceRead]],
+        disable_time_consistency: bool,
+        iters: int,
+        out_base_dir: str,
+        learning_rate: float,
+        cache_tag: str):
+
+    # ==== Run the solver.
+    if not disable_time_consistency:
+        solver = bbvi_reparam.BBVIReparamSolver(
+            model=model,
+            data=reads,
+            cache_tag=cache_tag,
+            out_base_dir=out_base_dir
+        )
+        solver.solve(
+            iters=iters,
+            thresh=1e-5,
+            print_debug_every=100,
+            lr=learning_rate
+        )
+    else:
+        raise NotImplementedError("Time-agnostic solver not implemented for `perform_bbvi_reparametrization`.")
+
+    # TODO plot result.
+
+    logger.info("BBVI Complete.")
 
 
 def perform_vi(
@@ -539,6 +572,17 @@ def main():
             plots_out_path=plots_path,
             learning_rate=args.learning_rate,
             cache_tag=cache_tag
+        )
+    elif args.method == 'bbvi_reparametrization':
+        logger.info("Solving using Black-Box Variational Inference.")
+        perform_bbvi_reparametrization(
+            model=model,
+            reads=reads,
+            disable_time_consistency=args.disable_time_consistency,
+            iters=args.iters,
+            learning_rate=args.learning_rate,
+            cache_tag=cache_tag,
+            out_base_dir=args.out_dir
         )
     elif args.method == 'vsmc':
         logger.info("Solving using Variational Sequential Monte-Carlo.")
