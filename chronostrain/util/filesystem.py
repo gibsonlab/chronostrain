@@ -1,0 +1,39 @@
+import os
+import glob
+import math
+from typing import List
+
+
+def convert_size(size_bytes):
+    """
+    Converts bytes to the nearest useful meaningful unit (B, KB, MB, GB, etc.)
+    Code credit to https://stackoverflow.com/questions/5194057/better-way-to-convert-file-sizes-in-python/14822210
+    """
+    if size_bytes == 0:
+        return "0B"
+    size_name = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
+    i = int(math.floor(math.log(size_bytes, 1024)))
+    p = math.pow(1024, i)
+    s = round(size_bytes / p, 2)
+    return "%s %s" % (s, size_name[i])
+
+
+def get_filesize_bytes(filename) -> int:
+    """
+    Get the size of the specified file, in bytes. Use convert_size() for a more meaningful output.
+    """
+    return os.stat(filename).st_size
+
+
+def files_in_dir(base_dir: str, extension: str = None) -> List[str]:
+    """
+    List all files in the specified directory, and filter by the specified extension (if applicable).
+    :param base_dir: the directory to search.
+    :param extension: if specified, filters the files by the extension. Example: "csv", "png", "txt", "pkl".
+    :return: A list of path strings.
+    """
+    pattern = os.path.join(
+        base_dir,
+        "*" if extension is None else "*.{}".format(extension)
+    )
+    return glob.glob(pattern)

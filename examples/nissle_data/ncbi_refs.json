@@ -1,0 +1,16 @@
+[
+    {
+        "markers": [
+                    {"type": "primer", "forward": "GTGCCAGCMGCCGCGGTAA", "reverse": "GGACTACHVGGGTWTCTAAT", "name": "16S_V4"}
+                ],
+        "name": "escherichia coli nissle 1917",
+        "accession": "NC_000913.3"
+    },
+    {
+        "markers": [
+                    {"type": "primer", "forward": "GTGCCAGCMGCCGCGGTAA", "reverse": "GGACTACHVGGGTWTCTAAT", "name": "16S_V4"}
+                ],
+        "name": "bacteroids fragilis",
+        "accession": "NC_003228.3"
+    }
+]

@@ -1,0 +1,169 @@
+import importlib
+from abc import ABCMeta, abstractmethod
+from typing import Tuple, Any
+from pathlib import Path
+
+import torch
+
+import chronostrain
+
+
+class ConfigurationParseError(BaseException):
+    pass
+
+
+class AbstractConfig(metaclass=ABCMeta):
+    def __init__(self, name: str):
+        self.name = name
+
+    def parse(self, cfg: dict):
+        try:
+            return self.parse_impl(cfg)
+        except KeyError as e:
+            raise ConfigurationParseError("KeyError in config `{}`: {}".format(
+                self.name,
+                str(e)
+            ))
+
+    @abstractmethod
+    def parse_impl(self, cfg: dict):
+        raise NotImplementedError()
+
+
+class DatabaseConfig(AbstractConfig):
+    def __init__(self, cfg: dict, args_cfg: dict):
+        super().__init__("Database")
+        self.args_cfg = args_cfg
+        self.class_name, self.kwargs, self.data_dir = self.parse(cfg)
+
+    def parse_impl(self, cfg: dict) -> Tuple[str, dict, str]:
+        class_name = cfg["DB_CLASS"]
+
+        datadir = cfg["DATA_DIR"]
+        Path(datadir).mkdir(parents=True, exist_ok=True)
+
+        kwargs = {
+            key: (value if value != 'None' else None)
+            for key, value in self.args_cfg.items()
+        }
+
+        return class_name, kwargs, datadir
+
+    def get_database(self):
+        module_name, class_name = self.class_name.rsplit(".", 1)
+        class_ = getattr(importlib.import_module(module_name), class_name)
+        db_obj = class_(**self.kwargs)
+        if not isinstance(db_obj, chronostrain.database.AbstractStrainDatabase):
+            raise RuntimeError("Specified database class {} is not a subclass of {}".format(
+                self.class_name,
+                chronostrain.database.AbstractStrainDatabase.__class__.__name__
+            ))
+        return db_obj
+
+
+class ModelConfig(AbstractConfig):
+    def __init__(self, cfg: dict):
+        super().__init__("Model")
+        self.use_quality_scores, self.num_cores, self.cache_dir = self.parse(cfg)
+
+    def parse_impl(self, cfg: dict) -> Tuple[bool, int, str]:
+        q_token = cfg["USE_QUALITY_SCORES"].strip().lower()
+        if q_token == "true":
+            use_quality_scores = True
+        elif q_token == "false":
+            use_quality_scores = False
+        else:
+            raise ConfigurationParseError(
+                "Field `USE_QUALITY_SCORES`: Expected `true` or `false`, got `{}`".format(q_token)
+            )
+
+        n_cores_token = cfg["NUM_CORES"]
+        try:
+            n_cores = int(n_cores_token.strip())
+        except ValueError:
+            raise ConfigurationParseError("Field `NUM_CORES`: Expected int, got `{}`".format(n_cores_token))
+
+        cache_dir = cfg["CACHE_DIR"]
+
+        return use_quality_scores, n_cores, cache_dir
+
+
+class TorchConfig(AbstractConfig):
+    def __init__(self, cfg: dict):
+        super().__init__("PyTorch")
+        (self.device, self.default_dtype) = self.parse(cfg)
+
+        # Initialize torch settings.
+        torch_dtypes = {
+            "float": torch.float,
+            "float16": torch.float16,
+            "float32": torch.float32,
+            "float64": torch.float64,
+            "double": torch.double,
+            "bfloat16": torch.bfloat16,
+            "half": torch.half,
+            "uint8": torch.uint8,
+            "int": torch.int,
+            "int8": torch.int8,
+            "int16": torch.int16,
+            "int32": torch.int32,
+            "int64": torch.int64,
+            "short": torch.short,
+            "long": torch.long,
+            "complex32": torch.complex32,
+            "complex64": torch.complex64,
+            "complex128": torch.complex128,
+            "cfloat": torch.cfloat,
+            "cdouble": torch.cdouble,
+            "quint8": torch.quint8,
+            "qint8": torch.qint8,
+            "qint32": torch.qint32,
+            "bool": torch.bool
+        }
+
+        try:
+            dtype = torch_dtypes[self.default_dtype]
+            torch.set_default_dtype(dtype)
+        except KeyError:
+            raise ConfigurationParseError("Invalid dtype token `{}`.".format(
+                self.default_dtype
+            ))
+
+    def parse_impl(self, cfg: dict) -> Tuple[torch.device, Any]:
+        device_token = cfg["DEVICE"]
+        if device_token == "cuda":
+            device = torch.device("cuda")
+        elif device_token == "cpu":
+            device = torch.device("cpu")
+        else:
+            raise ConfigurationParseError(
+                "Field `DEVICE`:Invalid or unsupported device token `{}`".format(device_token)
+            )
+        return device, cfg["DEFAULT_DTYPE"]
+
+
+class FilteringConfig(AbstractConfig):
+    def __init__(self, cfg: dict):
+        super().__init__("Filtering")
+        self.align_cmd = self.parse(cfg)
+
+    def parse_impl(self, cfg: dict) -> str:
+        return cfg["ALIGNER_CMD"]
+
+
+class ChronostrainConfig(AbstractConfig):
+    def __init__(self, cfg: dict):
+        super().__init__("ChronoStrain")
+        database_cfg, model_cfg, torch_cfg, filter_cfg = self.parse(cfg)
+        self.database_cfg: DatabaseConfig = database_cfg
+        self.model_cfg: ModelConfig = model_cfg
+        self.torch_cfg: TorchConfig = torch_cfg
+        self.filter_cfg: FilteringConfig = filter_cfg
+
+    def parse_impl(self, cfg: dict) -> Tuple[DatabaseConfig, ModelConfig, TorchConfig, FilteringConfig]:
+        return (
+            DatabaseConfig(cfg["Database"], cfg["Database.args"]),
+            ModelConfig(cfg["Model"]),
+            TorchConfig(cfg["PyTorch"]),
+            FilteringConfig(cfg["Filtering"])
+        )
