@@ -22,7 +22,7 @@ def save_timeslice_to_fastq(
     for i, read in enumerate(timeslice_reads):
         # Code from https://biopython.org/docs/1.74/api/Bio.SeqRecord.html
         record = SeqRecord(Seq(read.nucleotide_content()), id="Read#{}".format(i), description=read.metadata)
-        record.letter_annotations["phred_quality"] = read.quality.numpy()
+        record.letter_annotations["phred_quality"] = read.quality
         records.append(record)
     SeqIO.write(records, out_path, "fastq")
     logger.debug("Wrote fastQ file {f}. ({sz})".format(

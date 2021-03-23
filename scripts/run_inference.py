@@ -511,7 +511,7 @@ def main():
     if args.method == 'em':
         logger.info("Solving using Expectation-Maximization.")
         out_path = os.path.join(args.out_dir, "abundances.csv")
-        plots_path = os.path.join(args.out_dir, "plot.png")
+        plots_path = os.path.join(args.out_dir, "plot.pdf")
         perform_em(
             reads=reads,
             model=model,
@@ -527,7 +527,7 @@ def main():
     elif args.method == 'bbvi':
         logger.info("Solving using Black-Box Variational Inference.")
         out_path = os.path.join(args.out_dir, "abundances.csv")
-        plots_path = os.path.join(args.out_dir, "plot.png")
+        plots_path = os.path.join(args.out_dir, "plot.pdf")
         perform_bbvi(
             model=model,
             reads=reads,
@@ -542,7 +542,7 @@ def main():
         )
     elif args.method == 'vsmc':
         logger.info("Solving using Variational Sequential Monte-Carlo.")
-        plots_path = os.path.join(args.out_dir, "plot.png")
+        plots_path = os.path.join(args.out_dir, "plot.pdf")
         perform_vsmc(
             model=model,
             reads=reads,
@@ -557,7 +557,7 @@ def main():
         )
     elif args.method == 'vi':
         logger.info("Solving using Variational Inference (Second-order mean-field solution).")
-        plots_path = os.path.join(args.out_dir, "plot.png")
+        plots_path = os.path.join(args.out_dir, "plot.pdf")
         perform_vi(
             model=model,
             reads=reads,
@@ -571,7 +571,7 @@ def main():
         )
     elif args.method == 'emalt':
         out_path = os.path.join(args.out_dir, "abundances.csv")
-        plots_path = os.path.join(args.out_dir, "plot.png")
+        plots_path = os.path.join(args.out_dir, "plot.pdf")
         logger.info("Solving using Alt-EM.")
         perform_em_alt(
             reads=reads,
