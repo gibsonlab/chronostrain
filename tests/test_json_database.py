@@ -97,3 +97,17 @@ def test_regex():
     seq_loader = build_regex_test_case(forward_primer, reverse_primer, genome)
     result = seq_loader._regex_match_primers(forward_primer, reverse_primer)
     assert result == (25, 54)
+
+
+def test_subsequence_forward():
+    # 11..50 gets parsed as FeatureLocation(10,20,+)
+    genome = 'AGAGTCAATGAATCGTTTACATTTCAAATTTCCAATGATA'
+    s = NucleotideSubsequence(name="test123", id="abcde", start_index=10, end_index=20, complement=False)
+    assert s.get_subsequence(genome) == 'AATCGTTTAC'
+
+
+def test_subsequence_complement():
+    # complement(11..50) gets parsed as FeatureLocation(10,20,-)
+    genome = 'AGAGTCAATGAATCGTTTACATTTCAAATTTCCAATGATA'
+    s = NucleotideSubsequence(name="test123", id="abcde", start_index=10, end_index=20, complement=True)
+    assert s.get_subsequence(genome) == 'GTAAACGATT'

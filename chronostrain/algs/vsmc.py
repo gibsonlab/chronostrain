@@ -9,7 +9,7 @@ from torch.nn.functional import softmax
 from typing import List
 
 from chronostrain.config import cfg
-from chronostrain.util.io.logger import logger
+from chronostrain.util.logger import logger
 from chronostrain.algs.vi import AbstractVariationalPosterior
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.reads import SequenceRead

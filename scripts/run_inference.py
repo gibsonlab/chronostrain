@@ -18,7 +18,7 @@ from chronostrain.model.bacteria import Population
 from chronostrain.model.reads import SequenceRead, BasicFastQErrorModel, NoiselessErrorModel
 from chronostrain.algs import em, vsmc, bbvi, em_alt
 from chronostrain.visualizations import plot_abundances as plotter
-from chronostrain.util.io.model_io import load_fastq_reads, save_abundances_by_path
+from chronostrain.model.io import load_fastq_reads, save_abundances_by_path
 
 from filter import Filter
 
@@ -97,7 +97,7 @@ def perform_em(
             population = model.bacteria_pop
             pseudo_model = create_model(
                 population=population,
-                window_size=len(reads_t[0].seq),
+                window_size=len(reads_t[0]),
                 time_points=[1],
                 disable_quality=disable_quality
             )
@@ -340,7 +340,7 @@ def plot_em_result(
     avg_read_depth_over_time = sum(num_reads_per_time) / len(num_reads_per_time)
 
     title = "Average Read Depth over Time: " + str(round(avg_read_depth_over_time, 1)) + "\n" + \
-            "Read Length: " + str(len(reads[0][0].seq)) + "\n" + \
+            "Read Length: " + str(len(reads[0][0])) + "\n" + \
             "Algorithm: Expectation-Maximization" + "\n" + \
             ('Time consistency off\n' if disable_time_consistency else '') + \
             ('Quality score off\n' if disable_quality else '')
@@ -378,7 +378,7 @@ def plot_variational_result(
     avg_read_depth_over_time = sum(num_reads_per_time) / len(num_reads_per_time)
 
     title = "Average Read Depth over Time: " + str(round(avg_read_depth_over_time, 1)) + "\n" + \
-            "Read Length: " + str(len(reads[0][0].seq)) + "\n" + \
+            "Read Length: " + str(len(reads[0][0])) + "\n" + \
             "Algorithm: " + method + "\n" + \
             ('Time consistency off\n' if disable_time_consistency else '') + \
             ('Quality score off\n' if disable_quality else '')
@@ -489,7 +489,7 @@ def main():
     # ==== Create model instance
     model = create_model(
         population=population,
-        window_size=len(reads[0][0].seq),
+        window_size=len(reads[0][0]),
         time_points=time_points,
         disable_quality=not cfg.model_cfg.use_quality_scores
     )
@@ -511,7 +511,7 @@ def main():
     if args.method == 'em':
         logger.info("Solving using Expectation-Maximization.")
         out_path = os.path.join(args.out_dir, "abundances.csv")
-        plots_path = os.path.join(args.out_dir, "plot.png")
+        plots_path = os.path.join(args.out_dir, "plot.pdf")
         perform_em(
             reads=reads,
             model=model,
@@ -527,7 +527,7 @@ def main():
     elif args.method == 'bbvi':
         logger.info("Solving using Black-Box Variational Inference.")
         out_path = os.path.join(args.out_dir, "abundances.csv")
-        plots_path = os.path.join(args.out_dir, "plot.png")
+        plots_path = os.path.join(args.out_dir, "plot.pdf")
         perform_bbvi(
             model=model,
             reads=reads,
@@ -542,7 +542,7 @@ def main():
         )
     elif args.method == 'vsmc':
         logger.info("Solving using Variational Sequential Monte-Carlo.")
-        plots_path = os.path.join(args.out_dir, "plot.png")
+        plots_path = os.path.join(args.out_dir, "plot.pdf")
         perform_vsmc(
             model=model,
             reads=reads,
@@ -557,7 +557,7 @@ def main():
         )
     elif args.method == 'vi':
         logger.info("Solving using Variational Inference (Second-order mean-field solution).")
-        plots_path = os.path.join(args.out_dir, "plot.png")
+        plots_path = os.path.join(args.out_dir, "plot.pdf")
         perform_vi(
             model=model,
             reads=reads,
@@ -571,7 +571,7 @@ def main():
         )
     elif args.method == 'emalt':
         out_path = os.path.join(args.out_dir, "abundances.csv")
-        plots_path = os.path.join(args.out_dir, "plot.png")
+        plots_path = os.path.join(args.out_dir, "plot.pdf")
         logger.info("Solving using Alt-EM.")
         perform_em_alt(
             reads=reads,

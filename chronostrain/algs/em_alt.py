@@ -2,7 +2,7 @@ import torch
 from typing import List
 
 from chronostrain.config import cfg
-from chronostrain.util.io.logger import logger
+from chronostrain.util.logger import logger
 from chronostrain.algs.em import EMSolver
 from chronostrain.util.benchmarking import RuntimeEstimator
 from chronostrain.algs.base import AbstractModelSolver

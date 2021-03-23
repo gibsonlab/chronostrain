@@ -1,8 +1,8 @@
-import torch
+import numpy as np
 from chronostrain.model import Fragment
 from chronostrain.model.reads.base import AbstractErrorModel, SequenceRead
 from chronostrain.model.reads.basic import RampUpRampDownDistribution
-from chronostrain.model.reads._util import mutate_acgt
+import chronostrain.util.sequences as cseq
 
 
 class BasicPhredScoreDistribution(RampUpRampDownDistribution):
@@ -14,8 +14,8 @@ class BasicPhredScoreDistribution(RampUpRampDownDistribution):
     def __init__(self, length):
         super().__init__(
             length,
-            quality_score_values=torch.tensor([10, 20, 30, 40, 50]),
-            distribution=torch.tensor([0.05, 0.15, 0.30, 0.25, 0.25])
+            quality_score_values=np.array([10, 20, 30, 40, 50]),
+            distribution=np.array([0.05, 0.15, 0.30, 0.25, 0.25])
         )
 
 
@@ -24,34 +24,35 @@ class BasicFastQErrorModel(AbstractErrorModel):
     A simple error model, based on reads of a fixed length, and q-vectors coming from an instance of
     BasicPhredScoreDistribution.
     """
-
     def __init__(self, read_len=150):
         self.read_len = read_len
         self.q_dist = BasicPhredScoreDistribution(read_len)
 
     @staticmethod
-    def compute_error_prob(q: torch.Tensor) -> torch.Tensor:
-        return torch.pow(10, -q.to(dtype=torch.double)/10)
+    def phred_error_prob(q: np.ndarray) -> np.ndarray:
+        return np.power(10, -0.1 * q)
 
     def compute_log_likelihood(self, fragment: Fragment, read: SequenceRead) -> float:
-        # TODO use q_dist log prob.
-        error_prob = BasicFastQErrorModel.compute_error_prob(read.quality)
-        matches = torch.tensor([
-            fragment.seq[k] == read.seq[k] for k in range(len(fragment.seq))
-        ]).to(dtype=torch.double)
+        # NOTE: Ignore quality score distributions (assume negligible/constant likelihood for all q-score vectors.)
+        # This only uses phred scores to compute Pr(Read | Fragment, Quality).
+        error_prob = self.phred_error_prob(read.quality)
+        matches: np.ndarray = (fragment.seq == read.seq)
 
-        return ((torch.ones(1, device=error_prob.device) - error_prob) * matches +
-                (error_prob/3) * (torch.ones(1, device=error_prob.device) - matches)).log().sum().item()
+        p_matches = 1 - error_prob[np.where(matches)]
+        p_errors = (1/3) * error_prob[np.where(~matches)]
+        return np.log(p_matches).sum() + np.log(p_errors).sum()
 
-    def sample_noisy_read(self, fragment: str, metadata="") -> SequenceRead:
+    def sample_noisy_read(self, fragment: Fragment, metadata="") -> SequenceRead:
         qvec = self.q_dist.sample_qvec()
-        noisy_fragment_chars = ['' for _ in range(self.read_len)]
-        error_probs = BasicFastQErrorModel.compute_error_prob(qvec)
-        error_locs: torch.Tensor = (torch.rand(size=error_probs.size()) < error_probs)
-        for k in range(len(fragment)):
-            if error_locs[k].item():
-                noisy_fragment_chars[k] = mutate_acgt(fragment[k])
-            else:
-                noisy_fragment_chars[k] = fragment[k]
+        read = SequenceRead(fragment.seq, qvec, metadata=metadata)
 
-        return SequenceRead(''.join(noisy_fragment_chars), qvec, metadata=metadata)
+        # Random shift by an integer mod 4.
+        error_probs = self.phred_error_prob(qvec)
+        error_locations: np.ndarray = (np.random.rand(error_probs.shape[0]) < error_probs)  # dtype `bool`
+
+        rand_shift = np.random.randint(low=0, high=4, size=np.sum(error_locations), dtype=cseq.SEQ_DTYPE)
+        read.seq[np.where(error_locations)] = np.mod(
+            read.seq[np.where(error_locations)] + rand_shift,
+            4
+        )
+        return read

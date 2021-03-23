@@ -15,7 +15,7 @@ from chronostrain.database import StrainNotFoundError
 from chronostrain.model import generative, reads
 from chronostrain.model.bacteria import Population
 from chronostrain.model.reads import SequenceRead
-from chronostrain.util.io.model_io import save_reads_to_fastq, save_abundances, load_abundances
+from chronostrain.model.io import save_reads_to_fastq, save_abundances, load_abundances
 
 
 def parse_args():

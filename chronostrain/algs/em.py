@@ -3,7 +3,7 @@ import torch
 from torch.nn.functional import softmax
 
 from chronostrain.config import cfg
-from chronostrain.util.io.logger import logger
+from chronostrain.util.logger import logger
 from chronostrain.model.reads import SequenceRead
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.util.benchmarking import RuntimeEstimator
@@ -76,8 +76,9 @@ class EMSolver(AbstractModelSolver):
             thresh
         ))
         time_est = RuntimeEstimator(total_iters=iters, horizon=print_debug_every)
-        k = 1
+        k = 0
         while k <= iters:
+            k += 1
             time_est.stopwatch_click()
             updated_brownian_motion = self.em_update_new(
                 brownian_motion,
@@ -104,8 +105,7 @@ class EMSolver(AbstractModelSolver):
                     t=time_est.time_left() / 60000,
                     diff=diff
                 ))
-            k += 1
-        logger.info("Finished {k} iterations.".format(k=k))
+        logger.info("Finished {k} iterations. | Abundance diff = {diff}".format(k=k, diff=diff))
 
         return softmax(brownian_motion, dim=1).to(cfg.torch_cfg.device)
         # abundances = [softmax(gaussian, dim=) for gaussian in brownian_motion]
