@@ -9,7 +9,7 @@
 import os
 from typing import Callable
 from chronostrain.util.logger import logger
-from chronostrain import cfg
+from chronostrain.config import cfg
 import pickle
 import hashlib
 

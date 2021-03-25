@@ -66,7 +66,7 @@ def default_logger():
 
     stdout_handler = logging.StreamHandler(sys.stdout)
     stdout_handler.addFilter(LoggingLevelFilter([logging.INFO, logging.DEBUG]))
-    stdout_handler.setLevel(logging.DEBUG)
+    stdout_handler.setLevel(logging.INFO)
     stdout_formatter = logging.Formatter("%(message)s")
     stdout_handler.setFormatter(stdout_formatter)
 
