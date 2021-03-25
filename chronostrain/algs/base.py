@@ -9,7 +9,8 @@ import math
 from abc import ABCMeta, abstractmethod
 from typing import List
 
-from chronostrain import logger, cfg
+from chronostrain.util.logger import logger
+from chronostrain.config import cfg
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.reads import SequenceRead
 from chronostrain.util.data_cache import CachedComputation

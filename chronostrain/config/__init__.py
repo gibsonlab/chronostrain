@@ -1,6 +1,6 @@
 import os
 from configparser import ConfigParser
-from chronostrain import logger
+from chronostrain.util.logger import logger
 from .config import ConfigurationParseError
 from .config import AbstractConfig, ChronostrainConfig, DatabaseConfig, ModelConfig
 
