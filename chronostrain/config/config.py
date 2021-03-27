@@ -4,7 +4,6 @@ from typing import Tuple, Any
 from pathlib import Path
 
 import torch
-
 import chronostrain
 
 
@@ -43,7 +42,7 @@ class DatabaseConfig(AbstractConfig):
         Path(datadir).mkdir(parents=True, exist_ok=True)
 
         kwargs = {
-            key: (value if value != 'None' else None)
+            key.lower(): (value if value != 'None' else None)
             for key, value in self.args_cfg.items()
         }
 

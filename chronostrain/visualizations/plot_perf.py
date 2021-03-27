@@ -17,7 +17,8 @@ def plot_performance_degradation(
         draw_legend: bool = True,
         font_size: int = 18,
         thickness: int = 1,
-        legend_labels: List[str] = None
+        legend_labels: List[str] = None,
+        img_format="pdf"
 ):
     """
     :param trials: The list of tuples (ID, num_reads, abundance_csv_path)
@@ -28,6 +29,7 @@ def plot_performance_degradation(
     :param draw_legend:
     :param thickness:
     :param font_size:
+    :param img_format:
     """
     true_abundances = load_abundances(true_abundance_path)[1]
     ids = set()
@@ -69,4 +71,4 @@ def plot_performance_degradation(
 
     if title:
         plt.title(title)
-    plt.savefig(out_path, bbox_inches='tight', format='pdf')
+    plt.savefig(out_path, bbox_inches='tight', format=img_format)

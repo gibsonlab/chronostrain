@@ -7,24 +7,18 @@ import csv
 import os
 
 import torch
-from typing import List, Tuple
 import argparse
 from tqdm import tqdm
 
 from chronostrain import logger, cfg
-from chronostrain.algs.vi import SecondOrderVariationalSolver, AbstractVariationalPosterior
+from chronostrain.algs.vi import SecondOrderVariationalSolver
 from chronostrain.algs import em, vsmc, bbvi, em_alt, bbvi_reparam
 from chronostrain.model.generative import GenerativeModel
-from chronostrain.model.bacteria import Population
 from chronostrain.model.reads import SequenceRead, BasicFastQErrorModel, NoiselessErrorModel
-from chronostrain.visualizations import plot_abundances as plotter
+from chronostrain.visualizations import *
 from chronostrain.model.io import load_fastq_reads, save_abundances_by_path
 
 from filter import Filter
-
-# ============================= Constants =================================
-
-# =========================== END Constants ===============================
 
 
 def parse_args():
@@ -62,6 +56,11 @@ def parse_args():
                              '(for Variational solution).')
     parser.add_argument('-lr', '--learning_rate', required=False, type=float, default=1e-5,
                         help='<Optional> The learning rate to use for the optimizer, if using EM or VI. Default: 1e-5.')
+    parser.add_argument('--abundances_file', required=False, default='abundances.out',
+                        help='<Optional> Specify the filename for the learned abundances. '
+                             'The file format depends on the method. '
+                             'The file is saved to the output directory, specified by the -o option.')
+    parser.add_argument('--plot_format', required=False, type=str, default="pdf")
 
     return parser.parse_args()
 
@@ -76,7 +75,9 @@ def perform_em(
         disable_quality: bool,
         iters: int,
         cache_tag: str,
-        learning_rate: float):
+        learning_rate: float,
+        plot_format: str
+):
 
     q_smoothing = 1e-30
 
@@ -139,7 +140,8 @@ def perform_em(
         true_path=ground_truth_path,
         plots_out_path=plots_out_path,
         disable_time_consistency=disable_time_consistency,
-        disable_quality=disable_quality
+        disable_quality=disable_quality,
+        plot_format=plot_format
     )
     logger.info("Plots saved to {}.".format(plots_out_path))
 
@@ -154,7 +156,9 @@ def perform_em_alt(
         disable_quality: bool,
         iters: int,
         cache_tag: str,
-        learning_rate: float):
+        learning_rate: float,
+        plot_format: str
+):
 
     # ==== Run the solver.
     if not disable_time_consistency:
@@ -191,7 +195,8 @@ def perform_em_alt(
         true_path=ground_truth_path,
         plots_out_path=plots_out_path,
         disable_time_consistency=disable_time_consistency,
-        disable_quality=disable_quality
+        disable_quality=disable_quality,
+        plot_format=plot_format
     )
     logger.info("Plots saved to {}.".format(plots_out_path))
 
@@ -206,7 +211,9 @@ def perform_vsmc(
         num_samples: int,
         ground_truth_path: str,
         plots_out_path: str,
-        cache_tag: str):
+        cache_tag: str,
+        plot_format: str
+):
 
     # ==== Run the solver.
     if not disable_time_consistency:
@@ -232,7 +239,8 @@ def perform_vsmc(
         disable_time_consistency=disable_time_consistency,
         disable_quality=disable_quality,
         truth_path=ground_truth_path,
-        plots_out_path=plots_out_path
+        plots_out_path=plots_out_path,
+        plot_format=plot_format
     )
     logger.info("Plots saved to {}.".format(plots_out_path))
 
@@ -247,7 +255,9 @@ def perform_bbvi(
         num_samples: int,
         ground_truth_path: str,
         plots_out_path: str,
-        cache_tag: str):
+        cache_tag: str,
+        plot_format: str
+):
 
     # ==== Run the solver.
     if not disable_time_consistency:
@@ -273,7 +283,8 @@ def perform_bbvi(
         disable_time_consistency=disable_time_consistency,
         disable_quality=disable_quality,
         truth_path=ground_truth_path,
-        plots_out_path=plots_out_path
+        plots_out_path=plots_out_path,
+        plot_format=plot_format
     )
     logger.info("Plots saved to {}.".format(plots_out_path))
 
@@ -318,7 +329,9 @@ def perform_vi(
         num_samples: int,
         ground_truth_path: str,
         plots_out_path: str,
-        cache_tag: str):
+        cache_tag: str,
+        plot_format: str
+):
 
     # ==== Run the solver.
     if not disable_time_consistency:
@@ -345,7 +358,8 @@ def perform_vi(
         disable_quality=disable_quality,
         truth_path=ground_truth_path,
         plots_out_path=plots_out_path,
-        num_samples=15
+        num_samples=15,
+        plot_format=plot_format
     )
     logger.info("Plots saved to {}.".format(plots_out_path))
 
@@ -356,6 +370,7 @@ def plot_em_result(
         plots_out_path: str,
         disable_time_consistency: bool,
         disable_quality: bool,
+        plot_format: str,
         true_path: str = None):
     """
     Draw a plot of the abundances, and save to a file.
@@ -365,6 +380,7 @@ def plot_em_result(
     :param plots_out_path: The path to save the plots to.
     :param disable_time_consistency: Whether or not the inference algorithm was performed with time-consistency.
     :param disable_quality: Whether or not quality scores were used.
+    :param plot_format: The format (e.g. pdf, png) to output the plot.
     :param true_path: The path to the ground truth abundance file.
     (Optional. if none specified, then only plots the learned abundances.)
     :return: The path to the saved file.
@@ -379,20 +395,21 @@ def plot_em_result(
             ('Quality score off\n' if disable_quality else '')
 
     if true_path:
-        # title += "\nSquare-Norm Abundances Difference: " + str(round(abundance_diff, 3))
-        plotter.plot_abundances_comparison(
+        plot_abundances_comparison(
             inferred_abnd_path=result_path,
             real_abnd_path=true_path,
             title=title,
             plots_out_path=plots_out_path,
-            draw_legend=False
+            draw_legend=False,
+            img_format=plot_format
         )
     else:
-        plotter.plot_abundances(
+        plot_abundances(
             abnd_path=result_path,
             title=title,
             plots_out_path=plots_out_path,
-            draw_legend=False
+            draw_legend=False,
+            img_format=plot_format
         )
 
 
@@ -405,6 +422,7 @@ def plot_variational_result(
         disable_time_consistency: bool,
         disable_quality: bool,
         plots_out_path: str,
+        plot_format: str,
         num_samples: int = 10000,
         truth_path: str = None):
     num_reads_per_time = list(map(len, reads))
@@ -416,7 +434,7 @@ def plot_variational_result(
             ('Time consistency off\n' if disable_time_consistency else '') + \
             ('Quality score off\n' if disable_quality else '')
 
-    plotter.plot_posterior_abundances(
+    plot_posterior_abundances(
         times=times,
         posterior=posterior,
         population=population,
@@ -424,7 +442,8 @@ def plot_variational_result(
         plots_out_path=plots_out_path,
         truth_path=truth_path,
         num_samples=num_samples,
-        draw_legend=False
+        draw_legend=False,
+        img_format=plot_format
     )
 
 
@@ -543,8 +562,8 @@ def main():
 
     if args.method == 'em':
         logger.info("Solving using Expectation-Maximization.")
-        out_path = os.path.join(args.out_dir, "abundances.csv")
-        plots_path = os.path.join(args.out_dir, "plot.pdf")
+        out_path = os.path.join(args.out_dir, args.abundances_file)
+        plots_path = os.path.join(args.out_dir, "plot.{}".format(args.plot_format))
         perform_em(
             reads=reads,
             model=model,
@@ -555,12 +574,12 @@ def main():
             disable_quality=not cfg.model_cfg.use_quality_scores,
             iters=args.iters,
             learning_rate=args.learning_rate,
-            cache_tag=cache_tag
+            cache_tag=cache_tag,
+            plot_format=args.plot_format
         )
     elif args.method == 'bbvi':
         logger.info("Solving using Black-Box Variational Inference.")
-        out_path = os.path.join(args.out_dir, "abundances.csv")
-        plots_path = os.path.join(args.out_dir, "plot.pdf")
+        plots_path = os.path.join(args.out_dir, "plot.{}".format(args.plot_format))
         perform_bbvi(
             model=model,
             reads=reads,
@@ -571,7 +590,8 @@ def main():
             ground_truth_path=args.true_abundance_path,
             plots_out_path=plots_path,
             learning_rate=args.learning_rate,
-            cache_tag=cache_tag
+            cache_tag=cache_tag,
+            plot_format=args.plot_format
         )
     elif args.method == 'bbvi_reparametrization':
         logger.info("Solving using Black-Box Variational Inference.")
@@ -586,7 +606,7 @@ def main():
         )
     elif args.method == 'vsmc':
         logger.info("Solving using Variational Sequential Monte-Carlo.")
-        plots_path = os.path.join(args.out_dir, "plot.pdf")
+        plots_path = os.path.join(args.out_dir, "plot.{}".format(args.plot_format))
         perform_vsmc(
             model=model,
             reads=reads,
@@ -597,11 +617,12 @@ def main():
             ground_truth_path=args.true_abundance_path,
             plots_out_path=plots_path,
             learning_rate=args.learning_rate,
-            cache_tag=cache_tag
+            cache_tag=cache_tag,
+            plot_format=args.plot_format
         )
     elif args.method == 'vi':
         logger.info("Solving using Variational Inference (Second-order mean-field solution).")
-        plots_path = os.path.join(args.out_dir, "plot.pdf")
+        plots_path = os.path.join(args.out_dir, "plot.{}".format(args.plot_format))
         perform_vi(
             model=model,
             reads=reads,
@@ -611,11 +632,12 @@ def main():
             num_samples=args.num_samples,
             ground_truth_path=args.true_abundance_path,
             plots_out_path=plots_path,
-            cache_tag=cache_tag
+            cache_tag=cache_tag,
+            plot_format=args.plot_format
         )
     elif args.method == 'emalt':
         out_path = os.path.join(args.out_dir, "abundances.csv")
-        plots_path = os.path.join(args.out_dir, "plot.pdf")
+        plots_path = os.path.join(args.out_dir, "plot.{}".format(args.plot_format))
         logger.info("Solving using Alt-EM.")
         perform_em_alt(
             reads=reads,
@@ -627,7 +649,8 @@ def main():
             disable_quality=not cfg.model_cfg.use_quality_scores,
             iters=args.iters,
             learning_rate=args.learning_rate,
-            cache_tag=cache_tag
+            cache_tag=cache_tag,
+            plot_format=args.plot_format
         )
     else:
         raise ValueError("{} is not an implemented method.".format(args.method))

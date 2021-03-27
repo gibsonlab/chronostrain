@@ -49,7 +49,6 @@ class MakeDirTimedRotatingFileHandler(logging.handlers.TimedRotatingFileHandler)
                  atTime=None):
         filename = os.path.abspath(filename)
         mkdir_path(os.path.dirname(filename))
-        print("[logger.py] Logs will be written to {}.".format(filename))
         super().__init__(filename=filename,
                          when=when,
                          interval=interval,

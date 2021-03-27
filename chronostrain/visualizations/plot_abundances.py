@@ -20,7 +20,8 @@ def plot_abundances_comparison(
             title: str = None,
             ylim: List[float] = None,
             font_size: int = 12,
-            thickness: int = 1):
+            thickness: int = 1,
+            img_format: str = "pdf"):
 
     real_df = (pd.read_csv(real_abnd_path)
                .assign(Truth="Real")
@@ -45,7 +46,8 @@ def plot_abundances_comparison(
         title=title,
         ylim=ylim,
         font_size=font_size,
-        thickness=[thickness, thickness]
+        thickness=[thickness, thickness],
+        img_format=img_format
     )
 
 
@@ -57,7 +59,8 @@ def plot_abundances(
         title: str = None,
         ylim: List[float] = None,
         font_size: int = 12,
-        thickness: int = 1):
+        thickness: int = 1,
+        img_format: str = "pdf"):
 
     inferred_df = (pd.read_csv(abnd_path)
                    .assign(Truth="Real")
@@ -73,7 +76,8 @@ def plot_abundances(
         title=title,
         ylim=ylim,
         font_size=font_size,
-        thickness=[thickness]
+        thickness=[thickness],
+        img_format=img_format
     )
 
 
@@ -81,6 +85,7 @@ def plot_abundance_dataframe(
         data: pd.DataFrame,
         plots_out_path: str,
         draw_legend: bool,
+        img_format: str,
         num_reads_per_time: List[int] = None,
         title: str = None,
         ylim: List[float] = None,
@@ -111,7 +116,7 @@ def plot_abundance_dataframe(
     if num_reads_per_time is not None:
         render_read_counts(data, num_reads_per_time, ax)
 
-    plt.savefig(plots_out_path, bbox_inches='tight', format="pdf")
+    plt.savefig(plots_out_path, bbox_inches='tight', format=img_format)
 
 
 def plot_posterior_abundances(
@@ -121,6 +126,7 @@ def plot_posterior_abundances(
         plots_out_path: str,
         truth_path: str,
         draw_legend: bool,
+        img_format: str,
         num_samples: int = 500,
         num_reads_per_time: List[int] = None,
         title: str = None,
@@ -182,7 +188,7 @@ def plot_posterior_abundances(
     if num_reads_per_time is not None:
         render_read_counts(data, num_reads_per_time, ax)
 
-    plt.savefig(plots_out_path, bbox_inches='tight')
+    plt.savefig(plots_out_path, bbox_inches='tight', format=img_format)
 
 
 def render_read_counts(dataframe: pd.DataFrame,

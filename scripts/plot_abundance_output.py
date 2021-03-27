@@ -22,6 +22,7 @@ def parse_args():
     parser.add_argument('--font_size', required=False, type=int, default=22)
     parser.add_argument('--thickness', required=False, type=int, default=1)
     parser.add_argument('--ylim', required=False, type=float, nargs='+')
+    parser.add_argument('-fmt', '--format', required=False, type=str, default="pdf")
 
     return parser.parse_args()
 
@@ -29,20 +30,18 @@ def parse_args():
 def main():
     args = parse_args()
 
-    num_reads = args.num_reads
-
     if args.ground_truth_path is not None:
-        # title += "\nSquare-Norm Abundances Difference: " + str(round(abundance_diff, 3))
         plot_abundances_comparison(
             inferred_abnd_path=args.abundance_path,
             real_abnd_path=args.ground_truth_path,
             title=args.title,
             plots_out_path=args.output_path,
             draw_legend=False,
-            num_reads_per_time=num_reads,
+            num_reads_per_time=args.num_reads,
             font_size=args.font_size,
             thickness=args.thickness,
-            ylim=args.ylim
+            ylim=args.ylim,
+            img_format=args.format
         )
     else:
         plot_abundances(
@@ -52,7 +51,8 @@ def main():
             draw_legend=False,
             font_size=args.font_size,
             thickness=args.thickness,
-            ylim=args.ylim
+            ylim=args.ylim,
+            img_format=args.format
         )
     logger.info("Plots saved to {}".format(args.output_path))
 
