@@ -371,6 +371,7 @@ class JSONStrainDatabase(AbstractStrainDatabase):
                         file_path=marker_filepath
                     )
                 ))
+                self.save_marker_to_fasta(markers[-1], marker_filepath)
 
             self.strains[strain_entry.accession] = Strain(
                 name="{}:{}".format(strain_entry.name, strain_entry.accession),
@@ -400,6 +401,24 @@ class JSONStrainDatabase(AbstractStrainDatabase):
         """
         with open(self.entries_file, "r") as f:
             return [StrainEntry.deserialize(strain_dict, idx) for idx, strain_dict in enumerate(json.load(f))]
+
+    def get_marker_filenames(self):
+        filenames = []
+        for strain in self.all_strains():
+            for marker in strain.markers:
+                filenames.append(marker.metadata.file_path)
+        return filenames
+
+    def save_markers_to_multifasta(self):
+        marker_files = self.get_marker_filenames()
+        multifasta_filepath = os.path.join(cfg.database_cfg.data_dir, 'marker_multifasta.fa')
+        with open(multifasta_filepath, 'w') as multifa:
+            for filename in marker_files:
+                with open(filename, 'r') as marker_file:
+                    for line in marker_file:
+                        multifa.write(line)
+                multifa.write('\n')
+        return multifasta_filepath
 
     @staticmethod
     def marker_filename(accession: str, name: str):

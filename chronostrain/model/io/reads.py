@@ -77,7 +77,9 @@ def load_fastq_reads(file_paths: List[str], format="fastq") -> List[List[Sequenc
 
     reads = []  # A time-indexed list of read sets. Each item is itself a list of reads for time t.
     for file_path in file_paths:
-        reads_t = []  # A list of reads at a particular time (i.e. the reads in 'file')
+        # A set of reads at a particular time (i.e. the reads in 'file')
+        # Prevents redundant loading of reads that passed multiple filters
+        reads_t = []
         for record in SeqIO.parse(file_path, format):
             quality = torch.tensor(record.letter_annotations["phred_quality"], dtype=torch.int)
             read = SequenceRead(
