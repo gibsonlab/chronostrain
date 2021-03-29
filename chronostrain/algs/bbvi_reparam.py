@@ -187,26 +187,14 @@ class BBVIReparamSolver(AbstractModelSolver):
                  model: GenerativeModel,
                  data: List[List[SequenceRead]],
                  cache_tag: str,
-                 out_base_dir: str,
-                 read_likelihoods: List[torch.Tensor] = None
+                 out_base_dir: str
                  ):
-        self.model = model
-        self.data = data
-        self.cache_tag = cache_tag
-        self.read_ll = CachedComputation(compute_read_likelihoods, cache_tag=cache_tag).call(
-            "read_log_likelihoods.pkl",
-            model=model,
-            reads=data,
-            logarithm=True
-        )
-
+        super().__init__(model, data, cache_tag)
         self.read_counts = [len(reads_t) for reads_t in data]
-
         self.W = self.model.get_fragment_frequencies()
         self.times = self.model.times
         self.T = self.model.num_times()
         self.S = self.model.num_strains()
-
         self.out_base_dir = out_base_dir
 
     def solve(self,

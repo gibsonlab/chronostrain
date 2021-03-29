@@ -28,16 +28,36 @@ class AbstractModelSolver(metaclass=ABCMeta):
         self.model = model
         self.data = data
         self.cache_tag = cache_tag
-        self.read_likelihoods = CachedComputation(compute_read_likelihoods, cache_tag=cache_tag).call(
-            "read_likelihoods.pkl",
-            model=model,
-            reads=data,
-            logarithm=False
-        )
+
+        # Not sure which we will need. Use lazy initialization.
+        self.read_likelihoods_tensors: List[torch.Tensor] = []
+        self.read_log_likelihoods_tensors: List[torch.Tensor] = []
 
     @abstractmethod
     def solve(self, *args, **kwargs):
         pass
+
+    @property
+    def read_likelihoods(self) -> List[torch.Tensor]:
+        if self.read_likelihoods_tensors is None:
+            self.read_likelihoods_tensors = CachedComputation(compute_read_likelihoods, cache_tag=self.cache_tag).call(
+                "read_likelihoods.pkl",
+                model=self.model,
+                reads=self.data,
+                logarithm=False
+            )
+        return self.read_likelihoods_tensors
+
+    @property
+    def read_log_likelihoods(self) -> List[torch.Tensor]:
+        if self.read_log_likelihoods_tensors is None:
+            self.read_log_likelihoods_tensors = CachedComputation(compute_read_likelihoods, cache_tag=self.cache_tag).call(
+                "read_log_likelihoods.pkl",
+                model=self.model,
+                reads=self.data,
+                logarithm=True
+            )
+        return self.read_log_likelihoods_tensors
 
 
 # ===================================================================
