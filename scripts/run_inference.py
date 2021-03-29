@@ -18,6 +18,7 @@ from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.bacteria import Population
 from chronostrain.model.reads import SequenceRead, BasicFastQErrorModel, NoiselessErrorModel
 from chronostrain.visualizations import plot_abundances as plotter
+from chronostrain.visualizations import plotter_VI
 from chronostrain.model.io import load_fastq_reads, save_abundances_by_path
 
 from filter import Filter
@@ -295,7 +296,7 @@ def perform_bbvi_reparametrization(
             cache_tag=cache_tag,
             out_base_dir=out_base_dir
         )
-        solver.solve(
+        bbvi_posterior = solver.solve(
             iters=iters,
             thresh=1e-5,
             print_debug_every=100,
@@ -305,9 +306,33 @@ def perform_bbvi_reparametrization(
         raise NotImplementedError("Time-agnostic solver not implemented for `perform_bbvi_reparametrization`.")
 
     # TODO plot result.
+    plot_bbvi_result(
+        method="Black Box Variational Inference",
+        times=model.times,
+        truth_path=ground_truth_path)
 
     logger.info("BBVI Complete.")
 
+def plot_bbvi_result(
+    method: str,
+    times: List[float],
+    truth_path: str ):
+
+    mean_post = posterior.get_mean()
+    std_post = posterior.get_std()
+
+    mean_softmax = []
+    mean_otu = []
+    std_otu = []
+
+    for i in range(1, len(mean_post)):
+        mean_softmax.append(softmax(mean_post[i]).detach().numpy())
+        mean_otu.append(mean_otu[i].detach.numpy())
+        std_otu.append(std_otu[i].detach.numpy())
+
+    true_data = pd.read_csv(truth_path, delimited=", ")
+    plotter_VI.plot_abundances(true_data, mean_softmax, mean_otu, std_otu,
+    "times", "abundance", "BBVI plot", "bbvi_results")
 
 def perform_vi(
         model: GenerativeModel,
