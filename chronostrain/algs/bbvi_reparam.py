@@ -58,11 +58,19 @@ class NaiveMeanFieldPosterior:
         mean_li = []
         std_li = []
         for t in range(0, self.T + 1):
-            mean = torch.nn.Parameter(torch.rand(self.S))
-            mean_li.append(mean)
+            mean = 0
+            std = 0
 
-            std = torch.tensor([2.], requires_grad=True, device=cfg.torch_cfg.device)
+            if t == 0:
+                mean = self.model.mu
+                std = self.model.tau_1
+            else:
+                mean = torch.nn.Parameter(torch.rand(self.S))
+                std = torch.tensor([2.], requires_grad=True,
+                    device=cfg.torch_cfg.device)
+            mean_li.append(mean)
             std_li.append(std)
+
         return mean_li, std_li
 
     def update_phi(self, x_li):
@@ -84,26 +92,33 @@ class NaiveMeanFieldPosterior:
                     # print(phi_n.shape)
                     # print(torch.sum(phi_t[-1]))
                 phi_all[i] = torch.stack(phi_t)
+
         # the keys must be the same as self.times
         # print(phi_all.keys() == self.times)
         return phi_all
 
     def compute_elbo(self, x_li) -> torch.Tensor:
+
         inst_elbo = torch.tensor([0.], device=cfg.torch_cfg.device)
-        t_prev = torch.tensor([0.], device=cfg.torch_cfg.device)
+
+        #the initial value of x (T = 0)
+        inst_elbo += -self.S * 0.5 * torch.log(2 * pi *(self.model.tau_1 ** 2))
+        inst_elbo += -0.5 / (self.model.tau_1 ** 2) * torch.dot(x_li[0] - self.model.mu,
+            x_li[0] - self.model.mu)
+
         for i in range(1, self.T + 1):
-            t = self.times[i - 1]
+            t = self.times[i]
+            t_prev = self.times[i-1]
             v_scale = t - t_prev
 
             # TODO: @Sawal fix this to use self.model.tau_1 and self.model.tau separately.
             inst_elbo += -self.S * 0.5 * torch.log(2 * pi * (self.model.tau ** 2))
             inst_elbo += -0.5 / ((self.model.tau ** 2) * v_scale) * (
-                    2 * torch.dot(x_li[i], x_li[i - 1])
+                    -2 * torch.dot(x_li[i], x_li[i - 1])
                     + torch.dot(x_li[i], x_li[i])
                     + torch.dot(x_li[i - 1], x_li[i - 1])
             )
             inst_elbo += self.S / 2 * (torch.log(self.sigma_all[i] ** 2) + torch.log(2 * pi * e))
-            t_prev = t
 
         for i in range(1, self.T + 1):
             x_soft = softmax(x_li[i])
@@ -121,19 +136,24 @@ class NaiveMeanFieldPosterior:
         """
         n_samples = 10
         x_samples = []
-        total_elbo = torch.zeros(size=(1,), device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype)
+        total_elbo = torch.zeros(size=(1,), device=cfg.torch_cfg.device,
+            dtype=cfg.torch_cfg.default_dtype)
         self.opt_mu.zero_grad()
         self.opt_sigma.zero_grad()
         q = MultivariateNormal(torch.zeros(self.S), torch.eye(self.S))
         for i in range(n_samples):
             for t in range(self.T + 1):
-                samp = self.mu_all[t] + self.sigma_all[t] * q.sample()
+                samp = 0
+                if t == 0:
+                    samp = self.model.mu + self.tau_1 * q().sample()
+                else:
+                    samp = self.mu_all[t] + self.sigma_all[t] * q.sample()
                 x_samples.append(samp)
 
             self.phi = self.update_phi(x_samples)
             total_elbo += self.compute_elbo(x_samples)
-        total_elbo: torch.Tensor = total_elbo / n_samples
-        loss: torch.Tensor = -total_elbo
+        total_elbo = total_elbo / n_samples
+        loss = -total_elbo
         loss.backward()
 
         self.elbo_all.append(total_elbo)
@@ -208,20 +228,4 @@ class BBVIReparamSolver(AbstractModelSolver):
                     ))
         logger.info("Finished {it} iterations. Final ELBO: {elbo}".format(it=iters, elbo=elbo))
 
-        # =========== Diagnostic values.
-        final_mean = posterior.get_mean()
-        final_std = posterior.get_std()
-
-        mean_li = []
-        std_li = []
-        mean_soft = []
-
-        for i in range(1, len(final_mean)):
-            mean_soft.append(softmax(final_mean[i]).detach().numpy())
-            mean_li.append(final_mean[i].detach().numpy())
-            std_li.append(final_std[i].detach().numpy())
-
-        np.savetxt(os.path.join(self.out_base_dir, "vi_abundance_bb_non_repar_2.csv"), np.asarray(mean_soft), delimiter=",")
-        np.savetxt(os.path.join(self.out_base_dir, "bbvi_mean_non_repar_2.csv"), np.asarray(mean_li), delimiter=",")
-        np.savetxt(os.path.join(self.out_base_dir, "bbvi_std_non_repar_2.csv"), np.asarray(std_li), delimiter=",")
-        np.savetxt(os.path.join(self.out_base_dir, "bbvi_elbo_non_repar_2.csv"), np.asarray(posterior.elbo_all), delimiter=",")
+        return posterior
