@@ -24,20 +24,16 @@ class AbstractModelSolver(metaclass=ABCMeta):
     def __init__(self,
                  model: GenerativeModel,
                  data: List[List[SequenceRead]],
-                 cache_tag: str,
-                 read_likelihoods: List[torch.Tensor] = None):
+                 cache_tag: str):
         self.model = model
         self.data = data
         self.cache_tag = cache_tag
-        if read_likelihoods is None:
-            self.read_likelihoods = CachedComputation(compute_read_likelihoods, cache_tag=cache_tag).call(
-                "read_likelihoods.pkl",
-                model=model,
-                reads=data,
-                logarithm=False
-            )
-        else:
-            self.read_likelihoods = read_likelihoods
+        self.read_likelihoods = CachedComputation(compute_read_likelihoods, cache_tag=cache_tag).call(
+            "read_likelihoods.pkl",
+            model=model,
+            reads=data,
+            logarithm=False
+        )
 
     @abstractmethod
     def solve(self, *args, **kwargs):

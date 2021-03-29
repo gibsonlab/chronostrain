@@ -11,8 +11,10 @@ from torch.distributions import MultivariateNormal
 
 from chronostrain import cfg
 from chronostrain.algs import AbstractModelSolver
+from chronostrain.algs.base import compute_read_likelihoods
 from chronostrain.model import *
 from chronostrain.model.reads import *
+from chronostrain.util.data_cache import CachedComputation
 from chronostrain.util.logger import logger
 
 
@@ -30,12 +32,12 @@ class NaiveMeanFieldPosterior:
     def __init__(self,
                  model: GenerativeModel,
                  read_counts: List[int],
-                 read_likelihoods: List[torch.tensor],
+                 read_log_likelihoods: List[torch.tensor],
                  lr: float):
 
         self.model = model
         self.read_counts = read_counts
-        self.reads_ll = read_likelihoods
+        self.reads_ll = read_log_likelihoods
         self.lr = lr
 
         self.W = self.model.get_fragment_frequencies()  # P(F= f | S = s); stochastic matrix whose column sum to 1
@@ -188,8 +190,16 @@ class BBVIReparamSolver(AbstractModelSolver):
                  out_base_dir: str,
                  read_likelihoods: List[torch.Tensor] = None
                  ):
-        super().__init__(model, data, cache_tag, read_likelihoods=read_likelihoods)
         self.model = model
+        self.data = data
+        self.cache_tag = cache_tag
+        self.read_ll = CachedComputation(compute_read_likelihoods, cache_tag=cache_tag).call(
+            "read_log_likelihoods.pkl",
+            model=model,
+            reads=data,
+            logarithm=True
+        )
+
         self.read_counts = [len(reads_t) for reads_t in data]
 
         self.W = self.model.get_fragment_frequencies()
@@ -207,7 +217,7 @@ class BBVIReparamSolver(AbstractModelSolver):
         posterior = NaiveMeanFieldPosterior(
             model=self.model,
             read_counts=self.read_counts,
-            read_likelihoods=self.read_likelihoods,
+            read_log_likelihoods=self.read_log_likelihoods,
             lr=lr
         )
         logger.debug("Black Box Variational Inference Algorithm (with reparametrization) started. "
