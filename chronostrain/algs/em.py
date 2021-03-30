@@ -24,8 +24,7 @@ class EMSolver(AbstractModelSolver):
             generative_model: GenerativeModel,
             data: List[List[SequenceRead]],
             cache_tag: str,
-            lr: float = 1e-3,
-            read_likelihoods: List[torch.Tensor] = None):
+            lr: float = 1e-3):
         """
         Instantiates an EMSolver instance.
 
@@ -34,7 +33,7 @@ class EMSolver(AbstractModelSolver):
         :param device: the torch device to operate on. (Recommended: CUDA if available.)
         :param lr: the learning rate (default: 1e-3)
         """
-        super().__init__(generative_model, data, cache_tag, read_likelihoods=read_likelihoods)
+        super().__init__(generative_model, data, cache_tag)
         self.lr = lr
 
         # ==== Experimental. Probably is not useful right now.

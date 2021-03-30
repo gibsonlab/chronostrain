@@ -1,71 +1,87 @@
 #!/bin/bash
 set -e
 
-TESTNAME="em_perf"
-ACCESSION="examples/em_perf/ncbi_refs.csv"
-SRC_ABUNDANCE="examples/em_perf/true_abundances.csv"
-TRIM=500
-ITERS=50000
+# =====================================
+# Change this to where project is located. Should be able to call `python scripts/run_inference.py`.
+PROJECT_DIR="/mnt/f/microbiome_tracking"
+# =====================================
 
-echo "----------------------------------- testname ${TESTNAME} -----------------------------------"
-for depth in 10 30 50 70 90 100 200 300 400 500 600 700 800 900
+# ======================================
+# filesystem paths (relative to PROJECT_DIR) --> no need to modify.
+BASE_DIR="${PROJECT_DIR}/examples/em_perf"
+
+CHRONOSTRAIN_INI="${BASE_DIR}/chronostrain.ini"
+CHRONOSTRAIN_LOG_INI="${BASE_DIR}/logging.ini"
+CHRONOSTRAIN_LOG_FILEPATH="${BASE_DIR}/logs/em_perf.log"
+
+TRUE_ABUNDANCE_PATH="${BASE_DIR}/default/true_abundances.csv"
+
+OUTPUT_DIR="${BASE_DIR}/output"
+TRIALS_INDEX_PATH="${OUTPUT_DIR}/trials_index.csv"
+PLOT_FORMAT="pdf"
+
+READ_LEN=150
+N_TRIALS=10
+METHOD="em"
+# =====================================
+export BASE_DIR
+export CHRONOSTRAIN_INI
+export CHRONOSTRAIN_LOG_INI
+export CHRONOSTRAIN_LOG_FILEPATH
+
+# Erase contents of trials.csv
+mkdir -p $OUTPUT_DIR
+> $TRIALS_INDEX_PATH
+
+# Run the trials.
+for n_reads in 10 30 50 70 90 100 200 300 400 500 600 700 800 900
 do
-  for trial in 1 2 3 4 5 6 7 8 9 10
+  for trial in $(seq 1 $N_TRIALS)
   do
-    echo "------------------------------------ depth $depth, trial $trial -----------------------------"
+    echo "[Number of reads: ${n_reads}, trial #${trial}]"
 
-    echo "------------------------------------- Sample Reads ----------------------------------"
-    python3 simulate_reads.py \
-		--out_dir "./data/simulated_reads/$TESTNAME/depth_$depth-trial_$trial/" \
-		--accession_path "$ACCESSION" \
-		--abundance_path "$SRC_ABUNDANCE" \
-		--num_reads $depth $depth $sparse_depth $depth \
-		--read_length 150 \
-		-trim $TRIM
+    TRIAL_DIR="${OUTPUT_DIR}/trials/reads_${n_reads}_trial_${trial}"
+    READS_DIR="${TRIAL_DIR}/simulated_reads"
+    TRIAL_OUTPUT_DIR="${TRIAL_DIR}/output"
+    mkdir -p $READS_DIR
+    mkdir -p $TRIAL_OUTPUT_DIR
 
-    echo "------------------------------------- Perform Inference ----------------------------------"
-	  python3 run_inference.py \
-		--read_files \
-		"data/simulated_reads/$TESTNAME/depth_$depth-trial_$trial/sim_reads_t1.fastq" \
-		"data/simulated_reads/$TESTNAME/depth_$depth-trial_$trial/sim_reads_t2.fastq" \
-		"data/simulated_reads/$TESTNAME/depth_$depth-trial_$trial/sim_reads_t3.fastq" \
-		"data/simulated_reads/$TESTNAME/depth_$depth-trial_$trial/sim_reads_t4.fastq" \
-		"data/simulated_reads/$TESTNAME/depth_$depth-trial_$trial/sim_reads_t5.fastq" \
-		"data/simulated_reads/$TESTNAME/depth_$depth-trial_$trial/sim_reads_t10.fastq" \
-		"data/simulated_reads/$TESTNAME/depth_$depth-trial_$trial/sim_reads_t11.fastq" \
-		"data/simulated_reads/$TESTNAME/depth_$depth-trial_$trial/sim_reads_t17.fastq" \
-		--true_abundance_path "examples/$TESTNAME/true_abundances_renormalized.csv" \
-		--accession_path "$ACCESSION" \
-		--time_points 1 2 3 4 5 10 11 17 \
-		--method "em" \
-		--out_path "data/output/$TESTNAME/depth_$depth-trial_$trial/EM_result_$TESTNAME.csv" \
-		--plots_path "data/output/$TESTNAME/depth_$depth-trial_$trial/EM_result_${TESTNAME}_plot.png" \
-		-trim $TRIM \
-		--iters $ITERS
+    OUTPUT_FILENAME="abundances.out"
+    SEED=$trial
 
-    echo "------------------------------------- Redraw Plot (without legend/title) ----------------------------------"
-    python3 plot_abundance_output.py \
-    --abundance_path "data/output/$TESTNAME/depth_$depth-trial_$trial/EM_result_$TESTNAME.csv" \
-    --output_path "data/output/$TESTNAME/depth_$depth-trial_$trial/plot.png" \
-    --ground_truth_path "examples/$TESTNAME/true_abundances_renormalized.csv" \
-    --font_size 18 \
-    --thickness 3
+    # Generate the reads.
+    python $PROJECT_DIR/scripts/simulate_reads.py \
+    --seed $SEED \
+    --out_dir $READS_DIR \
+    --abundance_path $TRUE_ABUNDANCE_PATH \
+    --num_reads $n_reads \
+    --read_length $READ_LEN
+
+    # Run chronostrain.
+    python $PROJECT_DIR/scripts/run_inference.py \
+    --reads_dir $READS_DIR \
+    --true_abundance_path $TRUE_ABUNDANCE_PATH \
+    --method $METHOD \
+    --read_length $READ_LEN \
+    --seed $SEED \
+    -lr 0.001 \
+    --iters 3000 \
+    --out_dir $TRIAL_OUTPUT_DIR \
+    --abundances_file $OUTPUT_FILENAME \
+    --skip_filter
+
+    echo "\"Chronostrain\" ${n_reads} \"${TRIAL_OUTPUT_DIR}/${OUTPUT_FILENAME}\"" >> $TRIALS_INDEX_PATH
   done
 done
 
-echo "--------------------------------- Plotting comparisons. ----------------------------------------------"
-trial_params=""
-for depth in 10 30 50 70 90 100 200 300 400 500 600 700 800 900
-do
-  for trial in 1 2 3 4 5 6 7 8 9 10
-  do
-    trial_params="$trial_params -t qon $depth data/output/$TESTNAME/depth_$depth-trial_$trial/EM_result_$TESTNAME.csv"
-  done
-done
 
-python3 plot_performances.py \
---ground_truth_path "examples/em_perf/true_abundances_renormalized.csv" \
---output_path "data/output/$TESTNAME/performance_plot.png" \
+# Plot the result.
+PERFORMANCE_PLOT_PATH="${OUTPUT_DIR}/performance_plot.${PLOT_FORMAT}"
+
+python ${PROJECT_DIR}/scripts/plot_performances.py \
+--trial_specification $TRIALS_INDEX_PATH \
+--ground_truth_path $TRUE_ABUNDANCE_PATH \
+--output_path $PERFORMANCE_PLOT_PATH \
 --font_size 18 \
 --thickness 3 \
-$trial_params
+--format "${PLOT_FORMAT}"

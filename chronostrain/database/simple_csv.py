@@ -37,7 +37,7 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
                 genome = genome[:self.trim_debug]
             markers = [Marker(name=strain_name, seq=genome, metadata=None)]  # Each genome's marker is its own genome.
             self.strains[accession] = Strain(
-                name="{}:{}".format(strain_name, accession),
+                name=accession,
                 markers=markers,
                 genome_length=len(genome),
                 metadata=StrainMetadata(

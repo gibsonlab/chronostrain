@@ -24,24 +24,43 @@ class AbstractModelSolver(metaclass=ABCMeta):
     def __init__(self,
                  model: GenerativeModel,
                  data: List[List[SequenceRead]],
-                 cache_tag: str,
-                 read_likelihoods: List[torch.Tensor] = None):
+                 cache_tag: str):
         self.model = model
         self.data = data
         self.cache_tag = cache_tag
-        if read_likelihoods is None:
-            self.read_likelihoods = CachedComputation(compute_read_likelihoods, cache_tag=cache_tag).call(
-                "read_likelihoods.pkl",
-                model=model,
-                reads=data,
-                logarithm=False
-            )
-        else:
-            self.read_likelihoods = read_likelihoods
+
+        # Not sure which we will need. Use lazy initialization.
+        self.read_likelihoods_tensors: List[torch.Tensor] = None
+        self.read_log_likelihoods_tensors: List[torch.Tensor] = None
 
     @abstractmethod
     def solve(self, *args, **kwargs):
         pass
+
+    @property
+    def read_likelihoods(self) -> List[torch.Tensor]:
+        if self.read_likelihoods_tensors is None:
+            log_likelihoods = CachedComputation(compute_read_likelihoods, cache_tag=self.cache_tag).call(
+                "read_log_likelihoods.pkl",
+                model=self.model,
+                reads=self.data,
+                logarithm=False
+            )
+            self.read_likelihoods_tensors = [
+                torch.exp(ll_tensor) for ll_tensor in log_likelihoods
+            ]
+        return self.read_likelihoods_tensors
+
+    @property
+    def read_log_likelihoods(self) -> List[torch.Tensor]:
+        if self.read_log_likelihoods_tensors is None:
+            self.read_log_likelihoods_tensors = CachedComputation(compute_read_likelihoods, cache_tag=self.cache_tag).call(
+                "read_log_likelihoods.pkl",
+                model=self.model,
+                reads=self.data,
+                logarithm=True
+            )
+        return self.read_log_likelihoods_tensors
 
 
 # ===================================================================
