@@ -2,7 +2,6 @@
     Black Box variational Inference with reprametrization trick
     Author: Sawal Acharya
 """
-import os
 from typing import List
 
 import numpy as np
@@ -10,7 +9,7 @@ import torch
 from torch.distributions import MultivariateNormal
 
 from chronostrain import cfg
-from chronostrain.algs import AbstractModelSolver
+from chronostrain.algs import AbstractModelSolver, AbstractVariationalPosterior
 from chronostrain.model import *
 from chronostrain.model.reads import *
 from chronostrain.util.logger import logger
@@ -26,48 +25,46 @@ def softmax(x: torch.Tensor):
     return exp_x / torch.sum(exp_x)
 
 
-class NaiveMeanFieldPosterior:
+class NaiveMeanFieldPosterior(AbstractVariationalPosterior):
     def __init__(self,
                  model: GenerativeModel,
                  read_counts: List[int],
                  read_log_likelihoods: List[torch.tensor],
                  lr: float):
-
         self.model = model
         self.read_counts = read_counts
         self.reads_ll = read_log_likelihoods
         self.lr = lr
 
+        # Model parameters.
         self.W = self.model.get_fragment_frequencies()  # P(F= f | S = s); stochastic matrix whose column sum to 1
         self.times = self.model.times
         self.T = self.model.num_times()
         self.S = self.model.num_strains()
 
-        # variational parameters (of the Gaussian posterior approximation)
-        self.mu_all, self.sigma_all = self.initialize_vi_params()
-        self.opt_mu = torch.optim.SGD(self.mu_all, lr=self.lr)
-        self.opt_sigma = torch.optim.SGD(self.sigma_all, lr=self.lr)
+        # variational parameters (of the Gaussian posterior approximation) and their optimizers.
+        self.mu_parameters, self.sigma_parameters = self.initialize_vi_params()
+        self.opt_mu = torch.optim.SGD(self.mu_parameters, lr=self.lr)
+        self.opt_sigma = torch.optim.SGD(self.sigma_parameters, lr=self.lr)
 
         self.phi = {}
-        self.elbo_all = []
+        self.elbo_history = []
 
     def initialize_vi_params(self):
-        """initializes mu and sigma of the approximate posterior distribution,
-           return lists whose length is equal to total expt. time"""
+        """
+        Initializes mu and sigma of the approximate posterior distribution, return lists whose
+        length is equal to total expt. time
+        """
 
         mean_li = []
         std_li = []
         for t in range(0, self.T + 1):
-            mean = 0
-            std = 0
-
             if t == 0:
                 mean = self.model.mu
                 std = torch.tensor(self.model.tau_1)
             else:
                 mean = torch.nn.Parameter(torch.rand(self.S))
-                std = torch.tensor([2.], requires_grad=True,
-                    device=cfg.torch_cfg.device)
+                std = torch.tensor([2.], requires_grad=True, device=cfg.torch_cfg.device)
             mean_li.append(mean)
             std_li.append(std)
 
@@ -98,27 +95,26 @@ class NaiveMeanFieldPosterior:
         return phi_all
 
     def compute_elbo(self, x_li) -> torch.Tensor:
-
         inst_elbo = torch.tensor([0.], device=cfg.torch_cfg.device)
 
-        #the initial value of x (t = 0)
-        inst_elbo += -self.S * 0.5 * torch.log(2 * pi *(self.model.tau_1 ** 2))
-        inst_elbo += -0.5 / (self.model.tau_1 ** 2) * torch.dot(x_li[0] - self.model.mu,
-            x_li[0] - self.model.mu)
-        t_prev = 0
+        # The initial value of x (t_idx = 0)
+        inst_elbo += -self.S * 0.5 * torch.log(2 * pi * (self.model.tau_1 ** 2))
 
+        # The rest of the values (t_idx > 0
+        inst_elbo += -0.5 / (self.model.tau_1 ** 2) * torch.dot(x_li[0] - self.model.mu, x_li[0] - self.model.mu)
+
+        t_prev = 0
         for i in range(1, self.T + 1):
             t = self.times[i-1]
             v_scale = t - t_prev
 
-            # TODO: @Sawal fix this to use self.model.tau_1 and self.model.tau separately.
             inst_elbo += -self.S * 0.5 * torch.log(2 * pi * (self.model.tau ** 2))
             inst_elbo += -0.5 / ((self.model.tau ** 2) * v_scale) * (
                     -2 * torch.dot(x_li[i], x_li[i - 1])
                     + torch.dot(x_li[i], x_li[i])
                     + torch.dot(x_li[i - 1], x_li[i - 1])
             )
-            inst_elbo += self.S / 2 * (torch.log(self.sigma_all[i] ** 2) + torch.log(2 * pi * e))
+            inst_elbo += self.S / 2 * (torch.log(self.sigma_parameters[i] ** 2) + torch.log(2 * pi * e))
 
         for i in range(1, self.T + 1):
             x_soft = softmax(x_li[i])
@@ -136,15 +132,14 @@ class NaiveMeanFieldPosterior:
         """
         n_samples = 10
         x_samples = []
-        total_elbo = torch.zeros(size=(1,), device=cfg.torch_cfg.device,
-            dtype=cfg.torch_cfg.default_dtype)
+        total_elbo = torch.zeros(size=(1,), device=cfg.torch_cfg.device)
         self.opt_mu.zero_grad()
         self.opt_sigma.zero_grad()
         q = MultivariateNormal(torch.zeros(self.S), torch.eye(self.S))
 
         for i in range(n_samples):
             for t in range(self.T + 1):
-                samp = self.mu_all[t] + self.sigma_all[t] * q.sample()
+                samp = self.mu_parameters[t] + self.sigma_parameters[t] * q.sample()
                 x_samples.append(samp)
 
             self.phi = self.update_phi(x_samples)
@@ -153,7 +148,7 @@ class NaiveMeanFieldPosterior:
         loss = -total_elbo
         loss.backward()
 
-        self.elbo_all.append(total_elbo)
+        self.elbo_history.append(total_elbo)
         self.opt_mu.step()
         self.opt_sigma.step()
 
@@ -161,16 +156,31 @@ class NaiveMeanFieldPosterior:
         """
         Returns the elbo of the latest iteration
         """
-        if len(self.elbo_all) != 0:
-            return self.elbo_all[-1]
+        if len(self.elbo_history) != 0:
+            return self.elbo_history[-1]
         else:
             raise KeyError("No ELBO value found; update_params() must be called at least once.")
 
     def get_mean(self):
-        return self.mu_all
+        return self.mu_parameters
 
     def get_std(self):
-        return self.sigma_all
+        return self.sigma_parameters
+
+    def sample(self, num_samples: int = 1) -> List[torch.Tensor]:
+        time_indexed_samples = []
+        for t_idx in range(1, self.T + 1):
+            mean_t = self.mu_parameters[t_idx].detach()
+            sigma_t = self.sigma_parameters[t_idx].detach()
+
+            posterior_t = torch.distributions.MultivariateNormal(
+                loc=mean_t,
+                covariance_matrix=torch.pow(sigma_t, 2) * torch.eye(self.S, device=cfg.torch_cfg.device)
+            )
+
+            samples = posterior_t.sample(sample_shape=(num_samples,))
+            time_indexed_samples.append(samples)
+        return time_indexed_samples
 
 
 class BBVIReparamSolver(AbstractModelSolver):
@@ -220,6 +230,7 @@ class BBVIReparamSolver(AbstractModelSolver):
                         std_dev[t].detach().numpy()
                     ))
         logger.info("Finished {it} iterations. Final ELBO: {elbo}".format(
-        it=iters, elbo=posterior.get_elbo()))
+            it=iters, elbo=posterior.get_elbo()
+        ))
 
         return posterior
