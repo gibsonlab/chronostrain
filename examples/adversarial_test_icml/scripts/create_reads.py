@@ -94,11 +94,11 @@ def main():
         if not os.path.exists(block_dir):
             os.makedirs(block_dir)
 
-        read_filepath = os.path.abspath(os.path.join(block_dir, "reads.fastq"))
+        read_filename = "reads.fastq"
         reads = make_reads(num_reads_per_block, num_corrupted_reads)
-        save_timeslice_to_fastq(reads, read_filepath)
+        save_timeslice_to_fastq(reads, os.path.join(block_dir, read_filename))
 
-        save_input_csv(out_dir=block_dir, read_file=read_filepath)
+        save_input_csv(out_dir=block_dir, read_file=read_filename)
 
 
 if __name__ == "__main__":
