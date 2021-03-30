@@ -32,9 +32,9 @@ def parse_trials(trials_filepath: str) -> List[Tuple[str, int, str]]:
     with open(trials_filepath, "r") as f:
         reader = csv.reader(f, delimiter=',', quotechar="\"")
         for row in reader:
-            trial_id = row[0]
-            num_reads = int(row[1])
-            file_path = row[2]
+            trial_id = row[0].strip()
+            num_reads = int(row[1].strip())
+            file_path = row[2].strip()
             trials.append((trial_id, num_reads, file_path))
     return trials
 

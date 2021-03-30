@@ -4,7 +4,7 @@ from typing import List, Union
 
 from chronostrain.config import cfg
 from chronostrain.model.fragments import FragmentSpace
-from chronostrain.util.logger import logger
+from . import logger
 
 
 @dataclass

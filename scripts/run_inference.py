@@ -14,6 +14,7 @@ from chronostrain.algs.vi import SecondOrderVariationalSolver
 from chronostrain.algs import em, vsmc, bbvi, bbvi_reparam
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.reads import SequenceRead, BasicFastQErrorModel, NoiselessErrorModel
+from chronostrain.util.data_cache import CacheTag
 from chronostrain.visualizations import *
 from chronostrain.model.io import load_fastq_reads, save_abundances_by_path
 
@@ -24,7 +25,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Perform inference on time-series reads.")
 
     # Input specification.
-    parser.add_argument('-b', '--reads_dir', required=True, type=str,
+    parser.add_argument('-r', '--reads_dir', required=True, type=str,
                         help='<Required> Directory containing read files. The directory requires a `input_files.csv` '
                              'which contains information about the input reads and corresponding time points.')
     parser.add_argument('-m', '--method',
@@ -73,7 +74,7 @@ def perform_em(
         disable_time_consistency: bool,
         disable_quality: bool,
         iters: int,
-        cache_tag: str,
+        cache_tag: CacheTag,
         learning_rate: float,
         plot_format: str
 ):
@@ -155,7 +156,7 @@ def perform_vsmc(
         num_samples: int,
         ground_truth_path: str,
         plots_out_path: str,
-        cache_tag: str,
+        cache_tag: CacheTag,
         plot_format: str
 ):
 
@@ -198,7 +199,7 @@ def perform_bbvi(
         num_samples: int,
         ground_truth_path: str,
         plots_out_path: str,
-        cache_tag: str,
+        cache_tag: CacheTag,
         plot_format: str
 ):
 
@@ -239,7 +240,7 @@ def perform_bbvi_reparametrization(
         iters: int,
         out_base_dir: str,
         learning_rate: float,
-        cache_tag: str,
+        cache_tag: CacheTag,
         plot_out_path: str,
         plot_format: str,
         ground_truth_path: str = None,
@@ -286,7 +287,7 @@ def perform_vi(
         num_samples: int,
         ground_truth_path: str,
         plots_out_path: str,
-        cache_tag: str,
+        cache_tag: CacheTag,
         plot_format: str
 ):
 
@@ -502,18 +503,19 @@ def main():
         disable_quality=not cfg.model_cfg.use_quality_scores
     )
 
-    # ============ Generate the cache key for read likelihoods.
-    cache_tag = "{}_{}".format(
-        args.method,
-        ''.join(read_paths)
-    )
-
     """
     Perform inference using the chosen method. Available choices: 'em', 'bbvi'.
     1) 'em' runs Expectation-Maximization. Saves the learned abundances and plots them.
     2) 'bbvi' runs black-box VI and saves the learned posterior parametrization (as tensors).
     More methods to be potentially added for experimentation.
     """
+
+    cache_tag = CacheTag(
+        method=args.method,
+        use_quality=cfg.model_cfg.use_quality_scores,
+        read_paths=read_paths
+    )
+
     # ============ Prepare for algorithm output.
     if not os.path.exists(args.out_dir):
         os.makedirs(args.out_dir)

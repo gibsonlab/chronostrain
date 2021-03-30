@@ -6,7 +6,7 @@ from chronostrain.config import cfg
 from chronostrain.database.base import AbstractStrainDatabase, StrainEntryError, StrainNotFoundError
 from chronostrain.model.bacteria import Strain, Marker, StrainMetadata
 from chronostrain.util.ncbi import fetch_fasta
-from chronostrain.util.logger import logger
+from . import logger
 
 
 class SimpleCSVStrainDatabase(AbstractStrainDatabase):

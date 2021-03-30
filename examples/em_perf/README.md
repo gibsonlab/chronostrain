@@ -1,7 +1,9 @@
 # Example: expectation-maximization performance plot (`em_perf`)
 
-Test scripts for generating the performance plots in workshop paper.
+Test scripts for generating the performance plots in workshop paper. (Figure 1)
 
 ## Running
 Before running, change variable `PROJECT_DIR` of `em_suite.sh` to the basepath of this cloned repository 
 (located near the top of the file).
+
+**NOTE: Be sure to run `em_suite.sh` using `bash`, not `sh`.**

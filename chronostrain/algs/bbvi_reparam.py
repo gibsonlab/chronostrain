@@ -12,7 +12,8 @@ from chronostrain import cfg
 from chronostrain.algs import AbstractModelSolver, AbstractVariationalPosterior
 from chronostrain.model import *
 from chronostrain.model.reads import *
-from chronostrain.util.logger import logger
+from chronostrain.util.data_cache import CacheTag
+from . import logger
 
 
 # === Constants
@@ -191,8 +192,9 @@ class BBVIReparamSolver(AbstractModelSolver):
     def __init__(self,
                  model: GenerativeModel,
                  data: List[List[SequenceRead]],
-                 cache_tag: str,
-                 out_base_dir: str
+                 cache_tag: CacheTag,
+                 out_base_dir: str,
+                 read_likelihoods: List[torch.Tensor] = None
                  ):
         super().__init__(model, data, cache_tag)
         self.read_counts = [len(reads_t) for reads_t in data]

@@ -13,11 +13,12 @@ from torch.nn.functional import softmax
 from torch.distributions import MultivariateNormal, Categorical
 
 from chronostrain.config import cfg
-from chronostrain.util.logger import logger
+from chronostrain.util.data_cache import CacheTag
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.reads import SequenceRead
 from chronostrain.algs.base import AbstractModelSolver
 from chronostrain.util.benchmarking import RuntimeEstimator
+from . import logger
 
 
 class AbstractVariationalPosterior(metaclass=ABCMeta):
@@ -244,7 +245,7 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
                 precision_matrix=precision,
             )
         except Exception as e:
-            print("Gaussian precision matrix not positive definite. Time t = {}".format(0))
+            logger.error("Gaussian precision matrix not positive definite. Time t = {}".format(0))
             raise e
 
         samples = dist_0.sample(sample_shape=[num_samples])
@@ -327,7 +328,7 @@ class SecondOrderVariationalSolver(AbstractModelSolver):
     def __init__(self,
                  model: GenerativeModel,
                  data: List[List[SequenceRead]],
-                 cache_tag: str):
+                 cache_tag: CacheTag):
         super().__init__(model, data, cache_tag)
 
     def solve(self,

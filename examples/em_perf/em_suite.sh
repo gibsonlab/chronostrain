@@ -70,7 +70,7 @@ do
     --abundances_file $OUTPUT_FILENAME \
     --skip_filter
 
-    echo "\"Chronostrain\" ${n_reads} \"${TRIAL_OUTPUT_DIR}/${OUTPUT_FILENAME}\"" >> $TRIALS_INDEX_PATH
+    echo "\"Chronostrain\",${n_reads},\"${TRIAL_OUTPUT_DIR}/${OUTPUT_FILENAME}\"" >> $TRIALS_INDEX_PATH
   done
 done
 

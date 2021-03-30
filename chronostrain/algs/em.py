@@ -3,11 +3,12 @@ import torch
 from torch.nn.functional import softmax
 
 from chronostrain.config import cfg
-from chronostrain.util.logger import logger
+from chronostrain.util.data_cache import CacheTag
 from chronostrain.model.reads import SequenceRead
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.util.benchmarking import RuntimeEstimator
 from chronostrain.algs.base import AbstractModelSolver
+from . import logger
 
 
 # ===========================================================================================
@@ -19,12 +20,11 @@ class EMSolver(AbstractModelSolver):
     """
     MAP estimation via Expectation-Maximization.
     """
-    def __init__(
-            self,
-            generative_model: GenerativeModel,
-            data: List[List[SequenceRead]],
-            cache_tag: str,
-            lr: float = 1e-3):
+    def __init__(self,
+                 generative_model: GenerativeModel,
+                 data: List[List[SequenceRead]],
+                 cache_tag: CacheTag,
+                 lr: float = 1e-3):
         """
         Instantiates an EMSolver instance.
 
@@ -76,7 +76,7 @@ class EMSolver(AbstractModelSolver):
         ))
         time_est = RuntimeEstimator(total_iters=iters, horizon=print_debug_every)
         k = 0
-        while k <= iters:
+        while k < iters:
             k += 1
             time_est.stopwatch_click()
             updated_brownian_motion = self.em_update_new(
@@ -111,15 +111,15 @@ class EMSolver(AbstractModelSolver):
         # normalized_abundances = torch.stack(abundances).to(cfg.torch_cfg.device)
         # return normalized_abundances
 
-    def do_noisy_mapping(self):
-        noisy_mappings = []
-        for likelihoods_t in self.read_likelihoods:
-            argmax_locs = likelihoods_t.argmax(dim=0)
-            argmax_mapping = torch.zeros(size=likelihoods_t.size(), device=cfg.torch_cfg.device)
-
-            j = torch.arange(likelihoods_t.size(1)).long()
-            argmax_mapping[argmax_locs, j] = 1
-        self.read_likelihoods = noisy_mappings
+    # def do_noisy_mapping(self):
+    #     noisy_mappings = []
+    #     for likelihoods_t in self.read_likelihoods:
+    #         argmax_locs = likelihoods_t.argmax(dim=0)
+    #         argmax_mapping = torch.zeros(size=likelihoods_t.size(), device=cfg.torch_cfg.device)
+    #
+    #         j = torch.arange(likelihoods_t.size(1)).long()
+    #         argmax_mapping[argmax_locs, j] = 1
+    #     self.read_likelihoods = noisy_mappings
 
     def em_update_new(
             self,

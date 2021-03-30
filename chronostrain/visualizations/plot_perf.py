@@ -40,7 +40,7 @@ def plot_performance_degradation(
         # diff = (abundances - true_abundances).norm().item()
 
         hellinger = (abundances.sqrt() - true_abundances.sqrt()).pow(2).sum(dim=1).sqrt().mean() / math.sqrt(2)
-        print((abundances.sqrt() - true_abundances.sqrt()).pow(2).sum(dim=1).sqrt() / math.sqrt(2))
+        # print((abundances.sqrt() - true_abundances.sqrt()).pow(2).sum(dim=1).sqrt() / math.sqrt(2))
 
         abundance_diffs.append((trial_id, num_reads, hellinger))
         ids.add(trial_id)
@@ -48,7 +48,7 @@ def plot_performance_degradation(
         abundance_diffs,
         dtype=[('Label', '<U10'), ('# Reads on Markers', int), ('Average Hellinger error', float)]
     ))
-    print(df)
+    # print(df)
 
     plt.rcParams.update({'font.size': font_size})
 
