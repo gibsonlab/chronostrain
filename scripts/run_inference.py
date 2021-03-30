@@ -1,4 +1,3 @@
-#!/bin/python3
 """
   run_inference.py
   Run to perform inference on specified reads.
@@ -12,7 +11,7 @@ from tqdm import tqdm
 
 from chronostrain import logger, cfg
 from chronostrain.algs.vi import SecondOrderVariationalSolver
-from chronostrain.algs import em, vsmc, bbvi, em_alt, bbvi_reparam
+from chronostrain.algs import em, vsmc, bbvi, bbvi_reparam
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.reads import SequenceRead, BasicFastQErrorModel, NoiselessErrorModel
 from chronostrain.util.data_cache import CacheTag
@@ -30,7 +29,7 @@ def parse_args():
                         help='<Required> Directory containing read files. The directory requires a `input_files.csv` '
                              'which contains information about the input reads and corresponding time points.')
     parser.add_argument('-m', '--method',
-                        choices=['em', 'vi', 'bbvi', 'vsmc', 'emalt', 'bbvi_reparametrization'],
+                        choices=['em', 'vi', 'bbvi', 'vsmc', 'bbvi_reparametrization'],
                         required=True,
                         help='<Required> A keyword specifying the inference method.')
     parser.add_argument('-l', '--read_length', required=True, type=int,
@@ -147,61 +146,6 @@ def perform_em(
     logger.info("Plots saved to {}.".format(plots_out_path))
 
 
-def perform_em_alt(
-        reads: List[List[SequenceRead]],
-        model: GenerativeModel,
-        abnd_out_path: str,
-        plots_out_path: str,
-        ground_truth_path: str,
-        disable_time_consistency: bool,
-        disable_quality: bool,
-        iters: int,
-        cache_tag: CacheTag,
-        learning_rate: float,
-        plot_format: str
-):
-
-    # ==== Run the solver.
-    if not disable_time_consistency:
-        solver = em_alt.EMAlternateSolver(model,
-                                          reads,
-                                          cache_tag=cache_tag,
-                                          lr=learning_rate)
-        abundances, strains = solver.solve(
-            max_iters=iters,
-            print_debug_every=1,
-            x_opt_thresh=1e-5
-        )
-    else:
-        raise NotImplementedError()
-
-    for t in range(len(reads)):
-        for read, strain in zip(reads[t], strains[t]):
-            logger.debug("{} -> {}".format(read.metadata, strain))
-
-    # ==== Save the learned abundances.
-    output_path = save_abundances_by_path(
-        population=model.bacteria_pop,
-        time_points=model.times,
-        abundances=abundances,
-        out_path=abnd_out_path
-    )
-    logger.info("Abundances saved to {}.".format(output_path))
-
-    # ==== Plot the learned abundances.
-    logger.info("Done. Saving plot of learned abundances.")
-    plot_em_result(
-        reads=reads,
-        result_path=output_path,
-        true_path=ground_truth_path,
-        plots_out_path=plots_out_path,
-        disable_time_consistency=disable_time_consistency,
-        disable_quality=disable_quality,
-        plot_format=plot_format
-    )
-    logger.info("Plots saved to {}.".format(plots_out_path))
-
-
 def perform_vsmc(
         model: GenerativeModel,
         reads: List[List[SequenceRead]],
@@ -233,8 +177,7 @@ def perform_vsmc(
     logger.info("Done. Generating plot of posterior.")
     plot_variational_result(
         method='Variational Sequential Monte Carlo',
-        times=model.times,
-        population=model.bacteria_pop,
+        model=model,
         reads=reads,
         posterior=posterior,
         disable_time_consistency=disable_time_consistency,
@@ -277,8 +220,7 @@ def perform_bbvi(
     logger.info("Done. Generating plot of posterior.")
     plot_variational_result(
         method='Black-Box Variational Inference',
-        times=model.times,
-        population=model.bacteria_pop,
+        model=model,
         reads=reads,
         posterior=posterior,
         disable_time_consistency=disable_time_consistency,
@@ -294,10 +236,15 @@ def perform_bbvi_reparametrization(
         model: GenerativeModel,
         reads: List[List[SequenceRead]],
         disable_time_consistency: bool,
+        disable_quality: bool,
         iters: int,
         out_base_dir: str,
         learning_rate: float,
-        cache_tag: CacheTag):
+        cache_tag: CacheTag
+        plot_out_path: str,
+        plot_format: str,
+        ground_truth_path: str = None,
+        num_samples_to_plot: int = 5000):
 
     # ==== Run the solver.
     if not disable_time_consistency:
@@ -307,18 +254,28 @@ def perform_bbvi_reparametrization(
             cache_tag=cache_tag,
             out_base_dir=out_base_dir
         )
-        solver.solve(
+        bbvi_posterior = solver.solve(
             iters=iters,
             thresh=1e-5,
             print_debug_every=100,
             lr=learning_rate
         )
     else:
-        raise NotImplementedError("Time-agnostic solver not implemented for `perform_bbvi_reparametrization`.")
+        raise NotImplementedError("Time-agnostic solver not implemented for `bbvi-reparametrization`.")
 
-    # TODO plot result.
-
-    logger.info("BBVI Complete.")
+    plot_variational_result(
+        method="Black Box Variational Inference (with reparametrization)",
+        model=model,
+        reads=reads,
+        posterior=bbvi_posterior,
+        disable_time_consistency=disable_time_consistency,
+        disable_quality=disable_quality,
+        plots_out_path=plot_out_path,
+        plot_format=plot_format,
+        num_samples=num_samples_to_plot,
+        truth_path=ground_truth_path
+    )
+    logger.info("Plots saved to {}.".format(plot_out_path))
 
 
 def perform_vi(
@@ -351,8 +308,7 @@ def perform_vi(
     logger.info("Done. Generating plot of posterior.")
     plot_variational_result(
         method='Variational Inference (Second-order heuristic)',
-        times=model.times,
-        population=model.bacteria_pop,
+        model=model,
         reads=reads,
         posterior=posterior,
         disable_time_consistency=disable_time_consistency,
@@ -416,8 +372,7 @@ def plot_em_result(
 
 def plot_variational_result(
         method: str,
-        times: List[float],
-        population: Population,
+        model: GenerativeModel,
         reads: List[List[SequenceRead]],
         posterior: AbstractVariationalPosterior,
         disable_time_consistency: bool,
@@ -436,9 +391,9 @@ def plot_variational_result(
             ('Quality score off\n' if disable_quality else '')
 
     plot_posterior_abundances(
-        times=times,
+        times=model.times,
         posterior=posterior,
-        population=population,
+        population=model.bacteria_pop,
         title=title,
         plots_out_path=plots_out_path,
         truth_path=truth_path,
@@ -523,6 +478,7 @@ def main():
         raise ValueError("Specified sample times must be distinct.")
 
     if not args.skip_filter:
+        # ============ Perform read filtering.
         logger.info("Performing filter on reads.")
         filt = Filter(
             reference_file_paths=[strain.metadata.file_path for strain in population.strains],
@@ -531,15 +487,15 @@ def main():
             align_cmd=cfg.filter_cfg.align_cmd
         )
         filtered_read_files = filt.apply_filter(args.read_length)
+
         logger.info("Loading filtered time-series read files.")
         reads = load_fastq_reads(file_paths=filtered_read_files)
     else:
+        # ============ Optionally skip filtering step.
         logger.info("Loading time-series read files.")
         reads = load_fastq_reads(file_paths=read_paths)
 
-    logger.info("Performing inference using method '{}'.".format(args.method))
-
-    # ==== Create model instance
+    # ============ Create model instance
     model = create_model(
         population=population,
         window_size=len(reads[0][0]),
@@ -547,14 +503,11 @@ def main():
         disable_quality=not cfg.model_cfg.use_quality_scores
     )
 
-    logger.debug("Strain keys:")
-    for k, strain in enumerate(model.bacteria_pop.strains):
-        logger.debug("{} -> {}".format(strain, k))
-
     """
     Perform inference using the chosen method. Available choices: 'em', 'bbvi'.
     1) 'em' runs Expectation-Maximization. Saves the learned abundances and plots them.
     2) 'bbvi' runs black-box VI and saves the learned posterior parametrization (as tensors).
+    More methods to be potentially added for experimentation.
     """
 
     cache_tag = CacheTag(
@@ -563,6 +516,11 @@ def main():
         read_paths=read_paths
     )
 
+    # ============ Prepare for algorithm output.
+    if not os.path.exists(args.out_dir):
+        os.makedirs(args.out_dir)
+
+    # ============ Run the specified algorithm.
     if args.method == 'em':
         logger.info("Solving using Expectation-Maximization.")
         out_path = os.path.join(args.out_dir, args.abundances_file)
@@ -598,14 +556,19 @@ def main():
         )
     elif args.method == 'bbvi_reparametrization':
         logger.info("Solving using Black-Box Variational Inference.")
+        plots_path = os.path.join(args.out_dir, "plot.{}".format(args.plot_format))
         perform_bbvi_reparametrization(
             model=model,
             reads=reads,
             disable_time_consistency=args.disable_time_consistency,
+            disable_quality=not cfg.model_cfg.use_quality_scores,
             iters=args.iters,
             learning_rate=args.learning_rate,
             cache_tag=cache_tag,
-            out_base_dir=args.out_dir
+            out_base_dir=args.out_dir,
+            plot_format=args.plot_format,
+            plot_out_path=plots_path,
+            ground_truth_path=args.true_abundance_path
         )
     elif args.method == 'vsmc':
         logger.info("Solving using Variational Sequential Monte-Carlo.")
@@ -635,23 +598,6 @@ def main():
             num_samples=args.num_samples,
             ground_truth_path=args.true_abundance_path,
             plots_out_path=plots_path,
-            cache_tag=cache_tag,
-            plot_format=args.plot_format
-        )
-    elif args.method == 'emalt':
-        out_path = os.path.join(args.out_dir, "abundances.csv")
-        plots_path = os.path.join(args.out_dir, "plot.{}".format(args.plot_format))
-        logger.info("Solving using Alt-EM.")
-        perform_em_alt(
-            reads=reads,
-            model=model,
-            abnd_out_path=out_path,
-            plots_out_path=plots_path,
-            ground_truth_path=args.true_abundance_path,
-            disable_time_consistency=args.disable_time_consistency,
-            disable_quality=not cfg.model_cfg.use_quality_scores,
-            iters=args.iters,
-            learning_rate=args.learning_rate,
             cache_tag=cache_tag,
             plot_format=args.plot_format
         )

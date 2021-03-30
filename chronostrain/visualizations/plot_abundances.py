@@ -3,6 +3,7 @@ from typing import List
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 import pandas as pd
 
 from chronostrain.algs.vi import AbstractVariationalPosterior
@@ -171,10 +172,10 @@ def plot_posterior_abundances(
         draw_legend: bool,
         img_format: str,
         num_samples: int = 500,
-        num_reads_per_time: List[int] = None,
         title: str = None,
         font_size: int = 12,
-        thickness: int = 1):
+        thickness: int = 1,
+        dpi: int = 100):
 
     true_abundances = None
     truth_acc_dict = None
@@ -182,56 +183,51 @@ def plot_posterior_abundances(
         _, true_abundances, accessions = load_abundances(truth_path)
         truth_acc_dict = {acc: i for i, acc in enumerate(accessions)}
 
+    # This is a list of (N x S) tensors.
     abundance_samples = [
         softmax(x_t, dim=1)
         for x_t in posterior.sample(num_samples=num_samples)
     ]
-    data = pd.DataFrame(np.array(
-        [
-            (times[t], strain.name, abundance_t[i, s].item(), 'Learned')
-            for i in range(num_samples)
-            for s, strain in enumerate(population.strains)
-            for t, abundance_t in enumerate(abundance_samples)
-        ],
-        dtype=[('Time', float), ('Strain', '<U20'), ('Abundance', float), ('Truth', '<U10')]
-    ))
-    sizes = [thickness]
 
-    if true_abundances is not None:
-        true_abundances = true_abundances[0:len(times)]  # TODO remove when done debugging.
-        data = pd.concat([pd.DataFrame(np.array(
-            [
-                (times[t], strain.name, abundance_t[truth_acc_dict[strain.name]].item(), 'Real')
-                for s, strain in enumerate(population.strains)
-                for t, abundance_t in enumerate(true_abundances)
-            ],
-            dtype=[('Time', float), ('Strain', '<U20'), ('Abundance', float), ('Truth', '<U10')]
-        )), data])
-        sizes = sizes + [thickness]
-
-    data.to_csv("data/output/trivial_test/samples.csv")
-    print("Generated {} samples for plotting.".format(num_samples))
-    print(data)
-
+    fig, ax = plt.subplots(1, 1)
+    legend_elements = []
     plt.rcParams.update({'font.size': font_size})
-    ax = sns.lineplot(
-        x='Time',
-        y='Abundance',
-        hue='Strain',
-        ci=99,
-        data=data,
-        style="Truth",
-        markers=True,
-        legend='full' if draw_legend else False,
-        size="Truth",
-        sizes=sizes
-    )
-    if title is not None:
-        plt.title(title)
-    if num_reads_per_time is not None:
-        render_read_counts(data, num_reads_per_time, ax)
 
-    plt.savefig(plots_out_path, bbox_inches='tight', format=img_format)
+    for s_idx, strain in enumerate(population.strains):
+        # This is (T x N), for the particular strain.
+        traj_samples = np.array([
+            abundance_samples[t_idx][:, s_idx].numpy()
+            for t_idx in range(len(times))
+        ])
+
+        upper_quantile = np.quantile(traj_samples, q=0.95, axis=1)
+        lower_quantile = np.quantile(traj_samples, q=0.05, axis=1)
+        median = np.quantile(traj_samples, q=0.5, axis=1)
+
+        # Plot the trajectory of medians.
+        line, = ax.plot(times, median, linestyle='--', marker='x', linewidth=thickness)
+        color = line.get_color()
+
+        # Fill between the quantiles.
+        ax.fill_between(times, lower_quantile, upper_quantile, alpha=0.2, color=color)
+
+        # Plot true trajectory, if available.
+        if true_abundances is not None:
+            true_trajectory = np.array([
+                abundance_t[truth_acc_dict[strain.name]].item()
+                for abundance_t in true_abundances
+            ])
+            ax.plot(times, true_trajectory, linestyle='-', marker='o', color=color, linewidth=thickness)
+
+        # Populate the legend.
+        legend_elements.append(
+            Line2D([0], [0], color=color, lw=2, label=strain.name)
+        )
+
+    if draw_legend:
+        ax.legend(handles=legend_elements)
+    ax.set_title(title)
+    fig.savefig(plots_out_path, bbox_inches='tight', format=img_format, dpi=dpi)
 
 
 def render_read_counts(dataframe: pd.DataFrame,
@@ -255,3 +251,29 @@ def render_read_counts(dataframe: pd.DataFrame,
     ax2.set_xticklabels(num_reads_per_time)
     # Set axis label
     ax2.set_xlabel("# Reads")
+
+
+def plot_elbo(elbo: np.array,
+              x_label: str,
+              y_label: str,
+              title: str,
+              output_path: str,
+              plot_format: str = "pdf"):
+    """
+    Plots the elbo values; can be used to check if the inference is working properly or not.
+    :param elbo: The array of ELBO values.
+    :param x_label: The x label to insert into the plot.
+    :param y_label: The y label to insert into the plot.
+    :param title: The title of the plot.
+    :param output_path: The file path to save the plot to.
+    :param plot_format: The file format to save the plot to. (example: "pdf", "png", "svg")
+    """
+    fig = plt.figure()
+    axes = fig.ad_subplot(1, 1, 1)
+    axes.set_xlabel(x_label)
+    axes.set_ylabel(y_label)
+    axes.set_title(title)
+
+    x = np.linspace(1, len(elbo), len(elbo))
+    axes.plot(x, elbo)
+    fig.savefig(output_path, format=plot_format)

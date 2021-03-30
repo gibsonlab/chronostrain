@@ -25,8 +25,7 @@ class EMSolver(AbstractModelSolver):
             generative_model: GenerativeModel,
             data: List[List[SequenceRead]],
             cache_tag: CacheTag,
-            lr: float = 1e-3,
-            read_likelihoods: List[torch.Tensor] = None):
+            lr: float = 1e-3:
         """
         Instantiates an EMSolver instance.
 

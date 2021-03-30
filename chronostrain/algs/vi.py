@@ -23,7 +23,7 @@ from . import logger
 
 class AbstractVariationalPosterior(metaclass=ABCMeta):
     @abstractmethod
-    def sample(self, num_samples=1) -> List[torch.Tensor]:
+    def sample(self, num_samples: int = 1) -> List[torch.Tensor]:
         """
         Returns a sample from this posterior distribution.
         :param num_samples: the number of samples (N).
