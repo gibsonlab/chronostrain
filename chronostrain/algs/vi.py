@@ -245,7 +245,7 @@ class MeanFieldPosterior(AbstractVariationalPosterior):
                 precision_matrix=precision,
             )
         except Exception as e:
-            print("Gaussian precision matrix not positive definite. Time t = {}".format(0))
+            logger.error("Gaussian precision matrix not positive definite. Time t = {}".format(0))
             raise e
 
         samples = dist_0.sample(sample_shape=[num_samples])

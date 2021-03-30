@@ -20,12 +20,11 @@ class EMSolver(AbstractModelSolver):
     """
     MAP estimation via Expectation-Maximization.
     """
-    def __init__(
-            self,
-            generative_model: GenerativeModel,
-            data: List[List[SequenceRead]],
-            cache_tag: CacheTag,
-            lr: float = 1e-3:
+    def __init__(self,
+                 generative_model: GenerativeModel,
+                 data: List[List[SequenceRead]],
+                 cache_tag: CacheTag,
+                 lr: float = 1e-3):
         """
         Instantiates an EMSolver instance.
 

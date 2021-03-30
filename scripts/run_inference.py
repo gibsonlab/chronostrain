@@ -240,7 +240,7 @@ def perform_bbvi_reparametrization(
         iters: int,
         out_base_dir: str,
         learning_rate: float,
-        cache_tag: CacheTag
+        cache_tag: CacheTag,
         plot_out_path: str,
         plot_format: str,
         ground_truth_path: str = None,
