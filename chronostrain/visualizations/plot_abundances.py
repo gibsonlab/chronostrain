@@ -22,6 +22,21 @@ def plot_abundances_comparison(
             font_size: int = 12,
             thickness: int = 1,
             img_format: str = "pdf"):
+    """
+    Plot the specified abundances, along with the specified ground truth abundances (both given by CSV files).
+
+    :param inferred_abnd_path:
+    :param real_abnd_path:
+    :param plots_out_path:
+    :param draw_legend:
+    :param num_reads_per_time:
+    :param title:
+    :param ylim:
+    :param font_size:
+    :param thickness:
+    :param img_format:
+    :return:
+    """
 
     real_df = (pd.read_csv(real_abnd_path)
                .assign(Truth="Real")
@@ -61,7 +76,20 @@ def plot_abundances(
         font_size: int = 12,
         thickness: int = 1,
         img_format: str = "pdf"):
+    """
+    Plot the specified abundances (given by a CSV file).
 
+    :param abnd_path:
+    :param plots_out_path:
+    :param draw_legend:
+    :param num_reads_per_time:
+    :param title:
+    :param ylim:
+    :param font_size:
+    :param thickness:
+    :param img_format:
+    :return:
+    """
     inferred_df = (pd.read_csv(abnd_path)
                    .assign(Truth="Real")
                    .melt(id_vars=['T', "Truth"],
@@ -91,6 +119,21 @@ def plot_abundance_dataframe(
         ylim: List[float] = None,
         font_size: int = 12,
         thickness=(1, 1)):
+    """
+    Plot the abundance dataframe.
+    Meant to be a helper for `plot_abundances` and `plot_abundances_comparison`.
+
+    :param data:
+    :param plots_out_path:
+    :param draw_legend:
+    :param img_format:
+    :param num_reads_per_time:
+    :param title:
+    :param ylim:
+    :param font_size:
+    :param thickness:
+    :return:
+    """
     plt.rcParams.update({'font.size': font_size})
     ax = sns.lineplot(x="Time",
                       y="Abundance",

@@ -25,7 +25,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Perform inference on time-series reads.")
 
     # Input specification.
-    parser.add_argument('-b', '--reads_dir', required=True, type=str,
+    parser.add_argument('-r', '--reads_dir', required=True, type=str,
                         help='<Required> Directory containing read files. The directory requires a `input_files.csv` '
                              'which contains information about the input reads and corresponding time points.')
     parser.add_argument('-m', '--method',
@@ -555,9 +555,12 @@ def main():
     1) 'em' runs Expectation-Maximization. Saves the learned abundances and plots them.
     2) 'bbvi' runs black-box VI and saves the learned posterior parametrization (as tensors).
     """
-    cache_tag = "{}_{}".format(
+
+    # TODO hide the implementation of cache_tag generation.
+    cache_tag = "{}_{}_quality{}".format(
         args.method,
-        ''.join(read_paths)
+        ''.join(read_paths),
+        cfg.model_cfg.use_quality_scores
     )
 
     if args.method == 'em':

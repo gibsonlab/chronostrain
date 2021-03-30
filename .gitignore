@@ -13,4 +13,5 @@ trials/
 *.pyc
 *.ini
 *.log
+*.csv
 log_config.ini

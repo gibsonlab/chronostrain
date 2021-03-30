@@ -1,53 +1,49 @@
 #!/bin/bash
 set -e
 
-TESTNAME="2strains"
+# =====================================
+# Change this to where project is located. Should be able to call `python scripts/run_inference.py`.
+PROJECT_DIR="/mnt/f/microbiome_tracking"
+# =====================================
 
-cd ../..
-python scripts/simulate_reads.py \
+# ======================================
+# filesystem paths (relative to PROJECT_DIR) --> no need to modify.
+BASE_DIR="${PROJECT_DIR}/examples/2strains"
+
+CHRONOSTRAIN_INI="${BASE_DIR}/chronostrain.ini"
+CHRONOSTRAIN_LOG_INI="${BASE_DIR}/logging.ini"
+CHRONOSTRAIN_LOG_FILEPATH="${BASE_DIR}/logs/2strains.log"
+
+READS_DIR="${BASE_DIR}/simulated_reads"
+TRUE_ABUNDANCE_PATH="${BASE_DIR}/strain_abundances.csv"
+OUTPUT_DIR="${BASE_DIR}/output"
+PLOT_FORMAT="pdf"
+INFERENCE_METHOD="em"
+# =====================================
+
+export BASE_DIR
+export CHRONOSTRAIN_INI
+export CHRONOSTRAIN_LOG_INI
+export CHRONOSTRAIN_LOG_FILEPATH
+mkdir -p $OUTPUT_DIR
+
+# Sample reads.
+python $PROJECT_DIR/scripts/simulate_reads.py \
+--out_dir "${READS_DIR}" \
+--abundance_path "${TRUE_ABUNDANCE_PATH}" \
 --seed 123 \
---out_dir "./data/simulated_reads/$TESTNAME" \
---accession_path "examples/$TESTNAME/ncbi_refs.csv" \
---abundance_path "examples/$TESTNAME/strain_abundances.csv" \
 --num_reads 500 \
---read_length 150 \
--trim 2500
+--read_length 150
 
+# Run inference algorithm.
 # Time consistency on
-python scripts/run_inference.py \
---read_files \
-"data/simulated_reads/$TESTNAME/sim_reads_t1.fastq" \
-"data/simulated_reads/$TESTNAME/sim_reads_t2.fastq" \
-"data/simulated_reads/$TESTNAME/sim_reads_t4.fastq" \
-"data/simulated_reads/$TESTNAME/sim_reads_t6.fastq" \
-"data/simulated_reads/$TESTNAME/sim_reads_t7.fastq" \
-"data/simulated_reads/$TESTNAME/sim_reads_t8.fastq" \
-"data/simulated_reads/$TESTNAME/sim_reads_t10.fastq" \
---true_abundance_path "data/simulated_reads/$TESTNAME/sim_abundances.csv" \
---accession_path "examples/$TESTNAME/ncbi_refs.csv" \
---time_points 1 2 4 6 7 8 10 \
---method "em" \
+python $PROJECT_DIR/scripts/run_inference.py \
+--reads_dir $READS_DIR \
+--true_abundance_path $TRUE_ABUNDANCE_PATH \
+--method $INFERENCE_METHOD \
+--read_length 150 \
 --seed 123 \
---out_path "data/output/$TESTNAME/EM_result_$TESTNAME.csv" \
---plots_path "data/output/$TESTNAME/EM_result_${TESTNAME}_plot.png" \
--trim 2500
-
-# Time consistency off
-python scripts/run_inference.py \
---read_files \
-"data/simulated_reads/$TESTNAME/sim_reads_t1.fastq" \
-"data/simulated_reads/$TESTNAME/sim_reads_t2.fastq" \
-"data/simulated_reads/$TESTNAME/sim_reads_t4.fastq" \
-"data/simulated_reads/$TESTNAME/sim_reads_t6.fastq" \
-"data/simulated_reads/$TESTNAME/sim_reads_t7.fastq" \
-"data/simulated_reads/$TESTNAME/sim_reads_t8.fastq" \
-"data/simulated_reads/$TESTNAME/sim_reads_t10.fastq" \
---true_abundance_path "data/simulated_reads/$TESTNAME/sim_abundances.csv" \
---accession_path "examples/$TESTNAME/ncbi_refs.csv" \
---time_points 1 2 4 6 7 8 10 \
---method "em" \
---seed 123 \
---out_path "data/output/test_${TESTNAME}_time_off/EM_result_${TESTNAME}_time_off.csv" \
---plots_path "data/output/test_${TESTNAME}_time_off/EM_result_${TESTNAME}_plot_time_off.png" \
--trim 2500 \
---disable_time_consistency
+-lr 0.001 \
+--iters 3000 \
+--out_dir $OUTPUT_DIR \
+--plot_format $PLOT_FORMAT

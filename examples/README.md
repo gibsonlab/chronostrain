@@ -4,6 +4,10 @@ This directory contains all of the scripts used to generate the figures of the p
 package I/O standards.*
 
 Currently up-to-date:
-- em_perf (for icml submission)
-- nissle_data
-- simulated_mdsine_strains
+- simulated_mdsine_strains (Test for updated poster/paper.)
+- em_perf (for icml submission, Figure 1)
+- em_perf_sparse (for icml submission, Figure 2)
+- adversarial_test_icml (for icml submission, Figure 3)
+- nissle_data (Test script for the new JSON format.)
+- 2strains (A simple example, with just two strains)
+- 8strains (Another simple example, with 8 strains)

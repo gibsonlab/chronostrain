@@ -34,7 +34,7 @@ class EMSolver(AbstractModelSolver):
         :param device: the torch device to operate on. (Recommended: CUDA if available.)
         :param lr: the learning rate (default: 1e-3)
         """
-        super().__init__(generative_model, data, cache_tag, read_likelihoods=read_likelihoods)
+        super().__init__(generative_model, data, cache_tag)
         self.lr = lr
 
         # ==== Experimental. Probably is not useful right now.
