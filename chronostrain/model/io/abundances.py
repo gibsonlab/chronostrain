@@ -4,7 +4,7 @@ import csv
 from pathlib import Path
 from typing import List, Tuple
 
-from chronostrain.util.logger import logger
+from . import logger
 from chronostrain.config import cfg
 from chronostrain.model.bacteria import Population
 from chronostrain.util.filesystem import convert_size, get_filesize_bytes

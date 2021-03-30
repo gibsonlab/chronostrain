@@ -8,16 +8,33 @@
 """
 import os
 from typing import Callable
-from chronostrain.util.logger import logger
-from chronostrain.config import cfg
 import pickle
 import hashlib
+
+from . import logger
+from chronostrain.config import cfg
+
+
+class CacheTag(object):
+    def __init__(self, **kwargs):
+        self.attr_dict = kwargs
+        self.encoding = hashlib.md5(str(kwargs).encode('utf-8')).hexdigest()
+
+    def write_attributes_to_disk(self, path: str):
+        with open(path, "w") as f:
+            for key, value in self.attr_dict.items():
+                if isinstance(value, list):
+                    print("{}:".format(key), file=f)
+                    for item in value:
+                        print("\t{}".format(item), file=f)
+                else:
+                    print("{}: {}".format(key, value), file=f)
 
 
 class CachedComputation(object):
     def __init__(self,
                  fn: Callable,
-                 cache_tag: str,
+                 cache_tag: CacheTag,
                  save: Callable = None,
                  load: Callable = None):
         """
@@ -41,22 +58,22 @@ class CachedComputation(object):
             self.loader = load_
 
         self.cache_tag = cache_tag
-        self.cache_hex = hashlib.md5(cache_tag.encode('utf-8')).hexdigest()
-        self.cache_dir = os.path.join(self.cache_root_dir, self.cache_hex)
+        self.cache_dir = os.path.join(self.cache_root_dir, self.cache_tag.encoding)
         if not os.path.exists(self.cache_dir):
             os.makedirs(self.cache_dir)
 
     def call(self, filename: str, *args, **kwargs):
         cache_path = os.path.join(self.cache_dir, filename)
+
         # Try to retrieve from cache.
         try:
             data = self.loader(cache_path)
-            logger.debug("[Cache {}] Loaded pre-computed file {}.".format(self.cache_hex, cache_path))
-            return data
+            logger.debug("[Cache {}] Loaded pre-computed file {}.".format(self.cache_tag.encoding, cache_path))
         except FileNotFoundError:
-            logger.debug("[Cache {}] Could not load cached file {}. Recomputing.".format(self.cache_hex, cache_path))
+            logger.debug("[Cache {}] Could not load cached file {}. Recomputing.".format(self.cache_tag.encoding, cache_path))
+            data = self.fn(*args, **kwargs)
+            self.saver(cache_path, data)
+            self.cache_tag.write_attributes_to_disk(os.path.join(self.cache_dir, "attributes.txt"))
+            logger.debug("[Cache {}] Saved {}.".format(self.cache_tag.encoding, cache_path))
 
-        data = self.fn(*args, **kwargs)
-        self.saver(cache_path, data)
-        logger.debug("[Cache {}] Saved {}.".format(self.cache_hex, cache_path))
         return data

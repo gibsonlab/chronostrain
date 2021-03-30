@@ -15,6 +15,7 @@ from chronostrain.algs.vi import SecondOrderVariationalSolver
 from chronostrain.algs import em, vsmc, bbvi, em_alt, bbvi_reparam
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.reads import SequenceRead, BasicFastQErrorModel, NoiselessErrorModel
+from chronostrain.util.data_cache import CacheTag
 from chronostrain.visualizations import *
 from chronostrain.model.io import load_fastq_reads, save_abundances_by_path
 
@@ -74,7 +75,7 @@ def perform_em(
         disable_time_consistency: bool,
         disable_quality: bool,
         iters: int,
-        cache_tag: str,
+        cache_tag: CacheTag,
         learning_rate: float,
         plot_format: str
 ):
@@ -155,7 +156,7 @@ def perform_em_alt(
         disable_time_consistency: bool,
         disable_quality: bool,
         iters: int,
-        cache_tag: str,
+        cache_tag: CacheTag,
         learning_rate: float,
         plot_format: str
 ):
@@ -211,7 +212,7 @@ def perform_vsmc(
         num_samples: int,
         ground_truth_path: str,
         plots_out_path: str,
-        cache_tag: str,
+        cache_tag: CacheTag,
         plot_format: str
 ):
 
@@ -255,7 +256,7 @@ def perform_bbvi(
         num_samples: int,
         ground_truth_path: str,
         plots_out_path: str,
-        cache_tag: str,
+        cache_tag: CacheTag,
         plot_format: str
 ):
 
@@ -296,7 +297,7 @@ def perform_bbvi_reparametrization(
         iters: int,
         out_base_dir: str,
         learning_rate: float,
-        cache_tag: str):
+        cache_tag: CacheTag):
 
     # ==== Run the solver.
     if not disable_time_consistency:
@@ -329,7 +330,7 @@ def perform_vi(
         num_samples: int,
         ground_truth_path: str,
         plots_out_path: str,
-        cache_tag: str,
+        cache_tag: CacheTag,
         plot_format: str
 ):
 
@@ -556,11 +557,10 @@ def main():
     2) 'bbvi' runs black-box VI and saves the learned posterior parametrization (as tensors).
     """
 
-    # TODO hide the implementation of cache_tag generation.
-    cache_tag = "{}_{}_quality{}".format(
-        args.method,
-        ''.join(read_paths),
-        cfg.model_cfg.use_quality_scores
+    cache_tag = CacheTag(
+        method=args.method,
+        use_quality=cfg.model_cfg.use_quality_scores,
+        read_paths=read_paths
     )
 
     if args.method == 'em':

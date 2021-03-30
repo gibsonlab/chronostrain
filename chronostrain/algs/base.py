@@ -7,23 +7,22 @@ import torch
 
 from abc import ABCMeta, abstractmethod
 from typing import List
+from joblib import Parallel, delayed
+from tqdm import tqdm
 
-from chronostrain.util.logger import logger
+from . import logger
 from chronostrain.config import cfg
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.reads import SequenceRead
-from chronostrain.util.data_cache import CachedComputation
+from chronostrain.util.data_cache import CachedComputation, CacheTag
 from chronostrain.util.benchmarking import current_time_millis, millis_elapsed
-
-from joblib import Parallel, delayed
-from tqdm import tqdm
 
 
 class AbstractModelSolver(metaclass=ABCMeta):
     def __init__(self,
                  model: GenerativeModel,
                  data: List[List[SequenceRead]],
-                 cache_tag: str):
+                 cache_tag: CacheTag):
         self.model = model
         self.data = data
         self.cache_tag = cache_tag

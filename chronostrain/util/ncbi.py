@@ -5,7 +5,7 @@ import os
 import urllib.request
 import urllib.error
 
-from chronostrain.util.logger import logger
+from . import logger
 from chronostrain.util.filesystem import convert_size, get_filesize_bytes
 
 

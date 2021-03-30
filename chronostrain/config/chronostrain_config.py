@@ -1,10 +1,14 @@
+import os
 import importlib
 from abc import ABCMeta, abstractmethod
 from typing import Tuple, Any
 from pathlib import Path
+from configparser import SafeConfigParser
 
 import torch
 import chronostrain
+
+from . import logger
 
 
 class ConfigurationParseError(BaseException):
@@ -168,3 +172,26 @@ class ChronostrainConfig(AbstractConfig):
             TorchConfig(cfg["PyTorch"]),
             FilteringConfig(cfg["Filtering"])
         )
+
+
+def _config_load(ini_path) -> ChronostrainConfig:
+    if not os.path.exists(ini_path):
+        raise FileNotFoundError("No configuration INI file found. Create a `chronostrain.ini` file, or set the `{}` environment variable to point to the right configuration.".format(__env_key__))
+
+    cfg_parser = SafeConfigParser()
+    cfg_parser.read(ini_path)
+
+    config_dict = {}
+    for section in cfg_parser.sections():
+        config_dict[section] = {
+            item.upper(): cfg_parser.get(section, item, vars=os.environ)
+            for item in cfg_parser.options(section)
+        }
+    _config = ChronostrainConfig(config_dict)
+    logger.debug("Loaded chronostrain INI from {}.".format(ini_path))
+    return _config
+
+
+__env_key__ = "CHRONOSTRAIN_INI"
+__ini__ = os.getenv(__env_key__, "chronostrain.ini")
+cfg = _config_load(__ini__)

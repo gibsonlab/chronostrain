@@ -13,7 +13,8 @@ from chronostrain import cfg
 from chronostrain.algs import AbstractModelSolver
 from chronostrain.model import *
 from chronostrain.model.reads import *
-from chronostrain.util.logger import logger
+from chronostrain.util.data_cache import CacheTag
+from . import logger
 
 
 # === Constants
@@ -164,7 +165,7 @@ class BBVIReparamSolver(AbstractModelSolver):
     def __init__(self,
                  model: GenerativeModel,
                  data: List[List[SequenceRead]],
-                 cache_tag: str,
+                 cache_tag: CacheTag,
                  out_base_dir: str,
                  read_likelihoods: List[torch.Tensor] = None
                  ):
