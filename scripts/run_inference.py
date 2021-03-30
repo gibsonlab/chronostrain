@@ -17,6 +17,7 @@ from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.reads import SequenceRead, BasicFastQErrorModel, NoiselessErrorModel
 from chronostrain.visualizations import *
 from chronostrain.model.io import load_fastq_reads, save_abundances_by_path
+from chronostrain.algs.bbvi_reparam import NaiveMeanFieldPosterior
 
 from filter import Filter
 
@@ -288,7 +289,6 @@ def perform_bbvi(
     )
     logger.info("Plots saved to {}.".format(plots_out_path))
 
-
 def perform_bbvi_reparametrization(
         model: GenerativeModel,
         reads: List[List[SequenceRead]],
@@ -317,16 +317,24 @@ def perform_bbvi_reparametrization(
 
     # TODO plot result.
     plot_bbvi_result(
+        posterior = bbvi_posterior,
         method="Black Box Variational Inference",
         times=model.times,
-        truth_path=ground_truth_path)
+        truth_path= "{}/output/simulated_reads/sim_abundances.csv".format(
+            os.getcwd()))
 
     logger.info("BBVI Complete.")
 
 def plot_bbvi_result(
+    posterior: NaiveMeanFieldPosterior,
     method: str,
     times: List[float],
     truth_path: str ):
+
+    def softmax(x):
+
+        exp_x = torch.exp(x)
+        return exp_x / torch.sum(exp_x)
 
     mean_post = posterior.get_mean()
     std_post = posterior.get_std()
@@ -336,13 +344,14 @@ def plot_bbvi_result(
     std_otu = []
 
     for i in range(1, len(mean_post)):
+        print("i", i)
         mean_softmax.append(softmax(mean_post[i]).detach().numpy())
-        mean_otu.append(mean_otu[i].detach.numpy())
-        std_otu.append(std_otu[i].detach.numpy())
+        mean_otu.append(mean_post[i].detach().numpy())
+        std_otu.append(std_post[i].detach().numpy())
 
-    true_data = pd.read_csv(truth_path, delimited=", ")
-    plotter_VI.plot_abundances(true_data, mean_softmax, mean_otu, std_otu,
-    "times", "abundance", "BBVI plot", "bbvi_results")
+    true_data = pd.read_csv(truth_path, delimiter=",", index_col=0).to_numpy()
+    plotter_VI.plot_abundances(true_data, np.asarray(mean_softmax), np.asarray(mean_otu),
+       np.asarray(std_otu), times, "times", "abundance", "BBVI plot", "bbvi_results")
 
 def perform_vi(
         model: GenerativeModel,
