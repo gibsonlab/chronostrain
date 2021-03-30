@@ -63,7 +63,7 @@ class NaiveMeanFieldPosterior:
 
             if t == 0:
                 mean = self.model.mu
-                std = self.model.tau_1
+                std = torch.tensor(self.model.tau_1)
             else:
                 mean = torch.nn.Parameter(torch.rand(self.S))
                 std = torch.tensor([2.], requires_grad=True,
@@ -101,14 +101,14 @@ class NaiveMeanFieldPosterior:
 
         inst_elbo = torch.tensor([0.], device=cfg.torch_cfg.device)
 
-        #the initial value of x (T = 0)
+        #the initial value of x (t = 0)
         inst_elbo += -self.S * 0.5 * torch.log(2 * pi *(self.model.tau_1 ** 2))
         inst_elbo += -0.5 / (self.model.tau_1 ** 2) * torch.dot(x_li[0] - self.model.mu,
             x_li[0] - self.model.mu)
+        t_prev = 0
 
         for i in range(1, self.T + 1):
-            t = self.times[i]
-            t_prev = self.times[i-1]
+            t = self.times[i-1]
             v_scale = t - t_prev
 
             # TODO: @Sawal fix this to use self.model.tau_1 and self.model.tau separately.
@@ -141,13 +141,10 @@ class NaiveMeanFieldPosterior:
         self.opt_mu.zero_grad()
         self.opt_sigma.zero_grad()
         q = MultivariateNormal(torch.zeros(self.S), torch.eye(self.S))
+
         for i in range(n_samples):
             for t in range(self.T + 1):
-                samp = 0
-                if t == 0:
-                    samp = self.model.mu + self.tau_1 * q().sample()
-                else:
-                    samp = self.mu_all[t] + self.sigma_all[t] * q.sample()
+                samp = self.mu_all[t] + self.sigma_all[t] * q.sample()
                 x_samples.append(samp)
 
             self.phi = self.update_phi(x_samples)
@@ -198,7 +195,7 @@ class BBVIReparamSolver(AbstractModelSolver):
     def solve(self,
               iters=100,
               thresh=1e-5,
-              print_debug_every=200,
+              print_debug_every=10,
               lr=1e-3):
         posterior = NaiveMeanFieldPosterior(
             model=self.model,
@@ -222,6 +219,7 @@ class BBVIReparamSolver(AbstractModelSolver):
                         softmax(mean[t]).detach().numpy(),
                         std_dev[t].detach().numpy()
                     ))
-        logger.info("Finished {it} iterations. Final ELBO: {elbo}".format(it=iters, elbo=elbo))
+        logger.info("Finished {it} iterations. Final ELBO: {elbo}".format(
+        it=iters, elbo=posterior.get_elbo()))
 
         return posterior
