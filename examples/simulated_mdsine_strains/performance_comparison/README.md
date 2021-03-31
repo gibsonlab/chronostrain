@@ -19,3 +19,12 @@ runs ten independent trials (using different seeds), where each trial samples it
 
 ### Step 2: `run_test.sh`
 To plot the results (after having finished `run_test.sh`), run `plot.sh`, with no arguments.
+
+
+## TODO:
+Write the following scripts/lsf files.
+1) generate_reads.sh: Does a for loop. For each (n_reads, trial_idx), sample a read.
+2) run_master_lsf.sh: Generates LSF files -> each LSF calls 3) or 4).
+3) run_chronostrain.sh: Takes as input (n_reads, trial_idx) and runs chronostrain on the corresponding reads.
+4) run_metaphlan.sh: Takes as input (n_reads, trial_idx) and runs metaphlan on the corresponding reads.
+5) do_plot.sh: creates trial_index file, and calls plot_perf.
