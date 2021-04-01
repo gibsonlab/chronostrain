@@ -7,9 +7,14 @@ Benchmarking chronostrain (with filtering) on sampled reads, using strains from 
 This script is meant to be run on the ERISONE compute cluster, which employs the LSF platform for job 
 submission & resource allocation.
 
+### Step 0: Prerequisites
+
+This workflow expects a conda environment called `chronostrain`, with the necessary packages installed.
+
 ### Step 1: Master script
 
-1) Open `scripts/run_master_lsf.sh` using a text editor, and edit the variable PROJECT_DIR at the top.
+1) Open `scripts/run_master_lsf.sh` using a text editor, and edit the variable PROJECT_DIR at the top. 
+(Absolute pathing is preferable, but relative pathing also works.)
 2) **Log into a compute node**.
 3) Run this script using bash:
 
@@ -26,4 +31,4 @@ This script does four things:
 
 ### Step 2: Plotting
 
-TODO
+TODO modify plot.sh to draw boxplot, not lineplot with error bars.
