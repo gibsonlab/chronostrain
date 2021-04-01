@@ -1,30 +1,29 @@
 # Example: Bacterial strains (large test)
 
-Testing chronostrain (with filtering) on sampled reads, using strains from the original MDSINE paper.
+Benchmarking chronostrain (with filtering) on sampled reads, using strains from the original MDSINE paper.
 
-## Running
-Before running, change variable `PROJECT_DIR` of `run_test.sh` and `plot.sh` to the basepath of this cloned repository 
-(located near the top of the file).
+## Running this example
 
-### Step 1: `run_test.sh`
-`run_test.sh` is run with two command line arguments:
-- number of sampled reads
-- number of trials
+This script is meant to be run on the ERISONE compute cluster, which employs the LSF platform for job 
+submission & resource allocation.
 
-For example:
+### Step 1: Master script
+
+1) Open `scripts/run_master_lsf.sh` using a text editor, and edit the variable PROJECT_DIR at the top.
+2) **Log into a compute node**.
+3) Run this script using bash:
+
 ```
-./run_test.sh 1000000 10
+bash scripts/run_master_lsf.sh
 ```
-runs ten independent trials (using different seeds), where each trial samples its own set of one million reads.
 
-### Step 2: `run_test.sh`
-To plot the results (after having finished `run_test.sh`), run `plot.sh`, with no arguments.
+This script does four things:
+- Pre-download the necessary files for strain marker database.
+- Sample reads for each *(n_reads, trial index)* pair.
+- Generate two LSF files for each *(n_reads, trial_index)* pair, one for chronostrain and one for MetaPhlan.
+- Submit each LSF using `bsub`.
 
 
-## TODO:
-Write the following scripts/lsf files.
-1) generate_reads.sh: Does a for loop. For each (n_reads, trial_idx), sample a read.
-2) run_master_lsf.sh: Generates LSF files -> each LSF calls 3) or 4).
-3) run_chronostrain.sh: Takes as input (n_reads, trial_idx) and runs chronostrain on the corresponding reads.
-4) run_metaphlan.sh: Takes as input (n_reads, trial_idx) and runs metaphlan on the corresponding reads.
-5) do_plot.sh: creates trial_index file, and calls plot_perf.
+### Step 2: Plotting
+
+TODO
