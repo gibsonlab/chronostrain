@@ -55,34 +55,13 @@ do
     mkdir -p $READS_DIR
     SEED=$trial
 
-		cat <<- EOFDOC > $LSF_PATH
-#!/bin/bash
-#BSUB -J read_sample
-#BSUB -o ${LSF_OUTPUT_DIR}/read_sample_${n_reads}_${trial}-%J.out
-#BSUB -e ${LSF_OUTPUT_DIR}/read_sample_${n_reads}_${trial}-%J.err
-#BSUB -q $LSF_QUEUE
-#BSUB -n 1
-#BSUB -M ${LSF_MEM}
-#BSUB -R rusage[mem=${LSF_MEM}]
-
-export CHRONOSTRAIN_INI=${CHRONOSTRAIN_INI}
-export CHRONOSTRAIN_LOG_INI=${CHRONOSTRAIN_LOG_INI}
-export CHRONOSTRAIN_LOG_FILEPATH=${CHRONOSTRAIN_LOG_FILEPATH}
-
-python ${PROJECT_DIR}/scripts/readgen.py \
---num_reads $n_reads \
---read_len $READ_LEN \
---out_dir $READS_DIR \
---profiles $READ_PROFILE_PATH $READ_PROFILE_PATH \
---abundance_path $TRUE_ABUNDANCE_PATH \
---seed $SEED \
---num_cores $LSF_N_CORES
-EOFDOC
+		python ${PROJECT_DIR}/scripts/readgen.py \
+		--num_reads $n_reads \
+		--read_len $READ_LEN \
+		--out_dir $READS_DIR \
+		--profiles $READ_PROFILE_PATH $READ_PROFILE_PATH \
+		--abundance_path $TRUE_ABUNDANCE_PATH \
+		--seed $SEED \
+		--num_cores $LSF_N_CORES
   done
-done
-
-# ============== Submit all LSF jobs. ================
-for lsf_file in ${LSF_OUTPUT_DIR}/*.lsf
-do
-	bsub < $lsf_file
 done
