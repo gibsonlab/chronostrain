@@ -194,12 +194,13 @@ def sample_reads_from_rel_abundances(output_path: str,
             seed + t_index
         ) for t_index, (accession, rel_abund) in enumerate(abundances.items())]
 
-        thread_pool = Pool(cpu_count())
+        thread_pool = Pool(n_cores)
         strain_read_paths = thread_pool.starmap(invoke_art, configs)
     else:
         raise ValueError("# cores must be positive. Got: {}".format(n_cores))
 
     # Concatenate all results into single file.
+    logger.debug("Concatenating {} read files.".format(len(strain_read_paths)))
     concatenate_files(strain_read_paths, output_path)
     if cleanup:
         raise NotImplementedError("Cleanup option not yet implemented.")
