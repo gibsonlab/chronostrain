@@ -257,7 +257,8 @@ def concatenate_files(input_paths, output_path):
     :return:
     """
     with open(output_path, "w") as out_file:
-        for in_path in input_paths:
+        for i, in_path in enumerate(input_paths):
+            logger.debug("File {} of {}.".format(i+1, len(input_paths)))
             with open(in_path, "r") as in_file:
                 shutil.copyfileobj(in_file, out_file)
 
