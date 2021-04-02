@@ -48,7 +48,7 @@ bash $BASE_DIR/scripts/generate_reads.sh
 # =========================================================
 
 # ================ LSF creation ===========================
-for (( n_reads = ${N_READS_MIN}; n_reads < ${N_READS_MAX}+1; n_reads += ${N_READS_STEP} ));                                                                                        |
+for (( n_reads = ${N_READS_MIN}; n_reads < ${N_READS_MAX}+1; n_reads += ${N_READS_STEP} ));
 do
 	for (( trial = 1; trial < ${N_TRIALS}+1; trial++ ));
 	do
