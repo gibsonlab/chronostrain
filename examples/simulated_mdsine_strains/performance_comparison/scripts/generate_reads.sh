@@ -23,7 +23,7 @@ RUNS_DIR="${BASE_DIR}/runs"
 READ_LEN=150
 READ_PROFILE_PATH="${BASE_DIR}/files/HiSeqReference"
 
-LSF_QUEUE="big"
+LSF_QUEUE="gpu"
 CONDA_ENV="chronostrain"
 LSF_MEM=10000
 LSF_N_CORES=4

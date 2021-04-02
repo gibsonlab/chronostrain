@@ -6,12 +6,13 @@ set -e
 PROJECT_DIR="/PHShome/yk847/chronostrain"
 # =====================================
 
-LSF_QUEUE="big"
+LSF_QUEUE="gpu"
 CONDA_ENV="chronostrain"
-
 # (note: 1000 = 1gb)
-CHRONOSTRAIN_MEM=10000
-METAPHLAN_MEM=10000
+LSF_CHRONOSTRAIN_MEM=10000
+LSF_CHRONOSTRAIN_N_CORES=1
+LSF_METAPHLAN_MEM=10000
+LSF_METAPHLAN_N_CORES=4
 
 N_READS_MIN=10000
 N_READS_MAX=100000
@@ -46,9 +47,9 @@ do
 		#BSUB -o ${LSF_OUTPUT_DIR}/chronostrain_${n_reads}_${trial}-%J.out
 		#BSUB -e ${LSF_OUTPUT_DIR}/chronostrain_${n_reads}_${trial}-%J.err
 		#BSUB -q $LSF_QUEUE
-		#BSUB -n 1
-		#BSUB -M ${CHRONOSTRAIN_MEM}
-		#BSUB -R rusage[mem=${CHRONOSTRAIN_MEM}]
+		#BSUB -n ${LSF_CHRONOSTRAIN_N_CORES}
+		#BSUB -M ${LSF_CHRONOSTRAIN_MEM}
+		#BSUB -R rusage[mem=${LSF_CHRONOSTRAIN_MEM}]
 
 		source activate ${CONDA_ENV}
 		export PROJECT_DIR=${PROJECT_DIR}
@@ -63,9 +64,9 @@ do
 		#BSUB -o ${LSF_OUTPUT_DIR}/metaphlan_${n_reads}_${trial}-%J.out
 		#BSUB -e ${LSF_OUTPUT_DIR}/metaphlan_${n_reads}_${trial}-%J.err
 		#BSUB -q $LSF_QUEUE
-		#BSUB -n 1
-		#BSUB -M ${METAPHLAN_MEM}
-		#BSUB -R rusage[mem=${METAPHLAN_MEM}]
+		#BSUB -n ${LSF_METAPHLAN_N_CORES}
+		#BSUB -M ${LSF_METAPHLAN_MEM}
+		#BSUB -R rusage[mem=${LSF_METAPHLAN_MEM}]
 
 		source activate ${CONDA_ENV}
 		export PROJECT_DIR=${PROJECT_DIR}
