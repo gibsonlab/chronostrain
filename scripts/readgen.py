@@ -82,7 +82,6 @@ def main():
 
     timepoint_indexed_files = []
     for t, abundance_t in parse_abundance_profile(args.abundance_path):
-        print("t = {}".format(t))
         out_path_t = os.path.join(args.out_dir, "reads_{t}.fastq".format(t=t))
         tmpdir = os.path.join(args.out_dir, "tmp_{t}".format(t=t))
         Path(tmpdir).mkdir(parents=True, exist_ok=True)
@@ -102,7 +101,6 @@ def main():
         )
 
         timepoint_indexed_files.append((t, out_path_t))
-        print("finished t={}".format(t))
     logger.info("Sampled reads to {}".format(args.out_dir))
 
     index_path = os.path.join(args.out_dir, "input_files.csv")
@@ -204,7 +202,6 @@ def sample_reads_from_rel_abundances(final_reads_path: str,
     # Concatenate all results into single file.
     logger.debug("Concatenating {} read files to {}.".format(len(strain_read_paths), final_reads_path))
     concatenate_files(strain_read_paths, final_reads_path)
-    logger.debug("Output reads file: {}".format(final_reads_path))
 
     if cleanup:
         raise NotImplementedError("Cleanup option not yet implemented.")
