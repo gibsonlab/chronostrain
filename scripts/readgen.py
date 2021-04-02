@@ -139,7 +139,7 @@ def parse_abundance_profile(abundance_path: str) -> List[Tuple[float, Dict]]:
         return abundances
 
 
-def sample_reads_from_rel_abundances(output_path: str,
+def sample_reads_from_rel_abundances(final_reads_path: str,
                                      abundances: Dict[str, float],
                                      num_reads: int,
                                      strain_db: AbstractStrainDatabase,
@@ -202,9 +202,9 @@ def sample_reads_from_rel_abundances(output_path: str,
         raise ValueError("# cores must be positive. Got: {}".format(n_cores))
 
     # Concatenate all results into single file.
-    logger.debug("Concatenating {} read files to {}.".format(len(strain_read_paths), output_path))
-    concatenate_files(strain_read_paths, output_path)
-    logger.debug("Output reads file: {}".format(output_path))
+    logger.debug("Concatenating {} read files to {}.".format(len(strain_read_paths), final_reads_path))
+    concatenate_files(strain_read_paths, final_reads_path)
+    logger.debug("Output reads file: {}".format(final_reads_path))
 
     if cleanup:
         raise NotImplementedError("Cleanup option not yet implemented.")
