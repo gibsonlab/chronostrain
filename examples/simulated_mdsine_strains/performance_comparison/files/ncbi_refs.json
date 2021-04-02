@@ -3,77 +3,77 @@
         "markers": [
                     {"type": "primer", "forward": "GTGCCAGCMGCCGCGGTAA", "reverse": "GGACTACHVGGGTWTCTAAT", "name": "16S_V4"}
                 ],
-        "name": "AMuciniphila",
+        "name": "A. Muciniphila",
         "accession": "CP001071.1"
     },
     {
         "markers": [
                     {"type": "primer", "forward": "GTGCCAGCMGCCGCGGTAA", "reverse": "GGACTACHVGGGTWTCTAAT", "name": "16S_V4"}
                 ],
-        "name": "BFragilis",
-        "accession": "NC_003228.3"
+        "name": "B. Fragilis",
+        "accession": "CR626927.1"
     },
     {
         "markers": [
                     {"type": "primer", "forward": "GTGCCAGCMGCCGCGGTAA", "reverse": "GGACTACHVGGGTWTCTAAT", "name": "16S_V4"}
                 ],
-        "name": "EColi",
-        "accession": "NC_000913.3"
+        "name": "E. Coli",
+        "accession": "U00096"
     },
     {
         "markers": [
                     {"type": "primer", "forward": "GTGCCAGCMGCCGCGGTAA", "reverse": "GGACTACHVGGGTWTCTAAT", "name": "16S_V4"}
                 ],
-        "name": "BOvatus",
+        "name": "B. Ovatus",
         "accession": "NZ_CP012938.1"
     },
     {
         "markers": [
                     {"type": "primer", "forward": "GTGCCAGCMGCCGCGGTAA", "reverse": "GGACTACHVGGGTWTCTAAT", "name": "16S_V4"}
                 ],
-        "name": "BVulgatus",
+        "name": "B. Vulgatus",
         "accession": "CP000139.1"
     },
     {
         "markers": [
                     {"type": "primer", "forward": "GTGCCAGCMGCCGCGGTAA", "reverse": "GGACTACHVGGGTWTCTAAT", "name": "16S_V4"}
                 ],
-        "name": "CSporogenes",
+        "name": "C. Sporogenes",
         "accession": "NZ_CP013243.1"
     },
     {
         "markers": [
                     {"type": "primer", "forward": "GTGCCAGCMGCCGCGGTAA", "reverse": "GGACTACHVGGGTWTCTAAT", "name": "16S_V4"}
                 ],
-        "name": "EFaecalis",
-        "accession": "KB947309.1"
+        "name": "E. Faecalis, Strain T90-2",
+        "accession": "CP068242.1"
     },
     {
         "markers": [
                     {"type": "primer", "forward": "GTGCCAGCMGCCGCGGTAA", "reverse": "GGACTACHVGGGTWTCTAAT", "name": "16S_V4"}
                 ],
-        "name": "KOxytoca",
+        "name": "K. Oxytoca",
         "accession": "CP026285.1"
     },
     {
         "markers": [
                     {"type": "primer", "forward": "GTGCCAGCMGCCGCGGTAA", "reverse": "GGACTACHVGGGTWTCTAAT", "name": "16S_V4"}
                 ],
-        "name": "PDistasonis",
+        "name": "P. Distasonis",
         "accession": "NC_009615.1"
     },
     {
         "markers": [
                     {"type": "primer", "forward": "GTGCCAGCMGCCGCGGTAA", "reverse": "GGACTACHVGGGTWTCTAAT", "name": "16S_V4"}
                 ],
-        "name": "PMirabilis",
-        "accession": "GG668576.1"
+        "name": "P. Mirabilis",
+        "accession": "CP044436.1"
     },
     {
         "markers": [
                     {"type": "primer", "forward": "GTGCCAGCMGCCGCGGTAA", "reverse": "GGACTACHVGGGTWTCTAAT", "name": "16S_V4"}
                 ],
-        "name": "RGnavus",
+        "name": "R. Gnavus",
         "accession": "CP027002.1"
     }
 ]
