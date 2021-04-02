@@ -17,11 +17,13 @@ def ref_base_name(ref_path: str) -> str:
     return ref_base_name
 
 
-def call_command(command: str, args: List[str]) -> int:
+def call_command(command: str, args: List[str], cwd: str = None) -> int:
     """
     Executes the command (using the subprocess module).
     :param command: The binary to run.
     :param args: The command-line arguments.
+    :param cwd: The `cwd param in subprocess. If not `None`, the function changes
+    the working directory to cwd prior to execution.
     :return: The exit code. (zero by default, the program's returncode if error.)
     """
     logger.debug("EXECUTE: {} {}".format(
@@ -29,7 +31,12 @@ def call_command(command: str, args: List[str]) -> int:
         " ".join(args)
     ))
 
-    p = subprocess.run([command] + args, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+    p = subprocess.run(
+        [command] + args,
+        stderr=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        cwd=cwd
+    )
     logger.debug("STDOUT: {}".format(p.stdout.decode("utf-8")))
     logger.debug("STDERR: {}".format(p.stderr.decode("utf-8")))
     return p.returncode
