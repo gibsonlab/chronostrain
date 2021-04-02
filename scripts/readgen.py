@@ -204,6 +204,7 @@ def sample_reads_from_rel_abundances(final_reads_path: str,
     concatenate_files(strain_read_paths, final_reads_path)
 
     if cleanup:
+        logger.debug("Cleaning up temp directory {}.".format(tmp_dir))
         shutil.rmtree(tmp_dir)
 
 
