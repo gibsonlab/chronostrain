@@ -38,15 +38,6 @@ export CHRONOSTRAIN_LOG_FILEPATH
 mkdir -p $LSF_DIR
 mkdir -p $LSF_OUTPUT_DIR
 
-# =========================================================
-# Database initialization. (pre-download fasta and markers.)
-python $BASE_DIR/scripts/initialize_database.py
-# =========================================================
-
-# ================ Sample reads. ==========================
-bash $BASE_DIR/scripts/generate_reads.sh $N_READS_MIN $N_READS_MAX $N_READS_STEP $N_TRIALS
-# =========================================================
-
 # ================ LSF creation ===========================
 for (( n_reads = ${N_READS_MIN}; n_reads < ${N_READS_MAX}+1; n_reads += ${N_READS_STEP} ));
 do
