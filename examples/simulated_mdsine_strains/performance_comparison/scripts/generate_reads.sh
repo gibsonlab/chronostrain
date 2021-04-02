@@ -65,6 +65,10 @@ do
 #BSUB -M ${LSF_MEM}
 #BSUB -R rusage[mem=${LSF_MEM}]
 
+export CHRONOSTRAIN_INI=${CHRONOSTRAIN_INI}
+export CHRONOSTRAIN_LOG_INI=${CHRONOSTRAIN_LOG_INI}
+export CHRONOSTRAIN_LOG_FILEPATH=${CHRONOSTRAIN_LOG_FILEPATH}
+
 python ${PROJECT_DIR}/scripts/readgen.py \
 --num_reads $n_reads \
 --read_len $READ_LEN \
