@@ -10,7 +10,6 @@ from typing import Tuple, Dict, List
 
 from chronostrain import cfg, logger
 from chronostrain.database import AbstractStrainDatabase
-from .filter import CommandLineException, call_command
 
 
 def parse_args():
@@ -39,6 +38,41 @@ def parse_args():
                         help='<Optional> If flag is turned on, removes all temporary fastq files after execution.')
 
     return parser.parse_args()
+
+
+class CommandLineException(BaseException):
+    def __init__(self, cmd, exit_code):
+        super().__init__("`{}` encountered an error.".format(cmd))
+        self.cmd = cmd
+        self.exit_code = exit_code
+
+
+import subprocess
+
+
+def call_command(command: str, args: List[str], cwd: str = None) -> int:
+    """
+    Executes the command (using the subprocess module).
+    :param command: The binary to run.
+    :param args: The command-line arguments.
+    :param cwd: The `cwd param in subprocess. If not `None`, the function changes
+    the working directory to cwd prior to execution.
+    :return: The exit code. (zero by default, the program's returncode if error.)
+    """
+    logger.debug("EXECUTE: {} {}".format(
+        command,
+        " ".join(args)
+    ))
+
+    p = subprocess.run(
+        [command] + args,
+        stderr=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        cwd=cwd
+    )
+    logger.debug("STDOUT: {}".format(p.stdout.decode("utf-8")))
+    logger.debug("STDERR: {}".format(p.stderr.decode("utf-8")))
+    return p.returncode
 
 
 def main():
