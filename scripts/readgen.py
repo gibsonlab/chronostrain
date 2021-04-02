@@ -126,7 +126,7 @@ def parse_abundance_profile(abundance_path: str) -> List[Tuple[float, Dict]]:
     with open(abundance_path, 'r') as f:
         abundances = []
         reader = csv.reader(f, delimiter=',', quotechar='"')
-        accessions = reader.next()[1:]
+        accessions = next(reader)[1:]
         for row in reader:
             t = float(row[0].strip())
             rel_abundances = {
