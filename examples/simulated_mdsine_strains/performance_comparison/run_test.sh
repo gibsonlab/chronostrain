@@ -5,6 +5,12 @@ set -e
 # Change this to where project is located. Should be able to call `python scripts/run_inference.py`.
 PROJECT_DIR="/mnt/f/microbiome_tracking"
 # =====================================
+# The location of the ReadGenAndFiltering repo for sampling
+READGEN_DIR=""
+# A TSV mapping from designation to reference genome file path for the sampler. 
+# Designations must match those in true_abundances
+COMMUNITY_REFERENCES=""
+# =====================================
 # Command line args
 NUM_READS=$1
 N_TRIALS=$2
@@ -46,9 +52,14 @@ do
   SEED=$trial
 
   # ============ Generate the reads. ===============
-  # TODO implement this part.
-  echo "TODO: add call to read sampler here."
-  exit 1
+  python $READGEN_DIR/ReadGen.py \
+  $NUM_READS $READ_LEN $trial \
+  $READGEN_DIR/profiles/HiSeqReference \
+  $READGEN_DIR/profiles/HiSeqReference \
+  $COMMUNITY_REFERENCES \
+  $TRUE_ABUNDANCE_PATH \
+  $READS_DIR \
+  $SEED
   # ================================================
 
   # =========== Run chronostrain. ==================
