@@ -204,7 +204,7 @@ def sample_reads_from_rel_abundances(final_reads_path: str,
     concatenate_files(strain_read_paths, final_reads_path)
 
     if cleanup:
-        raise NotImplementedError("Cleanup option not yet implemented.")
+        shutil.rmtree(tmp_dir)
 
 
 def invoke_art(reference_path: str,
