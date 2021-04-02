@@ -202,8 +202,10 @@ def sample_reads_from_rel_abundances(output_path: str,
         raise ValueError("# cores must be positive. Got: {}".format(n_cores))
 
     # Concatenate all results into single file.
-    logger.debug("Concatenating {} read files.".format(len(strain_read_paths)))
+    logger.debug("Concatenating {} read files to {}.".format(len(strain_read_paths), output_path))
     concatenate_files(strain_read_paths, output_path)
+    logger.debug("Output reads file: {}".format(output_path))
+
     if cleanup:
         raise NotImplementedError("Cleanup option not yet implemented.")
 
