@@ -4,8 +4,8 @@ import random
 import csv
 from pathlib import Path
 
+import shutil
 from multiprocessing.dummy import Pool
-from multiprocessing import cpu_count
 from typing import Tuple, Dict, List
 
 from chronostrain import cfg, logger
@@ -259,8 +259,7 @@ def concatenate_files(input_paths, output_path):
     with open(output_path, "w") as out_file:
         for in_path in input_paths:
             with open(in_path, "r") as in_file:
-                for line in in_file:
-                    print(line, file=out_file)
+                shutil.copyfileobj(in_file, out_file)
 
 
 if __name__ == "__main__":
