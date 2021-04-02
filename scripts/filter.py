@@ -35,6 +35,25 @@ def call_command(command: str, args: List[str]) -> int:
     return p.returncode
 
 
+def call_command_to_file(command: str, args: List[str], output_path: str) -> int:
+    '''
+    Currently used only by samtools, which does not have optional output redirection
+    '''
+    logger.debug("EXECUTE: {} {}".format(
+        command,
+        " ".join(args)
+    ))
+
+    # Done in two steps to replicate UNIX pipes, which overwrite after read
+    p = subprocess.run([command] + args, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+    output_file = open(output_path, 'w')
+    output_file.write(p.stdout.decode("utf-8"))
+    output_file.close()
+
+    logger.debug("STDERR: {}".format(p.stderr.decode("utf-8")))
+    return p.returncode
+
+
 class CommandLineException(BaseException):
     def __init__(self, cmd, exit_code):
         super().__init__("`{}` encountered an error.".format(cmd))
@@ -43,6 +62,9 @@ class CommandLineException(BaseException):
 
 
 def call_cora(read_length, reference_paths, hom_table_dir, read_path, output_paths, cora_path="cora"):
+    '''
+    Slightly obfuscated, not updated for multifasta input
+    '''
     threads_available = cpu_count()
     read_path_dir = os.path.dirname(read_path)
     cora_read_file_path = os.path.join(read_path_dir, "coraReadFileList")
@@ -101,16 +123,22 @@ def call_cora(read_length, reference_paths, hom_table_dir, read_path, output_pat
         if exit_code != 0:
             raise CommandLineException("cora search", exit_code)
 
+    reconstruct_md_tags(output_paths, reference_paths)
 
-def call_bwa(reference_paths, read_path, output_paths, bwa_path="bwa"):
-    for reference_path, output_path in zip(reference_paths, output_paths):
-        exit_code = call_command(bwa_path, ['index', reference_path])
-        if exit_code != 0:
-            raise CommandLineException("bwa index", exit_code)
 
-        exit_code = call_command(bwa_path, ['mem', '-o', output_path, reference_path, read_path])
-        if exit_code != 0:
-            raise CommandLineException("bwa mem", exit_code)
+def call_bwa(reference_path, read_path, output_path, bwa_path="bwa"):
+    '''
+    TODO: Allow configurable minimum seed length
+    '''
+    MIN_SEED_LENGTH = 100
+
+    exit_code = call_command(bwa_path, ['index', reference_path])
+    if exit_code != 0:
+        raise CommandLineException("bwa index", exit_code)
+
+    exit_code = call_command(bwa_path, ['mem', '-o', output_path, '-k', str(MIN_SEED_LENGTH), reference_path, read_path])
+    if exit_code != 0:
+        raise CommandLineException("bwa mem", exit_code)
 
 
 def reconstruct_md_tags(cora_output_paths, reference_paths):
@@ -119,7 +147,7 @@ def reconstruct_md_tags(cora_output_paths, reference_paths):
     The original file is preserved, the tag is inserted in each line
     """
     for cora_output_path, reference_path in zip(cora_output_paths, reference_paths):
-        exit_code = call_command('samtools', ['fillmd', '-S', cora_output_path, reference_path, '>', cora_output_path])
+        exit_code = call_command_to_file('samtools', ['fillmd', '-S', cora_output_path, reference_path], cora_output_path)
         if exit_code != 0:
             raise CommandLineException("samtools fillmd", exit_code)
 
@@ -145,64 +173,100 @@ def parse_md_tag(tag):
             elif len(sequence) == 1:  # (2)
                 total_clipped_length += 1
             else:
-                print("Unrecognized sequence in MD tag: " + sequence)
+                logger.warn("Unrecognized sequence in MD tag: " + sequence)
     return total_matches / total_clipped_length
 
 
-def find_beginning_clip(cigar_tag):
-    split_cigar = re.findall('\d+|\D+', cigar_tag)
-    if split_cigar[1] == 'S':
-        return int(split_cigar[0])
-    return 0
+def trim_read_quality(read_quality):
+    '''
+    TODO: This trim is for HiSeq150, avg phred score of 30. Add setup in config, possibly by reading quality profile
+    '''
+    return read_quality[5:-10]
 
 
-def apply_filter(percent_identity, beginning_clip, start_index):
+def probability_from_ascii_encoding(ascii_quality):
+    '''
+    TODO: Double check the encoding for other sequencers. This agrees with fastQC on illumina reads
+    '''
+    return 10**(-(ord(ascii_quality)-33)/10)
+
+
+def find_expected_errors(probs):
+    return sum(probs)
+
+
+def filter_on_read_quality(read_quality):
+    '''
+    TODO: Allow configurable expected error threshold
+    '''
+    ERROR_THRESHOLD = 3
+
+    trimmed_quality = trim_read_quality(read_quality)
+    probs = [probability_from_ascii_encoding(ascii_quality) for ascii_quality in read_quality]
+    expected_errs = find_expected_errors(probs)
+    if expected_errs > ERROR_THRESHOLD:
+        return False
+    return True
+
+
+def filter_on_match_identity(percent_identity):
     """
     Applies a filtering criteria for reads that continue in the pipeline. Currently a simple threshold on percent identity,
     likely should be adjusted to maximize downstream sensitivity?
-    Also filters out alignments that begin mid-read
+
+    TODO: Allow configurable percent identity threshold
     """
-    return int(percent_identity > 0.9 and (beginning_clip > start_index or beginning_clip < 10))
+    return percent_identity > 0.9
 
 
-def filter_file(sam_file, output_dir) -> str:
+def filter_file(sam_file, output_path_stem) -> str:
     """
     Parses a sam file and filters reads using the above criteria.
     Writes the results to a fastq file containing the passing reads and a TSV containing columns:
         Read Name    Percent Identity    Passes Filter?
     :return: The full path to the relevant reads fastq path.
     """
-    result_metadata_path = os.path.join(output_dir, 'metadata.tsv')
-    result_fq_path = os.path.join(output_dir, 'reads.fq')
-    result_sam_path = os.path.join(output_dir, 'Alignments.sam')
+
+    # SAM file tag indices. Optional tags like MD can appear in any order after index 10
+    READ_ACCESSION_INDEX = 0
+    MAPPING_FLAG_INDEX = 1
+    READ_INDEX = 9
+    QUALITY_INDEX = 10
+
+    result_metadata_path = output_path_stem + 'metadata.tsv'
+    result_fq_path = output_path_stem + 'reads.fq'
+    result_sam_path = output_path_stem + 'Alignments.sam'
 
     sam_file = open(sam_file, 'r')
     result_metadata = open(result_metadata_path, 'w')
     result_fq = open(result_fq_path, 'w')
     result_full_alignment = open(result_sam_path, 'w')
 
-    # =========== TODO fix this part to use samtools.
-    # for aln in sam_file:
-    #     # Header line. Skip.
-    #     if aln[0] == '@':
-    #         continue
-    #
-    #     tags = aln.strip().split('\t')
-    #     start_index = int(tags[3])
-    #     for tag in tags:
-    #         print(tag)
-    #         if tag[:5] == 'MD:Z:':
-    #             percent_identity = parse_md_tag(tag[5:])
-    #             result_metadata.write(tags[0] + '\t{:0.4f}\t'.format(percent_identity) + str(
-    #                 apply_filter(percent_identity, find_beginning_clip(tags[5]), start_index)) + '\n')
-    #             if apply_filter(percent_identity, find_beginning_clip(tags[5]), start_index) == 1:
-    #                 result_fq.write('@' + tags[0] + '\n')  # Read info
-    #                 result_fq.write(tags[9] + '\n')  # Read sequence
-    #                 result_fq.write('+\n')
-    #                 result_fq.write(tags[10] + '\n')  # Read quality
-    #                 result_full_alignment.write(aln)
+    for aln in sam_file:
+        # Header line. Skip.
+        if aln[0] == '@':
+            continue
+    
+        tags = aln.strip().split('\t')
 
-    raise NotImplementedError("TODO remove me after implementing.")
+        # Unmapped flag, no alignment.
+        if tags[MAPPING_FLAG_INDEX] == '4':
+            continue
+
+        for tag in tags:
+            if tag[:5] == 'MD:Z:':
+                percent_identity = parse_md_tag(tag[5:])
+                passed_filter = bool(filter_on_match_identity(percent_identity) \
+                    and filter_on_read_quality(tags[QUALITY_INDEX]))
+
+                result_metadata.write(tags[READ_ACCESSION_INDEX] + '\t{:0.4f}\t'.format(percent_identity)
+                    + str(int(passed_filter)) + '\n')
+                if passed_filter:
+                    result_fq.write('@' + tags[READ_ACCESSION_INDEX] + '\n')
+                    result_fq.write(tags[READ_INDEX] + '\n')
+                    result_fq.write('+\n')
+                    result_fq.write(tags[QUALITY_INDEX] + '\n')
+                    result_full_alignment.write(aln)
 
     result_full_alignment.close()
     result_metadata.close()
@@ -211,73 +275,37 @@ def filter_file(sam_file, output_dir) -> str:
     return result_fq_path
 
 
-
 class Filter:
-    def __init__(self, reference_file_paths: list, reads_paths: list, time_points: list, align_cmd: str):
-        logger.debug("Ref paths: {}".format(reference_file_paths))
-        self.reference_paths = [os.path.join(os.getcwd(), path) for path in reference_file_paths]
+    def __init__(self, reference_file_path: str, reads_paths: list, time_points: list, align_cmd: str):
+        logger.debug("Ref path: {}".format(reference_file_path))
+        self.reference_path = os.path.join(os.getcwd(), reference_file_path)
         self.reads_paths = reads_paths
         self.time_points = time_points
         self.align_cmd = align_cmd
-
-    def cat_resulting_reads(self, output_path: str, filenames: list):
-        with open(output_path, 'w') as output:
-            for file in filenames:
-                with open(file, 'r') as input:
-                    for line in input:
-                        output.write(line)
-        return output_path
 
     def apply_filter(self, read_length: int):
         resulting_files = []
         for time_point, reads_path in zip(self.time_points, self.reads_paths):
             base_path = os.path.dirname(reads_path)
-            cora_tmp_dir = os.path.join(base_path, "tmp", "cora")
-            indiv_filtered_reads_dir = os.path.join(base_path, "filtered")
+            aligner_tmp_dir = os.path.join(base_path, "tmp")
+            filtered_reads_dir = os.path.join(base_path, "filtered")
             final_filtered_reads_path = os.path.join(base_path, "{}.filtered.fq".format(time_point))
 
-            if not os.path.exists(cora_tmp_dir):
-                os.makedirs(cora_tmp_dir)
-            if not os.path.exists(indiv_filtered_reads_dir):
-                os.makedirs(indiv_filtered_reads_dir)
+            if not os.path.exists(aligner_tmp_dir):
+                os.makedirs(aligner_tmp_dir)
+            if not os.path.exists(filtered_reads_dir):
+                os.makedirs(filtered_reads_dir)
 
-            sam_paths = [
-                os.path.join(
-                    cora_tmp_dir,
-                    "{}.sam".format(ref_base_name(reference_path))
-                )
-                for reference_path in self.reference_paths
-            ]
-
-            # call_cora(
-            #     read_length=read_length,
-            #     reference_paths=self.reference_paths,
-            #     hom_table_dir=cora_tmp_dir,
-            #     read_path=reads_path,
-            #     output_paths=sam_paths,
-            #     cora_path=self.align_exec_path
-            # )
+            sam_path = os.path.join(aligner_tmp_dir, "{}-{}.sam".format(time_point, ref_base_name(self.reference_path)))
 
             call_bwa(
-                reference_paths=self.reference_paths,
+                reference_path=self.reference_path,
                 read_path=reads_path,
-                output_paths=sam_paths,
+                output_path=sam_path,
                 bwa_path=self.align_cmd
             )
 
-            indiv_filtered_paths = []
-            for reference_path, sam_path in zip(self.reference_paths, sam_paths):
-                output_dir = os.path.join(indiv_filtered_reads_dir, "{}-{}-Passed".format(time_point, ref_base_name(reference_path)))
-                if not os.path.exists(output_dir):
-                    os.makedirs(output_dir)
+            ref_filtered_path = filter_file(sam_path, filtered_reads_dir + "/{}-".format(time_point))
+            resulting_files.append(ref_filtered_path)
 
-                ref_filtered_path = filter_file(sam_path, output_dir)
-                indiv_filtered_paths.append(ref_filtered_path)
-
-            resulting_files.append(
-                self.cat_resulting_reads(
-                    output_path=final_filtered_reads_path,
-                    filenames=indiv_filtered_paths
-                )
-            )
         return resulting_files

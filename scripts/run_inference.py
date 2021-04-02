@@ -509,7 +509,7 @@ def main():
         # ============ Perform read filtering.
         logger.info("Performing filter on reads.")
         filt = Filter(
-            reference_file_paths=[strain.metadata.file_path for strain in population.strains],
+            reference_file_path=db.save_markers_to_multifasta(),
             reads_paths=read_paths,
             time_points=time_points,
             align_cmd=cfg.filter_cfg.align_cmd
