@@ -174,7 +174,7 @@ def sample_reads_from_rel_abundances(output_path: str,
                 reference_path=strain.metadata.file_path,
                 num_reads=int(rel_abund * num_reads),
                 output_dir=tmp_dir,
-                output_prefix=accession,
+                output_prefix="{}_".format(accession),
                 profile_first=profile_first,
                 profile_second=profile_second,
                 read_length=read_len,
@@ -187,7 +187,7 @@ def sample_reads_from_rel_abundances(output_path: str,
             strain_db.get_strain(accession).metadata.file_path,
             int(rel_abund * num_reads),
             tmp_dir,
-            accession,
+            "{}_".format(accession),
             profile_first,
             profile_second,
             read_len,
@@ -244,7 +244,7 @@ def invoke_art(reference_path: str,
     if exit_code != 0:
         raise CommandLineException("art_illumina", exit_code)
     else:
-        return os.path.join(output_dir, "{}.fq".format(output_prefix))
+        return os.path.join(output_dir, "{}1.fq".format(output_prefix))
 
 
 def concatenate_files(input_paths, output_path):
