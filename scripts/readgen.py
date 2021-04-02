@@ -88,7 +88,7 @@ def main():
         Path(tmpdir).mkdir(parents=True, exist_ok=True)
 
         sample_reads_from_rel_abundances(
-            output_path=out_path_t,
+            final_reads_path=out_path_t,
             abundances=abundance_t,
             num_reads=args.num_reads,
             strain_db=strain_db,
