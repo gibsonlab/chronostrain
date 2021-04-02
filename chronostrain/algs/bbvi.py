@@ -12,12 +12,13 @@ import torch
 from torch.distributions.multivariate_normal import MultivariateNormal
 
 from chronostrain.config import cfg
-from chronostrain.util.logger import logger
+from chronostrain.util.data_cache import CacheTag
 from chronostrain.algs.vi import AbstractVariationalPosterior
 from chronostrain.model.reads import SequenceRead
 from chronostrain.algs.base import AbstractModelSolver
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.util.benchmarking import RuntimeEstimator
+from . import logger
 
 
 class GaussianPosterior(AbstractVariationalPosterior):
@@ -188,7 +189,7 @@ class BBVISolver(AbstractModelSolver):
     def __init__(self,
                  model: GenerativeModel,
                  data: List[List[SequenceRead]],
-                 cache_tag: str):
+                 cache_tag: CacheTag):
         super().__init__(model, data, cache_tag)
         self.posterior = GaussianPosterior(
             times=model.num_times(),

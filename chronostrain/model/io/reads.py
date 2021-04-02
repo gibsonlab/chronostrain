@@ -7,7 +7,7 @@ from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
-from chronostrain.util.logger import logger
+from . import logger
 from chronostrain.model.reads import SequenceRead
 from chronostrain.util.filesystem import convert_size, get_filesize_bytes
 

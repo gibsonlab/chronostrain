@@ -6,7 +6,7 @@ from chronostrain.config import cfg
 from chronostrain.database.base import AbstractStrainDatabase, StrainEntryError, StrainNotFoundError
 from chronostrain.model.bacteria import Strain, Marker, StrainMetadata
 from chronostrain.util.ncbi import fetch_fasta
-from chronostrain.util.logger import logger
+from . import logger
 
 
 class SimpleCSVStrainDatabase(AbstractStrainDatabase):
@@ -37,7 +37,7 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
                 genome = genome[:self.trim_debug]
             markers = [Marker(name=strain_name, seq=genome, metadata=None)]  # Each genome's marker is its own genome.
             self.strains[accession] = Strain(
-                name="{}:{}".format(strain_name, accession),
+                name=accession,
                 markers=markers,
                 genome_length=len(genome),
                 metadata=StrainMetadata(

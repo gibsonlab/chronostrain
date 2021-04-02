@@ -7,8 +7,7 @@ import logging.handlers
 
 
 __env_key__ = "CHRONOSTRAIN_LOG_INI"
-__name__ = "ChronostrainLogger"
-__ini__ = os.getenv(__env_key__, "log_config.ini")
+__ini_path__ = os.getenv(__env_key__, "log_config.ini")
 
 
 class LoggingLevelFilter(logging.Filter):
@@ -18,20 +17,6 @@ class LoggingLevelFilter(logging.Filter):
 
     def filter(self, rec):
         return rec.levelno in self.levels
-
-
-def mkdir_path(path):
-    """http://stackoverflow.com/a/600612/190597 (tzot)"""
-    try:
-        os.makedirs(path, exist_ok=True)  # Python>3.2
-    except TypeError:
-        try:
-            os.makedirs(path)
-        except OSError as exc:  # Python >2.5
-            if exc.errno == errno.EEXIST and os.path.isdir(path):
-                pass
-            else:
-                raise
 
 
 class MakeDirTimedRotatingFileHandler(logging.handlers.TimedRotatingFileHandler):
@@ -48,8 +33,7 @@ class MakeDirTimedRotatingFileHandler(logging.handlers.TimedRotatingFileHandler)
                  utc=False,
                  atTime=None):
         filename = os.path.abspath(filename)
-        mkdir_path(os.path.dirname(filename))
-        print("[logger.py] Logs will be written to {}.".format(filename))
+        MakeDirTimedRotatingFileHandler.mkdir_path(os.path.dirname(filename))
         super().__init__(filename=filename,
                          when=when,
                          interval=interval,
@@ -59,14 +43,28 @@ class MakeDirTimedRotatingFileHandler(logging.handlers.TimedRotatingFileHandler)
                          utc=utc,
                          atTime=atTime)
 
+    @staticmethod
+    def mkdir_path(path):
+        """http://stackoverflow.com/a/600612/190597 (tzot)"""
+        try:
+            os.makedirs(path, exist_ok=True)  # Python>3.2
+        except TypeError:
+            try:
+                os.makedirs(path)
+            except OSError as exc:  # Python >2.5
+                if exc.errno == errno.EEXIST and os.path.isdir(path):
+                    pass
+                else:
+                    raise
 
-def default_logger():
-    logger = logging.getLogger("DefaultLogger")
+
+def default_logger(name: str):
+    logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
 
     stdout_handler = logging.StreamHandler(sys.stdout)
     stdout_handler.addFilter(LoggingLevelFilter([logging.INFO, logging.DEBUG]))
-    stdout_handler.setLevel(logging.DEBUG)
+    stdout_handler.setLevel(logging.INFO)
     stdout_formatter = logging.Formatter("%(message)s")
     stdout_handler.setFormatter(stdout_formatter)
 
@@ -81,13 +79,12 @@ def default_logger():
     return logger
 
 
-# ============= Create logger instance. ===========
-logging.handlers.MakeDirTimedRotatingFileHandler = MakeDirTimedRotatingFileHandler
-if not os.path.exists(__ini__):
-    logger = default_logger()
-else:
-    try:
-        logging.config.fileConfig(__ini__)
-        logger = logging.getLogger(__name__)
-    except KeyError:
-        raise KeyError("Make sure INI file defines logger with key `{}` .".format(__name__)) from None
+def create_logger(module_name: str):
+    # ============= Create logger instance. ===========
+    logging.handlers.MakeDirTimedRotatingFileHandler = MakeDirTimedRotatingFileHandler
+    if not os.path.exists(__ini_path__):
+        logger = default_logger(module_name)
+    else:
+        logging.config.fileConfig(__ini_path__)
+        logger = logging.getLogger(module_name)
+    return logger

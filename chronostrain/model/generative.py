@@ -14,7 +14,7 @@ from chronostrain.config import cfg
 from chronostrain.model.bacteria import Population
 from chronostrain.model.fragments import FragmentSpace
 from chronostrain.model.reads import AbstractErrorModel, SequenceRead
-from chronostrain.util.logger import logger
+from . import logger
 
 
 class GenerativeModel:
@@ -27,13 +27,13 @@ class GenerativeModel:
                  read_error_model: AbstractErrorModel,
                  read_length: int):
 
-        self.times = times  # array of time points
-        self.mu = mu  # mean for X_1
-        self.tau_1 = tau_1  # covariance scaling for X_1
-        self.tau = tau  # covariance base scaling
-        self.error_model = read_error_model
-        self.bacteria_pop = bacteria_pop
-        self.read_length = read_length
+        self.times: List[float] = times  # array of time points
+        self.mu: torch.Tensor = mu  # mean for X_1
+        self.tau_1: float = tau_1  # covariance scaling for X_1
+        self.tau: float = tau  # covariance base scaling
+        self.error_model: AbstractErrorModel = read_error_model
+        self.bacteria_pop: Population = bacteria_pop
+        self.read_length: int = read_length
 
     def num_times(self) -> int:
         return len(self.times)

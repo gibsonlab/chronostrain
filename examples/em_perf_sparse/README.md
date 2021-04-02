@@ -1,8 +1,9 @@
-Test scripts for generating the performance plots in workshop paper. 
+# Example: Sparse sample - regularization test (`em_perf_sparse`)
 
-- Move the three .fasta files from em_perf/ (not in this directory) into data/ directory before running.
-- run em_suite_sparse.sh.
-- run redraw_plots.sh to re-draw auto-generated plots into a prettier format for the paper.
+Test script for generating the "sparse read regularization" figure in workshop paper. (Figure 2).
 
-Original truth is located in true_abundances.csv, but the error-induced ground truth is in true_abundances_biased.csv.
-Ignore true_abundances_2.csv. 
+## Running
+Before running, change variable `PROJECT_DIR` of `em_suite_sparse.sh` to the basepath of this cloned repository 
+(located near the top of the file).
+
+**NOTE: Be sure to run `em_suite_sparse.sh` using `bash`, not `sh`.**

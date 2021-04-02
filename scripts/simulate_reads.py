@@ -178,7 +178,7 @@ def main():
     # ========== Save sampled reads to file.
     logger.debug("Saving samples to file...")
     read_files = save_reads_to_fastq(sampled_reads, time_points, args.out_dir, args.out_prefix)
-    logger.debug("Saving abundances to file...")
+    logger.debug("Saving (re-normalized) abundances to file...")
     save_abundances(
         population=population,
         time_points=time_points,

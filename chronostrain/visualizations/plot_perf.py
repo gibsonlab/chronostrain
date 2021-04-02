@@ -17,7 +17,8 @@ def plot_performance_degradation(
         draw_legend: bool = True,
         font_size: int = 18,
         thickness: int = 1,
-        legend_labels: List[str] = None
+        legend_labels: List[str] = None,
+        img_format="pdf"
 ):
     """
     :param trials: The list of tuples (ID, num_reads, abundance_csv_path)
@@ -28,6 +29,7 @@ def plot_performance_degradation(
     :param draw_legend:
     :param thickness:
     :param font_size:
+    :param img_format:
     """
     true_abundances = load_abundances(true_abundance_path)[1]
     ids = set()
@@ -38,7 +40,7 @@ def plot_performance_degradation(
         # diff = (abundances - true_abundances).norm().item()
 
         hellinger = (abundances.sqrt() - true_abundances.sqrt()).pow(2).sum(dim=1).sqrt().mean() / math.sqrt(2)
-        print((abundances.sqrt() - true_abundances.sqrt()).pow(2).sum(dim=1).sqrt() / math.sqrt(2))
+        # print((abundances.sqrt() - true_abundances.sqrt()).pow(2).sum(dim=1).sqrt() / math.sqrt(2))
 
         abundance_diffs.append((trial_id, num_reads, hellinger))
         ids.add(trial_id)
@@ -46,7 +48,7 @@ def plot_performance_degradation(
         abundance_diffs,
         dtype=[('Label', '<U10'), ('# Reads on Markers', int), ('Average Hellinger error', float)]
     ))
-    print(df)
+    # print(df)
 
     plt.rcParams.update({'font.size': font_size})
 
@@ -69,4 +71,4 @@ def plot_performance_degradation(
 
     if title:
         plt.title(title)
-    plt.savefig(out_path, bbox_inches='tight', format='pdf')
+    plt.savefig(out_path, bbox_inches='tight', format=img_format)

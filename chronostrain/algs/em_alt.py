@@ -2,12 +2,13 @@ import torch
 from typing import List
 
 from chronostrain.config import cfg
-from chronostrain.util.logger import logger
+from chronostrain.util.data_cache import CacheTag
 from chronostrain.algs.em import EMSolver
 from chronostrain.util.benchmarking import RuntimeEstimator
 from chronostrain.algs.base import AbstractModelSolver
 from chronostrain.model.reads import SequenceRead
 from chronostrain.model.generative import GenerativeModel
+from . import logger
 
 from torch.nn.functional import softmax
 
@@ -25,7 +26,7 @@ class EMAlternateSolver(AbstractModelSolver):
             self,
             generative_model: GenerativeModel,
             data: List[List[SequenceRead]],
-            cache_tag: str,
+            cache_tag: CacheTag,
             lr: float = 1e-3):
         """
         Instantiates an EMAlternateSolver instance.
