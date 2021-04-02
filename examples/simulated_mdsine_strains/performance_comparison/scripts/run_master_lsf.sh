@@ -21,20 +21,11 @@ N_TRIALS=15
 # ======================================
 # filesystem paths (relative to PROJECT_DIR) --> no need to modify.
 BASE_DIR="${PROJECT_DIR}/examples/simulated_mdsine_strains/performance_comparison"
-
-CHRONOSTRAIN_INI="${BASE_DIR}/chronostrain.ini"
-CHRONOSTRAIN_LOG_INI="${BASE_DIR}/logging.ini"
-CHRONOSTRAIN_LOG_FILEPATH="${BASE_DIR}/logs/read_sample.log"
-
 LSF_DIR="${BASE_DIR}/lsf_files"
 LSF_OUTPUT_DIR="${LSF_DIR}/output"
 # =====================================
 
 export PROJECT_DIR
-export BASE_DIR
-export CHRONOSTRAIN_INI
-export CHRONOSTRAIN_LOG_INI
-export CHRONOSTRAIN_LOG_FILEPATH
 mkdir -p $LSF_DIR
 mkdir -p $LSF_OUTPUT_DIR
 

@@ -1,0 +1,79 @@
+[
+    {
+        "markers": [
+                    {"type": "primer", "forward": "GTGCCAGCMGCCGCGGTAA", "reverse": "GGACTACHVGGGTWTCTAAT", "name": "16S_V4"}
+                ],
+        "name": "AMuciniphila",
+        "accession": "CP001071.1"
+    },
+    {
+        "markers": [
+                    {"type": "primer", "forward": "GTGCCAGCMGCCGCGGTAA", "reverse": "GGACTACHVGGGTWTCTAAT", "name": "16S_V4"}
+                ],
+        "name": "BFragilis",
+        "accession": "NC_003228.3"
+    },
+    {
+        "markers": [
+                    {"type": "primer", "forward": "GTGCCAGCMGCCGCGGTAA", "reverse": "GGACTACHVGGGTWTCTAAT", "name": "16S_V4"}
+                ],
+        "name": "EColi",
+        "accession": "NC_000913.3"
+    },
+    {
+        "markers": [
+                    {"type": "primer", "forward": "GTGCCAGCMGCCGCGGTAA", "reverse": "GGACTACHVGGGTWTCTAAT", "name": "16S_V4"}
+                ],
+        "name": "BOvatus",
+        "accession": "NZ_CP012938.1"
+    },
+    {
+        "markers": [
+                    {"type": "primer", "forward": "GTGCCAGCMGCCGCGGTAA", "reverse": "GGACTACHVGGGTWTCTAAT", "name": "16S_V4"}
+                ],
+        "name": "BVulgatus",
+        "accession": "CP000139.1"
+    },
+    {
+        "markers": [
+                    {"type": "primer", "forward": "GTGCCAGCMGCCGCGGTAA", "reverse": "GGACTACHVGGGTWTCTAAT", "name": "16S_V4"}
+                ],
+        "name": "CSporogenes",
+        "accession": "NZ_CP013243.1"
+    },
+    {
+        "markers": [
+                    {"type": "primer", "forward": "GTGCCAGCMGCCGCGGTAA", "reverse": "GGACTACHVGGGTWTCTAAT", "name": "16S_V4"}
+                ],
+        "name": "EFaecalis",
+        "accession": "KB947309.1"
+    },
+    {
+        "markers": [
+                    {"type": "primer", "forward": "GTGCCAGCMGCCGCGGTAA", "reverse": "GGACTACHVGGGTWTCTAAT", "name": "16S_V4"}
+                ],
+        "name": "KOxytoca",
+        "accession": "CP026285.1"
+    },
+    {
+        "markers": [
+                    {"type": "primer", "forward": "GTGCCAGCMGCCGCGGTAA", "reverse": "GGACTACHVGGGTWTCTAAT", "name": "16S_V4"}
+                ],
+        "name": "PDistasonis",
+        "accession": "NC_009615.1"
+    },
+    {
+        "markers": [
+                    {"type": "primer", "forward": "GTGCCAGCMGCCGCGGTAA", "reverse": "GGACTACHVGGGTWTCTAAT", "name": "16S_V4"}
+                ],
+        "name": "PMirabilis",
+        "accession": "GG668576.1"
+    },
+    {
+        "markers": [
+                    {"type": "primer", "forward": "GTGCCAGCMGCCGCGGTAA", "reverse": "GGACTACHVGGGTWTCTAAT", "name": "16S_V4"}
+                ],
+        "name": "RGnavus",
+        "accession": "CP027002.1"
+    }
+]

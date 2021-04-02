@@ -13,23 +13,22 @@ N_TRIALS=15
 # filesystem paths (relative to PROJECT_DIR) --> no need to modify.
 BASE_DIR="${PROJECT_DIR}/examples/simulated_mdsine_strains/performance_comparison"
 
-CHRONOSTRAIN_INI="${BASE_DIR}/chronostrain.ini"
-CHRONOSTRAIN_LOG_INI="${BASE_DIR}/logging.ini"
+CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
+CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"
 CHRONOSTRAIN_LOG_FILEPATH="${BASE_DIR}/logs/read_sample.log"
 
-TRUE_ABUNDANCE_PATH="${BASE_DIR}/true_abundances.csv"
+TRUE_ABUNDANCE_PATH="${BASE_DIR}/files/true_abundances.csv"
 
 RUNS_DIR="${BASE_DIR}/runs"
 READ_LEN=150
+READ_PROFILE_PATH="${BASE_DIR}/files/HiSeqReference"
 
 LSF_QUEUE="big"
 CONDA_ENV="chronostrain"
 LSF_MEM=10000
+LSF_N_CORES=4
 LSF_DIR="${BASE_DIR}/lsf_files"
 LSF_OUTPUT_DIR="${LSF_DIR}/output"
-# =====================================
-# The location of the ReadGenAndFiltering repo for sampling
-READGEN_DIR="/PHShome/yk847/Read-Generation-and-Filtering"
 # =====================================
 
 export BASE_DIR
@@ -57,25 +56,24 @@ do
     SEED=$trial
 
 		cat <<- EOFDOC > $LSF_PATH
-		#!/bin/bash
-		#BSUB -J read_sample
-		#BSUB -o ${LSF_OUTPUT_DIR}/read_sample_${n_reads}_${trial}-%J.out
-		#BSUB -e ${LSF_OUTPUT_DIR}/read_sample_${n_reads}_${trial}-%J.err
-		#BSUB -q $LSF_QUEUE
-		#BSUB -n 1
-		#BSUB -M ${LSF_MEM}
-		#BSUB -R rusage[mem=${LSF_MEM}]
+#!/bin/bash
+#BSUB -J read_sample
+#BSUB -o ${LSF_OUTPUT_DIR}/read_sample_${n_reads}_${trial}-%J.out
+#BSUB -e ${LSF_OUTPUT_DIR}/read_sample_${n_reads}_${trial}-%J.err
+#BSUB -q $LSF_QUEUE
+#BSUB -n 1
+#BSUB -M ${LSF_MEM}
+#BSUB -R rusage[mem=${LSF_MEM}]
 
-		python ${PROJECT_DIR}/scripts/readgen.py \
-		$n_reads \
-		$READ_LEN \
-		$trial \
-		$READGEN_DIR/profiles/HiSeqReference \
-		$READGEN_DIR/profiles/HiSeqReference \
-		$TRUE_ABUNDANCE_PATH \
-		$READS_DIR \
-		$SEED
-		EOFDOC
+python ${PROJECT_DIR}/scripts/readgen.py \
+--num_reads $n_reads \
+--read_len $READ_LEN \
+--out_dir $READS_DIR \
+--profiles $READ_PROFILE_PATH $READ_PROFILE_PATH \
+--abundance_path $TRUE_ABUNDANCE_PATH \
+--seed $SEED \
+--num_cores $LSF_N_CORES
+EOFDOC
   done
 done
 
