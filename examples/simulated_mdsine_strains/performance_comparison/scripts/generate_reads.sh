@@ -1,12 +1,7 @@
 #!/bin/bash
 set -e
 
-if [ -z ${PROJECT_DIR} ]; then
-	echo "Variable 'PROJECT_DIR' is not set. Exiting."
-	exit 1
-else
-	echo "PROJECT_DIR=${PROJECT_DIR}"
-fi
+PROJECT_DIR="/PHShome/yk847/chronostrain"
 
 # ======================================
 N_READS_MIN=10000

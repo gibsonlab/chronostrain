@@ -3,7 +3,7 @@ set -e
 
 # =====================================
 # Change this to where project is located. Should be able to call `python scripts/run_inference.py`.
-PROJECT_DIR="/mnt/f/microbiome_tracking"
+PROJECT_DIR="/PHShome/yk847/chronostrain"
 # =====================================
 
 LSF_QUEUE="big"
