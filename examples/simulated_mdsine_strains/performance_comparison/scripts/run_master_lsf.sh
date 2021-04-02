@@ -44,7 +44,7 @@ python $BASE_DIR/scripts/initialize_database.py
 # =========================================================
 
 # ================ Sample reads. ==========================
-bash $BASE_DIR/scripts/generate_reads.sh
+bash $BASE_DIR/scripts/generate_reads.sh $N_READS_MIN $N_READS_MAX $N_READS_STEP $N_TRIALS
 # =========================================================
 
 # ================ LSF creation ===========================
