@@ -19,6 +19,8 @@ N_READS_MAX=100000
 N_READS_STEP=10000
 N_TRIALS=15
 
+CHRONOSTRAIN_METHOD="em"
+
 # ======================================
 # filesystem paths (relative to PROJECT_DIR) --> no need to modify.
 BASE_DIR="${PROJECT_DIR}/examples/simulated_mdsine_strains/performance_comparison"
@@ -53,7 +55,7 @@ do
 
 		source activate ${CONDA_ENV}
 		export PROJECT_DIR=${PROJECT_DIR}
-		bash ${BASE_DIR}/scripts/run_chronostrain.sh ${n_reads} ${trial}
+		bash ${BASE_DIR}/scripts/run_chronostrain.sh ${n_reads} ${trial} ${CHRONOSTRAIN_METHOD}
 		EOFDOC
 
 		# ============ Metaphlan LSF ============

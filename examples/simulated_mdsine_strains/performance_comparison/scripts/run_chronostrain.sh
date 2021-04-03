@@ -12,6 +12,7 @@ fi
 # Command line args
 NUM_READS=$1
 TRIAL=$2
+METHOD=$3
 
 # ======================================
 # filesystem paths (relative to PROJECT_DIR) --> no need to modify.
@@ -24,7 +25,6 @@ TRUE_ABUNDANCE_PATH="${BASE_DIR}/files/true_abundances.csv"
 
 RUNS_DIR="${BASE_DIR}/runs"
 READ_LEN=150
-METHOD="bbvi_reparametrization"
 TRIAL_DIR="${RUNS_DIR}/trials/reads_${NUM_READS}_trial_${TRIAL}"
 
 READS_DIR="${TRIAL_DIR}/simulated_reads"
