@@ -386,6 +386,10 @@ class JSONStrainDatabase(AbstractStrainDatabase):
             if len(markers) == 0:
                 logger.warn("No markers parsed for entry {}.".format(strain_entry))
 
+        # Save multi-fasta.
+        self.multifasta_file = os.path.join(cfg.database_cfg.data_dir, 'marker_multifasta.fa')
+        self.save_markers_to_multifasta(filepath=self.multifasta_file)
+
     def get_strain(self, strain_id: str) -> Strain:
         if strain_id not in self.strains:
             raise StrainNotFoundError(strain_id)
@@ -409,16 +413,23 @@ class JSONStrainDatabase(AbstractStrainDatabase):
                 filenames.append(marker.metadata.file_path)
         return filenames
 
-    def save_markers_to_multifasta(self):
-        marker_files = self.get_marker_filenames()
-        multifasta_filepath = os.path.join(cfg.database_cfg.data_dir, 'marker_multifasta.fa')
-        with open(multifasta_filepath, 'w') as multifa:
-            for filename in marker_files:
-                with open(filename, 'r') as marker_file:
-                    for line in marker_file:
-                        multifa.write(line)
-                multifa.write('\n')
-        return multifasta_filepath
+    def get_multifasta_file(self):
+        return self.multifasta_file
+
+    def save_markers_to_multifasta(self,
+                                   filepath: str,
+                                   check_exists: bool = True):
+        if check_exists and os.path.exists(filepath):
+            logger.debug("Skipping creation of multifasta file.")
+        else:
+            marker_files = self.get_marker_filenames()
+            multifasta_filepath = os.path.join(cfg.database_cfg.data_dir, 'marker_multifasta.fa')
+            with open(multifasta_filepath, 'w') as multifa:
+                for filename in marker_files:
+                    with open(filename, 'r') as marker_file:
+                        for line in marker_file:
+                            multifa.write(line)
+                    multifa.write('\n')
 
     @staticmethod
     def marker_filename(accession: str, name: str):

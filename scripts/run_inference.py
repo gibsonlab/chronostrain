@@ -509,7 +509,7 @@ def main():
         # ============ Perform read filtering.
         logger.info("Performing filter on reads.")
         filt = Filter(
-            reference_file_path=db.save_markers_to_multifasta(),
+            reference_file_path=db.get_multifasta_file(),
             reads_paths=read_paths,
             time_points=time_points,
             align_cmd=cfg.filter_cfg.align_cmd
