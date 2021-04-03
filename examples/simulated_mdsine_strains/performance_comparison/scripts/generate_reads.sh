@@ -15,7 +15,6 @@ BASE_DIR="${PROJECT_DIR}/examples/simulated_mdsine_strains/performance_compariso
 
 CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
 CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"
-CHRONOSTRAIN_LOG_FILEPATH="${BASE_DIR}/logs/read_sample.log"
 
 TRUE_ABUNDANCE_PATH="${BASE_DIR}/files/true_abundances.csv"
 
@@ -34,7 +33,6 @@ LSF_OUTPUT_DIR="${LSF_DIR}/output"
 export BASE_DIR
 export CHRONOSTRAIN_INI
 export CHRONOSTRAIN_LOG_INI
-export CHRONOSTRAIN_LOG_FILEPATH
 mkdir -p $LSF_DIR
 mkdir -p $LSF_OUTPUT_DIR
 
@@ -49,6 +47,7 @@ do
 	do
     echo "[Number of reads: ${n_reads}, trial #${trial}]"
 		LSF_PATH="${LSF_DIR}/sample_reads_${n_reads}_trial_${trial}.lsf"
+		LOG_FILEPATH="${BASE_DIR}/logs/readgen_reads_${n_reads}_trial_${trial}.log"
 
     TRIAL_DIR="${RUNS_DIR}/trials/reads_${n_reads}_trial_${trial}"
     READS_DIR="${TRIAL_DIR}/simulated_reads"
@@ -63,6 +62,10 @@ do
 #BSUB -n ${LSF_N_CORES}
 #BSUB -M ${LSF_MEM}
 #BSUB -R rusage[mem=${LSF_MEM}]
+
+export CHRONOSTRAIN_INI=${CHRONOSTRAIN_INI}
+export CHRONOSTRAIN_LOG_INI=${CHRONOSTRAIN_LOG_INI}
+export CHRONOSTRAIN_LOG_FILEPATH=${LOG_FILEPATH}
 
 python ${PROJECT_DIR}/scripts/readgen.py \
 --num_reads $n_reads \
