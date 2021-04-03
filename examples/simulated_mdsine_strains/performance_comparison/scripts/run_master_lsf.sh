@@ -6,7 +6,7 @@ set -e
 PROJECT_DIR="/PHShome/yk847/chronostrain"
 # =====================================
 
-LSF_QUEUE="gpu"
+LSF_QUEUE="normal"
 CONDA_ENV="chronostrain"
 # (note: 1000 = 1gb)
 LSF_CHRONOSTRAIN_MEM=10000
@@ -44,8 +44,8 @@ do
 		cat <<- EOFDOC > $CHRONOSTRAIN_LSF_PATH
 		#!/bin/bash
 		#BSUB -J bench_chronostrain
-		#BSUB -o ${LSF_OUTPUT_DIR}/chronostrain_${n_reads}_${trial}-%J.out
-		#BSUB -e ${LSF_OUTPUT_DIR}/chronostrain_${n_reads}_${trial}-%J.err
+		#BSUB -o ${LSF_OUTPUT_DIR}/%J-chronostrain_${n_reads}_${trial}-%J.out
+		#BSUB -e ${LSF_OUTPUT_DIR}/%J-chronostrain_${n_reads}_${trial}-%J.err
 		#BSUB -q $LSF_QUEUE
 		#BSUB -n ${LSF_CHRONOSTRAIN_N_CORES}
 		#BSUB -M ${LSF_CHRONOSTRAIN_MEM}
@@ -61,8 +61,8 @@ do
 		cat <<- EOFDOC > $METAPHLAN_LSF_PATH
 		#!/bin/bash
 		#BSUB -J bench_metaphlan
-		#BSUB -o ${LSF_OUTPUT_DIR}/metaphlan_${n_reads}_${trial}-%J.out
-		#BSUB -e ${LSF_OUTPUT_DIR}/metaphlan_${n_reads}_${trial}-%J.err
+		#BSUB -o ${LSF_OUTPUT_DIR}/%J-metaphlan_${n_reads}_${trial}.out
+		#BSUB -e ${LSF_OUTPUT_DIR}/%J-metaphlan_${n_reads}_${trial}.err
 		#BSUB -q $LSF_QUEUE
 		#BSUB -n ${LSF_METAPHLAN_N_CORES}
 		#BSUB -M ${LSF_METAPHLAN_MEM}
@@ -75,8 +75,8 @@ do
 	done
 done
 
-# ============== Submit all LSF jobs. ================
-for lsf_file in ${LSF_OUTPUT_DIR}/*.lsf
-do
-	bsub < $lsf_file
-done
+## ============== Submit all LSF jobs. ================
+#for lsf_file in ${LSF_OUTPUT_DIR}/*.lsf
+#do
+#	bsub < $lsf_file
+#done
