@@ -389,6 +389,7 @@ class JSONStrainDatabase(AbstractStrainDatabase):
         # Save multi-fasta.
         self.multifasta_file = os.path.join(cfg.database_cfg.data_dir, 'marker_multifasta.fa')
         self.save_markers_to_multifasta(filepath=self.multifasta_file)
+        logger.debug("Multi-fasta file: {}".format(self.multifasta_file))
 
     def get_strain(self, strain_id: str) -> Strain:
         if strain_id not in self.strains:
@@ -420,7 +421,7 @@ class JSONStrainDatabase(AbstractStrainDatabase):
                                    filepath: str,
                                    check_exists: bool = True):
         if check_exists and os.path.exists(filepath):
-            logger.debug("Skipping creation of multifasta file.")
+            logger.debug("Multi-fasta file already exists; skipping creation.")
         else:
             marker_files = self.get_marker_filenames()
             multifasta_filepath = os.path.join(cfg.database_cfg.data_dir, 'marker_multifasta.fa')

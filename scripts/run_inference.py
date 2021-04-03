@@ -41,6 +41,7 @@ def parse_args():
                         help='<Required> The file path to save learned outputs to.')
 
     # Optional params
+    parser.add_argument('-rl', '--read_len', required=False, type=int, default=150) ## TODO: make this required, update all scripts.
     parser.add_argument('-s', '--seed', required=False, type=int, default=31415,
                         help='<Optional> Seed for randomness (for reproducibility).')
     parser.add_argument('-truth', '--true_abundance_path', required=False, type=str,
@@ -526,7 +527,7 @@ def main():
     # ============ Create model instance
     model = create_model(
         population=population,
-        window_size=len(reads[0][0]),
+        window_size=args.read_len,
         time_points=time_points,
         disable_quality=not cfg.model_cfg.use_quality_scores
     )
