@@ -28,7 +28,7 @@ setuptools.setup(
         "License :: <TODO>",
         "Operating System :: Unix",
     ],
-    packages=["chronostrain"],
+    packages=setuptools.find_packages(),
     install_requires=requirements,
     python_requires='>=3.8',
 )
