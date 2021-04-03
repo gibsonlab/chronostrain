@@ -15,6 +15,7 @@ BASE_DIR="${PROJECT_DIR}/examples/simulated_mdsine_strains/performance_compariso
 
 CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
 CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"
+CHRONOSTRAIN_LOG_FILEPATH="${BASE_DIR}/logs/readgen/db_init.log"
 
 TRUE_ABUNDANCE_PATH="${BASE_DIR}/files/true_abundances.csv"
 
