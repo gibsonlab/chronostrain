@@ -53,7 +53,7 @@ do
 
 		source activate ${CONDA_ENV}
 		export PROJECT_DIR=${PROJECT_DIR}
-		bash run_chronostrain.sh ${n_reads} ${trial}
+		bash ${BASE_DIR}/scripts/run_chronostrain.sh ${n_reads} ${trial}
 		EOFDOC
 
 		# ============ Metaphlan LSF ============
@@ -70,7 +70,7 @@ do
 
 		source activate ${CONDA_ENV}
 		export PROJECT_DIR=${PROJECT_DIR}
-		bash run_metaphlan.sh ${n_reads} ${trial}
+		bash ${BASE_DIR}/scripts/run_metaphlan.sh ${n_reads} ${trial}
 		EOFDOC
 	done
 done
