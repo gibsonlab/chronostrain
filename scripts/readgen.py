@@ -59,8 +59,9 @@ def call_command(command: str, args: List[str], cwd: str = None) -> int:
     the working directory to cwd prior to execution.
     :return: The exit code. (zero by default, the program's returncode if error.)
     """
-    logger.debug("EXECUTE: {} {}".format(
+    logger.debug("EXECUTE {}: {} {}".format(
         command,
+        "" if cwd is None else "[cwd={}]".format(cwd),
         " ".join(args)
     ))
 
