@@ -49,7 +49,7 @@ do
 	do
     echo "[Number of reads: ${n_reads}, trial #${trial}]"
 		LSF_PATH="${LSF_DIR}/sample_reads_${n_reads}_trial_${trial}.lsf"
-		LOG_FILEPATH="${BASE_DIR}/logs/readgen_reads_${n_reads}_trial_${trial}.log"
+		LOG_FILEPATH="${BASE_DIR}/logs/readgen/reads_${n_reads}_trial_${trial}.log"
 
     TRIAL_DIR="${RUNS_DIR}/trials/reads_${n_reads}_trial_${trial}"
     READS_DIR="${TRIAL_DIR}/simulated_reads"
