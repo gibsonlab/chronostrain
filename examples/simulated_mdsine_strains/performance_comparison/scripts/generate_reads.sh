@@ -27,7 +27,7 @@ LSF_QUEUE="gpu"
 CONDA_ENV="chronostrain"
 LSF_MEM=10000
 LSF_N_CORES=4
-LSF_DIR="${BASE_DIR}/lsf_files"
+LSF_DIR="${BASE_DIR}/lsf_files/readgen"
 LSF_OUTPUT_DIR="${LSF_DIR}/output"
 # =====================================
 
@@ -56,6 +56,14 @@ do
     SEED=$trial
 
 		cat <<- EOFDOC > $LSF_PATH
+#BSUB -J readgen
+#BSUB -o ${LSF_OUTPUT_DIR}/%J-readgen_${n_reads}_${trial}.out
+#BSUB -e ${LSF_OUTPUT_DIR}/%J-readgen_${n_reads}_${trial}.err
+#BSUB -q ${LSF_QUEUE}
+#BSUB -n ${LSF_N_CORES}
+#BSUB -M ${LSF_MEM}
+#BSUB -R rusage[mem=${LSF_MEM}]
+
 python ${PROJECT_DIR}/scripts/readgen.py \
 --num_reads $n_reads \
 --read_len $READ_LEN \

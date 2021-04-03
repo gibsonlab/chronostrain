@@ -25,8 +25,7 @@ CHRONOSTRAIN_ITERS=20000
 # ======================================
 # filesystem paths (relative to PROJECT_DIR) --> no need to modify.
 BASE_DIR="${PROJECT_DIR}/examples/simulated_mdsine_strains/performance_comparison"
-LSF_DIR="${BASE_DIR}/lsf_files"
-LSF_OUTPUT_DIR="${LSF_DIR}/output"
+LSF_DIR="${BASE_DIR}/lsf_files/"
 # =====================================
 
 export PROJECT_DIR
@@ -38,8 +37,13 @@ for (( n_reads = ${N_READS_MIN}; n_reads < ${N_READS_MAX}+1; n_reads += ${N_READ
 do
 	for (( trial = 1; trial < ${N_TRIALS}+1; trial++ ));
 	do
-		CHRONOSTRAIN_LSF_PATH="${LSF_DIR}/reads_${n_reads}_trial_${trial}-chronostrain.lsf"
-		METAPHLAN_LSF_PATH="${LSF_DIR}/reads_${n_reads}_trial_${trial}-metaphlan.lsf"
+		CHRONOSTRAIN_LSF_DIR="${LSF_DIR}/chronostrain"
+		CHRONOSTRAIN_LSF_PATH="${CHRONOSTRAIN_LSF_DIR}/reads_${n_reads}_trial_${trial}-chronostrain.lsf"
+		CHRONOSTRAIN_LSF_OUTPUT_DIR="${CHRONOSTRAIN_LSF_DIR}/output"
+
+		METAPHLAN_LSF_DIR="${LSF_DIR}/chronostrain"
+		METAPHLAN_LSF_PATH="${METAPHLAN_LSF_DIR}/reads_${n_reads}_trial_${trial}-metaphlan.lsf"
+		METAPHLAN_LSF_OUTPUT_DIR="${METAPHLAN_LSF_DIR}/output"
 
 		# Generate LSF files via heredoc.
 		# ============ Chronostrain LSF ============
@@ -47,8 +51,8 @@ do
 		cat <<- EOFDOC > $CHRONOSTRAIN_LSF_PATH
 		#!/bin/bash
 		#BSUB -J bench_chronostrain
-		#BSUB -o ${LSF_OUTPUT_DIR}/%J-chronostrain_${n_reads}_${trial}-%J.out
-		#BSUB -e ${LSF_OUTPUT_DIR}/%J-chronostrain_${n_reads}_${trial}-%J.err
+		#BSUB -o ${CHRONOSTRAIN_LSF_OUTPUT_DIR}/%J-chronostrain_${n_reads}_${trial}-%J.out
+		#BSUB -e ${CHRONOSTRAIN_LSF_OUTPUT_DIR}/%J-chronostrain_${n_reads}_${trial}-%J.err
 		#BSUB -q $LSF_QUEUE
 		#BSUB -n ${LSF_CHRONOSTRAIN_N_CORES}
 		#BSUB -M ${LSF_CHRONOSTRAIN_MEM}
@@ -64,8 +68,8 @@ do
 		cat <<- EOFDOC > $METAPHLAN_LSF_PATH
 		#!/bin/bash
 		#BSUB -J bench_metaphlan
-		#BSUB -o ${LSF_OUTPUT_DIR}/%J-metaphlan_${n_reads}_${trial}.out
-		#BSUB -e ${LSF_OUTPUT_DIR}/%J-metaphlan_${n_reads}_${trial}.err
+		#BSUB -o ${METAPHLAN_LSF_OUTPUT_DIR}/%J-metaphlan_${n_reads}_${trial}.out
+		#BSUB -e ${METAPHLAN_LSF_OUTPUT_DIR}/%J-metaphlan_${n_reads}_${trial}.err
 		#BSUB -q $LSF_QUEUE
 		#BSUB -n ${LSF_METAPHLAN_N_CORES}
 		#BSUB -M ${LSF_METAPHLAN_MEM}
