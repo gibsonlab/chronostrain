@@ -484,6 +484,18 @@ def get_input_paths(base_dir) -> Tuple[List[str], List[float]]:
     return read_files, time_points
 
 
+def get_read_len(reads: List[List[SequenceRead]]) -> int:
+    """
+    Returns the globally constant length of reads. A placeholder for a future todo.
+    TODO: Hide this implementation somewhere else.
+    :param reads:
+    :return:
+    """
+    for reads_t in reads:
+        for read in reads_t:
+            return len(read)
+
+
 def main():
     logger.info("Pipeline for inference started.")
     args = parse_args()
@@ -515,7 +527,7 @@ def main():
             time_points=time_points,
             align_cmd=cfg.filter_cfg.align_cmd
         )
-        filtered_read_files = filt.apply_filter(args.read_length)
+        filtered_read_files = filt.apply_filter()
 
         logger.info("Loading filtered time-series read files.")
         reads = load_fastq_reads(file_paths=filtered_read_files)
@@ -524,10 +536,12 @@ def main():
         logger.info("Loading time-series read files.")
         reads = load_fastq_reads(file_paths=read_paths)
 
+    read_len = get_read_len(reads)
+
     # ============ Create model instance
     model = create_model(
         population=population,
-        window_size=args.read_len,
+        window_size=read_len,
         time_points=time_points,
         disable_quality=not cfg.model_cfg.use_quality_scores
     )

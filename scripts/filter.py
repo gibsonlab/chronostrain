@@ -290,7 +290,7 @@ class Filter:
         self.time_points = time_points
         self.align_cmd = align_cmd
 
-    def apply_filter(self, read_length: int):
+    def apply_filter(self):
         resulting_files = []
         for time_point, reads_path in zip(self.time_points, self.reads_paths):
             base_path = os.path.dirname(reads_path)
