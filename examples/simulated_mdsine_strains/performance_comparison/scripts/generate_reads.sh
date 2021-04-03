@@ -55,13 +55,15 @@ do
     mkdir -p $READS_DIR
     SEED=$trial
 
-		python ${PROJECT_DIR}/scripts/readgen.py \
-		--num_reads $n_reads \
-		--read_len $READ_LEN \
-		--out_dir $READS_DIR \
-		--profiles $READ_PROFILE_PATH $READ_PROFILE_PATH \
-		--abundance_path $TRUE_ABUNDANCE_PATH \
-		--seed $SEED \
-		--num_cores $LSF_N_CORES
+		cat <<- EOFDOC > $LSF_PATH
+python ${PROJECT_DIR}/scripts/readgen.py \
+--num_reads $n_reads \
+--read_len $READ_LEN \
+--out_dir $READS_DIR \
+--profiles $READ_PROFILE_PATH $READ_PROFILE_PATH \
+--abundance_path $TRUE_ABUNDANCE_PATH \
+--seed $SEED \
+--num_cores $LSF_N_CORES
+EOFDOC
   done
 done
