@@ -4,10 +4,10 @@ set -e
 PROJECT_DIR="/PHShome/yk847/chronostrain"
 
 # ======================================
-N_READS_MIN=10000
-N_READS_MAX=100000
-N_READS_STEP=10000
-N_TRIALS=15
+N_READS_MIN=1000000
+N_READS_MAX=10000000
+N_READS_STEP=1000000
+N_TRIALS=10
 
 # ======================================
 # filesystem paths (relative to PROJECT_DIR) --> no need to modify.
