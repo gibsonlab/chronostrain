@@ -13,6 +13,8 @@ fi
 NUM_READS=$1
 TRIAL=$2
 METHOD=$3
+NUM_ITERS=$4
+
 
 # ======================================
 # filesystem paths (relative to PROJECT_DIR) --> no need to modify.
@@ -46,7 +48,7 @@ python $PROJECT_DIR/scripts/run_inference.py \
 --read_length $READ_LEN \
 --seed $SEED \
 -lr 0.001 \
---iters 500 \
+--iters $NUM_ITERS \
 --out_dir $OUTPUT_DIR \
 --abundances_file $OUTPUT_FILENAME
 # ================================================

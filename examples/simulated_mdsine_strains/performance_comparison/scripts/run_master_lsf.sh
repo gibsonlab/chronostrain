@@ -20,6 +20,7 @@ N_READS_STEP=10000
 N_TRIALS=15
 
 CHRONOSTRAIN_METHOD="em"
+CHRONOSTRAIN_ITERS=20000
 
 # ======================================
 # filesystem paths (relative to PROJECT_DIR) --> no need to modify.
@@ -55,7 +56,7 @@ do
 
 		source activate ${CONDA_ENV}
 		export PROJECT_DIR=${PROJECT_DIR}
-		bash ${BASE_DIR}/scripts/run_chronostrain.sh ${n_reads} ${trial} ${CHRONOSTRAIN_METHOD}
+		bash ${BASE_DIR}/scripts/run_chronostrain.sh ${n_reads} ${trial} ${CHRONOSTRAIN_METHOD} ${CHRONOSTRAIN_ITERS}
 		EOFDOC
 
 		# ============ Metaphlan LSF ============
