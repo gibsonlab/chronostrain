@@ -1,3 +1,7 @@
+"""
+    Convert a chronostrain database to metaphlan database, by appending markers one at a time and passing it
+    through the tutorial found at https://github.com/biobakery/MetaPhlAn/wiki/MetaPhlAn-3.0#customizing-the-database.
+"""
 import os
 import argparse
 import pickle
