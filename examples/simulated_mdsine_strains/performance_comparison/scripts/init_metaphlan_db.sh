@@ -17,6 +17,10 @@ echo "============== Initializing Metaphlan database. =============="
 echo "\tNote: Make sure chronostrain db is initialized first."
 echo "\tTODO: remove this dependency by reading directly from chronostrain.ini."
 
+export BASE_DIR
+export CHRONOSTRAIN_INI
+export CHRONOSTRAIN_LOG_INI
+export CHRONOSTRAIN_LOG_FILEPATH
 mkdir -p $DB_DIR
 
 python ${BASE_DIR}/scripts/initialize_metaphlan_database.py \
