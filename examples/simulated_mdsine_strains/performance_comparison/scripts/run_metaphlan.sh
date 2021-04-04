@@ -30,5 +30,21 @@ OUTPUT_DIR="${TRIAL_DIR}/output/metaphlan"
 # =====================================
 
 # =========== Run metaphlan. ==================
-# TODO run metaphlan here.
+cd $OUTPUT_DIR
+mkdir -p sams
+mkdir -p bowtie2
+mkdir -p profiles
+
+for f in $READS_DIR/*.fastq
+do
+	bn=$(basename ${f%.fastq})
+	echo "Running metaphlan on ${f} (basename=${bn})"
+
+	metaphlan $f \
+	--input_type fastq \
+	-s sams/${bn}.sam.bz2 \
+	--bowtie2out bowtie2/${bn}.bowtie2.bz2 \
+	-o profiles/${bn}_profile.tsv \
+	--index "${CHRONOSTRAIN_DATA_DIR}/metaphlan_db/mpa_chronostrain"
+done
 # ================================================

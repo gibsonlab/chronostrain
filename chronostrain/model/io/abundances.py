@@ -21,7 +21,7 @@ def save_abundances_by_path(
 
     with open(out_path, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile, delimiter=',', quoting=csv.QUOTE_ALL)
-        writer.writerow(["T"] + [strain.name for strain in population.strains])
+        writer.writerow(["T"] + [strain.id for strain in population.strains])
         # for k, abundance in enumerate(abundances):
         for t in range(len(time_points)):
             writer.writerow([time_points[t]] + [x.item() for x in abundances[t]])

@@ -9,6 +9,7 @@ CHRONOSTRAIN_DATA_DIR="/data/cctm/chronostrain"
 
 LSF_QUEUE="normal"
 CONDA_ENV="chronostrain"
+
 # (note: 1000 = 1gb)
 LSF_CHRONOSTRAIN_MEM=10000
 LSF_CHRONOSTRAIN_N_CORES=1

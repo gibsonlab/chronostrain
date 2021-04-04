@@ -10,6 +10,7 @@ from typing import Tuple, Dict, List
 
 from chronostrain import cfg, logger
 from chronostrain.database import AbstractStrainDatabase
+from chronostrain.util.external.art import art_illumina
 
 
 def parse_args():
@@ -38,42 +39,6 @@ def parse_args():
                         help='<Optional> If flag is turned on, removes all temporary fastq files after execution.')
 
     return parser.parse_args()
-
-
-class CommandLineException(BaseException):
-    def __init__(self, cmd, exit_code):
-        super().__init__("`{}` encountered an error.".format(cmd))
-        self.cmd = cmd
-        self.exit_code = exit_code
-
-
-import subprocess
-
-
-def call_command(command: str, args: List[str], cwd: str = None) -> int:
-    """
-    Executes the command (using the subprocess module).
-    :param command: The binary to run.
-    :param args: The command-line arguments.
-    :param cwd: The `cwd param in subprocess. If not `None`, the function changes
-    the working directory to cwd prior to execution.
-    :return: The exit code. (zero by default, the program's returncode if error.)
-    """
-    logger.debug("EXECUTE {}: {} {}".format(
-        command,
-        "" if cwd is None else "[cwd={}]".format(cwd),
-        " ".join(args)
-    ))
-
-    p = subprocess.run(
-        [command] + args,
-        stderr=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        cwd=cwd
-    )
-    logger.debug("STDOUT: {}".format(p.stdout.decode("utf-8")))
-    logger.debug("STDERR: {}".format(p.stderr.decode("utf-8")))
-    return p.returncode
 
 
 def main():
@@ -153,7 +118,7 @@ def sample_reads_from_rel_abundances(final_reads_path: str,
     Loop over each timepoint, and invoke art_illumina on each item. Each instance outputs a separate fastq file,
     so concatenate them at the end.
 
-    :param output_path:
+    :param final_reads_path:
     :param abundances:
     :param num_reads:
     :param strain_db:
@@ -171,7 +136,7 @@ def sample_reads_from_rel_abundances(final_reads_path: str,
         for t_index, (accession, rel_abund) in enumerate(abundances.items()):
             strain = strain_db.get_strain(strain_id=accession)
 
-            output_path = invoke_art(
+            output_path = art_illumina(
                 reference_path=strain.metadata.file_path,
                 num_reads=int(rel_abund * num_reads),
                 output_dir=tmp_dir,
@@ -196,7 +161,7 @@ def sample_reads_from_rel_abundances(final_reads_path: str,
         ) for t_index, (accession, rel_abund) in enumerate(abundances.items())]
 
         thread_pool = Pool(n_cores)
-        strain_read_paths = thread_pool.starmap(invoke_art, configs)
+        strain_read_paths = thread_pool.starmap(art_illumina, configs)
     else:
         raise ValueError("# cores must be positive. Got: {}".format(n_cores))
 
@@ -207,48 +172,6 @@ def sample_reads_from_rel_abundances(final_reads_path: str,
     if cleanup:
         logger.debug("Cleaning up temp directory {}.".format(tmp_dir))
         shutil.rmtree(tmp_dir)
-
-
-def invoke_art(reference_path: str,
-               num_reads: int,
-               output_dir: str,
-               output_prefix: str,
-               profile_first: str,
-               profile_second: str,
-               read_length: int,
-               seed: int) -> str:
-    """
-    Call art_illumina.
-
-    :param reference_path:
-    :param num_reads:
-    :param output_dir:
-    :param output_prefix:
-    :param profile_first:
-    :param profile_second:
-    :param read_length:
-    :param seed:
-    :return:
-    """
-    exit_code = call_command(
-        'art_illumina',
-        args=['--qprof1', profile_first,
-              '--qprof2', profile_second,
-              '-sam',
-              '-i', reference_path,
-              '-l', str(read_length),
-              '-c', str(num_reads),
-              '-p',
-              '-m', '200',
-              '-s', '10',
-              '-o', output_prefix,
-              '-rs', str(seed)],
-        cwd=output_dir
-    )
-    if exit_code != 0:
-        raise CommandLineException("art_illumina", exit_code)
-    else:
-        return os.path.join(output_dir, "{}1.fq".format(output_prefix))
 
 
 def concatenate_files(input_paths, output_path):

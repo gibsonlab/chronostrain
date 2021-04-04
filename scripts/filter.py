@@ -1,10 +1,11 @@
 import re
 import os
-import subprocess
-from typing import List
 
 from chronostrain import logger
 from multiprocessing import cpu_count
+from chronostrain.util.external import bwa
+from chronostrain.util.external import CommandLineException
+from chronostrain.util.external.commandline import call_command
 
 
 def ref_base_name(ref_path: str) -> str:
@@ -15,57 +16,6 @@ def ref_base_name(ref_path: str) -> str:
     ref_fasta_filename = os.path.split(ref_path)[-1]
     ref_base_name = os.path.splitext(ref_fasta_filename)[0]
     return ref_base_name
-
-
-def call_command(command: str, args: List[str], cwd: str = None) -> int:
-    """
-    Executes the command (using the subprocess module).
-    :param command: The binary to run.
-    :param args: The command-line arguments.
-    :param cwd: The `cwd param in subprocess. If not `None`, the function changes
-    the working directory to cwd prior to execution.
-    :return: The exit code. (zero by default, the program's returncode if error.)
-    """
-    logger.debug("EXECUTE: {} {}".format(
-        command,
-        " ".join(args)
-    ))
-
-    p = subprocess.run(
-        [command] + args,
-        stderr=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        cwd=cwd
-    )
-    logger.debug("STDOUT: {}".format(p.stdout.decode("utf-8")))
-    logger.debug("STDERR: {}".format(p.stderr.decode("utf-8")))
-    return p.returncode
-
-
-def call_command_to_file(command: str, args: List[str], output_path: str) -> int:
-    '''
-    Currently used only by samtools, which does not have optional output redirection
-    '''
-    logger.debug("EXECUTE: {} {}".format(
-        command,
-        " ".join(args)
-    ))
-
-    # Done in two steps to replicate UNIX pipes, which overwrite after read
-    p = subprocess.run([command] + args, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-    output_file = open(output_path, 'w')
-    output_file.write(p.stdout.decode("utf-8"))
-    output_file.close()
-
-    logger.debug("STDERR: {}".format(p.stderr.decode("utf-8")))
-    return p.returncode
-
-
-class CommandLineException(BaseException):
-    def __init__(self, cmd, exit_code):
-        super().__init__("`{}` encountered an error.".format(cmd))
-        self.cmd = cmd
-        self.exit_code = exit_code
 
 
 def call_cora(read_length, reference_paths, hom_table_dir, read_path, output_paths, cora_path="cora"):
@@ -133,28 +83,13 @@ def call_cora(read_length, reference_paths, hom_table_dir, read_path, output_pat
     reconstruct_md_tags(output_paths, reference_paths)
 
 
-def call_bwa(reference_path, read_path, output_path, bwa_path="bwa"):
-    '''
-    TODO: Allow configurable minimum seed length
-    '''
-    MIN_SEED_LENGTH = 100
-
-    exit_code = call_command(bwa_path, ['index', reference_path])
-    if exit_code != 0:
-        raise CommandLineException("bwa index", exit_code)
-
-    exit_code = call_command(bwa_path, ['mem', '-o', output_path, '-k', str(MIN_SEED_LENGTH), reference_path, read_path])
-    if exit_code != 0:
-        raise CommandLineException("bwa mem", exit_code)
-
-
 def reconstruct_md_tags(cora_output_paths, reference_paths):
     """
     Uses samtool's mdfill to reconstruct the MD (mismatch and deletion) tag and overwrites the SAM file with the output.
     The original file is preserved, the tag is inserted in each line
     """
     for cora_output_path, reference_path in zip(cora_output_paths, reference_paths):
-        exit_code = call_command_to_file('samtools', ['fillmd', '-S', cora_output_path, reference_path], cora_output_path)
+        exit_code = call_command('samtools', ['fillmd', '-S', cora_output_path, reference_path], output_path=cora_output_path)
         if exit_code != 0:
             raise CommandLineException("samtools fillmd", exit_code)
 
@@ -305,12 +240,14 @@ class Filter:
 
             sam_path = os.path.join(aligner_tmp_dir, "{}-{}.sam".format(time_point, ref_base_name(self.reference_path)))
 
-            call_bwa(
-                reference_path=self.reference_path,
-                read_path=reads_path,
-                output_path=sam_path,
-                bwa_path=self.align_cmd
-            )
+            if self.align_cmd == 'bwa':
+                bwa.bwa_index(reference_path=self.reference_path)
+                bwa.bwa_mem(output_path=sam_path,
+                            reference_path=self.reference_path,
+                            read_path=reads_path,
+                            min_seed_length=100)
+            else:
+                raise NotImplementedError("Alignment command `{}` not currently supported.".format(self.align_cmd))
 
             ref_filtered_path = filter_file(sam_path, filtered_reads_dir + "/{}-".format(time_point))
             resulting_files.append(ref_filtered_path)

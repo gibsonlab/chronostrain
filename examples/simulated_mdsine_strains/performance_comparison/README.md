@@ -9,7 +9,13 @@ submission & resource allocation.
 
 ### Step 0: Prerequisites
 
-This workflow expects a conda environment called `chronostrain`, with the necessary packages installed.
+This workflow expects a conda environment called `chronostrain`, with package `chronostrain` installed.
+It also assumes that `bowtie2` and `metaphlan 3.0` is installed:
+
+```
+conda install -c bioconda bowtie2
+conda install -c bioconda metaphlan
+```
 
 ### Step 1: Master script
 

@@ -37,12 +37,13 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
                 genome = genome[:self.trim_debug]
             markers = [Marker(name=strain_name, seq=genome, metadata=None)]  # Each genome's marker is its own genome.
             self.strains[accession] = Strain(
-                name=accession,
+                id=accession,
                 markers=markers,
                 genome_length=len(genome),
                 metadata=StrainMetadata(
                     ncbi_accession=accession,
-                    name=strain_name,
+                    genus="",  # TODO: make it up-to-date with JSONDatabase.
+                    species=strain_name,
                     file_path=fasta_filename
                 )
             )
@@ -59,6 +60,14 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
 
     def all_strains(self) -> List[Strain]:
         return list(self.strains.values())
+
+    def num_strains(self) -> int:
+        return len(self.strains)
+
+    def get_multifasta_file(self) -> str:
+        raise NotImplementedError("Multi-fasta marker generation not implemented for {}.".format(
+            self.__class__.__name__
+        ))
 
     def strain_entries(self):
         """

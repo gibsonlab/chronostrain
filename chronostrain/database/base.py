@@ -19,6 +19,17 @@ class AbstractStrainDatabase(metaclass=ABCMeta):
     def all_strains(self) -> List[Strain]:
         pass
 
+    @abstractmethod
+    def num_strains(self) -> int:
+        pass
+
+    @abstractmethod
+    def get_multifasta_file(self) -> str:
+        """
+        :return: A path to a multi-fasta file, containing all of the markers in the database.
+        """
+        pass
+
     def get_strains(self, strain_ids: List[str]) -> List[Strain]:
         return [self.get_strain(s_id) for s_id in strain_ids]
 

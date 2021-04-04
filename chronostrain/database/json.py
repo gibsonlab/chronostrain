@@ -23,15 +23,17 @@ from chronostrain.util.sequences import complement_seq, reverse_complement_seq
 
 @dataclass
 class StrainEntry:
-    name: str
+    genus: str
+    species: str
     accession: str
     marker_entries: List[MarkerEntry]
     index: int
 
     def __str__(self):
-        return "(Strain Entry #{}: {})".format(
-            self.index,
-            self.name
+        return "(Strain Entry #{index}: {genus} {species})".format(
+            index=self.index,
+            genus=self.genus,
+            species=self.species
         )
 
     def __repr__(self):
@@ -44,9 +46,14 @@ class StrainEntry:
     @staticmethod
     def deserialize(json_dict: dict, idx: int):
         try:
-            name = json_dict["name"]
+            genus = json_dict["genus"]
         except KeyError:
-            raise StrainEntryError("Missing entry `name` from json entry.")
+            raise StrainEntryError("Missing entry `genus` from json entry.")
+
+        try:
+            species = json_dict["species"]
+        except KeyError:
+            raise StrainEntryError("Missing entry `species` from json entry.")
 
         try:
             accession = json_dict["accession"]
@@ -59,7 +66,11 @@ class StrainEntry:
             raise StrainEntryError("Missing entry `markers` from json entry.")
 
         marker_entries = []
-        entry = StrainEntry(name=name, accession=accession, marker_entries=marker_entries, index=idx)
+        entry = StrainEntry(genus=genus,
+                            species=species,
+                            accession=accession,
+                            marker_entries=marker_entries,
+                            index=idx)
         for idx, marker_dict in enumerate(markers_arr):
             marker_entries.append(MarkerEntry.deserialize(marker_dict, idx, entry))
         return entry
@@ -248,7 +259,7 @@ class SubsequenceLoader:
                         loc = feature.location
 
                         subsequences.append(NucleotideSubsequence(
-                            name=tag_entry.name,
+                            name=tag_entry.id,
                             id=tag_entry.locus_id,
                             start_index=loc.start,
                             end_index=loc.end,
@@ -379,7 +390,8 @@ class JSONStrainDatabase(AbstractStrainDatabase):
                 genome_length=sequence_loader.get_genome_length(),
                 metadata=StrainMetadata(
                     ncbi_accession=strain_entry.accession,
-                    name=strain_entry.name,
+                    genus=strain_entry.genus,
+                    species=strain_entry.species,
                     file_path=fasta_filename
                 ))
 
@@ -399,6 +411,9 @@ class JSONStrainDatabase(AbstractStrainDatabase):
 
     def all_strains(self) -> List[Strain]:
         return list(self.strains.values())
+
+    def num_strains(self) -> int:
+        return len(self.strains)
 
     def strain_entries(self) -> List[StrainEntry]:
         """

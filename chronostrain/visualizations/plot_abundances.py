@@ -227,14 +227,14 @@ def plot_posterior_abundances(
         # Plot true trajectory, if available.
         if true_abundances is not None:
             true_trajectory = np.array([
-                abundance_t[truth_acc_dict[strain.name]].item()
+                abundance_t[truth_acc_dict[strain.id]].item()
                 for abundance_t in true_abundances
             ])
             ax.plot(times, true_trajectory, linestyle='-', marker='o', color=color, linewidth=thickness)
 
         # Populate the legend.
         legend_elements.append(
-            Line2D([0], [0], color=color, lw=2, label=strain.name)
+            Line2D([0], [0], color=color, lw=2, label=strain.id)
         )
 
     if draw_legend:

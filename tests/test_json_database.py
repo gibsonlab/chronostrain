@@ -13,7 +13,7 @@ def test_deserialization():
 
     strain_entry = StrainEntry.deserialize(json_dict, 0)
     assert strain_entry.index == 0
-    assert strain_entry.name == json_dict["name"]
+    assert strain_entry.id == json_dict["name"]
     assert strain_entry.accession == json_dict["accession"]
     assert len(strain_entry.marker_entries) == 2
 
