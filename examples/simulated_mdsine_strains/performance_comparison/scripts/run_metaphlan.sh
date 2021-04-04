@@ -33,6 +33,7 @@ mkdir -p $OUTPUT_DIR
 cd $OUTPUT_DIR
 mkdir -p sams
 mkdir -p bowtie2
+rm bowtie2/*
 mkdir -p profiles
 
 for f in $READS_DIR/*.fastq

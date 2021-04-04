@@ -41,16 +41,17 @@ def search_taxonomy(input_metaphlan_db: dict, strain: Strain) -> Tuple[str, str]
     :param strain: The Strain instance.
     :return: See the description.
     """
+    species_name = "{}_{}".format(strain.metadata.genus, strain.metadata.species)
     for tax_clade in input_metaphlan_db['taxonomy']:
-        if strain.metadata.species in tax_clade:
+        if species_name in tax_clade:
             ncbi_taxid, _ = input_metaphlan_db['taxonomy'][tax_clade]
             return tax_clade, ncbi_taxid
 
 
 def get_strain_clade_taxon(input_metaphlan_db: dict, strain: Strain) -> Tuple[str, str]:
+    species_name = "{}_{}".format(strain.metadata.genus, strain.metadata.species)
     for marker_name in input_metaphlan_db['markers']:
         entry = input_metaphlan_db['markers'][marker_name]
-        species_name = "{}_{}".format(strain.metadata.genus, strain.metadata.species)
         if species_name in entry['taxon']:
             return entry['clade'], entry['taxon']
 
@@ -63,6 +64,11 @@ def convert_to_metaphlan_db(chronostrain_db, metaphlan_in_path, metaphlan_out_di
         'taxonomy': dict(),
         'merged_taxon': dict()
     }
+
+    fasta_path = os.path.join(metaphlan_out_dir, "{}.fasta".format(basename))
+
+    with open(fasta_path, "w") as _:
+        pass
 
     for s_idx, strain in enumerate(chronostrain_db.all_strains()):
         logger.info("Strain {} of {} -- {} ({} {})".format(
@@ -77,6 +83,7 @@ def convert_to_metaphlan_db(chronostrain_db, metaphlan_in_path, metaphlan_out_di
         strain_gtdb_levels, strain_ncbi_levels = search_taxonomy(input_metaphlan_db, strain)
 
         new_metaphlan_db['taxonomy'][strain_gtdb_levels] = (strain_ncbi_levels, strain.genome_length)
+        new_metaphlan_db['merged_taxon'] = input_metaphlan_db['merged_taxon']
 
         for marker in strain.markers:
             marker_id = "{}_{}".format(strain.metadata.ncbi_accession, marker.name)
@@ -87,14 +94,22 @@ def convert_to_metaphlan_db(chronostrain_db, metaphlan_in_path, metaphlan_out_di
                 'len': len(marker),
                 'taxon': strain_taxon
             }
+            with open(fasta_path, "w+") as fasta_file:
+                print(">{}".format(marker_id), file=fasta_file)
+                print(marker.seq, file=fasta_file)
 
-        new_metaphlan_db['merged_taxon'] = input_metaphlan_db['merged_taxon']
+    # Build the bowtie2 database.
+    bowtie2.bowtie2_build(
+        refs_in=fasta_path,
+        output_index_base=basename
+    )
+    logger.info("Ran bowtie2-build on {}.".format(fasta_path))
 
     # Save the new mpa_pkl file
     pkl_path = os.path.join(metaphlan_out_dir, "{}.pkl".format(basename))
     with bz2.BZ2File(pkl_path, 'w') as outfile:
         pickle.dump(new_metaphlan_db, outfile, pickle.HIGHEST_PROTOCOL)
-        logger.info("Output new database to {}.".format(pkl_path))
+        logger.info("Wrote pickle file {}.".format(pkl_path))
 
     # Bzip2 the fasta file.
     fasta_bz2_path = os.path.join(metaphlan_out_dir, "{}.fna.bz2".format(basename))
@@ -116,28 +131,10 @@ def convert_to_metaphlan_db(chronostrain_db, metaphlan_in_path, metaphlan_out_di
         print("{}  {}".format(md5, tar_filename), file=md5file)
 
 
-def build_bowtie(chronostrain_db: AbstractStrainDatabase, index_basename: str):
-    marker_multifasta_path = chronostrain_db.get_multifasta_file()
-    # TODO: Refactor code so that this multifasta file and the strain-marker pair
-    #  iteration order in `convert_to_metaphlan_db()` are identical.
-    # Note: bowtie_build 'refs_in' argument is optionally a comma-separated list.
-
-    bowtie2.bowtie2_build(
-        refs_in=marker_multifasta_path,
-        output_index_base=index_basename
-    )
-
-
 def main():
     args = parse_args()
 
     chronostrain_db = cfg.database_cfg.get_database()
-
-    logger.info("Building bowtie2 index.")
-    build_bowtie(
-        chronostrain_db=chronostrain_db,
-        index_basename=os.path.join(args.metaphlan_out_dir, args.basename)
-    )
 
     logger.info("Converting metaphlan pickle files.")
     pkl_out_path = os.path.join(args.metaphlan_out_dir, "{}.pkl".format(args.basename))
