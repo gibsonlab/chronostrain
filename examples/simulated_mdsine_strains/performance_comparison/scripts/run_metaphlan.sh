@@ -16,8 +16,9 @@ TRIAL=$2
 # ======================================
 # filesystem paths (relative to PROJECT_DIR) --> no need to modify.
 BASE_DIR="${PROJECT_DIR}/examples/simulated_mdsine_strains/performance_comparison"
+CHRONOSTRAIN_DATA_DIR="/data/cctm/chronostrain"
 
-RUNS_DIR="/data/cctm/chronostrain/runs"
+RUNS_DIR="${CHRONOSTRAIN_DATA_DIR}/runs"
 READ_LEN=150
 TRIAL_DIR="${RUNS_DIR}/trials/reads_${NUM_READS}_trial_${TRIAL}"
 

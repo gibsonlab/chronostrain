@@ -18,7 +18,8 @@ CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"
 
 TRUE_ABUNDANCE_PATH="${BASE_DIR}/files/true_abundances.csv"
 
-RUNS_DIR="/data/cctm/chronostrain/runs"
+CHRONOSTRAIN_DATA_DIR="/data/cctm/chronostrain"
+RUNS_DIR="${CHRONOSTRAIN_DATA_DIR}/runs"
 READ_LEN=150
 READ_PROFILE_PATH="${BASE_DIR}/files/HiSeqReference"
 
@@ -39,7 +40,7 @@ do
 	do
     echo "[Number of reads: ${n_reads}, trial #${trial}]"
 		LSF_PATH="${LSF_DIR}/sample_reads_${n_reads}_trial_${trial}.lsf"
-		LOG_FILEPATH="${BASE_DIR}/logs/readgen/reads_${n_reads}_trial_${trial}.log"
+		LOG_FILEPATH="${CHRONOSTRAIN_DATA_DIR}/logs/readgen/reads_${n_reads}_trial_${trial}.log"
 
     TRIAL_DIR="${RUNS_DIR}/trials/reads_${n_reads}_trial_${trial}"
     READS_DIR="${TRIAL_DIR}/simulated_reads"

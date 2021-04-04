@@ -19,13 +19,14 @@ NUM_ITERS=$4
 # ======================================
 # filesystem paths (relative to PROJECT_DIR) --> no need to modify.
 BASE_DIR="${PROJECT_DIR}/examples/simulated_mdsine_strains/performance_comparison"
+CHRONOSTRAIN_DATA_DIR="/data/cctm/chronostrain"
 
 CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
 CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"
-CHRONOSTRAIN_LOG_FILEPATH="${BASE_DIR}/logs/reads_${NUM_READS}_trial_${TRIAL}/chronostrain.log"
 TRUE_ABUNDANCE_PATH="${BASE_DIR}/files/true_abundances.csv"
 
-RUNS_DIR="/data/cctm/chronostrain/runs"
+CHRONOSTRAIN_LOG_FILEPATH="${CHRONOSTRAIN_DATA_DIR}/logs/reads_${NUM_READS}_trial_${TRIAL}/chronostrain.log"
+RUNS_DIR="${CHRONOSTRAIN_DATA_DIR}/runs"
 READ_LEN=150
 TRIAL_DIR="${RUNS_DIR}/trials/reads_${NUM_READS}_trial_${TRIAL}"
 

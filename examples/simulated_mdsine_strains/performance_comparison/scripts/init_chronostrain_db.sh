@@ -5,10 +5,11 @@ PROJECT_DIR="/PHShome/yk847/chronostrain"
 # ======================================
 # filesystem paths (relative to PROJECT_DIR) --> no need to modify.
 BASE_DIR="${PROJECT_DIR}/examples/simulated_mdsine_strains/performance_comparison"
+CHRONOSTRAIN_DATA_DIR="/data/cctm/chronostrain"
 
 CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
 CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"
-CHRONOSTRAIN_LOG_FILEPATH="${BASE_DIR}/logs/readgen/db_init.log"
+CHRONOSTRAIN_LOG_FILEPATH="${CHRONOSTRAIN_DATA_DIR}/logs/readgen/db_init.log"
 # =====================================
 
 export BASE_DIR
