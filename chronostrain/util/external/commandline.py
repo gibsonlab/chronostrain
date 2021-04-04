@@ -43,6 +43,7 @@ def call_command(command: str,
             p = subprocess.run(
                 [command] + args,
                 stdout=outfile,
+                stderr=subprocess.PIPE,
                 cwd=cwd
             )
         logger.debug("STDOUT saved to {}.".format(output_path))
