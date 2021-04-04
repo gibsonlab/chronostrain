@@ -6,6 +6,9 @@ import os
 import argparse
 import pickle
 import bz2
+import tarfile
+import shutil
+import hashlib
 from typing import Tuple
 
 from chronostrain.database import AbstractStrainDatabase
@@ -52,7 +55,7 @@ def get_strain_clade_taxon(input_metaphlan_db: dict, strain: Strain) -> Tuple[st
             return entry['clade'], entry['taxon']
 
 
-def convert_to_metaphlan_db(chronostrain_db, metaphlan_in_path, metaphlan_out_path):
+def convert_to_metaphlan_db(chronostrain_db, metaphlan_in_path, metaphlan_out_dir, basename):
     input_metaphlan_db: dict = pickle.load(bz2.open(metaphlan_in_path, 'r'))
 
     new_metaphlan_db = {
@@ -86,9 +89,29 @@ def convert_to_metaphlan_db(chronostrain_db, metaphlan_in_path, metaphlan_out_pa
             }
 
     # Save the new mpa_pkl file
-    with bz2.BZ2File(metaphlan_out_path, 'w') as outfile:
+    pkl_path = os.path.join(metaphlan_out_dir, "{}.pkl".format(basename))
+    with bz2.BZ2File(pkl_path, 'w') as outfile:
         pickle.dump(new_metaphlan_db, outfile, pickle.HIGHEST_PROTOCOL)
-        logger.info("Output new database to {}.".format(metaphlan_out_path))
+        logger.info("Output new database to {}.".format(pkl_path))
+
+    # Bzip2 the fasta file.
+    fasta_bz2_path = os.path.join(metaphlan_out_dir, "{}.fna.bz2".format(basename))
+    with open(chronostrain_db.get_multifasta_file(), 'rb') as f_in:
+        with bz2.open(fasta_bz2_path, "wb") as f_out:
+            shutil.copyfileobj(f_in, f_out)
+
+    # Tarball these two files.
+    tar_filename = "{}.tar".format(basename)
+    tar_path = os.path.join(metaphlan_out_dir, tar_filename)
+    with tarfile.open(tar_path, "w:gz") as tar:
+        tar.add(pkl_path)
+        tar.add(fasta_bz2_path)
+
+    # Generate MD5 hash.
+    md5_path = os.path.join(metaphlan_out_dir, "{}.md5".format(basename))
+    md5 = hashlib.md5(open(tar_path, 'rb').read()).hexdigest()
+    with open(md5_path, "w") as md5file:
+        print("{}  {}".format(md5, tar_filename), file=md5file)
 
 
 def build_bowtie(chronostrain_db: AbstractStrainDatabase, index_basename: str):
@@ -119,7 +142,8 @@ def main():
     convert_to_metaphlan_db(
         chronostrain_db=chronostrain_db,
         metaphlan_in_path=args.metaphlan_input_path,
-        metaphlan_out_path=pkl_out_path
+        metaphlan_out_dir=args.metaphlan_out_dir,
+        basename=args.basename
     )
 
 
