@@ -88,6 +88,8 @@ def convert_to_metaphlan_db(chronostrain_db, metaphlan_in_path, metaphlan_out_di
                 'taxon': strain_taxon
             }
 
+        new_metaphlan_db['merged_taxon'] = input_metaphlan_db['merged_taxon']
+
     # Save the new mpa_pkl file
     pkl_path = os.path.join(metaphlan_out_dir, "{}.pkl".format(basename))
     with bz2.BZ2File(pkl_path, 'w') as outfile:

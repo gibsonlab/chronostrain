@@ -19,7 +19,6 @@ TRIAL=$2
 # ======================================
 # filesystem paths (relative to PROJECT_DIR) --> no need to modify.
 BASE_DIR="${PROJECT_DIR}/examples/simulated_mdsine_strains/performance_comparison"
-CHRONOSTRAIN_DATA_DIR="/data/cctm/chronostrain"
 
 RUNS_DIR="${CHRONOSTRAIN_DATA_DIR}/runs"
 READ_LEN=150
@@ -30,6 +29,7 @@ OUTPUT_DIR="${TRIAL_DIR}/output/metaphlan"
 # =====================================
 
 # =========== Run metaphlan. ==================
+mkdir -p $OUTPUT_DIR
 cd $OUTPUT_DIR
 mkdir -p sams
 mkdir -p bowtie2
@@ -45,6 +45,7 @@ do
 	-s sams/${bn}.sam.bz2 \
 	--bowtie2out bowtie2/${bn}.bowtie2.bz2 \
 	-o profiles/${bn}_profile.tsv \
-	--index "${CHRONOSTRAIN_DATA_DIR}/metaphlan_db/mpa_chronostrain"
+	--index "mpa_chronostrain" \
+	--bowtie2db "${CHRONOSTRAIN_DATA_DIR}/metaphlan_db"
 done
 # ================================================
