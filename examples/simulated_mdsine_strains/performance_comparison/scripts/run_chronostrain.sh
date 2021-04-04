@@ -25,7 +25,7 @@ CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"
 CHRONOSTRAIN_LOG_FILEPATH="${BASE_DIR}/logs/reads_${NUM_READS}_trial_${TRIAL}/chronostrain.log"
 TRUE_ABUNDANCE_PATH="${BASE_DIR}/files/true_abundances.csv"
 
-RUNS_DIR="${BASE_DIR}/runs"
+RUNS_DIR="/data/cctm/chronostrain/runs"
 READ_LEN=150
 TRIAL_DIR="${RUNS_DIR}/trials/reads_${NUM_READS}_trial_${TRIAL}"
 

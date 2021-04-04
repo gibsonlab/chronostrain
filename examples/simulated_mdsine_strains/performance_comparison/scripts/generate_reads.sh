@@ -15,11 +15,10 @@ BASE_DIR="${PROJECT_DIR}/examples/simulated_mdsine_strains/performance_compariso
 
 CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
 CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"
-CHRONOSTRAIN_LOG_FILEPATH="${BASE_DIR}/logs/readgen/db_init.log"
 
 TRUE_ABUNDANCE_PATH="${BASE_DIR}/files/true_abundances.csv"
 
-RUNS_DIR="${BASE_DIR}/runs"
+RUNS_DIR="/data/cctm/chronostrain/runs"
 READ_LEN=150
 READ_PROFILE_PATH="${BASE_DIR}/files/HiSeqReference"
 
@@ -31,17 +30,8 @@ LSF_DIR="${BASE_DIR}/lsf_files/readgen"
 LSF_OUTPUT_DIR="${LSF_DIR}/output"
 # =====================================
 
-export BASE_DIR
-export CHRONOSTRAIN_INI
-export CHRONOSTRAIN_LOG_INI
-export CHRONOSTRAIN_LOG_FILEPATH
 mkdir -p $LSF_DIR
 mkdir -p $LSF_OUTPUT_DIR
-
-# =========================================================
-# Database initialization. (pre-download fasta and markers.)
-python $BASE_DIR/scripts/initialize_database.py
-# =========================================================
 
 for (( n_reads = ${N_READS_MIN}; n_reads < ${N_READS_MAX}+1; n_reads += ${N_READS_STEP} ));
 do

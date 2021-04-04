@@ -49,36 +49,36 @@ do
 		# ============ Chronostrain LSF ============
 		echo "Creating ${CHRONOSTRAIN_LSF_PATH}"
 		cat <<- EOFDOC > $CHRONOSTRAIN_LSF_PATH
-		#!/bin/bash
-		#BSUB -J bench_chronostrain
-		#BSUB -o ${CHRONOSTRAIN_LSF_OUTPUT_DIR}/%J-chronostrain_${n_reads}_${trial}-%J.out
-		#BSUB -e ${CHRONOSTRAIN_LSF_OUTPUT_DIR}/%J-chronostrain_${n_reads}_${trial}-%J.err
-		#BSUB -q $LSF_QUEUE
-		#BSUB -n ${LSF_CHRONOSTRAIN_N_CORES}
-		#BSUB -M ${LSF_CHRONOSTRAIN_MEM}
-		#BSUB -R rusage[mem=${LSF_CHRONOSTRAIN_MEM}]
+#!/bin/bash
+#BSUB -J bench_chronostrain
+#BSUB -o ${CHRONOSTRAIN_LSF_OUTPUT_DIR}/%J-chronostrain_${n_reads}_${trial}-%J.out
+#BSUB -e ${CHRONOSTRAIN_LSF_OUTPUT_DIR}/%J-chronostrain_${n_reads}_${trial}-%J.err
+#BSUB -q $LSF_QUEUE
+#BSUB -n ${LSF_CHRONOSTRAIN_N_CORES}
+#BSUB -M ${LSF_CHRONOSTRAIN_MEM}
+#BSUB -R rusage[mem=${LSF_CHRONOSTRAIN_MEM}]
 
-		source activate ${CONDA_ENV}
-		export PROJECT_DIR=${PROJECT_DIR}
-		bash ${BASE_DIR}/scripts/run_chronostrain.sh ${n_reads} ${trial} ${CHRONOSTRAIN_METHOD} ${CHRONOSTRAIN_ITERS}
-		EOFDOC
+source activate ${CONDA_ENV}
+export PROJECT_DIR=${PROJECT_DIR}
+bash ${BASE_DIR}/scripts/run_chronostrain.sh ${n_reads} ${trial} ${CHRONOSTRAIN_METHOD} ${CHRONOSTRAIN_ITERS}
+EOFDOC
 
 		# ============ Metaphlan LSF ============
 		echo "Creating ${METAPHLAN_LSF_PATH}"
 		cat <<- EOFDOC > $METAPHLAN_LSF_PATH
-		#!/bin/bash
-		#BSUB -J bench_metaphlan
-		#BSUB -o ${METAPHLAN_LSF_OUTPUT_DIR}/%J-metaphlan_${n_reads}_${trial}.out
-		#BSUB -e ${METAPHLAN_LSF_OUTPUT_DIR}/%J-metaphlan_${n_reads}_${trial}.err
-		#BSUB -q $LSF_QUEUE
-		#BSUB -n ${LSF_METAPHLAN_N_CORES}
-		#BSUB -M ${LSF_METAPHLAN_MEM}
-		#BSUB -R rusage[mem=${LSF_METAPHLAN_MEM}]
+#!/bin/bash
+#BSUB -J bench_metaphlan
+#BSUB -o ${METAPHLAN_LSF_OUTPUT_DIR}/%J-metaphlan_${n_reads}_${trial}.out
+#BSUB -e ${METAPHLAN_LSF_OUTPUT_DIR}/%J-metaphlan_${n_reads}_${trial}.err
+#BSUB -q $LSF_QUEUE
+#BSUB -n ${LSF_METAPHLAN_N_CORES}
+#BSUB -M ${LSF_METAPHLAN_MEM}
+#BSUB -R rusage[mem=${LSF_METAPHLAN_MEM}]
 
-		source activate ${CONDA_ENV}
-		export PROJECT_DIR=${PROJECT_DIR}
-		bash ${BASE_DIR}/scripts/run_metaphlan.sh ${n_reads} ${trial}
-		EOFDOC
+source activate ${CONDA_ENV}
+export PROJECT_DIR=${PROJECT_DIR}
+bash ${BASE_DIR}/scripts/run_metaphlan.sh ${n_reads} ${trial}
+EOFDOC
 	done
 done
 
