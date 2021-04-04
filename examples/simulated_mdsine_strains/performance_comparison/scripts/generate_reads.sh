@@ -46,7 +46,7 @@ do
     mkdir -p $READS_DIR
     SEED=$trial
 
-    echo "[Number of reads: ${n_reads}, trial #${trial}] -> ${READS_DIR}"
+    echo "[Number of reads: ${n_reads}, trial #${trial}] -> ${LSF_PATH}"
 
 		cat <<- EOFDOC > $LSF_PATH
 #BSUB -J readgen
