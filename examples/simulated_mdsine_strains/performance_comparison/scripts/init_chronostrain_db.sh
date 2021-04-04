@@ -1,11 +1,11 @@
 #!/bin/bash
 
 PROJECT_DIR="/PHShome/yk847/chronostrain"
+CHRONOSTRAIN_DATA_DIR="/data/cctm/chronostrain"
 
 # ======================================
 # filesystem paths (relative to PROJECT_DIR) --> no need to modify.
 BASE_DIR="${PROJECT_DIR}/examples/simulated_mdsine_strains/performance_comparison"
-CHRONOSTRAIN_DATA_DIR="/data/cctm/chronostrain"
 
 CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
 CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"

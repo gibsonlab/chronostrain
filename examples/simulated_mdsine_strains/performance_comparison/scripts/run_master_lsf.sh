@@ -4,6 +4,7 @@ set -e
 # =====================================
 # Change this to where project is located. Should be able to call `python scripts/run_inference.py`.
 PROJECT_DIR="/PHShome/yk847/chronostrain"
+CHRONOSTRAIN_DATA_DIR="/data/cctm/chronostrain"
 # =====================================
 
 LSF_QUEUE="normal"
@@ -25,7 +26,7 @@ CHRONOSTRAIN_ITERS=20000
 # ======================================
 # filesystem paths (relative to PROJECT_DIR) --> no need to modify.
 BASE_DIR="${PROJECT_DIR}/examples/simulated_mdsine_strains/performance_comparison"
-LSF_DIR="${BASE_DIR}/lsf_files/"
+LSF_DIR="${CHRONOSTRAIN_DATA_DIR}/lsf_files/"
 # =====================================
 
 export PROJECT_DIR

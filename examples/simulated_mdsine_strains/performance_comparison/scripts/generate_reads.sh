@@ -2,6 +2,7 @@
 set -e
 
 PROJECT_DIR="/PHShome/yk847/chronostrain"
+CHRONOSTRAIN_DATA_DIR="/data/cctm/chronostrain"
 
 # ======================================
 N_READS_MIN=1000000
@@ -18,7 +19,6 @@ CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"
 
 TRUE_ABUNDANCE_PATH="${BASE_DIR}/files/true_abundances.csv"
 
-CHRONOSTRAIN_DATA_DIR="/data/cctm/chronostrain"
 RUNS_DIR="${CHRONOSTRAIN_DATA_DIR}/runs"
 READ_LEN=150
 READ_PROFILE_PATH="${BASE_DIR}/files/HiSeqReference"
@@ -27,7 +27,7 @@ LSF_QUEUE="normal"
 CONDA_ENV="chronostrain"
 LSF_MEM=10000
 LSF_N_CORES=1
-LSF_DIR="${BASE_DIR}/lsf_files/readgen"
+LSF_DIR="${CHRONOSTRAIN_DATA_DIR}/lsf_files/readgen"
 LSF_OUTPUT_DIR="${LSF_DIR}/output"
 # =====================================
 
