@@ -94,7 +94,7 @@ def convert_to_metaphlan_db(chronostrain_db, metaphlan_in_path, metaphlan_out_di
                 'len': len(marker),
                 'taxon': strain_taxon
             }
-            with open(fasta_path, "w+") as fasta_file:
+            with open(fasta_path, "a") as fasta_file:
                 print(">{}".format(marker_id), file=fasta_file)
                 print(marker.seq, file=fasta_file)
 
@@ -137,7 +137,6 @@ def main():
     chronostrain_db = cfg.database_cfg.get_database()
 
     logger.info("Converting metaphlan pickle files.")
-    pkl_out_path = os.path.join(args.metaphlan_out_dir, "{}.pkl".format(args.basename))
     convert_to_metaphlan_db(
         chronostrain_db=chronostrain_db,
         metaphlan_in_path=args.metaphlan_input_path,
