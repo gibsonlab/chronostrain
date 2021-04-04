@@ -30,7 +30,7 @@ def bowtie2_build(refs_in: str,
     """
     exit_code = call_command(
         command_path,
-        args=[refs_in, index_base],
+        args=[refs_in, output_index_base],
         output_path=command_path
     )
     if exit_code != 0:
