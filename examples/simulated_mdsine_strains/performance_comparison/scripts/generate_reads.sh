@@ -38,7 +38,6 @@ for (( n_reads = ${N_READS_MIN}; n_reads < ${N_READS_MAX}+1; n_reads += ${N_READ
 do
 	for (( trial = 1; trial < ${N_TRIALS}+1; trial++ ));
 	do
-    echo "[Number of reads: ${n_reads}, trial #${trial}]"
 		LSF_PATH="${LSF_DIR}/sample_reads_${n_reads}_trial_${trial}.lsf"
 		LOG_FILEPATH="${CHRONOSTRAIN_DATA_DIR}/logs/readgen/reads_${n_reads}_trial_${trial}.log"
 
@@ -46,6 +45,8 @@ do
     READS_DIR="${TRIAL_DIR}/simulated_reads"
     mkdir -p $READS_DIR
     SEED=$trial
+
+    echo "[Number of reads: ${n_reads}, trial #${trial}] -> ${READS_DIR}"
 
 		cat <<- EOFDOC > $LSF_PATH
 #BSUB -J readgen
