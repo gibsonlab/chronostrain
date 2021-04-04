@@ -385,7 +385,7 @@ class JSONStrainDatabase(AbstractStrainDatabase):
                 self.save_marker_to_fasta(markers[-1], marker_filepath)
 
             self.strains[strain_entry.accession] = Strain(
-                name=strain_entry.accession,
+                id=strain_entry.accession,
                 markers=markers,
                 genome_length=sequence_loader.get_genome_length(),
                 metadata=StrainMetadata(
