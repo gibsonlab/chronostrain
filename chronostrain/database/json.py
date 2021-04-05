@@ -165,11 +165,10 @@ class NucleotideSubsequence:
         self.complement = complement
 
     def get_subsequence(self, nucleotides: str) -> str:
-        subseq = nucleotides[self.start_index:self.end_index]
-        if not self.complement:
-            return subseq
-        else:
-            return reverse_complement_seq(subseq)
+        # Note: The "complement" feature is not used; genbank annotation gives the resulting protein in terms
+        # of the translation (on either forward or reverse strand), but we are modeling shotgun reads
+        # (nucleotide substrings), not expression/protein levels.
+        return nucleotides[self.start_index:self.end_index]
 
     def __str__(self):
         return self.__repr__()

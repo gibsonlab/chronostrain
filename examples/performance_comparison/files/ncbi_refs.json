@@ -1,7 +1,8 @@
 [
     {
         "markers": [
-            {"type": "tag", "locus_tag": "c3592", "name": "papA"}
+            {"type": "tag", "locus_tag": "c3592", "name": "papA"},
+            {"type": "tag", "locus_tag": "c5188", "name": "papA_2"}
         ],
         "genus": "Escherichia",
         "species": "coli",
