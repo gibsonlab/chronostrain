@@ -28,24 +28,24 @@ CHRONOSTRAIN_ITERS=20000
 # filesystem paths (relative to PROJECT_DIR) --> no need to modify.
 BASE_DIR="${PROJECT_DIR}/examples/simulated_mdsine_strains/performance_comparison"
 LSF_DIR="${CHRONOSTRAIN_DATA_DIR}/lsf_files/"
+CHRONOSTRAIN_LSF_DIR="${LSF_DIR}/chronostrain"
+CHRONOSTRAIN_LSF_OUTPUT_DIR="${CHRONOSTRAIN_LSF_DIR}/output"
+METAPHLAN_LSF_DIR="${LSF_DIR}/metaphlan"
+METAPHLAN_LSF_OUTPUT_DIR="${METAPHLAN_LSF_DIR}/output"
 # =====================================
 
 export PROJECT_DIR
 mkdir -p $LSF_DIR
-mkdir -p $LSF_OUTPUT_DIR
+mkdir -p $CHRONOSTRAIN_LSF_OUTPUT_DIR
+mkdir -p $METAPHLAN_LSF_OUTPUT_DIR
 
 # ================ LSF creation ===========================
 for (( n_reads = ${N_READS_MIN}; n_reads < ${N_READS_MAX}+1; n_reads += ${N_READS_STEP} ));
 do
 	for (( trial = 1; trial < ${N_TRIALS}+1; trial++ ));
 	do
-		CHRONOSTRAIN_LSF_DIR="${LSF_DIR}/chronostrain"
 		CHRONOSTRAIN_LSF_PATH="${CHRONOSTRAIN_LSF_DIR}/reads_${n_reads}_trial_${trial}-chronostrain.lsf"
-		CHRONOSTRAIN_LSF_OUTPUT_DIR="${CHRONOSTRAIN_LSF_DIR}/output"
-
-		METAPHLAN_LSF_DIR="${LSF_DIR}/chronostrain"
 		METAPHLAN_LSF_PATH="${METAPHLAN_LSF_DIR}/reads_${n_reads}_trial_${trial}-metaphlan.lsf"
-		METAPHLAN_LSF_OUTPUT_DIR="${METAPHLAN_LSF_DIR}/output"
 
 		# Generate LSF files via heredoc.
 		# ============ Chronostrain LSF ============
