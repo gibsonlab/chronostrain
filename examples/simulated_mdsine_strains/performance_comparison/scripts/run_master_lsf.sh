@@ -27,7 +27,7 @@ CHRONOSTRAIN_ITERS=20000
 # ======================================
 # filesystem paths (relative to PROJECT_DIR) --> no need to modify.
 BASE_DIR="${PROJECT_DIR}/examples/simulated_mdsine_strains/performance_comparison"
-LSF_DIR="${CHRONOSTRAIN_DATA_DIR}/lsf_files/"
+LSF_DIR="${CHRONOSTRAIN_DATA_DIR}/lsf_files"
 CHRONOSTRAIN_LSF_DIR="${LSF_DIR}/chronostrain"
 CHRONOSTRAIN_LSF_OUTPUT_DIR="${CHRONOSTRAIN_LSF_DIR}/output"
 METAPHLAN_LSF_DIR="${LSF_DIR}/metaphlan"
