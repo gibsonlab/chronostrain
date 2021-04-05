@@ -14,7 +14,7 @@ N_TRIALS=10
 # filesystem paths (relative to PROJECT_DIR) --> no need to modify.
 BASE_DIR="${PROJECT_DIR}/examples/simulated_mdsine_strains/performance_comparison"
 
-CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
+CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain_for_sampling.ini"
 CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"
 
 TRUE_ABUNDANCE_PATH="${BASE_DIR}/files/true_abundances.csv"
@@ -61,6 +61,7 @@ export BASE_DIR=${BASE_DIR}
 export CHRONOSTRAIN_INI=${CHRONOSTRAIN_INI}
 export CHRONOSTRAIN_LOG_INI=${CHRONOSTRAIN_LOG_INI}
 export CHRONOSTRAIN_LOG_FILEPATH=${LOG_FILEPATH}
+export CHRONOSTRAIN_DATA_DIR=${CHRONOSTRAIN_DATA_DIR}
 
 python ${PROJECT_DIR}/scripts/readgen.py \
 --num_reads $n_reads \

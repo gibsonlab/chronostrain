@@ -220,7 +220,14 @@ def filter_file(sam_file, output_path_stem) -> str:
 class Filter:
     def __init__(self, reference_file_path: str, reads_paths: list, time_points: list, align_cmd: str):
         logger.debug("Ref path: {}".format(reference_file_path))
-        self.reference_path = os.path.join(os.getcwd(), reference_file_path)
+
+        # Note: Bowtie2 does not have the restriction to uncompress bz2 files, but bwa does.
+        if reference_file_path.endswith(".bz2"):
+            call_command("bz2", args=["-dk", reference_file_path])
+            self.reference_file_path = reference_file_path[:-4]
+        else:
+            self.reference_path = reference_file_path
+
         self.reads_paths = reads_paths
         self.time_points = time_points
         self.align_cmd = align_cmd
@@ -231,7 +238,6 @@ class Filter:
             base_path = os.path.dirname(reads_path)
             aligner_tmp_dir = os.path.join(base_path, "tmp")
             filtered_reads_dir = os.path.join(base_path, "filtered")
-            final_filtered_reads_path = os.path.join(base_path, "{}.filtered.fq".format(time_point))
 
             if not os.path.exists(aligner_tmp_dir):
                 os.makedirs(aligner_tmp_dir)
@@ -249,7 +255,7 @@ class Filter:
             else:
                 raise NotImplementedError("Alignment command `{}` not currently supported.".format(self.align_cmd))
 
-            ref_filtered_path = filter_file(sam_path, filtered_reads_dir + "/{}-".format(time_point))
+            ref_filtered_path = filter_file(sam_path, os.path.join(filtered_reads_dir, "{}-".format(time_point)))
             resulting_files.append(ref_filtered_path)
 
         return resulting_files

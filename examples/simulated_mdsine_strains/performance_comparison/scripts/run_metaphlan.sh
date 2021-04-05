@@ -26,27 +26,45 @@ TRIAL_DIR="${RUNS_DIR}/trials/reads_${NUM_READS}_trial_${TRIAL}"
 
 READS_DIR="${TRIAL_DIR}/simulated_reads"
 OUTPUT_DIR="${TRIAL_DIR}/output/metaphlan"
+METAPHLAN_DB="${CHRONOSTRAIN_DATA_DIR}/metaphlan_db"
 # =====================================
 
 # =========== Run metaphlan. ==================
 mkdir -p $OUTPUT_DIR
+
+echo "Output dir: ${OUTPUT_DIR}"
 cd $OUTPUT_DIR
+
 mkdir -p sams
 mkdir -p bowtie2
-rm bowtie2/*
 mkdir -p profiles
 
+# Cleanup previous bowtie2 output (metaphlan with --bowtie2out crashes prematurely otherwise).
+bowtie2_out_format=bowtie2/*.bowtie2.bz2
+for f in $bowtie2_out_format;
+do
+	echo $f
+	if [[ "$f" != "$bowtie2_out_format" ]]
+	then
+		rm ${f}
+	fi
+done
+
+# Loop through reads and run metaphlan.
 for f in $READS_DIR/*.fastq
 do
-	bn=$(basename ${f%.fastq})
-	echo "Running metaphlan on ${f} (basename=${bn})"
+	echo $f
+	bn=$(basename ${f%.fq})
+	echo "Running metaphlan on: ${f} (basename=${bn})"
+	echo "Using metaphlan database: ${METAPHLAN_DB}"
 
 	metaphlan $f \
 	--input_type fastq \
 	-s sams/${bn}.sam.bz2 \
 	--bowtie2out bowtie2/${bn}.bowtie2.bz2 \
 	-o profiles/${bn}_profile.tsv \
-	--index "mpa_chronostrain" \
-	--bowtie2db "${CHRONOSTRAIN_DATA_DIR}/metaphlan_db"
+	--bowtie2db ${METAPHLAN_DB} \
+	--index "mpa_v30_CHOCOPhlAn_201901"
+
 done
 # ================================================

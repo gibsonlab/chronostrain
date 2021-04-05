@@ -38,3 +38,39 @@ This script does four things:
 ### Step 2: Plotting
 
 TODO modify plot.sh to draw boxplot, not lineplot with error bars.
+
+
+# Strains chosen:
+
+Akkermansia muciniphila
+t__GCA_002885715
+
+Bacteroides fragilis
+t__GCA_000599365
+
+Escherichia coli
+t__GCA_000401755
+
+Bacteroides ovatus
+t__GCA_000273215
+
+Bacteroides vulgatus
+t__GCA_000403235
+
+Clostridium sporogenes
+t__GCA_001597905
+
+Enterococcus faecalis
+t__GCA_002945655
+
+Klebsiella oxytoca
+t__GCA_900083575
+
+Parabacteroides distasonis
+t__GCA_000699785
+
+Proteus mirabilis
+t__GCA_001858185
+
+Ruminococcus gnavus
+t__GCA_002865465

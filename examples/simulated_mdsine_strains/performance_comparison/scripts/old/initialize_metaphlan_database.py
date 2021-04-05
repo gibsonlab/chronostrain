@@ -2,19 +2,18 @@
     Convert a chronostrain database to metaphlan database, by appending markers one at a time and passing it
     through the tutorial found at https://github.com/biobakery/MetaPhlAn/wiki/MetaPhlAn-3.0#customizing-the-database.
 """
-import os
 import argparse
-import pickle
 import bz2
-import tarfile
-import shutil
 import hashlib
+import os
+import pickle
+import shutil
+import tarfile
 from typing import Tuple
 
-from chronostrain.database import AbstractStrainDatabase
+from chronostrain import cfg, logger
 from chronostrain.model import Strain
 from chronostrain.util.external import bowtie2
-from chronostrain import cfg, logger
 
 
 def parse_args():
@@ -41,11 +40,17 @@ def search_taxonomy(input_metaphlan_db: dict, strain: Strain) -> Tuple[str, str]
     :param strain: The Strain instance.
     :return: See the description.
     """
-    species_name = "{}_{}".format(strain.metadata.genus, strain.metadata.species)
+    species_token = "s__{}_{}".format(strain.metadata.genus, strain.metadata.species)
     for tax_clade in input_metaphlan_db['taxonomy']:
-        if species_name in tax_clade:
+        if species_token in tax_clade:
             ncbi_taxid, _ = input_metaphlan_db['taxonomy'][tax_clade]
-            return tax_clade, ncbi_taxid
+            tax_clade_tokens = tax_clade.split("|")
+            if tax_clade_tokens[-1].startswith("t__"):
+                tax_clade_tokens[-1] = "t__{}".format(strain.metadata.assembly_id)
+            else:
+                tax_clade_tokens.append("t__{}".format(strain.metadata.assembly_id))
+            tax_clade_new = "|".join(tax_clade_tokens)
+            return tax_clade_new, ncbi_taxid
 
 
 def get_strain_clade_taxon(input_metaphlan_db: dict, strain: Strain) -> Tuple[str, str]:
@@ -54,6 +59,34 @@ def get_strain_clade_taxon(input_metaphlan_db: dict, strain: Strain) -> Tuple[st
         entry = input_metaphlan_db['markers'][marker_name]
         if species_name in entry['taxon']:
             return entry['clade'], entry['taxon']
+
+
+def fill_higher_levels(master_strain, strain_gtdb, strain_ncbi_levels, metaphlan_db, marker_fasta_path):
+    print(strain_gtdb)
+    gtdb_tokens = strain_gtdb.split("|")
+    ncbi_tokens = strain_ncbi_levels.split("|")
+    master_marker = master_strain.markers[0]
+
+    for i in range(1, len(ncbi_tokens)):
+        gtdb = "|".join(gtdb_tokens[:i])
+        ncbi = "|".join(ncbi_tokens[:i])
+        clade = gtdb_tokens[i - 1]
+
+        if gtdb not in metaphlan_db['taxonomy']:
+            logger.info("Adding parent taxon {}".format(gtdb))
+            metaphlan_db['taxonomy'][gtdb] = (ncbi, master_strain.genome_length)
+
+            marker_id = "{}-16S_V4".format(master_strain.metadata.ncbi_accession)
+            metaphlan_db['markers'][marker_id] = {
+                'clade': clade,
+                'ext': [master_strain.metadata.assembly_id],
+                'len': len(master_marker),
+                'taxon': gtdb
+            }
+
+            with open(marker_fasta_path, "a") as fasta_file:
+                print(">{}".format(marker_id), file=fasta_file)
+                print(master_marker.seq, file=fasta_file)
 
 
 def convert_to_metaphlan_db(chronostrain_db, metaphlan_in_path, metaphlan_out_dir, basename):
@@ -65,9 +98,9 @@ def convert_to_metaphlan_db(chronostrain_db, metaphlan_in_path, metaphlan_out_di
         'merged_taxon': dict()
     }
 
-    fasta_path = os.path.join(metaphlan_out_dir, "{}.fasta".format(basename))
+    marker_fasta_path = os.path.join(metaphlan_out_dir, "{}.fasta".format(basename))
 
-    with open(fasta_path, "w") as _:
+    with open(marker_fasta_path, "w") as _:
         pass
 
     for s_idx, strain in enumerate(chronostrain_db.all_strains()):
@@ -81,29 +114,34 @@ def convert_to_metaphlan_db(chronostrain_db, metaphlan_in_path, metaphlan_out_di
 
         strain_clade, strain_taxon = get_strain_clade_taxon(input_metaphlan_db, strain)
         strain_gtdb_levels, strain_ncbi_levels = search_taxonomy(input_metaphlan_db, strain)
-
-        new_metaphlan_db['taxonomy'][strain_gtdb_levels] = (strain_ncbi_levels, strain.genome_length)
         new_metaphlan_db['merged_taxon'] = input_metaphlan_db['merged_taxon']
 
-        for marker in strain.markers:
-            marker_id = "{}_{}".format(strain.metadata.ncbi_accession, marker.name)
-            # Add the information of the new marker as the other markers
-            new_metaphlan_db['markers'][marker_id] = {
-                'clade': strain_clade,
-                'ext': [],  # This appears to be optional.
-                'len': len(marker),
-                'taxon': strain_taxon
-            }
-            with open(fasta_path, "a") as fasta_file:
-                print(">{}".format(marker_id), file=fasta_file)
-                print(marker.seq, file=fasta_file)
+        ecoli_master_strain = chronostrain_db.get_strain("NC_000913.3")
+
+        if strain.metadata.ncbi_accession != "NC_000913.3":
+            new_metaphlan_db['taxonomy'][strain_gtdb_levels] = (strain_ncbi_levels, strain.genome_length)
+
+            for marker in strain.markers:
+                marker_id = "{}-{}".format(strain.metadata.ncbi_accession, marker.name)
+                # Add the information of the new marker as the other markers
+
+                new_metaphlan_db['markers'][marker_id] = {
+                    'clade': strain_clade,
+                    'ext': [strain.metadata.assembly_id],
+                    'len': len(marker),
+                    'taxon': strain_taxon
+                }
+                with open(marker_fasta_path, "a") as fasta_file:
+                    print(">{}".format(marker_id), file=fasta_file)
+                    print(marker.seq, file=fasta_file)
+            fill_higher_levels(ecoli_master_strain, strain_gtdb_levels, strain_ncbi_levels, new_metaphlan_db, marker_fasta_path)
 
     # Build the bowtie2 database.
     bowtie2.bowtie2_build(
-        refs_in=fasta_path,
+        refs_in=marker_fasta_path,
         output_index_base=basename
     )
-    logger.info("Ran bowtie2-build on {}.".format(fasta_path))
+    logger.info("Ran bowtie2-build on {}.".format(marker_fasta_path))
 
     # Save the new mpa_pkl file
     pkl_path = os.path.join(metaphlan_out_dir, "{}.pkl".format(basename))
@@ -113,7 +151,7 @@ def convert_to_metaphlan_db(chronostrain_db, metaphlan_in_path, metaphlan_out_di
 
     # Bzip2 the fasta file.
     fasta_bz2_path = os.path.join(metaphlan_out_dir, "{}.fna.bz2".format(basename))
-    with open(chronostrain_db.get_multifasta_file(), 'rb') as f_in:
+    with open(marker_fasta_path, 'rb') as f_in:
         with bz2.open(fasta_bz2_path, "wb") as f_out:
             shutil.copyfileobj(f_in, f_out)
 
@@ -135,6 +173,23 @@ def main():
     args = parse_args()
 
     chronostrain_db = cfg.database_cfg.get_database()
+
+    for strain in chronostrain_db.all_strains():
+        accession_to_gca = {
+            'CP001071.1': 'GCA_000020225.1',
+            'CR626927.1': 'GCA_000025985.1',
+            "U00096": "GCA_000005845.2",
+            "NZ_CP012938.1": "GCF_001314995.1",
+            "CP000139.1": "GCA_000012825.1",
+            "NZ_CP013243.1": "GCF_001889325.1",
+            "CP068242.1": "GCA_016743835.1",
+            "CP026285.1": "GCA_002902905.1",
+            "NC_009615.1": "GCF_000012845.1",
+            "CP044436.1": "GCA_016772335.1",
+            "CP027002.1": "GCA_009831375.1",
+            "NC_000913.3": "GCA_000005845.2"
+        }
+        strain.metadata.assembly_id = accession_to_gca[strain.metadata.ncbi_accession]
 
     logger.info("Converting metaphlan pickle files.")
     convert_to_metaphlan_db(

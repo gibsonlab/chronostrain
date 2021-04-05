@@ -9,13 +9,14 @@ BASE_DIR="${PROJECT_DIR}/examples/simulated_mdsine_strains/performance_compariso
 
 CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
 CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"
-CHRONOSTRAIN_LOG_FILEPATH="${CHRONOSTRAIN_DATA_DIR}/logs/readgen/db_init.log"
+CHRONOSTRAIN_LOG_FILEPATH="${CHRONOSTRAIN_DATA_DIR}/logs/db_init/db_init.log"
 # =====================================
 
 export BASE_DIR
 export CHRONOSTRAIN_INI
 export CHRONOSTRAIN_LOG_INI
 export CHRONOSTRAIN_LOG_FILEPATH
+export CHRONOSTRAIN_DATA_DIR
 
 # =========================================================
 # Database initialization. (pre-download fasta and markers.)

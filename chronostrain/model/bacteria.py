@@ -9,12 +9,11 @@ from . import logger
 
 @dataclass
 class MarkerMetadata:
-    strain_accession: str
-    subseq_name: str
+    gene_id: str
     file_path: str
     
     def __repr__(self):
-        return "{}-{}".format(self.strain_accession, self.subseq_name)
+        return self.gene_id
         
     def __str__(self):
         return self.__repr__()
@@ -87,7 +86,7 @@ class Population:
                     fragment_space.add_seq(seq, metadata=strain.id + "Pos" + str(pos))
 
         self.fragment_space_map[window_size] = fragment_space
-        logger.debug("Finished constructing fragment space.")
+        logger.debug("Finished constructing fragment space. (Size={})".format(fragment_space.size()))
 
         return fragment_space
 

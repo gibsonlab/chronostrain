@@ -42,6 +42,7 @@ export BASE_DIR
 export CHRONOSTRAIN_INI
 export CHRONOSTRAIN_LOG_INI
 export CHRONOSTRAIN_LOG_FILEPATH
+export CHRONOSTRAIN_DATA_DIR
 
 # =========== Run chronostrain. ==================
 python $PROJECT_DIR/scripts/run_inference.py \

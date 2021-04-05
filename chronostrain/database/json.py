@@ -357,7 +357,7 @@ class JSONStrainDatabase(AbstractStrainDatabase):
             genbank_filename = fetch_genbank(strain_entry.accession, base_dir=cfg.database_cfg.data_dir)
 
             # TODO only do regex searches if can't load from disk. Try to load from disk first
-            # TODO when implementing this, be wary of copy numbers (need to decide when/where to handle it.)
+            #  when implementing this, be wary of copy numbers (need to decide when/where to handle it.)
 
             sequence_loader = SubsequenceLoader(
                 fasta_filename=fasta_filename,
@@ -374,15 +374,14 @@ class JSONStrainDatabase(AbstractStrainDatabase):
                     self.marker_filename(strain_entry.accession, subsequence_data.name)
                 )
                 markers.append(Marker(
-                    name=subsequence_data.id,
+                    name=subsequence_data.name,
                     seq=subsequence_data.get_subsequence(genome),
                     metadata=MarkerMetadata(
-                        strain_accession=strain_entry.accession,
-                        subseq_name=subsequence_data.name,
+                        gene_id=subsequence_data.id,
                         file_path=marker_filepath
                     )
                 ))
-                self.save_marker_to_fasta(markers[-1], marker_filepath)
+                self.save_marker_to_fasta(strain_entry.accession, markers[-1], marker_filepath)
 
             self.strains[strain_entry.accession] = Strain(
                 id=strain_entry.accession,
@@ -439,8 +438,7 @@ class JSONStrainDatabase(AbstractStrainDatabase):
             logger.debug("Multi-fasta file already exists; skipping creation.")
         else:
             marker_files = self.get_marker_filenames()
-            multifasta_filepath = os.path.join(cfg.database_cfg.data_dir, 'marker_multifasta.fa')
-            with open(multifasta_filepath, 'w') as multifa:
+            with open(filepath, 'w') as multifa:
                 for filename in marker_files:
                     with open(filename, 'r') as marker_file:
                         for line in marker_file:
@@ -452,9 +450,9 @@ class JSONStrainDatabase(AbstractStrainDatabase):
         return "{acc}-{seq}.fasta".format(acc=accession, seq=name)
 
     @staticmethod
-    def save_marker_to_fasta(marker: Marker, filepath):
+    def save_marker_to_fasta(strain_id: str, marker: Marker, filepath):
         with open(filepath, 'w') as f:
-            print(">{}-{}".format(marker.metadata.strain_accession, marker.metadata.subseq_name), file=f)
+            print(">{}-{}".format(strain_id, marker.name), file=f)
             for i in range(len(marker.seq)):
                 f.write(marker.seq[i])
                 if (i + 1) % 70 == 0:
