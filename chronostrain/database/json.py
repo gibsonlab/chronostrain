@@ -95,7 +95,7 @@ class MarkerEntry:
 
 @dataclass
 class TagMarkerEntry(MarkerEntry):
-    locus_id: str
+    locus_tag: str
 
     def __str__(self):
         return "(Tag Marker Entry #{} of {}: {})".format(
@@ -105,18 +105,18 @@ class TagMarkerEntry(MarkerEntry):
         )
 
     def __repr__(self):
-        return "{}(parent={},idx={},locus_id={})".format(
+        return "{}(parent={},idx={},locus_tag={})".format(
             self.__class__.__name__,
             self.parent.accession,
             self.index,
-            self.locus_id
+            self.locus_tag
         )
 
     @staticmethod
     def deserialize(entry_dict: dict, idx: int, parent: StrainEntry) -> TagMarkerEntry:
         return TagMarkerEntry(name=entry_dict['name'],
                               index=idx,
-                              locus_id=entry_dict['locus_id'],
+                              locus_tag=entry_dict['locus_tag'],
                               parent=parent)
 
 
@@ -240,7 +240,7 @@ class SubsequenceLoader:
             return []
 
         tags_to_entries = {
-            entry.locus_id: entry
+            entry.locus_tag: entry
             for entry in self.tag_entries
         }
 
@@ -259,8 +259,8 @@ class SubsequenceLoader:
                         loc = feature.location
 
                         subsequences.append(NucleotideSubsequence(
-                            name=tag_entry.id,
-                            id=tag_entry.locus_id,
+                            name=tag_entry.locus_tag,
+                            id=tag_entry.locus_tag,
                             start_index=loc.start,
                             end_index=loc.end,
                             complement=loc.strand == -1
@@ -352,6 +352,7 @@ class JSONStrainDatabase(AbstractStrainDatabase):
 
     def __load__(self):
         logger.info("Loading from JSON marker database file {}.".format(self.entries_file))
+        logger.debug("Data will be saved to/loading from: {}".format(cfg.database_cfg.data_dir))
         for strain_entry in self.strain_entries():
             fasta_filename = fetch_fasta(strain_entry.accession, base_dir=cfg.database_cfg.data_dir)
             genbank_filename = fetch_genbank(strain_entry.accession, base_dir=cfg.database_cfg.data_dir)
@@ -396,6 +397,11 @@ class JSONStrainDatabase(AbstractStrainDatabase):
 
             if len(markers) == 0:
                 logger.warn("No markers parsed for entry {}.".format(strain_entry))
+            else:
+                logger.debug("Strain {} loaded with {} markers.".format(
+                    strain_entry.accession,
+                    len(markers)
+                ))
 
         # Save multi-fasta.
         self.multifasta_file = os.path.join(cfg.database_cfg.data_dir, 'marker_multifasta.fa')
@@ -435,7 +441,9 @@ class JSONStrainDatabase(AbstractStrainDatabase):
                                    filepath: str,
                                    check_exists: bool = True):
         if check_exists and os.path.exists(filepath):
-            logger.debug("Multi-fasta file already exists; skipping creation.")
+            logger.debug("Multi-fasta file already exists; skipping creation.".format(
+                filepath
+            ))
         else:
             marker_files = self.get_marker_filenames()
             with open(filepath, 'w') as multifa:

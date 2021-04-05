@@ -71,7 +71,7 @@ def _fetch_from_api(accession: str, filename: str, url: str):
     :param filename: The target file to check.
     :param url: The url to access.
     """
-    if os.path.exists(filename):
+    if os.path.exists(filename) and get_filesize_bytes(filename) > 0:
         logger.debug("[{}] file found: {}".format(accession, filename))
     else:
         try:

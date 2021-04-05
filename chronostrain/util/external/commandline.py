@@ -23,10 +23,10 @@ def call_command(command: str,
     :param output_path: A path to print the contents of STDOUT to. (If None, logs STDOUT instead.)
     :return: The exit code. (zero by default, the program's returncode if error.)
     """
-    logger.debug("EXECUTE {}: {} {}".format(
-        command,
-        "" if cwd is None else "[cwd={}]".format(cwd),
-        " ".join(args)
+    logger.debug("EXECUTE {cwdstr}{cmd} {arguments}".format(
+        cmd=command,
+        cwdstr="" if cwd is None else "[cwd={}] ".format(cwd),
+        arguments=" ".join(args)
     ))
 
     if output_path is None:

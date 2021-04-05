@@ -445,8 +445,8 @@ def create_model(population: Population,
     @return A Generative model object.
     """
     mu = torch.zeros(len(population.strains), device=cfg.torch_cfg.device)
-    tau_1 = 1
-    tau = 1
+    tau_1 = cfg.model_cfg.time_scale_initial
+    tau = cfg.model_cfg.time_scale
 
     if disable_quality:
         logger.info("Flag --disable_quality turned on; Quality scores are diabled. Initializing NoiselessErrorModel.")

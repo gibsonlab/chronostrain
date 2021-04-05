@@ -31,7 +31,7 @@ def test_deserialization():
     assert marker_entry.index == 1
     assert isinstance(marker_entry, TagMarkerEntry)
     assert marker_entry.name == marker_entry_json["name"]
-    assert marker_entry.locus_id == marker_entry_json["locus_id"]
+    assert marker_entry.locus_tag == marker_entry_json["locus_id"]
     assert marker_entry.parent == strain_entry
 
 
