@@ -19,7 +19,8 @@ class MetaphlanDatabase(AbstractStrainDatabase):
     def __init__(self,
                  basepath: str,
                  strain_universe: str = "",
-                 prune_empty: bool = True):
+                 prune_empty: bool = True,
+                 force_refresh: bool = False):
         """
         :param basepath: The basepath of the metaphlan database. Example: "metaphlan_db/mpa_v30_CHOCOPhlAn_201901".
         This implementation expects a .pkl and a .fna.bz2 file of the specified basename.
@@ -37,13 +38,13 @@ class MetaphlanDatabase(AbstractStrainDatabase):
         self.marker_seq_path = "{}.fna.bz2".format(basepath)
         self.id_to_strains = dict()  # Clade name -> Strain
         self.prune_empty = prune_empty
-        super().__init__()
+        super().__init__(force_refresh=force_refresh)
 
         self.marker_multifasta_path = os.path.join(cfg.database_cfg.data_dir, "usable_markers.fna")
-        self.save_markers_to_multifasta(filepath=self.marker_multifasta_path)
+        self.save_markers_to_multifasta(filepath=self.multifasta_file, force_refresh=force_refresh)
         logger.debug("Multi-fasta file: {}".format(self.marker_multifasta_path))
 
-    def __load__(self):
+    def __load__(self, force_refresh: bool = False):
         logger.info("Loading from Metaphlan database pickle {}.".format(self.pickle_path))
         metaphlan_db: dict = pickle.load(bz2.open(self.pickle_path, 'r'))
         self._load_strains(metaphlan_db)
@@ -162,9 +163,11 @@ class MetaphlanDatabase(AbstractStrainDatabase):
 
     def save_markers_to_multifasta(self,
                                    filepath: str,
-                                   check_exists: bool = True):
-        if check_exists and os.path.exists(filepath):
-            logger.debug("Multi-fasta file already exists; skipping creation.")
+                                   force_refresh: bool = False):
+        if not force_refresh and os.path.exists(filepath):
+            logger.debug("Multi-fasta file already exists; skipping creation.".format(
+                filepath
+            ))
         else:
             records = []
             for strain in self.all_strains():
