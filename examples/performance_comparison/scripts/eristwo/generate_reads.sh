@@ -34,6 +34,7 @@ export CHRONOSTRAIN_INI=${CHRONOSTRAIN_INI}
 export CHRONOSTRAIN_LOG_INI=${CHRONOSTRAIN_LOG_INI}
 export CHRONOSTRAIN_LOG_FILEPATH=${LOG_FILEPATH}
 
+source activate ${CONDA_ENV}
 python ${PROJECT_DIR}/scripts/readgen.py \
 --num_reads $n_reads \
 --read_len $READ_LEN \
