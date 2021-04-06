@@ -58,7 +58,8 @@ python $PROJECT_DIR/scripts/run_inference.py \
 -lr $CHRONOSTRAIN_LR \
 --iters $CHRONOSTRAIN_NUM_ITERS \
 --out_dir $CHRONOSTRAIN_OUTPUT_DIR \
---abundances_file $CHRONOSTRAIN_OUTPUT_FILENAME
+--abundances_file $CHRONOSTRAIN_OUTPUT_FILENAME \
+--num_cores
 EOFDOC
 
 		# ============ Metaphlan LSF ============

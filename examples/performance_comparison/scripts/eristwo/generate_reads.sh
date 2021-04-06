@@ -41,7 +41,7 @@ python ${PROJECT_DIR}/scripts/readgen.py \
 --profiles $READ_PROFILE_PATH $READ_PROFILE_PATH \
 --abundance_path $TRUE_ABUNDANCE_PATH \
 --seed $SEED \
---num_cores $LSF_N_CORES
+--num_cores $LSF_READGEN_N_CORES
 EOFDOC
   done
 done
