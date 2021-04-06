@@ -1,6 +1,6 @@
 import csv
 import re
-from typing import List
+from typing import List, Optional
 
 from chronostrain.config import cfg
 from chronostrain.database.base import AbstractStrainDatabase, StrainEntryError, StrainNotFoundError
@@ -14,7 +14,7 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
     A Simple implementation that treats each complete strain genome as a marker.
     """
 
-    def __init__(self, entries_file, trim_debug=None):
+    def __init__(self, entries_file, trim_debug: Optional[int] = None, force_refresh: bool = False):
         """
         :param entries_file: CSV file specifying accession numbers.
         :param trim_debug: If an int is passed, the genome is trimmed down to the first `trim_debug` characters.
@@ -25,11 +25,11 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
         if trim_debug is not None:
             logger.debug("[SimpleCSVStrainDatabase: initialized in debug mode. Trim length = {L}]".format(L=trim_debug))
             self.trim_debug = int(trim_debug)
-        super().__init__()
+        super().__init__(force_refresh=force_refresh)
 
-    def __load__(self):
+    def __load__(self, force_refresh: bool = False):
         logger.info("Loading from CSV marker database file {}.".format(self.entries_file))
-        for strain_name, accession, fasta_filename in self.strain_entries():
+        for strain_name, accession, fasta_filename in self._strain_entries(force_refresh):
             with open(fasta_filename, "r") as file:
                 lines = [re.sub('[^AGCT]+', '', line.split(sep=" ")[-1]) for line in file]
             genome = ''.join(lines)
@@ -69,7 +69,7 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
             self.__class__.__name__
         ))
 
-    def strain_entries(self):
+    def _strain_entries(self, force_refresh: bool):
         """
         Read CSV file, and download FASTA from accessions if doesn't exist.
         :return: a dictionary mapping accessions to strain-accession-filename wrappers.
@@ -88,6 +88,10 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
                 strain_name = row[0]
                 accession = row[1]
                 logger.debug("Loading entry {}...".format(accession))
-                fasta_filename = fetch_fasta(accession, base_dir=cfg.database_cfg.data_dir)
+                fasta_filename = fetch_fasta(
+                    accession,
+                    base_dir=cfg.database_cfg.data_dir,
+                    force_download=force_refresh
+                )
                 yield strain_name, accession, fasta_filename
         logger.info("Found {} records.".format(line_count - 1))

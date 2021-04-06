@@ -52,10 +52,12 @@ class DatabaseConfig(AbstractConfig):
 
         return class_name, kwargs, datadir
 
-    def get_database(self):
+    def get_database(self, force_refresh: bool = False) -> chronostrain.database.AbstractStrainDatabase:
         module_name, class_name = self.class_name.rsplit(".", 1)
         class_ = getattr(importlib.import_module(module_name), class_name)
-        db_obj = class_(**self.kwargs)
+        db_kwargs = self.kwargs.copy()
+        db_kwargs["force_refresh"] = force_refresh
+        db_obj = class_(**db_kwargs)
         if not isinstance(db_obj, chronostrain.database.AbstractStrainDatabase):
             raise RuntimeError("Specified database class {} is not a subclass of {}".format(
                 self.class_name,

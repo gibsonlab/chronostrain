@@ -9,7 +9,8 @@ from chronostrain import cfg, logger
 
 def main():
     logger.info("Initializing database.")
-    cfg.database_cfg.get_database()
+    db = cfg.database_cfg.get_database(force_refresh=True)
+
     logger.info("Finished initializing database.")
 
 

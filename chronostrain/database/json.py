@@ -258,7 +258,7 @@ class SubsequenceLoader:
                         loc = feature.location
 
                         subsequences.append(NucleotideSubsequence(
-                            name=tag_entry.locus_tag,
+                            name=tag_entry.name,
                             id=tag_entry.locus_tag,
                             start_index=loc.start,
                             end_index=loc.end,
@@ -340,21 +340,25 @@ class JSONStrainDatabase(AbstractStrainDatabase):
     A implementation which defines strains as collections of markers, using the JSON format found in the example.
     """
 
-    def __init__(self, entries_file, marker_max_len):
+    def __init__(self, entries_file, marker_max_len, force_refresh: bool = False):
         """
         :param entries_file: JSON filename specifying accession numbers and marker locus tags.
         """
         self.strains = dict()  # accession -> Strain
         self.entries_file = entries_file
         self.marker_max_len = marker_max_len
-        super().__init__()
+        super().__init__(force_refresh=force_refresh)
 
-    def __load__(self):
+    def __load__(self, force_refresh: bool = False):
         logger.info("Loading from JSON marker database file {}.".format(self.entries_file))
         logger.debug("Data will be saved to/loading from: {}".format(cfg.database_cfg.data_dir))
         for strain_entry in self.strain_entries():
-            fasta_filename = fetch_fasta(strain_entry.accession, base_dir=cfg.database_cfg.data_dir)
-            genbank_filename = fetch_genbank(strain_entry.accession, base_dir=cfg.database_cfg.data_dir)
+            fasta_filename = fetch_fasta(strain_entry.accession,
+                                         base_dir=cfg.database_cfg.data_dir,
+                                         force_download=force_refresh)
+            genbank_filename = fetch_genbank(strain_entry.accession,
+                                             base_dir=cfg.database_cfg.data_dir,
+                                             force_download=force_refresh)
 
             # TODO only do regex searches if can't load from disk. Try to load from disk first
             #  when implementing this, be wary of copy numbers (need to decide when/where to handle it.)
@@ -459,7 +463,11 @@ class JSONStrainDatabase(AbstractStrainDatabase):
     @staticmethod
     def save_marker_to_fasta(strain_id: str, marker: Marker, filepath):
         with open(filepath, 'w') as f:
-            print(">{}-{}".format(strain_id, marker.name), file=f)
+            print(">{}|{}|{}".format(
+                strain_id,
+                marker.name,
+                marker.metadata.gene_id
+            ), file=f)
             for i in range(len(marker.seq)):
                 f.write(marker.seq[i])
                 if (i + 1) % 70 == 0:

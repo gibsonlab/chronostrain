@@ -4,11 +4,17 @@ from chronostrain.model.bacteria import Strain
 
 
 class AbstractStrainDatabase(metaclass=ABCMeta):
-    def __init__(self):
-        self.__load__()
+    def __init__(self, force_refresh: bool = False):
+        self.__load__(force_refresh=force_refresh)
 
     @abstractmethod
-    def __load__(self):
+    def __load__(self, force_refresh: bool = False):
+        """
+        Loads the database. Automatically called by the constructor __init__.
+        :param force_refresh: If true, database should refresh entire index; if necessary, should
+        re-download relevant files.
+        :return:
+        """
         pass
 
     @abstractmethod
