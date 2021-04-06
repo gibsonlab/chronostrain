@@ -88,8 +88,8 @@ done
 
 
 ## ============== Submit all LSF jobs. ================
-if [[ ${LSF_AUTO_SUBMIT} == 1 ]];
-do
+if [[ ${LSF_AUTO_SUBMIT} == 1 ]]
+then
 	echo "Submitting Chronostrain LSF jobs."
 	for lsf_file in ${CHRONOSTRAIN_LSF_DIR}/*.lsf
 	do
@@ -101,4 +101,4 @@ do
 	do
 		bsub < $lsf_file
 	done
-done
+fi

@@ -47,10 +47,10 @@ EOFDOC
 done
 
 ## ============== Submit all LSF jobs. ================
-if [[ ${LSF_AUTO_SUBMIT} == 1 ]];
-do
+if [[ ${LSF_AUTO_SUBMIT} == 1 ]]
+then
 	for lsf_file in ${READGEN_LSF_DIR}/*.lsf
 	do
 		bsub < $lsf_file
 	done
-done
+fi
