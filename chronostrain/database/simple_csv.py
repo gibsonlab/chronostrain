@@ -69,6 +69,9 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
             self.__class__.__name__
         ))
 
+    def strain_markers_to_fasta(self, strain_id: str, out_path: str):
+        raise NotImplementedError("Method not implemented.")
+
     def _strain_entries(self, force_refresh: bool):
         """
         Read CSV file, and download FASTA from accessions if doesn't exist.

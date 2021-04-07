@@ -26,12 +26,8 @@ export LSF_CHRONOSTRAIN_QUEUE="normal"
 export LSF_CHRONOSTRAIN_MEM=40000
 export LSF_CHRONOSTRAIN_N_CORES=1
 
-export LSF_METAPHLAN_QUEUE="normal"
-export LSF_METAPHLAN_MEM=10000
-export LSF_METAPHLAN_N_CORES=4
-
 export LSF_STRAINGE_QUEUE="normal"
-export LSF_STRAINGE_MEM=10000
+export LSF_STRAINGE_MEM=6000
 export LSF_STRAINGE_N_CORES=1
 
 # Turn this to `1` if you want the scripts to automatically submit the LSF jobs.
@@ -43,8 +39,8 @@ export READGEN_LSF_DIR="${LSF_DIR}/readgen"
 export READGEN_LSF_OUTPUT_DIR="${READGEN_LSF_DIR}/output"
 export CHRONOSTRAIN_LSF_DIR="${LSF_DIR}/chronostrain"
 export CHRONOSTRAIN_LSF_OUTPUT_DIR="${CHRONOSTRAIN_LSF_DIR}/output"
-export METAPHLAN_LSF_DIR="${LSF_DIR}/metaphlan"
-export METAPHLAN_LSF_OUTPUT_DIR="${METAPHLAN_LSF_DIR}/output"
+export STRAINGE_LSF_DIR="${LSF_DIR}/strainge"
+export STRAINGE_LSF_OUTPUT_DIR="${STRAINGE_LSF_DIR}/output"
 
 # ========= Chronostrain settings
 export CHRONOSTRAIN_METHOD=em

@@ -36,6 +36,10 @@ class AbstractStrainDatabase(metaclass=ABCMeta):
         """
         pass
 
+    @abstractmethod
+    def strain_markers_to_fasta(self, strain_id: str, out_path: str):
+        pass
+
     def get_strains(self, strain_ids: List[str]) -> List[Strain]:
         return [self.get_strain(s_id) for s_id in strain_ids]
 

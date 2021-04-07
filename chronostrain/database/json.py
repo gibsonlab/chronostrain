@@ -440,6 +440,13 @@ class JSONStrainDatabase(AbstractStrainDatabase):
     def get_multifasta_file(self):
         return self.multifasta_file
 
+    def strain_markers_to_fasta(self, strain_id: str, out_path: str):
+        strain = self.get_strain(strain_id)
+        with open(out_path, "w") as marker_file:
+            for marker in strain.markers:
+                print(">{}|{}|{}".format(strain_id, marker.name, marker.metadata.gene_id), file=marker_file)
+                print(marker.seq, file=marker_file)
+
     def save_markers_to_multifasta(self,
                                    filepath: str,
                                    force_refresh: bool = True):
