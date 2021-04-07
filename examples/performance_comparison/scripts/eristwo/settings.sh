@@ -56,7 +56,7 @@ export METAPHLAN_DB_INDEX="mpa_v30_CHOCOPhlAn_201901"
 
 # ========= StrainGE settings
 export STRAINGE_DB_DIR="${CHRONOSTRAIN_DATA_DIR}/strainge_db"
-export STRAINGE_DB_PATH="${STRAINGE_DB_DIR}/pan-genome-db.hdf5"
+export STRAINGE_DB_PATH="${STRAINGE_DB_DIR}/ecoli-markers-db.hdf5"
 export STRAINGE_OUTPUT_FILENAME="abundances.csv"
 
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)
