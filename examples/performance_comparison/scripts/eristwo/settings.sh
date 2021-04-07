@@ -30,6 +30,10 @@ export LSF_METAPHLAN_QUEUE="normal"
 export LSF_METAPHLAN_MEM=10000
 export LSF_METAPHLAN_N_CORES=4
 
+export LSF_STRAINGE_QUEUE="normal"
+export LSF_STRAINGE_MEM=10000
+export LSF_STRAINGE_N_CORES=1
+
 # Turn this to `1` if you want the scripts to automatically submit the LSF jobs.
 export LSF_AUTO_SUBMIT=0
 
@@ -47,10 +51,17 @@ export CHRONOSTRAIN_METHOD=em
 export CHRONOSTRAIN_NUM_ITERS=5000
 export CHRONOSTRAIN_LR=0.001
 export CHRONOSTRAIN_OUTPUT_FILENAME="abundances.out"
+export CHRONOSTRAIN_DB_DIR="${CHRONOSTRAIN_DATA_DIR}/data"
+export CHRONOSTRAIN_MARKERS_PATH="${CHRONOSTRAIN_DB_DIR}/marker_multifasta.fa"
 
 # ========= MetaPhlAn settings
 export METAPHLAN_DB="${CHRONOSTRAIN_DATA_DIR}/metaphlan_db"
 export METAPHLAN_DB_INDEX="mpa_v30_CHOCOPhlAn_201901"
+
+# ========= StrainGE settings
+export STRAINGE_DB_DIR="${CHRONOSTRAIN_DATA_DIR}/strainge_db"
+export STRAINGE_DB_PATH="${STRAINGE_DB_DIR}/pan-genome-db.hdf5"
+export STRAINGE_OUTPUT_FILENAME="abundances.csv"
 
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)
 export BASE_DIR="${PROJECT_DIR}/examples/performance_comparison"

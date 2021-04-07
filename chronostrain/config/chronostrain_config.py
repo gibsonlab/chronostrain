@@ -214,5 +214,11 @@ def _config_load(ini_path) -> ChronostrainConfig:
 
 
 __env_key__ = "CHRONOSTRAIN_INI"
-__ini__ = os.getenv(__env_key__, "chronostrain.ini")
+__ini__ = os.getenv(
+    key=__env_key__,
+    default=os.path.join(
+        os.path.dirname(chronostrain.__file__),
+        "chronostrain.ini"
+    )
+)
 cfg = _config_load(__ini__)

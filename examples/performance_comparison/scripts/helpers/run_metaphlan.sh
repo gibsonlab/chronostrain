@@ -20,20 +20,20 @@ mkdir -p profiles
 bowtie2_out_format=bowtie2/*.bowtie2.bz2
 for f in $bowtie2_out_format;
 do
-	echo $f
 	if [[ "$f" != "$bowtie2_out_format" ]]
 	then
+		echo "Deleting previous bowtie2 output: ${f}"
 		rm ${f}
 	fi
 done
 
+echo "Using metaphlan database: ${METAPHLAN_DB}, index ${METAPHLAN_DB_INDEX}"
+
 # Loop through reads and run metaphlan.
 for f in $READS_DIR/*.fastq
 do
-	echo $f
-	bn=$(basename ${f%.fq})
+	bn=$(basename ${f%.fastq})
 	echo "Running metaphlan on: ${f} (basename=${bn})"
-	echo "Using metaphlan database: ${METAPHLAN_DB}, index ${METAPHLAN_DB_INDEX}"
 
 	metaphlan $f \
 	--input_type fastq \

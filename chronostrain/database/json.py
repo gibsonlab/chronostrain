@@ -13,7 +13,7 @@ from chronostrain.model.bacteria import Marker, MarkerMetadata, Strain, StrainMe
 from chronostrain.util.ncbi import fetch_fasta, fetch_genbank
 from . import logger
 
-from chronostrain.util.sequences import complement_seq, reverse_complement_seq
+from chronostrain.util.sequences import complement_seq
 
 
 # =====================================================================
@@ -351,7 +351,7 @@ class JSONStrainDatabase(AbstractStrainDatabase):
 
     def __load__(self, force_refresh: bool = False):
         logger.info("Loading from JSON marker database file {}.".format(self.entries_file))
-        logger.debug("Data will be saved to/loading from: {}".format(cfg.database_cfg.data_dir))
+        logger.debug("Data will be saved to/load from: {}".format(cfg.database_cfg.data_dir))
         for strain_entry in self.strain_entries():
             fasta_filename = fetch_fasta(strain_entry.accession,
                                          base_dir=cfg.database_cfg.data_dir,

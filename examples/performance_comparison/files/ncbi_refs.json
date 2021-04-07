@@ -2,7 +2,15 @@
     {
         "markers": [
             {"type": "tag", "locus_tag": "c3592", "name": "papA"},
-            {"type": "tag", "locus_tag": "c5188", "name": "papA_2"}
+            {"type": "tag", "locus_tag": "c5188", "name": "papA_2"},
+            {"type": "tag", "locus_tag": "c3590", "name": "papC"},
+            {"type": "tag", "locus_tag": "c5186", "name": "papC_2"},
+            {"type": "tag", "locus_tag": "c3589", "name": "papD"},
+            {"type": "tag", "locus_tag": "c5185", "name": "papD_2"},
+            {"type": "tag", "locus_tag": "c3585", "name": "papE"},
+            {"type": "tag", "locus_tag": "c5181", "name": "papE_2"},
+            {"type": "tag", "locus_tag": "c3584", "name": "papE_2"},
+            {"type": "tag", "locus_tag": "c5180", "name": "papF"}
         ],
         "genus": "Escherichia",
         "species": "coli",
@@ -11,7 +19,16 @@
     },
     {
         "markers": [
-            {"type": "tag", "locus_tag": "UTI89_C4895", "name": "papA"}
+            {"type": "tag", "locus_tag": "UTI89_C4895", "name": "papA"},
+            {"type": "tag", "locus_tag": "UTI89_C4896", "name": "papB"},
+            {"type": "tag", "locus_tag": "UTI89_C4893", "name": "papC"},
+            {"type": "tag", "locus_tag": "UTI89_C4892", "name": "papD"},
+            {"type": "tag", "locus_tag": "UTI89_C4889", "name": "papE"},
+            {"type": "tag", "locus_tag": "UTI89_C4888", "name": "papF"},
+            {"type": "tag", "locus_tag": "UTI89_C4887", "name": "papG"},
+            {"type": "tag", "locus_tag": "UTI89_C4894", "name": "papH"},
+            {"type": "tag", "locus_tag": "UTI89_C4897", "name": "papI"},
+            {"type": "tag", "locus_tag": "UTI89_C4891", "name": "papJ"}
         ],
         "genus": "Escherichia",
         "species": "coli",
