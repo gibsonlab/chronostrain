@@ -64,8 +64,8 @@ python $PROJECT_DIR/scripts/run_inference.py \
 EOFDOC
 
 		# ============ StrainGE LSF ============
-		echo "Creating ${CHRONOSTRAIN_LSF_PATH}"
-		cat <<- EOFDOC > ${CHRONOSTRAIN_LSF_PATH}
+		echo "Creating ${STRAINGE_LSF_PATH}"
+		cat <<- EOFDOC > ${STRAINGE_LSF_PATH}
 #!/bin/bash
 #BSUB -J bench_strainGE
 #BSUB -o ${STRAINGE_LSF_OUTPUT_DIR}/%J-chronostrain_${n_reads}_${trial}-%J.out
