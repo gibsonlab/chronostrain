@@ -1,5 +1,6 @@
 import re
 import os
+from typing import List
 
 from chronostrain import logger
 from multiprocessing import cpu_count
@@ -232,8 +233,20 @@ class Filter:
         self.time_points = time_points
         self.align_cmd = align_cmd
 
-    def apply_filter(self):
+    def apply_filter(self) -> List[str]:
+        """
+        :return: A list of paths to the resulting filtered read files.
+        """
+        if self.align_cmd == 'bwa':
+            return self.apply_bwa_filter()
+        else:
+            raise NotImplementedError("Alignment command `{}` not currently supported.".format(self.align_cmd))
+
+    def apply_bwa_filter(self):
         resulting_files = []
+
+        bwa.bwa_index(reference_path=self.reference_path)
+
         for time_point, reads_path in zip(self.time_points, self.reads_paths):
             base_path = os.path.dirname(reads_path)
             aligner_tmp_dir = os.path.join(base_path, "tmp")
@@ -246,14 +259,10 @@ class Filter:
 
             sam_path = os.path.join(aligner_tmp_dir, "{}-{}.sam".format(time_point, ref_base_name(self.reference_path)))
 
-            if self.align_cmd == 'bwa':
-                bwa.bwa_index(reference_path=self.reference_path)
-                bwa.bwa_mem(output_path=sam_path,
-                            reference_path=self.reference_path,
-                            read_path=reads_path,
-                            min_seed_length=100)
-            else:
-                raise NotImplementedError("Alignment command `{}` not currently supported.".format(self.align_cmd))
+            bwa.bwa_mem(output_path=sam_path,
+                        reference_path=self.reference_path,
+                        read_path=reads_path,
+                        min_seed_length=100)
 
             ref_filtered_path = filter_file(sam_path, os.path.join(filtered_reads_dir, "{}-".format(time_point)))
             resulting_files.append(ref_filtered_path)
