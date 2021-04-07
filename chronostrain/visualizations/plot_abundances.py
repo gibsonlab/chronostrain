@@ -8,7 +8,7 @@ import pandas as pd
 
 from chronostrain.model.bacteria import Population
 from chronostrain.model.io import load_abundances
-from torch.nn.functional import softmax
+from scipy.special import softmax
 
 
 def plot_abundances_comparison(
@@ -198,7 +198,7 @@ def plot_posterior_abundances(
 
     # Convert gaussians to rel abundances.
     abundance_samples = [
-        softmax(posterior_samples[t_idx, :, :], dim=1)
+        softmax(posterior_samples[t_idx, :, :], axis=1)
         for t_idx in range(posterior_samples.shape[0])
     ]
 
@@ -209,7 +209,7 @@ def plot_posterior_abundances(
     for s_idx, strain in enumerate(population.strains):
         # This is (T x N), for the particular strain.
         traj_samples = np.array([
-            abundance_samples[t_idx][:, s_idx].numpy()
+            abundance_samples[t_idx][:, s_idx]
             for t_idx in range(len(times))
         ])
 

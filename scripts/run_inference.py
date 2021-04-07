@@ -19,8 +19,6 @@ from chronostrain.visualizations import *
 from chronostrain.model.io import load_fastq_reads, save_abundances_by_path
 from chronostrain.util import filesystem
 
-from filter import Filter
-
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Perform inference on time-series reads.")
@@ -49,8 +47,6 @@ def parse_args():
                              'strain by time point. For benchmarking.')
     parser.add_argument('--disable_time_consistency', action="store_true",
                         help='<Flag> Turn off time consistency (perform separate inference on each time point).')
-    parser.add_argument('--skip_filter', action="store_true",
-                        help='<Flag> Turn off read filtering.')
     parser.add_argument('--iters', required=False, type=int, default=10000,
                         help='<Optional> The number of iterations to run, if using EM or VI. Default: 10000')
     parser.add_argument('--num_samples', required=False, type=int, default=100,
@@ -268,7 +264,7 @@ def perform_bbvi_reparametrization(
         bbvi_posterior = solver.solve(
             iters=iters,
             thresh=1e-5,
-            print_debug_every=100,
+            print_debug_every=1,
             lr=learning_rate
         )
     else:
@@ -518,24 +514,8 @@ def main():
     if len(time_points) != len(set(time_points)):
         raise ValueError("Specified sample times must be distinct.")
 
-    if not args.skip_filter:
-        # ============ Perform read filtering.
-        logger.info("Performing filter on reads.")
-        filt = Filter(
-            reference_file_path=db.get_multifasta_file(),
-            reads_paths=read_paths,
-            time_points=time_points,
-            align_cmd=cfg.filter_cfg.align_cmd
-        )
-        filtered_read_files = filt.apply_filter()
-
-        logger.info("Loading filtered time-series read files.")
-        reads = load_fastq_reads(file_paths=filtered_read_files)
-    else:
-        # ============ Optionally skip filtering step.
-        logger.info("Loading time-series read files.")
-        reads = load_fastq_reads(file_paths=read_paths)
-
+    logger.info("Loading time-series read files.")
+    reads = load_fastq_reads(file_paths=read_paths)
     read_len = get_read_len(reads)
 
     # ============ Create model instance
@@ -554,7 +534,6 @@ def main():
     """
 
     cache_tag = CacheTag(
-        method=args.method,
         use_quality=cfg.model_cfg.use_quality_scores,
         read_paths=read_paths
     )

@@ -6,7 +6,7 @@ export CHRONOSTRAIN_DATA_DIR="/home/younhun/chronostrain"
 export SETTINGS_PATH="${BASE_DIR}/scripts/single-run/settings.sh"
 
 # ======== Read settings (how many to sample/read length/where they are stored)
-export N_READS=10000000
+export N_READS=1000000
 export READ_LEN=150
 
 # Location for reads and outputs.
@@ -17,7 +17,7 @@ export METAPHLAN_OUTPUT_DIR="${TRIAL_DIR}/output/metaphlan"
 export STRAINGE_OUTPUT_DIR="${TRIAL_DIR}/output/strainge"
 
 # ========= Chronostrain settings
-export CHRONOSTRAIN_METHOD=em
+export CHRONOSTRAIN_METHOD=bbvi_reparametrization
 export CHRONOSTRAIN_NUM_ITERS=5000
 export CHRONOSTRAIN_LR=0.001
 export CHRONOSTRAIN_OUTPUT_FILENAME="abundances.out"

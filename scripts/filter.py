@@ -1,8 +1,10 @@
+import argparse
+import csv
 import re
 import os
-from typing import List
+from typing import List, Tuple
 
-from chronostrain import logger
+from chronostrain import logger, cfg
 from multiprocessing import cpu_count
 from chronostrain.util.external import bwa
 from chronostrain.util.external import CommandLineException
@@ -162,7 +164,7 @@ def filter_on_match_identity(percent_identity):
     return percent_identity > 0.9
 
 
-def filter_file(sam_file, output_path_stem) -> str:
+def filter_file(sam_file, result_metadata_path, result_fq_path, result_sam_path) -> str:
     """
     Parses a sam file and filters reads using the above criteria.
     Writes the results to a fastq file containing the passing reads and a TSV containing columns:
@@ -175,10 +177,6 @@ def filter_file(sam_file, output_path_stem) -> str:
     MAPPING_FLAG_INDEX = 1
     READ_INDEX = 9
     QUALITY_INDEX = 10
-
-    result_metadata_path = output_path_stem + 'metadata.tsv'
-    result_fq_path = output_path_stem + 'reads.fq'
-    result_sam_path = output_path_stem + 'Alignments.sam'
 
     sam_file = open(sam_file, 'r')
     result_metadata = open(result_metadata_path, 'w')
@@ -219,7 +217,7 @@ def filter_file(sam_file, output_path_stem) -> str:
 
 
 class Filter:
-    def __init__(self, reference_file_path: str, reads_paths: list, time_points: list, align_cmd: str):
+    def __init__(self, reference_file_path: str, reads_paths: list, time_points: list, align_cmd: str, output_dir: str):
         logger.debug("Ref path: {}".format(reference_file_path))
 
         # Note: Bowtie2 does not have the restriction to uncompress bz2 files, but bwa does.
@@ -232,6 +230,7 @@ class Filter:
         self.reads_paths = reads_paths
         self.time_points = time_points
         self.align_cmd = align_cmd
+        self.output_dir = output_dir
 
     def apply_filter(self) -> List[str]:
         """
@@ -250,12 +249,11 @@ class Filter:
         for time_point, reads_path in zip(self.time_points, self.reads_paths):
             base_path = os.path.dirname(reads_path)
             aligner_tmp_dir = os.path.join(base_path, "tmp")
-            filtered_reads_dir = os.path.join(base_path, "filtered")
 
             if not os.path.exists(aligner_tmp_dir):
                 os.makedirs(aligner_tmp_dir)
-            if not os.path.exists(filtered_reads_dir):
-                os.makedirs(filtered_reads_dir)
+            if not os.path.exists(self.output_dir):
+                os.makedirs(self.output_dir)
 
             sam_path = os.path.join(aligner_tmp_dir, "{}-{}.sam".format(time_point, ref_base_name(self.reference_path)))
 
@@ -264,7 +262,72 @@ class Filter:
                         read_path=reads_path,
                         min_seed_length=100)
 
-            ref_filtered_path = filter_file(sam_path, os.path.join(filtered_reads_dir, "{}-".format(time_point)))
+            result_metadata_path = os.path.join(self.output_dir, 'metadata_{}.tsv'.format(time_point))
+            result_fq_path = os.path.join(self.output_dir, "reads_{}.fq".format(time_point))
+            result_sam_path = os.path.join(self.output_dir, 'alignments_{}.sam'.format(time_point))
+
+            ref_filtered_path = filter_file(sam_path, result_metadata_path, result_fq_path, result_sam_path)
             resulting_files.append(ref_filtered_path)
 
+        save_input_csv(self.time_points, self.output_dir, "input_files.csv", resulting_files)
+
         return resulting_files
+
+
+def get_input_paths(base_dir) -> Tuple[List[str], List[float]]:
+    time_points = []
+    read_files = []
+
+    input_specification_path = os.path.join(base_dir, "input_files.csv")
+    try:
+        with open(input_specification_path, "r") as f:
+            input_specs = csv.reader(f, delimiter=',', quotechar='"')
+            for item in input_specs:
+                time_points.append(float(item[0]))
+                read_files.append(os.path.join(base_dir, item[1]))
+    except FileNotFoundError:
+        raise FileNotFoundError("Missing required file `input_files.csv` in directory {}.".format(base_dir)) from None
+
+    return read_files, time_points
+
+
+def save_input_csv(time_points, out_dir, out_filename, read_files):
+    with open(os.path.join(out_dir, out_filename), "w") as f:
+        for t, read_file in zip(time_points, read_files):
+            print("\"{}\",\"{}\"".format(t, read_file), file=f)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Perform inference on time-series reads.")
+
+    # Input specification.
+    parser.add_argument('-r', '--reads_dir', required=True, type=str,
+                        help='<Required> Directory containing read files. The directory requires a `input_files.csv` '
+                             'which contains information about the input reads and corresponding time points.')
+    parser.add_argument('-o', '--out_dir', required=True, type=str,
+                        dest="output_dir",
+                        help='<Required> The file path to save learned outputs to.')
+
+    return parser.parse_args()
+
+
+def main():
+    args = parse_args()
+    db = cfg.database_cfg.get_database()
+    read_paths, time_points = get_input_paths(args.reads_dir)
+
+    # ============ Perform read filtering.
+    logger.info("Performing filter on reads.")
+    filt = Filter(
+        reference_file_path=db.get_multifasta_file(),
+        reads_paths=read_paths,
+        time_points=time_points,
+        align_cmd=cfg.filter_cfg.align_cmd,
+        output_dir=args.output_dir
+    )
+    _ = filt.apply_filter()
+    logger.info("Finished filtering.")
+
+
+if __name__ == "__main__":
+    main()

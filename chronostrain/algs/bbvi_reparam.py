@@ -72,7 +72,7 @@ class NaiveMeanFieldPosterior(AbstractVariationalPosterior):
 
         return mean_li, std_li
 
-    def update_phi(self, x_li):
+    def update_phi(self, x_li, smoothing=1e-10):
         """updates the probabilities of fragment assignments
            returns a dictionary whose keys are the time where reads are sampled"""
 
@@ -87,7 +87,11 @@ class NaiveMeanFieldPosterior(AbstractVariationalPosterior):
                 for n_t in range(self.read_counts[i - 1]):
                     phi_n = torch.exp(torch.log(w_t) + reads_t[:, n_t])
                     # debugging tool : must sum to 1 since this is a probability
-                    phi_t.append(phi_n / torch.sum(phi_n))
+
+                    # phi_n = phi_n + smoothing
+                    # phi_t.append(phi_n / torch.sum(phi_n))
+                    phi_t.append(phi_n)
+
                     # print(phi_n.shape)
                     # print(torch.sum(phi_t[-1]))
                 phi_all[i] = torch.stack(phi_t)
@@ -186,7 +190,7 @@ class NaiveMeanFieldPosterior(AbstractVariationalPosterior):
 
             samples = posterior_t.sample(sample_shape=(num_samples,))
             time_indexed_samples.append(samples)
-        return torch.tensor(time_indexed_samples)
+        return torch.stack(time_indexed_samples)
 
 
 class BBVIReparamSolver(AbstractModelSolver):
