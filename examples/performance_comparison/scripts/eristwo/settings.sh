@@ -51,6 +51,7 @@ export CHRONOSTRAIN_DB_DIR="${CHRONOSTRAIN_DATA_DIR}/data"
 export CHRONOSTRAIN_MARKERS_PATH="${CHRONOSTRAIN_DB_DIR}/marker_multifasta.fa"
 
 # ========= MetaPhlAn settings
+# These settings assume that METAPHLAN_DB has the index files for METAPHLAN_DB_INDEX, downloaded from the metaphlan tutorial.
 export METAPHLAN_DB="${CHRONOSTRAIN_DATA_DIR}/metaphlan_db"
 export METAPHLAN_DB_INDEX="mpa_v30_CHOCOPhlAn_201901"
 
