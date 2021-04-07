@@ -15,7 +15,7 @@ do
 	do
 		# =============== Trial-specific settings ===================
 		CHRONOSTRAIN_LSF_PATH="${CHRONOSTRAIN_LSF_DIR}/reads_${n_reads}_trial_${trial}-chronostrain.lsf"
-		STRAINGE_LSF_PATH="${METAPHLAN_LSF_DIR}/reads_${n_reads}_trial_${trial}-strainge.lsf"
+		STRAINGE_LSF_PATH="${STRAINGE_LSF_DIR}/reads_${n_reads}_trial_${trial}-strainge.lsf"
 
     TRIAL_DIR="${RUNS_DIR}/reads_${n_reads}/trial_${trial}"
     READS_DIR="${TRIAL_DIR}/simulated_reads"
@@ -64,7 +64,8 @@ python $PROJECT_DIR/scripts/run_inference.py \
 EOFDOC
 
 		# ============ StrainGE LSF ============
-		cat <<- EOFDOC > $CHRONOSTRAIN_LSF_PATH
+		echo "Creating ${CHRONOSTRAIN_LSF_PATH}"
+		cat <<- EOFDOC > ${CHRONOSTRAIN_LSF_PATH}
 #!/bin/bash
 #BSUB -J bench_strainGE
 #BSUB -o ${STRAINGE_LSF_OUTPUT_DIR}/%J-chronostrain_${n_reads}_${trial}-%J.out
