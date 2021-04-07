@@ -1,0 +1,22 @@
+[
+    {
+        "markers": [
+            {"type": "tag", "locus_tag": "c3592", "name": "papA"},
+            {"type": "tag", "locus_tag": "c3590", "name": "papC"}
+        ],
+        "genus": "Escherichia",
+        "species": "coli",
+        "strain": "CFT073",
+        "accession": "AE014075.1"
+    },
+    {
+        "markers": [
+            {"type": "tag", "locus_tag": "UTI89_C4895", "name": "papA"},
+            {"type": "tag", "locus_tag": "UTI89_C4893", "name": "papC"}
+        ],
+        "genus": "Escherichia",
+        "species": "coli",
+        "strain": "UTI89",
+        "accession": "CP000243.1"
+    }
+]

@@ -32,18 +32,19 @@ class NaiveMeanFieldPosterior(AbstractVariationalPosterior):
                  read_counts: List[int],
                  read_log_likelihoods: List[torch.tensor],
                  lr: float):
-        self.model = model
-        self.read_counts = read_counts
-        self.reads_ll = read_log_likelihoods
-        self.lr = lr
-
         # Model parameters.
+        self.model = model
         self.W = self.model.get_fragment_frequencies()  # P(F= f | S = s); stochastic matrix whose column sum to 1
         self.times = self.model.times
         self.T = self.model.num_times()
         self.S = self.model.num_strains()
 
+        # Data likelihoods.
+        self.reads_ll = read_log_likelihoods
+        self.read_counts = read_counts
+
         # variational parameters (of the Gaussian posterior approximation) and their optimizers.
+        self.lr = lr
         self.mu_parameters, self.sigma_parameters = self.initialize_vi_params()
         self.opt_mu = torch.optim.SGD(self.mu_parameters, lr=self.lr)
         self.opt_sigma = torch.optim.SGD(self.sigma_parameters, lr=self.lr)
@@ -71,7 +72,7 @@ class NaiveMeanFieldPosterior(AbstractVariationalPosterior):
 
         return mean_li, std_li
 
-    def update_phi(self, x_li):
+    def update_phi(self, x_li, smoothing=1e-10):
         """updates the probabilities of fragment assignments
            returns a dictionary whose keys are the time where reads are sampled"""
 
@@ -86,7 +87,11 @@ class NaiveMeanFieldPosterior(AbstractVariationalPosterior):
                 for n_t in range(self.read_counts[i - 1]):
                     phi_n = torch.exp(torch.log(w_t) + reads_t[:, n_t])
                     # debugging tool : must sum to 1 since this is a probability
-                    phi_t.append(phi_n / torch.sum(phi_n))
+
+                    # phi_n = phi_n + smoothing
+                    # phi_t.append(phi_n / torch.sum(phi_n))
+                    phi_t.append(phi_n)
+
                     # print(phi_n.shape)
                     # print(torch.sum(phi_t[-1]))
                 phi_all[i] = torch.stack(phi_t)
@@ -168,7 +173,11 @@ class NaiveMeanFieldPosterior(AbstractVariationalPosterior):
     def get_std(self):
         return self.sigma_parameters
 
-    def sample(self, num_samples: int = 1) -> List[torch.Tensor]:
+    def sample(self, num_samples: int = 1) -> torch.Tensor:
+        """
+        :param num_samples:
+        :return: A (T x N x S) tensor of time-indexed abundance samples.
+        """
         time_indexed_samples = []
         for t_idx in range(1, self.T + 1):
             mean_t = self.mu_parameters[t_idx].detach()
@@ -181,7 +190,7 @@ class NaiveMeanFieldPosterior(AbstractVariationalPosterior):
 
             samples = posterior_t.sample(sample_shape=(num_samples,))
             time_indexed_samples.append(samples)
-        return time_indexed_samples
+        return torch.stack(time_indexed_samples)
 
 
 class BBVIReparamSolver(AbstractModelSolver):
@@ -193,8 +202,7 @@ class BBVIReparamSolver(AbstractModelSolver):
                  model: GenerativeModel,
                  data: List[List[SequenceRead]],
                  cache_tag: CacheTag,
-                 out_base_dir: str,
-                 read_likelihoods: List[torch.Tensor] = None
+                 out_base_dir: str
                  ):
         super().__init__(model, data, cache_tag)
         self.read_counts = [len(reads_t) for reads_t in data]

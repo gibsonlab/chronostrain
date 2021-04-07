@@ -51,27 +51,27 @@ def genbank_filename(accession: str, base_dir: str) -> str:
     return os.path.join(base_dir, _genbank_filename.format(accession=accession))
 
 
-def fetch_fasta(accession: str, base_dir: str) -> str:
+def fetch_fasta(accession: str, base_dir: str, force_download: bool = False) -> str:
     filename = fasta_filename(accession, base_dir)
     url = _fasta_get_url(accession)
-    _fetch_from_api(accession, filename, url)
+    _fetch_from_api(accession, filename, url, force_download=force_download)
     return filename
 
 
-def fetch_genbank(accession: str, base_dir: str) -> str:
+def fetch_genbank(accession: str, base_dir: str, force_download: bool = False) -> str:
     filename = genbank_filename(accession, base_dir)
     url = _genbank_get_url(accession)
-    _fetch_from_api(accession, filename, url)
+    _fetch_from_api(accession, filename, url, force_download=force_download)
     return filename
 
 
-def _fetch_from_api(accession: str, filename: str, url: str):
+def _fetch_from_api(accession: str, filename: str, url: str, force_download: bool):
     """
     Check if file exists. If not, try to download the files.
     :param filename: The target file to check.
     :param url: The url to access.
     """
-    if os.path.exists(filename):
+    if not force_download and os.path.exists(filename) and get_filesize_bytes(filename) > 0:
         logger.debug("[{}] file found: {}".format(accession, filename))
     else:
         try:

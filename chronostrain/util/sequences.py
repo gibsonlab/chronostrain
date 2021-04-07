@@ -51,10 +51,11 @@ _acgt_to_z4 = {
     "G": 2,
     "g": 2,
     "T": 3,
-    "t": 3
+    "t": 3,
+    "N": 4  # Special character.
 }
 
-_z4_to_acgt = ["A", "C", "G", "T"]
+_z4_to_acgt = ["A", "C", "G", "T", "N"]
 
 SEQ_DTYPE = np.ubyte
 

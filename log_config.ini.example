@@ -5,7 +5,8 @@ keys=root,chronostrain
 [logger_chronostrain]
 level=DEBUG
 qualname=chronostrain
-handlers=consoleHandler,fileHandler
+handlers=consoleHandler
+;handlers=consoleHandler,fileHandler
 
 # Root must always be defined. Suppress by providing no handlers.
 [logger_root]

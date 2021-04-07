@@ -13,7 +13,7 @@ def test_deserialization():
 
     strain_entry = StrainEntry.deserialize(json_dict, 0)
     assert strain_entry.index == 0
-    assert strain_entry.name == json_dict["name"]
+    assert strain_entry.id == json_dict["name"]
     assert strain_entry.accession == json_dict["accession"]
     assert len(strain_entry.marker_entries) == 2
 
@@ -31,7 +31,7 @@ def test_deserialization():
     assert marker_entry.index == 1
     assert isinstance(marker_entry, TagMarkerEntry)
     assert marker_entry.name == marker_entry_json["name"]
-    assert marker_entry.locus_id == marker_entry_json["locus_id"]
+    assert marker_entry.locus_tag == marker_entry_json["locus_id"]
     assert marker_entry.parent == strain_entry
 
 

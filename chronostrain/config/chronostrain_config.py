@@ -52,10 +52,12 @@ class DatabaseConfig(AbstractConfig):
 
         return class_name, kwargs, datadir
 
-    def get_database(self):
+    def get_database(self, force_refresh: bool = False):
         module_name, class_name = self.class_name.rsplit(".", 1)
         class_ = getattr(importlib.import_module(module_name), class_name)
-        db_obj = class_(**self.kwargs)
+        db_kwargs = self.kwargs.copy()
+        db_kwargs["force_refresh"] = force_refresh
+        db_obj = class_(**db_kwargs)
         if not isinstance(db_obj, chronostrain.database.AbstractStrainDatabase):
             raise RuntimeError("Specified database class {} is not a subclass of {}".format(
                 self.class_name,
@@ -67,9 +69,13 @@ class DatabaseConfig(AbstractConfig):
 class ModelConfig(AbstractConfig):
     def __init__(self, cfg: dict):
         super().__init__("Model")
-        self.use_quality_scores, self.num_cores, self.cache_dir = self.parse(cfg)
+        (self.use_quality_scores,
+         self.num_cores,
+         self.cache_dir,
+         self.time_scale,
+         self.time_scale_initial) = self.parse(cfg)
 
-    def parse_impl(self, cfg: dict) -> Tuple[bool, int, str]:
+    def parse_impl(self, cfg: dict) -> Tuple[bool, int, str, float, float]:
         q_token = cfg["USE_QUALITY_SCORES"].strip().lower()
         if q_token == "true":
             use_quality_scores = True
@@ -80,15 +86,30 @@ class ModelConfig(AbstractConfig):
                 "Field `USE_QUALITY_SCORES`: Expected `true` or `false`, got `{}`".format(q_token)
             )
 
-        n_cores_token = cfg["NUM_CORES"]
         try:
-            n_cores = int(n_cores_token.strip())
+            time_scale = float(cfg["TIME_VARIANCE_SCALE"].strip())
         except ValueError:
-            raise ConfigurationParseError("Field `NUM_CORES`: Expected int, got `{}`".format(n_cores_token))
+            raise ConfigurationParseError(
+                "Field `TIME_VARIANCE_SCALE`: Expect float, got `{}`".format(cfg["TIME_VARIANCE_SCALE"])
+            )
+
+        try:
+            time_scale_initial = float(cfg["TIME_VARIANCE_SCALE_INITIAL"].strip())
+        except ValueError:
+            raise ConfigurationParseError(
+                "Field `TIME_VARIANCE_SCALE_INITIAL`: Expect float, got `{}`".format(cfg["TIME_VARIANCE_SCALE_INITIAL"])
+            )
+
+        try:
+            n_cores = int(cfg["NUM_CORES"].strip())
+        except ValueError:
+            raise ConfigurationParseError(
+                "Field `NUM_CORES`: Expected int, got `{}`".format(cfg["NUM_CORES"])
+            )
 
         cache_dir = cfg["CACHE_DIR"]
 
-        return use_quality_scores, n_cores, cache_dir
+        return use_quality_scores, n_cores, cache_dir, time_scale, time_scale_initial
 
 
 class TorchConfig(AbstractConfig):
@@ -193,5 +214,11 @@ def _config_load(ini_path) -> ChronostrainConfig:
 
 
 __env_key__ = "CHRONOSTRAIN_INI"
-__ini__ = os.getenv(__env_key__, "chronostrain.ini")
+__ini__ = os.getenv(
+    key=__env_key__,
+    default=os.path.join(
+        os.path.dirname(chronostrain.__file__),
+        "chronostrain.ini"
+    )
+)
 cfg = _config_load(__ini__)

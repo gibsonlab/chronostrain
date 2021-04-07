@@ -4,11 +4,17 @@ from chronostrain.model.bacteria import Strain
 
 
 class AbstractStrainDatabase(metaclass=ABCMeta):
-    def __init__(self):
-        self.__load__()
+    def __init__(self, force_refresh: bool = False):
+        self.__load__(force_refresh=force_refresh)
 
     @abstractmethod
-    def __load__(self):
+    def __load__(self, force_refresh: bool = False):
+        """
+        Loads the database. Automatically called by the constructor __init__.
+        :param force_refresh: If true, database should refresh entire index; if necessary, should
+        re-download relevant files.
+        :return:
+        """
         pass
 
     @abstractmethod
@@ -17,6 +23,21 @@ class AbstractStrainDatabase(metaclass=ABCMeta):
 
     @abstractmethod
     def all_strains(self) -> List[Strain]:
+        pass
+
+    @abstractmethod
+    def num_strains(self) -> int:
+        pass
+
+    @abstractmethod
+    def get_multifasta_file(self) -> str:
+        """
+        :return: A path to a multi-fasta file, containing all of the markers in the database.
+        """
+        pass
+
+    @abstractmethod
+    def strain_markers_to_fasta(self, strain_id: str, out_path: str):
         pass
 
     def get_strains(self, strain_ids: List[str]) -> List[Strain]:

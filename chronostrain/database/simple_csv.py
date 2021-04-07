@@ -1,6 +1,6 @@
 import csv
 import re
-from typing import List
+from typing import List, Optional
 
 from chronostrain.config import cfg
 from chronostrain.database.base import AbstractStrainDatabase, StrainEntryError, StrainNotFoundError
@@ -14,7 +14,7 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
     A Simple implementation that treats each complete strain genome as a marker.
     """
 
-    def __init__(self, entries_file, trim_debug=None):
+    def __init__(self, entries_file, trim_debug: Optional[int] = None, force_refresh: bool = False):
         """
         :param entries_file: CSV file specifying accession numbers.
         :param trim_debug: If an int is passed, the genome is trimmed down to the first `trim_debug` characters.
@@ -25,11 +25,11 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
         if trim_debug is not None:
             logger.debug("[SimpleCSVStrainDatabase: initialized in debug mode. Trim length = {L}]".format(L=trim_debug))
             self.trim_debug = int(trim_debug)
-        super().__init__()
+        super().__init__(force_refresh=force_refresh)
 
-    def __load__(self):
+    def __load__(self, force_refresh: bool = False):
         logger.info("Loading from CSV marker database file {}.".format(self.entries_file))
-        for strain_name, accession, fasta_filename in self.strain_entries():
+        for strain_name, accession, fasta_filename in self._strain_entries(force_refresh):
             with open(fasta_filename, "r") as file:
                 lines = [re.sub('[^AGCT]+', '', line.split(sep=" ")[-1]) for line in file]
             genome = ''.join(lines)
@@ -37,12 +37,13 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
                 genome = genome[:self.trim_debug]
             markers = [Marker(name=strain_name, seq=genome, metadata=None)]  # Each genome's marker is its own genome.
             self.strains[accession] = Strain(
-                name=accession,
+                id=accession,
                 markers=markers,
                 genome_length=len(genome),
                 metadata=StrainMetadata(
                     ncbi_accession=accession,
-                    name=strain_name,
+                    genus="",  # TODO: make it up-to-date with JSONDatabase.
+                    species=strain_name,
                     file_path=fasta_filename
                 )
             )
@@ -60,7 +61,18 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
     def all_strains(self) -> List[Strain]:
         return list(self.strains.values())
 
-    def strain_entries(self):
+    def num_strains(self) -> int:
+        return len(self.strains)
+
+    def get_multifasta_file(self) -> str:
+        raise NotImplementedError("Multi-fasta marker generation not implemented for {}.".format(
+            self.__class__.__name__
+        ))
+
+    def strain_markers_to_fasta(self, strain_id: str, out_path: str):
+        raise NotImplementedError("Method not implemented.")
+
+    def _strain_entries(self, force_refresh: bool):
         """
         Read CSV file, and download FASTA from accessions if doesn't exist.
         :return: a dictionary mapping accessions to strain-accession-filename wrappers.
@@ -79,6 +91,10 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
                 strain_name = row[0]
                 accession = row[1]
                 logger.debug("Loading entry {}...".format(accession))
-                fasta_filename = fetch_fasta(accession, base_dir=cfg.database_cfg.data_dir)
+                fasta_filename = fetch_fasta(
+                    accession,
+                    base_dir=cfg.database_cfg.data_dir,
+                    force_download=force_refresh
+                )
                 yield strain_name, accession, fasta_filename
         logger.info("Found {} records.".format(line_count - 1))

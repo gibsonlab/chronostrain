@@ -6,10 +6,9 @@ import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 import pandas as pd
 
-from chronostrain.algs.vi import AbstractVariationalPosterior
 from chronostrain.model.bacteria import Population
 from chronostrain.model.io import load_abundances
-from torch.nn.functional import softmax
+from scipy.special import softmax
 
 
 def plot_abundances_comparison(
@@ -165,17 +164,31 @@ def plot_abundance_dataframe(
 
 def plot_posterior_abundances(
         times: List[float],
-        posterior: AbstractVariationalPosterior,
+        posterior_samples: np.ndarray,
         population: Population,
         plots_out_path: str,
         truth_path: str,
         draw_legend: bool,
         img_format: str,
-        num_samples: int = 500,
         title: str = None,
         font_size: int = 12,
         thickness: int = 1,
         dpi: int = 100):
+    """
+
+    :param times:
+    :param posterior_samples: A (T x N x S) array of time-indexed samples of abundances.
+    :param population:
+    :param plots_out_path:
+    :param truth_path:
+    :param draw_legend:
+    :param img_format:
+    :param title:
+    :param font_size:
+    :param thickness:
+    :param dpi:
+    :return:
+    """
 
     true_abundances = None
     truth_acc_dict = None
@@ -183,10 +196,10 @@ def plot_posterior_abundances(
         _, true_abundances, accessions = load_abundances(truth_path)
         truth_acc_dict = {acc: i for i, acc in enumerate(accessions)}
 
-    # This is a list of (N x S) tensors.
+    # Convert gaussians to rel abundances.
     abundance_samples = [
-        softmax(x_t, dim=1)
-        for x_t in posterior.sample(num_samples=num_samples)
+        softmax(posterior_samples[t_idx, :, :], axis=1)
+        for t_idx in range(posterior_samples.shape[0])
     ]
 
     fig, ax = plt.subplots(1, 1)
@@ -196,7 +209,7 @@ def plot_posterior_abundances(
     for s_idx, strain in enumerate(population.strains):
         # This is (T x N), for the particular strain.
         traj_samples = np.array([
-            abundance_samples[t_idx][:, s_idx].numpy()
+            abundance_samples[t_idx][:, s_idx]
             for t_idx in range(len(times))
         ])
 
@@ -214,14 +227,14 @@ def plot_posterior_abundances(
         # Plot true trajectory, if available.
         if true_abundances is not None:
             true_trajectory = np.array([
-                abundance_t[truth_acc_dict[strain.name]].item()
+                abundance_t[truth_acc_dict[strain.id]].item()
                 for abundance_t in true_abundances
             ])
             ax.plot(times, true_trajectory, linestyle='-', marker='o', color=color, linewidth=thickness)
 
         # Populate the legend.
         legend_elements.append(
-            Line2D([0], [0], color=color, lw=2, label=strain.name)
+            Line2D([0], [0], color=color, lw=2, label=strain.id)
         )
 
     if draw_legend:
