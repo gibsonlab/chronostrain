@@ -9,7 +9,7 @@ import torch
 from torch.distributions import MultivariateNormal
 
 from chronostrain import cfg
-from chronostrain.algs import AbstractModelSolver, AbstractVariationalPosterior
+from chronostrain.algs import AbstractModelSolver, AbstractPosterior
 from chronostrain.model import *
 from chronostrain.model.reads import *
 from chronostrain.util.data_cache import CacheTag
@@ -26,7 +26,7 @@ def softmax(x: torch.Tensor):
     return exp_x / torch.sum(exp_x)
 
 
-class NaiveMeanFieldPosterior(AbstractVariationalPosterior):
+class NaiveMeanFieldPosterior(AbstractPosterior):
     def __init__(self,
                  model: GenerativeModel,
                  read_counts: List[int],
@@ -72,7 +72,7 @@ class NaiveMeanFieldPosterior(AbstractVariationalPosterior):
 
         return mean_li, std_li
 
-    def update_phi(self, x_li, smoothing=1e-10):
+    def update_phi(self, x_li):
         """updates the probabilities of fragment assignments
            returns a dictionary whose keys are the time where reads are sampled"""
 
@@ -88,8 +88,7 @@ class NaiveMeanFieldPosterior(AbstractVariationalPosterior):
                     phi_n = torch.exp(torch.log(w_t) + reads_t[:, n_t])
                     # debugging tool : must sum to 1 since this is a probability
 
-                    # phi_n = phi_n + smoothing
-                    # phi_t.append(phi_n / torch.sum(phi_n))
+                    phi_t.append(phi_n / torch.sum(phi_n))
                     phi_t.append(phi_n)
 
                     # print(phi_n.shape)
@@ -100,26 +99,16 @@ class NaiveMeanFieldPosterior(AbstractVariationalPosterior):
         # print(phi_all.keys() == self.times)
         return phi_all
 
-    def compute_elbo(self, x_li) -> torch.Tensor:
+    def compute_elbo_lower_bound(self, x_li) -> torch.Tensor:
         inst_elbo = torch.tensor([0.], device=cfg.torch_cfg.device)
 
         # The initial value of x (t_idx = 0)
         inst_elbo += -self.S * 0.5 * torch.log(2 * pi * (self.model.tau_1 ** 2))
-
-        # The rest of the values (t_idx > 0
-        inst_elbo += -0.5 / (self.model.tau_1 ** 2) * torch.dot(x_li[0] - self.model.mu, x_li[0] - self.model.mu)
+        inst_elbo += -0.5 * (1 / (self.model.tau_1 ** 2)) * torch.pow(x_li[0] - self.model.mu, 2)
 
         t_prev = 0
-        for i in range(1, self.T + 1):
-            t = self.times[i-1]
-            v_scale = t - t_prev
-
-            inst_elbo += -self.S * 0.5 * torch.log(2 * pi * (self.model.tau ** 2))
-            inst_elbo += -0.5 / ((self.model.tau ** 2) * v_scale) * (
-                    -2 * torch.dot(x_li[i], x_li[i - 1])
-                    + torch.dot(x_li[i], x_li[i])
-                    + torch.dot(x_li[i - 1], x_li[i - 1])
-            )
+        for i in range(self.model.num_times()):
+            inst_elbo += -0.5 * (1 / self.model.time_scaled_variance(i)) * torch.sum(torch.pow(x_li[i] - x_li[i - 1], 2))
             inst_elbo += self.S / 2 * (torch.log(self.sigma_parameters[i] ** 2) + torch.log(2 * pi * e))
 
         for i in range(1, self.T + 1):
@@ -149,7 +138,7 @@ class NaiveMeanFieldPosterior(AbstractVariationalPosterior):
                 x_samples.append(samp)
 
             self.phi = self.update_phi(x_samples)
-            total_elbo += self.compute_elbo(x_samples)
+            total_elbo += self.compute_elbo_lower_bound(x_samples)
         total_elbo = total_elbo / n_samples
         loss = -total_elbo
         loss.backward()
