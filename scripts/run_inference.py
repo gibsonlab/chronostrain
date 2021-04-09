@@ -8,15 +8,16 @@ import os
 import torch
 import argparse
 from tqdm import tqdm
+from matplotlib import pyplot as plt
 
 from chronostrain import logger, cfg
-from chronostrain.algs.vi import SecondOrderVariationalSolver, AbstractVariationalPosterior
+from chronostrain.algs.vi import SecondOrderVariationalSolver, AbstractPosterior
 from chronostrain.algs import em, vsmc, bbvi, bbvi_reparam
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.reads import SequenceRead, BasicFastQErrorModel, NoiselessErrorModel
 from chronostrain.util.data_cache import CacheTag
 from chronostrain.visualizations import *
-from chronostrain.model.io import load_fastq_reads, save_abundances_by_path
+from chronostrain.model.io import load_fastq_reads, save_abundances
 from chronostrain.util import filesystem
 
 
@@ -39,7 +40,6 @@ def parse_args():
                         help='<Required> The file path to save learned outputs to.')
 
     # Optional params
-    parser.add_argument('-rl', '--read_len', required=False, type=int, default=150) ## TODO: make this required, update all scripts.
     parser.add_argument('-s', '--seed', required=False, type=int, default=31415,
                         help='<Optional> Seed for randomness (for reproducibility).')
     parser.add_argument('-truth', '--true_abundance_path', required=False, type=str,
@@ -62,6 +62,9 @@ def parse_args():
                         help='<Optional> If using a variational method, specify the number of '
                              'samples to generate as output.')
     parser.add_argument('--plot_format', required=False, type=str, default="pdf")
+    parser.add_argument('--learn_variances', action="store_true",
+                        help='<Flag> Try to learn the gaussian process variance (the old configured values '
+                             'are used as initialization)')
 
     return parser.parse_args()
 
@@ -69,11 +72,12 @@ def parse_args():
 def perform_em(
         reads: List[List[SequenceRead]],
         model: GenerativeModel,
-        abnd_out_path: str,
-        plots_out_path: str,
+        out_dir: str,
+        abnd_out_file: str,
         ground_truth_path: str,
         disable_time_consistency: bool,
         disable_quality: bool,
+        learn_variances: bool,
         iters: int,
         cache_tag: CacheTag,
         learning_rate: float,
@@ -93,7 +97,9 @@ def perform_em(
             print_debug_every=1000,
             thresh=1e-5,
             gradient_clip=1e5,
-            q_smoothing=q_smoothing)
+            q_smoothing=q_smoothing,
+            learn_variances=learn_variances
+        )
     else:
         logger.info("Flag --disable_time_consistency turned on; Performing inference on each sample independently.")
 
@@ -125,26 +131,33 @@ def perform_em(
         abundances = torch.stack(abundances)
 
     # ==== Save the learned abundances.
-    output_path = save_abundances_by_path(
+    output_path = save_abundances(
         population=model.bacteria_pop,
         time_points=model.times,
         abundances=abundances,
-        out_path=abnd_out_path
+        out_path=os.path.join(out_dir, abnd_out_file)
     )
     logger.info("Abundances saved to {}.".format(output_path))
 
+    metadata_path = os.path.join(out_dir, "metadata.txt")
+    with open(metadata_path, "w") as metadata_file:
+        if learn_variances:
+            print("Learned tau_1: {}".format(model.tau_1), file=metadata_file)
+            print("Learned tau: {}".format(model.tau), file=metadata_file)
+
     # ==== Plot the learned abundances.
     logger.info("Done. Saving plot of learned abundances.")
+    plot_path = os.path.join(out_dir, "plot.{}".format(plot_format))
     plot_em_result(
         reads=reads,
         result_path=output_path,
         true_path=ground_truth_path,
-        plots_out_path=plots_out_path,
+        plots_out_path=plot_path,
         disable_time_consistency=disable_time_consistency,
         disable_quality=disable_quality,
         plot_format=plot_format
     )
-    logger.info("Plots saved to {}.".format(plots_out_path))
+    logger.info("Plots saved to {}.".format(plot_path))
 
 
 def perform_vsmc(
@@ -204,20 +217,26 @@ def perform_bbvi(
         plots_out_path: str,
         samples_out_path: str,
         cache_tag: CacheTag,
-        plot_format: str
+        plot_format: str,
+        plot_elbo_history: bool = True
 ):
 
     # ==== Run the solver.
     if not disable_time_consistency:
         solver = bbvi.BBVISolver(model=model, data=reads, cache_tag=cache_tag)
-        solver.solve(
+        elbo_history = solver.solve(
             optim_class=torch.optim.Adam,
             optim_args={'lr': learning_rate, 'betas': (0.9, 0.999), 'eps': 1e-7, 'weight_decay': 0.},
             iters=iters,
             num_samples=num_samples,
-            print_debug_every=100
+            print_debug_every=100,
+            store_elbos=True
         )
-        posterior = solver.posterior
+        posterior = solver.gaussian_posterior
+
+        if plot_elbo_history:
+            elbo_plot_path = os.path.join(os.path.dirname(plots_out_path), "elbo.{}".format(plot_format))
+            plot_elbos(out_path=elbo_plot_path, elbos=elbo_history, plot_format=plot_format)
     else:
         raise NotImplementedError("Feature 'disable_time_consistency' not implemented for BBVI.")
 
@@ -390,7 +409,7 @@ def output_variational_result(
         method: str,
         model: GenerativeModel,
         reads: List[List[SequenceRead]],
-        posterior: AbstractVariationalPosterior,
+        posterior: AbstractPosterior,
         disable_time_consistency: bool,
         disable_quality: bool,
         plots_out_path: str,
@@ -480,18 +499,6 @@ def get_input_paths(base_dir) -> Tuple[List[str], List[float]]:
     return read_files, time_points
 
 
-def get_read_len(reads: List[List[SequenceRead]]) -> int:
-    """
-    Returns the globally constant length of reads. A placeholder for a future todo.
-    TODO: Hide this implementation somewhere else.
-    :param reads:
-    :return:
-    """
-    for reads_t in reads:
-        for read in reads_t:
-            return len(read)
-
-
 def main():
     logger.info("Pipeline for inference started.")
     args = parse_args()
@@ -516,7 +523,7 @@ def main():
 
     logger.info("Loading time-series read files.")
     reads = load_fastq_reads(file_paths=read_paths)
-    read_len = get_read_len(reads)
+    read_len = args.read_length
 
     # ============ Create model instance
     model = create_model(
@@ -545,20 +552,19 @@ def main():
     # ============ Run the specified algorithm.
     if args.method == 'em':
         logger.info("Solving using Expectation-Maximization.")
-        out_path = os.path.join(args.out_dir, args.abundances_file)
-        plots_path = os.path.join(args.out_dir, "plot.{}".format(args.plot_format))
         perform_em(
             reads=reads,
             model=model,
-            abnd_out_path=out_path,
-            plots_out_path=plots_path,
+            out_dir=args.out_dir,
+            abnd_out_file=args.abundances_file,
             ground_truth_path=args.true_abundance_path,
             disable_time_consistency=args.disable_time_consistency,
             disable_quality=not cfg.model_cfg.use_quality_scores,
             iters=args.iters,
             learning_rate=args.learning_rate,
             cache_tag=cache_tag,
-            plot_format=args.plot_format
+            plot_format=args.plot_format,
+            learn_variances=args.learn_variances
         )
     elif args.method == 'bbvi':
         logger.info("Solving using Black-Box Variational Inference.")
@@ -635,6 +641,17 @@ def main():
         )
     else:
         raise ValueError("{} is not an implemented method.".format(args.method))
+
+
+def plot_elbos(out_path: str, elbos: List[float], plot_format: str):
+    fig, ax = plt.subplots()
+    ax.plot(
+        np.arange(1, len(elbos)+1, 1),
+        elbos
+    )
+    ax.set_xlabel("Iteration")
+    ax.set_ylabel("ELBO")
+    plt.savefig(out_path, format=plot_format)
 
 
 if __name__ == "__main__":

@@ -12,3 +12,13 @@ def multi_logit(x: torch.Tensor, dim) -> torch.Tensor:
         pad(x, pad=[0, 1]),  # Add a column of zeros.
         dim=dim
     )
+
+
+def normalize(x: torch.Tensor, dim: int) -> torch.Tensor:
+    """
+    Normalizes the specified dimension (so that summing along that dimension returns a tensor of ones).
+    :param x:
+    :param dim:
+    :return:
+    """
+    return x / x.sum(dim=dim, keepdim=True)

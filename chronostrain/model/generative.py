@@ -56,23 +56,23 @@ class GenerativeModel:
         return self.bacteria_pop.get_strain_fragment_frequencies(window_size=self.read_length)
 
     def log_likelihood_x(self,
-                         X: List[torch.Tensor],
+                         X: torch.Tensor,
                          read_likelihoods: List[torch.Tensor]) -> torch.Tensor:
         """
         Computes the joint log-likelihood of X, F, and R according to this generative model.
         Let N be the number of samples.
-        :param X: The S-dimensional Gaussian trajectory, indexed (T x N x S) as a List of 2-d tensors.
+        :param X: The S-dimensional Gaussian trajectory, indexed (T x N x S).
         :param read_likelihoods: A precomputed list of tensors containing read-fragment log likelihoods
           (output of compute_read_likelihoods(logarithm=False).)
         :return: The log-likelihood from the generative model. Outputs a length-N
         tensor (one log-likelihood for each sample).
         """
-        ans = torch.zeros(size=[X[0].size(0)], device=X[0].device)
+        ans = torch.zeros(size=[X[0].size()[0]], device=X[0].device)
         for t, X_t in enumerate(X):
             ans = ans + self.log_likelihood_xt(
                 t=0,
                 X=X_t,
-                X_prev=X[t-1] if t > 0 else None,
+                X_prev=X[t-1, : ,:] if t > 0 else None,
                 read_likelihoods=read_likelihoods[t]
             )
         return ans
@@ -90,22 +90,22 @@ class GenerativeModel:
         :return: The joint log-likelihood p(X_t, Reads_t | X_{t-1}).
         """
         # Gaussian part
-        N = X.size(0)
+        N = X.size()[0]
         if t == 0:
             center = self.mu.repeat(N, 1)
         else:
             center = X_prev
-        covariance = self.time_scale(t) * torch.eye(self.num_strains(), device=cfg.torch_cfg.device)
+        covariance = self.time_scaled_variance(t) * torch.eye(self.num_strains(), device=cfg.torch_cfg.device)
         gaussian_log_probs = MultivariateNormal(loc=center, covariance_matrix=covariance).log_prob(X)
 
         # Reads likelihood calculation, conditioned on the Gaussian part.
-        data_log_probs = (softmax(X, dim=1)
-                          .mm(self.get_fragment_frequencies().t())
-                          .mm(read_likelihoods)
-                          .log()
-                          .sum(dim=1))
+        data_log_probs = softmax(X, dim=1)\
+            .mm(self.get_fragment_frequencies().t())\
+            .mm(read_likelihoods)\
+            .log()
+        data_log_probs[data_log_probs < -100] = -100
 
-        return gaussian_log_probs + data_log_probs
+        return gaussian_log_probs + data_log_probs.sum(dim=1)
 
     def sample_abundances_and_reads(
             self,
@@ -144,10 +144,10 @@ class GenerativeModel:
 
         logger.debug("Sampling reads, conditioned on abundances.")
 
-        if abundances.size(0) != len(self.times):
+        if abundances.size()[0] != len(self.times):
             raise ValueError(
                 "Argument abundances (len {}) must must have specified number of time points (len {})".format(
-                    abundances.size(0), len(self.times)
+                    abundances.size()[0], len(self.times)
                 )
             )
 
@@ -162,17 +162,17 @@ class GenerativeModel:
 
         return reads_list
 
-    def time_scale(self, time_idx: int) -> float:
+    def time_scaled_variance(self, time_idx: int) -> float:
         """
-        Return the k-th time increment.
+        Return the k-th time incremental variance.
         :param time_idx: the index to query (corresponding to k).
-        :return: the time differential t_k - t_(k-1).
+        :return: the kth variance term (t_k - t_(k-1)) * tau^2.
         """
 
         if time_idx == 0:
-            return self.tau_1
+            return self.tau_1 ** 2
         if time_idx < len(self.times):
-            return self.tau * (self.times[time_idx] - self.times[time_idx-1])
+            return (self.tau ** 2) * (self.times[time_idx] - self.times[time_idx-1])
         else:
             raise IndexError("Can't reference time at index {}.".format(time_idx))
 
@@ -186,8 +186,8 @@ class GenerativeModel:
         center = self.mu  # Initialize mean vector.
 
         for time_idx in range(len(self.times)):
-            scaling = self.time_scale(time_idx)
-            center = MultivariateNormal(loc=center, covariance_matrix=(scaling ** 2) * covariance).sample()
+            variance_scaling = self.time_scaled_variance(time_idx)
+            center = MultivariateNormal(loc=center, covariance_matrix=variance_scaling * covariance).sample()
             brownian_motion.append(center)
 
         return torch.stack(brownian_motion, dim=0)

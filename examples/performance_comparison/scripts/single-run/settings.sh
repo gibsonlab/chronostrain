@@ -17,8 +17,10 @@ export METAPHLAN_OUTPUT_DIR="${TRIAL_DIR}/output/metaphlan"
 export STRAINGE_OUTPUT_DIR="${TRIAL_DIR}/output/strainge"
 
 # ========= Chronostrain settings
-export CHRONOSTRAIN_METHOD=bbvi_reparametrization
-export CHRONOSTRAIN_NUM_ITERS=5000
+export CHRONOSTRAIN_METHOD=bbvi
+export CHRONOSTRAIN_NUM_ITERS=500
+#export CHRONOSTRAIN_METHOD=em
+#export CHRONOSTRAIN_NUM_ITERS=5000
 export CHRONOSTRAIN_LR=0.001
 export CHRONOSTRAIN_OUTPUT_FILENAME="abundances.out"
 export CHRONOSTRAIN_DB_DIR="${CHRONOSTRAIN_DATA_DIR}/data"

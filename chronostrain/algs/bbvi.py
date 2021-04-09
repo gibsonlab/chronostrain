@@ -7,178 +7,89 @@
   (Note: doesn't work as well as BBVI for mean-field assumption.)
 """
 
-from typing import List, Tuple
+from typing import List
 import torch
 from torch.distributions.multivariate_normal import MultivariateNormal
+from torch.nn.functional import softmax, softplus
 
 from chronostrain.config import cfg
 from chronostrain.util.data_cache import CacheTag
-from chronostrain.algs.vi import AbstractVariationalPosterior
+from chronostrain.algs.vi import AbstractPosterior
 from chronostrain.model.reads import SequenceRead
+from chronostrain.model import GenerativeModel
 from chronostrain.algs.base import AbstractModelSolver
-from chronostrain.model.generative import GenerativeModel
 from chronostrain.util.benchmarking import RuntimeEstimator
+from chronostrain.util.math import normalize
 from . import logger
 
 
-class GaussianPosterior(AbstractVariationalPosterior):
-    def __init__(
-            self,
-            times: int,
-            strains: int,
-            fragments: int,
-            read_counts: List[int],
-    ):
+class GaussianPosterior(AbstractPosterior):
+    def __init__(self, model: GenerativeModel):
         """
         Mean-field assumption:
         1) Parametrize X_1, ..., X_T as a Gaussian Process, with covariance kernel \Sigma_{t, t+1}.
         2) Parametrize F_1, ..., F_T as independent (but not identical) categorical RVs (for each read).
-        :param times: Number of time points, T.
-        :param strains: Number of strains, S.
-        :param fragments: Number of fragments, F.
+        :param model: The generative model to use.
         :param read_counts: Number of reads per time point.
         """
         # Check: might need this to be a matrix, not a vector.
-        self.times = times
-        self.strains = strains
-        self.fragments = fragments
-        self.read_counts = read_counts
+        self.model = model
 
-        # ================= Learnable parameters:
-        # The mean parameters of the GP.
-        # t = 0: the mean of the GP.
-        # t > 0: Describes the conditional mean shift A, as in
-        #     E[X_{t+1} | X_{t} = y] = E[X_{t+1}] + TRANSITION[t+1]*(y - E[X_{t}])
-        #                            = TRANSITION[t+1]*y - A
+        # ================= Parameters to optimize using gradients
         self.means = [
             torch.nn.Parameter(
-                torch.zeros(strains, device=cfg.torch_cfg.device, dtype=torch.double),
+                torch.zeros(self.model.num_strains(), device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype),
                 requires_grad=True
             )
-            for _ in range(times)
+            for _ in range(self.model.num_times())
         ]
 
-        # Represents the transition matrix Sigma_{t+1,t} * inv(Sigma_{t,t})
-        # These describe the means of the conditional distribution X_{t+1} | X_{t}.
-        self.transitions = [
+        self.stdevs_sources = [
             torch.nn.Parameter(
-                torch.zeros(strains, strains, device=cfg.torch_cfg.device, dtype=torch.double),
+                torch.zeros(self.model.num_strains(), device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype),
                 requires_grad=True
             )
-            for _ in range(times-1)
+            for _ in range(self.model.num_times())
         ]
 
-        # Represents the time-t covariances, after a Cholesky decomposition M = QQ^T.
-        # Describes the CONDITIONAL covariances Cov(X_{t+1} | X_{t}) -->
-        # think of "Sigma_{i,j}" as the (time-i, time-j) block of the complete Covariance matrix.
-        # t > 1: Sigma_{t+1,t+1} - Sigma_{t+1,t}*inv(Sigma_{t,t})*Sigma_{t,t+1}
-        # t = 1: Sigma_{1,1}
-        self.cond_covar_cholesky = [
-            torch.nn.Parameter(
-                torch.eye(strains, device=cfg.torch_cfg.device, dtype=torch.double),
-                requires_grad=True
-            )
-            for _ in range(times)
-        ]
-
-    def params(self) -> List[torch.nn.Parameter]:
-        """
-        Return a list of all learnable parameters (e.g. Parameter instances with requires_grad=True).
-        """
-        return self.means + self.transitions + self.cond_covar_cholesky
-
-    # def log_likelihood(self, X) -> torch.Tensor:
-    #     return self.log_likelihood_X(X)
-
-    def sample(self, num_samples=1) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
-        # Proxy for non-standard Gaussian
-        std_gaussian = MultivariateNormal(
-            loc=torch.zeros(self.strains, dtype=torch.double, device=cfg.torch_cfg.device),
-            covariance_matrix=torch.eye(self.strains, self.strains, dtype=torch.double, device=cfg.torch_cfg.device)
+        self.trainable_parameters = self.means + self.stdevs_sources
+        self.std_gaussian = MultivariateNormal(
+            loc=torch.zeros(self.model.num_strains(), dtype=torch.double, device=cfg.torch_cfg.device),
+            covariance_matrix=torch.eye(
+                self.model.num_strains(),
+                self.model.num_strains(),
+                dtype=cfg.torch_cfg.default_dtype,
+                device=cfg.torch_cfg.device)
         )
 
-        E_samples = [std_gaussian.sample(sample_shape=torch.Size([num_samples])) for _ in range(self.times)]
+    def sample(self, num_samples=1, output_log_likelihoods=False, detach_grad=True):
+        std_gaussian_samples = [
+            self.std_gaussian.sample(sample_shape=torch.Size([num_samples]))
+            for _ in range(self.model.num_times())
+        ]
 
-        # Reparametrization
-        X = [torch.eye(1) for _ in range(self.times)]
+        # ======= Reparametrization
+        samples = torch.stack([
+            self.means[t].expand(num_samples, -1) + softplus(self.stdevs_sources[t]).expand(num_samples, -1) * std_gaussian_samples[t]
+            for t in range(self.model.num_times())
+        ])
 
-        X[0] = (self.means[0].expand(num_samples, -1) +
-                self.cond_covar_cholesky[0].mm(E_samples[0].t()).t())
+        # for t in range(self.model.num_times()):
+        #     print("t = {}".format(t))
+        #     print("mean = {}".format(self.means[t].detach()))
+        #     print("stdev = {}".format(softplus(self.stdevs_sources[t].detach())))
 
-        for t in range(1, self.times):
-            mean = self.transitions[t-1].mm(
-                (X[t - 1] - self.means[t - 1].expand(num_samples, -1)).t()
-            ).t() + self.means[t].expand(num_samples, -1)
-            X[t] = (mean +
-                    self.cond_covar_cholesky[t].mm(E_samples[t].t()).t())
-        return X
+        if detach_grad:
+            samples = samples.detach()
 
-    def sample_with_likelihoods(self, num_samples=1):
-        # Proxy for non-standard Gaussian
-        std_gaussian = MultivariateNormal(
-            loc=torch.zeros(self.strains, dtype=torch.double, device=cfg.torch_cfg.device),
-            covariance_matrix=torch.eye(self.strains, self.strains, dtype=torch.double, device=cfg.torch_cfg.device)
-        )
-
-        E_samples = [std_gaussian.sample(sample_shape=torch.Size([num_samples])) for _ in range(self.times)]
-
-        # Reparametrization
-        X = [torch.eye(1) for _ in range(self.times)]
-
-        X[0] = (self.means[0].expand(num_samples, -1) +
-                self.cond_covar_cholesky[0].mm(E_samples[0].t()).t())
-        log_likelihoods = MultivariateNormal(
-            loc=self.means[0].expand(num_samples, -1),
-            scale_tril=self.cond_covar_cholesky[0]
-        ).log_prob(X[0])
-
-        for t in range(1, self.times):
-            mean = self.transitions[t - 1].mm(
-                (X[t - 1] - self.means[t - 1].expand(num_samples, -1)).t()
-            ).t() + self.means[t].expand(num_samples, -1)
-            X[t] = (mean +
-                    self.cond_covar_cholesky[t].mm(E_samples[t].t()).t())
-            log_likelihoods += MultivariateNormal(
-                loc=mean,
-                scale_tril=self.cond_covar_cholesky[t]
-            ).log_prob(X[t])
-        return X, log_likelihoods
-
-    # def log_likelihood_X(self, E: List[torch.Tensor]) -> torch.Tensor:
-    #     N = X[0].size(0)
-    #     ans = torch.zeros(N, dtype=torch.double, device=cfg.torch_cfg.device)
-    #
-    #     for t in range(self.times):
-    #         if t == 0:
-    #             dist = MultivariateNormal(
-    #                 loc=self.means[0].expand(N, -1),
-    #                 covariance_matrix=self.cond_covar_cholesky[0].t().mm(self.cond_covar_cholesky[0])
-    #             )
-    #         else:
-    #             dist = MultivariateNormal(
-    #                 loc=((X[t-1] - self.means[t-1].expand(N, -1))
-    #                      .mm(self.transitions[t-1])
-    #                      + self.means[t].expand(N, -1)),
-    #                 covariance_matrix=self.cond_covar_cholesky[t].t().mm(self.cond_covar_cholesky[t])
-    #             )
-    #         ans = ans + dist.log_prob(X[t])
-    #     return ans
-
-    def get_means_detached(self):
-        return [mean.detach() for mean in self.means]
-
-    def get_variances_detached(self):
-        variances = []
-        prev_covariance = None
-        for t in range(self.times):
-            if t == 0:
-                covariance = self.cond_covar_cholesky[0].t().mm(self.cond_covar_cholesky[0])
-            else:
-                covariance = self.cond_covar_cholesky[t].t().mm(self.cond_covar_cholesky[t]) \
-                             + self.transitions[t-1].mm(prev_covariance.mm(self.transitions[t-1].t()))
-            variances.append(covariance.diagonal().detach())
-            prev_covariance = covariance
-        return variances
+        if output_log_likelihoods:
+            log_likelihoods = torch.stack([
+                self.std_gaussian.log_prob(std_gaussian_samples[t])
+                for t in range(self.model.num_times())
+            ])
+            return samples, log_likelihoods
+        else:
+            return samples
 
 
 class BBVISolver(AbstractModelSolver):
@@ -191,40 +102,77 @@ class BBVISolver(AbstractModelSolver):
                  data: List[List[SequenceRead]],
                  cache_tag: CacheTag):
         super().__init__(model, data, cache_tag)
-        self.posterior = GaussianPosterior(
-            times=model.num_times(),
-            strains=model.num_strains(),
-            fragments=model.num_fragments(),
-            read_counts=[len(reads) for reads in data],
-        )
+        self.gaussian_posterior = GaussianPosterior(model=model)
+        self.fragment_posterior = []  # time-indexed list of F x N tensors.
 
-    def elbo_estimate(self, num_samples=1000):
+        for t_idx, read_likelihood_matrix in enumerate(self.read_likelihoods):
+            sums = read_likelihood_matrix.sum(dim=0)
+
+            zero_indices = {i.item() for i in torch.where(sums == 0)[0]}
+            logger.warn("[t = {}] Discarding reads with overall likelihood zero: {}".format(
+                self.model.times[t_idx],
+                ",".join([str(read_idx) for read_idx in zero_indices])
+            ))
+            # TODO: check why the reads removed are subsets. (read generation seeding issue?)
+
+            leftover_indices = [
+                i
+                for i in range(len(data[t_idx]))
+                if i not in zero_indices
+            ]
+            self.read_likelihoods_tensors[t_idx] = read_likelihood_matrix[:, leftover_indices]
+
+    def elbo_marginal_gaussian(self, x_samples: torch.Tensor, gaussian_log_likelihoods: torch.Tensor) -> torch.Tensor:
         """
-        Computes the monte-carlo approximation to the ELBO objective, as specified in
-        https://arxiv.org/abs/1401.0118.
+        Computes the monte-carlo approximation to the ELBO objective, holding the read-to-fragment posteriors fixed.
+
+        The formula is (by mean field assumption):
+            ELBO = E_Q(log P - log Q) = E_Q(log P) - E_{Q_X}(log Q_X) - E_{Q_phi}(log Q_{phi})
+
+        Since the purpose is to compute gradients, we leave out the third term (constant with respect to
+        the Gaussian parameters).
         (With re-parametrization trick X = mu + Sigma^(1/2) * EPS)
         """
-        X_samples, posterior_log_likelihoods = self.posterior.sample_with_likelihoods(num_samples=num_samples)
-        # posterior_ll = self.posterior.log_likelihood(E_likelihoods)
-        # posterior_ll_grad_disabled = posterior_ll.detach()
-        # generative_ll = self.model.log_likelihood_x(X=X_samples, read_likelihoods=self.read_likelihoods)
-        # elbo_samples = posterior_ll * (generative_ll - posterior_ll_grad_disabled)
-        # return elbo_samples.mean()
-
-        model_log_likelihood = self.model.log_likelihood_x(X=X_samples, read_likelihoods=self.read_likelihoods)
-        elbo_samples = model_log_likelihood - posterior_log_likelihoods
+        # x_samples, posterior_ll = self.posterior.sample(num_samples=num_samples, output_log_likelihoods=True)
+        model_log_likelihoods = self.model.log_likelihood_x(X=x_samples, read_likelihoods=self.read_likelihoods)
+        elbo_samples = model_log_likelihoods - gaussian_log_likelihoods
         return elbo_samples.mean()
+
+    def update_phi(self, x_samples: torch.Tensor, smoothing=1e-8):
+        """
+        This step represents the explicit solution of maximizing the ELBO of Q_phi (the mean-field portion of
+        the read-to-fragment posteriors), given a particular solution of (samples from) Q_X.
+        :param x_samples:
+        :return:
+        """
+        W = self.model.get_fragment_frequencies()
+        self.fragment_posterior = []
+
+        for t in range(self.model.num_times()):
+            phi_t = self.read_likelihoods[t] * torch.exp(
+                torch.mean(
+                    torch.matmul(W, softmax(x_samples[t], dim=1).transpose(0, 1)),
+                    dim=1
+                )
+            ).unsqueeze(1)
+            self.fragment_posterior.append(normalize(phi_t + smoothing, dim=0))
 
     def solve(self,
               optim_class=torch.optim.Adam,
               optim_args=None,
               iters=4000,
               num_samples=8000,
-              print_debug_every=200):
+              print_debug_every=200,
+              thresh_elbo=0.0,
+              store_elbos: bool = False):
+
         if optim_args is None:
             optim_args = {'lr': 1e-3, 'betas': (0.9, 0.999), 'eps': 1e-8, 'weight_decay': 0.}
+
+        elbo_history = []
+
         optimizer = optim_class(
-            self.posterior.params(),
+            self.gaussian_posterior.trainable_parameters,
             **optim_args
         )
 
@@ -232,46 +180,54 @@ class BBVISolver(AbstractModelSolver):
             it=iters,
             lr=optim_args["lr"]
         ))
+
         time_est = RuntimeEstimator(total_iters=iters, horizon=print_debug_every)
-        for i in range(1, iters+1, 1):
+        last_elbo = float("-inf")
+        elbo_diff = float("inf")
+        k = 0
+        while k < iters:
+            k += 1
             time_est.stopwatch_click()
 
-            elbo_loss = -self.elbo_estimate(num_samples=num_samples)  # Quantity to minimize. (trying to maximize ELBO)
-            # regularization = (
-            #     torch.pow(torch.stack(self.posterior.means, dim=0), 2).sum()
-            #     + torch.pow(torch.stack(self.posterior.cond_covar_cholesky, dim=0), 2).sum()
-            #     + torch.pow(torch.stack(self.posterior.transitions, dim=0), 2).sum()
-            # )
-            # loss = elbo_loss + 0.1 * regularization
+            x_samples, gaussian_log_likelihoods = self.gaussian_posterior.sample(
+                num_samples=num_samples,
+                output_log_likelihoods=True,
+                detach_grad=False
+            )
+
             optimizer.zero_grad()
+            with torch.no_grad():
+                self.update_phi(x_samples)
+
+            elbo = self.elbo_marginal_gaussian(x_samples, gaussian_log_likelihoods)
+            elbo_loss = -elbo  # Quantity to minimize. (want to maximize ELBO)
             elbo_loss.backward()
-            # loss.backward()
             optimizer.step()
+
+            if store_elbos:
+                elbo_history.append(elbo.item())
 
             secs_elapsed = time_est.stopwatch_click()
             time_est.increment(secs_elapsed)
 
-            if i % print_debug_every == 0:
-                gradient_mean = 0.
-                for param in self.posterior.means:
-                    gradient_mean += param.grad.norm(p=2).item()
-
-                gradient_variance = 0.
-                for param in self.posterior.cond_covar_cholesky:
-                    gradient_variance += param.grad.norm(p=2).item()
-
-                gradient_transition = 0.
-                for param in self.posterior.transitions:
-                    gradient_transition += param.grad.norm(p=2).item()
-
-                logger.info("Iteration {i} "
+            if k % print_debug_every == 0:
+                logger.info("Iteration {iter} "
                             "| time left: {t:.2f} min. "
-                            "| Last ELBO = {elbo:.2f} "
-                            "| Gradient norms = (mean: {gradm:.2f}, covar: {gradc:.2f}, trans: {gradt:.2f})"
-                            .format(i=i,
+                            "| Last ELBO = {elbo:.2f}"
+                            .format(iter=k,
                                     t=time_est.time_left() / 60000,
-                                    elbo=-elbo_loss.item(),
-                                    gradm=gradient_mean,
-                                    gradc=gradient_variance,
-                                    gradt=gradient_transition)
+                                    elbo=elbo.item())
                             )
+
+            elbo_value = elbo.detach().item()
+            elbo_diff = elbo_value - last_elbo
+            if abs(elbo_diff) < thresh_elbo * abs(last_elbo):
+                logger.info("Convergence criteria |ELBO_diff| < {} * |last_ELBO| met; terminating early.".format(thresh_elbo))
+                break
+            last_elbo = elbo_value
+        logger.info("Finished {k} iterations. | ELBO diff = {diff}".format(
+            k=k,
+            diff=elbo_diff
+        ))
+
+        return elbo_history

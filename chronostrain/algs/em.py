@@ -46,6 +46,7 @@ class EMSolver(AbstractModelSolver):
               thresh: float = 1e-5,
               gradient_clip: float = 1e2,
               q_smoothing: float = 0.,
+              learn_variances: bool = False,
               initialization=None,
               print_debug_every=200
               ):
@@ -70,6 +71,11 @@ class EMSolver(AbstractModelSolver):
         else:
             brownian_motion = initialization
 
+        time_scales = torch.tensor([
+            self.model.times[t_idx] - self.model.times[t_idx-1]
+            for t_idx in range(1, len(self.model.times))
+        ], device=cfg.torch_cfg.device)
+
         logger.debug("EM algorithm started. (Gradient method, Target iterations={}, Threshold={})".format(
             iters,
             thresh
@@ -87,39 +93,34 @@ class EMSolver(AbstractModelSolver):
             secs_elapsed = time_est.stopwatch_click()
             time_est.increment(secs_elapsed)
 
-            diff = torch.norm(
+            softmax_diff = torch.norm(
                 softmax(updated_brownian_motion, dim=1) - softmax(brownian_motion, dim=1),
                 p='fro'
             )
 
-            has_converged = (diff < thresh)
+            has_converged = (softmax_diff < thresh)
             if has_converged:
                 logger.info("Convergence criterion ({th}) met; terminating optimization early.".format(th=thresh))
                 break
             brownian_motion = updated_brownian_motion
 
+            if learn_variances:
+                if len(self.model.times) <= 1:
+                    raise RuntimeError("Cannot estimate time-covariances with just one time point.")
+
+                diffs = (brownian_motion[1:, :] - brownian_motion[:-1, :]) / time_scales[1:]
+                self.model.tau = torch.pow(diffs, 2).mean().pow(0.5).item()
+                self.model.tau_1 = torch.pow(brownian_motion[0], 2).mean().pow(0.5).item()
+
             if k % print_debug_every == 0:
                 logger.info("Iteration {i} | time left: {t:.1f} min. | Learned Abundance Diff: {diff}".format(
                     i=k,
                     t=time_est.time_left() / 60000,
-                    diff=diff
+                    diff=softmax_diff
                 ))
-        logger.info("Finished {k} iterations. | Abundance diff = {diff}".format(k=k, diff=diff))
+        logger.info("Finished {k} iterations. | Abundance diff = {diff}".format(k=k, diff=softmax_diff))
 
         return softmax(brownian_motion, dim=1).to(cfg.torch_cfg.device)
-        # abundances = [softmax(gaussian, dim=) for gaussian in brownian_motion]
-        # normalized_abundances = torch.stack(abundances).to(cfg.torch_cfg.device)
-        # return normalized_abundances
-
-    # def do_noisy_mapping(self):
-    #     noisy_mappings = []
-    #     for likelihoods_t in self.read_likelihoods:
-    #         argmax_locs = likelihoods_t.argmax(dim=0)
-    #         argmax_mapping = torch.zeros(size=likelihoods_t.size(), device=cfg.torch_cfg.device)
-    #
-    #         j = torch.arange(likelihoods_t.size(1)).long()
-    #         argmax_mapping[argmax_locs, j] = 1
-    #     self.read_likelihoods = noisy_mappings
 
     def em_update_new(
             self,
@@ -136,14 +137,14 @@ class EMSolver(AbstractModelSolver):
         if T > 1:
             for t in range(T):
                 if t == 0:
-                    variance_scaling = -1 / (self.model.tau_1 ** 2)
+                    variance_scaling = -1 / self.model.time_scaled_variance(0)
                     x_gradient[t] = variance_scaling * ((2 * x[0]) - x[1] - self.model.mu)
                 elif t == T-1:
-                    variance_scaling = -1 / ((self.model.tau * (self.model.times[t] - self.model.times[t-1])) ** 2)
+                    variance_scaling = -1 / self.model.time_scaled_variance(t)
                     x_gradient[t] = variance_scaling * (x[T-1] - x[T-2])
                 else:
-                    variance_scaling_prev = -1 / ((self.model.tau * (self.model.times[t] - self.model.times[t-1])) ** 2)
-                    variance_scaling_next = -1 / ((self.model.tau * (self.model.times[t+1] - self.model.times[t])) ** 2)
+                    variance_scaling_prev = -1 / self.model.time_scaled_variance(t)
+                    variance_scaling_next = -1 / self.model.time_scaled_variance(t+1)
                     x_gradient[t] = variance_scaling_prev * (x[t] - x[t-1]) + variance_scaling_next * (x[t] - x[t+1])
 
         # ====== Sigmoidal part

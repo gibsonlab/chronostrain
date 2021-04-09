@@ -111,3 +111,6 @@ class FragmentSpace:
 
     def __iter__(self):
         return self.frag_list.__iter__()
+
+    def __len__(self):
+        return self.size()

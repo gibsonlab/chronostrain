@@ -111,7 +111,7 @@ def sample_reads(
                              format(len(abundances), len(time_points)))
 
         logger.info("Generating sample reads from specified ({} x {}) abundance profile.".format(
-            abundances.size(0), abundances.size(1)
+            abundances.size()[0], abundances.size()[1]
         ))
         abundances = abundances / abundances.sum(dim=1, keepdim=True)
         time_indexed_reads = my_model.sample_timed_reads(abundances, read_depths)
@@ -125,7 +125,7 @@ def sample_reads(
     return abundances, time_indexed_reads
 
 
-def save_input_csv(time_points, out_dir, out_filename, read_files):
+def save_index_csv(time_points, out_dir, out_filename, read_files):
     with open(os.path.join(out_dir, out_filename), "w") as f:
         for t, read_file in zip(time_points, read_files):
             print("\"{}\",\"{}\"".format(t, read_file), file=f)
@@ -183,11 +183,10 @@ def main():
         population=population,
         time_points=time_points,
         abundances=abundances,
-        out_dir=args.out_dir,
-        out_filename='{}_abundances.csv'.format(args.out_prefix)
+        out_path=os.path.join(args.out_dir, '{}_abundances.csv'.format(args.out_prefix))
     )
 
-    save_input_csv(
+    save_index_csv(
         time_points=time_points,
         out_dir=args.out_dir,
         out_filename='input_files.csv',

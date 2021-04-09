@@ -21,7 +21,7 @@ from chronostrain.util.benchmarking import RuntimeEstimator
 from . import logger
 
 
-class AbstractVariationalPosterior(metaclass=ABCMeta):
+class AbstractPosterior(metaclass=ABCMeta):
     @abstractmethod
     def sample(self, num_samples: int = 1) -> torch.Tensor:
         """
@@ -33,7 +33,7 @@ class AbstractVariationalPosterior(metaclass=ABCMeta):
 
 
 # ========================== Implementations ===========================
-class MeanFieldPosterior(AbstractVariationalPosterior):
+class MeanFieldPosterior(AbstractPosterior):
 
     def __init__(self,
                  model: GenerativeModel,

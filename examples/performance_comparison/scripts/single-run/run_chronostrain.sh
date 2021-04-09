@@ -13,6 +13,8 @@ python ${PROJECT_DIR}/scripts/filter.py \
 
 # =========== Run chronostrain. ==================
 echo "Running inference."
+echo "METHOD: ${CHRONOSTRAIN_METHOD}"
+
 python $PROJECT_DIR/scripts/run_inference.py \
 --reads_dir "${READS_DIR}/filtered" \
 --true_abundance_path $TRUE_ABUNDANCE_PATH \

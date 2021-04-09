@@ -7,7 +7,7 @@ INPUT_TIME_ARGS=""
 
 for t in "1.0" "2.0" "2.5" "5.0"
 do
-	READ_INPUT_FILE="${READS_DIR}/filtered/${t}-reads.fq"
+	READ_INPUT_FILE="${READS_DIR}/filtered/reads_${t}.fq"
 	READ_KMERIZED_FILE="${STRAINGE_OUTPUT_DIR}/reads_${t}.hdf5"
 	OUTPUT_FILE="${STRAINGE_OUTPUT_DIR}/reads_${t}.tsv"
 

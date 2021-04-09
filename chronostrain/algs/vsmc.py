@@ -10,7 +10,7 @@ from typing import List
 
 from chronostrain.config import cfg
 from chronostrain.util.data_cache import CacheTag
-from chronostrain.algs.vi import AbstractVariationalPosterior
+from chronostrain.algs.vi import AbstractPosterior
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.reads import SequenceRead
 from chronostrain.algs.base import AbstractModelSolver
@@ -18,7 +18,7 @@ from chronostrain.util.benchmarking import RuntimeEstimator
 from . import logger
 
 
-class VariationalSequentialPosterior(AbstractVariationalPosterior):
+class VariationalSequentialPosterior(AbstractPosterior):
     def __init__(
             self,
             num_times: int,
