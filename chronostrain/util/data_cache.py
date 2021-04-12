@@ -27,8 +27,10 @@ class CacheTag(object):
         self.attr_dict = kwargs
         self.file_paths = file_paths
         self.objects = kwargs
+
+        self.objects["file_paths"] = []
         for path in file_paths:
-            self.objects[path] = md5_checksum(path)
+            self.objects["file_paths"].append((path, md5_checksum(path)))
         self.encoding = hashlib.md5(str(kwargs).encode('utf-8')).hexdigest()
 
     def write_attributes_to_disk(self, path: str):
