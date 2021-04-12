@@ -15,7 +15,7 @@ from chronostrain.database import StrainNotFoundError
 from chronostrain.model import generative, reads
 from chronostrain.model.bacteria import Population
 from chronostrain.model.reads import SequenceRead
-from chronostrain.model.io import save_reads_to_fastq, save_abundances, load_abundances
+from chronostrain.model.io import TimeSeriesReads, save_abundances, load_abundances
 
 
 def parse_args():
@@ -57,7 +57,7 @@ def sample_reads(
         time_points: List[float],
         disable_quality: bool,
         abundances: torch.Tensor = None,
-        seed: int = None) -> Tuple[torch.Tensor, List[List[SequenceRead]]]:
+        seed: int = None) -> Tuple[torch.Tensor, TimeSeriesReads]:
     """
     Sample sequence reads from the generative model, using either a pre-specified abundance profile or using
     random samples.

@@ -8,16 +8,15 @@ import os
 import torch
 import argparse
 from tqdm import tqdm
-from matplotlib import pyplot as plt
 
 from chronostrain import logger, cfg
 from chronostrain.algs.vi import SecondOrderVariationalSolver, AbstractPosterior
 from chronostrain.algs import em, vsmc, bbvi, bbvi_reparam
 from chronostrain.model.generative import GenerativeModel
-from chronostrain.model.reads import SequenceRead, BasicFastQErrorModel, NoiselessErrorModel
+from chronostrain.model.reads import BasicFastQErrorModel, NoiselessErrorModel
 from chronostrain.util.data_cache import CacheTag
 from chronostrain.visualizations import *
-from chronostrain.model.io import load_fastq_reads, save_abundances
+from chronostrain.model.io import TimeSeriesReads, save_abundances
 from chronostrain.util import filesystem
 
 
@@ -70,7 +69,7 @@ def parse_args():
 
 
 def perform_em(
-        reads: List[List[SequenceRead]],
+        reads: TimeSeriesReads,
         model: GenerativeModel,
         out_dir: str,
         abnd_out_file: str,
@@ -112,7 +111,7 @@ def perform_em(
                 disable_quality=disable_quality
             )
             instance_solver = em.EMSolver(pseudo_model,
-                                          [reads_t],
+                                          TimeSeriesReads(time_slices=[reads_t]),
                                           cache_tag=cache_tag,
                                           lr=learning_rate)
             abundances_t = instance_solver.solve(
@@ -162,7 +161,7 @@ def perform_em(
 
 def perform_vsmc(
         model: GenerativeModel,
-        reads: List[List[SequenceRead]],
+        reads: TimeSeriesReads,
         disable_time_consistency: bool,
         disable_quality: bool,
         iters: int,
@@ -193,7 +192,6 @@ def perform_vsmc(
     output_variational_result(
         method='Variational Sequential Monte Carlo',
         model=model,
-        reads=reads,
         posterior=posterior,
         disable_time_consistency=disable_time_consistency,
         disable_quality=disable_quality,
@@ -207,7 +205,7 @@ def perform_vsmc(
 
 def perform_bbvi(
         model: GenerativeModel,
-        reads: List[List[SequenceRead]],
+        reads: TimeSeriesReads,
         disable_time_consistency: bool,
         disable_quality: bool,
         iters: int,
@@ -244,7 +242,6 @@ def perform_bbvi(
     output_variational_result(
         method='Black-Box Variational Inference',
         model=model,
-        reads=reads,
         posterior=posterior,
         disable_time_consistency=disable_time_consistency,
         disable_quality=disable_quality,
@@ -258,7 +255,7 @@ def perform_bbvi(
 
 def perform_bbvi_reparametrization(
         model: GenerativeModel,
-        reads: List[List[SequenceRead]],
+        reads: TimeSeriesReads,
         disable_time_consistency: bool,
         disable_quality: bool,
         iters: int,
@@ -298,7 +295,6 @@ def perform_bbvi_reparametrization(
     output_variational_result(
         method="Black Box Variational Inference (with reparametrization)",
         model=model,
-        reads=reads,
         posterior=bbvi_posterior,
         disable_time_consistency=disable_time_consistency,
         disable_quality=disable_quality,
@@ -313,7 +309,7 @@ def perform_bbvi_reparametrization(
 
 def perform_vi(
         model: GenerativeModel,
-        reads: List[List[SequenceRead]],
+        reads: TimeSeriesReads,
         disable_time_consistency: bool,
         disable_quality: bool,
         iters: int,
@@ -343,7 +339,6 @@ def perform_vi(
     output_variational_result(
         method='Variational Inference (Second-order heuristic)',
         model=model,
-        reads=reads,
         posterior=posterior,
         disable_time_consistency=disable_time_consistency,
         disable_quality=disable_quality,
@@ -357,7 +352,7 @@ def perform_vi(
 
 
 def plot_em_result(
-        reads: List[List[SequenceRead]],
+        reads: TimeSeriesReads,
         result_path: str,
         plots_out_path: str,
         disable_time_consistency: bool,
@@ -408,7 +403,6 @@ def plot_em_result(
 def output_variational_result(
         method: str,
         model: GenerativeModel,
-        reads: List[List[SequenceRead]],
         posterior: AbstractPosterior,
         disable_time_consistency: bool,
         disable_quality: bool,
@@ -426,12 +420,7 @@ def output_variational_result(
     ))
 
     # Plotting.
-    num_reads_per_time = list(map(len, reads))
-    avg_read_depth_over_time = sum(num_reads_per_time) / len(num_reads_per_time)
-
-    title = "Average Read Depth over Time: " + str(round(avg_read_depth_over_time, 1)) + "\n" + \
-            "Read Length: " + str(len(reads[0][0])) + "\n" + \
-            "Algorithm: " + method + "\n" + \
+    title = "Algorithm: " + method + "\n" + \
             ('Time consistency off\n' if disable_time_consistency else '') + \
             ('Quality score off\n' if disable_quality else '')
 
@@ -522,7 +511,10 @@ def main():
         raise ValueError("Specified sample times must be distinct.")
 
     logger.info("Loading time-series read files.")
-    reads = load_fastq_reads(file_paths=read_paths)
+    reads = TimeSeriesReads.load(
+        time_points=time_points,
+        file_paths=read_paths
+    )
     read_len = args.read_length
 
     # ============ Create model instance

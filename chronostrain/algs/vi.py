@@ -19,6 +19,7 @@ from chronostrain.model.reads import SequenceRead
 from chronostrain.algs.base import AbstractModelSolver
 from chronostrain.util.benchmarking import RuntimeEstimator
 from . import logger
+from ..model.io import TimeSeriesReads
 
 
 class AbstractPosterior(metaclass=ABCMeta):
@@ -327,7 +328,7 @@ class SecondOrderVariationalSolver(AbstractModelSolver):
 
     def __init__(self,
                  model: GenerativeModel,
-                 data: List[List[SequenceRead]],
+                 data: TimeSeriesReads,
                  cache_tag: CacheTag):
         super().__init__(model, data, cache_tag)
 
@@ -343,7 +344,6 @@ class SecondOrderVariationalSolver(AbstractModelSolver):
             read_counts=[len(reads) for reads in self.data],
             num_update_samples=num_montecarlo_samples,
             read_likelihoods=self.read_likelihoods,
-            device=cfg.torch_cfg.device,
             clipping=clipping,
             stdev_scale=stdev_scale
         )

@@ -12,6 +12,7 @@ from chronostrain import cfg
 from chronostrain.algs import AbstractModelSolver, AbstractPosterior
 from chronostrain.model import *
 from chronostrain.model.reads import *
+from chronostrain.model.io import TimeSeriesReads
 from chronostrain.util.data_cache import CacheTag
 from . import logger
 
@@ -189,7 +190,7 @@ class BBVIReparamSolver(AbstractModelSolver):
 
     def __init__(self,
                  model: GenerativeModel,
-                 data: List[List[SequenceRead]],
+                 data: TimeSeriesReads,
                  cache_tag: CacheTag,
                  out_base_dir: str
                  ):

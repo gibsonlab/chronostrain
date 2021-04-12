@@ -4,16 +4,16 @@
 """
 
 import torch
+from typing import List
 
 from abc import ABCMeta, abstractmethod
-from typing import List
 from joblib import Parallel, delayed
 from tqdm import tqdm
 
 from . import logger
+from chronostrain.model.io import TimeSeriesReads
 from chronostrain.config import cfg
 from chronostrain.model.generative import GenerativeModel
-from chronostrain.model.reads import SequenceRead
 from chronostrain.util.data_cache import CachedComputation, CacheTag
 from chronostrain.util.benchmarking import current_time_millis, millis_elapsed
 
@@ -21,7 +21,7 @@ from chronostrain.util.benchmarking import current_time_millis, millis_elapsed
 class AbstractModelSolver(metaclass=ABCMeta):
     def __init__(self,
                  model: GenerativeModel,
-                 data: List[List[SequenceRead]],
+                 data: TimeSeriesReads,
                  cache_tag: CacheTag):
         self.model = model
         self.data = data
@@ -69,8 +69,7 @@ class AbstractModelSolver(metaclass=ABCMeta):
 # ===================================================================
 
 # Helper function
-def compute_read_log_likelihoods(model: GenerativeModel,
-                                 reads: List[List[SequenceRead]]) -> List[torch.Tensor]:
+def compute_read_log_likelihoods(model: GenerativeModel, reads: TimeSeriesReads) -> List[torch.Tensor]:
     """
     Returns a list of (F x N) tensors, each containing the time-t read likelihoods.
     """
@@ -80,14 +79,18 @@ def compute_read_log_likelihoods(model: GenerativeModel,
     logger.debug("Computing read-fragment likelihoods...")
 
     def create_matrix(k):
-        # Each is an (F x N) matrix,
-        # where N is the number of reads in a given time point and F is the number of fragments.
+        """
+        For the specified time point (t = t_k), evaluate the (F x N_t) array of fragment-to-read likelihoods.
+
+        :param k: The time point index to run this function on.
+        :returns: The array of likelihoods, stored as a length-F list of length-N_t lists.
+        """
         start_t = current_time_millis()
         ans = [
             [
-                model.error_model.compute_log_likelihood(f, r)
-                for r in reads[k]
-            ] for f in fragment_space.get_fragments()
+                model.error_model.compute_log_likelihood(frag, read)
+                for read in reads[k]
+            ] for frag in fragment_space.get_fragments()
         ]
         logger.debug("Chunk (k={k}) completed in {t:.1f} min.".format(
             k=k,
