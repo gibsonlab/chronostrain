@@ -2,6 +2,7 @@ import os
 import glob
 import math
 from typing import List
+import hashlib
 
 
 def convert_size(size_bytes):
@@ -37,3 +38,8 @@ def files_in_dir(base_dir: str, extension: str = None) -> List[str]:
         "*" if extension is None else "*.{}".format(extension)
     )
     return glob.glob(pattern)
+
+
+def md5_checksum(file_path: str):
+    with open(file_path, "r") as f:
+        return hashlib.md5(f.read().encode()).hexdigest()

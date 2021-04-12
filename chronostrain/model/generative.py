@@ -14,6 +14,7 @@ from chronostrain.config import cfg
 from chronostrain.model.bacteria import Population
 from chronostrain.model.fragments import FragmentSpace
 from chronostrain.model.reads import AbstractErrorModel, SequenceRead
+from chronostrain.model.io import TimeSeriesReads, TimeSliceReads
 from . import logger
 
 
@@ -110,7 +111,7 @@ class GenerativeModel:
     def sample_abundances_and_reads(
             self,
             read_depths: List[int]
-    ) -> Tuple[torch.Tensor, List[List[SequenceRead]]]:
+    ) -> Tuple[torch.Tensor, TimeSeriesReads]:
         """
         Generate a time-indexed list of read collections and strain abundances.
 
@@ -134,7 +135,7 @@ class GenerativeModel:
         reads = self.sample_timed_reads(abundances, read_depths)
         return abundances, reads
 
-    def sample_timed_reads(self, abundances: torch.Tensor, read_depths: List[int]) -> List[List[SequenceRead]]:
+    def sample_timed_reads(self, abundances: torch.Tensor, read_depths: List[int]) -> TimeSeriesReads:
         S = self.num_strains()
         F = self.num_fragments()
         num_timepoints = len(read_depths)
@@ -151,16 +152,21 @@ class GenerativeModel:
                 )
             )
 
-        reads_list = []
-
         # For each time point, convert to fragment abundances and sample each read.
+        time_slices = []
+
         for t in tqdm(range(num_timepoints), file=sys.stdout):
             read_depth = read_depths[t]
             strain_abundance = abundances[t]
             frag_abundance = self.strain_abundance_to_frag_abundance(strain_abundance.view(S, 1)).view(F)
-            reads_list.append(self.sample_reads(frag_abundance, read_depth, metadata="SIM_t{}".format(self.times[t])))
+            reads_arr = self.sample_reads(frag_abundance, read_depth, metadata="SIM_t{}".format(self.times[t]))
+            time_slices.append(TimeSliceReads(
+                reads=reads_arr,
+                time_point=self.times[t],
+                src=None
+            ))
 
-        return reads_list
+        return TimeSeriesReads(time_slices)
 
     def time_scaled_variance(self, time_idx: int) -> float:
         """

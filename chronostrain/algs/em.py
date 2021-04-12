@@ -1,10 +1,9 @@
-from typing import List
 import torch
 from torch.nn.functional import softmax
 
 from chronostrain.config import cfg
 from chronostrain.util.data_cache import CacheTag
-from chronostrain.model.reads import SequenceRead
+from chronostrain.model.io.reads import TimeSeriesReads
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.util.benchmarking import RuntimeEstimator
 from chronostrain.algs.base import AbstractModelSolver
@@ -22,7 +21,7 @@ class EMSolver(AbstractModelSolver):
     """
     def __init__(self,
                  generative_model: GenerativeModel,
-                 data: List[List[SequenceRead]],
+                 data: TimeSeriesReads,
                  cache_tag: CacheTag,
                  lr: float = 1e-3):
         """
@@ -82,6 +81,7 @@ class EMSolver(AbstractModelSolver):
         ))
         time_est = RuntimeEstimator(total_iters=iters, horizon=print_debug_every)
         k = 0
+        softmax_diff = float("inf")
         while k < iters:
             k += 1
             time_est.stopwatch_click()
@@ -96,7 +96,7 @@ class EMSolver(AbstractModelSolver):
             softmax_diff = torch.norm(
                 softmax(updated_brownian_motion, dim=1) - softmax(brownian_motion, dim=1),
                 p='fro'
-            )
+            ).item()
 
             has_converged = (softmax_diff < thresh)
             if has_converged:

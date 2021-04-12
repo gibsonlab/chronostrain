@@ -1,6 +1,5 @@
-import os
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 import torch
 
 from Bio import SeqIO
@@ -12,74 +11,41 @@ from chronostrain.model.reads import SequenceRead
 from chronostrain.util.filesystem import convert_size, get_filesize_bytes
 
 
-def save_timeslice_to_fastq(
-        timeslice_reads: List[SequenceRead],
-        out_path: str):
-    """
-    Save reads taken at a particular timepoint to fastq. A helper function for save_to_fastq.
-    """
-    records = []
-    for i, read in enumerate(timeslice_reads):
-        # Code from https://biopython.org/docs/1.74/api/Bio.SeqRecord.html
-        record = SeqRecord(Seq(read.nucleotide_content()), id="Read#{}".format(i), description=read.metadata)
-        record.letter_annotations["phred_quality"] = read.quality
-        records.append(record)
-    SeqIO.write(records, out_path, "fastq")
-    logger.debug("Wrote fastQ file {f}. ({sz})".format(
-        f=out_path,
-        sz=convert_size(get_filesize_bytes(out_path))
-    ))
+class TimeSliceReads(object):
+    def __init__(self, reads: List[SequenceRead], time_point: float, src: Optional[str] = None):
+        self.reads = reads
+        self.time_point = time_point
+        self.src = src
 
+    def save(self) -> int:
+        """
+        Save the reads to a fastq file, whose path is specified by attribute `self.file_path`.
 
-def save_reads_to_fastq(
-        sampled_reads: List[List[SequenceRead]],
-        time_points: List[float],
-        out_dir: str,
-        out_prefix: str) -> List[str]:
-    """
-    Save the sampled reads to a fastq file, one for each timepoint.
-    :return: A list of filenames (without parent directory) to which the reads were saved, in order of input timepoints.
-    """
-    Path(out_dir).mkdir(parents=True, exist_ok=True)
-    if len(sampled_reads) != len(time_points):
-        raise ValueError("Number of time indexed lists of reads should equal number of time points to read at")
+        :return: The number of bytes of the output file.
+        """
+        if self.src is None:
+            raise ValueError("Specify the `src` parameter if invoking save() of TimeSliceReads object.")
 
-    prefix_format = '{}_reads_t{}.fastq'
-    total_sz = 0
+        records = []
+        Path(self.src).parents[0].mkdir(parents=True, exist_ok=True)
 
-    read_files = []
-    for i, t in enumerate(time_points):
-        filename = prefix_format.format(out_prefix, str(t).replace('.', '_'))
-        read_files.append(filename)
-        out_path = os.path.join(out_dir, filename)
-        save_timeslice_to_fastq(sampled_reads[i], out_path)
-        total_sz += get_filesize_bytes(out_path)
-    # return prefix_format.format(out_prefix, '*')
+        for i, read in enumerate(self.reads):
+            # Code from https://biopython.org/docs/1.74/api/Bio.SeqRecord.html
+            record = SeqRecord(Seq(read.nucleotide_content()), id="Read#{}".format(i), description=read.metadata)
+            record.letter_annotations["phred_quality"] = read.quality
+            records.append(record)
+        SeqIO.write(records, self.src, "fastq")
 
-    logger.info("Reads output successfully to {f}. ({sz} Total)".format(
-        f=os.path.join(out_dir, prefix_format.format(out_prefix, '*')),
-        sz=convert_size(total_sz)
-    ))
+        file_size = get_filesize_bytes(self.src)
+        logger.info("Wrote fastQ file {f}. ({sz})".format(
+            f=self.src,
+            sz=convert_size(file_size)
+        ))
+        return file_size
 
-    return read_files
-
-
-def load_fastq_reads(file_paths: List[str], format="fastq") -> List[List[SequenceRead]]:
-    """
-    Load the files from the specified path structure. The files are loaded in order of filenames, assumed to be sorted
-    correctly temporally.
-
-    :param file_paths: A list of files inside base_dir to parse, in order of filenames.
-    :param format: A valid format, typically one of `fastq`/`fastq-sanger`, `fastq-solexa` or `fastq-illumina`.
-    See https://biopython.org/wiki/SeqIO#file-formats.
-    :return: A time-indexed list of SequenceRead instances.
-    """
-
-    reads = []  # A time-indexed list of read sets. Each item is itself a list of reads for time t.
-    for file_path in file_paths:
-        # A set of reads at a particular time (i.e. the reads in 'file')
-        # Prevents redundant loading of reads that passed multiple filters
-        reads_t = []
+    @staticmethod
+    def load(file_path: str, time_point: float):
+        reads = []
         for record in SeqIO.parse(file_path, format):
             quality = torch.tensor(record.letter_annotations["phred_quality"], dtype=torch.int)
             read = SequenceRead(
@@ -87,14 +53,60 @@ def load_fastq_reads(file_paths: List[str], format="fastq") -> List[List[Sequenc
                 quality=quality,
                 metadata=record.description
             )
-            reads_t.append(read)
+            reads.append(read)
 
         logger.debug("Loaded {r} reads from fastQ file {f}. ({sz})".format(
-            r=len(reads_t),
+            r=len(reads),
             f=file_path,
             sz=convert_size(get_filesize_bytes(file_path))
         ))
+        return TimeSliceReads(reads, time_point, file_path)
 
-        reads.append(reads_t)
+    def __iter__(self) -> SequenceRead:
+        for read in self.reads:
+            yield read
 
-    return reads
+    def __len__(self) -> int:
+        return len(self.reads)
+
+    def __getitem__(self, idx: int) -> SequenceRead:
+        return self.reads[idx]
+
+
+class TimeSeriesReads(object):
+    def __init__(self, time_slices: List[TimeSliceReads]):
+        self.time_slices = time_slices
+
+    def save(self):
+        """
+        Save the sampled reads to a fastq file, one for each timepoint.
+        """
+        total_sz = 0
+        for time_slice in self.time_slices:
+            total_sz += time_slice.save()
+
+        logger.info("Reads output successfully. ({sz} Total)".format(
+            sz=convert_size(total_sz)
+        ))
+
+    @staticmethod
+    def load(time_points: List[float], file_paths: List[str]):
+        if len(time_points) != len(file_paths):
+            raise ValueError("Number of time points ({}) do not match number of file paths. ({})".format(
+                len(time_points), len(file_paths)
+            ))
+        time_slices = [
+            TimeSliceReads.load(file_path, t)
+            for file_path, t in zip(file_paths, time_points)
+        ]
+        return TimeSeriesReads(time_slices)
+
+    def __iter__(self) -> TimeSliceReads:
+        for time_slice in self.time_slices:
+            yield time_slice
+
+    def __len__(self) -> int:
+        return len(self.time_slices)
+
+    def __getitem__(self, idx: int) -> TimeSliceReads:
+        return self.time_slices[idx]

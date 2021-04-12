@@ -7,17 +7,31 @@
     Generates a cache key to avoid re-computation in future runs.
 """
 import os
-from typing import Callable
+from typing import Callable, List, Optional
 import pickle
 import hashlib
 
 from . import logger
 from chronostrain.config import cfg
+from chronostrain.util.filesystem import md5_checksum
 
 
 class CacheTag(object):
-    def __init__(self, **kwargs):
+    def __init__(self,
+                 file_paths: Optional[List[str]] = None,
+                 **kwargs):
+        """
+        :param file_paths: A list of file paths to be included in the cache key, using an MD5 hash.
+        :param kwargs: Other optional kwargs to use for generating the cache key.
+        """
         self.attr_dict = kwargs
+        self.file_paths = file_paths
+        self.objects = kwargs
+        for path in file_paths:
+            try:
+                self.objects[path] = md5_checksum(path)
+            except FileNotFoundError as e:
+                self.objects[path] = "FILE_NOT_FOUND"
         self.encoding = hashlib.md5(str(kwargs).encode('utf-8')).hexdigest()
 
     def write_attributes_to_disk(self, path: str):

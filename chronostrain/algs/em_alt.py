@@ -6,7 +6,7 @@ from chronostrain.util.data_cache import CacheTag
 from chronostrain.algs.em import EMSolver
 from chronostrain.util.benchmarking import RuntimeEstimator
 from chronostrain.algs.base import AbstractModelSolver
-from chronostrain.model.reads import SequenceRead
+from chronostrain.model.io import TimeSeriesReads
 from chronostrain.model.generative import GenerativeModel
 from . import logger
 
@@ -25,7 +25,7 @@ class EMAlternateSolver(AbstractModelSolver):
     def __init__(
             self,
             generative_model: GenerativeModel,
-            data: List[List[SequenceRead]],
+            data: TimeSeriesReads,
             cache_tag: CacheTag,
             lr: float = 1e-3):
         """

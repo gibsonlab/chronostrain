@@ -7,7 +7,6 @@
   (Note: doesn't work as well as BBVI for mean-field assumption.)
 """
 
-from typing import List
 import torch
 from torch.distributions.multivariate_normal import MultivariateNormal
 from torch.nn.functional import softmax, softplus
@@ -15,8 +14,8 @@ from torch.nn.functional import softmax, softplus
 from chronostrain.config import cfg
 from chronostrain.util.data_cache import CacheTag
 from chronostrain.algs.vi import AbstractPosterior
-from chronostrain.model.reads import SequenceRead
 from chronostrain.model import GenerativeModel
+from chronostrain.model.io import TimeSeriesReads
 from chronostrain.algs.base import AbstractModelSolver
 from chronostrain.util.benchmarking import RuntimeEstimator
 from chronostrain.util.math import normalize
@@ -99,7 +98,7 @@ class BBVISolver(AbstractModelSolver):
 
     def __init__(self,
                  model: GenerativeModel,
-                 data: List[List[SequenceRead]],
+                 data: TimeSeriesReads,
                  cache_tag: CacheTag):
         super().__init__(model, data, cache_tag)
         self.gaussian_posterior = GaussianPosterior(model=model)

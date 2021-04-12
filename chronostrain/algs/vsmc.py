@@ -12,9 +12,9 @@ from chronostrain.config import cfg
 from chronostrain.util.data_cache import CacheTag
 from chronostrain.algs.vi import AbstractPosterior
 from chronostrain.model.generative import GenerativeModel
-from chronostrain.model.reads import SequenceRead
 from chronostrain.algs.base import AbstractModelSolver
 from chronostrain.util.benchmarking import RuntimeEstimator
+from chronostrain.model.io import TimeSeriesReads
 from . import logger
 
 
@@ -119,7 +119,7 @@ class VariationalSequentialPosterior(AbstractPosterior):
 
 
 class VSMCSolver(AbstractModelSolver):
-    def __init__(self, model: GenerativeModel, data: List[List[SequenceRead]], cache_tag: CacheTag):
+    def __init__(self, model: GenerativeModel, data: TimeSeriesReads, cache_tag: CacheTag):
         super().__init__(model, data, cache_tag)
         self.posterior = VariationalSequentialPosterior(
             num_times=model.num_times(),

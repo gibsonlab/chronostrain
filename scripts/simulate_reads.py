@@ -14,8 +14,7 @@ from chronostrain import logger, cfg
 from chronostrain.database import StrainNotFoundError
 from chronostrain.model import generative, reads
 from chronostrain.model.bacteria import Population
-from chronostrain.model.reads import SequenceRead
-from chronostrain.model.io import save_reads_to_fastq, save_abundances, load_abundances
+from chronostrain.model.io import TimeSeriesReads, save_abundances, load_abundances
 
 
 def parse_args():
@@ -57,7 +56,7 @@ def sample_reads(
         time_points: List[float],
         disable_quality: bool,
         abundances: torch.Tensor = None,
-        seed: int = None) -> Tuple[torch.Tensor, List[List[SequenceRead]]]:
+        seed: int = None) -> Tuple[torch.Tensor, TimeSeriesReads]:
     """
     Sample sequence reads from the generative model, using either a pre-specified abundance profile or using
     random samples.
@@ -125,10 +124,10 @@ def sample_reads(
     return abundances, time_indexed_reads
 
 
-def save_index_csv(time_points, out_dir, out_filename, read_files):
+def save_index_csv(time_series: TimeSeriesReads, out_dir: str, out_filename: str):
     with open(os.path.join(out_dir, out_filename), "w") as f:
-        for t, read_file in zip(time_points, read_files):
-            print("\"{}\",\"{}\"".format(t, read_file), file=f)
+        for time_slice in time_series:
+            print("\"{}\",\"{}\"".format(time_slice.time_point, time_slice.src), file=f)
 
 
 def main():
@@ -177,7 +176,15 @@ def main():
 
     # ========== Save sampled reads to file.
     logger.debug("Saving samples to file...")
-    read_files = save_reads_to_fastq(sampled_reads, time_points, args.out_dir, args.out_prefix)
+    # read_files = save_reads_to_fastq(sampled_reads, time_points, args.out_dir, args.out_prefix)
+
+    out_paths = []
+    for time_slice in sampled_reads:
+        out_path_t = os.path.join(args.out_dir, "{}-reads.fastq".format(time_slice.time_point))
+        out_paths.append(out_path_t)
+        time_slice.src = out_path_t
+    sampled_reads.save()
+
     logger.debug("Saving (re-normalized) abundances to file...")
     save_abundances(
         population=population,
@@ -187,10 +194,9 @@ def main():
     )
 
     save_index_csv(
-        time_points=time_points,
+        time_series=sampled_reads,
         out_dir=args.out_dir,
         out_filename='input_files.csv',
-        read_files=read_files
     )
 
 
