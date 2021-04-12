@@ -28,10 +28,7 @@ class CacheTag(object):
         self.file_paths = file_paths
         self.objects = kwargs
         for path in file_paths:
-            try:
-                self.objects[path] = md5_checksum(path)
-            except FileNotFoundError as e:
-                self.objects[path] = "FILE_NOT_FOUND"
+            self.objects[path] = md5_checksum(path)
         self.encoding = hashlib.md5(str(kwargs).encode('utf-8')).hexdigest()
 
     def write_attributes_to_disk(self, path: str):
