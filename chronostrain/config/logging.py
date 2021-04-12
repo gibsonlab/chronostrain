@@ -60,7 +60,8 @@ class MakeDirTimedRotatingFileHandler(logging.handlers.TimedRotatingFileHandler)
 
 def default_logger(name: str):
     logger = logging.getLogger(name)
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
 
     stdout_handler = logging.StreamHandler(sys.stdout)
     stdout_handler.addFilter(LoggingLevelFilter([logging.INFO, logging.DEBUG]))
