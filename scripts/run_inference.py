@@ -533,8 +533,8 @@ def main():
     """
 
     cache_tag = CacheTag(
+        file_paths=read_paths,
         use_quality=cfg.model_cfg.use_quality_scores,
-        read_paths=read_paths
     )
 
     # ============ Prepare for algorithm output.
