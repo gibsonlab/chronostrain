@@ -11,26 +11,28 @@ mkdir -p $STRAINGE_LSF_OUTPUT_DIR
 # ================ LSF creation ===========================
 for (( n_reads = ${N_READS_MIN}; n_reads < ${N_READS_MAX}+1; n_reads += ${N_READS_STEP} ));
 do
-	for (( trial = 1; trial < ${N_TRIALS}+1; trial++ ));
+	for (( quality_shift = ${Q_SHIFT_MIN}; quality_shift < ${Q_SHIFT_MAX}+1; quality_shift += ${Q_SHIFT_STEP} ));
 	do
-		# =============== Trial-specific settings ===================
-		CHRONOSTRAIN_LSF_PATH="${CHRONOSTRAIN_LSF_DIR}/reads_${n_reads}_trial_${trial}-chronostrain.lsf"
-		STRAINGE_LSF_PATH="${STRAINGE_LSF_DIR}/reads_${n_reads}_trial_${trial}-strainge.lsf"
+		for (( trial = 1; trial < ${N_TRIALS}+1; trial++ ));
+		do
+			# =============== Trial-specific settings ===================
+			CHRONOSTRAIN_LSF_PATH="${CHRONOSTRAIN_LSF_DIR}/reads_${n_reads}_qs_${quality_shift}_trial_${trial}.lsf"
+			STRAINGE_LSF_PATH="${STRAINGE_LSF_DIR}/reads_${n_reads}_qs_${quality_shift}_trial_${trial}.lsf"
 
-    TRIAL_DIR="${RUNS_DIR}/reads_${n_reads}/trial_${trial}"
-    READS_DIR="${TRIAL_DIR}/simulated_reads"
-		CHRONOSTRAIN_OUTPUT_DIR="${TRIAL_DIR}/output/chronostrain"
-		STRAINGE_OUTPUT_DIR="${TRIAL_DIR}/output/strainge"
-		SEED=$trial
+			TRIAL_DIR="${RUNS_DIR}/reads_${n_reads}/qs_${quality_shift}/trial_${trial}"
+			READS_DIR="${TRIAL_DIR}/simulated_reads"
+			CHRONOSTRAIN_OUTPUT_DIR="${TRIAL_DIR}/output/chronostrain"
+			STRAINGE_OUTPUT_DIR="${TRIAL_DIR}/output/strainge"
+			SEED=$trial
 
-		# ============ Chronostrain LSF ============
-		# Generate LSF files via heredoc.
-		echo "Creating ${CHRONOSTRAIN_LSF_PATH}"
-		cat <<- EOFDOC > $CHRONOSTRAIN_LSF_PATH
+			# ============ Chronostrain LSF ============
+			# Generate LSF files via heredoc.
+			echo "Creating ${CHRONOSTRAIN_LSF_PATH}"
+			cat <<- EOFDOC > $CHRONOSTRAIN_LSF_PATH
 #!/bin/bash
 #BSUB -J bench_chronostrain
-#BSUB -o ${CHRONOSTRAIN_LSF_OUTPUT_DIR}/%J-chronostrain_${n_reads}_${trial}-%J.out
-#BSUB -e ${CHRONOSTRAIN_LSF_OUTPUT_DIR}/%J-chronostrain_${n_reads}_${trial}-%J.err
+#BSUB -e ${CHRONOSTRAIN_LSF_OUTPUT_DIR}/chronostrain_reads_${n_reads}_qs_${quality_shift}_trial_${trial}-%J.out
+#BSUB -e ${CHRONOSTRAIN_LSF_OUTPUT_DIR}/chronostrain_reads_${n_reads}_qs_${quality_shift}_trial_${trial}-%J.err
 #BSUB -q $LSF_CHRONOSTRAIN_QUEUE
 #BSUB -n ${LSF_CHRONOSTRAIN_N_CORES}
 #BSUB -M ${LSF_CHRONOSTRAIN_MEM}
@@ -48,7 +50,7 @@ export CHRONOSTRAIN_DATA_DIR=${CHRONOSTRAIN_DATA_DIR}
 export BASE_DIR=${BASE_DIR}
 export CHRONOSTRAIN_INI=$CHRONOSTRAIN_INI
 export CHRONOSTRAIN_LOG_INI=$CHRONOSTRAIN_LOG_INI
-export CHRONOSTRAIN_LOG_FILEPATH=${CHRONOSTRAIN_DATA_DIR}/logs/reads_${n_reads}/trial_${trial}/chronostrain.log
+export CHRONOSTRAIN_LOG_FILEPATH=${CHRONOSTRAIN_DATA_DIR}/logs/reads_${n_reads}/qs_${quality_shift}/trial_${trial}/chronostrain.log
 
 echo "Filtering reads."
 python ${PROJECT_DIR}/scripts/filter.py \
@@ -69,13 +71,13 @@ python $PROJECT_DIR/scripts/run_inference.py \
 --num_cores
 EOFDOC
 
-		# ============ StrainGE LSF ============
-		echo "Creating ${STRAINGE_LSF_PATH}"
-		cat <<- EOFDOC > ${STRAINGE_LSF_PATH}
+			# ============ StrainGE LSF ============
+			echo "Creating ${STRAINGE_LSF_PATH}"
+			cat <<- EOFDOC > ${STRAINGE_LSF_PATH}
 #!/bin/bash
 #BSUB -J bench_strainGE
-#BSUB -o ${STRAINGE_LSF_OUTPUT_DIR}/%J-chronostrain_${n_reads}_${trial}-%J.out
-#BSUB -e ${STRAINGE_LSF_OUTPUT_DIR}/%J-chronostrain_${n_reads}_${trial}-%J.err
+#BSUB -e ${STRAINGE_LSF_OUTPUT_DIR}/strainge_reads_${n_reads}_qs_${quality_shift}_trial_${trial}-%J.out
+#BSUB -e ${STRAINGE_LSF_OUTPUT_DIR}/strainge_reads_${n_reads}_qs_${quality_shift}_trial_${trial}-%J.err
 #BSUB -q ${LSF_STRAINGE_QUEUE}
 #BSUB -n ${LSF_STRAINGE_N_CORES}
 #BSUB -M ${LSF_STRAINGE_MEM}
@@ -91,10 +93,11 @@ echo "Output dir: ${STRAINGE_OUTPUT_DIR}"
 
 export READS_DIR=${READS_DIR}
 export STRAINGE_OUTPUT_DIR="${STRAINGE_OUTPUT_DIR}"
+export CHRONOSTRAIN_LOG_FILEPATH="${CHRONOSTRAIN_DATA_DIR}/logs/reads_${N_READS}/qs_${quality_shift}/trial_${trial}/strainge_plot.log"
 
 bash ${BASE_DIR}/scripts/eristwo/run_strainge.sh
 EOFDOC
-
+		done
 	done
 done
 

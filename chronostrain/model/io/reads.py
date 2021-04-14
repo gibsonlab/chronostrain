@@ -46,7 +46,7 @@ class TimeSliceReads(object):
     @staticmethod
     def load(file_path: str, time_point: float):
         reads = []
-        for record in SeqIO.parse(file_path, format):
+        for record in SeqIO.parse(file_path, "fastq"):
             quality = torch.tensor(record.letter_annotations["phred_quality"], dtype=torch.int)
             read = SequenceRead(
                 seq=str(record.seq),

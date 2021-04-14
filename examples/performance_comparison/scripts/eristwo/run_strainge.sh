@@ -39,3 +39,9 @@ ${INPUT_FILE_ARGS} \
 ${INPUT_TIME_ARGS} \
 -o ${STRAINGE_OUTPUT_DIR}/abundances.csv \
 --strain_trim .fa.gz
+
+python ${PROJECT_DIR}/scripts/plot_abundance_output.py \
+--abundance_path ${STRAINGE_OUTPUT_DIR}/abundances.csv \
+--ground_truth_path $TRUE_ABUNDANCE_PATH \
+--output_path ${STRAINGE_OUTPUT_DIR}/plot.pdf \
+--format "pdf"

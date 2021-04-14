@@ -213,8 +213,8 @@ def plot_posterior_abundances(
             for t_idx in range(len(times))
         ])
 
-        upper_quantile = np.quantile(traj_samples, q=0.95, axis=1)
-        lower_quantile = np.quantile(traj_samples, q=0.05, axis=1)
+        upper_quantile = np.quantile(traj_samples, q=0.975, axis=1)
+        lower_quantile = np.quantile(traj_samples, q=0.025, axis=1)
         median = np.quantile(traj_samples, q=0.5, axis=1)
 
         # Plot the trajectory of medians.

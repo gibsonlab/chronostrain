@@ -32,6 +32,16 @@ def parse_args():
     parser.add_argument('-s', '--seed', dest='seed', required=False, type=int, default=random.randint(0, 100),
                         help='<Optional> The random seed to use for the samplers. Each timepoint will use a unique '
                              'seed, starting with the specified value and incremented by one at a time.')
+    parser.add_argument('-qs', '--qShift', dest='quality_shift', required=False,
+                        type=int, default=None,
+                        help='<Optional> The `qShift` argument to pass to art_illumina, which lowers quality scores '
+                             'of each read by the specified amount.'
+                             '(From the ART documentation: "NOTE: If shifting scores by x, the error rate will '
+                             'be 1/(10^(x/10)) of the default profile.")')
+    parser.add_argument('-qs2', '--qShift2', dest='quality_shift_2', required=False,
+                        type=int, default=None,
+                        help='<Optional> (Assuming paired-end reads) The `qShift2` argument to pass to art_illumina, '
+                             'which lowers quality scores of each second (reverse half) read by the specified amount.')
     parser.add_argument('--num_cores', dest='num_cores', required=False, type=int, default=1,
                         help='<Optional> The number of cores to use. If greater than 1, will spawn child '
                              'processes to call art_illumina.')
@@ -47,6 +57,7 @@ def main():
     Path(args.out_dir).mkdir(parents=True, exist_ok=True)
 
     timepoint_indexed_files = []
+    seed = args.seed
     for t, abundance_t in parse_abundance_profile(args.abundance_path):
         out_path_t = os.path.join(args.out_dir, "reads_{t}.fastq".format(t=t))
         tmpdir = os.path.join(args.out_dir, "tmp_{t}".format(t=t))
@@ -61,11 +72,13 @@ def main():
             profile_first=args.profiles[0],
             profile_second=args.profiles[1],
             read_len=args.read_len,
-            seed=args.seed,
+            quality_shift=args.quality_shift,
+            quality_shift_2=args.quality_shift_2,
+            seed=seed,
             n_cores=args.num_cores,
             cleanup=args.cleanup
         )
-
+        seed = seed + 1
         timepoint_indexed_files.append((t, out_path_t))
     logger.info("Sampled reads to {}".format(args.out_dir))
 
@@ -111,6 +124,8 @@ def sample_reads_from_rel_abundances(final_reads_path: str,
                                      profile_first: str,
                                      profile_second: str,
                                      read_len: int,
+                                     quality_shift: int,
+                                     quality_shift_2: int,
                                      seed: int,
                                      n_cores: int,
                                      cleanup: bool):
@@ -126,6 +141,8 @@ def sample_reads_from_rel_abundances(final_reads_path: str,
     :param profile_first:
     :param profile_second:
     :param read_len:
+    :param quality_shift:
+    :param quality_shift_2:
     :param seed:
     :param n_cores:
     :param cleanup:
@@ -143,6 +160,8 @@ def sample_reads_from_rel_abundances(final_reads_path: str,
                 output_prefix="{}_".format(accession),
                 profile_first=profile_first,
                 profile_second=profile_second,
+                quality_shift=quality_shift,
+                quality_shift_2=quality_shift_2,
                 read_length=read_len,
                 seed=seed + t_index
             )

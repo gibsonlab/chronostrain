@@ -108,18 +108,18 @@ class BBVISolver(AbstractModelSolver):
             sums = read_likelihood_matrix.sum(dim=0)
 
             zero_indices = {i.item() for i in torch.where(sums == 0)[0]}
-            logger.warn("[t = {}] Discarding reads with overall likelihood zero: {}".format(
-                self.model.times[t_idx],
-                ",".join([str(read_idx) for read_idx in zero_indices])
-            ))
-            # TODO: check why the reads removed are subsets. (read generation seeding issue?)
+            if len(zero_indices) > 0:
+                logger.warn("[t = {}] Discarding reads with overall likelihood zero: {}".format(
+                    self.model.times[t_idx],
+                    ",".join([str(read_idx) for read_idx in zero_indices])
+                ))
 
-            leftover_indices = [
-                i
-                for i in range(len(data[t_idx]))
-                if i not in zero_indices
-            ]
-            self.read_likelihoods_tensors[t_idx] = read_likelihood_matrix[:, leftover_indices]
+                leftover_indices = [
+                    i
+                    for i in range(len(data[t_idx]))
+                    if i not in zero_indices
+                ]
+                self.read_likelihoods_tensors[t_idx] = read_likelihood_matrix[:, leftover_indices]
 
     def elbo_marginal_gaussian(self, x_samples: torch.Tensor, gaussian_log_likelihoods: torch.Tensor) -> torch.Tensor:
         """

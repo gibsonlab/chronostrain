@@ -1,6 +1,6 @@
 # Modify these before running.
-export PROJECT_DIR="/PHShome/yk847/chronostrain"
-export CHRONOSTRAIN_DATA_DIR="/data/cctm/chronostrain"
+export PROJECT_DIR="/mnt/f/microbiome_tracking"
+export CHRONOSTRAIN_DATA_DIR="/home/younhun/chronostrain-eristwo"
 export CONDA_ENV="chronostrain"
 
 # ======== Location of this file.
@@ -8,8 +8,11 @@ export SETTINGS_PATH="${BASE_DIR}/scripts/eristwo/settings.sh"
 
 # ======== Read settings (how many to sample/read length/where they are stored)
 export N_READS_MIN=1000000
-export N_READS_MAX=10000000
+export N_READS_MAX=1000000
 export N_READS_STEP=1000000
+export Q_SHIFT_MIN=-5
+export Q_SHIFT_MAX=0
+export Q_SHIFT_STEP=1
 export N_TRIALS=10
 export READ_LEN=150
 

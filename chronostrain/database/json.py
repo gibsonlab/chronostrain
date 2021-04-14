@@ -407,6 +407,7 @@ class JSONStrainDatabase(AbstractStrainDatabase):
                 ))
 
         # Save multi-fasta.
+        # TODO: Repopulate multi-fasta based on last timestamp. (e.g. marker multifasta file timestamp < min(marker file timestmaps))
         self.multifasta_file = os.path.join(cfg.database_cfg.data_dir, 'marker_multifasta.fa')
         self.save_markers_to_multifasta(filepath=self.multifasta_file, force_refresh=force_refresh)
         logger.debug("Multi-fasta file: {}".format(self.multifasta_file))

@@ -30,3 +30,10 @@ ${INPUT_FILE_ARGS} \
 ${INPUT_TIME_ARGS} \
 -o ${STRAINGE_OUTPUT_DIR}/abundances.csv \
 --strain_trim .fa.gz
+
+export CHRONOSTRAIN_LOG_FILEPATH="${CHRONOSTRAIN_DATA_DIR}/logs/reads_${N_READS}/qs_${QUALITY_SHIFT}/single-run/strainge_plot.log"
+python ${PROJECT_DIR}/scripts/plot_abundance_output.py \
+--abundance_path ${STRAINGE_OUTPUT_DIR}/abundances.csv \
+--ground_truth_path $TRUE_ABUNDANCE_PATH \
+--output_path ${STRAINGE_OUTPUT_DIR}/plot.pdf \
+--format "pdf"
