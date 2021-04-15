@@ -29,7 +29,6 @@ class EMSolver(AbstractModelSolver):
 
         :param generative_model: The underlying generative model with prior parameters.
         :param data: the observed data, a time-indexed list of read collections.
-        :param device: the torch device to operate on. (Recommended: CUDA if available.)
         :param lr: the learning rate (default: 1e-3)
         """
         super().__init__(generative_model, data, cache_tag)

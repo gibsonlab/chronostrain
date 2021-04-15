@@ -6,6 +6,7 @@ from typing import List
 
 import numpy as np
 import torch
+from pathlib import Path
 from torch.distributions import MultivariateNormal
 
 from chronostrain import cfg
@@ -191,8 +192,7 @@ class BBVIReparamSolver(AbstractModelSolver):
     def __init__(self,
                  model: GenerativeModel,
                  data: TimeSeriesReads,
-                 cache_tag: CacheTag,
-                 out_base_dir: str
+                 cache_tag: CacheTag
                  ):
         super().__init__(model, data, cache_tag)
         self.read_counts = [len(reads_t) for reads_t in data]
@@ -200,7 +200,6 @@ class BBVIReparamSolver(AbstractModelSolver):
         self.times = self.model.times
         self.T = self.model.num_times()
         self.S = self.model.num_strains()
-        self.out_base_dir = out_base_dir
 
     def solve(self,
               iters=100,

@@ -48,8 +48,7 @@ class EMAlternateSolver(AbstractModelSolver):
         em_solver = EMSolver(generative_model=self.model,
                              data=self.data,
                              cache_tag=self.cache_tag,
-                             lr=self.lr,
-                             read_likelihoods=self.read_likelihoods)
+                             lr=self.lr)
 
         logger.debug("Alternating optimization algorithm started. (Max iterations={})".format(
             max_iters

@@ -1,4 +1,5 @@
 import torch
+from pathlib import Path
 from dataclasses import dataclass
 from typing import List, Union
 
@@ -10,7 +11,7 @@ from . import logger
 @dataclass
 class MarkerMetadata:
     gene_id: str
-    file_path: str
+    file_path: Path
     
     def __repr__(self):
         return self.gene_id
@@ -22,7 +23,7 @@ class MarkerMetadata:
 @dataclass
 class StrainMetadata:
     ncbi_accession: str
-    file_path: str
+    file_path: Path
     genus: str
     species: str
 
@@ -34,7 +35,10 @@ class Marker:
     metadata: Union[MarkerMetadata, None]
 
     def __repr__(self):
-        return "Marker[{}:{}]".format(self.name, self.seq) if MarkerMetadata is None else "Marker[{}:{}]".format(self.metadata, self.seq)
+        if self.metadata is None:
+            return "Marker[{}:{}]".format(self.name, self.seq)
+        else:
+            return "Marker[{}({}):{}]".format(self.name, self.metadata, self.seq)
 
     def __str__(self):
         return self.__repr__()

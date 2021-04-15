@@ -112,7 +112,7 @@ def plot_abundances(
 
 def plot_abundance_dataframe(
         data: pd.DataFrame,
-        plots_out_path: str,
+        plots_out_path: Path,
         draw_legend: bool,
         img_format: str,
         num_reads_per_time: List[int] = None,
@@ -170,7 +170,7 @@ def plot_posterior_abundances(
         plots_out_path: Path,
         draw_legend: bool,
         img_format: str,
-        truth_path: Optional[Path] = None,
+        truth_path: Path = None,
         title: str = None,
         font_size: int = 12,
         thickness: int = 1,

@@ -1,18 +1,18 @@
-import os
+from pathlib import Path
 from typing import Optional
 from .commandline import call_command, CommandLineException
 
 
-def art_illumina(reference_path: str,
+def art_illumina(reference_path: Path,
                  num_reads: int,
-                 output_dir: str,
+                 output_dir: Path,
                  output_prefix: str,
-                 profile_first: str,
-                 profile_second: str,
+                 profile_first: Path,
+                 profile_second: Path,
                  read_length: int,
                  seed: int,
                  quality_shift: Optional[int] = None,
-                 quality_shift_2: Optional[int] = None) -> str:
+                 quality_shift_2: Optional[int] = None) -> Path:
     """
     Call art_illumina.
 
@@ -29,8 +29,8 @@ def art_illumina(reference_path: str,
     :return: The filepath to the paired-end reads. TODO: Currently only returns the first read of the pair.
     """
 
-    cmd_args = ['--qprof1', profile_first,
-     '--qprof2', profile_second,
+    cmd_args = ['--qprof1', str(profile_first),
+     '--qprof2', str(profile_second),
      '-sam',
      '-i', reference_path,
      '-l', str(read_length),
@@ -54,4 +54,4 @@ def art_illumina(reference_path: str,
     if exit_code != 0:
         raise CommandLineException("art_illumina", exit_code)
     else:
-        return os.path.join(output_dir, "{}1.fq".format(output_prefix))
+        return output_dir / "{}1.fq".format(output_prefix)

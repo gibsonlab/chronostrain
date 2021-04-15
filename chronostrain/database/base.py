@@ -14,7 +14,7 @@ from . import logger
 class AbstractStrainDatabase(metaclass=ABCMeta):
     def __init__(self, force_refresh: bool = False):
         self.__load__(force_refresh=force_refresh)
-        self.multifasta_file = Path(cfg.database_cfg.data_dir) / 'markers' / 'marker_multifasta.fa'
+        self.multifasta_file = cfg.database_cfg.data_dir / 'markers' / 'marker_multifasta.fa'
         self._save_markers_to_multifasta(
             force_refresh=force_refresh
         )

@@ -29,7 +29,6 @@ class GaussianPosterior(AbstractPosterior):
         1) Parametrize X_1, ..., X_T as a Gaussian Process, with covariance kernel \Sigma_{t, t+1}.
         2) Parametrize F_1, ..., F_T as independent (but not identical) categorical RVs (for each read).
         :param model: The generative model to use.
-        :param read_counts: Number of reads per time point.
         """
         # Check: might need this to be a matrix, not a vector.
         self.model = model

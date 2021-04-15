@@ -1,7 +1,7 @@
 from .commandline import *
 
 
-def bwa_index(reference_path, bwa_path="bwa"):
+def bwa_index(reference_path: Path, bwa_path="bwa"):
     '''
     TODO: Allow configurable minimum seed length
     '''
@@ -11,9 +11,9 @@ def bwa_index(reference_path, bwa_path="bwa"):
         raise CommandLineException("bwa index", exit_code)
 
 
-def bwa_mem(output_path: str,
-            reference_path: str,
-            read_path: str,
+def bwa_mem(output_path: Path,
+            reference_path: Path,
+            read_path: Path,
             min_seed_length: int,
             bwa_path="bwa"):
     exit_code = call_command(

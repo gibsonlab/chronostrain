@@ -264,7 +264,6 @@ def perform_bbvi_reparametrization(
         disable_time_consistency: bool,
         disable_quality: bool,
         iters: int,
-        out_base_dir: str,
         learning_rate: float,
         cache_tag: CacheTag,
         plot_out_path: Path,
@@ -279,7 +278,6 @@ def perform_bbvi_reparametrization(
             model=model,
             data=reads,
             cache_tag=cache_tag,
-            out_base_dir=out_base_dir
         )
         bbvi_posterior = solver.solve(
             iters=iters,
@@ -293,7 +291,7 @@ def perform_bbvi_reparametrization(
     torch.save(bbvi_posterior.sample(num_samples=num_posterior_samples), samples_path)
     logger.info("Posterior samples saved to {}. []".format(
         samples_path,
-        filesystem.convert_size(filesystem.get_filesize_bytes(samples_path))
+        filesystem.convert_size(samples_path.stat().st_size)
     ))
 
     output_variational_result(
@@ -420,7 +418,7 @@ def output_variational_result(
     torch.save(samples, samples_out_path)
     logger.info("Posterior samples saved to {}. []".format(
         samples_out_path,
-        filesystem.convert_size(filesystem.get_filesize_bytes(samples_out_path))
+        filesystem.convert_size(samples_out_path.stat().st_size)
     ))
 
     # Plotting.
@@ -548,15 +546,20 @@ def main():
     if not out_dir.is_dir():
         raise RuntimeError("Filesystem error: out_dir argument points to something other than a directory.")
 
+    if args.true_abundance_path is not None:
+        true_abundance_path = Path(args.true_abundance_path)
+    else:
+        true_abundance_path = None
+
     # ============ Run the specified algorithm.
     if args.method == 'em':
         logger.info("Solving using Expectation-Maximization.")
         perform_em(
             reads=reads,
             model=model,
-            out_dir=args.out_dir,
+            out_dir=out_dir,
             abnd_out_file=args.abundances_file,
-            ground_truth_path=args.true_abundance_path,
+            ground_truth_path=true_abundance_path,
             disable_time_consistency=args.disable_time_consistency,
             disable_quality=not cfg.model_cfg.use_quality_scores,
             iters=args.iters,
@@ -576,7 +579,7 @@ def main():
             disable_quality=not cfg.model_cfg.use_quality_scores,
             iters=args.iters,
             num_samples=args.num_samples,
-            ground_truth_path=args.true_abundance_path,
+            ground_truth_path=true_abundance_path,
             plots_out_path=plots_path,
             samples_out_path=samples_path,
             learning_rate=args.learning_rate,
@@ -595,11 +598,10 @@ def main():
             iters=args.iters,
             learning_rate=args.learning_rate,
             cache_tag=cache_tag,
-            out_base_dir=args.out_dir,
             plot_format=args.plot_format,
             plot_out_path=plots_path,
             samples_path=samples_path,
-            ground_truth_path=args.true_abundance_path,
+            ground_truth_path=true_abundance_path,
             num_posterior_samples=args.num_posterior_samples
         )
     elif args.method == 'vsmc':
@@ -613,7 +615,7 @@ def main():
             disable_quality=not cfg.model_cfg.use_quality_scores,
             iters=args.iters,
             num_samples=args.num_samples,
-            ground_truth_path=args.true_abundance_path,
+            ground_truth_path=true_abundance_path,
             plots_out_path=plots_path,
             samples_out_path=samples_path,
             learning_rate=args.learning_rate,
@@ -631,7 +633,7 @@ def main():
             disable_quality=not cfg.model_cfg.use_quality_scores,
             iters=args.iters,
             num_samples=args.num_samples,
-            ground_truth_path=args.true_abundance_path,
+            ground_truth_path=true_abundance_path,
             plots_out_path=plots_path,
             samples_out_path=samples_path,
             cache_tag=cache_tag,

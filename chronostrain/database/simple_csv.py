@@ -1,5 +1,6 @@
 import csv
 import re
+from pathlib import Path
 from typing import List, Optional
 
 from chronostrain.config import cfg
@@ -77,7 +78,7 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
     def num_strains(self) -> int:
         return len(self.strains)
 
-    def strain_markers_to_fasta(self, strain_id: str, out_path: str, file_mode: str = "w"):
+    def strain_markers_to_fasta(self, strain_id: str, out_path: Path, file_mode: str = "w"):
         if self.trim_debug is None:
             raise RuntimeError(
                 "Strains loaded by {} uses entire genomes as markers. Avoid calling this implementation!".format(

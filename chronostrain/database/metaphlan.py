@@ -16,7 +16,7 @@ class MetaphlanDatabase(AbstractStrainDatabase):
     """
 
     def __init__(self,
-                 basepath: str,
+                 basepath: Path,
                  strain_universe: str = "",
                  prune_empty: bool = True,
                  force_refresh: bool = False):
@@ -33,8 +33,8 @@ class MetaphlanDatabase(AbstractStrainDatabase):
             print("STRAIN UNIVERSE: {}".format(self.strain_universe))
         else:
             self.strain_universe = None
-        self.pickle_path = "{}.pkl".format(basepath)
-        self.marker_seq_path = "{}.fna.bz2".format(basepath)
+        self.pickle_path = Path("{}.pkl".format(basepath))
+        self.marker_seq_path = Path("{}.fna.bz2".format(basepath))
         self.id_to_strains = dict()  # Clade name -> Strain
         self.prune_empty = prune_empty
         super().__init__(force_refresh=force_refresh)

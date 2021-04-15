@@ -19,13 +19,6 @@ def convert_size(size_bytes):
     return "%s %s" % (s, size_name[i])
 
 
-def get_filesize_bytes(filename) -> int:
-    """
-    Get the size of the specified file, in bytes. Use convert_size() for a more meaningful output.
-    """
-    return Path(filename).stat().st_size
-
-
 def files_in_dir(base_dir: str, extension: str = None) -> List[str]:
     """
     List all files in the specified directory, and filter by the specified extension (if applicable).

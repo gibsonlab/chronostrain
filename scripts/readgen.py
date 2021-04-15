@@ -1,4 +1,3 @@
-import os
 import argparse
 import random
 import csv
@@ -54,13 +53,15 @@ def parse_args():
 def main():
     args = parse_args()
     strain_db = cfg.database_cfg.get_database()
-    Path(args.out_dir).mkdir(parents=True, exist_ok=True)
+
+    out_dir = Path(args.out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     timepoint_indexed_files = []
     seed = args.seed
     for t, abundance_t in parse_abundance_profile(args.abundance_path):
-        out_path_t = os.path.join(args.out_dir, "reads_{t}.fastq".format(t=t))
-        tmpdir = os.path.join(args.out_dir, "tmp_{t}".format(t=t))
+        out_path_t = out_dir / "reads_{t}.fastq".format(t=t)
+        tmpdir = out_dir / "tmp_{t}".format(t=t)
         Path(tmpdir).mkdir(parents=True, exist_ok=True)
 
         sample_reads_from_rel_abundances(
@@ -82,14 +83,14 @@ def main():
         timepoint_indexed_files.append((t, out_path_t))
     logger.info("Sampled reads to {}".format(args.out_dir))
 
-    index_path = os.path.join(args.out_dir, "input_files.csv")
+    index_path = out_dir / "input_files.csv"
     create_index_file(index_path, timepoint_indexed_files)
     logger.info("Wrote index file to {}.".format(index_path))
 
 
-def create_index_file(index_path, read_files):
+def create_index_file(index_path: Path, read_paths: List[Tuple[float, Path]]):
     with open(index_path, 'w') as index_file:
-        for time_point, reads_path_t in read_files:
+        for time_point, reads_path_t in read_paths:
             print("\"{t}\",\"{file}\"".format(
                 t=time_point,
                 file=reads_path_t
@@ -116,13 +117,13 @@ def parse_abundance_profile(abundance_path: str) -> List[Tuple[float, Dict]]:
         return abundances
 
 
-def sample_reads_from_rel_abundances(final_reads_path: str,
+def sample_reads_from_rel_abundances(final_reads_path: Path,
                                      abundances: Dict[str, float],
                                      num_reads: int,
                                      strain_db: AbstractStrainDatabase,
-                                     tmp_dir: str,
-                                     profile_first: str,
-                                     profile_second: str,
+                                     tmp_dir: Path,
+                                     profile_first: Path,
+                                     profile_second: Path,
                                      read_len: int,
                                      quality_shift: int,
                                      quality_shift_2: int,
@@ -193,7 +194,7 @@ def sample_reads_from_rel_abundances(final_reads_path: str,
         shutil.rmtree(tmp_dir)
 
 
-def concatenate_files(input_paths, output_path):
+def concatenate_files(input_paths: List[Path], output_path: Path):
     """
     Concatenates the contents of each file in input_paths into output_path.
     Identical to cat (*) > output_path in a for loop.

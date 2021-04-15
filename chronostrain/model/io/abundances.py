@@ -6,7 +6,7 @@ from typing import List, Tuple
 from . import logger
 from chronostrain.config import cfg
 from chronostrain.model.bacteria import Population
-from chronostrain.util.filesystem import convert_size, get_filesize_bytes
+from chronostrain.util.filesystem import convert_size
 
 
 def save_abundances(
@@ -32,11 +32,11 @@ def save_abundances(
         for t in range(len(time_points)):
             writer.writerow([time_points[t]] + [x.item() for x in abundances[t]])
     logger.info("Abundances output successfully to {}. ({})".format(
-        out_path, convert_size(get_filesize_bytes(out_path))
+        out_path, convert_size(out_path.stat().st_size)
     ))
 
 
-def load_abundances(file_path: str) -> Tuple[List[int], torch.Tensor, List[str]]:
+def load_abundances(file_path: Path) -> Tuple[List[int], torch.Tensor, List[str]]:
     """
     Read time-indexed abundances from file.
 

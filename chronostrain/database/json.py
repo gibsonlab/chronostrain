@@ -189,8 +189,8 @@ class SubsequenceLoader:
     """
 
     def __init__(self,
-                 fasta_filename: str,
-                 genbank_filename: str,
+                 fasta_filename: Path,
+                 genbank_filename: Path,
                  marker_entries: List[MarkerEntry],
                  marker_max_len: int):
         self.fasta_filename = fasta_filename

@@ -37,9 +37,12 @@ class DatabaseConfig(AbstractConfig):
     def __init__(self, cfg: dict, args_cfg: dict):
         super().__init__("Database")
         self.args_cfg = args_cfg
-        self.class_name, self.kwargs, self.data_dir = self.parse(cfg)
+        tokens = self.parse(cfg)
+        self.class_name: str = tokens[0]
+        self.kwargs: dict = tokens[1]
+        self.data_dir: Path = tokens[2]
 
-    def parse_impl(self, cfg: dict) -> Tuple[str, dict, str]:
+    def parse_impl(self, cfg: dict) -> Tuple[str, dict, Path]:
         class_name = cfg["DB_CLASS"]
 
         datadir = cfg["DATA_DIR"]

@@ -1,12 +1,12 @@
 """
     A python wrapper implementation of relevant NCBI API calls.
 """
-import os
+from pathlib import Path
 import urllib.request
 import urllib.error
 
 from . import logger
-from chronostrain.util.filesystem import convert_size, get_filesize_bytes
+from chronostrain.util.filesystem import convert_size
 
 
 _fasta_filename = "{accession}.fasta"
@@ -37,42 +37,42 @@ def _genbank_get_url(accession: str) -> str:
     return _ncbi_genbank_api_url.format(accession=accession)
 
 
-def fasta_filename(accession: str, base_dir: str) -> str:
+def fasta_filename(accession: str, base_dir: Path) -> Path:
     """
     The default filename to output fasta files to.
     """
-    return os.path.join(base_dir, _fasta_filename.format(accession=accession))
+    return base_dir / _fasta_filename.format(accession=accession)
 
 
-def genbank_filename(accession: str, base_dir: str) -> str:
+def genbank_filename(accession: str, base_dir: Path) -> Path:
     """
     The default filename to output genbank files to.
     """
-    return os.path.join(base_dir, _genbank_filename.format(accession=accession))
+    return base_dir / _genbank_filename.format(accession=accession)
 
 
-def fetch_fasta(accession: str, base_dir: str, force_download: bool = False) -> str:
-    filename = fasta_filename(accession, base_dir)
+def fetch_fasta(accession: str, base_dir: Path, force_download: bool = False) -> Path:
+    file_path = fasta_filename(accession, base_dir)
     url = _fasta_get_url(accession)
-    _fetch_from_api(accession, filename, url, force_download=force_download)
-    return filename
+    _fetch_from_api(accession, file_path, url, force_download=force_download)
+    return file_path
 
 
-def fetch_genbank(accession: str, base_dir: str, force_download: bool = False) -> str:
-    filename = genbank_filename(accession, base_dir)
+def fetch_genbank(accession: str, base_dir: Path, force_download: bool = False) -> Path:
+    file_path = genbank_filename(accession, base_dir)
     url = _genbank_get_url(accession)
-    _fetch_from_api(accession, filename, url, force_download=force_download)
-    return filename
+    _fetch_from_api(accession, file_path, url, force_download=force_download)
+    return file_path
 
 
-def _fetch_from_api(accession: str, filename: str, url: str, force_download: bool):
+def _fetch_from_api(accession: str, file_path: Path, url: str, force_download: bool):
     """
     Check if file exists. If not, try to download the files.
     :param filename: The target file to check.
     :param url: The url to access.
     """
-    if not force_download and os.path.exists(filename) and get_filesize_bytes(filename) > 0:
-        logger.debug("[{}] file found: {}".format(accession, filename))
+    if not force_download and file_path.exists() and file_path.stat().st_size > 0:
+        logger.debug("[{}] file found: {}".format(accession, file_path))
     else:
         try:
             logger.debug("HTTP GET {}".format(url))
@@ -85,7 +85,7 @@ def _fetch_from_api(accession: str, filename: str, url: str, force_download: boo
         except urllib.error.URLError as e:
             raise NCBIAPIException("URLError: {}".format(e.reason))
         else:
-            with open(filename, 'w') as f:
+            with open(file_path, 'w') as f:
                 content = str(conn.read().decode("utf-8")).replace('\\r', '').replace('\\n', '\n')
                 if content.startswith("# ERROR"):
                     raise NCBIAPIException("Error encountered from {url}. Message=`{msg}`".format(
@@ -95,5 +95,5 @@ def _fetch_from_api(accession: str, filename: str, url: str, force_download: boo
 
                 f.write(content)
                 logger.debug("[{ac}] download completed. ({sz})".format(
-                    ac=accession, sz=convert_size(get_filesize_bytes(filename))
+                    ac=accession, sz=convert_size(file_path.stat().st_size)
                 ))

@@ -8,7 +8,7 @@ from Bio.SeqRecord import SeqRecord
 
 from . import logger
 from chronostrain.model.reads import SequenceRead
-from chronostrain.util.filesystem import convert_size, get_filesize_bytes
+from chronostrain.util.filesystem import convert_size
 
 
 class TimeSliceReads(object):
@@ -36,7 +36,7 @@ class TimeSliceReads(object):
             records.append(record)
         SeqIO.write(records, self.src, "fastq")
 
-        file_size = get_filesize_bytes(self.src)
+        file_size = self.src.stat().st_size
         logger.info("Wrote fastQ file {f}. ({sz})".format(
             f=self.src,
             sz=convert_size(file_size)
@@ -58,7 +58,7 @@ class TimeSliceReads(object):
         logger.debug("Loaded {r} reads from fastQ file {f}. ({sz})".format(
             r=len(reads),
             f=file_path,
-            sz=convert_size(get_filesize_bytes(file_path))
+            sz=convert_size(file_path.stat().st_size)
         ))
         return TimeSliceReads(reads, time_point, file_path)
 

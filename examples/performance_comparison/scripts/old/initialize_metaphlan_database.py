@@ -89,7 +89,7 @@ def fill_higher_levels(master_strain, strain_gtdb, strain_ncbi_levels, metaphlan
                 print(master_marker.seq, file=fasta_file)
 
 
-def convert_to_metaphlan_db(chronostrain_db, metaphlan_in_path, metaphlan_out_dir, basename):
+def convert_to_metaphlan_db(chronostrain_db, metaphlan_in_path: Path, metaphlan_out_dir: Path, basename: str):
     input_metaphlan_db: dict = pickle.load(bz2.open(metaphlan_in_path, 'r'))
 
     new_metaphlan_db = {
@@ -98,10 +98,11 @@ def convert_to_metaphlan_db(chronostrain_db, metaphlan_in_path, metaphlan_out_di
         'merged_taxon': dict()
     }
 
-    marker_fasta_path = Path(metaphlan_out_dir) / "{}.fasta".format(basename)
+    marker_fasta_path = metaphlan_out_dir / "{}.fasta".format(basename)
+    bowtie2_index_path = metaphlan_out_dir / "{}.bt2".format(basename)
 
-    with open(marker_fasta_path, "w") as _:
-        pass
+    marker_fasta_path.unlink(missing_ok=True)
+    marker_fasta_path.touch()
 
     for s_idx, strain in enumerate(chronostrain_db.all_strains()):
         logger.info("Strain {} of {} -- {} ({} {})".format(
@@ -138,8 +139,9 @@ def convert_to_metaphlan_db(chronostrain_db, metaphlan_in_path, metaphlan_out_di
 
     # Build the bowtie2 database.
     bowtie2.bowtie2_build(
-        refs_in=marker_fasta_path,
-        output_index_base=basename
+        refs_in=[marker_fasta_path],
+        out_path=bowtie2_index_path,
+        output_index_basename=basename
     )
     logger.info("Ran bowtie2-build on {}.".format(marker_fasta_path))
 
@@ -194,8 +196,8 @@ def main():
     logger.info("Converting metaphlan pickle files.")
     convert_to_metaphlan_db(
         chronostrain_db=chronostrain_db,
-        metaphlan_in_path=args.metaphlan_input_path,
-        metaphlan_out_dir=args.metaphlan_out_dir,
+        metaphlan_in_path=Path(args.metaphlan_input_path),
+        metaphlan_out_dir=Path(args.metaphlan_out_dir),
         basename=args.basename
     )
 

@@ -46,8 +46,8 @@ def main():
 
     plot_performance_degradation(
         trials=trials,
-        true_abundance_path=args.ground_truth_path,
-        out_path=args.output_path,
+        true_abundance_path=Path(args.ground_truth_path),
+        out_path=Path(args.output_path),
         title=args.title,
         font_size=args.font_size,
         thickness=args.thickness,
