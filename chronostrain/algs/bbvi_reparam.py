@@ -6,7 +6,6 @@ from typing import List
 
 import numpy as np
 import torch
-from pathlib import Path
 from torch.distributions import MultivariateNormal
 
 from chronostrain import cfg

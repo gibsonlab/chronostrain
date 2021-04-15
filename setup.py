@@ -11,7 +11,7 @@ import setuptools
 lib_dir = Path(__file__).resolve().parent
 
 # Package requirements: Parse from `requirements.txt`.
-requirementPath = lib_dir + '/requirements.txt'
+requirementPath = lib_dir / 'requirements.txt'
 requirements = []
 if Path(requirementPath).is_file():
     with open(requirementPath, "r") as f:

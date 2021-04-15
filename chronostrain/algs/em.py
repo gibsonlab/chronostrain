@@ -174,7 +174,7 @@ class EMSolver(AbstractModelSolver):
 
     def get_frag_likelihoods(self, t: int):
         """
-        Look up the fragment error matrix for timeslice t. (corresponds to \epsilon^t from writeup.)
+        Look up the fragment error matrix for timeslice t. (corresponds to epsilon^t from writeup.)
 
         :param t: the time index (not the actual value).
         :return: An (F x N) matrix representing the read likelihoods according to the error model.

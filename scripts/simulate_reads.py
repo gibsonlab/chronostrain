@@ -1,7 +1,7 @@
 #!/bin/python3
 """
   simulate_reads.py
-  Run to simulate reads from genomes specified by raccession numbers.
+  Run to simulate reads from genomes specified by accession numbers.
 """
 
 import argparse
@@ -81,7 +81,7 @@ def sample_reads(
 
     # Construct a GenerativeModel instance.
     if disable_quality:
-        logger.info("Flag --disable_quality turned on; Quality scores are diabled.")
+        logger.info("Flag --disable_quality turned on; Quality scores are disabled.")
         my_error_model = reads.NoiselessErrorModel()
     else:
         my_error_model = reads.BasicFastQErrorModel(read_len=read_length)

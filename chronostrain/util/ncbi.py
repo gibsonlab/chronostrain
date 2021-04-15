@@ -68,7 +68,7 @@ def fetch_genbank(accession: str, base_dir: Path, force_download: bool = False) 
 def _fetch_from_api(accession: str, file_path: Path, url: str, force_download: bool):
     """
     Check if file exists. If not, try to download the files.
-    :param filename: The target file to check.
+    :param file_path: The target file to check.
     :param url: The url to access.
     """
     if not force_download and file_path.exists() and file_path.stat().st_size > 0:
