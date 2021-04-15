@@ -12,7 +12,7 @@ from chronostrain.util.filesystem import convert_size, get_filesize_bytes
 
 
 class TimeSliceReads(object):
-    def __init__(self, reads: List[SequenceRead], time_point: float, src: Optional[str] = None):
+    def __init__(self, reads: List[SequenceRead], time_point: float, src: Optional[Path] = None):
         self.reads = reads
         self.time_point = time_point
         self.src = src
@@ -27,7 +27,7 @@ class TimeSliceReads(object):
             raise ValueError("Specify the `src` parameter if invoking save() of TimeSliceReads object.")
 
         records = []
-        Path(self.src).parents[0].mkdir(parents=True, exist_ok=True)
+        Path(self.src).parent.mkdir(parents=True, exist_ok=True)
 
         for i, read in enumerate(self.reads):
             # Code from https://biopython.org/docs/1.74/api/Bio.SeqRecord.html
@@ -44,7 +44,7 @@ class TimeSliceReads(object):
         return file_size
 
     @staticmethod
-    def load(file_path: str, time_point: float):
+    def load(file_path: Path, time_point: float):
         reads = []
         for record in SeqIO.parse(file_path, "fastq"):
             quality = torch.tensor(record.letter_annotations["phred_quality"], dtype=torch.int)
@@ -90,7 +90,7 @@ class TimeSeriesReads(object):
         ))
 
     @staticmethod
-    def load(time_points: List[float], file_paths: List[str]):
+    def load(time_points: List[float], file_paths: List[Path]):
         if len(time_points) != len(file_paths):
             raise ValueError("Number of time points ({}) do not match number of file paths. ({})".format(
                 len(time_points), len(file_paths)

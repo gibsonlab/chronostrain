@@ -4,6 +4,7 @@
 """
 import csv
 import os
+from pathlib import Path
 
 import torch
 import argparse
@@ -134,7 +135,7 @@ def perform_em(
         population=model.bacteria_pop,
         time_points=model.times,
         abundances=abundances,
-        out_path=os.path.join(out_dir, abnd_out_file)
+        out_path=Path(out_dir) / abnd_out_file
     )
     logger.info("Abundances saved to {}.".format(output_path))
 
@@ -471,21 +472,22 @@ def create_model(population: Population,
     return model
 
 
-def get_input_paths(base_dir) -> Tuple[List[str], List[float]]:
+def get_input_paths(base_dir) -> Tuple[List[Path], List[float]]:
     time_points = []
-    read_files = []
+    read_paths = []
 
     input_specification_path = os.path.join(base_dir, "input_files.csv")
     try:
         with open(input_specification_path, "r") as f:
             input_specs = csv.reader(f, delimiter=',', quotechar='"')
             for item in input_specs:
-                time_points.append(float(item[0]))
-                read_files.append(os.path.join(base_dir, item[1]))
+                time_point_str, filename = item
+                time_points.append(float(time_point_str))
+                read_paths.append(Path(base_dir) / filename)
     except FileNotFoundError:
         raise FileNotFoundError("Missing required file `input_files.csv` in directory {}.".format(base_dir)) from None
 
-    return read_files, time_points
+    return read_paths, time_points
 
 
 def main():

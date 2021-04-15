@@ -1,11 +1,9 @@
 import bz2
-import os
+from pathlib import Path
 import pickle
 from typing import Tuple, List
 
 from Bio import SeqIO
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
 
 from chronostrain.config import logger, cfg
 from chronostrain.database.base import AbstractStrainDatabase, StrainNotFoundError
@@ -70,7 +68,7 @@ class MetaphlanDatabase(AbstractStrainDatabase):
                 genome_length=genome_length,
                 metadata=StrainMetadata(
                     ncbi_accession=ncbi_assembly_identifier,
-                    file_path=os.path.join(cfg.database_cfg.data_dir, "{}.fna".format(ncbi_assembly_identifier)),
+                    file_path=Path(cfg.database_cfg.data_dir) / "{}.fna".format(ncbi_assembly_identifier),
                     genus=genus,
                     species=species
                 )

@@ -13,7 +13,7 @@ def save_abundances(
         population: Population,
         time_points: List[float],
         abundances: torch.Tensor,
-        out_path: str):
+        out_path: Path):
     """
     Save the time-indexed abundance profile to disk. Output format is CSV.
 
@@ -23,9 +23,7 @@ def save_abundances(
     :param out_path: The target path for the output abundances file.
     :return: The path/filename for the abundance CSV file.
     """
-    path = Path(out_path)
-    parent = Path(path.parent)
-    parent.mkdir(parents=True, exist_ok=True)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
 
     with open(out_path, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile, delimiter=',', quoting=csv.QUOTE_ALL)

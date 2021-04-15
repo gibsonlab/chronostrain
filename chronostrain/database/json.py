@@ -1,13 +1,12 @@
 from __future__ import annotations
-import os
+
+from pathlib import Path
 import re
 import json
 from dataclasses import dataclass
 from typing import List, Tuple, Union
 
 from Bio import SeqIO
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
 
 from chronostrain.config import cfg
 from chronostrain.database.base import AbstractStrainDatabase, StrainEntryError, StrainNotFoundError
@@ -375,9 +374,9 @@ class JSONStrainDatabase(AbstractStrainDatabase):
             genome = sequence_loader.get_full_genome()
             markers = []
             for subsequence_data in sequence_loader.get_marker_subsequences():
-                marker_filepath = os.path.join(
-                    cfg.database_cfg.data_dir,
-                    self.marker_filename(strain_entry.accession, subsequence_data.name)
+                marker_filepath = (
+                        Path(cfg.database_cfg.data_dir)
+                        / self.marker_filename(strain_entry.accession, subsequence_data.name)
                 )
                 markers.append(Marker(
                     name=subsequence_data.name,

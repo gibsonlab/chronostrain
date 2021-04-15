@@ -5,8 +5,7 @@
 """
 
 import argparse
-import os
-
+from pathlib import Path
 import torch
 from typing import List, Tuple
 
@@ -125,7 +124,7 @@ def sample_reads(
 
 
 def save_index_csv(time_series: TimeSeriesReads, out_dir: str, out_filename: str):
-    with open(os.path.join(out_dir, out_filename), "w") as f:
+    with open(Path(out_dir) / out_filename, "w") as f:
         for time_slice in time_series:
             print("\"{}\",\"{}\"".format(time_slice.time_point, time_slice.src), file=f)
 
@@ -180,7 +179,7 @@ def main():
 
     out_paths = []
     for time_slice in sampled_reads:
-        out_path_t = os.path.join(args.out_dir, "{}-reads.fastq".format(time_slice.time_point))
+        out_path_t = Path(args.out_dir) / "{}-reads.fastq".format(time_slice.time_point)
         out_paths.append(out_path_t)
         time_slice.src = out_path_t
     sampled_reads.save()
@@ -190,7 +189,7 @@ def main():
         population=population,
         time_points=time_points,
         abundances=abundances,
-        out_path=os.path.join(args.out_dir, '{}_abundances.csv'.format(args.out_prefix))
+        out_path=Path(args.out_dir) / '{}_abundances.csv'.format(args.out_prefix)
     )
 
     save_index_csv(
