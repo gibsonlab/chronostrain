@@ -4,7 +4,7 @@ from typing import List, Optional
 
 from chronostrain.config import cfg
 from chronostrain.database.base import AbstractStrainDatabase, StrainEntryError, StrainNotFoundError
-from chronostrain.model.bacteria import Strain, Marker, StrainMetadata
+from chronostrain.model.bacteria import Strain, Marker, StrainMetadata, MarkerMetadata
 from chronostrain.util.ncbi import fetch_fasta
 from . import logger
 
@@ -34,8 +34,21 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
                 lines = [re.sub('[^AGCT]+', '', line.split(sep=" ")[-1]) for line in file]
             genome = ''.join(lines)
             if self.trim_debug is not None:
-                genome = genome[:self.trim_debug]
-            markers = [Marker(name=strain_name, seq=genome, metadata=None)]  # Each genome's marker is its own genome.
+                markers = [
+                    Marker(
+                        name="Genome_{}[{}:{}]".format(accession, 0, self.trim_debug),
+                        seq=genome[:self.trim_debug],
+                        metadata=MarkerMetadata(gene_id="GENOME", file_path=fasta_filename)
+                    )
+                ]
+            else:
+                markers = [
+                    Marker(
+                        name="Genome_{}".format(accession),
+                        seq=genome,
+                        metadata=MarkerMetadata(gene_id="GENOME", file_path=fasta_filename)
+                    )
+                ]  # Each genome's marker is its own genome.
             self.strains[accession] = Strain(
                 id=accession,
                 markers=markers,
@@ -64,13 +77,15 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
     def num_strains(self) -> int:
         return len(self.strains)
 
-    def get_multifasta_file(self) -> str:
-        raise NotImplementedError("Multi-fasta marker generation not implemented for {}.".format(
-            self.__class__.__name__
-        ))
-
-    def strain_markers_to_fasta(self, strain_id: str, out_path: str):
-        raise NotImplementedError("Method not implemented.")
+    def strain_markers_to_fasta(self, strain_id: str, out_path: str, file_mode: str = "w"):
+        if self.trim_debug is None:
+            raise RuntimeError(
+                "Strains loaded by {} uses entire genomes as markers. Avoid calling this implementation!".format(
+                    self.__class__.__name__
+                )
+            )
+        else:
+            super().strain_markers_to_fasta(strain_id, out_path, file_mode=file_mode)
 
     def _strain_entries(self, force_refresh: bool):
         """

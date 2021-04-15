@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from typing import List, Tuple, Union
 
 from Bio import SeqIO
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
 
 from chronostrain.config import cfg
 from chronostrain.database.base import AbstractStrainDatabase, StrainEntryError, StrainNotFoundError
@@ -406,12 +408,6 @@ class JSONStrainDatabase(AbstractStrainDatabase):
                     len(markers)
                 ))
 
-        # Save multi-fasta.
-        # TODO: Repopulate multi-fasta based on last timestamp. (e.g. marker multifasta file timestamp < min(marker file timestmaps))
-        self.multifasta_file = os.path.join(cfg.database_cfg.data_dir, 'marker_multifasta.fa')
-        self.save_markers_to_multifasta(filepath=self.multifasta_file, force_refresh=force_refresh)
-        logger.debug("Multi-fasta file: {}".format(self.multifasta_file))
-
     def get_strain(self, strain_id: str) -> Strain:
         if strain_id not in self.strains:
             raise StrainNotFoundError(strain_id)
@@ -430,39 +426,6 @@ class JSONStrainDatabase(AbstractStrainDatabase):
         """
         with open(self.entries_file, "r") as f:
             return [StrainEntry.deserialize(strain_dict, idx) for idx, strain_dict in enumerate(json.load(f))]
-
-    def get_marker_filenames(self):
-        filenames = []
-        for strain in self.all_strains():
-            for marker in strain.markers:
-                filenames.append(marker.metadata.file_path)
-        return filenames
-
-    def get_multifasta_file(self):
-        return self.multifasta_file
-
-    def strain_markers_to_fasta(self, strain_id: str, out_path: str):
-        strain = self.get_strain(strain_id)
-        with open(out_path, "w") as marker_file:
-            for marker in strain.markers:
-                print(">{}|{}|{}".format(strain_id, marker.name, marker.metadata.gene_id), file=marker_file)
-                print(marker.seq, file=marker_file)
-
-    def save_markers_to_multifasta(self,
-                                   filepath: str,
-                                   force_refresh: bool = True):
-        if not force_refresh and os.path.exists(filepath):
-            logger.debug("Multi-fasta file already exists; skipping creation.".format(
-                filepath
-            ))
-        else:
-            marker_files = self.get_marker_filenames()
-            with open(filepath, 'w') as multifa:
-                for filename in marker_files:
-                    with open(filename, 'r') as marker_file:
-                        for line in marker_file:
-                            multifa.write(line)
-                    multifa.write('\n')
 
     @staticmethod
     def marker_filename(accession: str, name: str):

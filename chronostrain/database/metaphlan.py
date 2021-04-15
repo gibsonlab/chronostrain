@@ -16,6 +16,7 @@ class MetaphlanDatabase(AbstractStrainDatabase):
     """
     An implementation which parses a metaphlan (v3.0) database into strain/marker entries.
     """
+
     def __init__(self,
                  basepath: str,
                  strain_universe: str = "",
@@ -39,10 +40,6 @@ class MetaphlanDatabase(AbstractStrainDatabase):
         self.id_to_strains = dict()  # Clade name -> Strain
         self.prune_empty = prune_empty
         super().__init__(force_refresh=force_refresh)
-
-        self.marker_multifasta_path = os.path.join(cfg.database_cfg.data_dir, "usable_markers.fna")
-        self.save_markers_to_multifasta(filepath=self.multifasta_file, force_refresh=force_refresh)
-        logger.debug("Multi-fasta file: {}".format(self.marker_multifasta_path))
 
     def __load__(self, force_refresh: bool = False):
         logger.info("Loading from Metaphlan database pickle {}.".format(self.pickle_path))
@@ -146,9 +143,6 @@ class MetaphlanDatabase(AbstractStrainDatabase):
             n_skipped_entries
         ))
 
-    def get_multifasta_file(self) -> str:
-        return self.marker_multifasta_path
-
     def num_strains(self) -> int:
         return len(self.id_to_strains)
 
@@ -160,24 +154,6 @@ class MetaphlanDatabase(AbstractStrainDatabase):
 
     def all_strains(self) -> List[Strain]:
         return [strain for _, strain in self.id_to_strains.items()]
-
-    def save_markers_to_multifasta(self,
-                                   filepath: str,
-                                   force_refresh: bool = False):
-        if not force_refresh and os.path.exists(filepath):
-            logger.debug("Multi-fasta file already exists; skipping creation.".format(
-                filepath
-            ))
-        else:
-            records = []
-            for strain in self.all_strains():
-                for marker in strain.markers:
-                    records.append(
-                        SeqRecord(Seq(marker.seq),
-                                  id=marker.name,
-                                  description="Strain:{}".format(strain.metadata.ncbi_accession))
-                    )
-            SeqIO.write(records, filepath, "fasta")
 
 
 def remove_prefix(tax_token: str) -> str:

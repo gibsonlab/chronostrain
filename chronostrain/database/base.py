@@ -1,11 +1,24 @@
+import os
+from pathlib import Path
 from abc import abstractmethod, ABCMeta
 from typing import List
+
+from Bio import SeqIO
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+
 from chronostrain.model.bacteria import Strain
+from chronostrain.config import cfg
+from . import logger
 
 
 class AbstractStrainDatabase(metaclass=ABCMeta):
     def __init__(self, force_refresh: bool = False):
         self.__load__(force_refresh=force_refresh)
+        self.multifasta_file = os.path.join(cfg.database_cfg.data_dir, 'markers', 'marker_multifasta.fa')
+        self._save_markers_to_multifasta(
+            force_refresh=force_refresh
+        )
 
     @abstractmethod
     def __load__(self, force_refresh: bool = False):
@@ -25,23 +38,41 @@ class AbstractStrainDatabase(metaclass=ABCMeta):
     def all_strains(self) -> List[Strain]:
         pass
 
+    def get_strains(self, strain_ids: List[str]) -> List[Strain]:
+        return [self.get_strain(s_id) for s_id in strain_ids]
+
     @abstractmethod
     def num_strains(self) -> int:
         pass
 
-    @abstractmethod
-    def get_multifasta_file(self) -> str:
-        """
-        :return: A path to a multi-fasta file, containing all of the markers in the database.
-        """
-        pass
+    def strain_markers_to_fasta(self, strain_id: str, out_path: str, file_mode: str = "w"):
+        strain = self.get_strain(strain_id)
+        records = []
+        for marker in strain.markers:
+            records.append(
+                SeqRecord(Seq(marker.seq),
+                          id="{}|{}|{}".format(strain.id, marker.name, marker.metadata.gene_id),
+                          description="Strain:{}".format(strain.metadata.ncbi_accession))
+            )
+        with open(out_path, file_mode) as out_file:
+            SeqIO.write(records, out_file, "fasta")
 
-    @abstractmethod
-    def strain_markers_to_fasta(self, strain_id: str, out_path: str):
-        pass
+    def _save_markers_to_multifasta(self, force_refresh: bool = True):
+        # Save multi-fasta.
+        # TODO: Repopulate multi-fasta based on last timestamp.
+        #  (e.g. marker multifasta file timestamp < min(marker file timestmaps))
 
-    def get_strains(self, strain_ids: List[str]) -> List[Strain]:
-        return [self.get_strain(s_id) for s_id in strain_ids]
+        filepath = self.multifasta_file
+        Path(filepath).resolve().parent.mkdir()
+
+        if not force_refresh and os.path.exists(filepath):
+            logger.debug("Multi-fasta file already exists. Skipping creation.".format(
+                filepath
+            ))
+        else:
+            for strain in self.all_strains():
+                self.strain_markers_to_fasta(strain.id, filepath, "a+")
+        logger.debug("Multi-fasta file: {}".format(filepath))
 
 
 class StrainEntryError(BaseException):

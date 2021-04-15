@@ -196,8 +196,13 @@ class ChronostrainConfig(AbstractConfig):
 
 
 def _config_load(ini_path) -> ChronostrainConfig:
-    if not os.path.exists(ini_path):
-        raise FileNotFoundError("No configuration INI file found. Create a `chronostrain.ini` file, or set the `{}` environment variable to point to the right configuration.".format(__env_key__))
+    if not Path(ini_path).exists():
+        raise FileNotFoundError(
+            "No configuration INI file found. Create a `chronostrain.ini` file, or set the `{}` environment "
+            "variable to point to the right configuration.".format(
+                __env_key__
+            )
+        )
 
     cfg_parser = SafeConfigParser()
     cfg_parser.read(ini_path)
@@ -216,9 +221,6 @@ def _config_load(ini_path) -> ChronostrainConfig:
 __env_key__ = "CHRONOSTRAIN_INI"
 __ini__ = os.getenv(
     key=__env_key__,
-    default=os.path.join(
-        os.path.dirname(chronostrain.__file__),
-        "chronostrain.ini"
-    )
+    default=str(Path(chronostrain.__file__) / "chronostrain.ini")
 )
 cfg = _config_load(__ini__)
