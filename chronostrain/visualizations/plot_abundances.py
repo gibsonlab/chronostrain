@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import List
 
 import numpy as np
@@ -12,9 +13,9 @@ from scipy.special import softmax
 
 
 def plot_abundances_comparison(
-            inferred_abnd_path: str,
-            real_abnd_path: str,
-            plots_out_path: str,
+            inferred_abnd_path: Path,
+            real_abnd_path: Path,
+            plots_out_path: Path,
             draw_legend: bool,
             num_reads_per_time: List[int] = None,
             title: str = None,
@@ -67,8 +68,8 @@ def plot_abundances_comparison(
 
 
 def plot_abundances(
-        abnd_path: str,
-        plots_out_path: str,
+        abnd_path: Path,
+        plots_out_path: Path,
         draw_legend: bool,
         num_reads_per_time: List[int] = None,
         title: str = None,
@@ -166,10 +167,10 @@ def plot_posterior_abundances(
         times: List[float],
         posterior_samples: np.ndarray,
         population: Population,
-        plots_out_path: str,
-        truth_path: str,
+        plots_out_path: Path,
         draw_legend: bool,
         img_format: str,
+        truth_path: Optional[Path] = None,
         title: str = None,
         font_size: int = 12,
         thickness: int = 1,
@@ -192,7 +193,7 @@ def plot_posterior_abundances(
 
     true_abundances = None
     truth_acc_dict = None
-    if truth_path:
+    if truth_path is not None:
         _, true_abundances, accessions = load_abundances(truth_path)
         truth_acc_dict = {acc: i for i, acc in enumerate(accessions)}
 

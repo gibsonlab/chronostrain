@@ -3,22 +3,26 @@
   Run to perform inference on specified reads.
 """
 import csv
-import os
 from pathlib import Path
 
+import numpy as np
 import torch
 import argparse
+
+from matplotlib import pyplot as plt
 from tqdm import tqdm
+from typing import Optional, List, Tuple
 
 from chronostrain import logger, cfg
 from chronostrain.algs.vi import SecondOrderVariationalSolver, AbstractPosterior
 from chronostrain.algs import em, vsmc, bbvi, bbvi_reparam
+from chronostrain.model import Population
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.reads import BasicFastQErrorModel, NoiselessErrorModel
-from chronostrain.util.data_cache import CacheTag
-from chronostrain.visualizations import *
 from chronostrain.model.io import TimeSeriesReads, save_abundances
+from chronostrain.util.data_cache import CacheTag
 from chronostrain.util import filesystem
+from chronostrain.visualizations import plot_posterior_abundances, plot_abundances_comparison, plot_abundances
 
 
 def parse_args():
@@ -72,9 +76,9 @@ def parse_args():
 def perform_em(
         reads: TimeSeriesReads,
         model: GenerativeModel,
-        out_dir: str,
+        out_dir: Path,
         abnd_out_file: str,
-        ground_truth_path: str,
+        ground_truth_path: Path,
         disable_time_consistency: bool,
         disable_quality: bool,
         learn_variances: bool,
@@ -135,11 +139,11 @@ def perform_em(
         population=model.bacteria_pop,
         time_points=model.times,
         abundances=abundances,
-        out_path=Path(out_dir) / abnd_out_file
+        out_path=out_dir / abnd_out_file
     )
     logger.info("Abundances saved to {}.".format(output_path))
 
-    metadata_path = os.path.join(out_dir, "metadata.txt")
+    metadata_path = out_dir / "metadata.txt"
     with open(metadata_path, "w") as metadata_file:
         if learn_variances:
             print("Learned tau_1: {}".format(model.tau_1), file=metadata_file)
@@ -147,7 +151,7 @@ def perform_em(
 
     # ==== Plot the learned abundances.
     logger.info("Done. Saving plot of learned abundances.")
-    plot_path = os.path.join(out_dir, "plot.{}".format(plot_format))
+    plot_path = out_dir / "plot.{}".format(plot_format)
     plot_em_result(
         reads=reads,
         result_path=output_path,
@@ -168,9 +172,9 @@ def perform_vsmc(
         iters: int,
         learning_rate: float,
         num_samples: int,
-        ground_truth_path: str,
-        plots_out_path: str,
-        samples_out_path: str,
+        ground_truth_path: Path,
+        plots_out_path: Path,
+        samples_out_path: Path,
         cache_tag: CacheTag,
         plot_format: str
 ):
@@ -212,9 +216,9 @@ def perform_bbvi(
         iters: int,
         learning_rate: float,
         num_samples: int,
-        ground_truth_path: str,
-        plots_out_path: str,
-        samples_out_path: str,
+        ground_truth_path: Path,
+        plots_out_path: Path,
+        samples_out_path: Path,
         cache_tag: CacheTag,
         plot_format: str,
         plot_elbo_history: bool = True
@@ -234,7 +238,7 @@ def perform_bbvi(
         posterior = solver.gaussian_posterior
 
         if plot_elbo_history:
-            elbo_plot_path = os.path.join(os.path.dirname(plots_out_path), "elbo.{}".format(plot_format))
+            elbo_plot_path = plots_out_path.parent / "elbo.{}".format(plot_format)
             plot_elbos(out_path=elbo_plot_path, elbos=elbo_history, plot_format=plot_format)
     else:
         raise NotImplementedError("Feature 'disable_time_consistency' not implemented for BBVI.")
@@ -263,11 +267,10 @@ def perform_bbvi_reparametrization(
         out_base_dir: str,
         learning_rate: float,
         cache_tag: CacheTag,
-        plot_out_path: str,
-        samples_out_path: str,
-        samples_path: str,
+        plot_out_path: Path,
+        samples_path: Path,
         plot_format: str,
-        ground_truth_path: str = None,
+        ground_truth_path: Path = None,
         num_posterior_samples: int = 5000):
 
     # ==== Run the solver.
@@ -300,7 +303,7 @@ def perform_bbvi_reparametrization(
         disable_time_consistency=disable_time_consistency,
         disable_quality=disable_quality,
         plots_out_path=plot_out_path,
-        samples_out_path=samples_out_path,
+        samples_out_path=samples_path,
         plot_format=plot_format,
         num_samples=num_posterior_samples,
         truth_path=ground_truth_path
@@ -315,9 +318,9 @@ def perform_vi(
         disable_quality: bool,
         iters: int,
         num_samples: int,
-        ground_truth_path: str,
-        plots_out_path: str,
-        samples_out_path: str,
+        ground_truth_path: Path,
+        plots_out_path: Path,
+        samples_out_path: Path,
         cache_tag: CacheTag,
         plot_format: str
 ):
@@ -354,12 +357,12 @@ def perform_vi(
 
 def plot_em_result(
         reads: TimeSeriesReads,
-        result_path: str,
-        plots_out_path: str,
+        result_path: Path,
+        plots_out_path: Path,
         disable_time_consistency: bool,
         disable_quality: bool,
         plot_format: str,
-        true_path: str = None):
+        true_path: Optional[Path] = None):
     """
     Draw a plot of the abundances, and save to a file.
 
@@ -382,7 +385,7 @@ def plot_em_result(
             ('Time consistency off\n' if disable_time_consistency else '') + \
             ('Quality score off\n' if disable_quality else '')
 
-    if true_path:
+    if true_path is not None:
         plot_abundances_comparison(
             inferred_abnd_path=result_path,
             real_abnd_path=true_path,
@@ -407,11 +410,11 @@ def output_variational_result(
         posterior: AbstractPosterior,
         disable_time_consistency: bool,
         disable_quality: bool,
-        plots_out_path: str,
-        samples_out_path: str,
+        plots_out_path: Path,
+        samples_out_path: Path,
         plot_format: str,
         num_samples: int = 10000,
-        truth_path: str = None):
+        truth_path: Optional[Path] = None):
     # Samples.
     samples = posterior.sample(num_samples)
     torch.save(samples, samples_out_path)
@@ -472,18 +475,18 @@ def create_model(population: Population,
     return model
 
 
-def get_input_paths(base_dir) -> Tuple[List[Path], List[float]]:
+def get_input_paths(base_dir: Path) -> Tuple[List[Path], List[float]]:
     time_points = []
     read_paths = []
 
-    input_specification_path = os.path.join(base_dir, "input_files.csv")
+    input_specification_path = base_dir / "input_files.csv"
     try:
         with open(input_specification_path, "r") as f:
             input_specs = csv.reader(f, delimiter=',', quotechar='"')
             for item in input_specs:
                 time_point_str, filename = item
                 time_points.append(float(time_point_str))
-                read_paths.append(Path(base_dir) / filename)
+                read_paths.append(base_dir / filename)
     except FileNotFoundError:
         raise FileNotFoundError("Missing required file `input_files.csv` in directory {}.".format(base_dir)) from None
 
@@ -503,7 +506,7 @@ def main():
         strains=db.all_strains()
     )
 
-    read_paths, time_points = get_input_paths(args.reads_dir)
+    read_paths, time_points = get_input_paths(Path(args.reads_dir))
 
     # ==== Load reads and validate.
     if len(read_paths) != len(time_points):
@@ -540,8 +543,10 @@ def main():
     )
 
     # ============ Prepare for algorithm output.
-    if not os.path.exists(args.out_dir):
-        os.makedirs(args.out_dir)
+    out_dir = Path(args.out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    if not out_dir.is_dir():
+        raise RuntimeError("Filesystem error: out_dir argument points to something other than a directory.")
 
     # ============ Run the specified algorithm.
     if args.method == 'em':
@@ -562,8 +567,8 @@ def main():
         )
     elif args.method == 'bbvi':
         logger.info("Solving using Black-Box Variational Inference.")
-        plots_path = os.path.join(args.out_dir, "plot.{}".format(args.plot_format))
-        samples_path = os.path.join(args.out_dir, "samples.pt")
+        plots_path = out_dir / "plot.{}".format(args.plot_format)
+        samples_path = out_dir / "samples.pt"
         perform_bbvi(
             model=model,
             reads=reads,
@@ -580,8 +585,8 @@ def main():
         )
     elif args.method == 'bbvi_reparametrization':
         logger.info("Solving using Black-Box Variational Inference.")
-        plots_path = os.path.join(args.out_dir, "plot.{}".format(args.plot_format))
-        samples_path = os.path.join(args.out_dir, "samples.pt")
+        plots_path = out_dir / "plot.{}".format(args.plot_format)
+        samples_path = out_dir / "samples.pt"
         perform_bbvi_reparametrization(
             model=model,
             reads=reads,
@@ -593,15 +598,14 @@ def main():
             out_base_dir=args.out_dir,
             plot_format=args.plot_format,
             plot_out_path=plots_path,
-            samples_out_path=samples_path,
             samples_path=samples_path,
             ground_truth_path=args.true_abundance_path,
             num_posterior_samples=args.num_posterior_samples
         )
     elif args.method == 'vsmc':
         logger.info("Solving using Variational Sequential Monte-Carlo.")
-        plots_path = os.path.join(args.out_dir, "plot.{}".format(args.plot_format))
-        samples_path = os.path.join(args.out_dir, "samples.pt")
+        plots_path = out_dir / "plot.{}".format(args.plot_format)
+        samples_path = out_dir / "samples.pt"
         perform_vsmc(
             model=model,
             reads=reads,
@@ -618,8 +622,8 @@ def main():
         )
     elif args.method == 'vi':
         logger.info("Solving using Variational Inference (Second-order mean-field solution).")
-        plots_path = os.path.join(args.out_dir, "plot.{}".format(args.plot_format))
-        samples_path = os.path.join(args.out_dir, "samples.pt")
+        plots_path = out_dir / "plot.{}".format(args.plot_format)
+        samples_path = out_dir / "samples.pt"
         perform_vi(
             model=model,
             reads=reads,
@@ -637,7 +641,7 @@ def main():
         raise ValueError("{} is not an implemented method.".format(args.method))
 
 
-def plot_elbos(out_path: str, elbos: List[float], plot_format: str):
+def plot_elbos(out_path: Path, elbos: List[float], plot_format: str):
     fig, ax = plt.subplots()
     ax.plot(
         np.arange(1, len(elbos)+1, 1),

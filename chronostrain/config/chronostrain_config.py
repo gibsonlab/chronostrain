@@ -69,13 +69,14 @@ class DatabaseConfig(AbstractConfig):
 class ModelConfig(AbstractConfig):
     def __init__(self, cfg: dict):
         super().__init__("Model")
-        (self.use_quality_scores,
-         self.num_cores,
-         self.cache_dir,
-         self.time_scale,
-         self.time_scale_initial) = self.parse(cfg)
+        tokens = self.parse(cfg)
+        self.use_quality_scores: bool = tokens[0]
+        self.num_cores: int = tokens[1]
+        self.cache_dir: Path = tokens[2]
+        self.time_scale: float = tokens[3]
+        self.time_scale_initial: float = tokens[4]
 
-    def parse_impl(self, cfg: dict) -> Tuple[bool, int, str, float, float]:
+    def parse_impl(self, cfg: dict) -> Tuple[bool, int, Path, float, float]:
         q_token = cfg["USE_QUALITY_SCORES"].strip().lower()
         if q_token == "true":
             use_quality_scores = True
@@ -107,7 +108,7 @@ class ModelConfig(AbstractConfig):
                 "Field `NUM_CORES`: Expected int, got `{}`".format(cfg["NUM_CORES"])
             )
 
-        cache_dir = cfg["CACHE_DIR"]
+        cache_dir = Path(cfg["CACHE_DIR"])
 
         return use_quality_scores, n_cores, cache_dir, time_scale, time_scale_initial
 
