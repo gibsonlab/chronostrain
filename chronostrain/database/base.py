@@ -57,18 +57,37 @@ class AbstractStrainDatabase(metaclass=ABCMeta):
             SeqIO.write(records, out_file, "fasta")
 
     def _save_markers_to_multifasta(self, force_refresh: bool = True):
-        # Save multi-fasta.
-        # TODO: Repopulate multi-fasta based on last timestamp.
-        #  (e.g. marker multifasta file timestamp < min(marker file timestmaps))
-
+        """
+        Save all markers to a single, concatenated multi-fasta file.
+        The file will be automatically re-populated if force_refresh is True, or if the existing file is stale (e.g.
+        there exists a marker whose last-modified timestamp is later than the existing file's.)
+        """
         self.multifasta_file.resolve().parent.mkdir()
 
-        if not force_refresh and self.multifasta_file.exists():
-            logger.debug("Multi-fasta file already exists. Skipping creation.")
-        else:
+        def _generate():
             for strain in self.all_strains():
                 self.strain_markers_to_fasta(strain.id, self.multifasta_file, "a+")
+
+        if force_refresh:
+            logger.debug("Forcing re-creation of multi-fasta file.")
+            _generate()
+        elif self.multifasta_file.exists():
+            if self._multifasta_is_stale():
+                logger.debug("Multi-fasta file exists, but is stale. Re-creating.")
+                _generate()
+            else:
+                logger.debug("Multi-fasta file already exists. Skipping creation.")
+        else:
+            _generate()
+
         logger.debug("Multi-fasta file: {}".format(self.multifasta_file))
+
+    def _multifasta_is_stale(self):
+        for strain in self.all_strains():
+            for marker in strain.markers:
+                if marker.metadata.file_path.stat().st_mtime > self.multifasta_file.stat().st_mtime:
+                    return True
+        return False
 
 
 class StrainEntryError(BaseException):

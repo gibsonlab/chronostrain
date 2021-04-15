@@ -80,8 +80,8 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
 
     def strain_markers_to_fasta(self, strain_id: str, out_path: Path, file_mode: str = "w"):
         if self.trim_debug is None:
-            raise RuntimeError(
-                "Strains loaded by {} uses entire genomes as markers. Avoid calling this implementation!".format(
+            logger.warn(
+                "Strains loaded by {} uses entire genomes as markers. Skipping writing of markers to fasta.".format(
                     self.__class__.__name__
                 )
             )
