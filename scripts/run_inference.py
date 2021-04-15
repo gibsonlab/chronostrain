@@ -292,7 +292,7 @@ def perform_bbvi_reparametrization(
         raise NotImplementedError("Time-agnostic solver not implemented for `bbvi-reparametrization`.")
 
     torch.save(bbvi_posterior.sample(num_samples=num_posterior_samples), samples_path)
-    logger.info("Posterior samples saved to {}. []".format(
+    logger.info("Posterior samples saved to {}. [{}]".format(
         samples_path,
         filesystem.convert_size(samples_path.stat().st_size)
     ))

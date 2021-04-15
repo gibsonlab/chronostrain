@@ -32,7 +32,7 @@ do
 		-o ${kmerized_genome_file} \
 		$genome_file
 
-	KMERIZED_FILES="${KMERIZED_FILES}${kmerized_genome_file} "
+	KMERIZED_FILES="${KMERIZED_FILES}${kmerized_genome_file} "  # Note: the trailing space is important here.
 done
 
 straingst createdb \
