@@ -20,7 +20,9 @@ class CacheTag(object):
     def __init__(self, **kwargs):
         """
         :param kwargs: Other optional kwargs to use for generating the cache key.
-        If a list is passed, each item is processed independently.
+        If a list is passed, each item is processed recursively.
+        If a Path-like instance is passed, it is processed using its MD5 checksum.
+        For all other cases, the item is converted into a string.
         """
         self.attr_dict = {}
         for key, value in kwargs.items():
