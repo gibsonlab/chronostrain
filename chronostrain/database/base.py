@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 from abc import abstractmethod, ABCMeta
 from typing import List
@@ -15,7 +14,7 @@ from . import logger
 class AbstractStrainDatabase(metaclass=ABCMeta):
     def __init__(self, force_refresh: bool = False):
         self.__load__(force_refresh=force_refresh)
-        self.multifasta_file = os.path.join(cfg.database_cfg.data_dir, 'markers', 'marker_multifasta.fa')
+        self.multifasta_file = Path(cfg.database_cfg.data_dir) / 'markers' / 'marker_multifasta.fa'
         self._save_markers_to_multifasta(
             force_refresh=force_refresh
         )
@@ -45,7 +44,7 @@ class AbstractStrainDatabase(metaclass=ABCMeta):
     def num_strains(self) -> int:
         pass
 
-    def strain_markers_to_fasta(self, strain_id: str, out_path: str, file_mode: str = "w"):
+    def strain_markers_to_fasta(self, strain_id: str, out_path: Path, file_mode: str = "w"):
         strain = self.get_strain(strain_id)
         records = []
         for marker in strain.markers:
@@ -62,17 +61,14 @@ class AbstractStrainDatabase(metaclass=ABCMeta):
         # TODO: Repopulate multi-fasta based on last timestamp.
         #  (e.g. marker multifasta file timestamp < min(marker file timestmaps))
 
-        filepath = self.multifasta_file
-        Path(filepath).resolve().parent.mkdir()
+        self.multifasta_file.resolve().parent.mkdir()
 
-        if not force_refresh and os.path.exists(filepath):
-            logger.debug("Multi-fasta file already exists. Skipping creation.".format(
-                filepath
-            ))
+        if not force_refresh and self.multifasta_file.exists():
+            logger.debug("Multi-fasta file already exists. Skipping creation.")
         else:
             for strain in self.all_strains():
-                self.strain_markers_to_fasta(strain.id, filepath, "a+")
-        logger.debug("Multi-fasta file: {}".format(filepath))
+                self.strain_markers_to_fasta(strain.id, self.multifasta_file, "a+")
+        logger.debug("Multi-fasta file: {}".format(self.multifasta_file))
 
 
 class StrainEntryError(BaseException):

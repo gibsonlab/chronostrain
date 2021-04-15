@@ -1,5 +1,6 @@
 import os
 import sys
+from pathlib import Path
 import errno
 import logging
 import logging.config
@@ -32,8 +33,8 @@ class MakeDirTimedRotatingFileHandler(logging.handlers.TimedRotatingFileHandler)
                  delay=False,
                  utc=False,
                  atTime=None):
-        filename = os.path.abspath(filename)
-        MakeDirTimedRotatingFileHandler.mkdir_path(os.path.dirname(filename))
+        path = Path(filename).resolve()
+        MakeDirTimedRotatingFileHandler.mkdir_path(path.parent)
         super().__init__(filename=filename,
                          when=when,
                          interval=interval,
@@ -52,7 +53,7 @@ class MakeDirTimedRotatingFileHandler(logging.handlers.TimedRotatingFileHandler)
             try:
                 os.makedirs(path)
             except OSError as exc:  # Python >2.5
-                if exc.errno == errno.EEXIST and os.path.isdir(path):
+                if exc.errno == errno.EEXIST and Path(path).is_dir():
                     pass
                 else:
                     raise
@@ -83,7 +84,7 @@ def default_logger(name: str):
 def create_logger(module_name: str):
     # ============= Create logger instance. ===========
     logging.handlers.MakeDirTimedRotatingFileHandler = MakeDirTimedRotatingFileHandler
-    if not os.path.exists(__ini_path__):
+    if not Path(__ini_path__).exists():
         logger = default_logger(module_name)
     else:
         logging.config.fileConfig(__ini_path__)

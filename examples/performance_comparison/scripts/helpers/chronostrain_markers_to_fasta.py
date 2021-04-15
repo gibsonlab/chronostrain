@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 import argparse
 from chronostrain import cfg
 
@@ -22,8 +22,12 @@ def main():
     args = parse_args()
     db = cfg.database_cfg.get_database()
     for strain in db.all_strains():
-        marker_out_path = os.path.join(args.output_dir, "{}{}".format(strain.id, args.extension))
-        db.strain_markers_to_fasta(strain_id=strain.id, out_path=marker_out_path, file_mode=w)
+        marker_out_path = Path(args.output_dir) / "{}{}".format(strain.id, args.extension)
+        db.strain_markers_to_fasta(
+            strain_id=strain.id,
+            out_path=marker_out_path,
+            file_mode="w"
+        )
 
 
 if __name__ == "__main__":
