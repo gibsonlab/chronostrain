@@ -45,8 +45,8 @@ class DatabaseConfig(AbstractConfig):
     def parse_impl(self, cfg: dict) -> Tuple[str, dict, Path]:
         class_name = cfg["DB_CLASS"]
 
-        datadir = cfg["DATA_DIR"]
-        Path(datadir).mkdir(parents=True, exist_ok=True)
+        datadir = Path(cfg["DATA_DIR"])
+        datadir.mkdir(parents=True, exist_ok=True)
 
         kwargs = {
             key.lower(): (value if value != 'None' else None)

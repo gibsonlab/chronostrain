@@ -189,11 +189,11 @@ class SubsequenceLoader:
     """
 
     def __init__(self,
-                 fasta_filename: Path,
+                 fasta_path: Path,
                  genbank_filename: Path,
                  marker_entries: List[MarkerEntry],
                  marker_max_len: int):
-        self.fasta_filename = fasta_filename
+        self.fasta_path = fasta_path
         self.genbank_filename = genbank_filename
 
         self.tag_entries: List[TagMarkerEntry] = []
@@ -212,7 +212,7 @@ class SubsequenceLoader:
 
     def get_full_genome(self, trim_debug=None) -> str:
         if self.full_genome is None:
-            with open(self.fasta_filename) as file:
+            with open(self.fasta_path) as file:
                 lines = [re.sub('[^AGCT]+', '', line.split(sep=" ")[-1]) for line in file]
             self.full_genome = ''.join(lines)
             if trim_debug is not None:
@@ -354,9 +354,9 @@ class JSONStrainDatabase(AbstractStrainDatabase):
         logger.info("Loading from JSON marker database file {}.".format(self.entries_file))
         logger.debug("Data will be saved to/load from: {}".format(cfg.database_cfg.data_dir))
         for strain_entry in self.strain_entries():
-            fasta_filename = fetch_fasta(strain_entry.accession,
-                                         base_dir=cfg.database_cfg.data_dir,
-                                         force_download=force_refresh)
+            strain_fasta_path = fetch_fasta(strain_entry.accession,
+                                            base_dir=cfg.database_cfg.data_dir,
+                                            force_download=force_refresh)
             genbank_filename = fetch_genbank(strain_entry.accession,
                                              base_dir=cfg.database_cfg.data_dir,
                                              force_download=force_refresh)
@@ -365,7 +365,7 @@ class JSONStrainDatabase(AbstractStrainDatabase):
             #  when implementing this, be wary of copy numbers (need to decide when/where to handle it.)
 
             sequence_loader = SubsequenceLoader(
-                fasta_filename=fasta_filename,
+                fasta_path=strain_fasta_path,
                 genbank_filename=genbank_filename,
                 marker_entries=strain_entry.marker_entries,
                 marker_max_len=self.marker_max_len
@@ -396,7 +396,7 @@ class JSONStrainDatabase(AbstractStrainDatabase):
                     ncbi_accession=strain_entry.accession,
                     genus=strain_entry.genus,
                     species=strain_entry.species,
-                    file_path=fasta_filename
+                    file_path=strain_fasta_path
                 ))
 
             if len(markers) == 0:

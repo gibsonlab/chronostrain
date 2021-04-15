@@ -14,7 +14,7 @@ from . import logger
 class AbstractStrainDatabase(metaclass=ABCMeta):
     def __init__(self, force_refresh: bool = False):
         self.__load__(force_refresh=force_refresh)
-        self.multifasta_file = cfg.database_cfg.data_dir / 'markers' / 'marker_multifasta.fa'
+        self.multifasta_file = cfg.database_cfg.data_dir / 'all_markers.fasta'
         self._save_markers_to_multifasta(
             force_refresh=force_refresh
         )
@@ -62,7 +62,7 @@ class AbstractStrainDatabase(metaclass=ABCMeta):
         The file will be automatically re-populated if force_refresh is True, or if the existing file is stale (e.g.
         there exists a marker whose last-modified timestamp is later than the existing file's.)
         """
-        self.multifasta_file.resolve().parent.mkdir()
+        self.multifasta_file.resolve().parent.mkdir(exist_ok=True, parents=True)
 
         def _generate():
             for strain in self.all_strains():

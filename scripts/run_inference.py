@@ -135,19 +135,22 @@ def perform_em(
         abundances = torch.stack(abundances)
 
     # ==== Save the learned abundances.
-    output_path = save_abundances(
+    output_path = out_dir / abnd_out_file
+    save_abundances(
         population=model.bacteria_pop,
         time_points=model.times,
         abundances=abundances,
-        out_path=out_dir / abnd_out_file
+        out_path=output_path
     )
     logger.info("Abundances saved to {}.".format(output_path))
 
-    metadata_path = out_dir / "metadata.txt"
+    metadata_path = out_dir / "em_metadata.txt"
     with open(metadata_path, "w") as metadata_file:
         if learn_variances:
             print("Learned tau_1: {}".format(model.tau_1), file=metadata_file)
             print("Learned tau: {}".format(model.tau), file=metadata_file)
+        else:
+            print("not learning tau, tau_1.", file=metadata_file)
 
     # ==== Plot the learned abundances.
     logger.info("Done. Saving plot of learned abundances.")
