@@ -341,7 +341,7 @@ class JSONStrainDatabase(AbstractStrainDatabase):
     A implementation which defines strains as collections of markers, using the JSON format found in the example.
     """
 
-    def __init__(self, entries_file, marker_max_len, force_refresh: bool = False):
+    def __init__(self, entries_file: str, marker_max_len: int, force_refresh: bool = False):
         """
         :param entries_file: JSON filename specifying accession numbers and marker locus tags.
         """
@@ -431,7 +431,7 @@ class JSONStrainDatabase(AbstractStrainDatabase):
         return "{acc}-{seq}.fasta".format(acc=accession, seq=name)
 
     @staticmethod
-    def save_marker_to_fasta(strain_id: str, marker: Marker, filepath):
+    def save_marker_to_fasta(strain_id: str, marker: Marker, filepath: Path):
         with open(filepath, 'w') as f:
             print(">{}|{}|{}".format(
                 strain_id,
