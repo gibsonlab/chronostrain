@@ -16,7 +16,6 @@ do
 			LOG_FILEPATH="${CHRONOSTRAIN_DATA_DIR}/logs/reads_${n_reads}/qs_${quality_shift}/trial_${trial}/readgen.log"
 			TRIAL_DIR="${RUNS_DIR}/reads_${n_reads}/qs_${quality_shift}/trial_${trial}"
 			READS_DIR="${TRIAL_DIR}/simulated_reads"
-			mkdir -p $READS_DIR
 			SEED=$trial
 
 			echo "[Number of reads: ${n_reads}, qShift: ${quality_shift}, trial #${trial}] -> ${LSF_PATH}"
@@ -40,6 +39,8 @@ export CHRONOSTRAIN_DB_DIR=${CHRONOSTRAIN_DB_DIR}
 echo "Output dir: ${READS_DIR}"
 echo "qShift: ${quality_shift}"
 echo "seed: ${SEED}"
+
+mkdir -p $READS_DIR
 
 module load anaconda/4.8.2
 source activate ${CONDA_ENV}
