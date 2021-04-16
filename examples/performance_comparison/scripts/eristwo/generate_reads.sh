@@ -42,7 +42,6 @@ echo "seed: ${SEED}"
 
 mkdir -p $READS_DIR
 
-module load anaconda/4.8.2
 source activate ${CONDA_ENV}
 python ${PROJECT_DIR}/scripts/readgen.py \
 --num_reads $n_reads \

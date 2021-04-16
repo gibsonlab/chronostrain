@@ -38,7 +38,6 @@ do
 #BSUB -M ${LSF_CHRONOSTRAIN_MEM}
 #BSUB -R rusage[mem=${LSF_CHRONOSTRAIN_MEM}]
 
-module load anaconda/4.8.2
 source activate ${CONDA_ENV}
 mkdir -p $CHRONOSTRAIN_OUTPUT_DIR
 
