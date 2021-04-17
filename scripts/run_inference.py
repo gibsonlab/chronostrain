@@ -66,9 +66,6 @@ def parse_args():
                         help='<Optional> If using a variational method, specify the number of '
                              'samples to generate as output.')
     parser.add_argument('--plot_format', required=False, type=str, default="pdf")
-    parser.add_argument('--learn_variances', action="store_true",
-                        help='<Flag> Try to learn the gaussian process variance (the old configured values '
-                             'are used as initialization)')
 
     return parser.parse_args()
 
@@ -81,7 +78,6 @@ def perform_em(
         ground_truth_path: Path,
         disable_time_consistency: bool,
         disable_quality: bool,
-        learn_variances: bool,
         iters: int,
         cache_tag: CacheTag,
         learning_rate: float,
@@ -101,8 +97,7 @@ def perform_em(
             print_debug_every=1000,
             thresh=1e-5,
             gradient_clip=1e5,
-            q_smoothing=q_smoothing,
-            learn_variances=learn_variances
+            q_smoothing=q_smoothing
         )
     else:
         logger.info("Flag --disable_time_consistency turned on; Performing inference on each sample independently.")
@@ -143,14 +138,6 @@ def perform_em(
         out_path=output_path
     )
     logger.info("Abundances saved to {}.".format(output_path))
-
-    metadata_path = out_dir / "em_metadata.txt"
-    with open(metadata_path, "w") as metadata_file:
-        if learn_variances:
-            print("Learned tau_1: {}".format(model.tau_1), file=metadata_file)
-            print("Learned tau: {}".format(model.tau), file=metadata_file)
-        else:
-            print("not learning tau, tau_1.", file=metadata_file)
 
     # ==== Plot the learned abundances.
     logger.info("Done. Saving plot of learned abundances.")
@@ -454,8 +441,6 @@ def create_model(population: Population,
     @return A Generative model object.
     """
     mu = torch.zeros(len(population.strains), device=cfg.torch_cfg.device)
-    tau_1 = cfg.model_cfg.time_scale_initial
-    tau = cfg.model_cfg.time_scale
 
     if disable_quality:
         logger.info("Flag --disable_quality turned on; Quality scores are diabled. Initializing NoiselessErrorModel.")
@@ -468,8 +453,10 @@ def create_model(population: Population,
         read_length=window_size,
         times=time_points,
         mu=mu,
-        tau_1=tau_1,
-        tau=tau,
+        tau_1_dof=cfg.model_cfg.sics_dof_1,
+        tau_1_scale=cfg.model_cfg.sics_scale_1,
+        tau_dof=cfg.model_cfg.sics_dof,
+        tau_scale=cfg.model_cfg.sics_scale,
         read_error_model=error_model
     )
 
@@ -568,8 +555,7 @@ def main():
             iters=args.iters,
             learning_rate=args.learning_rate,
             cache_tag=cache_tag,
-            plot_format=args.plot_format,
-            learn_variances=args.learn_variances
+            plot_format=args.plot_format
         )
     elif args.method == 'bbvi':
         logger.info("Solving using Black-Box Variational Inference.")

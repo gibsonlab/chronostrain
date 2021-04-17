@@ -72,11 +72,6 @@ class GaussianPosterior(AbstractPosterior):
             for t in range(self.model.num_times())
         ])
 
-        # for t in range(self.model.num_times()):
-        #     print("t = {}".format(t))
-        #     print("mean = {}".format(self.means[t].detach()))
-        #     print("stdev = {}".format(softplus(self.stdevs_sources[t].detach())))
-
         if detach_grad:
             samples = samples.detach()
 

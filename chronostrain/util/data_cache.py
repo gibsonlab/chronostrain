@@ -24,10 +24,14 @@ class CacheTag(object):
         If a Path-like instance is passed, it is processed using its MD5 checksum.
         For all other cases, the item is converted into a string.
         """
-        self.attr_dict = {}
-        for key, value in kwargs.items():
-            self.attr_dict[key] = self.process_item(value)
-        self.encoding = hashlib.md5(str(kwargs).encode('utf-8')).hexdigest()
+        self.attr_dict = kwargs
+        self.encoding = self.generate_encoding()
+
+    def generate_encoding(self) -> str:
+        processed_dict = dict()
+        for key, value in self.attr_dict.items():
+            processed_dict[key] = self.process_item(value)
+        return hashlib.md5(str(processed_dict).encode('utf-8')).hexdigest()
 
     def process_item(self, item) -> str:
         if isinstance(item, list):
@@ -89,9 +93,9 @@ class CachedComputation(object):
             logger.debug("[Cache {}] Loaded pre-computed file {}.".format(self.cache_tag.encoding, cache_path))
         except FileNotFoundError:
             logger.debug("[Cache {}] Could not load cached file {}. Recomputing.".format(self.cache_tag.encoding, cache_path))
+            self.cache_tag.write_attributes_to_disk(self.cache_dir / "attributes.txt")
             data = self.fn(*args, **kwargs)
             self.saver(cache_path, data)
-            self.cache_tag.write_attributes_to_disk(self.cache_dir / "attributes.txt")
             logger.debug("[Cache {}] Saved {}.".format(self.cache_tag.encoding, cache_path))
 
         return data

@@ -15,6 +15,7 @@ from chronostrain.model.bacteria import Population
 from chronostrain.model.fragments import FragmentSpace
 from chronostrain.model.reads import AbstractErrorModel, SequenceRead
 from chronostrain.model.io import TimeSeriesReads, TimeSliceReads
+from chronostrain.util.math.distributions import ScaleInverseChiSquared, SICSGaussian
 from . import logger
 
 
@@ -22,16 +23,31 @@ class GenerativeModel:
     def __init__(self,
                  times: List[float],
                  mu: torch.Tensor,
-                 tau_1: float,
-                 tau: float,
+                 tau_1_dof: float,
+                 tau_1_scale: float,
+                 tau_dof: float,
+                 tau_scale: float,
                  bacteria_pop: Population,
                  read_error_model: AbstractErrorModel,
                  read_length: int):
+        """
+        :param times: A list of time points.
+        :param mu: The prior mean E[X_1] of the first time point.
+        :param tau_1_dof: The scale-inverse-chi-squared DOF of the first time point.
+        :param tau_1_scale: The scale-inverse-chi-squared scale of the first time point.
+        :param tau_dof: The scale-inverse-chi-squared DOF of the rest of the Gaussian process.
+        :param tau_scale: The scale-inverse-chi-squared scale of the rest of the Gaussian process.
+        :param bacteria_pop: A Population instance consisting of the relevant strains.
+        :param read_error_model: An error model for the reads (an instance of AbstractErrorModel).
+        :param read_length: The universal read length, given as a single integer.
+        """
 
         self.times: List[float] = times  # array of time points
         self.mu: torch.Tensor = mu  # mean for X_1
-        self.tau_1: float = tau_1  # covariance scaling for X_1
-        self.tau: float = tau  # covariance base scaling
+        self.tau_1_dof: float = tau_1_dof
+        self.tau_1_scale: float = tau_1_scale
+        self.tau_dof: float = tau_dof
+        self.tau_scale: float = tau_scale
         self.error_model: AbstractErrorModel = read_error_model
         self.bacteria_pop: Population = bacteria_pop
         self.read_length: int = read_length
@@ -62,6 +78,7 @@ class GenerativeModel:
         """
         Computes the joint log-likelihood of X, F, and R according to this generative model.
         Let N be the number of samples.
+
         :param X: The S-dimensional Gaussian trajectory, indexed (T x N x S).
         :param read_likelihoods: A precomputed list of tensors containing read-fragment log likelihoods
           (output of compute_read_likelihoods(logarithm=False).)
@@ -69,22 +86,24 @@ class GenerativeModel:
         tensor (one log-likelihood for each sample).
         """
         ans = torch.zeros(size=[X[0].size()[0]], device=X[0].device)
-        for t, X_t in enumerate(X):
+        for t_idx, X_t in enumerate(X):
             ans = ans + self.log_likelihood_xt(
-                t=0,
+                t_idx=t_idx,
                 X=X_t,
-                X_prev=X[t-1, : ,:] if t > 0 else None,
-                read_likelihoods=read_likelihoods[t]
+                X_prev=X[t_idx - 1, :, :] if t_idx > 0 else None,
+                read_likelihoods=read_likelihoods[t_idx]
             )
         return ans
 
     def log_likelihood_xt(self,
-                          t: int,
+                          t_idx: int,
                           X: torch.Tensor,
                           X_prev: torch.Tensor,
                           read_likelihoods: torch.Tensor):
         """
-        :param t: the time index (0 thru T-1)
+        Computes the Gaussian + Data likelihood at timepoint t, given previous timepoint X_prev.
+
+        :param t_idx: the time index (0 thru T-1)
         :param X: (N x S) tensor of time (t) samples.
         :param X_prev: (N x S) tensor of time (t-1) samples. (None if t=0).
         :param read_likelihoods: An (F x R_t) matrix of conditional read probabilities.
@@ -92,12 +111,18 @@ class GenerativeModel:
         """
         # Gaussian part
         N = X.size()[0]
-        if t == 0:
+        if t_idx == 0:
             center = self.mu.repeat(N, 1)
+            dof = self.tau_1_dof
+            scale = self.tau_1_scale
+            dt = 1
         else:
             center = X_prev
-        covariance = self.time_scaled_variance(t) * torch.eye(self.num_strains(), device=cfg.torch_cfg.device)
-        gaussian_log_probs = MultivariateNormal(loc=center, covariance_matrix=covariance).log_prob(X)
+            dof = self.tau_dof
+            scale = self.tau_scale
+            dt = self.dt(t_idx)
+
+        gaussian_log_probs = SICSGaussian(mean=center, dof=dof, scale=scale).log_likelihood(x=X, t=dt)
 
         # Reads likelihood calculation, conditioned on the Gaussian part.
         data_log_probs = softmax(X, dim=1)\
@@ -168,17 +193,31 @@ class GenerativeModel:
 
         return TimeSeriesReads(time_slices)
 
-    def time_scaled_variance(self, time_idx: int) -> float:
+    def dt(self, time_idx: int) -> float:
+        """
+        Return the k-th time increment, t_k - t_{k-1}.
+        Raises an error if k == 0.
+        :param time_idx: The index (k).
+        :return:
+        """
+        if time_idx == 0 or time_idx >= self.num_times():
+            raise IndexError("Can't get time increment at index {}.".format(time_idx))
+        else:
+            return self.times[time_idx] - self.times[time_idx - 1]
+
+    def time_scaled_variance(self, time_idx: int, var_1: float, var: float) -> float:
         """
         Return the k-th time incremental variance.
         :param time_idx: the index to query (corresponding to k).
+        :param var_1: The value of (tau_1)^2, the variance-scaling term of the first observed timepoint.
+        :param var: The value of (tau)^2, the variance-scaling term of the underlying Gaussian process.
         :return: the kth variance term (t_k - t_(k-1)) * tau^2.
         """
 
         if time_idx == 0:
-            return self.tau_1 ** 2
-        if time_idx < len(self.times):
-            return (self.tau ** 2) * (self.times[time_idx] - self.times[time_idx-1])
+            return var_1
+        elif time_idx < len(self.times):
+            return var * self.dt(time_idx)
         else:
             raise IndexError("Can't reference time at index {}.".format(time_idx))
 
@@ -190,9 +229,11 @@ class GenerativeModel:
         brownian_motion = []
         covariance = torch.eye(list(self.mu.size())[0], device=cfg.torch_cfg.device)  # Initialize covariance matrix
         center = self.mu  # Initialize mean vector.
+        var_1 = ScaleInverseChiSquared(dof=self.tau_1_dof, scale=self.tau_1_scale).sample().item()
+        var = ScaleInverseChiSquared(dof=self.tau_dof, scale=self.tau_scale).sample().item()
 
         for time_idx in range(len(self.times)):
-            variance_scaling = self.time_scaled_variance(time_idx)
+            variance_scaling = self.time_scaled_variance(time_idx, var_1=var_1, var=var)
             center = MultivariateNormal(loc=center, covariance_matrix=variance_scaling * covariance).sample()
             brownian_motion.append(center)
 

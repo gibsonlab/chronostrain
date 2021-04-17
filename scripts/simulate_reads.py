@@ -76,8 +76,6 @@ def sample_reads(
 
     # Default/unbiased parameters for prior.
     mu = torch.zeros(len(population.strains) - 1, device=cfg.torch_cfg.device)  # One dimension for each strain
-    tau_1 = 1
-    tau = 1
 
     # Construct a GenerativeModel instance.
     if disable_quality:
@@ -85,13 +83,17 @@ def sample_reads(
         my_error_model = reads.NoiselessErrorModel()
     else:
         my_error_model = reads.BasicFastQErrorModel(read_len=read_length)
-    my_model = generative.GenerativeModel(times=time_points,
-                                          mu=mu,
-                                          tau_1=tau_1,
-                                          tau=tau,
-                                          bacteria_pop=population,
-                                          read_length=read_length,
-                                          read_error_model=my_error_model)
+    my_model = generative.GenerativeModel(
+        times=time_points,
+        mu=mu,
+        tau_1_dof=cfg.model_cfg.sics_dof_1,
+        tau_1_scale=cfg.model_cfg.sics_scale_1,
+        tau_dof=cfg.model_cfg.sics_dof,
+        tau_scale=cfg.model_cfg.sics_scale,
+        bacteria_pop=population,
+        read_length=read_length,
+        read_error_model=my_error_model
+    )
 
     if len(read_depths) != len(time_points):
         logger.warning("Not enough read depths (len={}) specified for time points (len={}). "

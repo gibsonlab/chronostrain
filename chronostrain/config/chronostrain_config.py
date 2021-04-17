@@ -23,9 +23,9 @@ class AbstractConfig(metaclass=ABCMeta):
         try:
             return self.parse_impl(cfg)
         except KeyError as e:
-            raise ConfigurationParseError("KeyError in config `{}`: {}".format(
+            raise ConfigurationParseError("Could not find key {} in configuration '{}'.".format(
+                str(e),
                 self.name,
-                str(e)
             ))
 
     @abstractmethod
@@ -76,10 +76,12 @@ class ModelConfig(AbstractConfig):
         self.use_quality_scores: bool = tokens[0]
         self.num_cores: int = tokens[1]
         self.cache_dir: Path = tokens[2]
-        self.time_scale: float = tokens[3]
-        self.time_scale_initial: float = tokens[4]
+        self.sics_dof_1: float = tokens[3]
+        self.sics_scale_1: float = tokens[4]
+        self.sics_dof: float = tokens[5]
+        self.sics_scale: float = tokens[6]
 
-    def parse_impl(self, cfg: dict) -> Tuple[bool, int, Path, float, float]:
+    def parse_impl(self, cfg: dict) -> Tuple[bool, int, Path, float, float, float, float]:
         q_token = cfg["USE_QUALITY_SCORES"].strip().lower()
         if q_token == "true":
             use_quality_scores = True
@@ -91,20 +93,6 @@ class ModelConfig(AbstractConfig):
             )
 
         try:
-            time_scale = float(cfg["TIME_VARIANCE_SCALE"].strip())
-        except ValueError:
-            raise ConfigurationParseError(
-                "Field `TIME_VARIANCE_SCALE`: Expect float, got `{}`".format(cfg["TIME_VARIANCE_SCALE"])
-            )
-
-        try:
-            time_scale_initial = float(cfg["TIME_VARIANCE_SCALE_INITIAL"].strip())
-        except ValueError:
-            raise ConfigurationParseError(
-                "Field `TIME_VARIANCE_SCALE_INITIAL`: Expect float, got `{}`".format(cfg["TIME_VARIANCE_SCALE_INITIAL"])
-            )
-
-        try:
             n_cores = int(cfg["NUM_CORES"].strip())
         except ValueError:
             raise ConfigurationParseError(
@@ -113,7 +101,35 @@ class ModelConfig(AbstractConfig):
 
         cache_dir = Path(cfg["CACHE_DIR"])
 
-        return use_quality_scores, n_cores, cache_dir, time_scale, time_scale_initial
+        try:
+            sics_dof_1 = float(cfg["SICS_DOF_1"].strip())
+        except ValueError:
+            raise ConfigurationParseError(
+                "Field `TIME_VARIANCE_SCALE`: Expect float, got `{}`".format(cfg["TIME_VARIANCE_SCALE"])
+            )
+
+        try:
+            sics_scale_1 = float(cfg["SICS_SCALE_1"].strip())
+        except ValueError:
+            raise ConfigurationParseError(
+                "Field `TIME_VARIANCE_SCALE_INITIAL`: Expect float, got `{}`".format(cfg["TIME_VARIANCE_SCALE_INITIAL"])
+            )
+
+        try:
+            sics_dof = float(cfg["SICS_DOF"].strip())
+        except ValueError:
+            raise ConfigurationParseError(
+                "Field `TIME_VARIANCE_SCALE`: Expect float, got `{}`".format(cfg["TIME_VARIANCE_SCALE"])
+            )
+
+        try:
+            sics_scale = float(cfg["SICS_SCALE"].strip())
+        except ValueError:
+            raise ConfigurationParseError(
+                "Field `TIME_VARIANCE_SCALE_INITIAL`: Expect float, got `{}`".format(cfg["TIME_VARIANCE_SCALE_INITIAL"])
+            )
+
+        return use_quality_scores, n_cores, cache_dir, sics_dof_1, sics_scale_1, sics_dof, sics_scale
 
 
 class TorchConfig(AbstractConfig):
