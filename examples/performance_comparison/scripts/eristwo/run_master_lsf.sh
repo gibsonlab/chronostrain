@@ -46,10 +46,7 @@ echo "trial: ${trial}"
 echo "reads dir: ${READS_DIR}"
 echo "Output dir: ${CHRONOSTRAIN_OUTPUT_DIR}"
 
-export CHRONOSTRAIN_DATA_DIR=${CHRONOSTRAIN_DATA_DIR}
-export BASE_DIR=${BASE_DIR}
-export CHRONOSTRAIN_INI=$CHRONOSTRAIN_INI
-export CHRONOSTRAIN_LOG_INI=$CHRONOSTRAIN_LOG_INI
+source ${SETTINGS_PATH}
 export CHRONOSTRAIN_LOG_FILEPATH=${CHRONOSTRAIN_DATA_DIR}/logs/reads_${n_reads}/qs_${quality_shift}/trial_${trial}/chronostrain.log
 
 echo "Filtering reads."
