@@ -39,33 +39,20 @@ do
 #BSUB -R rusage[mem=${LSF_CHRONOSTRAIN_MEM}]
 
 source activate ${CONDA_ENV}
-mkdir -p $CHRONOSTRAIN_OUTPUT_DIR
+mkdir -p ${CHRONOSTRAIN_OUTPUT_DIR}
+
+export CHRONOSTRAIN_LOG_FILEPATH=${CHRONOSTRAIN_DATA_DIR}/logs/reads_${n_reads}/qs_${quality_shift}/trial_${trial}/chronostrain.log
+export CHRONOSTRAIN_OUTPUT_DIR=${CHRONOSTRAIN_OUTPUT_DIR}
+export SEED=${SEED}
+export READS_DIR=${READS_DIR}
 
 echo "n_reads: ${n_reads}"
 echo "trial: ${trial}"
 echo "reads dir: ${READS_DIR}"
 echo "Output dir: ${CHRONOSTRAIN_OUTPUT_DIR}"
 
-source ${SETTINGS_PATH}
-export CHRONOSTRAIN_LOG_FILEPATH=${CHRONOSTRAIN_DATA_DIR}/logs/reads_${n_reads}/qs_${quality_shift}/trial_${trial}/chronostrain.log
-
-echo "Filtering reads."
-python ${PROJECT_DIR}/scripts/filter.py \
--r "${READS_DIR}" \
--o "${READS_DIR}/filtered"
-
-echo "Running inference."
-python $PROJECT_DIR/scripts/run_inference.py \
---reads_dir ${READS_DIR}/filtered \
---true_abundance_path $TRUE_ABUNDANCE_PATH \
---method $CHRONOSTRAIN_METHOD \
---read_length $READ_LEN \
---seed $SEED \
--lr $CHRONOSTRAIN_LR \
---iters $CHRONOSTRAIN_NUM_ITERS \
---out_dir $CHRONOSTRAIN_OUTPUT_DIR \
---abundances_file $CHRONOSTRAIN_OUTPUT_FILENAME \
---num_cores
+cd ${BASE_DIR}/scripts/eristwo
+bash run_chronostrain.sh
 EOFDOC
 
 			# ============ StrainGE LSF ============
