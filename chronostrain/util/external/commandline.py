@@ -37,7 +37,7 @@ def call_command(command: str,
             [command] + args,
             stderr=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            cwd=str(cwd)
+            cwd=None if cwd is None else str(cwd)
         )
         logger.debug("STDOUT: {}".format(p.stdout.decode("utf-8")))
         logger.debug("STDERR: {}".format(p.stderr.decode("utf-8")))
