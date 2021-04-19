@@ -65,6 +65,7 @@ class AbstractStrainDatabase(metaclass=ABCMeta):
         self.multifasta_file.resolve().parent.mkdir(exist_ok=True, parents=True)
 
         def _generate():
+            self.multifasta_file.unlink(missing_ok=True)
             for strain in self.all_strains():
                 self.strain_markers_to_fasta(strain.id, self.multifasta_file, "a+")
 
@@ -83,8 +84,13 @@ class AbstractStrainDatabase(metaclass=ABCMeta):
         logger.debug("Multi-fasta file: {}".format(self.multifasta_file))
 
     def _multifasta_is_stale(self):
+        print("MULTIFASTA {}: {}".format(self.multifasta_file, self.multifasta_file.stat().st_mtime))
         for strain in self.all_strains():
             for marker in strain.markers:
+                print("MARKER {}: {}".format(
+                    marker.metadata.file_path,
+                    marker.metadata.file_path.stat().st_mtime
+                ))
                 if marker.metadata.file_path.stat().st_mtime > self.multifasta_file.stat().st_mtime:
                     return True
         return False
