@@ -93,7 +93,8 @@ export READS_DIR=${READS_DIR}
 export STRAINGE_OUTPUT_DIR="${STRAINGE_OUTPUT_DIR}"
 export CHRONOSTRAIN_LOG_FILEPATH="${CHRONOSTRAIN_DATA_DIR}/logs/reads_${N_READS}/qs_${quality_shift}/trial_${trial}/strainge_plot.log"
 
-bash ${BASE_DIR}/scripts/eristwo/run_strainge.sh
+cd ${BASE_DIR}/scripts/eristwo
+bash run_strainge.sh
 EOFDOC
 		done
 	done
