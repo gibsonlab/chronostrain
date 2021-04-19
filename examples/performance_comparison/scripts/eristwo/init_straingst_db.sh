@@ -15,10 +15,11 @@ do
 done
 
 echo "**** Generating marker files. ****"
+echo "Target dir: ${STRAINGE_DB_DIR}"
 export CHRONOSTRAIN_LOG_FILEPATH="${CHRONOSTRAIN_DATA_DIR}/logs/db_init/straingst.log"
 python ${BASE_DIR}/scripts/helpers/chronostrain_markers_to_fasta.py \
 -o ${STRAINGE_DB_DIR} \
--e "fasta"
+-e ".fasta"
 
 KMERIZED_FILES=""
 echo "**** Kmerizing marker files. ****"

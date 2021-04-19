@@ -37,8 +37,7 @@ done
 python ${BASE_DIR}/scripts/helpers/strainge_to_ra.py \
 ${INPUT_FILE_ARGS} \
 ${INPUT_TIME_ARGS} \
--o ${STRAINGE_OUTPUT_DIR}/abundances.csv \
---strain_trim .fa.gz
+-o ${STRAINGE_OUTPUT_DIR}/abundances.csv
 
 python ${PROJECT_DIR}/scripts/plot_abundance_output.py \
 --abundance_path ${STRAINGE_OUTPUT_DIR}/abundances.csv \

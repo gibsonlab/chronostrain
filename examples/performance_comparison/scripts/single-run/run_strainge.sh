@@ -28,8 +28,7 @@ done
 python ${BASE_DIR}/scripts/helpers/strainge_to_ra.py \
 ${INPUT_FILE_ARGS} \
 ${INPUT_TIME_ARGS} \
--o ${STRAINGE_OUTPUT_DIR}/abundances.csv \
---strain_trim .fa.gz
+-o ${STRAINGE_OUTPUT_DIR}/abundances.csv
 
 export CHRONOSTRAIN_LOG_FILEPATH="${CHRONOSTRAIN_DATA_DIR}/logs/reads_${N_READS}/qs_${QUALITY_SHIFT}/single-run/strainge_plot.log"
 python ${PROJECT_DIR}/scripts/plot_abundance_output.py \

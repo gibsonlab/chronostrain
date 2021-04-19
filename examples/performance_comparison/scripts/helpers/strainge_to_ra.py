@@ -20,12 +20,6 @@ def parse_args():
     parser.add_argument('-o', '--output_path', dest="output_path",
                         required=True, type=str,
                         help='<Required> The output file path.')
-
-    parser.add_argument('--strain_trim', required=False, type=str,
-                        default=".fa.gz",
-                        help='<Optional> The substring to trim off of each strain name. '
-                             'Useful if inputs were generated while keeping a .fasta (or similar) file extensionm,'
-                             'since StrainGST outputs strain names with the file extension still attached.')
     return parser.parse_args()
 
 
@@ -45,11 +39,7 @@ def parse_indices(header_line: str) -> Tuple[int, int]:
     return rapct_idx, strain_idx
 
 
-def extract_strain(strain_token: str, trim: str) -> str:
-    return strain_token[:-len(trim)]
-
-
-def extract_abunds(input_path: str, strain_trim: str) -> Dict[str, float]:
+def extract_abunds(input_path: str) -> Dict[str, float]:
     values = []
     strains = []
 
@@ -65,7 +55,7 @@ def extract_abunds(input_path: str, strain_trim: str) -> Dict[str, float]:
             abund_val = float(row_tokens[rapct_idx])
             values.append(abund_val)
 
-            strain_id = extract_strain(row_tokens[strain_idx], trim=strain_trim)
+            strain_id = row_tokens[strain_idx]
             strains.append(strain_id)
 
     abundances = np.array(values) / np.sum(values)
@@ -85,7 +75,7 @@ def main():
             t=t,
             i=input_path
         ))
-        abundances.append(extract_abunds(input_path, strain_trim=args.strain_trim))
+        abundances.append(extract_abunds(input_path))
 
     strains = set()
     for abund_t in abundances:
