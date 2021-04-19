@@ -324,16 +324,16 @@ def parse_args():
 def main():
     args = parse_args()
     db = cfg.database_cfg.get_database()
-    read_paths, time_points = get_input_paths(args.reads_dir)
+    read_paths, time_points = get_input_paths(Path(args.reads_dir))
 
     # ============ Perform read filtering.
     logger.info("Performing filter on reads.")
     filt = Filter(
-        reference_file_path=db.get_multifasta_file(),
+        reference_file_path=db.multifasta_file,
         reads_paths=read_paths,
         time_points=time_points,
         align_cmd=cfg.filter_cfg.align_cmd,
-        output_dir=args.output_dir
+        output_dir=Path(args.output_dir)
     )
     filt.apply_filter()
     logger.info("Finished filtering.")
