@@ -463,8 +463,6 @@ class JSONStrainDatabase(AbstractStrainDatabase):
                                              base_dir=cfg.database_cfg.data_dir,
                                              force_download=force_refresh)
 
-            # TODO only do regex searches if can't load from disk. Try to load from disk first
-            #  when implementing this, be wary of copy numbers (need to decide when/where to handle it.)
             sequence_loader = SubsequenceLoader(
                 strain_accession=strain_entry.accession,
                 fasta_path=strain_fasta_path,
