@@ -74,3 +74,61 @@ class SICSGaussian:
                 + self.sics.log_constant()
                 - ScaleInverseChiSquared.sics_log_constant(dof=a, scale=b)
         )
+
+
+class JeffreysGaussian(object):
+    def __init__(self, mean: torch.Tensor):
+        self.mu = mean
+        self.gaussian_dim = mean.size()[-1]
+
+    def log_likelihood(self, x: torch.Tensor):
+        if len(self.mu.size()) == 1 and len(x.size()) == 2:
+            mu = torch.unsqueeze(self.mu, dim=0)
+            gaussian_axis = 1
+        elif len(self.mu.size()) == len(x.size()):
+            mu = self.mu
+            gaussian_axis = -1
+        else:
+            raise ValueError("Unrecognized input shape of x: {}".format(x.size()))
+
+        a = torch.tensor(self.gaussian_dim)
+        b = torch.sum(torch.pow(x - mu, 2), dim=gaussian_axis)
+        return -ScaleInverseChiSquared.sics_log_constant(dof=a, scale=(1/a) * b)
+
+
+class UniformVarianceGaussian(object):
+    def __init__(self, mean: torch.Tensor, lower: float, upper: float, steps: 100):
+        self.mean = mean
+        self.steps = steps
+        self.var = torch.linspace(start=lower, end=upper, steps=steps)
+
+    def log_likelihood(self, x: torch.Tensor):
+        gaussian_size = x.size()[-1]
+        ans = torch.tensor(0)
+        for i in range(self.steps):
+            var = self.var[i]
+            normal_dist = torch.distributions.MultivariateNormal(
+                loc=self.mean,
+                covariance_matrix=var * torch.eye(gaussian_size, gaussian_size)
+            )
+            ans += (1 / self.steps) * normal_dist.log_prob(x).exp()
+        return torch.log(ans)
+
+
+class HalfCauchyVarianceGaussian(object):
+    def __init__(self, mean: torch.Tensor, cauchy_scale: float = 1.0, n_samples: int = 100):
+        self.mean = mean
+        self.n_samples = n_samples
+        self.cauchy_dist = torch.distributions.HalfCauchy(scale=cauchy_scale)
+
+    def empirical_log_likelihood(self, x: torch.Tensor):
+        gaussian_size = x.size()[-1]
+        ans = torch.zeros(size=(x.size()[0],))
+        for i in range(self.n_samples):
+            var = self.cauchy_dist.sample()
+            normal_dist = torch.distributions.MultivariateNormal(
+                loc=self.mean,
+                covariance_matrix=var * torch.eye(gaussian_size, gaussian_size)
+            )
+            ans += normal_dist.log_prob(x).exp()
+        return torch.log(ans / self.n_samples)

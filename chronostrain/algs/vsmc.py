@@ -176,7 +176,7 @@ class VSMCSolver(AbstractModelSolver):
 
             # Compute weights.
             logW = self.model.log_likelihood_xt(
-                t=t, X=X, X_prev=X_prev, read_likelihoods=self.read_likelihoods[t]
+                t_idx=t, X=X, X_prev=X_prev
             ) - distribution.log_prob(X)
 
             # Resampling probabilities.

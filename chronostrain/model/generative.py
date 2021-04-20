@@ -15,7 +15,7 @@ from chronostrain.model.bacteria import Population
 from chronostrain.model.fragments import FragmentSpace
 from chronostrain.model.reads import AbstractErrorModel, SequenceRead
 from chronostrain.model.io import TimeSeriesReads, TimeSliceReads
-from chronostrain.util.math.distributions import ScaleInverseChiSquared, SICSGaussian
+from chronostrain.util.math.distributions import ScaleInverseChiSquared, SICSGaussian, JeffreysGaussian, UniformVarianceGaussian, HalfCauchyVarianceGaussian
 from . import logger
 
 
@@ -73,65 +73,98 @@ class GenerativeModel:
         return self.bacteria_pop.get_strain_fragment_frequencies(window_size=self.read_length)
 
     def log_likelihood_x(self,
-                         X: torch.Tensor,
-                         read_likelihoods: List[torch.Tensor]) -> torch.Tensor:
+                         X: torch.Tensor) -> torch.Tensor:
         """
         Computes the joint log-likelihood of X, F, and R according to this generative model.
         Let N be the number of samples.
 
         :param X: The S-dimensional Gaussian trajectory, indexed (T x N x S).
-        :param read_likelihoods: A precomputed list of tensors containing read-fragment log likelihoods
-          (output of compute_read_likelihoods(logarithm=False).)
         :return: The log-likelihood from the generative model. Outputs a length-N
         tensor (one log-likelihood for each sample).
         """
-        ans = torch.zeros(size=[X[0].size()[0]], device=X[0].device)
-        for t_idx, X_t in enumerate(X):
-            ans = ans + self.log_likelihood_xt(
-                t_idx=t_idx,
-                X=X_t,
-                X_prev=X[t_idx - 1, :, :] if t_idx > 0 else None,
-                read_likelihoods=read_likelihoods[t_idx]
-            )
-        return ans
+        # =============== Version 3: Uniform distribution / Half-Cauchy
+        log_likelihood_first = HalfCauchyVarianceGaussian(
+            mean=self.mu,
+        ).empirical_log_likelihood(x=X[0, :, :])
 
-    def log_likelihood_xt(self,
-                          t_idx: int,
-                          X: torch.Tensor,
-                          X_prev: torch.Tensor,
-                          read_likelihoods: torch.Tensor):
-        """
-        Computes the Gaussian + Data likelihood at timepoint t, given previous timepoint X_prev.
+        collapsed_size = (self.num_times() - 1) * self.num_strains()
+        n_samples = X.size()[1]
 
-        :param t_idx: the time index (0 thru T-1)
-        :param X: (N x S) tensor of time (t) samples.
-        :param X_prev: (N x S) tensor of time (t-1) samples. (None if t=0).
-        :param read_likelihoods: An (F x R_t) matrix of conditional read probabilities.
-        :return: The joint log-likelihood p(X_t, Reads_t | X_{t-1}).
-        """
-        # Gaussian part
-        N = X.size()[0]
-        if t_idx == 0:
-            center = self.mu.repeat(N, 1)
-            dof = self.tau_1_dof
-            scale = self.tau_1_scale
-            dt = 1
-        else:
-            center = X_prev
-            dof = self.tau_dof
-            scale = self.tau_scale
-            dt = self.dt(t_idx)
+        dt_sqrt_inverse = torch.tensor(
+            [
+                self.dt(t_idx)
+                for t_idx in range(1, self.num_times())
+            ]
+        ).pow(-0.5)
+        diffs = (X[1:, :, ] - X[:-1, :, ]) * dt_sqrt_inverse.unsqueeze(1).unsqueeze(2)
 
-        gaussian_log_probs = SICSGaussian(mean=center, dof=dof, scale=scale).log_likelihood(x=X, t=dt)
+        log_likelihood_rest = HalfCauchyVarianceGaussian(
+            mean=torch.zeros(n_samples, collapsed_size, dtype=cfg.torch_cfg.default_dtype)
+        ).empirical_log_likelihood(
+            x=diffs.transpose(0, 1).reshape(n_samples, collapsed_size)
+        )
 
-        # Reads likelihood calculation, conditioned on the Gaussian part.
-        data_log_probs = softmax(X, dim=1)\
-            .mm(self.get_fragment_frequencies().t())\
-            .mm(read_likelihoods)\
-            .log()
-        data_log_probs[data_log_probs < -100] = -100
+        return log_likelihood_first + log_likelihood_rest
 
-        return gaussian_log_probs + data_log_probs.sum(dim=1)
+        # =============== Version 2: Jeffrey's prior (limit of Inverse-Gamma as alpha,beta both go to 0)
+        # log_likelihood_first = Jeffreys(mean=self.mu).log_likelihood(x=X[0, :, :])
+        #
+        # collapsed_size = (self.num_times() - 1) * self.num_strains()
+        # n_samples = X.size()[1]
+        #
+        # dt_sqrt_inverse = torch.tensor(
+        #     [
+        #         self.dt(t_idx)
+        #         for t_idx in range(1, self.num_times())
+        #     ]
+        # ).pow(-0.5)
+        # diffs = (X[1:, :, ] - X[:-1, :, ]) * dt_sqrt_inverse.unsqueeze(1).unsqueeze(2)
+        #
+        # log_likelihood_rest = Jeffreys(
+        #     mean=torch.zeros(n_samples, collapsed_size, dtype=cfg.torch_cfg.default_dtype)
+        # ).log_likelihood(
+        #     x=diffs.transpose(0, 1).reshape(n_samples, collapsed_size)
+        # )
+        #
+        # return log_likelihood_first + log_likelihood_rest
+
+    # ============== old implementation (Gaussian with SICS/Inverse-Gamma prior on variance)
+    # def log_likelihood_x(self, X: torch.Tensor) -> torch.Tensor:
+    #     ans = torch.zeros(size=[X[0].size()[0]], device=X[0].device)
+    #     for t_idx, X_t in enumerate(X):
+    #         ans = ans + self.log_likelihood_xt(
+    #             t_idx=t_idx,
+    #             X=X_t,
+    #             X_prev=X[t_idx - 1, :, :] if t_idx > 0 else None
+    #         )
+    #     return ans
+    #
+    # def log_likelihood_xt(self,
+    #                       t_idx: int,
+    #                       X: torch.Tensor,
+    #                       X_prev: torch.Tensor):
+    #     """
+    #     Computes the Gaussian + Data likelihood at timepoint t, given previous timepoint X_prev.
+    #
+    #     :param t_idx: the time index (0 thru T-1)
+    #     :param X: (N x S) tensor of time (t) samples.
+    #     :param X_prev: (N x S) tensor of time (t-1) samples. (None if t=0).
+    #     :return: The joint log-likelihood p(X_t, Reads_t | X_{t-1}).
+    #     """
+    #     # Gaussian part
+    #     N = X.size()[0]
+    #     if t_idx == 0:
+    #         center = self.mu.repeat(N, 1)
+    #         dof = self.tau_1_dof
+    #         scale = self.tau_1_scale
+    #         dt = 1
+    #     else:
+    #         center = X_prev
+    #         dof = self.tau_dof
+    #         scale = self.tau_scale
+    #         dt = self.dt(t_idx)
+    #
+    #     return SICSGaussian(mean=center, dof=dof, scale=scale).log_likelihood(x=X, t=dt)
 
     def sample_abundances_and_reads(
             self,
@@ -292,6 +325,10 @@ class GenerativeModel:
         # Draw a read from each fragment.
         for i in range(num_samples):
             frag = frag_space.get_fragment_by_index(frag_indexed_samples[i].item())
-            frag_samples.append(self.error_model.sample_noisy_read(frag, metadata=(metadata + "|" + frag.metadata)))
+            frag_samples.append(self.error_model.sample_noisy_read(
+                read_id="SimRead_{}".format(i),
+                fragment=frag,
+                metadata=(metadata + "|" + frag.metadata)
+            ))
 
         return frag_samples

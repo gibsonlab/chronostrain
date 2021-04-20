@@ -220,9 +220,8 @@ class SubsequenceLoader:
 
     def get_full_genome(self, trim_debug=None) -> str:
         if self.full_genome is None:
-            with open(self.fasta_path) as file:
-                lines = [re.sub('[^AGCT]+', '', line.split(sep=" ")[-1]) for line in file]
-            self.full_genome = ''.join(lines)
+            record = next(SeqIO.parse(self.fasta_path, "fasta"))
+            self.full_genome = str(record.seq)
             if trim_debug is not None:
                 self.full_genome = self.full_genome[:trim_debug]
         return self.full_genome

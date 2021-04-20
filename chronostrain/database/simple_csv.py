@@ -1,7 +1,8 @@
 import csv
-import re
 from pathlib import Path
 from typing import List, Optional, Tuple
+
+from Bio import SeqIO
 
 from chronostrain.config import cfg
 from chronostrain.database.base import AbstractStrainDatabase, StrainEntryError, StrainNotFoundError
@@ -31,9 +32,8 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
     def __load__(self, force_refresh: bool = False):
         logger.info("Loading from CSV marker database file {}.".format(self.entries_file))
         for strain_name, accession, strain_fasta_path in self._strain_entries(force_refresh):
-            with open(strain_fasta_path, "r") as file:
-                lines = [re.sub('[^AGCT]+', '', line.split(sep=" ")[-1]) for line in file]
-            genome = ''.join(lines)
+            record = next(SeqIO.parse(strain_fasta_path, "fasta"))
+            genome = str(record.seq)
             if self.trim_debug is not None:
                 markers = [
                     Marker(

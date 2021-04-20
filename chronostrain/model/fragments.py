@@ -63,7 +63,7 @@ class FragmentSpace:
         self.fragment_instances_counter += 1
         return frag
 
-    def add_seq(self, seq: str, metadata: str = None):
+    def add_seq(self, seq: str, metadata: str = None) -> Fragment:
         """
         Tries to add a new Fragment instance encapsulating the string seq.
         If the seq is already in the space, nothing happens.

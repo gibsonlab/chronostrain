@@ -42,9 +42,9 @@ class BasicFastQErrorModel(AbstractErrorModel):
         p_errors = (1/3) * error_prob[np.where(~matches)]
         return np.log(p_matches).sum() + np.log(p_errors).sum()
 
-    def sample_noisy_read(self, fragment: Fragment, metadata="") -> SequenceRead:
+    def sample_noisy_read(self, read_id: str, fragment: Fragment, metadata="") -> SequenceRead:
         qvec = self.q_dist.sample_qvec()
-        read = SequenceRead(fragment.seq, qvec, metadata=metadata)
+        read = SequenceRead(read_id=read_id, seq=fragment.seq, quality=qvec, metadata=metadata)
 
         # Random shift by an integer mod 4.
         error_probs = self.phred_error_prob(qvec)

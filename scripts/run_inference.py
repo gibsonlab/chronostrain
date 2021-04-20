@@ -6,16 +6,16 @@ import csv
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import torch
 import argparse
 
 from matplotlib import pyplot as plt
-from tqdm import tqdm
 from typing import Optional, List, Tuple
 
 from chronostrain import logger, cfg
-from chronostrain.algs.vi import SecondOrderVariationalSolver, AbstractPosterior
-from chronostrain.algs import em, vsmc, bbvi, bbvi_reparam
+from chronostrain.algs.vi import AbstractPosterior
+from chronostrain.algs import em, bbvi, bbvi_reparam
 from chronostrain.model import Population
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.reads import BasicFastQErrorModel, NoiselessErrorModel
@@ -33,7 +33,7 @@ def parse_args():
                         help='<Required> Directory containing read files. The directory requires a `input_files.csv` '
                              'which contains information about the input reads and corresponding time points.')
     parser.add_argument('-m', '--method',
-                        choices=['em', 'vi', 'bbvi', 'vsmc', 'bbvi_reparametrization'],
+                        choices=['em', 'bbvi', 'bbvi_reparametrization'],
                         required=True,
                         help='<Required> A keyword specifying the inference method.')
     parser.add_argument('-l', '--read_length', required=True, type=int,
@@ -49,8 +49,6 @@ def parse_args():
     parser.add_argument('-truth', '--true_abundance_path', required=False, type=str,
                         help='<Optional> The CSV file path containing the ground truth relative abundances for each '
                              'strain by time point. For benchmarking.')
-    parser.add_argument('--disable_time_consistency', action="store_true",
-                        help='<Flag> Turn off time consistency (perform separate inference on each time point).')
     parser.add_argument('--iters', required=False, type=int, default=10000,
                         help='<Optional> The number of iterations to run, if using EM or VI. Default: 10000')
     parser.add_argument('--num_samples', required=False, type=int, default=100,
@@ -76,7 +74,6 @@ def perform_em(
         out_dir: Path,
         abnd_out_file: str,
         ground_truth_path: Path,
-        disable_time_consistency: bool,
         disable_quality: bool,
         iters: int,
         cache_tag: CacheTag,
@@ -87,47 +84,17 @@ def perform_em(
     q_smoothing = 1e-30
 
     # ==== Run the solver.
-    if not disable_time_consistency:
-        solver = em.EMSolver(model,
-                             reads,
-                             cache_tag=cache_tag,
-                             lr=learning_rate)
-        abundances = solver.solve(
-            iters=iters,
-            print_debug_every=1000,
-            thresh=1e-5,
-            gradient_clip=1e5,
-            q_smoothing=q_smoothing
-        )
-    else:
-        logger.info("Flag --disable_time_consistency turned on; Performing inference on each sample independently.")
-
-        def get_abundances(reads_t):
-            population = model.bacteria_pop
-            pseudo_model = create_model(
-                population=population,
-                window_size=len(reads_t[0]),
-                time_points=[1],
-                disable_quality=disable_quality
-            )
-            instance_solver = em.EMSolver(pseudo_model,
-                                          TimeSeriesReads(time_slices=[reads_t]),
-                                          cache_tag=cache_tag,
-                                          lr=learning_rate)
-            abundances_t = instance_solver.solve(
-                iters=10000,
-                print_debug_every=1000,
-                thresh=1e-5,
-                gradient_clip=1e5,
-                q_smoothing=q_smoothing)
-            return abundances_t[0]  # There are only abundances for one time point.
-
-        # Generate fragment space (stored and shared in Population instance) before running times in parallel.
-        model.get_fragment_space()
-
-        # Run jobs distributed across processes.
-        abundances = [get_abundances(reads_t) for reads_t in tqdm(reads)]
-        abundances = torch.stack(abundances)
+    solver = em.EMSolver(model,
+                         reads,
+                         cache_tag=cache_tag,
+                         lr=learning_rate)
+    abundances, var_1, var = solver.solve(
+        iters=iters,
+        print_debug_every=1000,
+        thresh=1e-5,
+        gradient_clip=1e5,
+        q_smoothing=q_smoothing
+    )
 
     # ==== Save the learned abundances.
     output_path = out_dir / abnd_out_file
@@ -139,6 +106,12 @@ def perform_em(
     )
     logger.info("Abundances saved to {}.".format(output_path))
 
+    metadata_path = out_dir / "metadata.txt"
+    with open(metadata_path, "w") as metadata_file:
+        print("Learned var_1: {}".format(var_1), file=metadata_file)
+        print("Learned var: {}".format(var), file=metadata_file)
+    logger.info("Wrote metadata to {}.".format(metadata_path))
+
     # ==== Plot the learned abundances.
     logger.info("Done. Saving plot of learned abundances.")
     plot_path = out_dir / "plot.{}".format(plot_format)
@@ -147,111 +120,125 @@ def perform_em(
         result_path=output_path,
         true_path=ground_truth_path,
         plots_out_path=plot_path,
-        disable_time_consistency=disable_time_consistency,
         disable_quality=disable_quality,
         plot_format=plot_format
     )
     logger.info("Plots saved to {}.".format(plot_path))
 
 
-def perform_vsmc(
-        model: GenerativeModel,
-        reads: TimeSeriesReads,
-        disable_time_consistency: bool,
-        disable_quality: bool,
-        iters: int,
-        learning_rate: float,
-        num_samples: int,
-        ground_truth_path: Path,
-        plots_out_path: Path,
-        samples_out_path: Path,
-        cache_tag: CacheTag,
-        plot_format: str
-):
-
-    # ==== Run the solver.
-    if not disable_time_consistency:
-        solver = vsmc.VSMCSolver(model=model, data=reads, cache_tag=cache_tag)
-        solver.solve(
-            optim_class=torch.optim.Adam,
-            optim_args={'lr': learning_rate, 'betas': (0.7, 0.7), 'eps': 1e-7, 'weight_decay': 0.},
-            iters=iters,
-            num_samples=num_samples,
-            print_debug_every=100
-        )
-        posterior = solver.posterior
-    else:
-        raise NotImplementedError("Feature 'disable_time_consistency' not implemented for VSMC.")
-
-    logger.info("Done. Generating plot of posterior.")
-    output_variational_result(
-        method='Variational Sequential Monte Carlo',
-        model=model,
-        posterior=posterior,
-        disable_time_consistency=disable_time_consistency,
-        disable_quality=disable_quality,
-        truth_path=ground_truth_path,
-        plots_out_path=plots_out_path,
-        samples_out_path=samples_out_path,
-        plot_format=plot_format
-    )
-    logger.info("Plots saved to {}.".format(plots_out_path))
+# def perform_vsmc(
+#         model: GenerativeModel,
+#         reads: TimeSeriesReads,
+#         disable_quality: bool,
+#         iters: int,
+#         learning_rate: float,
+#         num_samples: int,
+#         ground_truth_path: Path,
+#         plots_out_path: Path,
+#         samples_out_path: Path,
+#         cache_tag: CacheTag,
+#         plot_format: str
+# ):
+#
+#     # ==== Run the solver.
+#     solver = vsmc.VSMCSolver(model=model, data=reads, cache_tag=cache_tag)
+#     solver.solve(
+#         optim_class=torch.optim.Adam,
+#         optim_args={'lr': learning_rate, 'betas': (0.7, 0.7), 'eps': 1e-7, 'weight_decay': 0.},
+#         iters=iters,
+#         num_samples=num_samples,
+#         print_debug_every=100
+#     )
+#     posterior = solver.posterior
+#
+#     logger.info("Done. Generating plot of posterior.")
+#     output_variational_result(
+#         method='Variational Sequential Monte Carlo',
+#         model=model,
+#         posterior=posterior,
+#         disable_quality=disable_quality,
+#         truth_path=ground_truth_path,
+#         plots_out_path=plots_out_path,
+#         samples_out_path=samples_out_path,
+#         plot_format=plot_format
+#     )
+#     logger.info("Plots saved to {}.".format(plots_out_path))
 
 
 def perform_bbvi(
         model: GenerativeModel,
         reads: TimeSeriesReads,
-        disable_time_consistency: bool,
         disable_quality: bool,
         iters: int,
         learning_rate: float,
         num_samples: int,
         ground_truth_path: Path,
-        plots_out_path: Path,
-        samples_out_path: Path,
+        out_dir: Path,
         cache_tag: CacheTag,
         plot_format: str,
         plot_elbo_history: bool = True
 ):
 
     # ==== Run the solver.
-    if not disable_time_consistency:
-        solver = bbvi.BBVISolver(model=model, data=reads, cache_tag=cache_tag)
-        elbo_history = solver.solve(
-            optim_class=torch.optim.Adam,
-            optim_args={'lr': learning_rate, 'betas': (0.9, 0.999), 'eps': 1e-7, 'weight_decay': 0.},
-            iters=iters,
-            num_samples=num_samples,
-            print_debug_every=100,
-            store_elbos=True
-        )
-        posterior = solver.gaussian_posterior
+    solver = bbvi.BBVISolver(model=model, data=reads, cache_tag=cache_tag)
+    elbo_history = solver.solve(
+        optim_class=torch.optim.Adam,
+        optim_args={'lr': learning_rate, 'betas': (0.9, 0.999), 'eps': 1e-7, 'weight_decay': 0.},
+        iters=iters,
+        num_samples=num_samples,
+        print_debug_every=100,
+        store_elbos=plot_elbo_history
+    )
+    posterior = solver.gaussian_posterior
 
-        if plot_elbo_history:
-            elbo_plot_path = plots_out_path.parent / "elbo.{}".format(plot_format)
-            plot_elbos(out_path=elbo_plot_path, elbos=elbo_history, plot_format=plot_format)
-    else:
-        raise NotImplementedError("Feature 'disable_time_consistency' not implemented for BBVI.")
+    if plot_elbo_history:
+        elbo_plot_path = out_dir / "elbo.{}".format(plot_format)
+        plot_elbos(out_path=elbo_plot_path, elbos=elbo_history, plot_format=plot_format)
+        logger.info("Saved ELBO plot to {}.".format(elbo_plot_path))
 
+    # ==== Save the fragment probabilities.
+    df_entries = []
+    for t_idx, reads_t in enumerate(reads):
+        for r_idx, read in enumerate(reads_t):
+            for fragment, frag_prob in solver.fragment_posterior.top_fragments(t_idx, r_idx, top=5):
+                if frag_prob < 0.05:
+                    continue
+                df_entries.append({
+                    "time_idx": t_idx,
+                    "read_idx": r_idx,
+                    "read_id": read.id,
+                    "frag_seq": fragment.nucleotide_content(),
+                    "frag_prob": frag_prob,
+                    "frag_metadata": fragment.metadata,
+                })
+    df = pd.DataFrame(df_entries).set_index(["time_idx", "read_idx"])
+
+    frag_prob_path = out_dir / "reads_to_frags.csv"
+    df.to_csv(str(frag_prob_path), mode="w")
+    logger.info("Saved read-to-fragment likelihoods to {} [{}].".format(
+        frag_prob_path,
+        filesystem.convert_size(frag_prob_path.stat().st_size)
+    ))
+
+    # ==== Plot the posterior.
     logger.info("Done. Generating plot of posterior.")
+    plot_out_path = out_dir / "plot.{}".format(plot_format)
     output_variational_result(
         method='Black-Box Variational Inference',
         model=model,
         posterior=posterior,
-        disable_time_consistency=disable_time_consistency,
         disable_quality=disable_quality,
         truth_path=ground_truth_path,
-        plots_out_path=plots_out_path,
-        samples_out_path=samples_out_path,
+        plots_out_path=plot_out_path,
+        samples_out_path=out_dir / "samples.pt",
         plot_format=plot_format
     )
-    logger.info("Plots saved to {}.".format(plots_out_path))
+    logger.info("Plots saved to {}.".format(plot_out_path))
 
 
 def perform_bbvi_reparametrization(
         model: GenerativeModel,
         reads: TimeSeriesReads,
-        disable_time_consistency: bool,
         disable_quality: bool,
         iters: int,
         learning_rate: float,
@@ -263,20 +250,17 @@ def perform_bbvi_reparametrization(
         num_posterior_samples: int = 5000):
 
     # ==== Run the solver.
-    if not disable_time_consistency:
-        solver = bbvi_reparam.BBVIReparamSolver(
-            model=model,
-            data=reads,
-            cache_tag=cache_tag,
-        )
-        bbvi_posterior = solver.solve(
-            iters=iters,
-            thresh=1e-5,
-            print_debug_every=1,
-            lr=learning_rate
-        )
-    else:
-        raise NotImplementedError("Time-agnostic solver not implemented for `bbvi-reparametrization`.")
+    solver = bbvi_reparam.BBVIReparamSolver(
+        model=model,
+        data=reads,
+        cache_tag=cache_tag,
+    )
+    bbvi_posterior = solver.solve(
+        iters=iters,
+        thresh=1e-5,
+        print_debug_every=1,
+        lr=learning_rate
+    )
 
     torch.save(bbvi_posterior.sample(num_samples=num_posterior_samples), samples_path)
     logger.info("Posterior samples saved to {}. [{}]".format(
@@ -288,7 +272,6 @@ def perform_bbvi_reparametrization(
         method="Black Box Variational Inference (with reparametrization)",
         model=model,
         posterior=bbvi_posterior,
-        disable_time_consistency=disable_time_consistency,
         disable_quality=disable_quality,
         plots_out_path=plot_out_path,
         samples_out_path=samples_path,
@@ -299,55 +282,49 @@ def perform_bbvi_reparametrization(
     logger.info("Plots saved to {}.".format(plot_out_path))
 
 
-def perform_vi(
-        model: GenerativeModel,
-        reads: TimeSeriesReads,
-        disable_time_consistency: bool,
-        disable_quality: bool,
-        iters: int,
-        num_samples: int,
-        ground_truth_path: Path,
-        plots_out_path: Path,
-        samples_out_path: Path,
-        cache_tag: CacheTag,
-        plot_format: str
-):
-
-    # ==== Run the solver.
-    if not disable_time_consistency:
-        solver = SecondOrderVariationalSolver(model, reads, cache_tag)
-        posterior = solver.solve(
-            iters=iters,
-            num_montecarlo_samples=num_samples,
-            print_debug_every=1,
-            thresh=1e-10,
-            clipping=0.3,
-            stdev_scale=[50, 50, 50, 50, 50, 300, 50, 500]
-        )
-    else:
-        raise NotImplementedError("Feature 'disable_time_consistency' not implemented for VI.")
-
-    logger.info("Done. Generating plot of posterior.")
-    output_variational_result(
-        method='Variational Inference (Second-order heuristic)',
-        model=model,
-        posterior=posterior,
-        disable_time_consistency=disable_time_consistency,
-        disable_quality=disable_quality,
-        truth_path=ground_truth_path,
-        plots_out_path=plots_out_path,
-        samples_out_path=samples_out_path,
-        num_samples=15,
-        plot_format=plot_format
-    )
-    logger.info("Plots saved to {}.".format(plots_out_path))
+# def perform_vi(
+#         model: GenerativeModel,
+#         reads: TimeSeriesReads,
+#         disable_quality: bool,
+#         iters: int,
+#         num_samples: int,
+#         ground_truth_path: Path,
+#         plots_out_path: Path,
+#         samples_out_path: Path,
+#         cache_tag: CacheTag,
+#         plot_format: str
+# ):
+#
+#     # ==== Run the solver.
+#     solver = SecondOrderVariationalSolver(model, reads, cache_tag)
+#     posterior = solver.solve(
+#         iters=iters,
+#         num_montecarlo_samples=num_samples,
+#         print_debug_every=1,
+#         thresh=1e-10,
+#         clipping=0.3,
+#         stdev_scale=[50, 50, 50, 50, 50, 300, 50, 500]
+#     )
+#
+#     logger.info("Done. Generating plot of posterior.")
+#     output_variational_result(
+#         method='Variational Inference (Second-order heuristic)',
+#         model=model,
+#         posterior=posterior,
+#         disable_quality=disable_quality,
+#         truth_path=ground_truth_path,
+#         plots_out_path=plots_out_path,
+#         samples_out_path=samples_out_path,
+#         num_samples=15,
+#         plot_format=plot_format
+#     )
+#     logger.info("Plots saved to {}.".format(plots_out_path))
 
 
 def plot_em_result(
         reads: TimeSeriesReads,
         result_path: Path,
         plots_out_path: Path,
-        disable_time_consistency: bool,
         disable_quality: bool,
         plot_format: str,
         true_path: Optional[Path] = None):
@@ -357,7 +334,6 @@ def plot_em_result(
     :param reads: The collection of reads as input.
     :param result_path: The path to the learned abundances.
     :param plots_out_path: The path to save the plots to.
-    :param disable_time_consistency: Whether or not the inference algorithm was performed with time-consistency.
     :param disable_quality: Whether or not quality scores were used.
     :param plot_format: The format (e.g. pdf, png) to output the plot.
     :param true_path: The path to the ground truth abundance file.
@@ -370,7 +346,6 @@ def plot_em_result(
     title = "Average Read Depth over Time: " + str(round(avg_read_depth_over_time, 1)) + "\n" + \
             "Read Length: " + str(len(reads[0][0])) + "\n" + \
             "Algorithm: Expectation-Maximization" + "\n" + \
-            ('Time consistency off\n' if disable_time_consistency else '') + \
             ('Quality score off\n' if disable_quality else '')
 
     if true_path is not None:
@@ -396,7 +371,6 @@ def output_variational_result(
         method: str,
         model: GenerativeModel,
         posterior: AbstractPosterior,
-        disable_time_consistency: bool,
         disable_quality: bool,
         plots_out_path: Path,
         samples_out_path: Path,
@@ -406,14 +380,13 @@ def output_variational_result(
     # Samples.
     samples = posterior.sample(num_samples)
     torch.save(samples, samples_out_path)
-    logger.info("Posterior samples saved to {}. []".format(
+    logger.info("Posterior samples saved to {}. [{}]".format(
         samples_out_path,
         filesystem.convert_size(samples_out_path.stat().st_size)
     ))
 
     # Plotting.
     title = "Algorithm: " + method + "\n" + \
-            ('Time consistency off\n' if disable_time_consistency else '') + \
             ('Quality score off\n' if disable_quality else '')
 
     plot_posterior_abundances(
@@ -550,7 +523,6 @@ def main():
             out_dir=out_dir,
             abnd_out_file=args.abundances_file,
             ground_truth_path=true_abundance_path,
-            disable_time_consistency=args.disable_time_consistency,
             disable_quality=not cfg.model_cfg.use_quality_scores,
             iters=args.iters,
             learning_rate=args.learning_rate,
@@ -559,21 +531,17 @@ def main():
         )
     elif args.method == 'bbvi':
         logger.info("Solving using Black-Box Variational Inference.")
-        plots_path = out_dir / "plot.{}".format(args.plot_format)
-        samples_path = out_dir / "samples.pt"
         perform_bbvi(
             model=model,
             reads=reads,
-            disable_time_consistency=args.disable_time_consistency,
             disable_quality=not cfg.model_cfg.use_quality_scores,
             iters=args.iters,
             num_samples=args.num_samples,
             ground_truth_path=true_abundance_path,
-            plots_out_path=plots_path,
-            samples_out_path=samples_path,
             learning_rate=args.learning_rate,
             cache_tag=cache_tag,
-            plot_format=args.plot_format
+            plot_format=args.plot_format,
+            out_dir=out_dir
         )
     elif args.method == 'bbvi_reparametrization':
         logger.info("Solving using Black-Box Variational Inference.")
@@ -582,7 +550,6 @@ def main():
         perform_bbvi_reparametrization(
             model=model,
             reads=reads,
-            disable_time_consistency=args.disable_time_consistency,
             disable_quality=not cfg.model_cfg.use_quality_scores,
             iters=args.iters,
             learning_rate=args.learning_rate,
@@ -593,41 +560,39 @@ def main():
             ground_truth_path=true_abundance_path,
             num_posterior_samples=args.num_posterior_samples
         )
-    elif args.method == 'vsmc':
-        logger.info("Solving using Variational Sequential Monte-Carlo.")
-        plots_path = out_dir / "plot.{}".format(args.plot_format)
-        samples_path = out_dir / "samples.pt"
-        perform_vsmc(
-            model=model,
-            reads=reads,
-            disable_time_consistency=args.disable_time_consistency,
-            disable_quality=not cfg.model_cfg.use_quality_scores,
-            iters=args.iters,
-            num_samples=args.num_samples,
-            ground_truth_path=true_abundance_path,
-            plots_out_path=plots_path,
-            samples_out_path=samples_path,
-            learning_rate=args.learning_rate,
-            cache_tag=cache_tag,
-            plot_format=args.plot_format
-        )
-    elif args.method == 'vi':
-        logger.info("Solving using Variational Inference (Second-order mean-field solution).")
-        plots_path = out_dir / "plot.{}".format(args.plot_format)
-        samples_path = out_dir / "samples.pt"
-        perform_vi(
-            model=model,
-            reads=reads,
-            disable_time_consistency=args.disable_time_consistency,
-            disable_quality=not cfg.model_cfg.use_quality_scores,
-            iters=args.iters,
-            num_samples=args.num_samples,
-            ground_truth_path=true_abundance_path,
-            plots_out_path=plots_path,
-            samples_out_path=samples_path,
-            cache_tag=cache_tag,
-            plot_format=args.plot_format
-        )
+    # elif args.method == 'vsmc':
+    #     logger.info("Solving using Variational Sequential Monte-Carlo.")
+    #     plots_path = out_dir / "plot.{}".format(args.plot_format)
+    #     samples_path = out_dir / "samples.pt"
+    #     perform_vsmc(
+    #         model=model,
+    #         reads=reads,
+    #         disable_quality=not cfg.model_cfg.use_quality_scores,
+    #         iters=args.iters,
+    #         num_samples=args.num_samples,
+    #         ground_truth_path=true_abundance_path,
+    #         plots_out_path=plots_path,
+    #         samples_out_path=samples_path,
+    #         learning_rate=args.learning_rate,
+    #         cache_tag=cache_tag,
+    #         plot_format=args.plot_format
+    #     )
+    # elif args.method == 'vi':
+    #     logger.info("Solving using Variational Inference (Second-order mean-field solution).")
+    #     plots_path = out_dir / "plot.{}".format(args.plot_format)
+    #     samples_path = out_dir / "samples.pt"
+    #     perform_vi(
+    #         model=model,
+    #         reads=reads,
+    #         disable_quality=not cfg.model_cfg.use_quality_scores,
+    #         iters=args.iters,
+    #         num_samples=args.num_samples,
+    #         ground_truth_path=true_abundance_path,
+    #         plots_out_path=plots_path,
+    #         samples_out_path=samples_path,
+    #         cache_tag=cache_tag,
+    #         plot_format=args.plot_format
+    #     )
     else:
         raise ValueError("{} is not an implemented method.".format(args.method))
 

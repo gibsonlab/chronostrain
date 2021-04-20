@@ -123,7 +123,7 @@ class EMSolver(AbstractModelSolver):
             var=var
         ))
 
-        return softmax(brownian_motion, dim=1).to(cfg.torch_cfg.device)
+        return softmax(brownian_motion, dim=1).to(cfg.torch_cfg.device), var_1, var
 
     def em_update(
             self,
@@ -192,7 +192,9 @@ class EMSolver(AbstractModelSolver):
             + torch.sum(torch.pow(diffs_1, 2))
         )
 
-        diffs = x[1:, :] - x[:-1, :]
+        diffs = (x[1:, :] - x[:-1, :]) * torch.tensor(
+            [self.model.dt(t_idx) for t_idx in range(1, self.model.num_times())]
+        ).pow(-0.5).unsqueeze(1)
         dof = self.model.tau_dof + diffs.numel()
         scale = (1 / dof) * (
             self.model.tau_dof * self.model.tau_scale

@@ -87,7 +87,7 @@ class Population:
         for strain in self.strains:
             for marker in strain.markers:
                 for seq, pos in sliding_window(marker.seq, window_size):
-                    fragment_space.add_seq(seq, metadata=strain.id + "Pos" + str(pos))
+                    fragment_space.add_seq(seq, metadata="{}_{}_Pos({})".format(strain.id, marker.metadata.gene_id, pos))
 
         self.fragment_space_map[window_size] = fragment_space
         logger.debug("Finished constructing fragment space. (Size={})".format(fragment_space.size()))

@@ -105,28 +105,28 @@ class ModelConfig(AbstractConfig):
             sics_dof_1 = float(cfg["SICS_DOF_1"].strip())
         except ValueError:
             raise ConfigurationParseError(
-                "Field `TIME_VARIANCE_SCALE`: Expect float, got `{}`".format(cfg["TIME_VARIANCE_SCALE"])
+                "Field `SICS_DOF_1`: Expect float, got `{}`".format(cfg["SICS_DOF_1"])
             )
 
         try:
             sics_scale_1 = float(cfg["SICS_SCALE_1"].strip())
         except ValueError:
             raise ConfigurationParseError(
-                "Field `TIME_VARIANCE_SCALE_INITIAL`: Expect float, got `{}`".format(cfg["TIME_VARIANCE_SCALE_INITIAL"])
+                "Field `SICS_SCALE_1`: Expect float, got `{}`".format(cfg["SICS_SCALE_1"])
             )
 
         try:
             sics_dof = float(cfg["SICS_DOF"].strip())
         except ValueError:
             raise ConfigurationParseError(
-                "Field `TIME_VARIANCE_SCALE`: Expect float, got `{}`".format(cfg["TIME_VARIANCE_SCALE"])
+                "Field `SICS_DOF`: Expect float, got `{}`".format(cfg["SICS_DOF"])
             )
 
         try:
             sics_scale = float(cfg["SICS_SCALE"].strip())
         except ValueError:
             raise ConfigurationParseError(
-                "Field `TIME_VARIANCE_SCALE_INITIAL`: Expect float, got `{}`".format(cfg["TIME_VARIANCE_SCALE_INITIAL"])
+                "Field `SICS_SCALE`: Expect float, got `{}`".format(cfg["SICS_SCALE"])
             )
 
         return use_quality_scores, n_cores, cache_dir, sics_dof_1, sics_scale_1, sics_dof, sics_scale
