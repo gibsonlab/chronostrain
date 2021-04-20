@@ -199,8 +199,9 @@ def perform_bbvi(
     # ==== Save the fragment probabilities.
     df_entries = []
     for t_idx, reads_t in enumerate(reads):
-        for r_idx, read in enumerate(reads_t):
-            for fragment, frag_prob in solver.fragment_posterior.top_fragments(t_idx, r_idx, top=5):
+        for solver_r_idx, r_idx in enumerate(solver.read_indices[t_idx]):
+            read = reads_t[r_idx]
+            for fragment, frag_prob in solver.fragment_posterior.top_fragments(t_idx, solver_r_idx, top=5):
                 if frag_prob < 0.05:
                     continue
                 df_entries.append({

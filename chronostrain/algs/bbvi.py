@@ -166,6 +166,7 @@ class BBVISolver(AbstractModelSolver):
         super().__init__(model, data, cache_tag)
         self.gaussian_posterior = GaussianPosterior(model=model)
         self.fragment_posterior = FragmentPosterior(model=model)  # time-indexed list of F x N tensors.
+        self.read_indices = []
 
         for t_idx, read_likelihood_matrix in enumerate(self.read_likelihoods):
             sums = read_likelihood_matrix.sum(dim=0)
@@ -183,6 +184,9 @@ class BBVISolver(AbstractModelSolver):
                     if i not in zero_indices
                 ]
                 self.read_likelihoods_tensors[t_idx] = read_likelihood_matrix[:, leftover_indices]
+                self.read_indices.append(leftover_indices)
+            else:
+                self.read_indices.append(list(range(len(data[t_idx]))))
 
     def elbo_marginal_gaussian(self, x_samples: torch.Tensor, posterior_gaussian_log_likelihoods: torch.Tensor) -> torch.Tensor:
         """

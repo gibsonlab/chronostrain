@@ -103,8 +103,9 @@ class UniformVarianceGaussian(object):
         self.var = torch.linspace(start=lower, end=upper, steps=steps)
 
     def log_likelihood(self, x: torch.Tensor):
+        n_samples = x.size()[0]
         gaussian_size = x.size()[-1]
-        ans = torch.tensor(0)
+        ans = torch.zeros((n_samples,))
         for i in range(self.steps):
             var = self.var[i]
             normal_dist = torch.distributions.MultivariateNormal(

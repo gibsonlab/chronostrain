@@ -8,3 +8,4 @@ seaborn
 joblib
 tqdm
 biopython
+geotorch

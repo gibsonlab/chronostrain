@@ -82,7 +82,7 @@ class GenerativeModel:
         :return: The log-likelihood from the generative model. Outputs a length-N
         tensor (one log-likelihood for each sample).
         """
-        # =============== Version 3: Uniform distribution / Half-Cauchy
+        # =============== Version 4: Half-Cauchy
         log_likelihood_first = HalfCauchyVarianceGaussian(
             mean=self.mu,
         ).empirical_log_likelihood(x=X[0, :, :])
@@ -105,6 +105,36 @@ class GenerativeModel:
         )
 
         return log_likelihood_first + log_likelihood_rest
+
+        # # =============== Version 3: Uniform
+        # log_likelihood_first = UniformVarianceGaussian(
+        #     mean=self.mu,
+        #     lower=0.1,
+        #     upper=20.0,
+        #     steps=25
+        # ).log_likelihood(x=X[0, :, :])
+        #
+        # collapsed_size = (self.num_times() - 1) * self.num_strains()
+        # n_samples = X.size()[1]
+        #
+        # dt_sqrt_inverse = torch.tensor(
+        #     [
+        #         self.dt(t_idx)
+        #         for t_idx in range(1, self.num_times())
+        #     ]
+        # ).pow(-0.5)
+        # diffs = (X[1:, :, ] - X[:-1, :, ]) * dt_sqrt_inverse.unsqueeze(1).unsqueeze(2)
+        #
+        # log_likelihood_rest = UniformVarianceGaussian(
+        #     mean=torch.zeros(n_samples, collapsed_size, dtype=cfg.torch_cfg.default_dtype),
+        #     lower=0.1,
+        #     upper=20.0,
+        #     steps=25
+        # ).log_likelihood(
+        #     x=diffs.transpose(0, 1).reshape(n_samples, collapsed_size)
+        # )
+        #
+        # return log_likelihood_first + log_likelihood_rest
 
         # =============== Version 2: Jeffrey's prior (limit of Inverse-Gamma as alpha,beta both go to 0)
         # log_likelihood_first = Jeffreys(mean=self.mu).log_likelihood(x=X[0, :, :])

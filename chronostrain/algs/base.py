@@ -92,16 +92,17 @@ def compute_read_log_likelihoods(model: GenerativeModel, reads: TimeSeriesReads)
                 for read in reads[k]
             ] for frag in fragment_space.get_fragments()
         ]
-        logger.debug("Chunk (k={k}) completed in {t:.1f} min.".format(
-            k=k,
-            t=millis_elapsed(start_t) / 60000
-        ))
         return ans
 
     parallel = (cfg.model_cfg.num_cores > 1)
     if parallel:
         logger.debug("Computing read likelihoods with parallel pool size = {}.".format(cfg.model_cfg.num_cores))
-        log_likelihoods_output = Parallel(n_jobs=cfg.model_cfg.num_cores)(delayed(create_matrix)(k) for k in tqdm(range(len(model.times))))
+        log_likelihoods_output = Parallel(
+            n_jobs=cfg.model_cfg.num_cores
+        )(
+            delayed(create_matrix)(k)
+            for k in tqdm(range(len(model.times)), desc="Read Prob.")
+        )
         log_likelihoods_tensors = [
             torch.tensor(ll_array, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype)
             for ll_array in log_likelihoods_output

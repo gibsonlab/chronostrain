@@ -8,8 +8,8 @@ export SETTINGS_PATH="${BASE_DIR}/scripts/single-run/settings.sh"
 # ======== Read settings (how many to sample/read length/where they are stored)
 export N_READS=1000000
 export READ_LEN=150
-export QUALITY_SHIFT="-3"
-#export QUALITY_SHIFT="0"
+#export QUALITY_SHIFT="-3"
+export QUALITY_SHIFT="0"
 
 # Location for reads and outputs.
 export TRIAL_DIR="${CHRONOSTRAIN_DATA_DIR}/runs/reads_${N_READS}/qs_${QUALITY_SHIFT}/single-run"
@@ -20,7 +20,7 @@ export STRAINGE_OUTPUT_DIR="${TRIAL_DIR}/output/strainge"
 
 # ========= Chronostrain settings
 export CHRONOSTRAIN_METHOD=bbvi
-export CHRONOSTRAIN_NUM_ITERS=5000
+export CHRONOSTRAIN_NUM_ITERS=2000
 #export CHRONOSTRAIN_METHOD=em
 #export CHRONOSTRAIN_NUM_ITERS=5000
 export CHRONOSTRAIN_LR=0.001

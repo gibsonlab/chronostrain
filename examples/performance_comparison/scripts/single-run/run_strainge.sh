@@ -5,9 +5,9 @@ mkdir -p ${STRAINGE_OUTPUT_DIR}
 INPUT_FILE_ARGS=""
 INPUT_TIME_ARGS=""
 
-for t in "1.0" "2.0" "2.5" "5.0"
+for t in "1.0" "2.0" "2.5" "5.0" "6.0"
 do
-	READ_INPUT_FILE="${READS_DIR}/filtered/reads_${t}.fq"
+	READ_INPUT_FILE="${READS_DIR}/reads_${t}.fastq"
 	READ_KMERIZED_FILE="${STRAINGE_OUTPUT_DIR}/reads_${t}.hdf5"
 	OUTPUT_FILE="${STRAINGE_OUTPUT_DIR}/reads_${t}.tsv"
 
