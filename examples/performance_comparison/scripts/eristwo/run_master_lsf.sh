@@ -5,8 +5,10 @@ source settings.sh
 
 mkdir -p $CHRONOSTRAIN_LSF_DIR
 mkdir -p $STRAINGE_LSF_DIR
+mkdir -p $FILTER_LSF_DIR
 mkdir -p $CHRONOSTRAIN_LSF_OUTPUT_DIR
 mkdir -p $STRAINGE_LSF_OUTPUT_DIR
+mkdir -p $FILTER_LSF_OUTPUT_DIR
 
 # ================ LSF creation ===========================
 for (( n_reads = ${N_READS_MIN}; n_reads < ${N_READS_MAX}+1; n_reads += ${N_READS_STEP} ));
