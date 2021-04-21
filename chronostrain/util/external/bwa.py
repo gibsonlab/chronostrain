@@ -15,16 +15,20 @@ def bwa_mem(output_path: str,
             reference_path: str,
             read_path: str,
             min_seed_length: int,
+            report_all_alignments=False,
             bwa_path="bwa"):
+    params=[
+        'mem',
+        '-o', output_path,
+        '-k', str(min_seed_length),
+        reference_path,
+        read_path
+    ]
+    if report_all_alignments:
+        params.insert('-a', 5)
     exit_code = call_command(
         command=bwa_path,
-        args=[
-            'mem',
-            '-o', output_path,
-            '-k', str(min_seed_length),
-            reference_path,
-            read_path
-        ]
+        args=params
     )
     if exit_code != 0:
         raise CommandLineException("bwa mem", exit_code)

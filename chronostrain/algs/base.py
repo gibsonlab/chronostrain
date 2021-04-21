@@ -11,6 +11,8 @@ from joblib import Parallel, delayed
 from tqdm import tqdm
 
 from . import logger
+from chronostrain.util.sam_handler import SamHandler
+from chronostrain.util.external import bwa_index, bwa_mem
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.config import cfg
 from chronostrain.model.generative import GenerativeModel
@@ -68,17 +70,23 @@ class AbstractModelSolver(metaclass=ABCMeta):
 # ========================= Helper functions ========================
 # ===================================================================
 
-# Helper function
-def compute_read_log_likelihoods(model: GenerativeModel, reads: TimeSeriesReads) -> List[torch.Tensor]:
-    """
-    Returns a list of (F x N) tensors, each containing the time-t read likelihoods.
-    """
-    fragment_space = model.get_fragment_space()
+class log_likelihood_handler(metaclass=ABCMeta):
 
-    start_time = current_time_millis()
-    logger.debug("Computing read-fragment likelihoods...")
+    @abstractmethod
+    def create_matrix_spec(self, k):
+        pass
 
-    def create_matrix(k):
+    @abstractmethod
+    def compile_likelihood_tensors(self, model: GenerativeModel, reads: TimeSeriesReads) -> List[torch.Tensor]:
+        pass
+
+class dense_likelihood_handler(log_likelihood_handler):
+    def __init__(self, model, reads):
+        self.model = model
+        self.reads = reads
+        self.fragment_space = model.get_fragment_space()
+
+    def create_matrix_spec(self, k):
         """
         For the specified time point (t = t_k), evaluate the (F x N_t) array of fragment-to-read likelihoods.
 
@@ -88,9 +96,9 @@ def compute_read_log_likelihoods(model: GenerativeModel, reads: TimeSeriesReads)
         start_t = current_time_millis()
         ans = [
             [
-                model.error_model.compute_log_likelihood(frag, read)
-                for read in reads[k]
-            ] for frag in fragment_space.get_fragments()
+                self.model.error_model.compute_log_likelihood(frag, read)
+                for read in self.reads[k]
+            ] for frag in self.fragment_space.get_fragments()
         ]
         logger.debug("Chunk (k={k}) completed in {t:.1f} min.".format(
             k=k,
@@ -98,19 +106,109 @@ def compute_read_log_likelihoods(model: GenerativeModel, reads: TimeSeriesReads)
         ))
         return ans
 
-    parallel = (cfg.model_cfg.num_cores > 1)
-    if parallel:
-        logger.debug("Computing read likelihoods with parallel pool size = {}.".format(cfg.model_cfg.num_cores))
-        log_likelihoods_output = Parallel(n_jobs=cfg.model_cfg.num_cores)(delayed(create_matrix)(k) for k in tqdm(range(len(model.times))))
-        log_likelihoods_tensors = [
-            torch.tensor(ll_array, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype)
-            for ll_array in log_likelihoods_output
-        ]
-    else:
-        log_likelihoods_tensors = [
-            torch.tensor(create_matrix(k), device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype)
-            for k in tqdm(range(len(model.times)))
-        ]
-    logger.debug("Computed fragment errors in {:1f} min.".format(millis_elapsed(start_time) / 60000))
+    def compute_likelihood_tensors(self):
+        start_time = current_time_millis()
+        logger.debug("Computing read-fragment likelihoods...")
 
-    return log_likelihoods_tensors
+        parallel = (cfg.model_cfg.num_cores > 1)
+        if parallel:
+            logger.debug("Computing read likelihoods with parallel pool size = {}.".format(cfg.model_cfg.num_cores))
+            log_likelihoods_output = Parallel(n_jobs=cfg.model_cfg.num_cores)(delayed(self.create_matrix_spec)(k) for k in tqdm(range(len(self.model.times))))
+            log_likelihoods_tensors = [
+                torch.tensor(ll_array, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype)
+                for ll_array in log_likelihoods_output
+            ]
+        else:
+            log_likelihoods_tensors = [
+                torch.tensor(self.create_matrix_spec(k), device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype)
+                for k in tqdm(range(len(self.model.times)))
+            ]
+        logger.debug("Computed fragment errors in {:1f} min.".format(millis_elapsed(start_time) / 60000))
+
+        return log_likelihoods_tensors
+
+class sparse_likelihood_handler(log_likelihood_handler):
+    def __init__(self, model, reads):
+        self.model = model
+        self.reads = reads
+        self.fragment_space = model.get_fragment_space
+        self.read_reference_file = cfg.database_cfg.get_database().get_multifasta_file()
+
+    def compute_read_frag_alignments(self, k):
+        self.read_frag_map = {}
+        bwa_index(self.read_reference_file)
+        bwa_mem(
+            output_path=,
+            reference_path=self.read_reference_file,
+            read_path=self.reads[k].src,
+            min_seed_length=20,
+            report_all_alignments=True
+        )
+        alignment_contents = self.read_alignment_file()
+        for line in alignment_contents:
+            read, fragment = parse_alignment(line, self.read_reference_file)
+            frag_map = self.read_frag_map.get(read.Lower(), [])
+            frag_map.append(fragment)
+            self.read_frag_map[read.Lower()] = frag_map
+
+    '''
+    TODO: Move alignment utilities into centralized sam file handler for this and filter.py
+    '''
+    def read_alignment_file(self, alignment_path):
+        aln_lines = []
+        with open(alignment_path, 'r') as f:
+            for line in f:
+                if line[0] == '@':
+                    continue
+                aln_lines.append(line.strip().split('\t'))
+
+    def parse_alignment(self, aln_line, reference_path):
+        position_tag = int(aln_line[3])
+        start_clip = self.find_start_clip(aln_line[5])
+        reference_file_index = position_tag-start_clip-1
+        # Fix fragment lookup for multifasta
+        return aln_line[9], 
+
+    def find_start_clip(self, cigar_tag):
+        split_cigar = re.findall('\d+|\D+',cigar_tag)
+        if split_cigar[1] == 'S':
+            return int(split_cigar[0])
+        return 0
+
+    def create_matrix_spec(self, k):
+        start_t = current_time_millis()
+        self.compute_read_frag_alignments(k)
+
+        populated_indices = [[],[]]
+        likelihoods = []
+        for read_i in range(len(reads[k])):
+            for frag in self.read_frag_map.get(reads[k][i], {}):
+                populated_indices[0].append(i)
+                populated_indices[1].append(frag.index)
+                likelihoods.append(self.model.error_model.compute_log_likelihood(frag, read))
+        logger.debug("Chunk (k={k}) completed in {t:.1f} min.".format(
+            k=k,
+            t=millis_elapsed(start_t) / 60000
+        ))
+        return (populated_indices, likelihoods, k)
+
+    def compute_likelihood_tensors(self):
+        start_time = current_time_millis()
+        logger.debug("Computing read-fragment likelihoods...")
+
+        self.compute_frag_index_map()
+        log_likelihoods_output = []
+        parallel = (cfg.model_cfg.num_cores > 1)
+        if parallel:
+            logger.debug("Computing read likelihoods with parallel pool size = {}.".format(cfg.model_cfg.num_cores))
+            log_likelihoods_output = Parallel(n_jobs=cfg.model_cfg.num_cores)(delayed(self.create_matrix_spec)(k) for k in tqdm(range(len(self.model.times))))
+            
+        else:
+            log_likelihoods_output = [self.create_matrix_spec(k) for k in tqdm(range(len(self.model.times)))]
+        log_likelihoods_tensors = [
+            torch.sparse_coo_tensor(matrix_spec[0], matrix_spec[1], (len(reads[matrix_spec[2]]), self.fragment_space.size()), device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype)
+            for matrix_spec in log_likelihoods_output
+        ]
+        logger.debug("Computed fragment errors in {:1f} min.".format(millis_elapsed(start_time) / 60000))
+        return log_likelihoods_tensors
+

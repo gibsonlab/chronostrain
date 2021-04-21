@@ -6,6 +6,7 @@ from typing import List, Tuple
 
 from chronostrain import logger, cfg
 from multiprocessing import cpu_count
+from chronostrain.util.sam_handler import SamFlags, SamHandler
 from chronostrain.util.external import bwa
 from chronostrain.util.external import CommandLineException
 from chronostrain.util.external.commandline import call_command
