@@ -17,6 +17,7 @@ do
 		do
 			# =============== Trial-specific settings ===================
 			CHRONOSTRAIN_LSF_PATH="${CHRONOSTRAIN_LSF_DIR}/reads_${n_reads}_qs_${quality_shift}_trial_${trial}.lsf"
+			CHRONOSTRAIN_LSF_PATH="${FILTER_LSF_DIR}/reads_${n_reads}_qs_${quality_shift}_trial_${trial}.lsf"
 			STRAINGE_LSF_PATH="${STRAINGE_LSF_DIR}/reads_${n_reads}_qs_${quality_shift}_trial_${trial}.lsf"
 
 			TRIAL_DIR="${RUNS_DIR}/reads_${n_reads}/qs_${quality_shift}/trial_${trial}"
@@ -27,7 +28,7 @@ do
 
 			# ============ Filter LSF ===========
 			echo "Creating ${FILTER_LSF_PATH}"
-			cat <<- EOFDOC > $CHRONOSTRAIN_LSF_PATH
+			cat <<- EOFDOC > $FILTER_LSF_PATH
 #!/bin/bash
 #BSUB -J filter
 #BSUB -o ${FILTER_LSF_OUTPUT_DIR}/filter_reads_${n_reads}_qs_${quality_shift}_trial_${trial}-%J.out
