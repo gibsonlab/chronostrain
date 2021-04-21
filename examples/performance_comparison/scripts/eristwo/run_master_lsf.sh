@@ -31,7 +31,7 @@ do
 			cat <<- EOFDOC > $CHRONOSTRAIN_LSF_PATH
 #!/bin/bash
 #BSUB -J bench_chronostrain
-#BSUB -e ${CHRONOSTRAIN_LSF_OUTPUT_DIR}/chronostrain_reads_${n_reads}_qs_${quality_shift}_trial_${trial}-%J.out
+#BSUB -o ${CHRONOSTRAIN_LSF_OUTPUT_DIR}/chronostrain_reads_${n_reads}_qs_${quality_shift}_trial_${trial}-%J.out
 #BSUB -e ${CHRONOSTRAIN_LSF_OUTPUT_DIR}/chronostrain_reads_${n_reads}_qs_${quality_shift}_trial_${trial}-%J.err
 #BSUB -q $LSF_CHRONOSTRAIN_QUEUE
 #BSUB -n ${LSF_CHRONOSTRAIN_N_CORES}
@@ -60,7 +60,7 @@ EOFDOC
 			cat <<- EOFDOC > ${STRAINGE_LSF_PATH}
 #!/bin/bash
 #BSUB -J bench_strainGE
-#BSUB -e ${STRAINGE_LSF_OUTPUT_DIR}/strainge_reads_${n_reads}_qs_${quality_shift}_trial_${trial}-%J.out
+#BSUB -o ${STRAINGE_LSF_OUTPUT_DIR}/strainge_reads_${n_reads}_qs_${quality_shift}_trial_${trial}-%J.out
 #BSUB -e ${STRAINGE_LSF_OUTPUT_DIR}/strainge_reads_${n_reads}_qs_${quality_shift}_trial_${trial}-%J.err
 #BSUB -q ${LSF_STRAINGE_QUEUE}
 #BSUB -n ${LSF_STRAINGE_N_CORES}
