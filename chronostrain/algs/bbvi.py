@@ -45,24 +45,6 @@ class GaussianPosterior(AbstractPosterior):
         # Check: might need this to be a matrix, not a vector.
         self.model = model
 
-        # ================= Parameters to optimize using gradients
-        # self.means = [
-        #     torch.nn.Parameter(
-        #         torch.zeros(self.model.num_strains(), device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype),
-        #         requires_grad=True
-        #     )
-        #     for _ in range(self.model.num_times())
-        # ]
-        #
-        # self.stdevs_sources = [
-        #     torch.nn.Parameter(
-        #         torch.zeros(self.model.num_strains(), device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype),
-        #         requires_grad=True
-        #     )
-        #     for _ in range(self.model.num_times())
-        # ]
-        # self.trainable_parameters = self.means + self.stdevs_sources
-
         # ========== Reparametrization network (standard Gaussians -> nonstandard Gaussians)
         self.reparam_networks: List[torch.nn.Module] = []
 
@@ -101,7 +83,7 @@ class GaussianPosterior(AbstractPosterior):
     def sample(self, num_samples=1) -> torch.Tensor:
         return self._private_sample(
             num_samples=num_samples, output_log_likelihoods=False, detach_grad=True
-        ).transpose(0,2)
+        ).transpose(0, 2)
 
     def _private_sample(self,
                         num_samples=1,

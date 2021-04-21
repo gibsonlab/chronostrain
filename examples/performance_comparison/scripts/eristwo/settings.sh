@@ -19,6 +19,8 @@ export READ_LEN=150
 
 # Location for reads and outputs.
 export RUNS_DIR="${CHRONOSTRAIN_DATA_DIR}/runs"
+export OUTPUT_INDEX_PATH="${RUNS_DIR}/output_index.csv"
+export PERFORMANCE_PLOT_PATH="${RUNS_DIR}/perf.pdf"
 
 # ======== LSF settings
 # (note: 1000 = 1gb)
@@ -27,7 +29,7 @@ export LSF_READGEN_MEM=10000
 export LSF_READGEN_N_CORES=1
 
 export LSF_CHRONOSTRAIN_QUEUE="normal"
-export LSF_CHRONOSTRAIN_MEM=30000
+export LSF_CHRONOSTRAIN_MEM=2000
 export LSF_CHRONOSTRAIN_N_CORES=1
 
 export LSF_STRAINGE_QUEUE="normal"
