@@ -17,7 +17,7 @@ do
 		do
 			# =============== Trial-specific settings ===================
 			CHRONOSTRAIN_LSF_PATH="${CHRONOSTRAIN_LSF_DIR}/reads_${n_reads}_qs_${quality_shift}_trial_${trial}.lsf"
-			CHRONOSTRAIN_LSF_PATH="${FILTER_LSF_DIR}/reads_${n_reads}_qs_${quality_shift}_trial_${trial}.lsf"
+			FILTER_LSF_PATH="${FILTER_LSF_DIR}/reads_${n_reads}_qs_${quality_shift}_trial_${trial}.lsf"
 			STRAINGE_LSF_PATH="${STRAINGE_LSF_DIR}/reads_${n_reads}_qs_${quality_shift}_trial_${trial}.lsf"
 
 			TRIAL_DIR="${RUNS_DIR}/reads_${n_reads}/qs_${quality_shift}/trial_${trial}"
