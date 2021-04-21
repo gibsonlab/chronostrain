@@ -10,11 +10,6 @@ source settings.sh
 # 5) READS_DIR
 # ===================================
 
-echo "Filtering reads."
-python ${PROJECT_DIR}/scripts/filter.py \
--r "${READS_DIR}" \
--o "${READS_DIR}/filtered"
-
 echo "Running inference."
 python $PROJECT_DIR/scripts/run_inference.py \
 --reads_dir ${READS_DIR}/filtered \

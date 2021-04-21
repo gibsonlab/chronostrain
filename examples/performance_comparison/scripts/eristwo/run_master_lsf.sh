@@ -25,6 +25,31 @@ do
 			STRAINGE_OUTPUT_DIR="${TRIAL_DIR}/output/strainge"
 			SEED=$trial
 
+			# ============ Filter LSF ===========
+			echo "Creating ${FILTER_LSF_PATH}"
+			cat <<- EOFDOC > $CHRONOSTRAIN_LSF_PATH
+#!/bin/bash
+#BSUB -J filter
+#BSUB -o ${FILTER_LSF_OUTPUT_DIR}/filter_reads_${n_reads}_qs_${quality_shift}_trial_${trial}-%J.out
+#BSUB -e ${FILTER_LSF_OUTPUT_DIR}/filter_reads_${n_reads}_qs_${quality_shift}_trial_${trial}-%J.err
+#BSUB -q ${LSF_FILTER_QUEUE}
+#BSUB -n ${LSF_FILTER_N_CORES}
+#BSUB -M ${LSF_FILTER_MEM}
+#BSUB -R rusage[mem=${LSF_FILTER_MEM}]
+
+source activate ${CONDA_ENV}
+export CHRONOSTRAIN_LOG_FILEPATH=${CHRONOSTRAIN_DATA_DIR}/logs/reads_${n_reads}/qs_${quality_shift}/trial_${trial}/filter.log
+
+echo "n_reads: ${n_reads}"
+echo "trial: ${trial}"
+echo "reads dir: ${READS_DIR}"
+
+cd ${BASE_DIR}/scripts/eristwo
+
+echo "Filtering reads."
+python ${PROJECT_DIR}/scripts/filter.py -r "${READS_DIR}" -o "${READS_DIR}/filtered"
+EOFDOC
+
 			# ============ Chronostrain LSF ============
 			# Generate LSF files via heredoc.
 			echo "Creating ${CHRONOSTRAIN_LSF_PATH}"
