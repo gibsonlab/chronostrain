@@ -94,14 +94,10 @@ def plot_performance_comparison(
 
     sns.boxplot(
         x='Quality Shift',
-        y='Average Hellinger error',
+        y='Hellinger Error',
         hue='Label',
-        ci='sd',
         data=df,
-        legend='full' if draw_legend else False,
-        palette='cubehelix',
-        size='Label',
-        sizes=[thickness for _ in ids],
+        palette='cubehelix'
     )
 
     legend = plt.legend()
