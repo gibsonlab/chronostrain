@@ -6,7 +6,7 @@ source settings.sh
 # Index path
 > $OUTPUT_INDEX_PATH
 
-echo "Generating result index."
+echo "Generating result index: ${OUTPUT_INDEX_PATH}"
 for (( n_reads = ${N_READS_MIN}; n_reads < ${N_READS_MAX}+1; n_reads += ${N_READS_STEP} ));
 do
 	for (( quality_shift = ${Q_SHIFT_MIN}; quality_shift < ${Q_SHIFT_MAX}+1; quality_shift += ${Q_SHIFT_STEP} ));
@@ -28,7 +28,7 @@ do
 	done
 done
 
-echo "Generating plot."
+echo "Generating plot: ${PERFORMANCE_PLOT_PATH}"
 python ${BASE_DIR}/scripts/helpers/plot_performances.py \
 -t $OUTPUT_INDEX_PATH \
 -g $TRUE_ABUNDANCE_PATH \
