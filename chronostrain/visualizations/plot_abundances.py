@@ -198,10 +198,7 @@ def plot_posterior_abundances(
         truth_acc_dict = {acc: i for i, acc in enumerate(accessions)}
 
     # Convert gaussians to rel abundances.
-    abundance_samples = [
-        softmax(posterior_samples[t_idx, :, :], axis=1)
-        for t_idx in range(posterior_samples.shape[0])
-    ]
+    abundance_samples = softmax(posterior_samples, axis=2)
 
     fig, ax = plt.subplots(1, 1)
     legend_elements = []
@@ -209,10 +206,7 @@ def plot_posterior_abundances(
 
     for s_idx, strain in enumerate(population.strains):
         # This is (T x N), for the particular strain.
-        traj_samples = np.array([
-            abundance_samples[t_idx][:, s_idx]
-            for t_idx in range(len(times))
-        ])
+        traj_samples = abundance_samples[:, :, s_idx]
 
         upper_quantile = np.quantile(traj_samples, q=0.975, axis=1)
         lower_quantile = np.quantile(traj_samples, q=0.025, axis=1)

@@ -8,9 +8,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import torch
+from torch.nn.functional import softmax
 import argparse
 
 from matplotlib import pyplot as plt
+from matplotlib import animation
 from typing import Optional, List, Tuple
 
 from chronostrain import logger, cfg
@@ -176,18 +178,49 @@ def perform_bbvi(
         out_dir: Path,
         cache_tag: CacheTag,
         plot_format: str,
-        plot_elbo_history: bool = True
+        plot_elbo_history: bool = True,
+        do_training_animation: bool = False
 ):
 
     # ==== Run the solver.
     solver = bbvi.BBVISolver(model=model, data=reads, cache_tag=cache_tag)
-    elbo_history = solver.solve(
+
+    callbacks = []
+
+    uppers = [[] for _ in range(model.num_strains())]
+    lowers = [[] for _ in range(model.num_strains())]
+    medians = [[] for _ in range(model.num_strains())]
+    elbo_history = []
+
+    if do_training_animation:
+        def anim_callback(iter, x_samples, elbo):
+            # Plot BBVI posterior.
+            if iter % 20 != 0:
+                return
+            abund_samples = softmax(x_samples, dim=2).cpu().detach().numpy()
+            for s_idx in range(model.num_strains()):
+                traj_samples = abund_samples[:, :, s_idx]  # (T x N)
+                upper_quantile = np.quantile(traj_samples, q=0.975, axis=1)
+                lower_quantile = np.quantile(traj_samples, q=0.025, axis=1)
+                median = np.quantile(traj_samples, q=0.5, axis=1)
+                uppers[s_idx].append(upper_quantile)
+                lowers[s_idx].append(lower_quantile)
+                medians[s_idx].append(median)
+
+        callbacks.append(anim_callback)
+
+    if plot_elbo_history:
+        def elbo_callback(iter, x_samples, elbo):
+            elbo_history.append(elbo)
+        callbacks.append(elbo_callback)
+
+    solver.solve(
         optim_class=torch.optim.Adam,
         optim_args={'lr': learning_rate, 'betas': (0.9, 0.999), 'eps': 1e-7, 'weight_decay': 0.},
         iters=iters,
         num_samples=num_samples,
         print_debug_every=100,
-        store_elbos=plot_elbo_history
+        callbacks=callbacks
     )
     posterior = solver.gaussian_posterior
 
@@ -195,6 +228,18 @@ def perform_bbvi(
         elbo_plot_path = out_dir / "elbo.{}".format(plot_format)
         plot_elbos(out_path=elbo_plot_path, elbos=elbo_history, plot_format=plot_format)
         logger.info("Saved ELBO plot to {}.".format(elbo_plot_path))
+
+    if do_training_animation:
+        animation_plot_path = out_dir / "training.gif"
+        plot_training_animation(
+            out_path=animation_plot_path,
+            n_frames=len(uppers[0]),
+            lowers=lowers,
+            uppers=uppers,
+            medians=medians,
+            model=model
+        )
+        logger.info("Saved training history to {}.".format(animation_plot_path))
 
     # ==== Save the fragment probabilities.
     df_entries = []
@@ -607,6 +652,41 @@ def plot_elbos(out_path: Path, elbos: List[float], plot_format: str):
     ax.set_xlabel("Iteration")
     ax.set_ylabel("ELBO")
     plt.savefig(out_path, format=plot_format)
+
+
+def plot_training_animation(out_path: Path, n_frames, lowers, uppers, medians, model):
+    fig = plt.figure(figsize=(15, 10), dpi=100)
+    ax = plt.axes(xlim=(model.times[0] - 0.5, model.times[-1] + 0.5), ylim=(0, 1))
+
+    lines = [
+        ax.plot([], [], lw=2)[0]
+        for _ in range(model.num_strains())
+    ]
+    fills = [
+        ax.fill_between([], [], [], facecolor=lines[i].get_color())
+        for i in range(model.num_strains())
+    ]
+
+    def init():
+        for line in lines:
+            line.set_data([], [])
+        return lines
+
+    def animate(i):
+        for s_idx in range(model.num_strains()):
+            lines[s_idx].set_data(model.times, medians[s_idx][i])
+            fills[s_idx].remove()
+            fills[s_idx] = ax.fill_between(
+                model.times,
+                lowers[s_idx][i],
+                uppers[s_idx][i],
+                alpha=0.2,
+                color=lines[s_idx].get_color()
+            )
+        return lines + fills
+
+    anim = animation.FuncAnimation(fig, animate, init_func=init, frames=n_frames, interval=1, blit=True)
+    anim.save(str(out_path), writer='imagemagick')
 
 
 if __name__ == "__main__":

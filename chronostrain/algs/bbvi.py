@@ -6,7 +6,7 @@
   This is an implementation of BBVI for the posterior q(X_1) q(X_2 | X_1) ...
   (Note: doesn't work as well as BBVI for mean-field assumption.)
 """
-from typing import List, Iterable, Tuple, Union
+from typing import List, Iterable, Tuple, Union, Optional, Callable
 
 import geotorch
 import torch
@@ -249,12 +249,10 @@ class BBVISolver(AbstractModelSolver):
               num_samples=8000,
               print_debug_every=1,
               thresh_elbo=0.0,
-              store_elbos: bool = False):
+              callbacks: Optional[List[Callable]] = None):
 
         if optim_args is None:
             optim_args = {'lr': 1e-3, 'betas': (0.9, 0.999), 'eps': 1e-8, 'weight_decay': 0.}
-
-        elbo_history = []
 
         optimizer = optim_class(
             self.gaussian_posterior.trainable_parameters,
@@ -292,8 +290,9 @@ class BBVISolver(AbstractModelSolver):
             elbo_loss.backward()
             optimizer.step()
 
-            if store_elbos:
-                elbo_history.append(elbo.item())
+            if callbacks is not None:
+                for callback in callbacks:
+                    callback(k, x_samples, elbo.detach())
 
             secs_elapsed = time_est.stopwatch_click()
             time_est.increment(secs_elapsed)
@@ -317,5 +316,3 @@ class BBVISolver(AbstractModelSolver):
             k=k,
             diff=elbo_diff
         ))
-
-        return elbo_history
