@@ -105,7 +105,7 @@ echo "Output dir: ${STRAINGE_OUTPUT_DIR}"
 
 export READS_DIR=${READS_DIR}
 export STRAINGE_OUTPUT_DIR="${STRAINGE_OUTPUT_DIR}"
-export CHRONOSTRAIN_LOG_FILEPATH="${CHRONOSTRAIN_DATA_DIR}/logs/reads_${N_READS}/qs_${quality_shift}/trial_${trial}/strainge_plot.log"
+export CHRONOSTRAIN_LOG_FILEPATH="${CHRONOSTRAIN_DATA_DIR}/logs/reads_${n_reads}/qs_${quality_shift}/trial_${trial}/strainge_plot.log"
 
 cd ${BASE_DIR}/scripts/eristwo
 bash run_strainge.sh

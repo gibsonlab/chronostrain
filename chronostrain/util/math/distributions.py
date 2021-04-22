@@ -2,6 +2,7 @@ from typing import Union
 from numpy import pi
 import torch
 
+from chronostrain import cfg
 
 _pi = torch.tensor(pi)
 
@@ -118,18 +119,18 @@ class UniformVarianceGaussian(object):
 
 class HalfCauchyVarianceGaussian(object):
     def __init__(self, mean: torch.Tensor, cauchy_scale: float = 1.0, n_samples: int = 100):
-        self.mean = mean
+        self.mean = mean.to(cfg.torch_cfg.device)
         self.n_samples = n_samples
         self.cauchy_dist = torch.distributions.HalfCauchy(scale=cauchy_scale)
 
     def empirical_log_likelihood(self, x: torch.Tensor):
         gaussian_size = x.size()[-1]
-        ans = torch.zeros(size=(x.size()[0],))
+        ans = torch.zeros(size=(x.size()[0],), device=cfg.torch_cfg.device)
         for i in range(self.n_samples):
             var = self.cauchy_dist.sample()
             normal_dist = torch.distributions.MultivariateNormal(
                 loc=self.mean,
-                covariance_matrix=var * torch.eye(gaussian_size, gaussian_size)
+                covariance_matrix=var * torch.eye(gaussian_size, gaussian_size, device=cfg.torch_cfg.device)
             )
             ans += normal_dist.log_prob(x).exp()
         return torch.log(ans / self.n_samples)

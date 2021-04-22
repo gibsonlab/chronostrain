@@ -60,12 +60,11 @@ class GaussianPosterior(AbstractPosterior):
                 bias=True,
             )
             geotorch.orthogonal(linear_layer, "weight")
-            self.reparam_networks.append(
-                torch.nn.Sequential(
-                    scaling_layer,
-                    linear_layer
-                )
-            )
+            reparam_network = torch.nn.Sequential(
+                scaling_layer,
+                linear_layer
+            ).to(cfg.torch_cfg.device)
+            self.reparam_networks.append(reparam_network)
 
         self.trainable_parameters = []
         for network in self.reparam_networks:
@@ -199,7 +198,11 @@ class BBVISolver(AbstractModelSolver):
 
         # ======== E_{F ~ Qf}(log P(F|Xi))
         n_samples = x_samples.size()[1]
-        expectation_model_log_fragment_probs = torch.zeros(size=(n_samples,), dtype=cfg.torch_cfg.default_dtype)
+        expectation_model_log_fragment_probs = torch.zeros(
+            size=(n_samples,),
+            dtype=cfg.torch_cfg.default_dtype,
+            device=cfg.torch_cfg.device
+        )
         for t_idx in range(self.model.num_times()):
             model_frag_likelihoods_t = softmax(
                 x_samples[t_idx, :, :],  # (N x S)

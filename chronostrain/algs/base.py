@@ -47,7 +47,8 @@ class AbstractModelSolver(metaclass=ABCMeta):
                 reads=self.data
             )
             self.read_likelihoods_tensors = [
-                torch.exp(ll_tensor) for ll_tensor in log_likelihoods
+                torch.exp(ll_tensor).to(cfg.torch_cfg.device)
+                for ll_tensor in log_likelihoods
             ]
             self.read_likelihoods_loaded = True
         return self.read_likelihoods_tensors
@@ -55,11 +56,15 @@ class AbstractModelSolver(metaclass=ABCMeta):
     @property
     def read_log_likelihoods(self) -> List[torch.Tensor]:
         if not self.read_log_likelihoods_loaded:
-            self.read_log_likelihoods_tensors = CachedComputation(compute_read_log_likelihoods, cache_tag=self.cache_tag).call(
+            log_likelihoods = CachedComputation(compute_read_log_likelihoods, cache_tag=self.cache_tag).call(
                 "read_log_likelihoods.pkl",
                 model=self.model,
                 reads=self.data
             )
+            self.read_log_likelihoods_tensors = [
+                ll_tensor.to(cfg.torch_cfg.device)
+                for ll_tensor in log_likelihoods
+            ]
             self.read_log_likelihoods_loaded = True
         return self.read_log_likelihoods_tensors
 
