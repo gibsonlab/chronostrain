@@ -11,6 +11,7 @@ mkdir -p $STRAINGE_LSF_OUTPUT_DIR
 mkdir -p $FILTER_LSF_OUTPUT_DIR
 
 # ================ LSF creation ===========================
+SEED=0
 for (( n_reads = ${N_READS_MIN}; n_reads < ${N_READS_MAX}+1; n_reads += ${N_READS_STEP} ));
 do
 	for (( quality_shift = ${Q_SHIFT_MIN}; quality_shift < ${Q_SHIFT_MAX}+1; quality_shift += ${Q_SHIFT_STEP} ));
@@ -26,7 +27,7 @@ do
 			READS_DIR="${TRIAL_DIR}/simulated_reads"
 			CHRONOSTRAIN_OUTPUT_DIR="${TRIAL_DIR}/output/chronostrain"
 			STRAINGE_OUTPUT_DIR="${TRIAL_DIR}/output/strainge"
-			SEED=$trial
+			SEED=$((SEED+1))
 
 			# ============ Filter LSF ===========
 			echo "Creating ${FILTER_LSF_PATH}"

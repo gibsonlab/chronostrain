@@ -5,6 +5,7 @@ source settings.sh
 
 mkdir -p $READGEN_LSF_DIR
 mkdir -p $READGEN_LSF_OUTPUT_DIR
+SEED=0
 
 for (( n_reads = ${N_READS_MIN}; n_reads < ${N_READS_MAX}+1; n_reads += ${N_READS_STEP} ));
 do
@@ -16,7 +17,7 @@ do
 			LOG_FILEPATH="${CHRONOSTRAIN_DATA_DIR}/logs/reads_${n_reads}/qs_${quality_shift}/trial_${trial}/readgen.log"
 			TRIAL_DIR="${RUNS_DIR}/reads_${n_reads}/qs_${quality_shift}/trial_${trial}"
 			READS_DIR="${TRIAL_DIR}/simulated_reads"
-			SEED=$trial
+			SEED=$((SEED+1))
 
 			echo "[Number of reads: ${n_reads}, qShift: ${quality_shift}, trial #${trial}] -> ${LSF_PATH}"
 
