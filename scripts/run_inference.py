@@ -392,7 +392,7 @@ def output_variational_result(
 
     plot_posterior_abundances(
         times=model.times,
-        posterior_samples=samples.numpy(),
+        posterior_samples=samples.cpu().numpy(),
         population=model.bacteria_pop,
         title=title,
         plots_out_path=plots_out_path,
