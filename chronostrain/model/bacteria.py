@@ -13,6 +13,7 @@ from . import logger
 
 @dataclass
 class MarkerMetadata:
+    parent_accession: str
     gene_id: str
     file_path: Path
     
@@ -52,7 +53,7 @@ class Marker:
     def to_seqrecord(self, description: str = "") -> SeqRecord:
         return SeqRecord(
             Seq(self.seq),
-            id="{}|{}".format(self.name, self.metadata.gene_id),
+            id="{}|{}|{}".format(self.metadata.parent_accession, self.name, self.metadata.gene_id),
             description=description
         )
 

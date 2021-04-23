@@ -100,21 +100,20 @@ class MetaphlanDatabase(AbstractStrainDatabase):
                 if len(strain_ext_seqids) == 0:
                     continue
 
-                marker_instance = Marker(
-                    name=marker_id,
-                    seq=seq,
-                    metadata=MarkerMetadata(
-                        gene_id=gene_id,
-                        file_path=self.marker_seq_path
-                    )
-                )
-
                 for seq_id in strain_ext_seqids:
                     if seq_id not in self.id_to_strains:
                         # logger.debug("Skipping EXT seqid {} (marker_id={})".format(seq_id, marker_id))
                         continue
                     strain = self.id_to_strains[seq_id]
-                    strain.markers.append(marker_instance)
+                    strain.markers.append(Marker(
+                        name=marker_id,
+                        seq=seq,
+                        metadata=MarkerMetadata(
+                            parent_accession=seq_id,
+                            gene_id=gene_id,
+                            file_path=self.marker_seq_path
+                        )
+                    ))
             logger.debug("Skipped {} marker sequence entries.".format(n_markers_skipped))
 
     @staticmethod

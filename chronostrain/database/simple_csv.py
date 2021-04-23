@@ -39,7 +39,9 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
                     Marker(
                         name="Genome_{}[{}:{}]".format(accession, 0, self.trim_debug),
                         seq=genome[:self.trim_debug],
-                        metadata=MarkerMetadata(gene_id="GENOME", file_path=strain_fasta_path)
+                        metadata=MarkerMetadata(parent_accession=accession,
+                                                gene_id="GENOME",
+                                                file_path=strain_fasta_path)
                     )
                 ]
             else:
@@ -47,7 +49,9 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
                     Marker(
                         name="Genome_{}".format(accession),
                         seq=genome,
-                        metadata=MarkerMetadata(gene_id="GENOME", file_path=strain_fasta_path)
+                        metadata=MarkerMetadata(parent_accession=accession,
+                                                gene_id="GENOME",
+                                                file_path=strain_fasta_path)
                     )
                 ]  # Each genome's marker is its own genome.
             self.strains[accession] = Strain(

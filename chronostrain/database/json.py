@@ -256,6 +256,7 @@ class SubsequenceLoader:
                 name=subseq_obj.name,
                 seq=subseq_obj.get_subsequence(self.get_full_genome()),
                 metadata=MarkerMetadata(
+                    parent_accession=self.strain_accession,
                     gene_id=subseq_obj.id,
                     file_path=marker_filepath
                 )
@@ -325,6 +326,7 @@ class SubsequenceLoader:
                 name=expected_marker_name,
                 seq=str(record.seq),
                 metadata=MarkerMetadata(
+                    parent_accession=self.strain_accession,
                     gene_id=expected_marker_id,
                     file_path=filepath
                 )
@@ -359,13 +361,6 @@ class SubsequenceLoader:
                             start_index=loc.start,
                             end_index=loc.end,
                             complement=loc.strand == -1
-                        ))
-
-                        print("marker {} [{}] start={}, end={}".format(
-                            tag_entry.name,
-                            tag_entry.locus_tag,
-                            loc.start,
-                            loc.end
                         ))
 
         for tag, entry in tags_to_entries.items():
