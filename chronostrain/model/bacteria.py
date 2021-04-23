@@ -3,6 +3,9 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import List, Union
 
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+
 from chronostrain.config import cfg
 from chronostrain.model.fragments import FragmentSpace
 from . import logger
@@ -45,6 +48,13 @@ class Marker:
 
     def __len__(self):
         return len(self.seq)
+
+    def to_seqrecord(self, description: str = "") -> SeqRecord:
+        return SeqRecord(
+            Seq(self.seq),
+            id="{}|{}".format(self.name, self.metadata.gene_id),
+            description=description
+        )
 
 
 @dataclass

@@ -48,11 +48,7 @@ class AbstractStrainDatabase(metaclass=ABCMeta):
         strain = self.get_strain(strain_id)
         records = []
         for marker in strain.markers:
-            records.append(
-                SeqRecord(Seq(marker.seq),
-                          id="{}|{}|{}".format(strain.id, marker.name, marker.metadata.gene_id),
-                          description="Strain:{}".format(strain.metadata.ncbi_accession))
-            )
+            records.append(marker.to_seqrecord(description="Strain:{}".format(strain.metadata.ncbi_accession)))
         with open(out_path, file_mode) as out_file:
             SeqIO.write(records, out_file, "fasta")
 

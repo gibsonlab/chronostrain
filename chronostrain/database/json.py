@@ -293,15 +293,9 @@ class SubsequenceLoader:
         self.primer_entries = primer_entries_missed
 
     def save_marker_to_disk(self, marker: Marker, filepath: Path):
-        record = SeqRecord(
-            seq=Seq(marker.seq),
-            id="{}|{}|{}".format(
-                self.strain_accession,
-                marker.name,
-                marker.metadata.gene_id
-            )
-        )
-        SeqIO.write([record], filepath, "fasta")
+        SeqIO.write([
+            marker.to_seqrecord(description="Strain:{}".format(self.strain_accession))
+        ], filepath, "fasta")
 
     def load_marker_from_disk(self, filepath: Path, expected_marker_name: str, expected_marker_id: str) -> Marker:
         record = next(SeqIO.parse(filepath, "fasta"))
@@ -365,6 +359,13 @@ class SubsequenceLoader:
                             start_index=loc.start,
                             end_index=loc.end,
                             complement=loc.strand == -1
+                        ))
+
+                        print("marker {} [{}] start={}, end={}".format(
+                            tag_entry.name,
+                            tag_entry.locus_tag,
+                            loc.start,
+                            loc.end
                         ))
 
         for tag, entry in tags_to_entries.items():
