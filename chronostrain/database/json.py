@@ -237,7 +237,7 @@ class SubsequenceLoader:
                 / "{acc}-{seq}.fasta".format(acc=self.strain_accession, seq=name)
         )
 
-    def parse_markers(self) -> Iterable[Marker]:
+    def parse_markers(self, force_refresh: bool = False) -> Iterable[Marker]:
         """
         Markers are expected to be a list of JSON objects of one of the following formats:
         (1) {'type': 'tag', 'name': <COMMON_NAME>, 'id': <NCBI_ID>}
@@ -247,8 +247,9 @@ class SubsequenceLoader:
         :return: A list of marker instances.
         """
 
-        for marker in self.load_entries_from_disk():
-            yield marker
+        if not force_refresh:
+            for marker in self.load_entries_from_disk():
+                yield marker
 
         for subseq_obj in itertools.chain(self.get_subsequences_from_tags(), self.get_subsequences_from_primers()):
             marker_filepath = self.marker_filepath(subseq_obj.name)
@@ -466,7 +467,7 @@ class JSONStrainDatabase(AbstractStrainDatabase):
                 marker_max_len=self.marker_max_len
             )
 
-            markers = [marker for marker in sequence_loader.parse_markers()]
+            markers = [marker for marker in sequence_loader.parse_markers(force_refresh=force_refresh)]
 
             self.strains[strain_entry.accession] = Strain(
                 id=strain_entry.accession,
