@@ -77,7 +77,7 @@ export READS_DIR=${READS_DIR}/filtered
 
 echo "n_reads: ${n_reads}"
 echo "trial: ${trial}"
-echo "reads dir: ${READS_DIR}"
+echo "reads dir: ${READS_DIR}/filtered"
 echo "Output dir: ${CHRONOSTRAIN_OUTPUT_DIR}"
 
 cd ${BASE_DIR}/scripts/eristwo
@@ -101,7 +101,7 @@ mkdir -p ${STRAINGE_OUTPUT_DIR}
 
 echo "n_reads: ${n_reads}"
 echo "trial: ${trial}"
-echo "reads dir: ${READS_DIR}"
+echo "reads dir: ${READS_DIR}/filtered"
 echo "Output dir: ${STRAINGE_OUTPUT_DIR}"
 
 export READS_DIR=${READS_DIR}/filtered
