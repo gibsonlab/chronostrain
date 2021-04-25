@@ -6,12 +6,12 @@
   This is an implementation of BBVI for the posterior q(X_1) q(X_2 | X_1) ...
   (Note: doesn't work as well as BBVI for mean-field assumption.)
 """
-from typing import List, Iterable, Tuple, Union, Optional, Callable
+from typing import List, Iterable, Tuple, Union, Optional, Callable, Dict
 
-import geotorch
 import torch
-from torch.distributions.multivariate_normal import MultivariateNormal
+import geotorch
 from torch.nn.functional import softmax, softplus
+from torch.distributions import Normal
 
 from chronostrain.config import cfg
 from chronostrain.util.data_cache import CacheTag
@@ -34,11 +34,11 @@ class PositiveScaleLayer(torch.nn.Module):
         return softplus(self.scale) * input
 
 
-class GaussianPosterior(AbstractPosterior):
+class GaussianPosteriorFullCorrelation(AbstractPosterior):
     def __init__(self, model: GenerativeModel):
         """
         Mean-field assumption:
-        1) Parametrize X_1, ..., X_T as a Gaussian Process, with covariance kernel \Sigma_{t, t+1}.
+        1) Parametrize the (T x S) trajectory as a (TS)-dimensional Gaussian.
         2) Parametrize F_1, ..., F_T as independent (but not identical) categorical RVs (for each read).
         :param model: The generative model to use.
         """
@@ -46,9 +46,133 @@ class GaussianPosterior(AbstractPosterior):
         self.model = model
 
         # ========== Reparametrization network (standard Gaussians -> nonstandard Gaussians)
-        self.reparam_networks: List[torch.nn.Module] = []
+        linear = torch.nn.Linear(
+            in_features=self.model.num_times() * self.model.num_strains(),
+            out_features=self.model.num_times() * self.model.num_strains()
+        )
+        geotorch.orthogonal(linear, "weight")
 
-        for _ in range(self.model.num_strains()):
+        self.reparam_network = torch.nn.Sequential(
+            PositiveScaleLayer(size=torch.Size(
+                (self.model.num_times() * self.model.num_strains(),)
+            )),
+            linear
+        )
+        self.trainable_parameters = self.reparam_network.parameters()
+        self.standard_normal = Normal(loc=0.0, scale=1.0)
+
+    def sample(self, num_samples=1) -> torch.Tensor:
+        return self.reparametrized_sample(
+            num_samples=num_samples, output_log_likelihoods=False, detach_grad=True
+        )
+
+    def reparametrized_sample(self,
+                              num_samples=1,
+                              output_log_likelihoods=False,
+                              detach_grad=False
+                              ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+        std_gaussian_samples = self.standard_normal.sample(
+            sample_shape=(num_samples, self.model.num_times() * self.model.num_strains())
+        )
+
+        # ======= Reparametrization
+        samples = self.reparam_network(std_gaussian_samples).view(
+            num_samples, self.model.num_times(), self.model.num_strains()
+        ).transpose(0, 1)
+
+        if detach_grad:
+            samples = samples.detach()
+
+        if output_log_likelihoods:
+            log_likelihoods = self.standard_normal.log_prob(std_gaussian_samples).sum(dim=1)
+            return samples, log_likelihoods
+        else:
+            return samples
+
+
+class GaussianPosteriorStrainCorrelation(AbstractPosterior):
+    def __init__(self, model: GenerativeModel):
+        """
+        Mean-field assumption:
+        1) Parametrize X_1, ..., X_T as independent S-dimensional gaussians.
+        2) Parametrize F_1, ..., F_T as independent (but not identical) categorical RVs (for each read).
+        :param model: The generative model to use.
+        """
+        # Check: might need this to be a matrix, not a vector.
+        self.model = model
+
+        # ========== Reparametrization network (standard Gaussians -> nonstandard Gaussians)
+        self.reparam_networks: Dict[int, torch.nn.Module] = dict()
+
+        for t_idx in range(self.model.num_times()):
+            scaling_layer = PositiveScaleLayer(
+                size=torch.Size(
+                    (self.model.num_strains(),)
+                )
+            )
+            linear_layer = torch.nn.Linear(
+                in_features=self.model.num_strains(),
+                out_features=self.model.num_strains(),
+                bias=True,
+            )
+            geotorch.orthogonal(linear_layer, "weight")
+            reparam_network = torch.nn.Sequential(
+                scaling_layer,
+                linear_layer
+            ).to(cfg.torch_cfg.device)
+            self.reparam_networks[t_idx] = reparam_network
+
+        self.trainable_parameters = []
+        for network in self.reparam_networks.values():
+            self.trainable_parameters += network.parameters()
+
+        self.standard_normal = Normal(loc=0.0, scale=1.0)
+
+    def sample(self, num_samples=1) -> torch.Tensor:
+        return self.reparametrized_sample(
+            num_samples=num_samples, output_log_likelihoods=False, detach_grad=True
+        )
+
+    def reparametrized_sample(self,
+                        num_samples=1,
+                        output_log_likelihoods=False,
+                        detach_grad=False
+                        ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+        std_gaussian_samples = self.standard_normal.sample(
+            sample_shape=(self.model.num_times(), num_samples, self.model.num_strains())
+        )
+
+        # ======= Reparametrization
+        samples = torch.stack([
+            self.reparam_networks[t].forward(std_gaussian_samples[t, :, :])
+            for t in range(self.model.num_times())
+        ], dim=0)  # (T x N x S)
+
+        if detach_grad:
+            samples = samples.detach()
+
+        if output_log_likelihoods:
+            log_likelihoods = self.standard_normal.log_prob(std_gaussian_samples).sum(dim=2).sum(dim=0)
+            return samples, log_likelihoods
+        else:
+            return samples
+
+
+class GaussianPosteriorTimeCorrelation(AbstractPosterior):
+    def __init__(self, model: GenerativeModel):
+        """
+        Mean-field assumption:
+        1) Parametrize X_1, X_2, ..., X_S as independent T-dimensional gaussians (one per strain).
+        2) Parametrize F_1, ..., F_T as independent (but not identical) categorical RVs (for each read).
+        :param model: The generative model to use.
+        """
+        # Check: might need this to be a matrix, not a vector.
+        self.model = model
+
+        # ========== Reparametrization network (standard Gaussians -> nonstandard Gaussians)
+        self.reparam_networks: Dict[int, torch.nn.Module] = dict()
+
+        for s_idx in range(self.model.num_strains()):
             scaling_layer = PositiveScaleLayer(
                 size=torch.Size(
                     (self.model.num_times(),)
@@ -64,55 +188,38 @@ class GaussianPosterior(AbstractPosterior):
                 scaling_layer,
                 linear_layer
             ).to(cfg.torch_cfg.device)
-            self.reparam_networks.append(reparam_network)
-
+            self.reparam_networks[s_idx] = reparam_network
         self.trainable_parameters = []
-        for network in self.reparam_networks:
+        for network in self.reparam_networks.values():
             self.trainable_parameters += network.parameters()
 
-        self.std_gaussian = MultivariateNormal(
-            loc=torch.zeros(self.model.num_times(), dtype=torch.double, device=cfg.torch_cfg.device),
-            covariance_matrix=torch.eye(
-                self.model.num_times(),
-                self.model.num_times(),
-                dtype=cfg.torch_cfg.default_dtype,
-                device=cfg.torch_cfg.device)
-        )
+        self.standard_normal = Normal(loc=0.0, scale=1.0)
 
     def sample(self, num_samples=1) -> torch.Tensor:
-        return self._private_sample(
+        return self.reparametrized_sample(
             num_samples=num_samples, output_log_likelihoods=False, detach_grad=True
-        ).transpose(0, 2)
+        )
 
-    def _private_sample(self,
+    def reparametrized_sample(self,
                         num_samples=1,
                         output_log_likelihoods=False,
                         detach_grad=False
                         ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
-        std_gaussian_samples = [
-            self.std_gaussian.sample(sample_shape=torch.Size([num_samples]))
-            for _ in range(self.model.num_strains())
-        ]
+        std_gaussian_samples = self.standard_normal.sample(
+            sample_shape=(self.model.num_strains(), num_samples, self.model.num_times())
+        )
 
         # ======= Reparametrization
         samples = torch.stack([
-            self.reparam_networks[s].forward(std_gaussian_samples[s])
-            for s in range(self.model.num_strains())
-        ])  # (S x N x T)
-
-        # samples = torch.stack([
-        #     self.means[t].expand(num_samples, -1) + softplus(self.stdevs_sources[t]).expand(num_samples, -1) * std_gaussian_samples[t]
-        #     for t in range(self.model.num_times())
-        # ])
+            self.reparam_networks[s_idx].forward(std_gaussian_samples[s_idx, :, :])
+            for s_idx in range(self.model.num_strains())
+        ], dim=0).transpose(0, 2)
 
         if detach_grad:
             samples = samples.detach()
 
         if output_log_likelihoods:
-            log_likelihoods = torch.stack([
-                self.std_gaussian.log_prob(std_gaussian_samples[s])
-                for s in range(self.model.num_strains())
-            ])
+            log_likelihoods = self.standard_normal.log_prob(std_gaussian_samples).sum(dim=2).sum(dim=0)
             return samples, log_likelihoods
         else:
             return samples
@@ -143,9 +250,19 @@ class BBVISolver(AbstractModelSolver):
     def __init__(self,
                  model: GenerativeModel,
                  data: TimeSeriesReads,
-                 cache_tag: CacheTag):
+                 cache_tag: CacheTag,
+                 correlation_type: str = "time"):
         super().__init__(model, data, cache_tag)
-        self.gaussian_posterior = GaussianPosterior(model=model)
+        self.correlation_type = correlation_type
+        if correlation_type == "time":
+            self.gaussian_posterior = GaussianPosteriorTimeCorrelation(model=model)
+        elif correlation_type == "strain":
+            self.gaussian_posterior = GaussianPosteriorStrainCorrelation(model=model)
+        elif correlation_type == "full":
+            self.gaussian_posterior = GaussianPosteriorFullCorrelation(model=model)
+        else:
+            raise ValueError("Unrecognized `correlation_type` argument {}.".format(correlation_type))
+
         self.fragment_posterior = FragmentPosterior(model=model)  # time-indexed list of F x N tensors.
         self.read_indices = []
 
@@ -218,6 +335,11 @@ class BBVISolver(AbstractModelSolver):
             expectation_model_log_fragment_probs += model_frag_likelihoods_t.mv(
                 self.fragment_posterior.phi[t_idx].sum(dim=1)  # length F
             )  # length N
+
+            # leftover_reads = 100000
+            # expectation_model_log_fragment_probs += model_frag_likelihoods_t.mv(
+            #     (leftover_reads / self.model.get_fragment_space().size()) * torch.ones(size=(self.model.get_fragment_space().size(),))
+            # )  # length N
         elbo_samples = (model_gaussian_log_likelihoods
                         + expectation_model_log_fragment_probs
                         - posterior_gaussian_log_likelihoods)
@@ -236,7 +358,7 @@ class BBVISolver(AbstractModelSolver):
         for t in range(self.model.num_times()):
             phi_t = self.read_likelihoods[t] * torch.exp(
                 torch.mean(
-                    torch.matmul(W, softmax(x_samples[t], dim=1).transpose(0, 1)),
+                    torch.matmul(W, softmax(x_samples[t], dim=1).transpose(0, 1)).log(),
                     dim=1
                 )
             ).unsqueeze(1)
@@ -250,7 +372,6 @@ class BBVISolver(AbstractModelSolver):
               print_debug_every=1,
               thresh_elbo=0.0,
               callbacks: Optional[List[Callable]] = None):
-
         if optim_args is None:
             optim_args = {'lr': 1e-3, 'betas': (0.9, 0.999), 'eps': 1e-8, 'weight_decay': 0.}
 
@@ -259,7 +380,8 @@ class BBVISolver(AbstractModelSolver):
             **optim_args
         )
 
-        logger.debug("BBVI algorithm started. (Gradient method, Target iterations={it}, lr={lr}, n_samples={n_samples})".format(
+        logger.debug("BBVI algorithm started. (Correlation={corr}, Gradient method, Target iterations={it}, lr={lr}, n_samples={n_samples})".format(
+            corr=self.correlation_type,
             it=iters,
             lr=optim_args["lr"],
             n_samples=num_samples
@@ -273,13 +395,11 @@ class BBVISolver(AbstractModelSolver):
             k += 1
             time_est.stopwatch_click()
 
-            x_samples, gaussian_log_likelihoods = self.gaussian_posterior._private_sample(
+            x_samples, gaussian_log_likelihoods = self.gaussian_posterior.reparametrized_sample(
                 num_samples=num_samples,
                 output_log_likelihoods=True,
                 detach_grad=False
-            )
-
-            x_samples = x_samples.transpose(0, 2)
+            )  # (T x N x S)
 
             optimizer.zero_grad()
             with torch.no_grad():

@@ -16,8 +16,7 @@ from matplotlib import animation
 from typing import Optional, List, Tuple
 
 from chronostrain import logger, cfg
-from chronostrain.algs.vi import AbstractPosterior
-from chronostrain.algs import em, bbvi, bbvi_reparam
+from chronostrain.algs import AbstractPosterior, BBVISolver, EMSolver
 from chronostrain.model import Population
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.reads import BasicFastQErrorModel, NoiselessErrorModel
@@ -86,7 +85,7 @@ def perform_em(
     q_smoothing = 1e-30
 
     # ==== Run the solver.
-    solver = em.EMSolver(model,
+    solver = EMSolver(model,
                          reads,
                          cache_tag=cache_tag,
                          lr=learning_rate)
@@ -179,11 +178,12 @@ def perform_bbvi(
         cache_tag: CacheTag,
         plot_format: str,
         plot_elbo_history: bool = True,
-        do_training_animation: bool = False
+        do_training_animation: bool = False,
+        correlation_type: str = "full"
 ):
 
     # ==== Run the solver.
-    solver = bbvi.BBVISolver(model=model, data=reads, cache_tag=cache_tag)
+    solver = BBVISolver(model=model, data=reads, cache_tag=cache_tag, correlation_type=correlation_type)
 
     callbacks = []
 
@@ -282,50 +282,50 @@ def perform_bbvi(
     logger.info("Plots saved to {}.".format(plot_out_path))
 
 
-def perform_bbvi_reparametrization(
-        model: GenerativeModel,
-        reads: TimeSeriesReads,
-        disable_quality: bool,
-        iters: int,
-        learning_rate: float,
-        cache_tag: CacheTag,
-        plot_out_path: Path,
-        samples_path: Path,
-        plot_format: str,
-        ground_truth_path: Path = None,
-        num_posterior_samples: int = 5000):
-
-    # ==== Run the solver.
-    solver = bbvi_reparam.BBVIReparamSolver(
-        model=model,
-        data=reads,
-        cache_tag=cache_tag,
-    )
-    bbvi_posterior = solver.solve(
-        iters=iters,
-        thresh=1e-5,
-        print_debug_every=1,
-        lr=learning_rate
-    )
-
-    torch.save(bbvi_posterior.sample(num_samples=num_posterior_samples), samples_path)
-    logger.info("Posterior samples saved to {}. [{}]".format(
-        samples_path,
-        filesystem.convert_size(samples_path.stat().st_size)
-    ))
-
-    output_variational_result(
-        method="Black Box Variational Inference (with reparametrization)",
-        model=model,
-        posterior=bbvi_posterior,
-        disable_quality=disable_quality,
-        plots_out_path=plot_out_path,
-        samples_out_path=samples_path,
-        plot_format=plot_format,
-        num_samples=num_posterior_samples,
-        truth_path=ground_truth_path
-    )
-    logger.info("Plots saved to {}.".format(plot_out_path))
+# def perform_bbvi_reparametrization(
+#         model: GenerativeModel,
+#         reads: TimeSeriesReads,
+#         disable_quality: bool,
+#         iters: int,
+#         learning_rate: float,
+#         cache_tag: CacheTag,
+#         plot_out_path: Path,
+#         samples_path: Path,
+#         plot_format: str,
+#         ground_truth_path: Path = None,
+#         num_posterior_samples: int = 5000):
+#
+#     # ==== Run the solver.
+#     solver = BBVIReparamSolver(
+#         model=model,
+#         data=reads,
+#         cache_tag=cache_tag,
+#     )
+#     bbvi_posterior = solver.solve(
+#         iters=iters,
+#         thresh=1e-5,
+#         print_debug_every=1,
+#         lr=learning_rate
+#     )
+#
+#     torch.save(bbvi_posterior.sample(num_samples=num_posterior_samples), samples_path)
+#     logger.info("Posterior samples saved to {}. [{}]".format(
+#         samples_path,
+#         filesystem.convert_size(samples_path.stat().st_size)
+#     ))
+#
+#     output_variational_result(
+#         method="Black Box Variational Inference (with reparametrization)",
+#         model=model,
+#         posterior=bbvi_posterior,
+#         disable_quality=disable_quality,
+#         plots_out_path=plot_out_path,
+#         samples_out_path=samples_path,
+#         plot_format=plot_format,
+#         num_samples=num_posterior_samples,
+#         truth_path=ground_truth_path
+#     )
+#     logger.info("Plots saved to {}.".format(plot_out_path))
 
 
 # def perform_vi(
@@ -587,25 +587,26 @@ def main():
             learning_rate=args.learning_rate,
             cache_tag=cache_tag,
             plot_format=args.plot_format,
-            out_dir=out_dir
+            out_dir=out_dir,
+            do_training_animation=True
         )
-    elif args.method == 'bbvi_reparametrization':
-        logger.info("Solving using Black-Box Variational Inference.")
-        plots_path = out_dir / "plot.{}".format(args.plot_format)
-        samples_path = out_dir / "samples.pt"
-        perform_bbvi_reparametrization(
-            model=model,
-            reads=reads,
-            disable_quality=not cfg.model_cfg.use_quality_scores,
-            iters=args.iters,
-            learning_rate=args.learning_rate,
-            cache_tag=cache_tag,
-            plot_format=args.plot_format,
-            plot_out_path=plots_path,
-            samples_path=samples_path,
-            ground_truth_path=true_abundance_path,
-            num_posterior_samples=args.num_posterior_samples
-        )
+    # elif args.method == 'bbvi_reparametrization':
+    #     logger.info("Solving using Black-Box Variational Inference.")
+    #     plots_path = out_dir / "plot.{}".format(args.plot_format)
+    #     samples_path = out_dir / "samples.pt"
+    #     perform_bbvi_reparametrization(
+    #         model=model,
+    #         reads=reads,
+    #         disable_quality=not cfg.model_cfg.use_quality_scores,
+    #         iters=args.iters,
+    #         learning_rate=args.learning_rate,
+    #         cache_tag=cache_tag,
+    #         plot_format=args.plot_format,
+    #         plot_out_path=plots_path,
+    #         samples_path=samples_path,
+    #         ground_truth_path=true_abundance_path,
+    #         num_posterior_samples=args.num_posterior_samples
+    #     )
     # elif args.method == 'vsmc':
     #     logger.info("Solving using Variational Sequential Monte-Carlo.")
     #     plots_path = out_dir / "plot.{}".format(args.plot_format)
