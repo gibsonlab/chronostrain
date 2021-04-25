@@ -12,7 +12,7 @@ source settings.sh
 
 echo "Running inference."
 python $PROJECT_DIR/scripts/run_inference.py \
---reads_dir ${READS_DIR}/filtered \
+--reads_dir ${READS_DIR} \
 --true_abundance_path $TRUE_ABUNDANCE_PATH \
 --method $CHRONOSTRAIN_METHOD \
 --read_length $READ_LEN \
