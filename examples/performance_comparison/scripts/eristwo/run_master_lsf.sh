@@ -73,7 +73,7 @@ mkdir -p ${CHRONOSTRAIN_OUTPUT_DIR}
 export CHRONOSTRAIN_LOG_FILEPATH=${CHRONOSTRAIN_DATA_DIR}/logs/reads_${n_reads}/qs_${quality_shift}/trial_${trial}/chronostrain.log
 export CHRONOSTRAIN_OUTPUT_DIR=${CHRONOSTRAIN_OUTPUT_DIR}
 export SEED=${SEED}
-export READS_DIR=${READS_DIR}
+export READS_DIR=${READS_DIR}/filtered
 
 echo "n_reads: ${n_reads}"
 echo "trial: ${trial}"
