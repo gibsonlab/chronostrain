@@ -104,7 +104,7 @@ echo "trial: ${trial}"
 echo "reads dir: ${READS_DIR}"
 echo "Output dir: ${STRAINGE_OUTPUT_DIR}"
 
-export READS_DIR=${READS_DIR}
+export READS_DIR=${READS_DIR}/filtered
 export STRAINGE_OUTPUT_DIR="${STRAINGE_OUTPUT_DIR}"
 export CHRONOSTRAIN_LOG_FILEPATH="${CHRONOSTRAIN_DATA_DIR}/logs/reads_${n_reads}/qs_${quality_shift}/trial_${trial}/strainge_plot.log"
 
