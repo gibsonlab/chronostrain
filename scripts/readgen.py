@@ -11,6 +11,8 @@ from chronostrain import cfg, logger
 from chronostrain.database import AbstractStrainDatabase
 from chronostrain.util.external.art import art_illumina
 
+from random import seed, randint
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Simulate reads from genomes, using ART.")
@@ -50,6 +52,18 @@ def parse_args():
     return parser.parse_args()
 
 
+class Seed(object):
+    def __init__(self, init: int = 0, min_value: int = 0, max_value: int = 1000000):
+        self.value = init
+        self.min_value = min_value
+        self.max_value = max_value
+        seed(self.value)
+
+    def next_value(self):
+        r = randint(self.min_value, self.max_value)
+        return r
+
+
 def main():
     args = parse_args()
     strain_db = cfg.database_cfg.get_database()
@@ -58,7 +72,7 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
 
     timepoint_indexed_files = []
-    seed = args.seed
+    seed = Seed(args.seed)
     for t, abundance_t in parse_abundance_profile(args.abundance_path):
         out_path_t = out_dir / "reads_{t}.fastq".format(t=t)
         tmpdir = out_dir / "tmp_{t}".format(t=t)
@@ -79,7 +93,6 @@ def main():
             n_cores=args.num_cores,
             cleanup=args.cleanup
         )
-        seed = seed + 1
         timepoint_indexed_files.append((t, out_path_t))
     logger.info("Sampled reads to {}".format(args.out_dir))
 
@@ -127,7 +140,7 @@ def sample_reads_from_rel_abundances(final_reads_path: Path,
                                      read_len: int,
                                      quality_shift: int,
                                      quality_shift_2: int,
-                                     seed: int,
+                                     seed: Seed,
                                      n_cores: int,
                                      cleanup: bool):
     """
@@ -151,7 +164,7 @@ def sample_reads_from_rel_abundances(final_reads_path: Path,
     """
     if n_cores == 1:
         strain_read_paths = []
-        for t_index, (accession, rel_abund) in enumerate(abundances.items()):
+        for entry_index, (accession, rel_abund) in enumerate(abundances.items()):
             strain = strain_db.get_strain(strain_id=accession)
 
             output_path = art_illumina(
@@ -164,7 +177,7 @@ def sample_reads_from_rel_abundances(final_reads_path: Path,
                 quality_shift=quality_shift,
                 quality_shift_2=quality_shift_2,
                 read_length=read_len,
-                seed=seed + t_index
+                seed=seed.next_value()
             )
 
             strain_read_paths.append(output_path)
@@ -177,8 +190,8 @@ def sample_reads_from_rel_abundances(final_reads_path: Path,
             profile_first,
             profile_second,
             read_len,
-            seed + t_index
-        ) for t_index, (accession, rel_abund) in enumerate(abundances.items())]
+            seed.next_value()
+        ) for entry_index, (accession, rel_abund) in enumerate(abundances.items())]
 
         thread_pool = Pool(n_cores)
         strain_read_paths = thread_pool.starmap(art_illumina, configs)
