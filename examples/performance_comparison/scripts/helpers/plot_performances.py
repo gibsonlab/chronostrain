@@ -30,6 +30,8 @@ def parse_args():
     parser.add_argument('--draw_legend', action="store_true")
     parser.add_argument('--legend_labels', required=False, type=str, nargs='+')
     parser.add_argument('-fmt', '--format', required=False, type=str, default="pdf")
+    parser.add_argument('--width', required=False, type=int, default=15)
+    parser.add_argument('--height', required=False, type=int, default=10)
 
     return parser.parse_args()
 
@@ -59,6 +61,8 @@ def plot_performance_comparison(
         draw_legend: bool = True,
         font_size: int = 18,
         thickness: int = 1,
+        width: int = 15,
+        height: int = 10,
         legend_labels: List[str] = None,
         img_format="pdf"
 ):
@@ -100,22 +104,24 @@ def plot_performance_comparison(
 
     plt.rcParams.update({'font.size': font_size})
 
+    fig, ax = plt.subplot(figsize=(width, height))
     sns.boxplot(
         x='Quality Shift',
         y='Hellinger Error',
         hue='Label',
         data=df,
-        palette='cubehelix'
+        palette='cubehelix',
+        ax=ax
     )
 
-    legend = plt.legend()
+    legend = ax.legend()
     if legend_labels is not None:
         for i, label in enumerate(legend_labels):
             legend.get_texts()[i].set_text(label)
 
     if title:
-        plt.title(title)
-    plt.savefig(out_path, bbox_inches='tight', format=img_format)
+        ax.title(title)
+    fig.savefig(out_path, bbox_inches='tight', format=img_format)
 
 
 def main():
