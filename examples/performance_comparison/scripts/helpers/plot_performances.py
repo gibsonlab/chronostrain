@@ -104,7 +104,7 @@ def plot_performance_comparison(
 
     plt.rcParams.update({'font.size': font_size})
 
-    fig, ax = plt.subplot(figsize=(width, height))
+    fig, ax = plt.subplots(figsize=(width, height))
     sns.boxplot(
         x='Quality Shift',
         y='Hellinger Error',
