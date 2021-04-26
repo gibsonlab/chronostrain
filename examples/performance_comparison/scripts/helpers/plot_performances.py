@@ -68,11 +68,19 @@ def plot_performance_comparison(
     abundance_diffs = []
     for (trial_id, q_shift, path) in trials:
         if path.suffix == ".csv":
-            _, abundances, _ = load_abundances(path)
+            try:
+                _, abundances, _ = load_abundances(path)
+            except FileNotFoundError as e:
+                logger.warn("File {} not found. Skipping.".format(path))
+                continue
             hellinger = (abundances.sqrt() - true_abundances.sqrt()).pow(2).sum(dim=1).sqrt().mean() / np.sqrt(2)
             abundance_diffs.append((trial_id, q_shift, hellinger))
         elif path.suffix == ".pt":
-            abundances = load_abundance_samples(path)  # (T x N x S)
+            try:
+                abundances = load_abundance_samples(path)  # (T x N x S)
+            except FileNotFoundError as e:
+                logger.warn("File {} not found. Skipping.".format(path))
+                continue
             hellinger_errors = torch.pow(
                 abundances.sqrt() - true_abundances.unsqueeze(1).sqrt(),
                 2
