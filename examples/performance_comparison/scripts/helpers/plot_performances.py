@@ -120,7 +120,7 @@ def plot_performance_comparison(
             legend.get_texts()[i].set_text(label)
 
     if title:
-        ax.title(title)
+        ax.set_title(title)
     fig.savefig(out_path, bbox_inches='tight', format=img_format)
 
 
