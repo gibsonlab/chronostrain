@@ -14,7 +14,7 @@ export N_READS_STEP=1000000
 export Q_SHIFT_MIN=-5
 export Q_SHIFT_MAX=5
 export Q_SHIFT_STEP=1
-export N_TRIALS=10
+export N_TRIALS=30
 export READ_LEN=150
 
 # Location for reads and outputs.
