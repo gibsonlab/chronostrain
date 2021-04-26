@@ -36,7 +36,7 @@ class BasicFastQErrorModel(AbstractErrorModel):
         # NOTE: Ignore quality score distributions (assume negligible/constant likelihood for all q-score vectors.)
         # This only uses phred scores to compute Pr(Read | Fragment, Quality).
         error_prob = self.phred_error_prob(read.quality)
-        matches: np.ndarray = (fragment.seq == read.seq)
+        matches: np.ndarray = (fragment.seq == read.seq) & (read.quality > 0)
 
         p_matches = 1 - error_prob[np.where(matches)]
         p_errors = (1/3) * error_prob[np.where(~matches)]

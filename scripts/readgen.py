@@ -12,6 +12,7 @@ from chronostrain.database import AbstractStrainDatabase
 from chronostrain.util.external.art import art_illumina
 
 from random import seed, randint
+import numpy as np
 
 
 def parse_args():
@@ -64,6 +65,19 @@ class Seed(object):
         return r
 
 
+def sample_read_counts(n_reads: int, rel_abund: Dict[str, float]) -> Dict[str, int]:
+    """
+    :param rel_abund: A dictionary mapping strain IDs to its relative abundance fraction.
+    :return: A dictionary mapping strain IDS to read counts, sampled as a multinomial.
+    """
+    strains = list(rel_abund.keys())
+    counts = np.random.multinomial(n=n_reads, pvals=[rel_abund[strain] for strain in strains])
+    return {
+        strains[i]: counts[i]
+        for i in range(len(strains))
+    }
+
+
 def main():
     args = parse_args()
     strain_db = cfg.database_cfg.get_database()
@@ -74,14 +88,19 @@ def main():
     timepoint_indexed_files = []
     seed = Seed(args.seed)
     for t, abundance_t in parse_abundance_profile(args.abundance_path):
+        # Sample a random multinomial profile.
+        np.random.seed(seed.next_value())
+        read_counts_t = sample_read_counts(args.num_reads, abundance_t)
+
+        # Generate the read path.
         out_path_t = out_dir / "reads_{t}.fastq".format(t=t)
         tmpdir = out_dir / "tmp_{t}".format(t=t)
         Path(tmpdir).mkdir(parents=True, exist_ok=True)
 
+        # Invoke art sampler on each time point.
         sample_reads_from_rel_abundances(
             final_reads_path=out_path_t,
-            abundances=abundance_t,
-            num_reads=args.num_reads,
+            abundances=read_counts_t,
             strain_db=strain_db,
             tmp_dir=tmpdir,
             profile_first=args.profiles[0],
@@ -132,7 +151,6 @@ def parse_abundance_profile(abundance_path: str) -> List[Tuple[float, Dict]]:
 
 def sample_reads_from_rel_abundances(final_reads_path: Path,
                                      abundances: Dict[str, float],
-                                     num_reads: int,
                                      strain_db: AbstractStrainDatabase,
                                      tmp_dir: Path,
                                      profile_first: Path,
@@ -164,12 +182,12 @@ def sample_reads_from_rel_abundances(final_reads_path: Path,
     """
     if n_cores == 1:
         strain_read_paths = []
-        for entry_index, (accession, rel_abund) in enumerate(abundances.items()):
+        for entry_index, (accession, read_count) in enumerate(abundances.items()):
             strain = strain_db.get_strain(strain_id=accession)
 
             output_path = art_illumina(
                 reference_path=strain.metadata.file_path,
-                num_reads=int(rel_abund * num_reads),
+                num_reads=read_count,
                 output_dir=tmp_dir,
                 output_prefix="{}_".format(accession),
                 profile_first=profile_first,
@@ -184,14 +202,14 @@ def sample_reads_from_rel_abundances(final_reads_path: Path,
     elif n_cores > 1:
         configs = [(
             strain_db.get_strain(accession).metadata.file_path,
-            int(rel_abund * num_reads),
+            read_count,
             tmp_dir,
             "{}_".format(accession),
             profile_first,
             profile_second,
             read_len,
             seed.next_value()
-        ) for entry_index, (accession, rel_abund) in enumerate(abundances.items())]
+        ) for entry_index, (accession, read_count) in enumerate(abundances.items())]
 
         thread_pool = Pool(n_cores)
         strain_read_paths = thread_pool.starmap(art_illumina, configs)

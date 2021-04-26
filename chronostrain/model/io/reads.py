@@ -1,6 +1,6 @@
 from pathlib import Path
 from typing import List, Optional
-import torch
+import numpy as np
 
 from Bio import SeqIO
 from Bio.Seq import Seq
@@ -47,7 +47,7 @@ class TimeSliceReads(object):
     def load(file_path: Path, time_point: float):
         reads = []
         for record in SeqIO.parse(file_path, "fastq"):
-            quality = torch.tensor(record.letter_annotations["phred_quality"], dtype=torch.int)
+            quality = np.array(record.letter_annotations["phred_quality"], dtype=np.int)
             read = SequenceRead(
                 read_id=record.id,
                 seq=str(record.seq),

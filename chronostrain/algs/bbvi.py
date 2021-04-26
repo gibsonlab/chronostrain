@@ -251,7 +251,8 @@ class BBVISolver(AbstractModelSolver):
                  model: GenerativeModel,
                  data: TimeSeriesReads,
                  cache_tag: CacheTag,
-                 correlation_type: str = "time"):
+                 correlation_type: str = "time",
+                 read_likelihood_numerical_thresh: float = 1e-15):
         super().__init__(model, data, cache_tag)
         self.correlation_type = correlation_type
         if correlation_type == "time":
@@ -269,10 +270,11 @@ class BBVISolver(AbstractModelSolver):
         for t_idx, read_likelihood_matrix in enumerate(self.read_likelihoods):
             sums = read_likelihood_matrix.sum(dim=0)
 
-            zero_indices = {i.item() for i in torch.where(sums == 0)[0]}
+            zero_indices = {i.item() for i in torch.where(sums <= read_likelihood_numerical_thresh)[0]}
             if len(zero_indices) > 0:
-                logger.warn("[t = {}] Discarding reads with overall likelihood zero: {}".format(
+                logger.warn("[t = {}] Discarding reads with overall likelihood < {}: {}".format(
                     self.model.times[t_idx],
+                    read_likelihood_numerical_thresh,
                     ",".join([str(read_idx) for read_idx in zero_indices])
                 ))
 
@@ -336,10 +338,6 @@ class BBVISolver(AbstractModelSolver):
                 self.fragment_posterior.phi[t_idx].sum(dim=1)  # length F
             )  # length N
 
-            # leftover_reads = 100000
-            # expectation_model_log_fragment_probs += model_frag_likelihoods_t.mv(
-            #     (leftover_reads / self.model.get_fragment_space().size()) * torch.ones(size=(self.model.get_fragment_space().size(),))
-            # )  # length N
         elbo_samples = (model_gaussian_log_likelihoods
                         + expectation_model_log_fragment_probs
                         - posterior_gaussian_log_likelihoods)
