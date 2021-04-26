@@ -137,7 +137,9 @@ def main():
         thickness=args.thickness,
         draw_legend=args.draw_legend,
         legend_labels=args.legend_labels,
-        img_format=args.format
+        img_format=args.format,
+        width=args.width,
+        height=args.height
     )
     logger.info("Output the performance plot to {}".format(args.output_path))
 
