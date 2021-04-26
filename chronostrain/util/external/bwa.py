@@ -25,7 +25,7 @@ def bwa_mem(output_path: str,
         read_path
     ]
     if report_all_alignments:
-        params.insert('-a', 5)
+        params.insert(5, '-a')
     exit_code = call_command(
         command=bwa_path,
         args=params

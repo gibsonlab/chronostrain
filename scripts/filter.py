@@ -6,7 +6,7 @@ from typing import List, Tuple
 
 from chronostrain import logger, cfg
 from multiprocessing import cpu_count
-from chronostrain.util.sam_handler import SamFlags, SamHandler
+from chronostrain.util.sam_handler import SamTags, SamHandler
 from chronostrain.util.external import bwa
 from chronostrain.util.external import CommandLineException
 from chronostrain.util.external.commandline import call_command
@@ -315,6 +315,7 @@ def parse_args():
 def main():
     args = parse_args()
     db = cfg.database_cfg.get_database()
+    print("Reads path: " + args.reads_dir)
     read_paths, time_points = get_input_paths(args.reads_dir)
 
     # ============ Perform read filtering.

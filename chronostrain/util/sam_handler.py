@@ -1,4 +1,6 @@
 import enum
+import re
+from chronostrain.util.sequences import complement_seq
 
 class SamTags(enum.Enum):
     ReadName = 0
@@ -27,46 +29,11 @@ class MapFlags(enum.Enum):
     IsFirstInPair = 64
     IsMate = 128
 
-class SamLine:
-    def __init__(self, plaintext_line: str):
-        self.line = plaintext_line.strip().split('\t')
-        self.required_tags = {tag : self.line[tag.value] for tag in SamTags}
-        self.optional_tags = {}
-        for optional_tag in line[11:]:
-            if optional_tag[:5] == 'MD:Z:':
-                self.optional_tags['MD'] = optional_tag[5:]
-
-    def is_mapped(self):
-        return self.required_tags[SamTags.MapFlag] & MapFlags.Unmapped == MapFlags.Unmapped
-
-    def get_fragment(self, reference_path):
-
-        map_pos = int(self[SamTags.MapPos])
-        split_cigar = re.findall('\d+|\D+', self[SamTags.Cigar])
-        start_clip = 0
-        if split_cigar[1] == 'S':
-            start_clip = int(split_cigar[0])
-        reference_index = map_pos - start_clip - 1
-
-        reference_sequences = {}
-        with open(reference_path, 'r') as ref_file:
-            
-
-
-    def __str__(self):
-        return '\t'.join(self.line)
-
-    def __getitem__(self, key):
-        if key in SamTags:
-            return self.required_tags[key]
-        else:
-            return self.optional_tags[key]
-
-
 class SamHandler:
     def __init__(self, file_path, reference_path, load_unmapped = False):
         self.file_path = file_path
         self.reference_path = reference_path
+        self.reference_sequences = self.get_multifasta_sequences()
         self.unmapped_loaded = load_unmapped
 
         self.header = []
@@ -76,9 +43,10 @@ class SamHandler:
                 if line[0] == '@':
                     self.header.append(line)
                     continue
-                sam_line = SamLine(line)
-                if load_unmapped or same_line.is_mapped():
+                sam_line = SamLine(line, self)
+                if load_unmapped or sam_line.is_mapped():
                     self.contents.append(sam_line)
+        print("Constructed handler with " + str(len(self.contents)) + " sam lines")
 
     def mapped_lines(self):
         if not self.unmapped_loaded:
@@ -87,3 +55,65 @@ class SamHandler:
             for line in self.contents:
                 if line.is_mapped:
                     yield line
+
+    def get_multifasta_sequences(self):
+        reference_sequences = {}
+        with open(self.reference_path, 'r') as ref_file:
+            key = None
+            for line in ref_file:
+                if line[0] == '>':
+                    key = line.strip()[1:]
+                    continue
+                ref_seq = reference_sequences.get(key, "")
+                ref_seq += line.strip()
+                reference_sequences[key] = ref_seq
+        return reference_sequences
+
+class SamLine:
+    def __init__(self, plaintext_line: str, handler: SamHandler):
+        self.line = plaintext_line.strip().split('\t')
+        self.handler = handler
+
+        self.required_tags = {tag : self.line[tag.value] for tag in SamTags}
+        self.optional_tags = {}
+        for optional_tag in self.line[11:]:
+            if optional_tag[:5] == 'MD:Z:':
+                self.optional_tags['MD'] = optional_tag[5:]
+
+        self.read_len = len(self.required_tags[SamTags.Read])
+
+    def is_mapped(self):
+        return int(self.required_tags[SamTags.MapFlag]) & MapFlags.Unmapped.value == 0
+
+    def is_reverse_complimented(self):
+        return int(self.required_tags[SamTags.MapFlag]) & MapFlags.ReverseCompliment.value == MapFlags.ReverseCompliment.value
+
+    def get_fragment(self):
+
+        map_pos = int(self[SamTags.MapPos])
+        split_cigar = re.findall('\d+|\D+', self[SamTags.Cigar])
+        start_clip = 0
+        if split_cigar[1] == 'S':
+            start_clip = int(split_cigar[0])
+        reference_index = map_pos - start_clip - 1
+
+        ref_seq_name = self[SamTags.ContigName]
+        ref_seq = self.handler.reference_sequences[ref_seq_name]
+        if reference_index < 0:
+            reference_index = 0
+        if reference_index + self.read_len > len(ref_seq)-1:
+            reference_index = len(ref_seq)-self.read_len-1
+        frag = ref_seq[reference_index: reference_index + self.read_len]
+        if not self.is_reverse_complimented():
+            return frag
+        else:
+            return complement_seq(frag[::-1])
+
+    def __str__(self):
+        return '\t'.join(self.line)
+
+    def __getitem__(self, key):
+        if key in SamTags:
+            return self.required_tags[key]
+        else:
+            return self.optional_tags[key]
