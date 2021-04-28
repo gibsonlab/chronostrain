@@ -106,24 +106,28 @@ echo "================ Markers Only (Filtered) ===================="
 export READS_DIR=${READS_DIR}/filtered
 export STRAINGE_DB_PATH=${STRAINGE_MARKERS_DB_PATH}
 export STRAINGE_OUTPUT_DIR="${STRAINGE_OUTPUT_DIR}/markers_filtered"
+export EXTENSION="fq"
 bash run_strainge.sh
 
 echo "================ Markers Only (Unfiltered) ===================="
 export READS_DIR=${READS_DIR}
 export STRAINGE_DB_PATH=${STRAINGE_MARKERS_DB_PATH}
 export STRAINGE_OUTPUT_DIR="${STRAINGE_OUTPUT_DIR}/markers_unfiltered"
+export EXTENSION="fastq"
 bash run_strainge.sh
 
 echo "================ Entire Ecoli genome ===================="
 export READS_DIR=${READS_DIR}
 export STRAINGE_DB_PATH=${STRAINGE_GENOMES_DB_PATH}
 export STRAINGE_OUTPUT_DIR="${STRAINGE_OUTPUT_DIR}/genomes"
+export EXTENSION="fastq"
 bash run_strainge.sh
 
 echo "================ Full DB ===================="
 export READS_DIR=${READS_DIR}
 export STRAINGE_DB_PATH=${STRAINGE_FULL_DB_PATH}
 export STRAINGE_OUTPUT_DIR="${STRAINGE_OUTPUT_DIR}/full"
+export EXTENSION="fastq"
 bash run_strainge.sh
 EOFDOC
 		done
