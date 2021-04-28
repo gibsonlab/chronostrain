@@ -102,25 +102,25 @@ cd ${BASE_DIR}/scripts/eristwo
 echo "n_reads: ${n_reads}"
 echo "trial: ${trial}"
 
-echo "Markers Only (Filtered)"
+echo "================ Markers Only (Filtered) ===================="
 export READS_DIR=${READS_DIR}/filtered
 export STRAINGE_DB_PATH=${STRAINGE_MARKERS_DB_PATH}
 export STRAINGE_OUTPUT_DIR="${STRAINGE_OUTPUT_DIR}/markers_filtered"
 bash run_strainge.sh
 
-echo "Markers Only (Filtered)"
+echo "================ Markers Only (Unfiltered) ===================="
 export READS_DIR=${READS_DIR}
 export STRAINGE_DB_PATH=${STRAINGE_MARKERS_DB_PATH}
 export STRAINGE_OUTPUT_DIR="${STRAINGE_OUTPUT_DIR}/markers_unfiltered"
 bash run_strainge.sh
 
-echo "Ecoli entire genome"
+echo "================ Entire Ecoli genome ===================="
 export READS_DIR=${READS_DIR}
 export STRAINGE_DB_PATH=${STRAINGE_GENOMES_DB_PATH}
 export STRAINGE_OUTPUT_DIR="${STRAINGE_OUTPUT_DIR}/genomes"
 bash run_strainge.sh
 
-echo "Full DB"
+echo "================ Full DB ===================="
 export READS_DIR=${READS_DIR}
 export STRAINGE_DB_PATH=${STRAINGE_FULL_DB_PATH}
 export STRAINGE_OUTPUT_DIR="${STRAINGE_OUTPUT_DIR}/full"
