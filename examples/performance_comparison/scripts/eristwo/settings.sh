@@ -68,12 +68,15 @@ export METAPHLAN_DB="${CHRONOSTRAIN_DATA_DIR}/metaphlan_db"
 export METAPHLAN_DB_INDEX="mpa_v30_CHOCOPhlAn_201901"
 
 # ========= StrainGE settings
-export STRAINGE_MARKERS_DB_DIR="${CHRONOSTRAIN_DATA_DIR}/strainge_db/genomes"
-export STRAINGE_GENOMES_DB_DIR="${CHRONOSTRAIN_DATA_DIR}/strainge_db/markers"
-export STRAINGE_FULL_DB_DIR="${CHRONOSTRAIN_DATA_DIR}/strainge_db_full"
+export STRAINGE_MARKERS_DB_DIR="${CHRONOSTRAIN_DATA_DIR}/strainge_db/markers"
 export STRAINGE_MARKERS_DB_PATH="${STRAINGE_MARKERS_DB_DIR}/marker-db.hdf5"
+
+export STRAINGE_GENOMES_DB_DIR="${CHRONOSTRAIN_DATA_DIR}/strainge_db/genomes"
 export STRAINGE_GENOMES_DB_PATH="${STRAINGE_GENOMES_DB_DIR}/genome-db.hdf5"
+
+export STRAINGE_FULL_DB_DIR="${CHRONOSTRAIN_DATA_DIR}/strainge_db_full"
 export STRAINGE_FULL_DB_PATH="${STRAINGE_FULL_DB_DIR}/full-db.hdf5"
+
 export STRAINGE_OUTPUT_FILENAME="abundances.csv"
 
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)
