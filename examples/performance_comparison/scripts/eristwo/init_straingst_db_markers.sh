@@ -35,6 +35,6 @@ do
 	KMERIZED_FILES="${KMERIZED_FILES}${kmerized_genome_file} "  # Note: the trailing space is important here.
 done
 
-straingst createdb -o ${STRAINGE_DB_PATH} ${KMERIZED_FILES}
+straingst createdb -o ${STRAINGE_MARKERS_DB_PATH} ${KMERIZED_FILES}
 
 
