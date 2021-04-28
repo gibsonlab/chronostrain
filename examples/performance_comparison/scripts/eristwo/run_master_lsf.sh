@@ -59,7 +59,7 @@ EOFDOC
 			echo "Creating ${CHRONOSTRAIN_LSF_PATH}"
 			cat <<- EOFDOC > $CHRONOSTRAIN_LSF_PATH
 #!/bin/bash
-#BSUB -J bench_chronostrain
+#BSUB -J chronostrain
 #BSUB -o ${CHRONOSTRAIN_LSF_OUTPUT_DIR}/chronostrain_reads_${n_reads}_qs_${quality_shift}_trial_${trial}-%J.out
 #BSUB -e ${CHRONOSTRAIN_LSF_OUTPUT_DIR}/chronostrain_reads_${n_reads}_qs_${quality_shift}_trial_${trial}-%J.err
 #BSUB -q $LSF_CHRONOSTRAIN_QUEUE
@@ -84,11 +84,11 @@ cd ${BASE_DIR}/scripts/eristwo
 bash run_chronostrain.sh
 EOFDOC
 
-			# ============ StrainGE LSF ============
+			# ============ StrainGE LSF -- Markers (filtered) ============
 			echo "Creating ${STRAINGE_LSF_PATH}"
 			cat <<- EOFDOC > ${STRAINGE_LSF_PATH}
 #!/bin/bash
-#BSUB -J bench_strainGE
+#BSUB -J strainGE
 #BSUB -o ${STRAINGE_LSF_OUTPUT_DIR}/strainge_reads_${n_reads}_qs_${quality_shift}_trial_${trial}-%J.out
 #BSUB -e ${STRAINGE_LSF_OUTPUT_DIR}/strainge_reads_${n_reads}_qs_${quality_shift}_trial_${trial}-%J.err
 #BSUB -q ${LSF_STRAINGE_QUEUE}
@@ -97,18 +97,33 @@ EOFDOC
 #BSUB -R rusage[mem=${LSF_STRAINGE_MEM}]
 
 source activate ${CONDA_ENV}
-mkdir -p ${STRAINGE_OUTPUT_DIR}
+cd ${BASE_DIR}/scripts/eristwo
 
 echo "n_reads: ${n_reads}"
 echo "trial: ${trial}"
-echo "reads dir: ${READS_DIR}/filtered"
-echo "Output dir: ${STRAINGE_OUTPUT_DIR}"
 
+echo "Markers Only (Filtered)"
 export READS_DIR=${READS_DIR}/filtered
-export STRAINGE_OUTPUT_DIR="${STRAINGE_OUTPUT_DIR}"
-export CHRONOSTRAIN_LOG_FILEPATH="${CHRONOSTRAIN_DATA_DIR}/logs/reads_${n_reads}/qs_${quality_shift}/trial_${trial}/strainge_plot.log"
+export STRAINGE_DB_PATH=${STRAINGE_MARKERS_DB_PATH}
+export STRAINGE_OUTPUT_DIR="${STRAINGE_OUTPUT_DIR}/markers_filtered"
+bash run_strainge.sh
 
-cd ${BASE_DIR}/scripts/eristwo
+echo "Markers Only (Filtered)"
+export READS_DIR=${READS_DIR}
+export STRAINGE_DB_PATH=${STRAINGE_MARKERS_DB_PATH}
+export STRAINGE_OUTPUT_DIR="${STRAINGE_OUTPUT_DIR}/markers_unfiltered"
+bash run_strainge.sh
+
+echo "Ecoli entire genome"
+export READS_DIR=${READS_DIR}
+export STRAINGE_DB_PATH=${STRAINGE_GENOMES_DB_PATH}
+export STRAINGE_OUTPUT_DIR="${STRAINGE_OUTPUT_DIR}/genomes"
+bash run_strainge.sh
+
+echo "Full DB"
+export READS_DIR=${READS_DIR}
+export STRAINGE_DB_PATH=${STRAINGE_FULL_DB_PATH}
+export STRAINGE_OUTPUT_DIR="${STRAINGE_OUTPUT_DIR}/full"
 bash run_strainge.sh
 EOFDOC
 		done
