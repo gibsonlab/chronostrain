@@ -9,7 +9,6 @@
 from typing import List, Iterable, Tuple, Union, Optional, Callable, Dict
 
 import torch
-import geotorch
 from torch.nn.functional import softmax, softplus
 from torch.distributions import Normal
 
@@ -46,18 +45,11 @@ class GaussianPosteriorFullCorrelation(AbstractPosterior):
         self.model = model
 
         # ========== Reparametrization network (standard Gaussians -> nonstandard Gaussians)
-        linear = torch.nn.Linear(
+        self.reparam_network = torch.nn.Linear(
             in_features=self.model.num_times() * self.model.num_strains(),
             out_features=self.model.num_times() * self.model.num_strains()
-        )
-        geotorch.orthogonal(linear, "weight")
-
-        self.reparam_network = torch.nn.Sequential(
-            PositiveScaleLayer(size=torch.Size(
-                (self.model.num_times() * self.model.num_strains(),)
-            )),
-            linear
-        )
+        ).to(cfg.torch_cfg.device)
+        torch.nn.init.eye(self.reparam_network.weight)
         self.trainable_parameters = self.reparam_network.parameters()
         self.standard_normal = Normal(loc=0.0, scale=1.0)
 
@@ -76,18 +68,23 @@ class GaussianPosteriorFullCorrelation(AbstractPosterior):
         )
 
         # ======= Reparametrization
-        samples = self.reparam_network(std_gaussian_samples).view(
-            num_samples, self.model.num_times(), self.model.num_strains()
-        ).transpose(0, 1)
+        reparametrized_samples = self.reparam_network(std_gaussian_samples)
 
         if detach_grad:
-            samples = samples.detach()
+            reparametrized_samples = reparametrized_samples.detach()
 
         if output_log_likelihoods:
-            log_likelihoods = self.standard_normal.log_prob(std_gaussian_samples).sum(dim=1)
-            return samples, log_likelihoods
+            log_likelihoods = torch.distributions.MultivariateNormal(
+                loc=self.reparam_network.bias,
+                covariance_matrix=self.reparam_network.weight.t().mm(self.reparam_network.weight)
+            ).log_prob(reparametrized_samples)
+            return reparametrized_samples.view(
+                num_samples, self.model.num_times(), self.model.num_strains()
+            ).transpose(0, 1), log_likelihoods
         else:
-            return samples
+            return reparametrized_samples.view(
+                num_samples, self.model.num_times(), self.model.num_strains()
+            ).transpose(0, 1)
 
 
 class GaussianPosteriorStrainCorrelation(AbstractPosterior):
@@ -102,28 +99,19 @@ class GaussianPosteriorStrainCorrelation(AbstractPosterior):
         self.model = model
 
         # ========== Reparametrization network (standard Gaussians -> nonstandard Gaussians)
-        self.reparam_networks: Dict[int, torch.nn.Module] = dict()
+        self.reparam_networks = []
 
         for t_idx in range(self.model.num_times()):
-            scaling_layer = PositiveScaleLayer(
-                size=torch.Size(
-                    (self.model.num_strains(),)
-                )
-            )
             linear_layer = torch.nn.Linear(
                 in_features=self.model.num_strains(),
                 out_features=self.model.num_strains(),
                 bias=True,
-            )
-            geotorch.orthogonal(linear_layer, "weight")
-            reparam_network = torch.nn.Sequential(
-                scaling_layer,
-                linear_layer
             ).to(cfg.torch_cfg.device)
-            self.reparam_networks[t_idx] = reparam_network
+            torch.nn.init.eye(linear_layer.weight)
+            self.reparam_networks.append(linear_layer)
 
         self.trainable_parameters = []
-        for network in self.reparam_networks.values():
+        for network in self.reparam_networks:
             self.trainable_parameters += network.parameters()
 
         self.standard_normal = Normal(loc=0.0, scale=1.0)
@@ -152,10 +140,23 @@ class GaussianPosteriorStrainCorrelation(AbstractPosterior):
             samples = samples.detach()
 
         if output_log_likelihoods:
-            log_likelihoods = self.standard_normal.log_prob(std_gaussian_samples).sum(dim=2).sum(dim=0)
-            return samples, log_likelihoods
+            return samples, self.log_likelihood(samples)
         else:
             return samples
+
+    def log_likelihood(self, samples):
+        # samples is (T x N x S)
+        n_samples = samples.size()[1]
+        ans = torch.zeros(size=(n_samples,), requires_grad=True)
+        for t in range(self.model.num_times()):
+            samples_t = samples[t, :, :]
+            linear = self.reparam_networks[t]
+            log_likelihood_t = torch.distributions.MultivariateNormal(
+                loc=linear.bias,
+                covariance_matrix=linear.weight.t().mm(linear.weight)
+            ).log_prob(samples_t)
+            ans = ans + log_likelihood_t
+        return ans
 
 
 class GaussianPosteriorTimeCorrelation(AbstractPosterior):
@@ -173,22 +174,13 @@ class GaussianPosteriorTimeCorrelation(AbstractPosterior):
         self.reparam_networks: Dict[int, torch.nn.Module] = dict()
 
         for s_idx in range(self.model.num_strains()):
-            scaling_layer = PositiveScaleLayer(
-                size=torch.Size(
-                    (self.model.num_times(),)
-                )
-            )
             linear_layer = torch.nn.Linear(
                 in_features=self.model.num_times(),
                 out_features=self.model.num_times(),
                 bias=True,
-            )
-            geotorch.orthogonal(linear_layer, "weight")
-            reparam_network = torch.nn.Sequential(
-                scaling_layer,
-                linear_layer
             ).to(cfg.torch_cfg.device)
-            self.reparam_networks[s_idx] = reparam_network
+            torch.nn.init.eye(linear_layer.weight)
+            self.reparam_networks[s_idx] = linear_layer
         self.trainable_parameters = []
         for network in self.reparam_networks.values():
             self.trainable_parameters += network.parameters()
@@ -213,16 +205,29 @@ class GaussianPosteriorTimeCorrelation(AbstractPosterior):
         samples = torch.stack([
             self.reparam_networks[s_idx].forward(std_gaussian_samples[s_idx, :, :])
             for s_idx in range(self.model.num_strains())
-        ], dim=0).transpose(0, 2)
+        ], dim=0)
 
         if detach_grad:
             samples = samples.detach()
 
         if output_log_likelihoods:
-            log_likelihoods = self.standard_normal.log_prob(std_gaussian_samples).sum(dim=2).sum(dim=0)
-            return samples, log_likelihoods
+            return samples.transpose(0, 2), self.log_likelihoods(samples)
         else:
-            return samples
+            return samples.transpose(0, 2)
+
+    def log_likelihoods(self, samples):
+        # For this posterior, samples is (S x N x T).
+        n_samples = samples.size()[1]
+        ans = torch.zeros(size=(n_samples,), requires_grad=True)
+        for s in range(self.model.num_strains()):
+            samples_s = samples[s, :, :]
+            linear = self.reparam_networks[s]
+            log_likelihood_s = torch.distributions.MultivariateNormal(
+                loc=linear.bias,
+                covariance_matrix=linear.weight.t().mm(linear.weight)
+            ).log_prob(samples_s)
+            ans = ans + log_likelihood_s
+        return ans
 
 
 class FragmentPosterior(object):
@@ -252,7 +257,7 @@ class BBVISolver(AbstractModelSolver):
                  data: TimeSeriesReads,
                  cache_tag: CacheTag,
                  correlation_type: str = "time",
-                 read_likelihood_numerical_thresh: float = 1e-15):
+                 read_likelihood_numerical_thresh: float = 1e-30):
         super().__init__(model, data, cache_tag)
         self.correlation_type = correlation_type
         if correlation_type == "time":

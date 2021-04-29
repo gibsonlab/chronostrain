@@ -82,30 +82,34 @@ class GenerativeModel:
     #     :return: The log-likelihood from the generative model. Outputs a length-N
     #     tensor (one log-likelihood for each sample).
     #     """
-        # # =============== Version 4: Half-Cauchy
-        # log_likelihood_first = HalfCauchyVarianceGaussian(
-        #     mean=self.mu,
-        # ).empirical_log_likelihood(x=X[0, :, :])
-        #
-        # collapsed_size = (self.num_times() - 1) * self.num_strains()
-        # n_samples = X.size()[1]
-        #
-        # dt_sqrt_inverse = torch.tensor(
-        #     [
-        #         self.dt(t_idx)
-        #         for t_idx in range(1, self.num_times())
-        #     ],
-        #     device=cfg.torch_cfg.device
-        # ).pow(-0.5)
-        # diffs = (X[1:, :, ] - X[:-1, :, ]) * dt_sqrt_inverse.unsqueeze(1).unsqueeze(2)
-        #
-        # log_likelihood_rest = HalfCauchyVarianceGaussian(
-        #     mean=torch.zeros(n_samples, collapsed_size, dtype=cfg.torch_cfg.default_dtype)
-        # ).empirical_log_likelihood(
-        #     x=diffs.transpose(0, 1).reshape(n_samples, collapsed_size)
-        # )
-        #
-        # return log_likelihood_first + log_likelihood_rest
+    #     # =============== Version 4: Half-Cauchy
+    #     log_likelihood_first = HalfCauchyVarianceGaussian(
+    #         mean=self.mu,
+    #         cauchy_scale=100.0,
+    #         n_samples=200
+    #     ).empirical_log_likelihood(x=X[0, :, :])
+    #
+    #     collapsed_size = (self.num_times() - 1) * self.num_strains()
+    #     n_samples = X.size()[1]
+    #
+    #     dt_sqrt_inverse = torch.tensor(
+    #         [
+    #             self.dt(t_idx)
+    #             for t_idx in range(1, self.num_times())
+    #         ],
+    #         device=cfg.torch_cfg.device
+    #     ).pow(-0.5)
+    #     diffs = (X[1:, :, ] - X[:-1, :, ]) * dt_sqrt_inverse.unsqueeze(1).unsqueeze(2)
+    #
+    #     log_likelihood_rest = HalfCauchyVarianceGaussian(
+    #         mean=torch.zeros(n_samples, collapsed_size, dtype=cfg.torch_cfg.default_dtype),
+    #         cauchy_scale=1.0,
+    #         n_samples=200
+    #     ).empirical_log_likelihood(
+    #         x=diffs.transpose(0, 1).reshape(n_samples, collapsed_size)
+    #     )
+    #
+    #     return log_likelihood_first + log_likelihood_rest
 
         # # =============== Version 3: Uniform
         # log_likelihood_first = UniformVarianceGaussian(
@@ -137,8 +141,8 @@ class GenerativeModel:
         #
         # return log_likelihood_first + log_likelihood_rest
 
-        # =============== Version 2: Jeffrey's prior (limit of Inverse-Gamma as alpha,beta both go to 0)
-        # log_likelihood_first = Jeffreys(mean=self.mu).log_likelihood(x=X[0, :, :])
+        # # =============== Version 2: Jeffrey's prior (limit of Inverse-Gamma as alpha,beta both go to 0)
+        # log_likelihood_first = JeffreysGaussian(mean=self.mu).log_likelihood(x=X[0, :, :])
         #
         # collapsed_size = (self.num_times() - 1) * self.num_strains()
         # n_samples = X.size()[1]
@@ -151,7 +155,7 @@ class GenerativeModel:
         # ).pow(-0.5)
         # diffs = (X[1:, :, ] - X[:-1, :, ]) * dt_sqrt_inverse.unsqueeze(1).unsqueeze(2)
         #
-        # log_likelihood_rest = Jeffreys(
+        # log_likelihood_rest = JeffreysGaussian(
         #     mean=torch.zeros(n_samples, collapsed_size, dtype=cfg.torch_cfg.default_dtype)
         # ).log_likelihood(
         #     x=diffs.transpose(0, 1).reshape(n_samples, collapsed_size)

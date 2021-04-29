@@ -23,7 +23,10 @@ do
 			STRAINGE_OUTPUT_DIR="${TRIAL_DIR}/output/strainge"
 
 			echo "Chronostrain,${quality_shift},${CHRONOSTRAIN_OUTPUT_DIR}/samples.pt" >> $OUTPUT_INDEX_PATH
-			echo "StrainGE,${quality_shift},${STRAINGE_OUTPUT_DIR}/abundances.csv" >> $OUTPUT_INDEX_PATH
+			echo "StrainGE (Markers/Filtered),${quality_shift},${STRAINGE_OUTPUT_DIR}/markers_filtered/abundances.csv" >> $OUTPUT_INDEX_PATH
+			echo "StrainGE (Markers/Unfiltered),${quality_shift},${STRAINGE_OUTPUT_DIR}/markers_unfiltered/abundances.csv" >> $OUTPUT_INDEX_PATH
+			echo "StrainGE (Genome),${quality_shift},${STRAINGE_OUTPUT_DIR}/genomes/abundances.csv" >> $OUTPUT_INDEX_PATH
+			echo "StrainGE (Full),${quality_shift},${STRAINGE_OUTPUT_DIR}/full/abundances.csv" >> $OUTPUT_INDEX_PATH
 		done
 	done
 done

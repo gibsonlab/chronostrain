@@ -179,7 +179,7 @@ def perform_bbvi(
         plot_format: str,
         plot_elbo_history: bool = True,
         do_training_animation: bool = False,
-        correlation_type: str = "time"
+        correlation_type: str = "strain"
 ):
 
     # ==== Run the solver.

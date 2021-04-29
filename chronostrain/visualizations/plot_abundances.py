@@ -203,6 +203,9 @@ def plot_posterior_abundances(
     fig, ax = plt.subplots(1, 1)
     legend_elements = []
     plt.rcParams.update({'font.size': font_size})
+    ax.set_ylim(0, 1)
+    ax.set_xlabel("Time")
+    ax.set_ylabel("Relative abundance")
 
     for s_idx, strain in enumerate(population.strains):
         # This is (T x N), for the particular strain.
