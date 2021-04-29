@@ -99,7 +99,7 @@ def plot_performance_comparison(
         ids.add(trial_id)
     df = pd.DataFrame(np.array(
         abundance_diffs,
-        dtype=[('Label', '<U10'), ('Quality Shift', int), ('Hellinger Error', float)]
+        dtype=[('Label', '<U50'), ('Quality Shift', int), ('Hellinger Error', float)]
     ))
 
     plt.rcParams.update({'font.size': font_size})
@@ -111,7 +111,8 @@ def plot_performance_comparison(
         hue='Label',
         data=df,
         palette='cubehelix',
-        ax=ax
+        ax=ax,
+        medianprops=dict(color="red", alpha=0.7)
     )
 
     legend = ax.legend()
