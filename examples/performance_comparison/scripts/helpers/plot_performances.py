@@ -115,7 +115,7 @@ def plot_performance_comparison(
         medianprops=dict(color="red", alpha=0.7)
     )
 
-    legend = ax.legend()
+    legend = ax.legend(bbox_to_anchor=(0.5, -0.05))
     if legend_labels is not None:
         for i, label in enumerate(legend_labels):
             legend.get_texts()[i].set_text(label)
