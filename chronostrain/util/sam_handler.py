@@ -46,7 +46,6 @@ class SamHandler:
                 sam_line = SamLine(line, self)
                 if load_unmapped or sam_line.is_mapped():
                     self.contents.append(sam_line)
-        print("Constructed handler with " + str(len(self.contents)) + " sam lines")
 
     def mapped_lines(self):
         if not self.unmapped_loaded:
@@ -99,10 +98,13 @@ class SamLine:
 
         ref_seq_name = self[SamTags.ContigName]
         ref_seq = self.handler.reference_sequences[ref_seq_name]
+
+        # Match to the nearest complete window of size read_len
         if reference_index < 0:
             reference_index = 0
         if reference_index + self.read_len > len(ref_seq)-1:
             reference_index = len(ref_seq)-self.read_len-1
+
         frag = ref_seq[reference_index: reference_index + self.read_len]
         if not self.is_reverse_complimented():
             return frag

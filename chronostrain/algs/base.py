@@ -12,6 +12,8 @@ from tqdm import tqdm
 
 from . import logger
 import os
+from chronostrain.util.math import mappings
+from chronostrain.util.sparse.sparse_tensor import coalesced_sparse_tensor
 from chronostrain.util.sam_handler import SamHandler, SamTags
 from chronostrain.util.external.bwa import bwa_index, bwa_mem
 from chronostrain.model.io import TimeSeriesReads
@@ -44,21 +46,27 @@ class AbstractModelSolver(metaclass=ABCMeta):
 
     @property
     def read_likelihoods(self) -> List[torch.Tensor]:
-        likelihood_handler = sparse_likelihood_handler(self.model, self.data, self.marker_reference_file)
+        if cfg.model_cfg.use_sparse_imp:
+            likelihood_handler = sparse_likelihood_handler(self.model, self.data, self.marker_reference_file)
+        else:
+            likelihood_handler = dense_likelihood_handler(self.model, self.data)
         if not self.read_log_likelihoods_loaded:
-            self.read_log_likelihoods_tensors = CachedComputation(likelihood_handler.compute_likelihood_tensors, cache_tag=self.cache_tag).call(
+            read_log_likelihoods_tensors = CachedComputation(likelihood_handler.compute_likelihood_tensors, cache_tag=self.cache_tag).call(
                 "read_log_likelihoods.pkl"
             )
             
             self.read_likelihoods_tensors = [
-                torch.exp(ll_tensor.to_dense()) for ll_tensor in self.read_log_likelihoods_tensors
+                mappings.exp(ll_tensor) for ll_tensor in read_log_likelihoods_tensors
             ]
             self.read_likelihoods_loaded = True
         return self.read_likelihoods_tensors
 
     @property
     def read_log_likelihoods(self) -> List[torch.Tensor]:
-        likelihood_handler = sparse_likelihood_handler(self.model, self.data, self.marker_reference_file)
+        if cfg.model_cfg.use_sparse_imp:
+            likelihood_handler = sparse_likelihood_handler(self.model, self.data, self.marker_reference_file)
+        else:
+            likelihood_handler = dense_likelihood_handler(self.model, self.data)
         if not self.read_log_likelihoods_loaded:
             self.read_log_likelihoods_tensors = CachedComputation(likelihood_handler.compute_likelihood_tensors, cache_tag=self.cache_tag).call(
                 "read_log_likelihoods.pkl"
@@ -66,10 +74,6 @@ class AbstractModelSolver(metaclass=ABCMeta):
             self.read_log_likelihoods_loaded = True
         return self.read_log_likelihoods_tensors
 
-
-# ===================================================================
-# ========================= Helper functions ========================
-# ===================================================================
 
 class log_likelihood_handler(metaclass=ABCMeta):
 
@@ -125,7 +129,6 @@ class dense_likelihood_handler(log_likelihood_handler):
                 for k in tqdm(range(len(self.model.times)))
             ]
         logger.debug("Computed fragment errors in {:1f} min.".format(millis_elapsed(start_time) / 60000))
-
         return log_likelihoods_tensors
 
 class sparse_likelihood_handler(log_likelihood_handler):
@@ -133,7 +136,6 @@ class sparse_likelihood_handler(log_likelihood_handler):
         self.model = model
         self.reads = reads
         self.fragment_space = model.get_fragment_space()
-        print("LOADING DB for Ref File")
         self.read_reference_file = reference_file
 
     def compute_read_frag_alignments(self, k):
@@ -153,7 +155,6 @@ class sparse_likelihood_handler(log_likelihood_handler):
             aligned_frags = self.read_frag_map.get(read, [])
             aligned_frags.append(self.fragment_space.get_fragment(sam_line.get_fragment()))
             self.read_frag_map[read] = aligned_frags
-        print(self.read_frag_map)
 
     def create_matrix_spec(self, k):
         start_t = current_time_millis()
@@ -162,7 +163,6 @@ class sparse_likelihood_handler(log_likelihood_handler):
         populated_indices = [[],[]]
         likelihoods = []
         for read_i in range(len(self.reads[k])):
-            print("Attempting key: " + self.reads[k][read_i].nucleotide_content())
             for frag in self.read_frag_map.get(self.reads[k][read_i].nucleotide_content(), {}):
                 populated_indices[1].append(read_i)
                 populated_indices[0].append(frag.index)
@@ -171,7 +171,7 @@ class sparse_likelihood_handler(log_likelihood_handler):
             k=k,
             t=millis_elapsed(start_t) / 60000
         ))
-        return (populated_indices, likelihoods, k)
+        return (torch.tensor(populated_indices), torch.Tensor(likelihoods), k)
 
     def compute_likelihood_tensors(self):
         start_time = current_time_millis()
@@ -186,14 +186,9 @@ class sparse_likelihood_handler(log_likelihood_handler):
         else:
             log_likelihoods_output = [self.create_matrix_spec(k) for k in tqdm(range(len(self.model.times)))]
         log_likelihoods_tensors = [
-            torch.sparse_coo_tensor(matrix_spec[0], matrix_spec[1], (self.fragment_space.size(), len(self.reads[matrix_spec[2]])), device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype)
+            coalesced_sparse_tensor(matrix_spec[0], matrix_spec[1], (self.fragment_space.size(), len(self.reads[matrix_spec[2]])))
             for matrix_spec in log_likelihoods_output
         ]
         logger.debug("Computed fragment errors in {:1f} min.".format(millis_elapsed(start_time) / 60000))
-        print("Log likelihoods tensors:")
-        for tensor in log_likelihoods_tensors:
-            print(tensor.size())
-            print(tensor.to_dense())
-            #print("Populated indices: " + str(len(tensor.values())))
         return log_likelihoods_tensors
 

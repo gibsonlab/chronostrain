@@ -70,6 +70,7 @@ class ModelConfig(AbstractConfig):
     def __init__(self, cfg: dict):
         super().__init__("Model")
         (self.use_quality_scores,
+         self.use_sparse_imp,
          self.num_cores,
          self.cache_dir,
          self.time_scale,
@@ -84,6 +85,15 @@ class ModelConfig(AbstractConfig):
         else:
             raise ConfigurationParseError(
                 "Field `USE_QUALITY_SCORES`: Expected `true` or `false`, got `{}`".format(q_token)
+            )
+        sparse_token = cfg["USE_SPARSE_IMPLEMENTATION"].strip().lower()
+        if sparse_token == "true":
+            use_sparse_imp = True
+        elif sparse_token == "false":
+            use_sparse_imp = False
+        else:
+            raise ConfigurationParseError(
+                "Field `USE_SPARSE_IMPLEMENTATION`: Expected `true` or `false`, got `{}`".format(sparse_token)
             )
 
         try:
@@ -109,7 +119,7 @@ class ModelConfig(AbstractConfig):
 
         cache_dir = cfg["CACHE_DIR"]
 
-        return use_quality_scores, n_cores, cache_dir, time_scale, time_scale_initial
+        return use_quality_scores, use_sparse_imp, n_cores, cache_dir, time_scale, time_scale_initial
 
 
 class TorchConfig(AbstractConfig):
