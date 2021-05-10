@@ -10,6 +10,9 @@ SICS_SCALE=1.0
 # Number of CPU cores to utilize. (Provides some benefit, could be better optimized. Experimental)
 NUM_CORES=1
 
+# If "True", uses sparse matrix representation of Read-to-fragment likelihoods, and Strain-Fragment frequencies.
+SPARSE_MATRICES=True
+
 # Cache directory for saved computation.
 CACHE_DIR=%(HOME)s/.chronostrain/cache
 

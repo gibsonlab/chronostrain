@@ -80,8 +80,9 @@ class ModelConfig(AbstractConfig):
         self.sics_scale_1: float = tokens[4]
         self.sics_dof: float = tokens[5]
         self.sics_scale: float = tokens[6]
+        self.use_sparse: bool = tokens[7]
 
-    def parse_impl(self, cfg: dict) -> Tuple[bool, int, Path, float, float, float, float]:
+    def parse_impl(self, cfg: dict) -> Tuple[bool, int, Path, float, float, float, float, bool]:
         q_token = cfg["USE_QUALITY_SCORES"].strip().lower()
         if q_token == "true":
             use_quality_scores = True
@@ -129,7 +130,17 @@ class ModelConfig(AbstractConfig):
                 "Field `SICS_SCALE`: Expect float, got `{}`".format(cfg["SICS_SCALE"])
             )
 
-        return use_quality_scores, n_cores, cache_dir, sics_dof_1, sics_scale_1, sics_dof, sics_scale
+        use_sparse_token = cfg["SPARSE_MATRICES"].strip().lower()
+        if use_sparse_token == "true":
+            use_sparse = True
+        elif use_sparse_token == "false":
+            use_sparse = False
+        else:
+            raise ConfigurationParseError(
+                "Field `SPARSE_MATRICES`: Expected `true` or `false`, got `{}`".format(use_sparse_token)
+            )
+
+        return use_quality_scores, n_cores, cache_dir, sics_dof_1, sics_scale_1, sics_dof, sics_scale, use_sparse
 
 
 class TorchConfig(AbstractConfig):

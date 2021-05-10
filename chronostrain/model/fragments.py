@@ -15,7 +15,7 @@ class Fragment:
         self.metadata: str = metadata
 
     def __hash__(self):
-        return hash(self.seq)
+        return self.index
 
     def __eq__(self, other):
         if not isinstance(other, Fragment):

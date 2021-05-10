@@ -8,8 +8,6 @@ from dataclasses import dataclass
 from typing import List, Tuple, Union, Iterable
 
 from Bio import SeqIO
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
 
 from chronostrain.config import cfg
 from chronostrain.database.base import AbstractStrainDatabase, StrainEntryError, StrainNotFoundError

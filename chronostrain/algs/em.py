@@ -156,7 +156,7 @@ class EMSolver(AbstractModelSolver):
         for t in range(T):
             # Scale each row by Z_t, and normalize.
             Z_t = self.model.strain_abundance_to_frag_abundance(y[t].view(S, 1))
-            Q = (self.get_frag_likelihoods(t)) * Z_t + q_smoothing
+            Q = self.read_likelihoods[t] * Z_t + q_smoothing
             Q = (Q / Q.sum(dim=0)[None, :]).sum(dim=1) / Z_t.view(F)
 
             sigmoid = y[t]
@@ -202,15 +202,6 @@ class EMSolver(AbstractModelSolver):
         )
 
         return _sics_mode(dof_1, scale_1), _sics_mode(dof, scale)
-
-    def get_frag_likelihoods(self, t: int):
-        """
-        Look up the fragment error matrix for timeslice t. (corresponds to epsilon^t from writeup.)
-
-        :param t: the time index (not the actual value).
-        :return: An (F x N) matrix representing the read likelihoods according to the error model.
-        """
-        return self.read_likelihoods[t]
 
     # def read_error_projections(self, t: int, frag_abundance: torch.Tensor) -> torch.Tensor:
     #     """

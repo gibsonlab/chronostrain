@@ -7,7 +7,7 @@
     Generates a cache key to avoid re-computation in future runs.
 """
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Optional, List, Dict
 import pickle
 import hashlib
 
@@ -57,19 +57,26 @@ class CacheTag(object):
 class CachedComputation(object):
     def __init__(self,
                  fn: Callable,
+                 filename: str,
                  cache_tag: CacheTag,
+                 args: Optional[List] = None,
+                 kwargs: Optional[Dict] = None,
                  save: Optional[Callable] = None,
-                 load: Optional[Callable] = None):
+                 load: Optional[Callable] = None,):
         """
         :param save: A function or Callable which takes (1) a filepath and (2) a python object as input to
         save the designated object to the specified file.
         :param load: A function or Callable which takes a filepath as input to load some object from the file.
         """
         self.fn = fn
-        self.cache_root_dir = cfg.model_cfg.cache_dir
         self.cache_tag = cache_tag
-        self.cache_dir: Path = self.cache_root_dir / self.cache_tag.encoding
+
+        self.cache_dir = cfg.model_cfg.cache_dir / self.cache_tag.encoding
         self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self.cache_path = self.cache_dir / filename
+
+        self.args = args
+        self.kwargs = kwargs
 
         self.saver = save
         self.loader = load
@@ -84,18 +91,25 @@ class CachedComputation(object):
                     return pickle.load(f)
             self.loader = load_
 
-    def call(self, filename: str, *args, **kwargs):
-        cache_path = self.cache_dir / filename
-
+    def call(self):
         # Try to retrieve from cache.
         try:
-            data = self.loader(cache_path)
-            logger.debug("[Cache {}] Loaded pre-computed file {}.".format(self.cache_tag.encoding, cache_path))
+            data = self.loader(self.cache_path)
+
+            logger.debug("[Cache {}] Loaded pre-computed file {}.".format(
+                self.cache_tag.encoding, self.cache_path
+            ))
         except FileNotFoundError:
-            logger.debug("[Cache {}] Could not load cached file {}. Recomputing.".format(self.cache_tag.encoding, cache_path))
+            logger.debug("[Cache {}] Could not load cached file {}. Recomputing.".format(
+                self.cache_tag.encoding, self.cache_path
+            ))
+
             self.cache_tag.write_attributes_to_disk(self.cache_dir / "attributes.txt")
-            data = self.fn(*args, **kwargs)
-            self.saver(cache_path, data)
-            logger.debug("[Cache {}] Saved {}.".format(self.cache_tag.encoding, cache_path))
+            data = self.fn(*self.args, **self.kwargs)
+            self.saver(self.cache_path, data)
+
+            logger.debug("[Cache {}] Saved {}.".format(
+                self.cache_tag.encoding, self.cache_path
+            ))
 
         return data

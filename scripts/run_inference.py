@@ -544,11 +544,6 @@ def main():
     More methods to be potentially added for experimentation.
     """
 
-    cache_tag = CacheTag(
-        file_paths=read_paths,
-        use_quality=cfg.model_cfg.use_quality_scores,
-    )
-
     # ============ Prepare for algorithm output.
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)

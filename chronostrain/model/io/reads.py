@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Union, Iterable
 import numpy as np
 
 from Bio import SeqIO
@@ -13,9 +13,9 @@ from chronostrain.util.filesystem import convert_size
 
 class TimeSliceReads(object):
     def __init__(self, reads: List[SequenceRead], time_point: float, src: Optional[Path] = None):
-        self.reads = reads
-        self.time_point = time_point
-        self.src = src
+        self.reads: List[SequenceRead] = reads
+        self.time_point: float = time_point
+        self.src: Union[Path, None] = src
 
     def save(self) -> int:
         """
@@ -63,7 +63,7 @@ class TimeSliceReads(object):
         ))
         return TimeSliceReads(reads, time_point, file_path)
 
-    def __iter__(self) -> SequenceRead:
+    def __iter__(self) -> Iterable[SequenceRead]:
         for read in self.reads:
             yield read
 
