@@ -64,10 +64,14 @@ class SamLine:
 
         ref_seq_name = self[SamTags.ContigName]
         ref_seq = self.reference_sequences[ref_seq_name]
+        ref_seq = self.handler.reference_sequences[ref_seq_name]
+
+        # Match to the nearest complete window of size read_len
         if reference_index < 0:
             reference_index = 0
         if reference_index + self.read_len > len(ref_seq)-1:
             reference_index = len(ref_seq)-self.read_len-1
+
         frag = ref_seq[reference_index: reference_index + self.read_len]
         if not self.is_reverse_complimented():
             return frag

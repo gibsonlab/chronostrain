@@ -4,6 +4,7 @@ import torch
 from torch.nn.functional import softmax
 
 from chronostrain.config import cfg
+from chronostrain.util.math import mappings
 from chronostrain.util.data_cache import CacheTag
 from chronostrain.model.io.reads import TimeSeriesReads
 from chronostrain.model.generative import GenerativeModel
@@ -28,7 +29,8 @@ class EMSolver(AbstractModelSolver):
                  generative_model: GenerativeModel,
                  data: TimeSeriesReads,
                  cache_tag: CacheTag,
-                 lr: float = 1e-3):
+                 lr: float = 1e-3,
+                 read_likelihood_numerical_thresh: float = 1e-30):
         """
         Instantiates an EMSolver instance.
 
@@ -38,6 +40,25 @@ class EMSolver(AbstractModelSolver):
         """
         super().__init__(generative_model, data, cache_tag)
         self.lr = lr
+
+        for t_idx, read_likelihood_matrix in enumerate(self.read_likelihoods):
+            sums = read_likelihood_matrix.sum(dim=0)
+
+            zero_indices = {i.item() for i in torch.where(sums <= read_likelihood_numerical_thresh)[0]}
+            if len(zero_indices) > 0:
+                logger.warn("[t = {}] Discarding reads with overall likelihood < {}: {}".format(
+                    self.model.times[t_idx],
+                    read_likelihood_numerical_thresh,
+                    ",".join([str(read_idx) for read_idx in zero_indices])
+                ))
+
+                leftover_indices = [
+                    i
+                    for i in range(len(data[t_idx]))
+                    if i not in zero_indices
+                ]
+
+                self.read_likelihoods_tensors[t_idx] = mappings.slice_cols(read_likelihood_matrix, torch.tensor([leftover_indices]))
 
         # ==== Experimental. Probably is not useful right now.
         # if not cfg.model_cfg.use_quality_scores:
@@ -90,8 +111,7 @@ class EMSolver(AbstractModelSolver):
                 brownian_motion,
                 var_1=var_1,
                 var=var,
-                gradient_clip=gradient_clip,
-                q_smoothing=q_smoothing
+                gradient_clip=gradient_clip
             )
 
             secs_elapsed = time_est.stopwatch_click()
@@ -130,8 +150,7 @@ class EMSolver(AbstractModelSolver):
             x: torch.Tensor,
             var: float,
             var_1: float,
-            gradient_clip: float,
-            q_smoothing: float = 0.
+            gradient_clip: float
     ) -> Tuple[torch.Tensor, float, float]:
         T, S = x.size()
         F = self.model.num_fragments()
@@ -156,8 +175,8 @@ class EMSolver(AbstractModelSolver):
         for t in range(T):
             # Scale each row by Z_t, and normalize.
             Z_t = self.model.strain_abundance_to_frag_abundance(y[t].view(S, 1))
-            Q = self.read_likelihoods[t] * Z_t + q_smoothing
-            Q = (Q / Q.sum(dim=0)[None, :]).sum(dim=1) / Z_t.view(F)
+            Q = mappings.row_hadamard(self.read_likelihoods[t], Z_t)
+            Q = mappings.column_normed_row_sum(Q) / Z_t.view(F)
 
             sigmoid = y[t]
             sigmoid_jacobian = torch.diag(sigmoid) - torch.ger(sigmoid, sigmoid)  # symmetric matrix.

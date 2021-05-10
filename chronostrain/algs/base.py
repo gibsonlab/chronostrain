@@ -12,6 +12,8 @@ from abc import ABCMeta, abstractmethod
 from joblib import Parallel, delayed
 
 from . import logger
+from chronostrain.util.math import mappings
+from chronostrain.util.sparse.sparse_tensor import coalesced_sparse_tensor
 from chronostrain.util.sam_handler import SamHandler, SamTags
 from chronostrain.util.external.bwa import bwa_index, bwa_mem
 from chronostrain.model.io import TimeSeriesReads
@@ -45,7 +47,7 @@ class AbstractModelSolver(metaclass=ABCMeta):
         if not self.read_log_likelihoods_loaded:
             self.read_log_likelihoods_tensors = self._compute_log_likelihoods()
             self.read_likelihoods_tensors = [
-                torch.exp(ll_tensor.to_dense()) for ll_tensor in self.read_log_likelihoods_tensors
+                mappings.exp(ll_tensor) for ll_tensor in self.read_log_likelihoods_tensors
             ]
             self.read_likelihoods_loaded = True
         return self.read_likelihoods_tensors
