@@ -4,8 +4,6 @@ import torch
 from torch.nn.functional import softmax
 
 from chronostrain.config import cfg
-from chronostrain.util.math import mappings
-from chronostrain.util.data_cache import CacheTag
 from chronostrain.model.io.reads import TimeSeriesReads
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.util.benchmarking import RuntimeEstimator
@@ -28,9 +26,7 @@ class EMSolver(AbstractModelSolver):
     def __init__(self,
                  generative_model: GenerativeModel,
                  data: TimeSeriesReads,
-                 cache_tag: CacheTag,
-                 lr: float = 1e-3,
-                 read_likelihood_numerical_thresh: float = 1e-30):
+                 lr: float = 1e-3):
         """
         Instantiates an EMSolver instance.
 
@@ -38,38 +34,13 @@ class EMSolver(AbstractModelSolver):
         :param data: the observed data, a time-indexed list of read collections.
         :param lr: the learning rate (default: 1e-3)
         """
-        super().__init__(generative_model, data, cache_tag)
+        super().__init__(generative_model, data)
         self.lr = lr
-
-        for t_idx, read_likelihood_matrix in enumerate(self.read_likelihoods):
-            sums = read_likelihood_matrix.sum(dim=0)
-
-            zero_indices = {i.item() for i in torch.where(sums <= read_likelihood_numerical_thresh)[0]}
-            if len(zero_indices) > 0:
-                logger.warn("[t = {}] Discarding reads with overall likelihood < {}: {}".format(
-                    self.model.times[t_idx],
-                    read_likelihood_numerical_thresh,
-                    ",".join([str(read_idx) for read_idx in zero_indices])
-                ))
-
-                leftover_indices = [
-                    i
-                    for i in range(len(data[t_idx]))
-                    if i not in zero_indices
-                ]
-
-                self.read_likelihoods_tensors[t_idx] = mappings.slice_cols(read_likelihood_matrix, torch.tensor([leftover_indices]))
-
-        # ==== Experimental. Probably is not useful right now.
-        # if not cfg.model_cfg.use_quality_scores:
-        #     logger.info("EM solve() called with disable_quality = True. Will simulate mappings from read likelihoods.")
-        #     self.do_noisy_mapping()
 
     def solve(self,
               iters: int = 1000,
               thresh: float = 1e-5,
               gradient_clip: float = 1e2,
-              q_smoothing: float = 0.,
               initialization=None,
               print_debug_every=200
               ):
@@ -174,9 +145,15 @@ class EMSolver(AbstractModelSolver):
         y = softmax(x, dim=1)
         for t in range(T):
             # Scale each row by Z_t, and normalize.
-            Z_t = self.model.strain_abundance_to_frag_abundance(y[t].view(S, 1))
-            Q = mappings.row_hadamard(self.read_likelihoods[t], Z_t)
-            Q = mappings.column_normed_row_sum(Q) / Z_t.view(F)
+            if cfg.model_cfg.use_sparse:
+                Z_t = self.model.strain_abundance_to_frag_abundance(y[t].view(S, 1))
+                Q = self.data_likelihoods.matrices[t].row_hadamard_dense_vector(Z_t)
+                # .row_hadamard(self.read_likelihoods[t], Z_t)
+                Q = Q.column_normed_row_sum(Q) / Z_t.view(F)
+            else:
+                Z_t = self.model.strain_abundance_to_frag_abundance(y[t].view(S, 1))
+                Q = self.data_likelihoods.matrices[t] * Z_t
+                Q = (Q / Q.sum(dim=0)[None, :]).sum(dim=1) / Z_t.view(F)
 
             sigmoid = y[t]
             sigmoid_jacobian = torch.diag(sigmoid) - torch.ger(sigmoid, sigmoid)  # symmetric matrix.
@@ -221,12 +198,3 @@ class EMSolver(AbstractModelSolver):
         )
 
         return _sics_mode(dof_1, scale_1), _sics_mode(dof, scale)
-
-    # def read_error_projections(self, t: int, frag_abundance: torch.Tensor) -> torch.Tensor:
-    #     """
-    #     :param t: the time index.
-    #     :param frag_abundance: The vector of fragment abundances Z_t.
-    #     :return: The vector of linear projections [<E_1^t, Z_t> , ..., <E_N^t, Z_t>].
-    #     """
-    #     # (N x F) matrix, applied to an F-dimensional vector.
-    #     return self.read_likelihoods[t].t().mv(frag_abundance)

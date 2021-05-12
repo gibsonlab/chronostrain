@@ -21,7 +21,6 @@ from chronostrain.model import Population
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.reads import BasicFastQErrorModel, NoiselessErrorModel
 from chronostrain.model.io import TimeSeriesReads, save_abundances
-from chronostrain.util.data_cache import CacheTag
 from chronostrain.util import filesystem
 from chronostrain.visualizations import plot_posterior_abundances, plot_abundances_comparison, plot_abundances
 
@@ -77,24 +76,19 @@ def perform_em(
         ground_truth_path: Path,
         disable_quality: bool,
         iters: int,
-        cache_tag: CacheTag,
         learning_rate: float,
         plot_format: str
 ):
 
-    q_smoothing = 1e-30
-
     # ==== Run the solver.
     solver = EMSolver(model,
-                         reads,
-                         cache_tag=cache_tag,
-                         lr=learning_rate)
+                      reads,
+                      lr=learning_rate)
     abundances, var_1, var = solver.solve(
         iters=iters,
         print_debug_every=1000,
         thresh=1e-5,
-        gradient_clip=1e5,
-        q_smoothing=q_smoothing
+        gradient_clip=1e5
     )
 
     # ==== Save the learned abundances.
@@ -127,45 +121,6 @@ def perform_em(
     logger.info("Plots saved to {}.".format(plot_path))
 
 
-# def perform_vsmc(
-#         model: GenerativeModel,
-#         reads: TimeSeriesReads,
-#         disable_quality: bool,
-#         iters: int,
-#         learning_rate: float,
-#         num_samples: int,
-#         ground_truth_path: Path,
-#         plots_out_path: Path,
-#         samples_out_path: Path,
-#         cache_tag: CacheTag,
-#         plot_format: str
-# ):
-#
-#     # ==== Run the solver.
-#     solver = vsmc.VSMCSolver(model=model, data=reads, cache_tag=cache_tag)
-#     solver.solve(
-#         optim_class=torch.optim.Adam,
-#         optim_args={'lr': learning_rate, 'betas': (0.7, 0.7), 'eps': 1e-7, 'weight_decay': 0.},
-#         iters=iters,
-#         num_samples=num_samples,
-#         print_debug_every=100
-#     )
-#     posterior = solver.posterior
-#
-#     logger.info("Done. Generating plot of posterior.")
-#     output_variational_result(
-#         method='Variational Sequential Monte Carlo',
-#         model=model,
-#         posterior=posterior,
-#         disable_quality=disable_quality,
-#         truth_path=ground_truth_path,
-#         plots_out_path=plots_out_path,
-#         samples_out_path=samples_out_path,
-#         plot_format=plot_format
-#     )
-#     logger.info("Plots saved to {}.".format(plots_out_path))
-
-
 def perform_bbvi(
         model: GenerativeModel,
         reads: TimeSeriesReads,
@@ -175,7 +130,6 @@ def perform_bbvi(
         num_samples: int,
         ground_truth_path: Path,
         out_dir: Path,
-        cache_tag: CacheTag,
         plot_format: str,
         plot_elbo_history: bool = True,
         do_training_animation: bool = False,
@@ -183,7 +137,7 @@ def perform_bbvi(
 ):
 
     # ==== Run the solver.
-    solver = BBVISolver(model=model, data=reads, cache_tag=cache_tag, correlation_type=correlation_type)
+    solver = BBVISolver(model=model, data=reads, correlation_type=correlation_type)
 
     callbacks = []
 
@@ -244,7 +198,7 @@ def perform_bbvi(
     # ==== Save the fragment probabilities.
     df_entries = []
     for t_idx, reads_t in enumerate(reads):
-        for solver_r_idx, r_idx in enumerate(solver.read_indices[t_idx]):
+        for solver_r_idx, r_idx in enumerate(solver.data_likelihoods.retained_indices[t_idx]):
             read = reads_t[r_idx]
             for fragment, frag_prob in solver.fragment_posterior.top_fragments(t_idx, solver_r_idx, top=5):
                 if frag_prob < 0.05:
@@ -280,91 +234,6 @@ def perform_bbvi(
         plot_format=plot_format
     )
     logger.info("Plots saved to {}.".format(plot_out_path))
-
-
-# def perform_bbvi_reparametrization(
-#         model: GenerativeModel,
-#         reads: TimeSeriesReads,
-#         disable_quality: bool,
-#         iters: int,
-#         learning_rate: float,
-#         cache_tag: CacheTag,
-#         plot_out_path: Path,
-#         samples_path: Path,
-#         plot_format: str,
-#         ground_truth_path: Path = None,
-#         num_posterior_samples: int = 5000):
-#
-#     # ==== Run the solver.
-#     solver = BBVIReparamSolver(
-#         model=model,
-#         data=reads,
-#         cache_tag=cache_tag,
-#     )
-#     bbvi_posterior = solver.solve(
-#         iters=iters,
-#         thresh=1e-5,
-#         print_debug_every=1,
-#         lr=learning_rate
-#     )
-#
-#     torch.save(bbvi_posterior.sample(num_samples=num_posterior_samples), samples_path)
-#     logger.info("Posterior samples saved to {}. [{}]".format(
-#         samples_path,
-#         filesystem.convert_size(samples_path.stat().st_size)
-#     ))
-#
-#     output_variational_result(
-#         method="Black Box Variational Inference (with reparametrization)",
-#         model=model,
-#         posterior=bbvi_posterior,
-#         disable_quality=disable_quality,
-#         plots_out_path=plot_out_path,
-#         samples_out_path=samples_path,
-#         plot_format=plot_format,
-#         num_samples=num_posterior_samples,
-#         truth_path=ground_truth_path
-#     )
-#     logger.info("Plots saved to {}.".format(plot_out_path))
-
-
-# def perform_vi(
-#         model: GenerativeModel,
-#         reads: TimeSeriesReads,
-#         disable_quality: bool,
-#         iters: int,
-#         num_samples: int,
-#         ground_truth_path: Path,
-#         plots_out_path: Path,
-#         samples_out_path: Path,
-#         cache_tag: CacheTag,
-#         plot_format: str
-# ):
-#
-#     # ==== Run the solver.
-#     solver = SecondOrderVariationalSolver(model, reads, cache_tag)
-#     posterior = solver.solve(
-#         iters=iters,
-#         num_montecarlo_samples=num_samples,
-#         print_debug_every=1,
-#         thresh=1e-10,
-#         clipping=0.3,
-#         stdev_scale=[50, 50, 50, 50, 50, 300, 50, 500]
-#     )
-#
-#     logger.info("Done. Generating plot of posterior.")
-#     output_variational_result(
-#         method='Variational Inference (Second-order heuristic)',
-#         model=model,
-#         posterior=posterior,
-#         disable_quality=disable_quality,
-#         truth_path=ground_truth_path,
-#         plots_out_path=plots_out_path,
-#         samples_out_path=samples_out_path,
-#         num_samples=15,
-#         plot_format=plot_format
-#     )
-#     logger.info("Plots saved to {}.".format(plots_out_path))
 
 
 def plot_em_result(
@@ -567,7 +436,6 @@ def main():
             disable_quality=not cfg.model_cfg.use_quality_scores,
             iters=args.iters,
             learning_rate=args.learning_rate,
-            cache_tag=cache_tag,
             plot_format=args.plot_format
         )
     elif args.method == 'bbvi':
@@ -580,61 +448,10 @@ def main():
             num_samples=args.num_samples,
             ground_truth_path=true_abundance_path,
             learning_rate=args.learning_rate,
-            cache_tag=cache_tag,
             plot_format=args.plot_format,
             out_dir=out_dir,
             do_training_animation=True
         )
-    # elif args.method == 'bbvi_reparametrization':
-    #     logger.info("Solving using Black-Box Variational Inference.")
-    #     plots_path = out_dir / "plot.{}".format(args.plot_format)
-    #     samples_path = out_dir / "samples.pt"
-    #     perform_bbvi_reparametrization(
-    #         model=model,
-    #         reads=reads,
-    #         disable_quality=not cfg.model_cfg.use_quality_scores,
-    #         iters=args.iters,
-    #         learning_rate=args.learning_rate,
-    #         cache_tag=cache_tag,
-    #         plot_format=args.plot_format,
-    #         plot_out_path=plots_path,
-    #         samples_path=samples_path,
-    #         ground_truth_path=true_abundance_path,
-    #         num_posterior_samples=args.num_posterior_samples
-    #     )
-    # elif args.method == 'vsmc':
-    #     logger.info("Solving using Variational Sequential Monte-Carlo.")
-    #     plots_path = out_dir / "plot.{}".format(args.plot_format)
-    #     samples_path = out_dir / "samples.pt"
-    #     perform_vsmc(
-    #         model=model,
-    #         reads=reads,
-    #         disable_quality=not cfg.model_cfg.use_quality_scores,
-    #         iters=args.iters,
-    #         num_samples=args.num_samples,
-    #         ground_truth_path=true_abundance_path,
-    #         plots_out_path=plots_path,
-    #         samples_out_path=samples_path,
-    #         learning_rate=args.learning_rate,
-    #         cache_tag=cache_tag,
-    #         plot_format=args.plot_format
-    #     )
-    # elif args.method == 'vi':
-    #     logger.info("Solving using Variational Inference (Second-order mean-field solution).")
-    #     plots_path = out_dir / "plot.{}".format(args.plot_format)
-    #     samples_path = out_dir / "samples.pt"
-    #     perform_vi(
-    #         model=model,
-    #         reads=reads,
-    #         disable_quality=not cfg.model_cfg.use_quality_scores,
-    #         iters=args.iters,
-    #         num_samples=args.num_samples,
-    #         ground_truth_path=true_abundance_path,
-    #         plots_out_path=plots_path,
-    #         samples_out_path=samples_path,
-    #         cache_tag=cache_tag,
-    #         plot_format=args.plot_format
-    #     )
     else:
         raise ValueError("{} is not an implemented method.".format(args.method))
 
@@ -690,4 +507,4 @@ if __name__ == "__main__":
         main()
     except Exception as e:
         logger.exception(e)
-        raise
+        exit(1)

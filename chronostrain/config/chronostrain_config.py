@@ -55,7 +55,7 @@ class DatabaseConfig(AbstractConfig):
 
         return class_name, kwargs, datadir
 
-    def get_database(self, force_refresh: bool = False):
+    def get_database(self, force_refresh: bool = False) -> "chronostrain.database.AbstractStrainDatabase":
         module_name, class_name = self.class_name.rsplit(".", 1)
         class_ = getattr(importlib.import_module(module_name), class_name)
         db_kwargs = self.kwargs.copy()
@@ -205,7 +205,7 @@ class FilteringConfig(AbstractConfig):
         self.align_cmd = self.parse(cfg)
 
     def parse_impl(self, cfg: dict) -> str:
-        return cfg["ALIGNER_CMD"]
+        return cfg["ALIGNMENT_BACKEND"]
 
 
 class ChronostrainConfig(AbstractConfig):

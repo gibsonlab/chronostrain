@@ -59,8 +59,8 @@ class CachedComputation(object):
                  fn: Callable,
                  filename: str,
                  cache_tag: CacheTag,
-                 args: Optional[List] = None,
-                 kwargs: Optional[Dict] = None,
+                 args: Optional[List] = [],
+                 kwargs: Optional[Dict] = {},
                  save: Optional[Callable] = None,
                  load: Optional[Callable] = None,):
         """
@@ -95,21 +95,20 @@ class CachedComputation(object):
         # Try to retrieve from cache.
         try:
             data = self.loader(self.cache_path)
-
             logger.debug("[Cache {}] Loaded pre-computed file {}.".format(
                 self.cache_tag.encoding, self.cache_path
             ))
+            return data
         except FileNotFoundError:
             logger.debug("[Cache {}] Could not load cached file {}. Recomputing.".format(
                 self.cache_tag.encoding, self.cache_path
             ))
 
-            self.cache_tag.write_attributes_to_disk(self.cache_dir / "attributes.txt")
-            data = self.fn(*self.args, **self.kwargs)
-            self.saver(self.cache_path, data)
+        self.cache_tag.write_attributes_to_disk(self.cache_dir / "attributes.txt")
+        data = self.fn(*self.args, **self.kwargs)
+        self.saver(self.cache_path, data)
 
-            logger.debug("[Cache {}] Saved {}.".format(
-                self.cache_tag.encoding, self.cache_path
-            ))
-
+        logger.debug("[Cache {}] Saved {}.".format(
+            self.cache_tag.encoding, self.cache_path
+        ))
         return data

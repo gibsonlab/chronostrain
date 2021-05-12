@@ -1,12 +1,12 @@
 import enum
 import re
-from typing import List, Iterable, Dict
+from typing import List, Iterable, Dict, Union
 
 from Bio import SeqIO
 from chronostrain.util.sequences import complement_seq
 
 
-class SamTags(enum.Enum):
+class _SamTags(enum.Enum):
     ReadName = 0
     MapFlag = 1
     ContigName = 2
@@ -20,102 +20,155 @@ class SamTags(enum.Enum):
     Quality = 10
 
 
-class MapFlags(enum.Enum):
+class _MapFlags(enum.Enum):
     """
     The mapping types given in the MapFlag tag. The actual tag is given bitwise,
     so the presence of these tags is found as:
     (Line[SamTags.MapFlag] & MapFlags.flag == MapFlags.flag)
     """
-    ReadIsPaired = 1
-    Unmapped = 4
-    MateUnmapped = 8
-    ReverseCompliment = 16
-    MateReverseComp = 32
-    IsFirstInPair = 64
-    IsMate = 128
+    QueryHasMultipleSegments = 1
+    SegmentsProperlyAligned = 2
+    SegmentUnmapped = 4
+    NextSegmentUnmapped = 8
+    SeqReverseComplement = 16
+    SeqNextSegmentReverseComplement = 32
+    FirstSegment = 64
+    LastSegment = 128
+    SecondaryAlignment = 256
+    FilterNotPassed = 512
+    PCRorOptionalDuplicate = 1024
+    SupplementaryAlignment = 2048
+
+
+def _check_bit_flag(x: int, pow2: int) -> bool:
+    return (x & pow2) == pow2
 
 
 class SamLine:
-    def __init__(self, plaintext_line: str, reference_sequences):
-        self.line = plaintext_line.strip().split('\t')
-        self.reference_sequences = reference_sequences
+    def __init__(self, lineno: int, plaintext_line: str, reference_sequences: Dict[str, str], samline_prev: Union["SamLine", None]):
+        """
+        Parse the line using the provided reference.
 
-        self.required_tags = {tag : self.line[tag.value] for tag in SamTags}
+        :param plaintext_line: A raw SAM file (Tab-separated) entry.
+        :param reference_sequences: A dictionary mapping reference (marker) IDS to their sequences.
+        """
+        self.lineno = lineno
+        self.line = plaintext_line.strip().split('\t')
+        self.prev_line = samline_prev
+
+        self.readname: str = self.line[_SamTags.ReadName.value]
+        self.map_flag = int(self.line[_SamTags.MapFlag.value])
+        self.is_mapped: bool = not _check_bit_flag(self.map_flag, _MapFlags.SegmentUnmapped.value)
+        self.is_reverse_complemented = _check_bit_flag(self.map_flag, _MapFlags.SeqReverseComplement.value)
+        self.contig_name: str = self.line[_SamTags.ContigName.value]
+        self.map_pos_str: str = self.line[_SamTags.MapPos.value]
+        self.map_quality: str = self.line[_SamTags.MapQuality.value]
+        self.cigar: str = self.line[_SamTags.Cigar.value]
+        self.mate_pair: str = self.line[_SamTags.MatePair.value]
+        self.mate_pos: str = self.line[_SamTags.MatePos.value]
+        self.template_len: str = self.line[_SamTags.TemplateLen.value]
+        self.read: str = self.line[_SamTags.Read.value]
+        self.quality: str = self.line[_SamTags.Quality.value]
+
+        is_secondary_alignment = _check_bit_flag(self.map_flag, _MapFlags.SecondaryAlignment.value)
+        if is_secondary_alignment:
+            if self.prev_line is None:
+                raise RuntimeError(
+                    "Unexpected SAM file output. Line ({lineno}) was flagged as a secondary alignment, "
+                    "but this was the first line to be parsed.".format(
+                        lineno=self.lineno
+                    )
+                )
+            if self.readname != self.prev_line.readname:
+                raise RuntimeError(
+                    "Unexpected SAM file output. Line ({lineno}) was flagged as a secondary alignment, "
+                    "but the previous line described a different input read ID.".format(
+                        lineno=self.lineno
+                    )
+                )
+            self.read_len = self.prev_line.read_len
+            self.read = self.prev_line.read  # DEBUG; get rid of later.
+        else:
+            self.read_len = len(self.read)
+
         self.optional_tags = {}
         for optional_tag in self.line[11:]:
             if optional_tag[:5] == 'MD:Z:':
                 self.optional_tags['MD'] = optional_tag[5:]
 
-        self.read_len = len(self.required_tags[SamTags.Read])
+        self.fragment = self._parse_fragment(reference_sequences)
 
-    def is_mapped(self):
-        return (int(self.required_tags[SamTags.MapFlag]) & MapFlags.Unmapped.value) == 0
+    def _parse_fragment(self, reference_sequences: Dict[str, str]):
+        map_pos_int = int(self.map_pos_str)
+        split_cigar = re.findall('\d+|\D+', self.cigar)
 
-    def is_reverse_complimented(self):
-        return (int(self.required_tags[SamTags.MapFlag]) & MapFlags.ReverseCompliment.value) == MapFlags.ReverseCompliment.value
-
-    def get_fragment(self):
-        map_pos = int(self[SamTags.MapPos])
-        split_cigar = re.findall('\d+|\D+', self[SamTags.Cigar])
         start_clip = 0
-        if split_cigar[1] == 'S':
+        end_clip = 0
+        if split_cigar[1] == "S" or split_cigar[1] == "H":
             start_clip = int(split_cigar[0])
-        reference_index = map_pos - start_clip - 1
+        if split_cigar[-1] == 'S' or split_cigar[-1] == "H":
+            end_clip = int(split_cigar[-2])
 
-        ref_seq_name = self[SamTags.ContigName]
-        ref_seq = self.reference_sequences[ref_seq_name]
-        ref_seq = self.handler.reference_sequences[ref_seq_name]
+        ref_seq_name = self.contig_name
+        ref_seq = reference_sequences[ref_seq_name]
 
         # Match to the nearest complete window of size read_len
-        if reference_index < 0:
-            reference_index = 0
-        if reference_index + self.read_len > len(ref_seq)-1:
-            reference_index = len(ref_seq)-self.read_len-1
+        # if reference_index < 0:
+        #     reference_index = 0
+        # if reference_index + self.read_len > len(ref_seq)-1:
+        #     reference_index = len(ref_seq)-self.read_len-1
+        # ref_seq[reference_index: reference_index + self.read_len]
 
-        frag = ref_seq[reference_index: reference_index + self.read_len]
-        if not self.is_reverse_complimented():
+        start_frame = map_pos_int - start_clip - 1
+        end_frame = start_frame + self.read_len
+
+        if start_frame < 0:
+            start_frame = 0
+
+        frag = ref_seq[start_frame:end_frame]
+
+        if not self.is_reverse_complemented:
             return frag
         else:
             return complement_seq(frag[::-1])
 
     def __str__(self):
-        return '\t'.join(self.line)
+        return "SamLine(L={lineno}):{tokens}".format(
+            lineno=self.lineno,
+            tokens=self.line
+        )
 
-    def __getitem__(self, key) -> str:
-        if key in SamTags:
-            return self.required_tags[key]
-        else:
-            return self.optional_tags[key]
+    def __repr__(self):
+        return self.__str__()
 
 
 class SamHandler:
-    def __init__(self, file_path, reference_path, load_unmapped = False):
+    def __init__(self, file_path, reference_path):
         self.file_path = file_path
         self.reference_path = reference_path
         self.reference_sequences = self.get_multifasta_sequences()
-        self.unmapped_loaded = load_unmapped
 
         self.header = []
         self.contents: List[SamLine] = []
         with open(file_path, 'r') as f:
-            for line in f:
+            prev_sam_line = None
+            for line_idx, line in enumerate(f):
                 if line[0] == '@':
                     self.header.append(line)
                     continue
-                sam_line = SamLine(line, self.reference_sequences)
-                if load_unmapped or sam_line.is_mapped():
+                sam_line = SamLine(line_idx + 1, line, self.reference_sequences, prev_sam_line)
+                if sam_line.is_mapped:
                     self.contents.append(sam_line)
+                prev_sam_line = sam_line
         # print("Constructed handler with " + str(len(self.contents)) + " sam lines")
 
     def mapped_lines(self) -> Iterable[SamLine]:
-        if not self.unmapped_loaded:
-            yield from self.contents
-        else:
-            for line in self.contents:
-                if line.is_mapped:
-                    yield line
+        yield from self.contents
 
     def get_multifasta_sequences(self) -> Dict[str, str]:
+        """
+        Returns a dictionary mapping Each Record ID (typically a marker identifier) to the sequence.
+        """
         reference_sequences = {}
         for record in SeqIO.parse(self.reference_path, format="fasta"):
             reference_sequences[str(record.id)] = str(record.seq)

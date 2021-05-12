@@ -3,7 +3,7 @@
  Contains implementations of the proposed algorithms.
 """
 import torch
-from typing import List
+from typing import List, Union
 from pathlib import Path
 from collections import defaultdict
 import numpy as np
@@ -12,9 +12,8 @@ from abc import ABCMeta, abstractmethod
 from joblib import Parallel, delayed
 
 from . import logger
-from chronostrain.util.math import mappings
-from chronostrain.util.sparse.sparse_tensor import coalesced_sparse_tensor
-from chronostrain.util.sam_handler import SamHandler, SamTags
+from chronostrain.util.sparse.sparse_tensor import CoalescedSparseMatrix
+from chronostrain.util.sam_handler import SamHandler
 from chronostrain.util.external.bwa import bwa_index, bwa_mem
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.config import cfg
@@ -22,54 +21,97 @@ from chronostrain.model.generative import GenerativeModel
 from chronostrain.util.data_cache import CachedComputation, CacheTag
 
 
-class AbstractModelSolver(metaclass=ABCMeta):
-    def __init__(self,
-                 model: GenerativeModel,
-                 data: TimeSeriesReads,
-                 cache_tag: CacheTag):
+class DataLikelihoods(object):
+    def __init__(
+            self,
+            model: GenerativeModel,
+            data: TimeSeriesReads,
+            use_sparse: bool,
+            read_likelihood_lower_bound: float = 1e-30
+    ):
+        """
+        :param model:
+        :param data:
+        :param use_sparse: Specifies whether to load sparse or dense versions of the matrices.
+        :param read_likelihood_lower_bound: Thresholds reads by this likelihood value.
+            For each read, if the sum of all fragment-read likelihoods over all fragments does not exceed this value,
+            the read is trimmed from the matrix (at the particular timepoint which it belongs to).
+            (Note: passing '0' for this argument is the same as bypassing this filter.)
+        """
         self.model = model
         self.data = data
-        self.cache_tag = cache_tag
+        self.use_sparse = use_sparse
+        self.likelihoods_tensors: List[Union[torch.Tensor, CoalescedSparseMatrix]] = None
+        self.retained_indices: List[List[int]] = None
+        self.read_likelihood_lower_bound = read_likelihood_lower_bound
 
-        # Not sure which we will need. Use lazy initialization.
-        self.read_likelihoods_loaded = False
-        self.read_likelihoods_tensors: List[torch.Tensor] = []
+    @property
+    def matrices(self) -> List[torch.Tensor]:
+        if self.likelihoods_tensors is None:
+            log_likelihoods_tensors = self._likelihood_computer().compute_likelihood_tensors()
+            self.likelihoods_tensors = [
+                ll_tensor.exp() for ll_tensor in log_likelihoods_tensors
+            ]
+            self.retained_indices = self._trim()
+        return self.likelihoods_tensors
 
-        self.read_log_likelihoods_loaded = False
-        self.read_log_likelihoods_tensors: List[torch.Tensor] = []
+    def _likelihood_computer(self) -> 'AbstractLogLikelihoodComputer':
+        if self.use_sparse:
+            return SparseLogLikelihoodComputer(self.model, self.data)
+        else:
+            return DenseLogLikelihoodComputer(self.model, self.data)
+
+    def _trim(self) -> List[List[int]]:
+        """
+        Trims the likelihood matrices using the specified lower bound.
+
+        :return: List of the index of kept reads (exceeding the lower bound threshold).
+        """
+        read_indices = []
+        for t_idx in range(self.model.num_times()):
+            read_likelihoods_t = self.likelihoods_tensors[t_idx]
+            sums = read_likelihoods_t.sum(dim=0)
+
+            zero_indices = {i.item() for i in torch.where(sums <= self.read_likelihood_lower_bound)[0]}
+            if len(zero_indices) > 0:
+                logger.warn("[t = {}] Discarding reads with overall likelihood < {}: {}".format(
+                    self.model.times[t_idx],
+                    self.read_likelihood_lower_bound,
+                    ",".join([str(read_idx) for read_idx in zero_indices])
+                ))
+
+                leftover_indices = [
+                    read_idx
+                    for read_idx in range(len(self.data[t_idx]))
+                    if read_idx not in zero_indices
+                ]
+                read_indices.append(leftover_indices)
+
+                if isinstance(read_likelihoods_t, CoalescedSparseMatrix):
+                    self.likelihoods_tensors[t_idx] = read_likelihoods_t.slice_cols(
+                        leftover_indices
+                    )
+                else:
+                    self.likelihoods_tensors[t_idx] = read_likelihoods_t[:, leftover_indices]
+            else:
+                read_indices.append(list(range(len(self.data[t_idx]))))
+        return read_indices
+
+
+class AbstractModelSolver(metaclass=ABCMeta):
+    def __init__(self, model: GenerativeModel, data: TimeSeriesReads):
+        self.model = model
+        self.data = data
+        self.data_likelihoods = DataLikelihoods(model, data, use_sparse=cfg.model_cfg.use_sparse)
 
     @abstractmethod
     def solve(self, *args, **kwargs):
         pass
 
-    @property
-    def read_likelihoods(self) -> List[torch.Tensor]:
-        if not self.read_log_likelihoods_loaded:
-            self.read_log_likelihoods_tensors = self._compute_log_likelihoods()
-            self.read_likelihoods_tensors = [
-                mappings.exp(ll_tensor) for ll_tensor in self.read_log_likelihoods_tensors
-            ]
-            self.read_likelihoods_loaded = True
-        return self.read_likelihoods_tensors
-
-    @property
-    def read_log_likelihoods(self) -> List[torch.Tensor]:
-        if not self.read_log_likelihoods_loaded:
-            self.read_log_likelihoods_tensors = self._compute_log_likelihoods()
-            self.read_log_likelihoods_loaded = True
-        return self.read_log_likelihoods_tensors
-
-    def _compute_log_likelihoods(self):
-        if cfg.model_cfg.use_sparse:
-            likelihood_handler = SparseLogLikelhoodComputer(self.model, self.data)
-        else:
-            likelihood_handler = DenseLogLikelhoodComputer(self.model, self.data)
-        return likelihood_handler.compute_likelihood_tensors()
 
 # ===================================================================
 # ========================= Helper functions ========================
 # ===================================================================
-
 
 class AbstractLogLikelihoodComputer(metaclass=ABCMeta):
 
@@ -88,7 +130,7 @@ class AbstractLogLikelihoodComputer(metaclass=ABCMeta):
         pass
 
 
-class DenseLogLikelhoodComputer(AbstractLogLikelihoodComputer):
+class DenseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
 
     def __init__(self, model: GenerativeModel, reads: TimeSeriesReads):
         super().__init__(model, reads)
@@ -113,12 +155,12 @@ class DenseLogLikelhoodComputer(AbstractLogLikelihoodComputer):
         logger.debug("Computing read-fragment likelihoods...")
         jobs: List[CachedComputation] = []
 
+        cache_tag = CacheTag(
+            file_paths=[reads_t.src for reads_t in self.reads],
+            use_quality=cfg.model_cfg.use_quality_scores,
+        )
+
         for t_idx in range(self.model.num_times()):
-            reads_t = self.reads[t_idx]
-            cache_tag = CacheTag(
-                file_path=reads_t.src,
-                use_quality=cfg.model_cfg.use_quality_scores,
-            )
             jobs.append(
                 CachedComputation(
                     self.compute_matrix_single_timepoint,
@@ -150,10 +192,10 @@ class DenseLogLikelhoodComputer(AbstractLogLikelihoodComputer):
         return log_likelihoods_tensors
 
 
-class SparseLogLikelhoodComputer(AbstractLogLikelihoodComputer):
+class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
     def __init__(self, model, reads):
         super().__init__(model, reads)
-        self.marker_reference_file = cfg.database_cfg.get_database().get_multifasta_file()
+        self.marker_reference_file = cfg.database_cfg.get_database().multifasta_file
         bwa_index(self.marker_reference_file)
 
     def _compute_read_frag_alignments(self, t_idx: int) -> defaultdict:
@@ -170,11 +212,31 @@ class SparseLogLikelhoodComputer(AbstractLogLikelihoodComputer):
 
         sam_handler = SamHandler(alignment_output_path, self.marker_reference_file)
         for sam_line in sam_handler.mapped_lines():
-            read_id = sam_line[SamTags.Read]
-            read_to_fragments[read_id].add(self.fragment_space.get_fragment(sam_line.get_fragment()))
+            if sam_line.is_reverse_complemented:
+                # TODO: Rest of the model does not handle reverse-complements, so we will skip those for now.
+                continue
+
+            # TODO - Future note: this might be a good starting place for handling/detecting indels.
+            #  (since this part already handles the aligned_frag not being found.)
+            #  (if one needs more control, handle this in the sam_line loop of _compute_read_frag_alignments().)
+            try:
+                aligned_frag = self.fragment_space.get_fragment(sam_line.fragment)
+            except KeyError:
+                # This happens because the aligned frag is not a full alignment, either due to edge effects or indels.
+                # Our model does not handle these, but see the note above.
+                continue
+
+            read_id = sam_line.read
+            try:
+                read_to_fragments[read_id].add(aligned_frag)
+            except KeyError:
+                logger.debug("Problematic SAM line found: {}".format(
+                    sam_line
+                ))
+                raise
         return read_to_fragments
 
-    def sparse_matrix_specification(self, t_idx) -> torch.Tensor:
+    def create_sparse_matrix(self, t_idx) -> CoalescedSparseMatrix:
         """
         For the specified time point, evaluate the (F x N_t) array of fragment-to-read likelihoods.
 
@@ -193,49 +255,73 @@ class SparseLogLikelhoodComputer(AbstractLogLikelihoodComputer):
                 read_indices.append(read_idx)
                 frag_indices.append(frag.index)
                 log_likelihood_values.append(self.model.error_model.compute_log_likelihood(frag, read))
-        return torch.sparse_coo_tensor(
-            indices=torch.Tensor([frag_indices, read_indices]),
-            values=log_likelihood_values,
-            size=(self.fragment_space.size(), len(self.reads[t_idx])),
-            device=cfg.torch_cfg.device,
-            dtype=cfg.torch_cfg.default_dtype
+
+        logger.debug(
+            "Read-likelihood matrix (size {} x {}) has {} nonzero entries. (~{:.2f} hits per read)".format(
+                self.fragment_space.size(),
+                len(self.reads[t_idx]),
+                len(log_likelihood_values),
+                len(log_likelihood_values) / len(self.reads[t_idx])
+            )
         )
 
-    def compute_likelihood_tensors(self) -> List[torch.Tensor]:
+        return CoalescedSparseMatrix(
+            indices=torch.tensor(
+                [frag_indices, read_indices],
+                device=cfg.torch_cfg.device,
+                dtype=torch.long
+            ),
+            values=torch.tensor(
+                log_likelihood_values,
+                device=cfg.torch_cfg.device,
+                dtype=cfg.torch_cfg.default_dtype
+            ),
+            dims=(self.fragment_space.size(), len(self.reads[t_idx]))
+        )
+
+    def compute_likelihood_tensors(self) -> List[CoalescedSparseMatrix]:
         logger.debug("Computing read-fragment likelihoods...")
         jobs: List[CachedComputation] = []
 
+        cache_tag = CacheTag(
+            file_paths=[reads_t.src for reads_t in self.reads],
+            use_quality=cfg.model_cfg.use_quality_scores,
+        )
+
         # Save each sparse tensor as a tuple of indices/values/shape into a compressed numpy file (.npz).
-        def save_(path, sparse_matrix: torch.Tensor):
-            sparse_matrix = sparse_matrix.cpu()
-            size = sparse_matrix.size()
+        def save_(path, sparse_matrix: CoalescedSparseMatrix):
             np.savez(
                 path,
-                sparse_indices=sparse_matrix.indices().numpy(),
-                sparse_values=sparse_matrix.values().numpy(),
-                matrix_shape=np.array([size[0], size[1]])
+                sparse_indices=sparse_matrix.indices.cpu().numpy(),
+                sparse_values=sparse_matrix.values.cpu().numpy(),
+                matrix_shape=np.array([
+                    sparse_matrix.rows,
+                    sparse_matrix.columns
+                ])
             )
 
-        def load_(path) -> torch.Tensor:
+        def load_(path) -> CoalescedSparseMatrix:
             data = np.load(path)
-            return torch.sparse_coo_tensor(
-                indices=torch.Tensor(data['sparse_indices']),
-                values=torch.Tensor(data['sparse_values']),
-                size=torch.Size(data["matrix_shape"]),
-                device=cfg.torch_cfg.device,
-                dtype=cfg.torch_cfg.default_dtype
+            size = data["matrix_shape"]
+            return CoalescedSparseMatrix(
+                indices=torch.tensor(
+                    data['sparse_indices'],
+                    device=cfg.torch_cfg.device,
+                    dtype=torch.long
+                ),
+                values=torch.tensor(
+                    data['sparse_values'],
+                    device=cfg.torch_cfg.device,
+                    dtype=torch.int
+                ),
+                dims=(size[0], size[1])
             )
 
         # Create an array of cached computation jobs.
         for t_idx in range(self.model.num_times()):
-            reads_t = self.reads[t_idx]
-            cache_tag = CacheTag(
-                file_path=reads_t.src,
-                use_quality=cfg.model_cfg.use_quality_scores,
-            )
             jobs.append(
                 CachedComputation(
-                    self.sparse_matrix_specification,
+                    self.create_sparse_matrix,
                     kwargs={"t_idx": t_idx},
                     filename="sparse_log_likelihoods_{}.npz".format(t_idx),
                     cache_tag=cache_tag,

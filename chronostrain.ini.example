@@ -36,4 +36,4 @@ marker_max_len=500
 
 [Filtering]
 # Absolute file path to the aligner executable. (Currently only supporting 'bwa'.)
-ALIGNER_CMD=/usr/bin/bwa
+ALIGNMENT_BACKEND=/usr/bin/bwa

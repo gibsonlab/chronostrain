@@ -28,26 +28,23 @@ class BasicFastQErrorModel(AbstractErrorModel):
         self.read_len = read_len
         self.q_dist = BasicPhredScoreDistribution(read_len)
 
-    @staticmethod
-    def phred_error_prob(q: np.ndarray) -> np.ndarray:
-        return np.power(10, -0.1 * q)
-
     def compute_log_likelihood(self, fragment: Fragment, read: SequenceRead) -> float:
         # NOTE: Ignore quality score distributions (assume negligible/constant likelihood for all q-score vectors.)
         # This only uses phred scores to compute Pr(Read | Fragment, Quality).
-        error_prob = self.phred_error_prob(read.quality)
+        error_log10_prob = -0.1 * read.quality
         matches: np.ndarray = (fragment.seq == read.seq) & (read.quality > 0)
 
-        p_matches = 1 - error_prob[np.where(matches)]
-        p_errors = (1/3) * error_prob[np.where(~matches)]
-        return np.log(p_matches).sum() + np.log(p_errors).sum()
+        # FASTQ model: log_e( 1/3 * 10^{q/10} )
+        log_p_errors = -np.log(3) + np.log(10) * error_log10_prob[np.where(~matches)]
+        log_p_matches = np.log(1 - np.power(10, error_log10_prob)[np.where(matches)])
+        return log_p_matches.sum() + log_p_errors.sum()
 
     def sample_noisy_read(self, read_id: str, fragment: Fragment, metadata="") -> SequenceRead:
         qvec = self.q_dist.sample_qvec()
         read = SequenceRead(read_id=read_id, seq=fragment.seq, quality=qvec, metadata=metadata)
 
         # Random shift by an integer mod 4.
-        error_probs = self.phred_error_prob(qvec)
+        error_probs = np.power(10, -0.1 * qvec)
         error_locations: np.ndarray = (np.random.rand(error_probs.shape[0]) < error_probs)  # dtype `bool`
 
         rand_shift = np.random.randint(low=0, high=4, size=np.sum(error_locations), dtype=cseq.SEQ_DTYPE)
