@@ -8,7 +8,6 @@
 """
 from typing import Iterable, Tuple, Optional, Callable, Dict, Union
 
-import torch_sparse
 from torch.nn.functional import softplus
 from torch.distributions import Normal
 
@@ -19,106 +18,8 @@ from chronostrain.model.io import TimeSeriesReads
 from chronostrain.algs.base import AbstractModelSolver
 from chronostrain.util.benchmarking import RuntimeEstimator
 from chronostrain.util.math import *
+from chronostrain.util.sparse import SparseMatrix
 from . import logger
-
-
-# ============== JIT helpers
-from ..util.sparse import normalize_sparse_2d
-
-
-# @torch.jit.script
-# def coordinate_sum2d(sparse_indices: torch.Tensor,
-#                      sparse_values: torch.Tensor,
-#                      dim: int,
-#                      idx: int) -> float:
-#     """
-#     For the specified sparse 2-d matrix (say of size R x C),
-#     computes the sum of the specified row- or column- vector (given by `idx`).
-#     (To be precise, the dense version of this would be torch.sum(x[idx, :]) if dim == 0,
-#      or torch.sum(x[:, idx]) if dim == 1.)
-# 
-#     Note: `dim` does not mean that the sum occurs across specified dimension, it refers to which dimension
-#         to use to index (`idx`). e.g. If dim = 0, idx = r calculates the sum of the r-th row vector.
-#     """
-#     return sparse_values[sparse_indices[dim] == idx].sum()
-# 
-# 
-# @torch.jit.script
-def sparse_slice(x: torch.Tensor, dim: int, idx: int):
-    """
-    Returns the dimension `dim`, index `idx` slice of the sparse matrix, as a dense 1-d tensor.
-    Equivalent to x[idx, :] if dim == 0, or x[:, idx] if dim == 1.
-    :param x:
-    :param dim:
-    :param idx:
-    :return:
-    """
-    matching_entries = torch.where(x.indices()[dim, :] == idx)[0]
-    return torch.sparse_coo_tensor(
-        indices=x.indices()[1 - dim, matching_entries].unsqueeze(0),
-        values=x.values()[matching_entries],
-        size=[x.size()[1 - dim]]
-    )
-# 
-# 
-# @torch.jit.script
-# def sparse_sum(indices: torch.Tensor, values: torch.Tensor, dim: int, rows: int, cols: int):
-#     x = torch.sparse_coo_tensor(indices, values, (rows, cols)).coalesce()
-#     return torch.sparse.sum(x, dim=dim).to_dense()
-# 
-# 
-# # @torch.jit.script
-# def vi_log_expectation(phi_sparse,
-#                        x: torch.Tensor,
-#                        frag_likelihoods_sparse: torch.Tensor):
-#     """
-#     JIT-compiled helper for elbo_marginal_gaussian_sparse.
-# 
-#     The log-likelihood expectations for each sample X (length-N array, where N = # of samples.):
-#         E_{Frag \sim Phi}[ P(Frag | X) ]
-#         = Sum_r Sum_f log(softmax(X) @ frag_likelihoods[f, :]) * phi[f,r]
-# 
-#     Note: This is naively a O(|R| * |F|) computation, but by switching the order of summation into "Sum_f Sum_r",
-#      this reduces to an O(|R| + |F|) computation.
-#      The only issue is that Sum_r phi[f,r] is not memory-efficient (phi is only column-sparse), so some
-#      JIT optimizations must be made in evaluating the outer sum (to compensate for not being able to vectorize).
-# 
-#     :param phi_sparse: The posterior fragment likelihoods (phi), an (F x R) sparse matrix.
-#     :param x: (N x S) matrix.
-#     :param frag_likelihoods_indices: The indices of `frag_likelihoods`, a (F x S) sparse matrix.
-#     :param frag_likelihoods_values: The values of `frag_likelihoods`, a (F x S) sparse matrix.
-#     :param num_fragments: the value of F, the number of fragments.
-#     :return: The log-likelihood expectations for each sample (length-N array).
-#     """
-#     answer = torch.zeros(size=[x.size()[0]], dtype=x.dtype, device=x.device)  # Length N
-#     softmax_x = torch.softmax(x, dim=1)
-#     num_strains = x.size()[1]
-# 
-#     phi_sum = torch.sparse.sum(phi_sparse, dim=1)
-# 
-#     # These are all dense operations.
-#     phi_sum * torch.log(
-#         softmax_x @ frag_likelihoods_sparse.t()
-#     )
-# 
-#     # for f in range(num_fragments):
-#     #     phi_sum_f = coordinate_sum2d(phi_indices, phi_values, 0, f)
-#     #     frag_likelihoods_slice_f = dense_slice(
-#     #         frag_likelihoods_indices,
-#     #         frag_likelihoods_values,
-#     #         0,
-#     #         f,
-#     #         num_fragments,
-#     #         num_strains
-#     #     )  # length S
-#     #
-#     #     answer += phi_sum_f * torch.log(
-#     #         torch.mv(
-#     #             softmax_x,  # (N x S)
-#     #             frag_likelihoods_slice_f  # length S
-#     #         )  # length N
-#     #     )
-#     # return answer
 
 
 # ============== Posteriors
@@ -339,9 +240,9 @@ class FragmentPosterior(object):
 
     def top_fragments(self, time_idx, read_idx, top=5) -> Iterable[Tuple[Fragment, float]]:
         phi_t = self.phi[time_idx]
-        if phi_t.is_sparse:
-            # Assumes that this is a 1-d tensor (representing sparse valeus)
-            read_slice = sparse_slice(phi_t, 1, read_idx).coalesce()
+        if isinstance(phi_t, SparseMatrix):
+            # Assumes that this is a 1-d tensor (representing sparse values)
+            read_slice = phi_t.sparse_slice(dim=1, idx=read_idx)
 
             sparse_topk = torch.topk(
                 input=read_slice.values(),
@@ -351,7 +252,7 @@ class FragmentPosterior(object):
             for sparse_idx, frag_prob in zip(sparse_topk.indices, sparse_topk.values):
                 frag_idx = read_slice.indices()[0, sparse_idx]
                 yield self.model.get_fragment_space().get_fragment_by_index(frag_idx), frag_prob.item()
-        else:
+        elif isinstance(phi_t, torch.Tensor):
             topk_result = torch.topk(
                 input=phi_t[:, read_idx],
                 k=top,
@@ -359,6 +260,8 @@ class FragmentPosterior(object):
             )
             for frag_idx, frag_prob in zip(topk_result.indices, topk_result.values):
                 yield self.model.get_fragment_space().get_fragment_by_index(frag_idx), frag_prob.item()
+        else:
+            raise RuntimeError("Unexpected type for fragment posterior parametrization `phi_t`.")
 
 
 class BBVISolver(AbstractModelSolver):
@@ -467,41 +370,13 @@ class BBVISolver(AbstractModelSolver):
             softmax_x_t = torch.softmax(x_samples[t_idx, :, :], dim=1)  # (N x S)
             phi_sum = torch.sparse.sum(self.fragment_posterior.phi[t_idx], dim=1).to_dense()  # (length F)
 
-            # y_ = torch.log(
-            #     # (F x S) sparse matrix @ (S x N) dense
-            #     torch_sparse.spmm(
-            #         self.model.get_fragment_frequencies().indices(),
-            #         self.model.get_fragment_frequencies().values(),
-            #         self.model.get_fragment_frequencies().size()[0],
-            #         self.model.get_fragment_frequencies().size()[1],
-            #         softmax_x_t.t()
-            #     ).t()
-            #     # softmax_x_t @ self.model.get_fragment_frequencies().t()  # (N x S) @ (S x F) = (N x F)
-            # )
-            # print(y_)
-            # print(phi_sum)
-            # exit(1)
-
             # These are all dense operations.
             expectation_model_log_fragment_probs += torch.log(
-                # (F x S) sparse matrix @ (S x N) dense
-                torch_sparse.spmm(
-                    self.model.get_fragment_frequencies().indices(),
-                    self.model.get_fragment_frequencies().values(),
-                    self.model.get_fragment_frequencies().size()[0],
-                    self.model.get_fragment_frequencies().size()[1],
+                # (F x S) sparse matrix @ (S x N) dense, result is dense (F x N)
+                self.model.get_fragment_frequencies().dense_mul(
                     softmax_x_t.t()
                 ).t()
-                # softmax_x_t @ self.model.get_fragment_frequencies().t()  # (N x S) @ (S x F) = (N x F)
             ).mv(phi_sum)
-            # vi_log_expectation(
-            #     self.fragment_posterior.phi[t_idx].indices(),
-            #     self.fragment_posterior.phi[t_idx].values(),
-            #     x_samples[t_idx, :, :],
-            #     self.model.get_fragment_frequencies().indices(),
-            #     self.model.get_fragment_frequencies().values(),
-            #     self.model.get_fragment_space().size()
-            # )
 
         elbo_samples = (model_gaussian_log_likelihoods
                         + expectation_model_log_fragment_probs
@@ -544,20 +419,15 @@ class BBVISolver(AbstractModelSolver):
         self.fragment_posterior.phi = []
 
         for t in range(self.model.num_times()):
-            phi_t = self.data_likelihoods.matrices[t].scale_row(
+            phi_t: SparseMatrix = self.data_likelihoods.matrices[t].scale_row(
                 torch.exp(torch.mean(
                     torch.log(W @ softmax(x_samples[t], dim=1).t()),
                     dim=1
                 )),
                 dim=0
             )
-            self.fragment_posterior.phi.append(normalize_sparse_2d(
-                phi_t.indices,
-                phi_t.values,
-                phi_t.rows,
-                phi_t.columns,
-                0
-            ).coalesce())
+
+            self.fragment_posterior.phi.append(phi_t.normalize(dim=0))
 
     def solve(self,
               optim_class=torch.optim.Adam,

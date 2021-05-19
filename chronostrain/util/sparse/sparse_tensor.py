@@ -1,9 +1,15 @@
+"""
+A sparse 2-d matrix in COO format. Uses torch_sparse as a backend.
+
+Note: since torch_sparse largely already uses C-compiled computations or JIT whenever possible, calls using
+torch_sparse need not be optimized. For custom model-specific operations, we use @torch.jit ourselves.
+"""
 from typing import Tuple, List
 import torch
 import torch_sparse
 
 
-class CoalescedSparseMatrix(object):
+class SparseMatrix(object):
     def __init__(self,
                  indices: torch.Tensor,
                  values: torch.Tensor,
@@ -21,56 +27,102 @@ class CoalescedSparseMatrix(object):
         self.indices: torch.Tensor = ind
         self.values: torch.Tensor = val
 
+    def size(self) -> torch.Size:
+        return torch.Size((self.rows, self.columns))
+
+    def sparsity(self) -> float:
+        """
+        Measures the sparsity of the matrix, computed as (# of empty entries) / (row * cols).
+        Note: this is the complement of x.density(), so that x.sparsity() + x.density() = 1.
+        """
+        return 1 - self.density()
+
+    def density(self) -> float:
+        """
+        Measures the density of the matrix, computed as (# of nonempty entries) / (row * cols).
+        Note: this is the complement of x.sparsity(), so that x.sparsity() + x.density() = 1.
+        """
+        return self.values.size()[0] / (self.rows * self.columns)
+
     def dense_mul(self, x: torch.Tensor) -> torch.Tensor:
         return torch_sparse.spmm(self.indices, self.values, self.rows, self.columns, x)
 
-    def sparse_mul(self, x: 'CoalescedSparseMatrix') -> 'CoalescedSparseMatrix':
+    def sparse_mul(self, x: 'SparseMatrix') -> 'SparseMatrix':
         result_indices, result_values = torch_sparse.spspmm(
             self.indices, self.values, x.indices, x.values, self.rows, self.columns, x.columns
         )
-        return CoalescedSparseMatrix(result_indices, result_values, (self.rows, x.columns))
+        return SparseMatrix(result_indices, result_values, (self.rows, x.columns), force_coalesce=False)
 
-    def exp(self) -> 'CoalescedSparseMatrix':
-        return CoalescedSparseMatrix(self.indices, torch.exp(self.values), (self.rows, self.columns))
+    def exp(self) -> 'SparseMatrix':
+        return SparseMatrix(self.indices, torch.exp(self.values), (self.rows, self.columns), force_coalesce=False)
 
-    def t(self) -> 'CoalescedSparseMatrix':
+    def t(self) -> 'SparseMatrix':
         result_indices, result_values = torch_sparse.transpose(self.indices, self.values, self.rows, self.columns)
-        return CoalescedSparseMatrix(result_indices, result_values, (self.columns, self.rows))
+        return SparseMatrix(result_indices, result_values, (self.columns, self.rows))
 
-    def densify(self) -> torch.Tensor:
-        intermediate = torch.sparse_coo_tensor(self.indices, self.values, (self.rows, self.columns))
-        return intermediate.to_dense()
+    def to_dense(self) -> torch.Tensor:
+        return torch.sparse_coo_tensor(
+            self.indices,
+            self.values,
+            (self.rows, self.columns)
+        ).to_dense()
 
-    def sparse_scalar_sum(self, scalar: float) -> 'CoalescedSparseMatrix':
-        return CoalescedSparseMatrix(self.indices, self.values + scalar, (self.rows, self.columns))
+    def sparse_scalar_sum(self, scalar: float) -> 'SparseMatrix':
+        return SparseMatrix(self.indices, self.values + scalar, (self.rows, self.columns))
 
-    def row_hadamard_dense_vector(self, vec: torch.Tensor) -> 'CoalescedSparseMatrix':
+    def scale_row(self, vec: torch.Tensor, dim: int = 0) -> 'SparseMatrix':
         """
-        DEPRECATED. Use "scale_row" instead, with `dim = 0` passed in. (double check this!)
-        """
-        dv = vec.repeat(1, self.columns)[self.indices[0, :], self.indices[1, :]]
-        return CoalescedSparseMatrix(self.indices, self.values * dv, (self.rows, self.columns))
+        Performs a row-scaling operation. Using dense matrices, this is equivalent to x * vec.unsqueeze(0).
+        If dim = 0, interprets "vec" as a column vector so that the i-th row is scaled by the i-th entry.
+        If dim = 1, interprets "vec" as a row vector so that the i-th column is scaled by the i-th entry.
 
-    def scale_row(self, vec: torch.Tensor, dim: int = 0) -> 'CoalescedSparseMatrix':
+        :param vec: The vector to scale by. The dimension must match the specified matrix dimension's size.
+        :param dim: The dimension to scale.
+        :return: A new SparseMatrix instance representing the output.
+        """
         if len(vec.size()) > 1:
             raise ValueError("Can only row_scale by 1-d vectors.")
         if vec.size()[0] != [self.rows, self.columns][dim]:
             raise ValueError("The size of the input scale vector and the size of this "
                              "matrix (along the input dim) must match.")
-        return CoalescedSparseMatrix(
+        return SparseMatrix(
             self.indices,
             self.values * vec[self.indices[dim, :]],
             (self.rows, self.columns)
         )
 
     def sum(self, dim: int):
+        """
+        Sums the matrix along a specified input dimension.
+
+        :param dim: The dimension to collapse.
+        :return: A dense 1-d vector.
+        """
         x = torch.sparse_coo_tensor(self.indices, self.values, (self.rows, self.columns)).coalesce()
         return torch.sparse.sum(x, dim=dim).to_dense()
 
+    def normalize(self, dim: int) -> 'SparseMatrix':
+        """
+        Normalizes the specified dimension of a 2-d matrix (so that summing along that dimension returns a tensor of ones).
+        The input matrix is assumed to be sparse in a single dimension only (either row-sparse or column-sparse)
+        stored as a sparse_coo tensor.
+
+        Note: only efficient if `dim` is over a sufficiently sparse dimension. (The 1-d row/col sum matrix will be
+        converted to dense.)
+        """
+        sums = torch.sparse.sum(
+            torch.sparse_coo_tensor(self.indices, self.values, (self.rows, self.columns)),
+            dim=dim
+        ).to_dense()
+        rescaled_values = self.values / sums[self.indices[1 - dim]]
+
+        return SparseMatrix(self.indices, rescaled_values, (self.rows, self.columns), force_coalesce=False)
+
     def column_normed_row_sum(self) -> torch.Tensor:
         """
-        Normalize each column (so that each column sums to zero (sum, dim=0)), and then sum over the rows (sum, dim=1)
-        :return:
+        Normalize each column (so that each column sums to zero (sum, dim=0)), and then sum over the rows (sum, dim=1).
+
+        :return: A dense 1-d vector.
         """
         x = torch.sparse_coo_tensor(self.indices, self.values, (self.rows, self.columns)).coalesce()
         sums = torch.sparse.sum(x, dim=0).to_dense()
@@ -78,7 +130,34 @@ class CoalescedSparseMatrix(object):
         x = torch.sparse_coo_tensor(self.indices, rescaled_values, (self.rows, self.columns))
         return torch.sparse.sum(x, dim=1).to_dense()
 
-    def slice_cols(self, cols_to_keep: List[int]) -> 'CoalescedSparseMatrix':
+    def sparse_slice(self, dim: int, idx: int):
+        """
+        Returns the dimension `dim`, index `idx` slice of the sparse matrix, as a sparse Nx1 matrix (column vector).
+        Equivalent to x[idx, :].unsqueeze(1) if dim == 0, or x[:, idx].unsqueeze(1) if dim == 1.
+
+        :param dim: The dimension to index into.
+        :param idx: The index of the row/column to choose (depending on the specified dimension).
+        :return: a column vector (N x 1).
+        """
+        matching_entries = torch.where(self.indices[dim, :] == idx)[0]
+        collapsed_indices = self.indices[1 - dim, matching_entries]
+        return SparseMatrix(
+            indices=torch.stack([
+                collapsed_indices,
+                torch.zeros(size=collapsed_indices.size(), dtype=torch.long, device=collapsed_indices.device)
+            ]),
+            values=self.values[matching_entries],
+            dims=(self.size()[1 - dim], 1),
+            force_coalesce=False
+        )
+
+    def slice_columns(self, cols_to_keep: List[int]) -> 'SparseMatrix':
+        """
+        A column-slicing operation, equivalent to x[:, cols_to_keep].
+
+        :param cols_to_keep:
+        :return:
+        """
         # Deleting entries
         cols_to_keep = torch.tensor(cols_to_keep).unsqueeze(1)
         mask = torch.sum(cols_to_keep == self.indices[1, :], dim=0).bool()
@@ -90,5 +169,4 @@ class CoalescedSparseMatrix(object):
         adj = torch.cumsum(~range_mask, 0)
         indices[1, :] = indices[1, :] - torch.index_select(adj, 0, indices[1, :])
 
-        return CoalescedSparseMatrix(indices, values, (self.rows, cols_to_keep.size(-2)))
-
+        return SparseMatrix(indices, values, (self.rows, cols_to_keep.size(-2)))

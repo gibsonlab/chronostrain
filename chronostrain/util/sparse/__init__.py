@@ -1,2 +1,1 @@
-from .sparse_tensor import *
-from .mappings import *
+from .sparse_tensor import SparseMatrix

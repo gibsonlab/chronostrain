@@ -149,7 +149,7 @@ class EMSolver(AbstractModelSolver):
                 Z_t = self.model.strain_abundance_to_frag_abundance(y[t].view(S, 1))
                 Q = self.data_likelihoods.matrices[t].row_hadamard_dense_vector(Z_t)
                 # .row_hadamard(self.read_likelihoods[t], Z_t)
-                Q = Q.column_normed_row_sum(Q) / Z_t.view(F)
+                Q = Q.column_normed_row_sum() / Z_t.view(F)
             else:
                 Z_t = self.model.strain_abundance_to_frag_abundance(y[t].view(S, 1))
                 Q = self.data_likelihoods.matrices[t] * Z_t

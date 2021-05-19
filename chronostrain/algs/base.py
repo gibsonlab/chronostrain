@@ -88,7 +88,7 @@ class DataLikelihoods(object):
                 read_indices.append(leftover_indices)
 
                 if isinstance(read_likelihoods_t, CoalescedSparseMatrix):
-                    self.likelihoods_tensors[t_idx] = read_likelihoods_t.slice_cols(
+                    self.likelihoods_tensors[t_idx] = read_likelihoods_t.slice_columns(
                         leftover_indices
                     )
                 else:

@@ -8,8 +8,8 @@ from Bio.SeqRecord import SeqRecord
 
 from chronostrain.config import cfg
 from chronostrain.model.fragments import FragmentSpace
-from chronostrain.util.sparse import normalize_sparse_2d
 from . import logger
+from chronostrain.util.sparse import SparseMatrix
 
 
 @dataclass
@@ -106,7 +106,7 @@ class Population:
 
         return fragment_space
 
-    def get_strain_fragment_frequencies(self, window_size) -> torch.Tensor:
+    def get_strain_fragment_frequencies(self, window_size) -> Union[torch.Tensor, SparseMatrix]:
         """
         Get fragment counts per strain. The output represents the 'W' matrix in the notes.
         :param window_size: an integer specifying the fragment window length.
@@ -146,7 +146,9 @@ class Population:
         ], device=cfg.torch_cfg.device)
         return frag_freqs
 
-    def get_strain_fragment_frequencies_sparse(self, window_size) -> torch.Tensor:
+    def get_strain_fragment_frequencies_sparse(self, window_size) -> SparseMatrix:
+        # TODO: Use Zack's 'SparseMatrix' class implementation.
+        # TODO: Use a cached computation for this part.
         # For each strain, fill out the column.
         fragment_space = self.get_fragment_space(window_size)
         logger.debug("Constructing fragment frequencies for window size {}...".format(window_size))
@@ -162,14 +164,11 @@ class Population:
                     frag_indices.append(fragment_space.get_fragment(subseq).index)
                     matrix_values.append(1)
 
-        # normalize each col to sum to 1.
-        return normalize_sparse_2d(
-            torch.tensor([frag_indices, strain_indices], device=cfg.torch_cfg.device, dtype=torch.long),
-            torch.tensor(matrix_values, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype),
-            fragment_space.size(),
-            len(self.strains),
-            0
-        ).coalesce()
+        return SparseMatrix(
+            indices=torch.tensor([frag_indices, strain_indices], device=cfg.torch_cfg.device, dtype=torch.long),
+            values=torch.tensor(matrix_values, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype),
+            dims=(fragment_space.size(), len(self.strains))
+        ).normalize(dim=0)
 
 
 def sliding_window(seq, width):
