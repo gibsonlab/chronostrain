@@ -1,7 +1,7 @@
-import os
+from pathlib import Path
 import glob
 import math
-from typing import List
+from typing import List, Union
 import hashlib
 
 
@@ -19,13 +19,6 @@ def convert_size(size_bytes):
     return "%s %s" % (s, size_name[i])
 
 
-def get_filesize_bytes(filename) -> int:
-    """
-    Get the size of the specified file, in bytes. Use convert_size() for a more meaningful output.
-    """
-    return os.stat(filename).st_size
-
-
 def files_in_dir(base_dir: str, extension: str = None) -> List[str]:
     """
     List all files in the specified directory, and filter by the specified extension (if applicable).
@@ -33,13 +26,10 @@ def files_in_dir(base_dir: str, extension: str = None) -> List[str]:
     :param extension: if specified, filters the files by the extension. Example: "csv", "png", "txt", "pkl".
     :return: A list of path strings.
     """
-    pattern = os.path.join(
-        base_dir,
-        "*" if extension is None else "*.{}".format(extension)
-    )
-    return glob.glob(pattern)
+    pattern = Path(base_dir) / "*" if extension is None else "*.{}".format(extension)
+    return glob.glob(str(pattern))
 
 
-def md5_checksum(file_path: str):
+def md5_checksum(file_path: Union[str, Path]):
     with open(file_path, "r") as f:
         return hashlib.md5(f.read().encode()).hexdigest()

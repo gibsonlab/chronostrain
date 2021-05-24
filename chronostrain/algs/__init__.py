@@ -4,7 +4,4 @@ logger = create_logger(__name__)
 from .base import AbstractModelSolver
 from .em import EMSolver
 from .bbvi import BBVISolver
-from .em_alt import EMAlternateSolver
-from .vi import AbstractPosterior, SecondOrderVariationalSolver, MeanFieldPosterior
-from .vsmc import VariationalSequentialPosterior, VSMCSolver
-from .bbvi_reparam import BBVIReparamSolver, NaiveMeanFieldPosterior
+from .vi import AbstractPosterior

@@ -3,6 +3,7 @@ __pycache__/
 cache/
 data/
 data/*/
+tests/
 logs/
 output/
 trials/
@@ -15,3 +16,4 @@ trials/
 *.log
 *.csv
 log_config.ini
+ncbi_refs.json

@@ -1,12 +1,11 @@
 #!/bin/python3
 """
   simulate_reads.py
-  Run to simulate reads from genomes specified by raccession numbers.
+  Run to simulate reads from genomes specified by accession numbers.
 """
 
 import argparse
-import os
-
+from pathlib import Path
 import torch
 from typing import List, Tuple
 
@@ -77,22 +76,24 @@ def sample_reads(
 
     # Default/unbiased parameters for prior.
     mu = torch.zeros(len(population.strains) - 1, device=cfg.torch_cfg.device)  # One dimension for each strain
-    tau_1 = 1
-    tau = 1
 
     # Construct a GenerativeModel instance.
     if disable_quality:
-        logger.info("Flag --disable_quality turned on; Quality scores are diabled.")
+        logger.info("Flag --disable_quality turned on; Quality scores are disabled.")
         my_error_model = reads.NoiselessErrorModel()
     else:
         my_error_model = reads.BasicFastQErrorModel(read_len=read_length)
-    my_model = generative.GenerativeModel(times=time_points,
-                                          mu=mu,
-                                          tau_1=tau_1,
-                                          tau=tau,
-                                          bacteria_pop=population,
-                                          read_length=read_length,
-                                          read_error_model=my_error_model)
+    my_model = generative.GenerativeModel(
+        times=time_points,
+        mu=mu,
+        tau_1_dof=cfg.model_cfg.sics_dof_1,
+        tau_1_scale=cfg.model_cfg.sics_scale_1,
+        tau_dof=cfg.model_cfg.sics_dof,
+        tau_scale=cfg.model_cfg.sics_scale,
+        bacteria_pop=population,
+        read_length=read_length,
+        read_error_model=my_error_model
+    )
 
     if len(read_depths) != len(time_points):
         logger.warning("Not enough read depths (len={}) specified for time points (len={}). "
@@ -125,7 +126,7 @@ def sample_reads(
 
 
 def save_index_csv(time_series: TimeSeriesReads, out_dir: str, out_filename: str):
-    with open(os.path.join(out_dir, out_filename), "w") as f:
+    with open(Path(out_dir) / out_filename, "w") as f:
         for time_slice in time_series:
             print("\"{}\",\"{}\"".format(time_slice.time_point, time_slice.src), file=f)
 
@@ -180,7 +181,7 @@ def main():
 
     out_paths = []
     for time_slice in sampled_reads:
-        out_path_t = os.path.join(args.out_dir, "{}-reads.fastq".format(time_slice.time_point))
+        out_path_t = Path(args.out_dir) / "{}-reads.fastq".format(time_slice.time_point)
         out_paths.append(out_path_t)
         time_slice.src = out_path_t
     sampled_reads.save()
@@ -190,7 +191,7 @@ def main():
         population=population,
         time_points=time_points,
         abundances=abundances,
-        out_path=os.path.join(args.out_dir, '{}_abundances.csv'.format(args.out_prefix))
+        out_path=Path(args.out_dir) / '{}_abundances.csv'.format(args.out_prefix)
     )
 
     save_index_csv(

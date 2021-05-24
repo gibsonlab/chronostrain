@@ -5,7 +5,7 @@
 import numpy as np
 from chronostrain.model import Fragment
 from chronostrain.model.reads.base import SequenceRead, AbstractErrorModel, AbstractQScoreDistribution
-from chronostrain.util.math.random import choice_vectorized
+from chronostrain.util.math.numpy_random import choice_vectorized
 import chronostrain.util.sequences as cseq
 
 
@@ -182,11 +182,11 @@ class BasicErrorModel(AbstractErrorModel):
         # For example, see section "Integer array indexing", https://numpy.org/doc/stable/reference/arrays.indexing.html
         return np.log(BasicErrorModel.Q_SCORE_BASE_CHANGE_MATRICES[read.quality, fragment.seq, read.seq]).sum()
 
-    def sample_noisy_read(self, fragment: Fragment, metadata: str = "") -> SequenceRead:
+    def sample_noisy_read(self, read_id: str, fragment: Fragment, metadata: str = "") -> SequenceRead:
         quality_score_vector = self.q_dist.sample_qvec()
         random_seq = choice_vectorized(
             p=BasicErrorModel.Q_SCORE_BASE_CHANGE_MATRICES[quality_score_vector, fragment.seq, :],
             axis=1,
             dtype=cseq.SEQ_DTYPE
         )
-        return SequenceRead(random_seq, quality_score_vector, metadata=metadata)
+        return SequenceRead(read_id=read_id, seq=random_seq, quality=quality_score_vector, metadata=metadata)

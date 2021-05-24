@@ -5,15 +5,15 @@
     Package requirements are listed in `requirements.txt`.
 """
 
-import os
+from pathlib import Path
 import setuptools
 
-lib_dir = os.path.dirname(os.path.realpath(__file__))
+lib_dir = Path(__file__).resolve().parent
 
 # Package requirements: Parse from `requirements.txt`.
-requirementPath = lib_dir + '/requirements.txt'
+requirementPath = lib_dir / 'requirements.txt'
 requirements = []
-if os.path.isfile(requirementPath):
+if Path(requirementPath).is_file():
     with open(requirementPath, "r") as f:
         requirements = f.read().splitlines()
 

@@ -1,4 +1,3 @@
-import os
 import argparse
 import random
 import csv
@@ -11,6 +10,9 @@ from typing import Tuple, Dict, List
 from chronostrain import cfg, logger
 from chronostrain.database import AbstractStrainDatabase
 from chronostrain.util.external.art import art_illumina
+
+from random import seed, randint
+import numpy as np
 
 
 def parse_args():
@@ -32,6 +34,16 @@ def parse_args():
     parser.add_argument('-s', '--seed', dest='seed', required=False, type=int, default=random.randint(0, 100),
                         help='<Optional> The random seed to use for the samplers. Each timepoint will use a unique '
                              'seed, starting with the specified value and incremented by one at a time.')
+    parser.add_argument('-qs', '--qShift', dest='quality_shift', required=False,
+                        type=int, default=None,
+                        help='<Optional> The `qShift` argument to pass to art_illumina, which lowers quality scores '
+                             'of each read by the specified amount.'
+                             '(From the ART documentation: "NOTE: If shifting scores by x, the error rate will '
+                             'be 1/(10^(x/10)) of the default profile.")')
+    parser.add_argument('-qs2', '--qShift2', dest='quality_shift_2', required=False,
+                        type=int, default=None,
+                        help='<Optional> (Assuming paired-end reads) The `qShift2` argument to pass to art_illumina, '
+                             'which lowers quality scores of each second (reverse half) read by the specified amount.')
     parser.add_argument('--num_cores', dest='num_cores', required=False, type=int, default=1,
                         help='<Optional> The number of cores to use. If greater than 1, will spawn child '
                              'processes to call art_illumina.')
@@ -41,42 +53,76 @@ def parse_args():
     return parser.parse_args()
 
 
+class Seed(object):
+    def __init__(self, init: int = 0, min_value: int = 0, max_value: int = 1000000):
+        self.value = init
+        self.min_value = min_value
+        self.max_value = max_value
+        seed(self.value)
+
+    def next_value(self):
+        r = randint(self.min_value, self.max_value)
+        return r
+
+
+def sample_read_counts(n_reads: int, rel_abund: Dict[str, float]) -> Dict[str, int]:
+    """
+    :param rel_abund: A dictionary mapping strain IDs to its relative abundance fraction.
+    :return: A dictionary mapping strain IDS to read counts, sampled as a multinomial.
+    """
+    strains = list(rel_abund.keys())
+    counts = np.random.multinomial(n=n_reads, pvals=[rel_abund[strain] for strain in strains])
+    return {
+        strains[i]: counts[i]
+        for i in range(len(strains))
+    }
+
+
 def main():
     args = parse_args()
     strain_db = cfg.database_cfg.get_database()
-    Path(args.out_dir).mkdir(parents=True, exist_ok=True)
+
+    out_dir = Path(args.out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     timepoint_indexed_files = []
+    seed = Seed(args.seed)
     for t, abundance_t in parse_abundance_profile(args.abundance_path):
-        out_path_t = os.path.join(args.out_dir, "reads_{t}.fastq".format(t=t))
-        tmpdir = os.path.join(args.out_dir, "tmp_{t}".format(t=t))
+        # Sample a random multinomial profile.
+        np.random.seed(seed.next_value())
+        read_counts_t = sample_read_counts(args.num_reads, abundance_t)
+
+        # Generate the read path.
+        out_path_t = out_dir / "reads_{t}.fastq".format(t=t)
+        tmpdir = out_dir / "tmp_{t}".format(t=t)
         Path(tmpdir).mkdir(parents=True, exist_ok=True)
 
+        # Invoke art sampler on each time point.
         sample_reads_from_rel_abundances(
             final_reads_path=out_path_t,
-            abundances=abundance_t,
-            num_reads=args.num_reads,
+            abundances=read_counts_t,
             strain_db=strain_db,
             tmp_dir=tmpdir,
             profile_first=args.profiles[0],
             profile_second=args.profiles[1],
             read_len=args.read_len,
-            seed=args.seed,
+            quality_shift=args.quality_shift,
+            quality_shift_2=args.quality_shift_2,
+            seed=seed,
             n_cores=args.num_cores,
             cleanup=args.cleanup
         )
-
         timepoint_indexed_files.append((t, out_path_t))
     logger.info("Sampled reads to {}".format(args.out_dir))
 
-    index_path = os.path.join(args.out_dir, "input_files.csv")
+    index_path = out_dir / "input_files.csv"
     create_index_file(index_path, timepoint_indexed_files)
     logger.info("Wrote index file to {}.".format(index_path))
 
 
-def create_index_file(index_path, read_files):
+def create_index_file(index_path: Path, read_paths: List[Tuple[float, Path]]):
     with open(index_path, 'w') as index_file:
-        for time_point, reads_path_t in read_files:
+        for time_point, reads_path_t in read_paths:
             print("\"{t}\",\"{file}\"".format(
                 t=time_point,
                 file=reads_path_t
@@ -103,15 +149,16 @@ def parse_abundance_profile(abundance_path: str) -> List[Tuple[float, Dict]]:
         return abundances
 
 
-def sample_reads_from_rel_abundances(final_reads_path: str,
+def sample_reads_from_rel_abundances(final_reads_path: Path,
                                      abundances: Dict[str, float],
-                                     num_reads: int,
                                      strain_db: AbstractStrainDatabase,
-                                     tmp_dir: str,
-                                     profile_first: str,
-                                     profile_second: str,
+                                     tmp_dir: Path,
+                                     profile_first: Path,
+                                     profile_second: Path,
                                      read_len: int,
-                                     seed: int,
+                                     quality_shift: int,
+                                     quality_shift_2: int,
+                                     seed: Seed,
                                      n_cores: int,
                                      cleanup: bool):
     """
@@ -126,6 +173,8 @@ def sample_reads_from_rel_abundances(final_reads_path: str,
     :param profile_first:
     :param profile_second:
     :param read_len:
+    :param quality_shift:
+    :param quality_shift_2:
     :param seed:
     :param n_cores:
     :param cleanup:
@@ -133,32 +182,34 @@ def sample_reads_from_rel_abundances(final_reads_path: str,
     """
     if n_cores == 1:
         strain_read_paths = []
-        for t_index, (accession, rel_abund) in enumerate(abundances.items()):
+        for entry_index, (accession, read_count) in enumerate(abundances.items()):
             strain = strain_db.get_strain(strain_id=accession)
 
             output_path = art_illumina(
                 reference_path=strain.metadata.file_path,
-                num_reads=int(rel_abund * num_reads),
+                num_reads=read_count,
                 output_dir=tmp_dir,
                 output_prefix="{}_".format(accession),
                 profile_first=profile_first,
                 profile_second=profile_second,
+                quality_shift=quality_shift,
+                quality_shift_2=quality_shift_2,
                 read_length=read_len,
-                seed=seed + t_index
+                seed=seed.next_value()
             )
 
             strain_read_paths.append(output_path)
     elif n_cores > 1:
         configs = [(
             strain_db.get_strain(accession).metadata.file_path,
-            int(rel_abund * num_reads),
+            read_count,
             tmp_dir,
             "{}_".format(accession),
             profile_first,
             profile_second,
             read_len,
-            seed + t_index
-        ) for t_index, (accession, rel_abund) in enumerate(abundances.items())]
+            seed.next_value()
+        ) for entry_index, (accession, read_count) in enumerate(abundances.items())]
 
         thread_pool = Pool(n_cores)
         strain_read_paths = thread_pool.starmap(art_illumina, configs)
@@ -174,7 +225,7 @@ def sample_reads_from_rel_abundances(final_reads_path: str,
         shutil.rmtree(tmp_dir)
 
 
-def concatenate_files(input_paths, output_path):
+def concatenate_files(input_paths: List[Path], output_path: Path):
     """
     Concatenates the contents of each file in input_paths into output_path.
     Identical to cat (*) > output_path in a for loop.

@@ -1,8 +1,9 @@
+from typing import Tuple
+
 import torch
 from torch.nn.functional import softmax
 
 from chronostrain.config import cfg
-from chronostrain.util.data_cache import CacheTag
 from chronostrain.model.io.reads import TimeSeriesReads
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.util.benchmarking import RuntimeEstimator
@@ -14,6 +15,9 @@ from . import logger
 # =============== Expectation-Maximization (for computing a MAP estimator) ==================
 # ===========================================================================================
 
+def _sics_mode(dof: float, scale: float) -> float:
+    return dof * scale / (dof + 2)
+
 
 class EMSolver(AbstractModelSolver):
     """
@@ -22,30 +26,21 @@ class EMSolver(AbstractModelSolver):
     def __init__(self,
                  generative_model: GenerativeModel,
                  data: TimeSeriesReads,
-                 cache_tag: CacheTag,
                  lr: float = 1e-3):
         """
         Instantiates an EMSolver instance.
 
         :param generative_model: The underlying generative model with prior parameters.
         :param data: the observed data, a time-indexed list of read collections.
-        :param device: the torch device to operate on. (Recommended: CUDA if available.)
         :param lr: the learning rate (default: 1e-3)
         """
-        super().__init__(generative_model, data, cache_tag)
+        super().__init__(generative_model, data)
         self.lr = lr
-
-        # ==== Experimental. Probably is not useful right now.
-        # if not cfg.model_cfg.use_quality_scores:
-        #     logger.info("EM solve() called with disable_quality = True. Will simulate mappings from read likelihoods.")
-        #     self.do_noisy_mapping()
 
     def solve(self,
               iters: int = 1000,
               thresh: float = 1e-5,
               gradient_clip: float = 1e2,
-              q_smoothing: float = 0.,
-              learn_variances: bool = False,
               initialization=None,
               print_debug_every=200
               ):
@@ -70,10 +65,8 @@ class EMSolver(AbstractModelSolver):
         else:
             brownian_motion = initialization
 
-        time_scales = torch.tensor([
-            self.model.times[t_idx] - self.model.times[t_idx-1]
-            for t_idx in range(1, len(self.model.times))
-        ], device=cfg.torch_cfg.device)
+        var_1 = _sics_mode(dof=self.model.tau_1_dof, scale=self.model.tau_1_scale)
+        var = _sics_mode(dof=self.model.tau_dof, scale=self.model.tau_scale)
 
         logger.debug("EM algorithm started. (Gradient method, Target iterations={}, Threshold={})".format(
             iters,
@@ -85,11 +78,13 @@ class EMSolver(AbstractModelSolver):
         while k < iters:
             k += 1
             time_est.stopwatch_click()
-            updated_brownian_motion = self.em_update_new(
+            updated_brownian_motion, updated_var_1, updated_var = self.em_update(
                 brownian_motion,
-                gradient_clip=gradient_clip,
-                q_smoothing=q_smoothing
+                var_1=var_1,
+                var=var,
+                gradient_clip=gradient_clip
             )
+
             secs_elapsed = time_est.stopwatch_click()
             time_est.increment(secs_elapsed)
 
@@ -103,14 +98,8 @@ class EMSolver(AbstractModelSolver):
                 logger.info("Convergence criterion ({th}) met; terminating optimization early.".format(th=thresh))
                 break
             brownian_motion = updated_brownian_motion
-
-            if learn_variances:
-                if len(self.model.times) <= 1:
-                    raise RuntimeError("Cannot estimate time-covariances with just one time point.")
-
-                diffs = (brownian_motion[1:, :] - brownian_motion[:-1, :]) / time_scales[1:]
-                self.model.tau = torch.pow(diffs, 2).mean().pow(0.5).item()
-                self.model.tau_1 = torch.pow(brownian_motion[0], 2).mean().pow(0.5).item()
+            var_1 = updated_var_1
+            var = updated_var
 
             if k % print_debug_every == 0:
                 logger.info("Iteration {i} | time left: {t:.1f} min. | Learned Abundance Diff: {diff}".format(
@@ -118,18 +107,23 @@ class EMSolver(AbstractModelSolver):
                     t=time_est.time_left() / 60000,
                     diff=softmax_diff
                 ))
-        logger.info("Finished {k} iterations. | Abundance diff = {diff}".format(k=k, diff=softmax_diff))
+        logger.info("Finished {k} iterations. | Abundance diff = {diff} | var_1 = {var_1} | var = {var}".format(
+            k=k,
+            diff=softmax_diff,
+            var_1=var_1,
+            var=var
+        ))
 
-        return softmax(brownian_motion, dim=1).to(cfg.torch_cfg.device)
+        return softmax(brownian_motion, dim=1).to(cfg.torch_cfg.device), var_1, var
 
-    def em_update_new(
+    def em_update(
             self,
             x: torch.Tensor,
-            gradient_clip: float,
-            q_smoothing: float = 0.
-    ):
+            var: float,
+            var_1: float,
+            gradient_clip: float
+    ) -> Tuple[torch.Tensor, float, float]:
         T, S = x.size()
-
         F = self.model.num_fragments()
         x_gradient = torch.zeros(size=x.size(), device=cfg.torch_cfg.device)  # T x S tensor.
 
@@ -137,23 +131,29 @@ class EMSolver(AbstractModelSolver):
         if T > 1:
             for t in range(T):
                 if t == 0:
-                    variance_scaling = -1 / self.model.time_scaled_variance(0)
+                    variance_scaling = -1 / self.model.time_scaled_variance(0, var_1=var_1, var=var)
                     x_gradient[t] = variance_scaling * ((2 * x[0]) - x[1] - self.model.mu)
                 elif t == T-1:
-                    variance_scaling = -1 / self.model.time_scaled_variance(t)
+                    variance_scaling = -1 / self.model.time_scaled_variance(t, var_1=var_1, var=var)
                     x_gradient[t] = variance_scaling * (x[T-1] - x[T-2])
                 else:
-                    variance_scaling_prev = -1 / self.model.time_scaled_variance(t)
-                    variance_scaling_next = -1 / self.model.time_scaled_variance(t+1)
+                    variance_scaling_prev = -1 / self.model.time_scaled_variance(t, var_1=var_1, var=var)
+                    variance_scaling_next = -1 / self.model.time_scaled_variance(t+1, var_1=var_1, var=var)
                     x_gradient[t] = variance_scaling_prev * (x[t] - x[t-1]) + variance_scaling_next * (x[t] - x[t+1])
 
         # ====== Sigmoidal part
         y = softmax(x, dim=1)
         for t in range(T):
             # Scale each row by Z_t, and normalize.
-            Z_t = self.model.strain_abundance_to_frag_abundance(y[t].view(S, 1))
-            Q = (self.get_frag_likelihoods(t)) * Z_t + q_smoothing
-            Q = (Q / Q.sum(dim=0)[None, :]).sum(dim=1) / Z_t.view(F)
+            if cfg.model_cfg.use_sparse:
+                Z_t = self.model.strain_abundance_to_frag_abundance(y[t].view(S, 1))
+                Q = self.data_likelihoods.matrices[t].row_hadamard_dense_vector(Z_t)
+                # .row_hadamard(self.read_likelihoods[t], Z_t)
+                Q = Q.column_normed_row_sum() / Z_t.view(F)
+            else:
+                Z_t = self.model.strain_abundance_to_frag_abundance(y[t].view(S, 1))
+                Q = self.data_likelihoods.matrices[t] * Z_t
+                Q = (Q / Q.sum(dim=0)[None, :]).sum(dim=1) / Z_t.view(F)
 
             sigmoid = y[t]
             sigmoid_jacobian = torch.diag(sigmoid) - torch.ger(sigmoid, sigmoid)  # symmetric matrix.
@@ -171,22 +171,30 @@ class EMSolver(AbstractModelSolver):
         # ==== Re-center to zero to prevent drift. (Adding constant to each component does not change softmax.)
         updated_x = updated_x - (updated_x.mean() * torch.ones(size=updated_x.size(), device=cfg.torch_cfg.device))
 
-        return updated_x
+        # ==== Estimate variances from new posterior.
+        updated_var_1, updated_var = self.estimate_posterior_variances(updated_x)
+        return updated_x, updated_var_1, updated_var
 
-    def get_frag_likelihoods(self, t: int):
+    def estimate_posterior_variances(self, x) -> Tuple[float, float]:
         """
-        Look up the fragment error matrix for timeslice t. (corresponds to \epsilon^t from writeup.)
+        Outputs the posterior modes (maximum posterior likelihood), using the conjugacy of SICS/Gaussian distributions.
 
-        :param t: the time index (not the actual value).
-        :return: An (F x N) matrix representing the read likelihoods according to the error model.
+        :param x: a (T x S) tensor of gaussians, representing a realization of the S-dimensional brownian motion.
         """
-        return self.read_likelihoods[t]
+        diffs_1 = x[0, :] - self.model.mu
+        dof_1 = self.model.tau_1_dof + diffs_1.numel()
+        scale_1 = (1 / dof_1) * (
+            self.model.tau_1_dof * self.model.tau_1_scale
+            + torch.sum(torch.pow(diffs_1, 2))
+        )
 
-    def read_error_projections(self, t: int, frag_abundance: torch.Tensor) -> torch.Tensor:
-        """
-        :param t: the time index.
-        :param frag_abundance: The vector of fragment abundances Z_t.
-        :return: The vector of linear projections [<E_1^t, Z_t> , ..., <E_N^t, Z_t>].
-        """
-        # (N x F) matrix, applied to an F-dimensional vector.
-        return self.read_likelihoods[t].t().mv(frag_abundance)
+        diffs = (x[1:, :] - x[:-1, :]) * torch.tensor(
+            [self.model.dt(t_idx) for t_idx in range(1, self.model.num_times())]
+        ).pow(-0.5).unsqueeze(1)
+        dof = self.model.tau_dof + diffs.numel()
+        scale = (1 / dof) * (
+            self.model.tau_dof * self.model.tau_scale
+            + torch.sum(torch.pow(diffs, 2))
+        )
+
+        return _sics_mode(dof_1, scale_1), _sics_mode(dof, scale)

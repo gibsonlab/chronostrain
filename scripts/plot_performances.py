@@ -1,4 +1,5 @@
 import argparse
+from pathlib import Path
 import csv
 from typing import List, Tuple
 
@@ -27,7 +28,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def parse_trials(trials_filepath: str) -> List[Tuple[str, int, str]]:
+def parse_trials(trials_filepath: Path) -> List[Tuple[str, int, str]]:
     trials = []
     with open(trials_filepath, "r") as f:
         reader = csv.reader(f, delimiter=',', quotechar="\"")
@@ -41,12 +42,12 @@ def parse_trials(trials_filepath: str) -> List[Tuple[str, int, str]]:
 
 def main():
     args = parse_args()
-    trials = parse_trials(args.trial_specification)
+    trials = parse_trials(Path(args.trial_specification))
 
     plot_performance_degradation(
         trials=trials,
-        true_abundance_path=args.ground_truth_path,
-        out_path=args.output_path,
+        true_abundance_path=Path(args.ground_truth_path),
+        out_path=Path(args.output_path),
         title=args.title,
         font_size=args.font_size,
         thickness=args.thickness,

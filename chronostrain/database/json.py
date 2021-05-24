@@ -1,9 +1,11 @@
 from __future__ import annotations
-import os
+
+from pathlib import Path
 import re
 import json
+import itertools
 from dataclasses import dataclass
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Iterable
 
 from Bio import SeqIO
 
@@ -142,6 +144,9 @@ class PrimerMarkerEntry(MarkerEntry):
             self.reverse
         )
 
+    def entry_id(self) -> str:
+        return '-'.join([self.forward, self.reverse])
+
     @staticmethod
     def deserialize(entry_dict: dict, idx: int, parent: StrainEntry) -> PrimerMarkerEntry:
         return PrimerMarkerEntry(name=entry_dict['name'],
@@ -188,11 +193,13 @@ class SubsequenceLoader:
     """
 
     def __init__(self,
-                 fasta_filename: str,
-                 genbank_filename: str,
+                 strain_accession: str,
+                 fasta_path: Path,
+                 genbank_filename: Path,
                  marker_entries: List[MarkerEntry],
                  marker_max_len: int):
-        self.fasta_filename = fasta_filename
+        self.strain_accession = strain_accession
+        self.fasta_path = fasta_path
         self.genbank_filename = genbank_filename
 
         self.tag_entries: List[TagMarkerEntry] = []
@@ -211,9 +218,8 @@ class SubsequenceLoader:
 
     def get_full_genome(self, trim_debug=None) -> str:
         if self.full_genome is None:
-            with open(self.fasta_filename) as file:
-                lines = [re.sub('[^AGCT]+', '', line.split(sep=" ")[-1]) for line in file]
-            self.full_genome = ''.join(lines)
+            record = next(SeqIO.parse(self.fasta_path, "fasta"))
+            self.full_genome = str(record.seq)
             if trim_debug is not None:
                 self.full_genome = self.full_genome[:trim_debug]
         return self.full_genome
@@ -223,7 +229,13 @@ class SubsequenceLoader:
             self.genome_length = len(self.get_full_genome())
         return self.genome_length
 
-    def get_marker_subsequences(self) -> List[NucleotideSubsequence]:
+    def marker_filepath(self, name: str) -> Path:
+        return (
+                Path(cfg.database_cfg.data_dir)
+                / "{acc}-{seq}.fasta".format(acc=self.strain_accession, seq=name)
+        )
+
+    def parse_markers(self, force_refresh: bool = False) -> Iterable[Marker]:
         """
         Markers are expected to be a list of JSON objects of one of the following formats:
         (1) {'type': 'tag', 'name': <COMMON_NAME>, 'id': <NCBI_ID>}
@@ -232,7 +244,92 @@ class SubsequenceLoader:
         This method parses either type, depending on the 'type' field.
         :return: A list of marker instances.
         """
-        return self.get_subsequences_from_tags() + self.get_subsequences_from_primers()
+
+        if not force_refresh:
+            for marker in self.load_entries_from_disk():
+                yield marker
+
+        for subseq_obj in itertools.chain(self.get_subsequences_from_tags(), self.get_subsequences_from_primers()):
+            marker_filepath = self.marker_filepath(subseq_obj.name)
+            marker = Marker(
+                name=subseq_obj.name,
+                seq=subseq_obj.get_subsequence(self.get_full_genome()),
+                metadata=MarkerMetadata(
+                    parent_accession=self.strain_accession,
+                    gene_id=subseq_obj.id,
+                    file_path=marker_filepath
+                )
+            )
+            self.save_marker_to_disk(marker, marker_filepath)
+            yield marker
+
+    def load_entries_from_disk(self) -> Iterable[Marker]:
+        tag_entries_missed = []
+        for tag_entry in self.tag_entries:
+            marker_name = tag_entry.name
+            marker_id = tag_entry.locus_tag
+            marker_filepath = self.marker_filepath(marker_name)
+            try:
+                yield self.load_marker_from_disk(marker_filepath, marker_name, marker_id)
+            except FileNotFoundError:
+                tag_entries_missed.append(tag_entry)
+            except StrainEntryError as e:
+                logger.warn(str(e))
+                tag_entries_missed.append(tag_entry)
+        self.tag_entries = tag_entries_missed
+
+        primer_entries_missed = []
+        for primer_entry in self.primer_entries:
+            marker_name = primer_entry.name
+            marker_id = primer_entry.entry_id()
+            marker_filepath = self.marker_filepath(marker_name)
+            try:
+                yield self.load_marker_from_disk(marker_filepath, marker_name, marker_id)
+            except FileNotFoundError:
+                primer_entries_missed.append(primer_entry)
+            except StrainEntryError as e:
+                logger.warn(str(e))
+                primer_entries_missed.append(primer_entry)
+        self.primer_entries = primer_entries_missed
+
+    def save_marker_to_disk(self, marker: Marker, filepath: Path):
+        SeqIO.write([
+            marker.to_seqrecord(description="Strain:{}".format(self.strain_accession))
+        ], filepath, "fasta")
+
+    def load_marker_from_disk(self, filepath: Path, expected_marker_name: str, expected_marker_id: str) -> Marker:
+        record = next(SeqIO.parse(filepath, "fasta"))
+        accession_token, name_token, id_token = record.id.split("|")
+        if accession_token != self.strain_accession:
+            raise StrainEntryError(
+                "Marker's strain accession {} does not match input strain accession {}. (File={})".format(
+                    accession_token,
+                    self.strain_accession,
+                    filepath
+                )
+            )
+        elif name_token != expected_marker_name:
+            raise StrainEntryError("Marker name {} does not match input name {}. (File={})".format(
+                name_token,
+                expected_marker_name,
+                filepath
+            ))
+        elif id_token != expected_marker_id:
+            raise StrainEntryError("Marker id {} does not match input id {}. (File={})".format(
+                id_token,
+                expected_marker_id,
+                filepath
+            ))
+        else:
+            return Marker(
+                name=expected_marker_name,
+                seq=str(record.seq),
+                metadata=MarkerMetadata(
+                    parent_accession=self.strain_accession,
+                    gene_id=expected_marker_id,
+                    file_path=filepath
+                )
+            )
 
     def get_subsequences_from_tags(self) -> List[NucleotideSubsequence]:
         if len(self.tag_entries) == 0:
@@ -291,7 +388,7 @@ class SubsequenceLoader:
                 logger.debug("Found primer match: ({},{})".format(result[0], result[1]))
                 subsequences.append(NucleotideSubsequence(
                     name=entry.name,
-                    id='-'.join([entry.forward, entry.reverse]),
+                    id=entry.entry_id(),
                     start_index=result[0],
                     end_index=result[1],
                     complement=False
@@ -340,7 +437,7 @@ class JSONStrainDatabase(AbstractStrainDatabase):
     A implementation which defines strains as collections of markers, using the JSON format found in the example.
     """
 
-    def __init__(self, entries_file, marker_max_len, force_refresh: bool = False):
+    def __init__(self, entries_file: str, marker_max_len: int, force_refresh: bool = False):
         """
         :param entries_file: JSON filename specifying accession numbers and marker locus tags.
         """
@@ -353,39 +450,22 @@ class JSONStrainDatabase(AbstractStrainDatabase):
         logger.info("Loading from JSON marker database file {}.".format(self.entries_file))
         logger.debug("Data will be saved to/load from: {}".format(cfg.database_cfg.data_dir))
         for strain_entry in self.strain_entries():
-            fasta_filename = fetch_fasta(strain_entry.accession,
-                                         base_dir=cfg.database_cfg.data_dir,
-                                         force_download=force_refresh)
+            strain_fasta_path = fetch_fasta(strain_entry.accession,
+                                            base_dir=cfg.database_cfg.data_dir,
+                                            force_download=force_refresh)
             genbank_filename = fetch_genbank(strain_entry.accession,
                                              base_dir=cfg.database_cfg.data_dir,
                                              force_download=force_refresh)
 
-            # TODO only do regex searches if can't load from disk. Try to load from disk first
-            #  when implementing this, be wary of copy numbers (need to decide when/where to handle it.)
-
             sequence_loader = SubsequenceLoader(
-                fasta_filename=fasta_filename,
+                strain_accession=strain_entry.accession,
+                fasta_path=strain_fasta_path,
                 genbank_filename=genbank_filename,
                 marker_entries=strain_entry.marker_entries,
                 marker_max_len=self.marker_max_len
             )
 
-            genome = sequence_loader.get_full_genome()
-            markers = []
-            for subsequence_data in sequence_loader.get_marker_subsequences():
-                marker_filepath = os.path.join(
-                    cfg.database_cfg.data_dir,
-                    self.marker_filename(strain_entry.accession, subsequence_data.name)
-                )
-                markers.append(Marker(
-                    name=subsequence_data.name,
-                    seq=subsequence_data.get_subsequence(genome),
-                    metadata=MarkerMetadata(
-                        gene_id=subsequence_data.id,
-                        file_path=marker_filepath
-                    )
-                ))
-                self.save_marker_to_fasta(strain_entry.accession, markers[-1], marker_filepath)
+            markers = [marker for marker in sequence_loader.parse_markers(force_refresh=force_refresh)]
 
             self.strains[strain_entry.accession] = Strain(
                 id=strain_entry.accession,
@@ -395,7 +475,7 @@ class JSONStrainDatabase(AbstractStrainDatabase):
                     ncbi_accession=strain_entry.accession,
                     genus=strain_entry.genus,
                     species=strain_entry.species,
-                    file_path=fasta_filename
+                    file_path=strain_fasta_path
                 ))
 
             if len(markers) == 0:
@@ -405,11 +485,6 @@ class JSONStrainDatabase(AbstractStrainDatabase):
                     strain_entry.accession,
                     len(markers)
                 ))
-
-        # Save multi-fasta.
-        self.multifasta_file = os.path.join(cfg.database_cfg.data_dir, 'marker_multifasta.fa')
-        self.save_markers_to_multifasta(filepath=self.multifasta_file, force_refresh=force_refresh)
-        logger.debug("Multi-fasta file: {}".format(self.multifasta_file))
 
     def get_strain(self, strain_id: str) -> Strain:
         if strain_id not in self.strains:
@@ -429,53 +504,3 @@ class JSONStrainDatabase(AbstractStrainDatabase):
         """
         with open(self.entries_file, "r") as f:
             return [StrainEntry.deserialize(strain_dict, idx) for idx, strain_dict in enumerate(json.load(f))]
-
-    def get_marker_filenames(self):
-        filenames = []
-        for strain in self.all_strains():
-            for marker in strain.markers:
-                filenames.append(marker.metadata.file_path)
-        return filenames
-
-    def get_multifasta_file(self):
-        return self.multifasta_file
-
-    def strain_markers_to_fasta(self, strain_id: str, out_path: str):
-        strain = self.get_strain(strain_id)
-        with open(out_path, "w") as marker_file:
-            for marker in strain.markers:
-                print(">{}|{}|{}".format(strain_id, marker.name, marker.metadata.gene_id), file=marker_file)
-                print(marker.seq, file=marker_file)
-
-    def save_markers_to_multifasta(self,
-                                   filepath: str,
-                                   force_refresh: bool = True):
-        if not force_refresh and os.path.exists(filepath):
-            logger.debug("Multi-fasta file already exists; skipping creation.".format(
-                filepath
-            ))
-        else:
-            marker_files = self.get_marker_filenames()
-            with open(filepath, 'w') as multifa:
-                for filename in marker_files:
-                    with open(filename, 'r') as marker_file:
-                        for line in marker_file:
-                            multifa.write(line)
-                    multifa.write('\n')
-
-    @staticmethod
-    def marker_filename(accession: str, name: str):
-        return "{acc}-{seq}.fasta".format(acc=accession, seq=name)
-
-    @staticmethod
-    def save_marker_to_fasta(strain_id: str, marker: Marker, filepath):
-        with open(filepath, 'w') as f:
-            print(">{}|{}|{}".format(
-                strain_id,
-                marker.name,
-                marker.metadata.gene_id
-            ), file=f)
-            for i in range(len(marker.seq)):
-                f.write(marker.seq[i])
-                if (i + 1) % 70 == 0:
-                    f.write('\n')

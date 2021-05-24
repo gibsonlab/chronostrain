@@ -1,4 +1,5 @@
 import math
+from pathlib import Path
 from typing import List, Tuple
 
 import numpy as np
@@ -11,8 +12,8 @@ from chronostrain.model.io import load_abundances
 
 def plot_performance_degradation(
         trials: List[Tuple[str, int, str]],
-        true_abundance_path: str,
-        out_path: str,
+        true_abundance_path: Path,
+        out_path: Path,
         title: str = None,
         draw_legend: bool = True,
         font_size: int = 18,

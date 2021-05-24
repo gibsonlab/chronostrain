@@ -18,5 +18,5 @@ class NoiselessErrorModel(AbstractErrorModel):
         else:
             return self.mismatch_log_likelihood
 
-    def sample_noisy_read(self, fragment: Fragment, metadata: str = "") -> SequenceRead:
-        return SequenceRead(fragment.seq, quality=np.ones(len(fragment))*1000, metadata=metadata)
+    def sample_noisy_read(self, read_id: str, fragment: Fragment, metadata: str = "") -> SequenceRead:
+        return SequenceRead(read_id=read_id, seq=fragment.seq, quality=np.ones(len(fragment))*1000, metadata=metadata)

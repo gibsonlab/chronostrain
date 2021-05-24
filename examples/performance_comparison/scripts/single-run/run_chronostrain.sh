@@ -2,7 +2,7 @@
 set -e
 
 source settings.sh
-export CHRONOSTRAIN_LOG_FILEPATH="${CHRONOSTRAIN_DATA_DIR}/logs/reads_${N_READS}/single-run/chronostrain.log"
+export CHRONOSTRAIN_LOG_FILEPATH="${CHRONOSTRAIN_DATA_DIR}/logs/reads_${N_READS}/qs_${QUALITY_SHIFT}/single-run/chronostrain.log"
 SEED=31415
 
 # =========== Read filtering. ===============

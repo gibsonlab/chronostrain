@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import List
 
 import numpy as np
@@ -12,9 +13,9 @@ from scipy.special import softmax
 
 
 def plot_abundances_comparison(
-            inferred_abnd_path: str,
-            real_abnd_path: str,
-            plots_out_path: str,
+            inferred_abnd_path: Path,
+            real_abnd_path: Path,
+            plots_out_path: Path,
             draw_legend: bool,
             num_reads_per_time: List[int] = None,
             title: str = None,
@@ -67,8 +68,8 @@ def plot_abundances_comparison(
 
 
 def plot_abundances(
-        abnd_path: str,
-        plots_out_path: str,
+        abnd_path: Path,
+        plots_out_path: Path,
         draw_legend: bool,
         num_reads_per_time: List[int] = None,
         title: str = None,
@@ -111,7 +112,7 @@ def plot_abundances(
 
 def plot_abundance_dataframe(
         data: pd.DataFrame,
-        plots_out_path: str,
+        plots_out_path: Path,
         draw_legend: bool,
         img_format: str,
         num_reads_per_time: List[int] = None,
@@ -166,10 +167,10 @@ def plot_posterior_abundances(
         times: List[float],
         posterior_samples: np.ndarray,
         population: Population,
-        plots_out_path: str,
-        truth_path: str,
+        plots_out_path: Path,
         draw_legend: bool,
         img_format: str,
+        truth_path: Path = None,
         title: str = None,
         font_size: int = 12,
         thickness: int = 1,
@@ -192,29 +193,26 @@ def plot_posterior_abundances(
 
     true_abundances = None
     truth_acc_dict = None
-    if truth_path:
+    if truth_path is not None:
         _, true_abundances, accessions = load_abundances(truth_path)
         truth_acc_dict = {acc: i for i, acc in enumerate(accessions)}
 
     # Convert gaussians to rel abundances.
-    abundance_samples = [
-        softmax(posterior_samples[t_idx, :, :], axis=1)
-        for t_idx in range(posterior_samples.shape[0])
-    ]
+    abundance_samples = softmax(posterior_samples, axis=2)
 
     fig, ax = plt.subplots(1, 1)
     legend_elements = []
     plt.rcParams.update({'font.size': font_size})
+    ax.set_ylim(0, 1)
+    ax.set_xlabel("Time")
+    ax.set_ylabel("Relative abundance")
 
     for s_idx, strain in enumerate(population.strains):
         # This is (T x N), for the particular strain.
-        traj_samples = np.array([
-            abundance_samples[t_idx][:, s_idx]
-            for t_idx in range(len(times))
-        ])
+        traj_samples = abundance_samples[:, :, s_idx]
 
-        upper_quantile = np.quantile(traj_samples, q=0.95, axis=1)
-        lower_quantile = np.quantile(traj_samples, q=0.05, axis=1)
+        upper_quantile = np.quantile(traj_samples, q=0.975, axis=1)
+        lower_quantile = np.quantile(traj_samples, q=0.025, axis=1)
         median = np.quantile(traj_samples, q=0.5, axis=1)
 
         # Plot the trajectory of medians.

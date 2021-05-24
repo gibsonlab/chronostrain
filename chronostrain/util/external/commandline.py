@@ -1,3 +1,4 @@
+from pathlib import Path
 import subprocess
 from typing import List
 from chronostrain.util import logger
@@ -12,8 +13,8 @@ class CommandLineException(BaseException):
 
 def call_command(command: str,
                  args: List[str],
-                 cwd: str = None,
-                 output_path: str = None) -> int:
+                 cwd: Path = None,
+                 output_path: Path = None) -> int:
     """
     Executes the command (using the subprocess module).
     :param command: The binary to run.
@@ -23,6 +24,8 @@ def call_command(command: str,
     :param output_path: A path to print the contents of STDOUT to. (If None, logs STDOUT instead.)
     :return: The exit code. (zero by default, the program's returncode if error.)
     """
+    args = [str(arg) for arg in args]
+
     logger.debug("EXECUTE {cwdstr}{cmd} {arguments}".format(
         cmd=command,
         cwdstr="" if cwd is None else "[cwd={}] ".format(cwd),
@@ -34,7 +37,7 @@ def call_command(command: str,
             [command] + args,
             stderr=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            cwd=cwd
+            cwd=None if cwd is None else str(cwd)
         )
         logger.debug("STDOUT: {}".format(p.stdout.decode("utf-8")))
         logger.debug("STDERR: {}".format(p.stderr.decode("utf-8")))

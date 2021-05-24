@@ -5,11 +5,11 @@
 import argparse
 import bz2
 import hashlib
-import os
 import pickle
 import shutil
 import tarfile
 from typing import Tuple
+from pathlib import Path
 
 from chronostrain import cfg, logger
 from chronostrain.model import Strain
@@ -89,7 +89,7 @@ def fill_higher_levels(master_strain, strain_gtdb, strain_ncbi_levels, metaphlan
                 print(master_marker.seq, file=fasta_file)
 
 
-def convert_to_metaphlan_db(chronostrain_db, metaphlan_in_path, metaphlan_out_dir, basename):
+def convert_to_metaphlan_db(chronostrain_db, metaphlan_in_path: Path, metaphlan_out_dir: Path, basename: str):
     input_metaphlan_db: dict = pickle.load(bz2.open(metaphlan_in_path, 'r'))
 
     new_metaphlan_db = {
@@ -98,10 +98,11 @@ def convert_to_metaphlan_db(chronostrain_db, metaphlan_in_path, metaphlan_out_di
         'merged_taxon': dict()
     }
 
-    marker_fasta_path = os.path.join(metaphlan_out_dir, "{}.fasta".format(basename))
+    marker_fasta_path = metaphlan_out_dir / "{}.fasta".format(basename)
+    bowtie2_index_path = metaphlan_out_dir / "{}.bt2".format(basename)
 
-    with open(marker_fasta_path, "w") as _:
-        pass
+    marker_fasta_path.unlink(missing_ok=True)
+    marker_fasta_path.touch()
 
     for s_idx, strain in enumerate(chronostrain_db.all_strains()):
         logger.info("Strain {} of {} -- {} ({} {})".format(
@@ -138,32 +139,33 @@ def convert_to_metaphlan_db(chronostrain_db, metaphlan_in_path, metaphlan_out_di
 
     # Build the bowtie2 database.
     bowtie2.bowtie2_build(
-        refs_in=marker_fasta_path,
-        output_index_base=basename
+        refs_in=[marker_fasta_path],
+        out_path=bowtie2_index_path,
+        output_index_basename=basename
     )
     logger.info("Ran bowtie2-build on {}.".format(marker_fasta_path))
 
     # Save the new mpa_pkl file
-    pkl_path = os.path.join(metaphlan_out_dir, "{}.pkl".format(basename))
+    pkl_path = Path(metaphlan_out_dir) / "{}.pkl".format(basename)
     with bz2.BZ2File(pkl_path, 'w') as outfile:
         pickle.dump(new_metaphlan_db, outfile, pickle.HIGHEST_PROTOCOL)
         logger.info("Wrote pickle file {}.".format(pkl_path))
 
     # Bzip2 the fasta file.
-    fasta_bz2_path = os.path.join(metaphlan_out_dir, "{}.fna.bz2".format(basename))
+    fasta_bz2_path = Path(metaphlan_out_dir) / "{}.fna.bz2".format(basename)
     with open(marker_fasta_path, 'rb') as f_in:
         with bz2.open(fasta_bz2_path, "wb") as f_out:
             shutil.copyfileobj(f_in, f_out)
 
     # Tarball these two files.
     tar_filename = "{}.tar".format(basename)
-    tar_path = os.path.join(metaphlan_out_dir, tar_filename)
+    tar_path = Path(metaphlan_out_dir) / tar_filename
     with tarfile.open(tar_path, "w:gz") as tar:
         tar.add(pkl_path)
         tar.add(fasta_bz2_path)
 
     # Generate MD5 hash.
-    md5_path = os.path.join(metaphlan_out_dir, "{}.md5".format(basename))
+    md5_path = Path(metaphlan_out_dir) / "{}.md5".format(basename)
     md5 = hashlib.md5(open(tar_path, 'rb').read()).hexdigest()
     with open(md5_path, "w") as md5file:
         print("{}  {}".format(md5, tar_filename), file=md5file)
@@ -194,8 +196,8 @@ def main():
     logger.info("Converting metaphlan pickle files.")
     convert_to_metaphlan_db(
         chronostrain_db=chronostrain_db,
-        metaphlan_in_path=args.metaphlan_input_path,
-        metaphlan_out_dir=args.metaphlan_out_dir,
+        metaphlan_in_path=Path(args.metaphlan_input_path),
+        metaphlan_out_dir=Path(args.metaphlan_out_dir),
         basename=args.basename
     )
 

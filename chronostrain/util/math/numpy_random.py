@@ -5,7 +5,7 @@
 import numpy as np
 
 
-def choice_vectorized(p: np.array, axis=1, dtype=np.int):
+def choice_vectorized(p: np.array, axis=1, dtype=np.int) -> np.ndarray:
     """
     Vectorized operation for sampling from many categorical distributions.
     https://stackoverflow.com/questions/47722005/vectorizing-numpy-random-choice-for-given-2d-array-of-probabilities-along-an-a

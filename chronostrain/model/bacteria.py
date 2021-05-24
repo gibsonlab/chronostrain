@@ -1,16 +1,22 @@
 import torch
+from pathlib import Path
 from dataclasses import dataclass
 from typing import List, Union
+
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
 
 from chronostrain.config import cfg
 from chronostrain.model.fragments import FragmentSpace
 from . import logger
+from chronostrain.util.sparse import SparseMatrix
 
 
 @dataclass
 class MarkerMetadata:
+    parent_accession: str
     gene_id: str
-    file_path: str
+    file_path: Path
     
     def __repr__(self):
         return self.gene_id
@@ -22,7 +28,7 @@ class MarkerMetadata:
 @dataclass
 class StrainMetadata:
     ncbi_accession: str
-    file_path: str
+    file_path: Path
     genus: str
     species: str
 
@@ -34,13 +40,23 @@ class Marker:
     metadata: Union[MarkerMetadata, None]
 
     def __repr__(self):
-        return "Marker[{}:{}]".format(self.name, self.seq) if MarkerMetadata is None else "Marker[{}:{}]".format(self.metadata, self.seq)
+        if self.metadata is None:
+            return "Marker[{}:{}]".format(self.name, self.seq)
+        else:
+            return "Marker[{}({}):{}]".format(self.name, self.metadata, self.seq)
 
     def __str__(self):
         return self.__repr__()
 
     def __len__(self):
         return len(self.seq)
+
+    def to_seqrecord(self, description: str = "") -> SeqRecord:
+        return SeqRecord(
+            Seq(self.seq),
+            id="{}|{}|{}".format(self.metadata.parent_accession, self.name, self.metadata.gene_id),
+            description=description
+        )
 
 
 @dataclass
@@ -83,24 +99,36 @@ class Population:
         for strain in self.strains:
             for marker in strain.markers:
                 for seq, pos in sliding_window(marker.seq, window_size):
-                    fragment_space.add_seq(seq, metadata=strain.id + "Pos" + str(pos))
+                    fragment_space.add_seq(seq, metadata="{}_{}_Pos({})".format(strain.id, marker.metadata.gene_id, pos))
 
         self.fragment_space_map[window_size] = fragment_space
         logger.debug("Finished constructing fragment space. (Size={})".format(fragment_space.size()))
 
         return fragment_space
 
-    def get_strain_fragment_frequencies(self, window_size) -> torch.Tensor:
+    def get_strain_fragment_frequencies(self, window_size) -> Union[torch.Tensor, SparseMatrix]:
         """
         Get fragment counts per strain. The output represents the 'W' matrix in the notes.
         :param window_size: an integer specifying the fragment window length.
         :return: An (F x S) matrix, where each column is a strain-specific frequency vector of fragments.
         """
+        # Simplification: Assume uniform read length per fragment. This is not a theoretically necessary assumption,
+        #   but a practically necessary one.
 
-        # Lazy initialization; Return if already initialized.
+        # Return if already created.
         if window_size in self.fragment_frequencies_map.keys():
             return self.fragment_frequencies_map[window_size]
 
+        # Couldn't find existing instance. Create a new one.
+        if cfg.model_cfg.use_sparse:
+            frag_freqs = self.get_strain_fragment_frequencies_sparse(window_size)
+        else:
+            frag_freqs = self.get_strain_fragment_frequencies_dense(window_size)
+        self.fragment_frequencies_map[window_size] = frag_freqs
+        logger.debug("Finished constructing fragment frequencies for window size {}.".format(window_size))
+        return frag_freqs
+
+    def get_strain_fragment_frequencies_dense(self, window_size) -> torch.Tensor:
         # For each strain, fill out the column.
         fragment_space = self.get_fragment_space(window_size)
         frag_freqs = torch.zeros(fragment_space.size(), len(self.strains), device=cfg.torch_cfg.device)
@@ -116,10 +144,31 @@ class Population:
         frag_freqs = frag_freqs / torch.tensor([
             [strain.genome_length - window_size + 1 for strain in self.strains]
         ], device=cfg.torch_cfg.device)
-
-        self.fragment_frequencies_map[window_size] = frag_freqs
-        logger.debug("Finished constructing fragment frequencies for window size {}.".format(window_size))
         return frag_freqs
+
+    def get_strain_fragment_frequencies_sparse(self, window_size) -> SparseMatrix:
+        # TODO: Use Zack's 'SparseMatrix' class implementation.
+        # TODO: Use a cached computation for this part.
+        # For each strain, fill out the column.
+        fragment_space = self.get_fragment_space(window_size)
+        logger.debug("Constructing fragment frequencies for window size {}...".format(window_size))
+
+        strain_indices = []
+        frag_indices = []
+        matrix_values = []
+
+        for strain_idx, strain in enumerate(self.strains):
+            for marker in strain.markers:
+                for subseq, _ in sliding_window(marker.seq, window_size):
+                    strain_indices.append(strain_idx)
+                    frag_indices.append(fragment_space.get_fragment(subseq).index)
+                    matrix_values.append(1)
+
+        return SparseMatrix(
+            indices=torch.tensor([frag_indices, strain_indices], device=cfg.torch_cfg.device, dtype=torch.long),
+            values=torch.tensor(matrix_values, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype),
+            dims=(fragment_space.size(), len(self.strains))
+        ).normalize(dim=0)
 
 
 def sliding_window(seq, width):

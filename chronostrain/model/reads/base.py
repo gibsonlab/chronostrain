@@ -13,7 +13,8 @@ class SequenceRead:
     """
     A class representing a sequence-quality vector pair.
     """
-    def __init__(self, seq: Union[str, np.ndarray], quality: np.array, metadata: str):
+    def __init__(self, read_id: str, seq: Union[str, np.ndarray], quality: np.array, metadata: str):
+        self.id: str = read_id
         if len(seq) != len(quality):
             raise ValueError(
                 "Length of nucleotide sequence ({}) must agree with length of quality score sequence ({})".format(
@@ -63,10 +64,11 @@ class AbstractErrorModel(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def sample_noisy_read(self, fragment: Fragment, metadata: str = "") -> SequenceRead:
+    def sample_noisy_read(self, read_id: str, fragment: Fragment, metadata: str = "") -> SequenceRead:
         """
         Obtain a random read (q-vec and sequence pair) from a given fragment.
 
+        :param read_id: The ID of the read.
         :param fragment: The source fragment.
         :param metadata: The metadata to store in the read.
         :return: A list of reads sampled according to their probabilities.

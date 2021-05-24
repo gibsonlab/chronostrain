@@ -1,10 +1,12 @@
 import csv
-import re
-from typing import List, Optional
+from pathlib import Path
+from typing import List, Optional, Tuple
+
+from Bio import SeqIO
 
 from chronostrain.config import cfg
 from chronostrain.database.base import AbstractStrainDatabase, StrainEntryError, StrainNotFoundError
-from chronostrain.model.bacteria import Strain, Marker, StrainMetadata
+from chronostrain.model.bacteria import Strain, Marker, StrainMetadata, MarkerMetadata
 from chronostrain.util.ncbi import fetch_fasta
 from . import logger
 
@@ -29,13 +31,29 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
 
     def __load__(self, force_refresh: bool = False):
         logger.info("Loading from CSV marker database file {}.".format(self.entries_file))
-        for strain_name, accession, fasta_filename in self._strain_entries(force_refresh):
-            with open(fasta_filename, "r") as file:
-                lines = [re.sub('[^AGCT]+', '', line.split(sep=" ")[-1]) for line in file]
-            genome = ''.join(lines)
+        for strain_name, accession, strain_fasta_path in self._strain_entries(force_refresh):
+            record = next(SeqIO.parse(strain_fasta_path, "fasta"))
+            genome = str(record.seq)
             if self.trim_debug is not None:
-                genome = genome[:self.trim_debug]
-            markers = [Marker(name=strain_name, seq=genome, metadata=None)]  # Each genome's marker is its own genome.
+                markers = [
+                    Marker(
+                        name="Genome_{}[{}:{}]".format(accession, 0, self.trim_debug),
+                        seq=genome[:self.trim_debug],
+                        metadata=MarkerMetadata(parent_accession=accession,
+                                                gene_id="GENOME",
+                                                file_path=strain_fasta_path)
+                    )
+                ]
+            else:
+                markers = [
+                    Marker(
+                        name="Genome_{}".format(accession),
+                        seq=genome,
+                        metadata=MarkerMetadata(parent_accession=accession,
+                                                gene_id="GENOME",
+                                                file_path=strain_fasta_path)
+                    )
+                ]  # Each genome's marker is its own genome.
             self.strains[accession] = Strain(
                 id=accession,
                 markers=markers,
@@ -44,7 +62,7 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
                     ncbi_accession=accession,
                     genus="",  # TODO: make it up-to-date with JSONDatabase.
                     species=strain_name,
-                    file_path=fasta_filename
+                    file_path=strain_fasta_path
                 )
             )
 
@@ -64,15 +82,17 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
     def num_strains(self) -> int:
         return len(self.strains)
 
-    def get_multifasta_file(self) -> str:
-        raise NotImplementedError("Multi-fasta marker generation not implemented for {}.".format(
-            self.__class__.__name__
-        ))
+    def strain_markers_to_fasta(self, strain_id: str, out_path: Path, file_mode: str = "w"):
+        if self.trim_debug is None:
+            logger.warn(
+                "Strains loaded by {} uses entire genomes as markers. Skipping writing of markers to fasta.".format(
+                    self.__class__.__name__
+                )
+            )
+        else:
+            super().strain_markers_to_fasta(strain_id, out_path, file_mode=file_mode)
 
-    def strain_markers_to_fasta(self, strain_id: str, out_path: str):
-        raise NotImplementedError("Method not implemented.")
-
-    def _strain_entries(self, force_refresh: bool):
+    def _strain_entries(self, force_refresh: bool) -> Tuple[str, str, Path]:
         """
         Read CSV file, and download FASTA from accessions if doesn't exist.
         :return: a dictionary mapping accessions to strain-accession-filename wrappers.
@@ -91,10 +111,10 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
                 strain_name = row[0]
                 accession = row[1]
                 logger.debug("Loading entry {}...".format(accession))
-                fasta_filename = fetch_fasta(
+                fasta_path = fetch_fasta(
                     accession,
                     base_dir=cfg.database_cfg.data_dir,
                     force_download=force_refresh
                 )
-                yield strain_name, accession, fasta_filename
+                yield strain_name, accession, fasta_path
         logger.info("Found {} records.".format(line_count - 1))

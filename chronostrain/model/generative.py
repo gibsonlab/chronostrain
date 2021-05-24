@@ -5,16 +5,16 @@
 import sys
 from typing import List, Tuple
 
-import torch
 from tqdm import tqdm
 from torch.distributions.multivariate_normal import MultivariateNormal
 from torch.nn.functional import softmax
 
-from chronostrain.config import cfg
 from chronostrain.model.bacteria import Population
 from chronostrain.model.fragments import FragmentSpace
 from chronostrain.model.reads import AbstractErrorModel, SequenceRead
 from chronostrain.model.io import TimeSeriesReads, TimeSliceReads
+from chronostrain.util.math.distributions import *
+from chronostrain.util.sparse import SparseMatrix
 from . import logger
 
 
@@ -22,16 +22,31 @@ class GenerativeModel:
     def __init__(self,
                  times: List[float],
                  mu: torch.Tensor,
-                 tau_1: float,
-                 tau: float,
+                 tau_1_dof: float,
+                 tau_1_scale: float,
+                 tau_dof: float,
+                 tau_scale: float,
                  bacteria_pop: Population,
                  read_error_model: AbstractErrorModel,
                  read_length: int):
+        """
+        :param times: A list of time points.
+        :param mu: The prior mean E[X_1] of the first time point.
+        :param tau_1_dof: The scale-inverse-chi-squared DOF of the first time point.
+        :param tau_1_scale: The scale-inverse-chi-squared scale of the first time point.
+        :param tau_dof: The scale-inverse-chi-squared DOF of the rest of the Gaussian process.
+        :param tau_scale: The scale-inverse-chi-squared scale of the rest of the Gaussian process.
+        :param bacteria_pop: A Population instance consisting of the relevant strains.
+        :param read_error_model: An error model for the reads (an instance of AbstractErrorModel).
+        :param read_length: The universal read length, given as a single integer.
+        """
 
         self.times: List[float] = times  # array of time points
         self.mu: torch.Tensor = mu  # mean for X_1
-        self.tau_1: float = tau_1  # covariance scaling for X_1
-        self.tau: float = tau  # covariance base scaling
+        self.tau_1_dof: float = tau_1_dof
+        self.tau_1_scale: float = tau_1_scale
+        self.tau_dof: float = tau_dof
+        self.tau_scale: float = tau_scale
         self.error_model: AbstractErrorModel = read_error_model
         self.bacteria_pop: Population = bacteria_pop
         self.read_length: int = read_length
@@ -48,7 +63,7 @@ class GenerativeModel:
     def get_fragment_space(self) -> FragmentSpace:
         return self.bacteria_pop.get_fragment_space(self.read_length)
 
-    def get_fragment_frequencies(self) -> torch.Tensor:
+    def get_fragment_frequencies(self) -> Union[torch.Tensor, SparseMatrix]:
         """
         Outputs the (F x S) matrix representing the strain-specific fragment frequencies.
         Is a wrapper for Population.get_strain_fragment_frequencies().
@@ -56,57 +71,135 @@ class GenerativeModel:
         """
         return self.bacteria_pop.get_strain_fragment_frequencies(window_size=self.read_length)
 
-    def log_likelihood_x(self,
-                         X: torch.Tensor,
-                         read_likelihoods: List[torch.Tensor]) -> torch.Tensor:
+    def log_likelihood_x(self, X: torch.Tensor) -> torch.Tensor:
+        return self.log_likelihood_x_sics_prior(X)
+
+    def log_likelihood_x_halfcauchy_prior(self, X: torch.Tensor) -> torch.Tensor:
         """
-        Computes the joint log-likelihood of X, F, and R according to this generative model.
-        Let N be the number of samples.
-        :param X: The S-dimensional Gaussian trajectory, indexed (T x N x S).
-        :param read_likelihoods: A precomputed list of tensors containing read-fragment log likelihoods
-          (output of compute_read_likelihoods(logarithm=False).)
-        :return: The log-likelihood from the generative model. Outputs a length-N
-        tensor (one log-likelihood for each sample).
+        Implementation of log_likelihood_x using HalfCauchy prior for the variance.
         """
+        log_likelihood_first = HalfCauchyVarianceGaussian(
+            mean=self.mu,
+            cauchy_scale=100.0,
+            n_samples=200
+        ).empirical_log_likelihood(x=X[0, :, :])
+
+        collapsed_size = (self.num_times() - 1) * self.num_strains()
+        n_samples = X.size()[1]
+
+        dt_sqrt_inverse = torch.tensor(
+            [
+                self.dt(t_idx)
+                for t_idx in range(1, self.num_times())
+            ],
+            device=cfg.torch_cfg.device
+        ).pow(-0.5)
+        diffs = (X[1:, :, ] - X[:-1, :, ]) * dt_sqrt_inverse.unsqueeze(1).unsqueeze(2)
+
+        log_likelihood_rest = HalfCauchyVarianceGaussian(
+            mean=torch.zeros(n_samples, collapsed_size, dtype=cfg.torch_cfg.default_dtype),
+            cauchy_scale=1.0,
+            n_samples=200
+        ).empirical_log_likelihood(
+            x=diffs.transpose(0, 1).reshape(n_samples, collapsed_size)
+        )
+
+        return log_likelihood_first + log_likelihood_rest
+
+    def log_likelihood_x_uniform_prior(self, X: torch.Tensor) -> torch.Tensor:
+        """
+        Implementation of log_likelihood_x using Uniform prior for the variance.
+        """
+        log_likelihood_first = UniformVarianceGaussian(
+            mean=self.mu,
+            lower=0.1,
+            upper=20.0,
+            steps=25
+        ).log_likelihood(x=X[0, :, :])
+
+        collapsed_size = (self.num_times() - 1) * self.num_strains()
+        n_samples = X.size()[1]
+
+        dt_sqrt_inverse = torch.tensor(
+            [
+                self.dt(t_idx)
+                for t_idx in range(1, self.num_times())
+            ]
+        ).pow(-0.5)
+        diffs = (X[1:, :, ] - X[:-1, :, ]) * dt_sqrt_inverse.unsqueeze(1).unsqueeze(2)
+
+        log_likelihood_rest = UniformVarianceGaussian(
+            mean=torch.zeros(n_samples, collapsed_size, dtype=cfg.torch_cfg.default_dtype),
+            lower=0.1,
+            upper=20.0,
+            steps=25
+        ).log_likelihood(
+            x=diffs.transpose(0, 1).reshape(n_samples, collapsed_size)
+        )
+
+        return log_likelihood_first + log_likelihood_rest
+
+    def log_likelihood_x_jeffreys_prior(self, X: torch.Tensor) -> torch.Tensor:
+        """
+        Implementation of log_likelihood_x using Jeffrey's prior (for the Gaussian with known mean) for the variance.
+        """
+        log_likelihood_first = JeffreysGaussian(mean=self.mu).log_likelihood(x=X[0, :, :])
+
+        collapsed_size = (self.num_times() - 1) * self.num_strains()
+        n_samples = X.size()[1]
+
+        dt_sqrt_inverse = torch.tensor(
+            [
+                self.dt(t_idx)
+                for t_idx in range(1, self.num_times())
+            ]
+        ).pow(-0.5)
+        diffs = (X[1:, :, ] - X[:-1, :, ]) * dt_sqrt_inverse.unsqueeze(1).unsqueeze(2)
+
+        log_likelihood_rest = JeffreysGaussian(
+            mean=torch.zeros(n_samples, collapsed_size, dtype=cfg.torch_cfg.default_dtype)
+        ).log_likelihood(
+            x=diffs.transpose(0, 1).reshape(n_samples, collapsed_size)
+        )
+
+        return log_likelihood_first + log_likelihood_rest
+
+    def log_likelihood_x_sics_prior(self, X: torch.Tensor) -> torch.Tensor:
         ans = torch.zeros(size=[X[0].size()[0]], device=X[0].device)
-        for t, X_t in enumerate(X):
-            ans = ans + self.log_likelihood_xt(
-                t=0,
+        for t_idx, X_t in enumerate(X):
+            ans = ans + self.log_likelihood_xt_sics_prior_helper(
+                t_idx=t_idx,
                 X=X_t,
-                X_prev=X[t-1, : ,:] if t > 0 else None,
-                read_likelihoods=read_likelihoods[t]
+                X_prev=X[t_idx - 1, :, :] if t_idx > 0 else None
             )
         return ans
 
-    def log_likelihood_xt(self,
-                          t: int,
+    def log_likelihood_xt_sics_prior_helper(self,
+                          t_idx: int,
                           X: torch.Tensor,
-                          X_prev: torch.Tensor,
-                          read_likelihoods: torch.Tensor):
+                          X_prev: torch.Tensor):
         """
-        :param t: the time index (0 thru T-1)
+        Computes the Gaussian + Data likelihood at timepoint t, given previous timepoint X_prev.
+
+        :param t_idx: the time index (0 thru T-1)
         :param X: (N x S) tensor of time (t) samples.
         :param X_prev: (N x S) tensor of time (t-1) samples. (None if t=0).
-        :param read_likelihoods: An (F x R_t) matrix of conditional read probabilities.
         :return: The joint log-likelihood p(X_t, Reads_t | X_{t-1}).
         """
         # Gaussian part
         N = X.size()[0]
-        if t == 0:
+        if t_idx == 0:
             center = self.mu.repeat(N, 1)
+            dof = self.tau_1_dof
+            scale = self.tau_1_scale
+            dt = 1
         else:
             center = X_prev
-        covariance = self.time_scaled_variance(t) * torch.eye(self.num_strains(), device=cfg.torch_cfg.device)
-        gaussian_log_probs = MultivariateNormal(loc=center, covariance_matrix=covariance).log_prob(X)
+            dof = self.tau_dof
+            scale = self.tau_scale
+            dt = self.dt(t_idx)
 
-        # Reads likelihood calculation, conditioned on the Gaussian part.
-        data_log_probs = softmax(X, dim=1)\
-            .mm(self.get_fragment_frequencies().t())\
-            .mm(read_likelihoods)\
-            .log()
-        data_log_probs[data_log_probs < -100] = -100
-
-        return gaussian_log_probs + data_log_probs.sum(dim=1)
+        return SICSGaussian(mean=center, dof=dof, scale=scale).log_likelihood(x=X, t=dt)
 
     def sample_abundances_and_reads(
             self,
@@ -168,17 +261,31 @@ class GenerativeModel:
 
         return TimeSeriesReads(time_slices)
 
-    def time_scaled_variance(self, time_idx: int) -> float:
+    def dt(self, time_idx: int) -> float:
+        """
+        Return the k-th time increment, t_k - t_{k-1}.
+        Raises an error if k == 0.
+        :param time_idx: The index (k).
+        :return:
+        """
+        if time_idx == 0 or time_idx >= self.num_times():
+            raise IndexError("Can't get time increment at index {}.".format(time_idx))
+        else:
+            return self.times[time_idx] - self.times[time_idx - 1]
+
+    def time_scaled_variance(self, time_idx: int, var_1: float, var: float) -> float:
         """
         Return the k-th time incremental variance.
         :param time_idx: the index to query (corresponding to k).
+        :param var_1: The value of (tau_1)^2, the variance-scaling term of the first observed timepoint.
+        :param var: The value of (tau)^2, the variance-scaling term of the underlying Gaussian process.
         :return: the kth variance term (t_k - t_(k-1)) * tau^2.
         """
 
         if time_idx == 0:
-            return self.tau_1 ** 2
-        if time_idx < len(self.times):
-            return (self.tau ** 2) * (self.times[time_idx] - self.times[time_idx-1])
+            return var_1
+        elif time_idx < len(self.times):
+            return var * self.dt(time_idx)
         else:
             raise IndexError("Can't reference time at index {}.".format(time_idx))
 
@@ -190,9 +297,11 @@ class GenerativeModel:
         brownian_motion = []
         covariance = torch.eye(list(self.mu.size())[0], device=cfg.torch_cfg.device)  # Initialize covariance matrix
         center = self.mu  # Initialize mean vector.
+        var_1 = ScaleInverseChiSquared(dof=self.tau_1_dof, scale=self.tau_1_scale).sample().item()
+        var = ScaleInverseChiSquared(dof=self.tau_dof, scale=self.tau_scale).sample().item()
 
         for time_idx in range(len(self.times)):
-            variance_scaling = self.time_scaled_variance(time_idx)
+            variance_scaling = self.time_scaled_variance(time_idx, var_1=var_1, var=var)
             center = MultivariateNormal(loc=center, covariance_matrix=variance_scaling * covariance).sample()
             brownian_motion.append(center)
 
@@ -251,6 +360,10 @@ class GenerativeModel:
         # Draw a read from each fragment.
         for i in range(num_samples):
             frag = frag_space.get_fragment_by_index(frag_indexed_samples[i].item())
-            frag_samples.append(self.error_model.sample_noisy_read(frag, metadata=(metadata + "|" + frag.metadata)))
+            frag_samples.append(self.error_model.sample_noisy_read(
+                read_id="SimRead_{}".format(i),
+                fragment=frag,
+                metadata=(metadata + "|" + frag.metadata)
+            ))
 
         return frag_samples

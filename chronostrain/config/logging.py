@@ -1,5 +1,6 @@
 import os
 import sys
+from pathlib import Path
 import errno
 import logging
 import logging.config
@@ -32,8 +33,8 @@ class MakeDirTimedRotatingFileHandler(logging.handlers.TimedRotatingFileHandler)
                  delay=False,
                  utc=False,
                  atTime=None):
-        filename = os.path.abspath(filename)
-        MakeDirTimedRotatingFileHandler.mkdir_path(os.path.dirname(filename))
+        path = Path(filename).resolve()
+        MakeDirTimedRotatingFileHandler.mkdir_path(path.parent)
         super().__init__(filename=filename,
                          when=when,
                          interval=interval,
@@ -52,7 +53,7 @@ class MakeDirTimedRotatingFileHandler(logging.handlers.TimedRotatingFileHandler)
             try:
                 os.makedirs(path)
             except OSError as exc:  # Python >2.5
-                if exc.errno == errno.EEXIST and os.path.isdir(path):
+                if exc.errno == errno.EEXIST and Path(path).is_dir():
                     pass
                 else:
                     raise
@@ -60,12 +61,12 @@ class MakeDirTimedRotatingFileHandler(logging.handlers.TimedRotatingFileHandler)
 
 def default_logger(name: str):
     logger = logging.getLogger(name)
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)
     logger.propagate = False
 
     stdout_handler = logging.StreamHandler(sys.stdout)
     stdout_handler.addFilter(LoggingLevelFilter([logging.INFO, logging.DEBUG]))
-    stdout_handler.setLevel(logging.INFO)
+    stdout_handler.setLevel(logging.DEBUG)
     stdout_formatter = logging.Formatter("[%(levelname)s - %(name)s] - %(message)s")
     stdout_handler.setFormatter(stdout_formatter)
 
@@ -83,7 +84,7 @@ def default_logger(name: str):
 def create_logger(module_name: str):
     # ============= Create logger instance. ===========
     logging.handlers.MakeDirTimedRotatingFileHandler = MakeDirTimedRotatingFileHandler
-    if not os.path.exists(__ini_path__):
+    if not Path(__ini_path__).exists():
         logger = default_logger(module_name)
     else:
         logging.config.fileConfig(__ini_path__)

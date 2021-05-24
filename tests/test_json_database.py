@@ -46,8 +46,8 @@ def build_regex_test_case(forward_primer, reverse_primer, genome) -> Subsequence
     strain_entry = StrainEntry.deserialize(json_dict, 0)
 
     seq_loader = SubsequenceLoader(
-        fasta_filename="n/a",
-        genbank_filename="n/a",
+        fasta_filename=Path("NONE"),
+        genbank_filename=Path("NONE"),
         marker_entries=strain_entry.marker_entries,
         marker_max_len=500
     )

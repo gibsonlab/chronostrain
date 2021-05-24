@@ -1,6 +1,6 @@
 from pathlib import Path
-from typing import List, Optional
-import torch
+from typing import List, Optional, Union, Iterable
+import numpy as np
 
 from Bio import SeqIO
 from Bio.Seq import Seq
@@ -8,14 +8,14 @@ from Bio.SeqRecord import SeqRecord
 
 from . import logger
 from chronostrain.model.reads import SequenceRead
-from chronostrain.util.filesystem import convert_size, get_filesize_bytes
+from chronostrain.util.filesystem import convert_size
 
 
 class TimeSliceReads(object):
-    def __init__(self, reads: List[SequenceRead], time_point: float, src: Optional[str] = None):
-        self.reads = reads
-        self.time_point = time_point
-        self.src = src
+    def __init__(self, reads: List[SequenceRead], time_point: float, src: Optional[Path] = None):
+        self.reads: List[SequenceRead] = reads
+        self.time_point: float = time_point
+        self.src: Union[Path, None] = src
 
     def save(self) -> int:
         """
@@ -27,7 +27,7 @@ class TimeSliceReads(object):
             raise ValueError("Specify the `src` parameter if invoking save() of TimeSliceReads object.")
 
         records = []
-        Path(self.src).parents[0].mkdir(parents=True, exist_ok=True)
+        Path(self.src).parent.mkdir(parents=True, exist_ok=True)
 
         for i, read in enumerate(self.reads):
             # Code from https://biopython.org/docs/1.74/api/Bio.SeqRecord.html
@@ -36,7 +36,7 @@ class TimeSliceReads(object):
             records.append(record)
         SeqIO.write(records, self.src, "fastq")
 
-        file_size = get_filesize_bytes(self.src)
+        file_size = self.src.stat().st_size
         logger.info("Wrote fastQ file {f}. ({sz})".format(
             f=self.src,
             sz=convert_size(file_size)
@@ -44,11 +44,12 @@ class TimeSliceReads(object):
         return file_size
 
     @staticmethod
-    def load(file_path: str, time_point: float):
+    def load(file_path: Path, time_point: float):
         reads = []
         for record in SeqIO.parse(file_path, "fastq"):
-            quality = torch.tensor(record.letter_annotations["phred_quality"], dtype=torch.int)
+            quality = np.array(record.letter_annotations["phred_quality"], dtype=np.int)
             read = SequenceRead(
+                read_id=record.id,
                 seq=str(record.seq),
                 quality=quality,
                 metadata=record.description
@@ -58,11 +59,11 @@ class TimeSliceReads(object):
         logger.debug("Loaded {r} reads from fastQ file {f}. ({sz})".format(
             r=len(reads),
             f=file_path,
-            sz=convert_size(get_filesize_bytes(file_path))
+            sz=convert_size(file_path.stat().st_size)
         ))
         return TimeSliceReads(reads, time_point, file_path)
 
-    def __iter__(self) -> SequenceRead:
+    def __iter__(self) -> Iterable[SequenceRead]:
         for read in self.reads:
             yield read
 
@@ -90,7 +91,7 @@ class TimeSeriesReads(object):
         ))
 
     @staticmethod
-    def load(time_points: List[float], file_paths: List[str]):
+    def load(time_points: List[float], file_paths: List[Path]):
         if len(time_points) != len(file_paths):
             raise ValueError("Number of time points ({}) do not match number of file paths. ({})".format(
                 len(time_points), len(file_paths)

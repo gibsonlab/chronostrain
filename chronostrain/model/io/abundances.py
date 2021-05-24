@@ -6,14 +6,14 @@ from typing import List, Tuple
 from . import logger
 from chronostrain.config import cfg
 from chronostrain.model.bacteria import Population
-from chronostrain.util.filesystem import convert_size, get_filesize_bytes
+from chronostrain.util.filesystem import convert_size
 
 
 def save_abundances(
         population: Population,
         time_points: List[float],
         abundances: torch.Tensor,
-        out_path: str):
+        out_path: Path):
     """
     Save the time-indexed abundance profile to disk. Output format is CSV.
 
@@ -23,9 +23,7 @@ def save_abundances(
     :param out_path: The target path for the output abundances file.
     :return: The path/filename for the abundance CSV file.
     """
-    path = Path(out_path)
-    parent = Path(path.parent)
-    parent.mkdir(parents=True, exist_ok=True)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
 
     with open(out_path, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile, delimiter=',', quoting=csv.QUOTE_ALL)
@@ -34,11 +32,11 @@ def save_abundances(
         for t in range(len(time_points)):
             writer.writerow([time_points[t]] + [x.item() for x in abundances[t]])
     logger.info("Abundances output successfully to {}. ({})".format(
-        out_path, convert_size(get_filesize_bytes(out_path))
+        out_path, convert_size(out_path.stat().st_size)
     ))
 
 
-def load_abundances(file_path: str) -> Tuple[List[int], torch.Tensor, List[str]]:
+def load_abundances(file_path: Path) -> Tuple[List[int], torch.Tensor, List[str]]:
     """
     Read time-indexed abundances from file.
 
