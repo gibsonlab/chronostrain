@@ -96,7 +96,8 @@ class SamLine:
             if optional_tag[:5] == 'MD:Z:':
                 self.optional_tags['MD'] = optional_tag[5:]
 
-        self.fragment = self._parse_fragment(reference_sequences)
+        if self.is_mapped:
+            self.fragment = self._parse_fragment(reference_sequences)
 
     def _parse_fragment(self, reference_sequences: Dict[str, str]):
         map_pos_int = int(self.map_pos_str)
