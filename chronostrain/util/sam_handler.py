@@ -93,6 +93,10 @@ class SamLine:
 
         self.optional_tags = {}
         for optional_tag in self.line[11:]:
+            '''
+            The MD tag stores information about which bases match to the reference and is necessary
+            for determining percent identity
+            '''
             if optional_tag[:5] == 'MD:Z:':
                 self.optional_tags['MD'] = optional_tag[5:]
 
@@ -100,25 +104,31 @@ class SamLine:
             self.fragment = self._parse_fragment(reference_sequences)
 
     def _parse_fragment(self, reference_sequences: Dict[str, str]):
+        """
+        Finds the fragment in the reference associated with this mapped line
+
+        :param Dict: A mapping from contig names to their respective sequences given by the reference
+            multifasta
+        :return: The associated fragment as a string
+        """
+
         map_pos_int = int(self.map_pos_str)
         split_cigar = re.findall('\d+|\D+', self.cigar)
 
         start_clip = 0
         end_clip = 0
+
+        '''
+        S and H represent soft and hard clipping respectively. These therefore may occur only at the
+        beginning or end of a CIGAR string and represent an offset in starting/ending index into the reference.
+        The number of bases clipped precedes the letter demarkation
+        '''
         if split_cigar[1] == "S" or split_cigar[1] == "H":
             start_clip = int(split_cigar[0])
         if split_cigar[-1] == 'S' or split_cigar[-1] == "H":
             end_clip = int(split_cigar[-2])
 
-        ref_seq_name = self.contig_name
-        ref_seq = reference_sequences[ref_seq_name]
-
-        # Match to the nearest complete window of size read_len
-        # if reference_index < 0:
-        #     reference_index = 0
-        # if reference_index + self.read_len > len(ref_seq)-1:
-        #     reference_index = len(ref_seq)-self.read_len-1
-        # ref_seq[reference_index: reference_index + self.read_len]
+        ref_seq = reference_sequences[self.contig_name]
 
         start_frame = map_pos_int - start_clip - 1
         end_frame = start_frame + self.read_len

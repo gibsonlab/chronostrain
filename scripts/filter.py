@@ -111,6 +111,13 @@ def parse_md_tag(tag: str):
         corresponding to the bases missing
     Dividing (1) by (1)+(2)+(3) will give matches/clipped_length, or percent identity
     """
+
+    '''
+    Splits on continuous number sequences.
+    '5A0C61^G' -> ['5', 'A', '0', 'C', '61', '^G']
+    Which would mean 5 correct bases, two incorrect, 61 correct, then one deleted base.
+    Sequential incorrect bases are always split by a 0.
+    '''
     split_md = re.findall('\d+|\D+', tag)
     total_clipped_length = 0
     total_matches = 0
