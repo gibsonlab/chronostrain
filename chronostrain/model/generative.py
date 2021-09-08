@@ -55,7 +55,7 @@ class GenerativeModel:
         return len(self.times)
 
     def num_strains(self) -> int:
-        return len(self.bacteria_pop.strains)
+        return self.bacteria_pop.num_known_strains() + self.bacteria_pop.num_unknown_strains()
 
     def num_fragments(self) -> int:
         return self.get_fragment_space().size()

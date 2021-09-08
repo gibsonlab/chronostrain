@@ -176,7 +176,6 @@ def plot_posterior_abundances(
         thickness: int = 1,
         dpi: int = 100):
     """
-
     :param times:
     :param posterior_samples: A (T x N x S) array of time-indexed samples of abundances.
     :param population:
@@ -211,34 +210,62 @@ def plot_posterior_abundances(
         # This is (T x N), for the particular strain.
         traj_samples = abundance_samples[:, :, s_idx]
 
-        upper_quantile = np.quantile(traj_samples, q=0.975, axis=1)
-        lower_quantile = np.quantile(traj_samples, q=0.025, axis=1)
-        median = np.quantile(traj_samples, q=0.5, axis=1)
-
-        # Plot the trajectory of medians.
-        line, = ax.plot(times, median, linestyle='--', marker='x', linewidth=thickness)
-        color = line.get_color()
-
-        # Fill between the quantiles.
-        ax.fill_between(times, lower_quantile, upper_quantile, alpha=0.2, color=color)
-
-        # Plot true trajectory, if available.
         if true_abundances is not None:
             true_trajectory = np.array([
                 abundance_t[truth_acc_dict[strain.id]].item()
                 for abundance_t in true_abundances
             ])
-            ax.plot(times, true_trajectory, linestyle='-', marker='o', color=color, linewidth=thickness)
+        else:
+            true_trajectory = None
 
-        # Populate the legend.
-        legend_elements.append(
-            Line2D([0], [0], color=color, lw=2, label=strain.id)
+        plot_posterior_abundances_helper(
+            times,
+            strain.id,
+            traj_samples,
+            ax,
+            thickness,
+            true_trajectory,
+            legend_elements
+        )
+
+    for garbage_s_idx, garbage_strain in enumerate(population.garbage_strains):
+        traj_samples = abundance_samples[:, :, garbage_s_idx + len(population.strains)]
+        plot_posterior_abundances_helper(
+            times,
+            garbage_strain.id,
+            traj_samples,
+            ax,
+            thickness,
+            None,
+            legend_elements
         )
 
     if draw_legend:
         ax.legend(handles=legend_elements)
     ax.set_title(title)
     fig.savefig(plots_out_path, bbox_inches='tight', format=img_format, dpi=dpi)
+
+
+def plot_posterior_abundances_helper(times, strain_id, traj_samples, ax, thickness, true_trajectory, legend_elements):
+    upper_quantile = np.quantile(traj_samples, q=0.975, axis=1)
+    lower_quantile = np.quantile(traj_samples, q=0.025, axis=1)
+    median = np.quantile(traj_samples, q=0.5, axis=1)
+
+    # Plot the trajectory of medians.
+    line, = ax.plot(times, median, linestyle='--', marker='x', linewidth=thickness)
+    color = line.get_color()
+
+    # Fill between the quantiles.
+    ax.fill_between(times, lower_quantile, upper_quantile, alpha=0.2, color=color)
+
+    # Plot true trajectory, if available.
+    if true_trajectory is not None:
+        ax.plot(times, true_trajectory, linestyle='-', marker='o', color=color, linewidth=thickness)
+
+    # Populate the legend.
+    legend_elements.append(
+        Line2D([0], [0], color=color, lw=2, label=strain_id)
+    )
 
 
 def render_read_counts(dataframe: pd.DataFrame,

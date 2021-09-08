@@ -133,7 +133,7 @@ def perform_bbvi(
         plot_format: str,
         plot_elbo_history: bool = True,
         do_training_animation: bool = False,
-        correlation_type: str = "strain"
+        correlation_type: str = "block-diagonal"
 ):
 
     # ==== Run the solver.
@@ -328,7 +328,7 @@ def create_model(population: Population,
     @param disable_quality: A flag to indicate whether or not to use NoiselessErrorModel.
     @return A Generative model object.
     """
-    mu = torch.zeros(len(population.strains), device=cfg.torch_cfg.device)
+    mu = torch.zeros(population.num_strains(), device=cfg.torch_cfg.device)
 
     if disable_quality:
         logger.info("Flag --disable_quality turned on; Quality scores are diabled. Initializing NoiselessErrorModel.")
@@ -378,9 +378,7 @@ def main():
     db = cfg.database_cfg.get_database()
 
     # ==== Load Population instance from database info
-    population = Population(
-        strains=db.all_strains()
-    )
+    population = Population(strains=db.all_strains(), extra_strain=cfg.model_cfg.extra_strain)
 
     read_paths, time_points = get_input_paths(Path(args.reads_dir))
 

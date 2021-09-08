@@ -5,6 +5,7 @@ from typing import List, Tuple
 
 from chronostrain import logger
 from chronostrain.model.io import load_abundances
+from chronostrain import cfg
 
 import numpy as np
 import pandas as pd
@@ -36,15 +37,16 @@ def parse_args():
     return parser.parse_args()
 
 
-def parse_trials(trials_filepath: Path) -> List[Tuple[str, int, Path]]:
+def parse_trials(trials_filepath: Path) -> List[Tuple[str, int, int, Path]]:
     trials = []
     with open(trials_filepath, "r") as f:
         reader = csv.reader(f, delimiter=',', quotechar="\"")
         for row in reader:
-            trial_id = row[0].strip()
-            q_shift = int(row[1].strip())
-            file_path = Path(row[2].strip())
-            trials.append((trial_id, q_shift, file_path))
+            run_id = row[0].strip()
+            trial = int(row[1].strip())
+            q_shift = int(row[2].strip())
+            file_path = Path(row[3].strip())
+            trials.append((run_id, trial, q_shift, file_path))
     return trials
 
 
@@ -54,9 +56,10 @@ def load_abundance_samples(filepath: Path):
 
 
 def plot_performance_comparison(
-        trials: List[Tuple[str, int, Path]],
+        trials: List[Tuple[str, int, int, Path]],
         true_abundance_path: Path,
         out_path: Path,
+        db,
         title: str = None,
         draw_legend: bool = True,
         font_size: int = 18,
@@ -70,15 +73,34 @@ def plot_performance_comparison(
     ids = set()
 
     abundance_diffs = []
-    for (trial_id, q_shift, path) in trials:
+    for (run_id, trial, q_shift, path) in trials:
         if path.suffix == ".csv":
             try:
-                _, abundances, _ = load_abundances(path)
+                time_points, abundances, accessions = load_abundances(path)
             except FileNotFoundError as e:
                 logger.warn("File {} not found. Skipping.".format(path))
                 continue
+
+            # Reorder abundances based on order of accessions.
+            accessions_to_columns = {
+                accession: a_idx
+                for a_idx, accession in enumerate(accessions)
+            }
+
+            abundances = abundances[
+                :, [
+                       accessions_to_columns[strain.id]
+                       for strain in db.all_strains()
+                   ]
+            ]
+
             hellinger = (abundances.sqrt() - true_abundances.sqrt()).pow(2).sum(dim=1).sqrt().mean() / np.sqrt(2)
-            abundance_diffs.append((trial_id, q_shift, hellinger))
+            abundance_diffs.append({
+                "Label": run_id,
+                "Trial": trial,
+                "Quality Shift": q_shift,
+                "Hellinger Error": float(hellinger)
+            })
         elif path.suffix == ".pt":
             try:
                 abundances = load_abundance_samples(path)  # (T x N x S)
@@ -89,18 +111,24 @@ def plot_performance_comparison(
                 abundances.sqrt() - true_abundances.unsqueeze(1).sqrt(),
                 2
             ).sum(dim=2).pow(0.5).mean(dim=0) / np.sqrt(2)  # length-N
-            abundance_diffs.append((trial_id, q_shift, hellinger_errors.mean().item()))
+            abundance_diffs.append({
+                "Label": run_id,
+                "Trial": trial,
+                "Quality Shift": q_shift,
+                "Hellinger Error": hellinger_errors.mean().item()
+            })
         else:
             raise RuntimeError("File extension `{}` not recognized. (input filepath: {})".format(
                 path.suffix,
                 path
             ))
 
-        ids.add(trial_id)
-    df = pd.DataFrame(np.array(
-        abundance_diffs,
-        dtype=[('Label', '<U50'), ('Quality Shift', int), ('Hellinger Error', float)]
-    ))
+        ids.add(run_id)
+    df = pd.DataFrame(abundance_diffs)
+
+    df_path = out_path.with_suffix('.h5')
+    df.to_hdf(str(df_path), key="df", mode="w")
+    logger.info("Output result dataframe to {}".format(df_path))
 
     plt.rcParams.update({'font.size': font_size})
 
@@ -134,6 +162,7 @@ def main():
         true_abundance_path=Path(args.ground_truth_path),
         out_path=Path(args.output_path),
         title=args.title,
+        db=cfg.database_cfg.get_database(),
         font_size=args.font_size,
         thickness=args.thickness,
         draw_legend=args.draw_legend,

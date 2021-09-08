@@ -34,6 +34,16 @@ class PositiveScaleLayer(torch.nn.Module):
         return softplus(self.scale) * input
 
 
+class BiasLayer(torch.nn.Module):
+
+    def __init__(self, size: torch.Size):
+        super().__init__()
+        self.bias = torch.nn.Parameter(torch.zeros(size))
+
+    def forward(self, input: torch.Tensor):
+        return input + self.bias
+
+
 class GaussianPosteriorFullCorrelation(AbstractPosterior):
     def __init__(self, model: GenerativeModel):
         """
@@ -86,6 +96,135 @@ class GaussianPosteriorFullCorrelation(AbstractPosterior):
             return reparametrized_samples.view(
                 num_samples, self.model.num_times(), self.model.num_strains()
             ).transpose(0, 1)
+
+
+class GaussianPosteriorBlockDiagonalCorrelation(AbstractPosterior):
+    def __init__(self, model: GenerativeModel):
+        """
+        Mean-field assumption:
+        1) Parametrize the (T x S) trajectory as a (TS)-dimensional Gaussian. We only learn the block-diagonal
+        structures, e.g. Cov(x_t, x_t) and Cov(x_t, x_{t+1}).
+        2) Parametrize F_1, ..., F_T as independent (but not identical) categorical RVs (for each read).
+        :param model: The generative model to use.
+        """
+        # Check: might need this to be a matrix, not a vector.
+        self.model = model
+
+        # ========== Reparametrization network (standard Gaussians -> nonstandard Gaussians)
+        self.variance_layers = [
+            torch.nn.Linear(
+                in_features=self.model.num_strains(),
+                out_features=self.model.num_strains(),
+                bias=False
+            ).to(cfg.torch_cfg.device)
+            for _ in range(self.model.num_times())
+        ]
+        self.covariance_layers = [
+            torch.nn.Linear(
+                in_features=self.model.num_strains(),
+                out_features=self.model.num_strains(),
+                bias=False
+            ).to(cfg.torch_cfg.device)
+            for _ in range(self.model.num_times() - 1)
+        ]
+
+        self.bias_layers = [
+            BiasLayer(torch.Size([self.model.num_strains()])).to(cfg.torch_cfg.device)
+            for _ in range(self.model.num_times())
+        ]
+
+        self.trainable_parameters = []
+        for layer in self.variance_layers:
+            self.trainable_parameters += layer.parameters()
+        for layer in self.covariance_layers:
+            self.trainable_parameters += layer.parameters()
+        for layer in self.bias_layers:
+            self.trainable_parameters += layer.parameters()
+
+        self.standard_normal = Normal(loc=0.0, scale=1.0)
+
+    def sample(self, num_samples=1) -> torch.Tensor:
+        return self.reparametrized_sample(
+            num_samples=num_samples, output_log_likelihoods=False, detach_grad=True
+        )
+
+    def reparametrized_sample(self,
+                              num_samples=1,
+                              output_log_likelihoods=False,
+                              detach_grad=False
+                              ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+        std_gaussian_samples = self.standard_normal.sample(
+            sample_shape=(self.model.num_times(), num_samples, self.model.num_strains())
+        )
+        x_timeseries_samples = []
+
+        if output_log_likelihoods:
+            log_likelihoods = torch.zeros(
+                (num_samples, ),
+                dtype=cfg.torch_cfg.default_dtype,
+                device=cfg.torch_cfg.device,
+                requires_grad=not detach_grad
+            )
+
+            """
+            Reparametrization
+            
+            Uses the conditional gaussian distributional formula:
+            (x1 | x2=a) ~ N(
+                mu_1 + Sigma_{12} Sigma_{22}^-1 (a - mu_2),  -> [This is a linear transformation of the previous sample without bias] 
+                Sigma_{11} - Sigma_{12} Sigma_{22}^-1 Sigma_{21}  -> [This is an S x S PSD matrix]
+            )
+            
+            Using reparametrization, given e1, e2, ..., e_t which are SxS standard normals,
+                x_t = b_t + (A_t @ e_t) + (B_t @ A_{t-1} @ e_{t-1})
+            Where b_t is a bias term, A_t and B_t are matrices.
+            """
+
+            z_0 = self.variance_layers[0].forward(std_gaussian_samples[0])
+            x_0 = self.bias_layers[0].forward(z_0)
+            x_timeseries_samples.append(x_0)
+
+            log_likelihoods += torch.distributions.MultivariateNormal(
+                loc=self.bias_layers[0].bias,
+                covariance_matrix=self.variance_layers[0].weight.t().mm(self.variance_layers[0].weight)
+            ).log_prob(x_0)
+
+            z_prev = z_0  # (A_{t-1} @ e_{t-1})
+            for t in range(1, self.model.num_times()):
+                z_t = self.variance_layers[t].forward(std_gaussian_samples[t])  # (A_t @ e_t)
+                z_conditional = self.covariance_layers[t - 1].forward(z_prev)  # (B_t @ A_{t-1} @ e_{t-1})
+                x_t = self.bias_layers[t].forward(z_t + z_conditional)  # add bias term b_t
+                x_timeseries_samples.append(x_t)
+
+                log_likelihoods += torch.distributions.MultivariateNormal(
+                    loc=self.bias_layers[t].bias + z_conditional,
+                    covariance_matrix=self.variance_layers[t].weight.t().mm(self.variance_layers[t].weight)
+                ).log_prob(x_t)
+
+                z_prev = z_t
+
+            x_samples = torch.stack(x_timeseries_samples, dim=0).detach()
+            if detach_grad:
+                x_samples = x_samples.detach()
+
+            return x_samples, log_likelihoods
+        else:
+            # ======= Reparametrization
+            z_0 = self.variance_layers[0].forward(std_gaussian_samples[0])
+            x_timeseries_samples.append(self.bias_layers[0].forward(z_0))
+
+            z_prev = z_0
+            for t in range(1, self.model.num_times()):
+                z_t = self.variance_layers[t].forward(std_gaussian_samples[t]) \
+                      + self.covariance_layers[t - 1].forward(z_prev)
+                x_timeseries_samples.append(self.bias_layers[t].forward(z_t))
+                z_prev = z_t
+
+            x_samples = torch.stack(x_timeseries_samples, dim=0).detach()
+            if detach_grad:
+                x_samples = x_samples.detach()
+
+            return x_samples
 
 
 class GaussianPosteriorStrainCorrelation(AbstractPosterior):
@@ -281,6 +420,8 @@ class BBVISolver(AbstractModelSolver):
             self.gaussian_posterior = GaussianPosteriorStrainCorrelation(model=model)
         elif correlation_type == "full":
             self.gaussian_posterior = GaussianPosteriorFullCorrelation(model=model)
+        elif correlation_type == "block-diagonal":
+            self.gaussian_posterior = GaussianPosteriorBlockDiagonalCorrelation(model=model)
         else:
             raise ValueError("Unrecognized `correlation_type` argument {}.".format(correlation_type))
 

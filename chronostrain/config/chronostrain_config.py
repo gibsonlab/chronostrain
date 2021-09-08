@@ -81,8 +81,9 @@ class ModelConfig(AbstractConfig):
         self.sics_dof: float = tokens[5]
         self.sics_scale: float = tokens[6]
         self.use_sparse: bool = tokens[7]
+        self.extra_strain: bool = tokens[8]
 
-    def parse_impl(self, cfg: dict) -> Tuple[bool, int, Path, float, float, float, float, bool]:
+    def parse_impl(self, cfg: dict) -> Tuple[bool, int, Path, float, float, float, float, bool, bool]:
         q_token = cfg["USE_QUALITY_SCORES"].strip().lower()
         if q_token == "true":
             use_quality_scores = True
@@ -140,7 +141,14 @@ class ModelConfig(AbstractConfig):
                 "Field `SPARSE_MATRICES`: Expected `true` or `false`, got `{}`".format(use_sparse_token)
             )
 
-        return use_quality_scores, n_cores, cache_dir, sics_dof_1, sics_scale_1, sics_dof, sics_scale, use_sparse
+        try:
+            extra_strain = bool(cfg["EXTRA_STRAIN"].strip())
+        except ValueError:
+            raise ConfigurationParseError(
+                "Field `EXTRA_STRAIN`: Expect float, got `{}`".format(cfg["EXTRA_STRAIN"])
+            )
+
+        return use_quality_scores, n_cores, cache_dir, sics_dof_1, sics_scale_1, sics_dof, sics_scale, use_sparse, extra_strain
 
 
 class TorchConfig(AbstractConfig):

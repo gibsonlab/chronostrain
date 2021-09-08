@@ -1,7 +1,7 @@
 import torch
 from pathlib import Path
 from dataclasses import dataclass
-from typing import List, Union
+from typing import List, Union, Optional
 
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
@@ -64,7 +64,7 @@ class Strain:
     id: str  # Typically, ID is the accession number.
     markers: List[Marker]
     genome_length: int
-    metadata: StrainMetadata
+    metadata: Optional[StrainMetadata]
 
     def __repr__(self):
         return "Strain({})".format(self.id)
@@ -74,7 +74,7 @@ class Strain:
 
 
 class Population:
-    def __init__(self, strains: List[Strain]):
+    def __init__(self, strains: List[Strain], extra_strain: bool):
         """
         :param strains: a list of Strain instances.
         """
@@ -82,7 +82,18 @@ class Population:
         if not all([isinstance(s, Strain) for s in strains]):
             raise ValueError("All elements in strains must be Strain instances")
 
-        self.strains = strains  # A list of Strain objects.
+        self.strains = list(strains)  # A list of Strain objects.
+
+        if extra_strain:
+            self.garbage_strains = [Strain(
+                    id="UNKNOWN",
+                    markers=[],
+                    genome_length=-1,
+                    metadata=None
+            )]
+        else:
+            self.garbage_strains = []
+
         self.fragment_space_map = {}  # Maps window sizes (ints) to their corresponding fragment space (list of strings)
         self.fragment_frequencies_map = {}  # Maps window sizes to their corresponding fragment frequencies matrices.
 
@@ -169,6 +180,12 @@ class Population:
             values=torch.tensor(matrix_values, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype),
             dims=(fragment_space.size(), len(self.strains))
         ).normalize(dim=0)
+
+    def num_known_strains(self) -> int:
+        return len(self.strains)
+
+    def num_unknown_strains(self) -> int:
+        return len(self.garbage_strains)
 
 
 def sliding_window(seq, width):

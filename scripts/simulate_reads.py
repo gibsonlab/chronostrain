@@ -153,7 +153,7 @@ def main():
     # ========== Create Population instance.
     if accessions:
         try:
-            population = Population(database.get_strains(accessions))
+            population = Population(database.get_strains(accessions), extra_strain=cfg.model_cfg.extra_strain)
         except StrainNotFoundError as e:
             print("Strain `{}` from abundances file `{}` not found in database.".format(
                 e.strain_id,
@@ -161,7 +161,7 @@ def main():
             ))
             raise e
     else:
-        population = Population(database.all_strains())
+        population = Population(database.all_strains(), extra_strain=cfg.model_cfg.extra_strain)
 
     # ========== Sample reads.
     logger.debug("Sampling reads...")

@@ -49,7 +49,9 @@ def plot_performance_degradation(
         abundance_diffs,
         dtype=[('Label', '<U10'), ('# Reads on Markers', int), ('Average Hellinger error', float)]
     ))
-    # print(df)
+
+    df_path = out_path.with_suffix('.h5')
+    df.to_hdf(str(df_path), key="df", mode="w")
 
     plt.rcParams.update({'font.size': font_size})
 
