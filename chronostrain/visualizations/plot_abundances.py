@@ -53,7 +53,7 @@ def plot_abundances_comparison(
                          value_name="Abundance")
                    .rename(columns={"T": "Time"}))
 
-    result_df = pd.concat([real_df, inferred_df])
+    result_df = pd.concat([real_df, inferred_df]).reset_index()
     plot_abundance_dataframe(
         data=result_df,
         plots_out_path=plots_out_path,
@@ -96,7 +96,7 @@ def plot_abundances(
                    .melt(id_vars=['T', "Truth"],
                          var_name="Strain",
                          value_name="Abundance")
-                   .rename(columns={"T": "Time"}))
+                   .rename(columns={"T": "Time"})).reset_index()
     plot_abundance_dataframe(
         data=inferred_df,
         plots_out_path=plots_out_path,

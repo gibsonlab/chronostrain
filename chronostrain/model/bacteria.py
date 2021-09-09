@@ -187,6 +187,9 @@ class Population:
     def num_unknown_strains(self) -> int:
         return len(self.garbage_strains)
 
+    def num_strains(self) -> int:
+        return self.num_known_strains() + self.num_unknown_strains()
+
 
 def sliding_window(seq, width):
     """

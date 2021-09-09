@@ -131,9 +131,9 @@ def perform_bbvi(
         ground_truth_path: Path,
         out_dir: Path,
         plot_format: str,
+        correlation_type: str = "block-diagonal",
         plot_elbo_history: bool = True,
         do_training_animation: bool = False,
-        correlation_type: str = "block-diagonal"
 ):
 
     # ==== Run the solver.
@@ -448,7 +448,8 @@ def main():
             learning_rate=args.learning_rate,
             plot_format=args.plot_format,
             out_dir=out_dir,
-            do_training_animation=True
+            do_training_animation=True,
+            correlation_type="time"
         )
     else:
         raise ValueError("{} is not an implemented method.".format(args.method))
@@ -502,7 +503,15 @@ def plot_training_animation(out_path: Path, n_frames, lowers, uppers, medians, m
 
 if __name__ == "__main__":
     try:
+        import tracemalloc
+        tracemalloc.start()
         main()
+        current, peak = tracemalloc.get_traced_memory()
+        print("Current memory: {cur:0.2f} MiB, Peak memory: {peak:0.2f} MiB".format(
+            cur=current / 1048576,
+            peak=peak / 1048576
+        ))
+        tracemalloc.stop()
     except Exception as e:
         logger.exception(e)
         exit(1)

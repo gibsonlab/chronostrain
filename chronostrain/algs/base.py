@@ -12,7 +12,7 @@ from abc import ABCMeta, abstractmethod
 from joblib import Parallel, delayed
 
 from . import logger
-from chronostrain.util.sparse.sparse_tensor import CoalescedSparseMatrix
+from chronostrain.util.sparse.sparse_tensor import SparseMatrix
 from chronostrain.util.sam_handler import SamHandler
 from chronostrain.util.external.bwa import bwa_index, bwa_mem
 from chronostrain.model.io import TimeSeriesReads
@@ -41,7 +41,7 @@ class DataLikelihoods(object):
         self.model = model
         self.data = data
         self.use_sparse = use_sparse
-        self.likelihoods_tensors: List[Union[torch.Tensor, CoalescedSparseMatrix]] = None
+        self.likelihoods_tensors: List[Union[torch.Tensor, SparseMatrix]] = None
         self.retained_indices: List[List[int]] = None
         self.read_likelihood_lower_bound = read_likelihood_lower_bound
 
@@ -87,7 +87,7 @@ class DataLikelihoods(object):
                 ]
                 read_indices.append(leftover_indices)
 
-                if isinstance(read_likelihoods_t, CoalescedSparseMatrix):
+                if isinstance(read_likelihoods_t, SparseMatrix):
                     self.likelihoods_tensors[t_idx] = read_likelihoods_t.slice_columns(
                         leftover_indices
                     )
@@ -236,7 +236,7 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                 raise
         return read_to_fragments
 
-    def create_sparse_matrix(self, t_idx) -> CoalescedSparseMatrix:
+    def create_sparse_matrix(self, t_idx) -> SparseMatrix:
         """
         For the specified time point, evaluate the (F x N_t) array of fragment-to-read likelihoods.
 
@@ -265,7 +265,7 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
             )
         )
 
-        return CoalescedSparseMatrix(
+        return SparseMatrix(
             indices=torch.tensor(
                 [frag_indices, read_indices],
                 device=cfg.torch_cfg.device,
@@ -279,7 +279,7 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
             dims=(self.fragment_space.size(), len(self.reads[t_idx]))
         )
 
-    def compute_likelihood_tensors(self) -> List[CoalescedSparseMatrix]:
+    def compute_likelihood_tensors(self) -> List[SparseMatrix]:
         logger.debug("Computing read-fragment likelihoods...")
         jobs: List[CachedComputation] = []
 
@@ -289,7 +289,7 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         )
 
         # Save each sparse tensor as a tuple of indices/values/shape into a compressed numpy file (.npz).
-        def save_(path, sparse_matrix: CoalescedSparseMatrix):
+        def save_(path, sparse_matrix: SparseMatrix):
             np.savez(
                 path,
                 sparse_indices=sparse_matrix.indices.cpu().numpy(),
@@ -300,10 +300,10 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                 ])
             )
 
-        def load_(path) -> CoalescedSparseMatrix:
+        def load_(path) -> SparseMatrix:
             data = np.load(path)
             size = data["matrix_shape"]
-            return CoalescedSparseMatrix(
+            return SparseMatrix(
                 indices=torch.tensor(
                     data['sparse_indices'],
                     device=cfg.torch_cfg.device,

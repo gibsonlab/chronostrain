@@ -321,7 +321,11 @@ class GenerativeModel:
         Convert strain abundance to fragment abundance, via the matrix multiplication F = WZ.
         Assumes strain_abundance is an S x T tensor, so that the output is an F x T tensor.
         """
-        return self.get_fragment_frequencies().mm(strain_abundances)
+        frag_freq = self.get_fragment_frequencies()
+        if isinstance(frag_freq, SparseMatrix):
+            return frag_freq.dense_mul(strain_abundances)
+        else:
+            return frag_freq.mm(strain_abundances)
 
     def sample_reads(
             self,

@@ -141,11 +141,14 @@ class ModelConfig(AbstractConfig):
                 "Field `SPARSE_MATRICES`: Expected `true` or `false`, got `{}`".format(use_sparse_token)
             )
 
-        try:
-            extra_strain = bool(cfg["EXTRA_STRAIN"].strip())
-        except ValueError:
+        extra_strain_str = cfg["EXTRA_STRAIN"].strip().lower()
+        if extra_strain_str == "true":
+            extra_strain = True
+        elif extra_strain_str == "false":
+            extra_strain = False
+        else:
             raise ConfigurationParseError(
-                "Field `EXTRA_STRAIN`: Expect float, got `{}`".format(cfg["EXTRA_STRAIN"])
+                "Field `EXTRA_STRAIN`: Expected `true` or `false`, got `{}`".format(cfg["EXTRA_STRAIN"])
             )
 
         return use_quality_scores, n_cores, cache_dir, sics_dof_1, sics_scale_1, sics_dof, sics_scale, use_sparse, extra_strain

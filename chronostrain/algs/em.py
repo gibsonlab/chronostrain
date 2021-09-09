@@ -146,21 +146,26 @@ class EMSolver(AbstractModelSolver):
         for t in range(T):
             # Scale each row by Z_t, and normalize.
             if cfg.model_cfg.use_sparse:
-                Z_t = self.model.strain_abundance_to_frag_abundance(y[t].view(S, 1))
-                Q = self.data_likelihoods.matrices[t].row_hadamard_dense_vector(Z_t)
-                # .row_hadamard(self.read_likelihoods[t], Z_t)
+                Z_t = self.model.strain_abundance_to_frag_abundance(y[t].view(S, 1)).view(F)
+                Q = self.data_likelihoods.matrices[t].scale_row(Z_t, dim=0)
                 Q = Q.column_normed_row_sum() / Z_t.view(F)
+
+                sigmoid = y[t]
+                sigmoid_jacobian = torch.diag(sigmoid) - torch.ger(sigmoid, sigmoid)  # symmetric matrix.
+
+                x_gradient[t] = x_gradient[t] + sigmoid_jacobian.mv(
+                    self.model.get_fragment_frequencies().t().dense_mul(Q.view(F, 1)).view(S)
+                )
             else:
                 Z_t = self.model.strain_abundance_to_frag_abundance(y[t].view(S, 1))
                 Q = self.data_likelihoods.matrices[t] * Z_t
                 Q = (Q / Q.sum(dim=0)[None, :]).sum(dim=1) / Z_t.view(F)
 
-            sigmoid = y[t]
-            sigmoid_jacobian = torch.diag(sigmoid) - torch.ger(sigmoid, sigmoid)  # symmetric matrix.
-
-            x_gradient[t] = x_gradient[t] + sigmoid_jacobian.mv(
-                self.model.get_fragment_frequencies().t().mv(Q)
-            )
+                sigmoid = y[t]
+                sigmoid_jacobian = torch.diag(sigmoid) - torch.ger(sigmoid, sigmoid)  # symmetric matrix.
+                x_gradient[t] = x_gradient[t] + sigmoid_jacobian.mv(
+                    self.model.get_fragment_frequencies().t().mv(Q)
+                )
 
         # ==== Gradient clipping.
         x_gradient[x_gradient > gradient_clip] = gradient_clip

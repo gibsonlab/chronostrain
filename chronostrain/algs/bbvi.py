@@ -383,13 +383,15 @@ class FragmentPosterior(object):
             # Assumes that this is a 1-d tensor (representing sparse values)
             read_slice = phi_t.sparse_slice(dim=1, idx=read_idx)
 
+            print("ASDF: {}".format(read_slice.values.size()))
+            print("SZ: {}".format(read_slice.size()))
             sparse_topk = torch.topk(
-                input=read_slice.values(),
-                k=min(top, len(read_slice.values())),
+                input=read_slice.values,
+                k=min(top, read_slice.values.size()[0]),
                 sorted=True
             )
             for sparse_idx, frag_prob in zip(sparse_topk.indices, sparse_topk.values):
-                frag_idx = read_slice.indices()[0, sparse_idx]
+                frag_idx = read_slice.indices[0, sparse_idx]
                 yield self.model.get_fragment_space().get_fragment_by_index(frag_idx), frag_prob.item()
         elif isinstance(phi_t, torch.Tensor):
             topk_result = torch.topk(
@@ -509,7 +511,7 @@ class BBVISolver(AbstractModelSolver):
         )
         for t_idx in range(self.model.num_times()):
             softmax_x_t = torch.softmax(x_samples[t_idx, :, :], dim=1)  # (N x S)
-            phi_sum = torch.sparse.sum(self.fragment_posterior.phi[t_idx], dim=1).to_dense()  # (length F)
+            phi_sum = self.fragment_posterior.phi[t_idx].sum(dim=1)  # (length F)
 
             # These are all dense operations.
             expectation_model_log_fragment_probs += torch.log(
@@ -562,7 +564,7 @@ class BBVISolver(AbstractModelSolver):
         for t in range(self.model.num_times()):
             phi_t: SparseMatrix = self.data_likelihoods.matrices[t].scale_row(
                 torch.exp(torch.mean(
-                    torch.log(W @ softmax(x_samples[t], dim=1).t()),
+                    torch.log(W.dense_mul(softmax(x_samples[t], dim=1).t())),
                     dim=1
                 )),
                 dim=0
