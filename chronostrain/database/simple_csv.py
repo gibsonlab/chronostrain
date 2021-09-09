@@ -7,7 +7,7 @@ from Bio import SeqIO
 from chronostrain.config import cfg
 from chronostrain.database.base import AbstractStrainDatabase, StrainEntryError, StrainNotFoundError
 from chronostrain.model.bacteria import Strain, Marker, StrainMetadata, MarkerMetadata
-from chronostrain.util.ncbi import fetch_fasta
+from chronostrain.util.entrez import fetch_fasta
 from . import logger
 
 

@@ -12,7 +12,7 @@ from Bio import SeqIO
 from chronostrain.config import cfg
 from chronostrain.database.base import AbstractStrainDatabase, StrainEntryError, StrainNotFoundError
 from chronostrain.model.bacteria import Marker, MarkerMetadata, Strain, StrainMetadata
-from chronostrain.util.ncbi import fetch_fasta, fetch_genbank
+from chronostrain.util.entrez import fetch_fasta, fetch_genbank
 from . import logger
 
 from chronostrain.util.sequences import complement_seq
