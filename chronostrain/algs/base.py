@@ -21,18 +21,30 @@ from chronostrain.model.generative import GenerativeModel
 from chronostrain.util.data_cache import CachedComputation, CacheTag
 
 
+class AbstractModelSolver(metaclass=ABCMeta):
+    def __init__(self, model: GenerativeModel, data: TimeSeriesReads):
+        self.model = model
+        self.data = data
+        if cfg.model_cfg.use_sparse:
+            self.data_likelihoods = SparseDataLikelihoods(model, data)
+        else:
+            self.data_likelihoods = DenseDataLikelihoods(model, data)
+
+    @abstractmethod
+    def solve(self, *args, **kwargs):
+        pass
+
+
 class DataLikelihoods(object):
     def __init__(
             self,
             model: GenerativeModel,
             data: TimeSeriesReads,
-            use_sparse: bool,
             read_likelihood_lower_bound: float = 1e-30
     ):
         """
         :param model:
         :param data:
-        :param use_sparse: Specifies whether to load sparse or dense versions of the matrices.
         :param read_likelihood_lower_bound: Thresholds reads by this likelihood value.
             For each read, if the sum of all fragment-read likelihoods over all fragments does not exceed this value,
             the read is trimmed from the matrix (at the particular timepoint which it belongs to).
@@ -40,36 +52,29 @@ class DataLikelihoods(object):
         """
         self.model = model
         self.data = data
-        self.use_sparse = use_sparse
-        self.likelihoods_tensors: List[Union[torch.Tensor, SparseMatrix]] = None
-        self.retained_indices: List[List[int]] = None
         self.read_likelihood_lower_bound = read_likelihood_lower_bound
 
-    @property
-    def matrices(self) -> List[torch.Tensor]:
-        if self.likelihoods_tensors is None:
-            log_likelihoods_tensors = self._likelihood_computer().compute_likelihood_tensors()
-            self.likelihoods_tensors = [
-                ll_tensor.exp() for ll_tensor in log_likelihoods_tensors
-            ]
-            self.retained_indices = self._trim()
-        return self.likelihoods_tensors
+        log_likelihoods_tensors = self._likelihood_computer().compute_likelihood_tensors()
+        self.matrices = [
+            ll_tensor.exp() for ll_tensor in log_likelihoods_tensors
+        ]
+        self.retained_indices = self._trim()
 
+    @abstractmethod
     def _likelihood_computer(self) -> 'AbstractLogLikelihoodComputer':
-        if self.use_sparse:
-            return SparseLogLikelihoodComputer(self.model, self.data)
-        else:
-            return DenseLogLikelihoodComputer(self.model, self.data)
+        raise NotImplementedError()
 
     def _trim(self) -> List[List[int]]:
         """
-        Trims the likelihood matrices using the specified lower bound.
+        Trims the likelihood matrices using the specified lower bound. Reads are removed if there are no fragments
+        with likelihood greater than the lower bound. (This should ideally not happen if a stringent alignment-based
+        filter was applied.)
 
         :return: List of the index of kept reads (exceeding the lower bound threshold).
         """
         read_indices = []
         for t_idx in range(self.model.num_times()):
-            read_likelihoods_t = self.likelihoods_tensors[t_idx]
+            read_likelihoods_t = self.matrices[t_idx]
             sums = read_likelihoods_t.sum(dim=0)
 
             zero_indices = {i.item() for i in torch.where(sums <= self.read_likelihood_lower_bound)[0]}
@@ -88,26 +93,55 @@ class DataLikelihoods(object):
                 read_indices.append(leftover_indices)
 
                 if isinstance(read_likelihoods_t, SparseMatrix):
-                    self.likelihoods_tensors[t_idx] = read_likelihoods_t.slice_columns(
+                    self.matrices[t_idx] = read_likelihoods_t.slice_columns(
                         leftover_indices
                     )
                 else:
-                    self.likelihoods_tensors[t_idx] = read_likelihoods_t[:, leftover_indices]
+                    self.matrices[t_idx] = read_likelihoods_t[:, leftover_indices]
             else:
                 read_indices.append(list(range(len(self.data[t_idx]))))
         return read_indices
 
 
-class AbstractModelSolver(metaclass=ABCMeta):
-    def __init__(self, model: GenerativeModel, data: TimeSeriesReads):
-        self.model = model
-        self.data = data
-        self.data_likelihoods = DataLikelihoods(model, data, use_sparse=cfg.model_cfg.use_sparse)
+class SparseDataLikelihoods(DataLikelihoods):
+    def __init__(
+            self,
+            model: GenerativeModel,
+            data: TimeSeriesReads,
+            read_likelihood_lower_bound: float = 1e-30
+    ):
+        super().__init__(model, data, read_likelihood_lower_bound=read_likelihood_lower_bound)
+        self.supported_frags = []
 
-    @abstractmethod
-    def solve(self, *args, **kwargs):
-        pass
+        # Delete empty rows.
+        for t_idx in range(self.model.num_times()):
+            F = self.matrices[t_idx].size()[0]
+            row_support = self.matrices[t_idx].indices[0, :].unique(
+                sorted=True, return_inverse=False, return_counts=False
+            )
+            _F = len(row_support)
 
+            _support_indices = torch.tensor([
+                [i for i in range(len(row_support))],
+                [row_support[i] for i in range(_F)]
+            ], dtype=torch.long, device=cfg.torch_cfg.device)
+
+            projector = SparseMatrix(
+                indices=_support_indices,
+                values=torch.ones(_support_indices.size()[1], device=cfg.torch_cfg.device),
+                dims=(_F, F)
+            )
+
+            self.matrices[t_idx] = projector.sparse_mul(self.matrices[t_idx])
+            self.supported_frags.append(row_support)
+
+    def _likelihood_computer(self) -> 'AbstractLogLikelihoodComputer':
+        return SparseLogLikelihoodComputer(self.model, self.data)
+
+
+class DenseDataLikelihoods(DataLikelihoods):
+    def _likelihood_computer(self) -> 'AbstractLogLikelihoodComputer':
+        return DenseLogLikelihoodComputer(self.model, self.data)
 
 # ===================================================================
 # ========================= Helper functions ========================
@@ -312,7 +346,7 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                 values=torch.tensor(
                     data['sparse_values'],
                     device=cfg.torch_cfg.device,
-                    dtype=torch.int
+                    dtype=torch.float
                 ),
                 dims=(size[0], size[1])
             )

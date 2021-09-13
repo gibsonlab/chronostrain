@@ -114,7 +114,7 @@ class EMSolver(AbstractModelSolver):
             var=var
         ))
 
-        return softmax(brownian_motion, dim=1).to(cfg.torch_cfg.device), var_1, var
+        return softmax(brownian_motion, dim=1), var_1, var
 
     def em_update(
             self,

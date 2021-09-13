@@ -22,8 +22,6 @@ from chronostrain.util.sparse import SparseMatrix
 from . import logger
 
 
-import tracemalloc
-
 # ============== Posteriors
 
 class PositiveScaleLayer(torch.nn.Module):
@@ -321,13 +319,16 @@ class GaussianPosteriorTimeCorrelation(AbstractPosterior):
                 out_features=self.model.num_times(),
                 bias=True,
             ).to(cfg.torch_cfg.device)
-            torch.nn.init.eye(linear_layer.weight)
+            torch.nn.init.eye_(linear_layer.weight)
             self.reparam_networks[s_idx] = linear_layer
         self.trainable_parameters = []
         for network in self.reparam_networks.values():
             self.trainable_parameters += network.parameters()
 
-        self.standard_normal = Normal(loc=0.0, scale=1.0)
+        self.standard_normal = Normal(
+            loc=torch.tensor(0.0, device=cfg.torch_cfg.device),
+            scale=torch.tensor(1.0, device=cfg.torch_cfg.device)
+        )
 
     def sample(self, num_samples=1) -> torch.Tensor:
         return self.reparametrized_sample(
@@ -340,7 +341,7 @@ class GaussianPosteriorTimeCorrelation(AbstractPosterior):
                               detach_grad=False
                               ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         std_gaussian_samples = self.standard_normal.sample(
-            sample_shape=(self.model.num_strains(), num_samples, self.model.num_times())
+            sample_shape=(self.model.num_strains(), num_samples, self.model.num_times()),
         )
 
         # ======= Reparametrization
@@ -360,7 +361,7 @@ class GaussianPosteriorTimeCorrelation(AbstractPosterior):
     def log_likelihoods(self, samples):
         # For this posterior, samples is (S x N x T).
         n_samples = samples.size()[1]
-        ans = torch.zeros(size=(n_samples,), requires_grad=True)
+        ans = torch.zeros(size=(n_samples,), requires_grad=True, device=cfg.torch_cfg.device)
         for s in range(self.model.num_strains()):
             samples_s = samples[s, :, :]
             linear = self.reparam_networks[s]
@@ -373,11 +374,12 @@ class GaussianPosteriorTimeCorrelation(AbstractPosterior):
 
 
 class FragmentPosterior(object):
-    def __init__(self, model: GenerativeModel):
+    def __init__(self, model: GenerativeModel, frag_index_map: Optional[Callable] = None):
         self.model = model
 
         # length-T list of (F x N_t) tensors.
         self.phi: List[torch.Tensor] = []
+        self.frag_index_map = frag_index_map  # A mapping from internal frag indices to FragmentSpace indexing.
 
     def top_fragments(self, time_idx, read_idx, top=5) -> Iterable[Tuple[Fragment, float]]:
         phi_t = self.phi[time_idx]
@@ -391,7 +393,8 @@ class FragmentPosterior(object):
                 sorted=True
             )
             for sparse_idx, frag_prob in zip(sparse_topk.indices, sparse_topk.values):
-                frag_idx = read_slice.indices[0, sparse_idx]
+                internal_frag_idx = read_slice.indices[0, sparse_idx]
+                frag_idx = self.frag_index_map(internal_frag_idx, time_idx)
                 yield self.model.get_fragment_space().get_fragment_by_index(frag_idx), frag_prob.item()
         elif isinstance(phi_t, torch.Tensor):
             topk_result = torch.topk(
@@ -427,36 +430,36 @@ class BBVISolver(AbstractModelSolver):
         else:
             raise ValueError("Unrecognized `correlation_type` argument {}.".format(correlation_type))
 
-        self.fragment_posterior = FragmentPosterior(model=model)  # time-indexed list of F x N tensors.
-
+        # self.model.get_fragment_frequencies()
+        self._sparse_frag_freqs = []
         if cfg.model_cfg.use_sparse:
-            # For each time t, compute the pair (E, supp(data_t)) where E is the projection F -> supp(data_t).
-            self.sparsity_transformations = [
-                self.compute_sparsity_transformation(t) for t in range(self.model.num_times())
-            ]
+            frag_freqs = self.model.get_fragment_frequencies()  # F x S
+            for t_idx in range(model.num_times()):
+
+                frag_support = self.data_likelihoods.supported_frags[t_idx]
+                sz_full = frag_freqs.size()[0]  # F
+                sz_supp = len(frag_support)  # F'
+
+                _support_indices = torch.tensor([
+                    [i for i in range(len(frag_support))],
+                    [frag_support[i] for i in range(sz_supp)]
+                ], dtype=torch.long, device=cfg.torch_cfg.device)
+
+                # Sparsity transformation (R^F -> R^{Support}), matrix size = (F' x F)
+                projector = SparseMatrix(
+                    indices=_support_indices,
+                    values=torch.ones(_support_indices.size()[1], device=cfg.torch_cfg.device),
+                    dims=(sz_supp, sz_full)
+                )
+
+                self._sparse_frag_freqs.append(projector.sparse_mul(frag_freqs))
+
+            self.fragment_posterior = FragmentPosterior(
+                model=model,
+                frag_index_map=lambda fidx, tidx: self.data_likelihoods.supported_frags[tidx][fidx].item()
+            )  # time-indexed list of F x N tensors.
         else:
-            self.sparsity_transformations = []
-
-    def compute_sparsity_transformation(self, t: int):
-        F = self.model.get_fragment_frequencies().size()[0]
-        data_likelihood: SparseMatrix = self.data_likelihoods.matrices[t]
-
-        # unique(): dim is not specified, so pre-sorting doesn't occur.
-        # https://pytorch.org/docs/stable/generated/torch.unique.html
-        row_support = data_likelihood.indices[0, :].unique(sorted=False, return_inverse=False, return_counts=False)
-        _F = len(row_support)
-
-        _support_indices = torch.tensor([
-            [i for i in range(len(row_support))],
-            [row_support[i] for i in range(_F)]
-        ], dtype=torch.long)
-
-        # Sparsity transformation (R^F -> R^{Support}), matrix size = (F' x F)
-        return SparseMatrix(
-            indices=_support_indices,
-            values=torch.ones(_support_indices.size()[1]),
-            dims=(_F, F)
-        ), row_support
+            self.fragment_posterior = FragmentPosterior(model=model)  # time-indexed list of F x N tensors.
 
     def elbo_marginal_gaussian(self,
                                x_samples: torch.Tensor,
@@ -523,7 +526,7 @@ class BBVISolver(AbstractModelSolver):
 
     def elbo_marginal_gaussian_sparse(self, x_samples: torch.Tensor, posterior_gaussian_log_likelihoods: torch.Tensor) -> torch.Tensor:
         """
-        Same as dense implementation, but restricted to supp(data_t).
+        Same as dense implementation, but computes the middle term E_{F ~ Qf}(log P(F|Xi)) using monte-carlo samples of F from phi.
         :param x_samples:
         :param posterior_gaussian_log_likelihoods:
         :return:
@@ -538,20 +541,17 @@ class BBVISolver(AbstractModelSolver):
             dtype=cfg.torch_cfg.default_dtype,
             device=cfg.torch_cfg.device
         )
-
         for t_idx in range(self.model.num_times()):
-            sparsity, _ = self.sparsity_transformations[t_idx]
+            softmax_x_t = torch.softmax(x_samples[t_idx, :, :], dim=1)  # (N x S)
+            phi_sum = self.fragment_posterior.phi[t_idx].sum(dim=1)  # (length F')
 
-            phi_sum = sparsity.sparse_mul(  # F' x F
-                self.fragment_posterior.phi[t_idx]  # F x R
-            ).sum(dim=1)  # dense length F'
-
-            expectation_model_log_fragment_probs += torch.log(sparsity.sparse_mul(  # sparse F' x F
-                self.model.get_fragment_frequencies()  # W: sparse F x S
-            ).dense_mul(  # sparse F' x S
-                torch.softmax(x_samples[t_idx], dim=1).transpose(0, 1)  # sigma(X).T: S x N
-                # so far, result is dense F' x N
-            ).t()).mv(phi_sum)  # dense length N
+            # These are all dense operations.
+            expectation_model_log_fragment_probs += torch.log(
+                # (F' x S) sparse matrix @ (S x N) dense, result is dense (F' x N)
+                self._sparse_frag_freqs[t_idx].dense_mul(
+                    softmax_x_t.t()
+                )
+            ).t().mv(phi_sum)
 
         elbo_samples = (model_gaussian_log_likelihoods
                         + expectation_model_log_fragment_probs
@@ -589,41 +589,20 @@ class BBVISolver(AbstractModelSolver):
         :param x_samples:
         :return:
         """
-        W = self.model.get_fragment_frequencies()  # (F x S)
-        F = W.size()[0]
         self.fragment_posterior.phi = []
 
         for t in range(self.model.num_times()):
-            """
-            phi_t is a (F x R) matrix. To update, we need to compute the matrix product W @ sigma(X)
-            of size (F x S) * (S x M) = (F x M), then sum up all of the columns.
-            This is often dense, since sigma(X) is dense.
-            
-            To avoid O(F)-sized dense columns, we will restrict the latter calculation to only the row-support
-            of phi_t. (Call this size F' or _F).
-            """
-            data_likelihood: SparseMatrix = self.data_likelihoods.matrices[t]
-            sparsity, row_support = self.sparsity_transformations[t]
+            phi_t: SparseMatrix = self.data_likelihoods.matrices[t].scale_row(
+                torch.exp(torch.mean(
+                    torch.log(
+                        # (F' x S) @ (S x N)
+                        self._sparse_frag_freqs[t].dense_mul(softmax(x_samples[t], dim=1).t())
+                    ),
+                    dim=1
+                )),
+                dim=0
+            )
 
-            """
-            Idea: need to multiply exp(MEAN[log(E @ W @ sigma(X))]) into data_likelihoods (row scaling),
-            where E is the sparsity matrix.
-            This form has F'<F rows, where F' = |Support_rows(data_likelihoods)).
-            So, take v = E^T @ exp(MEAN[log(E @ W @ sigma(X))]), since E^T is the pseudoinverse of E.
-            """
-            exp_mean_support_dense = torch.exp(torch.mean(
-                torch.log(
-                    sparsity.sparse_mul(W).dense_mul(softmax(x_samples[t], dim=1).t())  # (F') x (M), dense
-                ),
-                dim=1
-            ))  # length is F'
-
-            # row scaling A by v is the same as diag(v) @ A.
-            phi_t: SparseMatrix = SparseMatrix(
-                indices=torch.stack([row_support, row_support], dim=0),
-                values=exp_mean_support_dense,
-                dims=(F, F)
-            ).sparse_mul(data_likelihood)
             self.fragment_posterior.phi.append(phi_t.normalize(dim=0))
 
     def solve(self,
@@ -654,44 +633,38 @@ class BBVISolver(AbstractModelSolver):
         elbo_diff = float("inf")
         k = 0
 
-        tracemalloc.start()
+        times = {
+            'sampling': [],
+            'update-phi': [],
+            'elbo': [],
+            'backward': []
+        }
 
         while k < iters:
             k += 1
             time_est.stopwatch_click()
 
+            _t = RuntimeEstimator(total_iters=iters, horizon=1)
+            _t.stopwatch_click()
             x_samples, gaussian_log_likelihoods = self.gaussian_posterior.reparametrized_sample(
                 num_samples=num_samples,
                 output_log_likelihoods=True,
                 detach_grad=False
             )  # (T x N x S)
-            current, peak = tracemalloc.get_traced_memory()
-            logger.debug("After sampling: {cur:0.2f} MiB, Peak memory: {peak:0.2f} MiB".format(
-                cur=current / 1048576,
-                peak=peak / 1048576
-            ))
+            times['sampling'].append(_t.stopwatch_click())
 
             optimizer.zero_grad()
             with torch.no_grad():
                 self.update_phi(x_samples.detach())
-
-            current, peak = tracemalloc.get_traced_memory()
-            logger.debug("After update-phi: {cur:0.2f} MiB, Peak memory: {peak:0.2f} MiB".format(
-                cur=current / 1048576,
-                peak=peak / 1048576
-            ))
+            times['update-phi'].append(_t.stopwatch_click())
 
             elbo = self.elbo_marginal_gaussian(x_samples, gaussian_log_likelihoods)
-
-            current, peak = tracemalloc.get_traced_memory()
-            logger.debug("After elbo-marginal-gaussian: {cur:0.2f} MiB, Peak memory: {peak:0.2f} MiB".format(
-                cur=current / 1048576,
-                peak=peak / 1048576
-            ))
+            times['elbo'].append(_t.stopwatch_click())
 
             elbo_loss = -elbo  # Quantity to minimize. (want to maximize ELBO)
             elbo_loss.backward()
             optimizer.step()
+            times['backward'].append(_t.stopwatch_click())
 
             if callbacks is not None:
                 for callback in callbacks:
@@ -706,10 +679,16 @@ class BBVISolver(AbstractModelSolver):
                             "| Last ELBO = {elbo:.2f}"
                             .format(iter=k,
                                     t=time_est.time_left() / 60000,
-                                    elbo=elbo.item())
+                                    elbo=elbo)
                             )
+                logger.info("Profiler: {}".format(
+                    " | ".join([
+                        "{}: {:02f}".format(key, np.mean(time_entries))
+                        for key, time_entries in times.items()
+                    ])
+                ))
 
-            elbo_value = elbo.detach().item()
+            elbo_value = elbo.detach()
             elbo_diff = elbo_value - last_elbo
             if abs(elbo_diff) < thresh_elbo * abs(last_elbo):
                 logger.info("Convergence criteria |ELBO_diff| < {} * |last_ELBO| met; terminating early.".format(thresh_elbo))
@@ -719,8 +698,10 @@ class BBVISolver(AbstractModelSolver):
             k=k,
             diff=elbo_diff
         ))
-        tracemalloc.stop()
 
-
-
-
+        if cfg.torch_cfg.device == torch.device("cuda"):
+            logger.debug(
+                "BBVI CUDA memory -- [MaxAlloc: {} MiB]".format(
+                    torch.cuda.max_memory_allocated(cfg.torch_cfg.device) / 1048576
+                )
+            )

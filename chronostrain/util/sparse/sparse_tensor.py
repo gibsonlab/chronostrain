@@ -164,13 +164,13 @@ class SparseMatrix(object):
         :return:
         """
         # Deleting entries
-        cols_to_keep = torch.tensor(cols_to_keep).unsqueeze(1)
+        cols_to_keep = torch.tensor(cols_to_keep, device=self.indices.device).unsqueeze(1)
         mask = torch.sum(cols_to_keep == self.indices[1, :], dim=0).bool()
         indices = self.indices[:, mask]
         values = self.values[mask]
 
         # Shifting remaining entries down
-        range_mask = torch.sum(torch.arange(self.columns) == cols_to_keep, dim=0).bool()
+        range_mask = torch.sum(torch.arange(self.columns, device=self.indices.device) == cols_to_keep, dim=0).bool()
         adj = torch.cumsum(~range_mask, 0)
         indices[1, :] = indices[1, :] - torch.index_select(adj, 0, indices[1, :])
 

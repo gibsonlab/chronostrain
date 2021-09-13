@@ -198,6 +198,7 @@ def perform_bbvi(
     # ==== Save the fragment probabilities.
     df_entries = []
     for t_idx, reads_t in enumerate(reads):
+        # Some reads got trimmed, take that into account by asking data_likelihoods about what the "true" index is.
         for solver_r_idx, r_idx in enumerate(solver.data_likelihoods.retained_indices[t_idx]):
             read = reads_t[r_idx]
             for fragment, frag_prob in solver.fragment_posterior.top_fragments(t_idx, solver_r_idx, top=5):
@@ -423,6 +424,9 @@ def main():
         true_abundance_path = None
 
     # ============ Run the specified algorithm.
+    import time
+
+    start_time = time.time()
     if args.method == 'em':
         logger.info("Solving using Expectation-Maximization.")
         perform_em(
@@ -448,11 +452,18 @@ def main():
             learning_rate=args.learning_rate,
             plot_format=args.plot_format,
             out_dir=out_dir,
-            do_training_animation=True,
+            # do_training_animation=True,
+            # plot_elbo_history=True,
+            do_training_animation=False,
+            plot_elbo_history=False,
             correlation_type="time"
         )
     else:
         raise ValueError("{} is not an implemented method.".format(args.method))
+    end_time = time.time()
+    logger.info("Finished inference in {} sec.".format(
+        (end_time - start_time)
+    ))
 
 
 def plot_elbos(out_path: Path, elbos: List[float], plot_format: str):
@@ -503,15 +514,7 @@ def plot_training_animation(out_path: Path, n_frames, lowers, uppers, medians, m
 
 if __name__ == "__main__":
     try:
-        import tracemalloc
-        tracemalloc.start()
         main()
-        current, peak = tracemalloc.get_traced_memory()
-        logger.debug("Current memory: {cur:0.2f} MiB, Peak memory: {peak:0.2f} MiB".format(
-            cur=current / 1048576,
-            peak=peak / 1048576
-        ))
-        tracemalloc.stop()
     except Exception as e:
         logger.exception(e)
         exit(1)

@@ -60,7 +60,7 @@ def load_abundances(file_path: Path) -> Tuple[List[int], torch.Tensor, List[str]
             time_point = row[0]
             abundances = torch.tensor(
                 [float(val) for val in row[1:]],
-                dtype=torch.double,
+                dtype=cfg.torch_cfg.default_dtype,
                 device=cfg.torch_cfg.device
             )
             time_points.append(time_point)

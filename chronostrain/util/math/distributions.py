@@ -119,7 +119,7 @@ class UniformVarianceGaussian(object):
 
 class HalfCauchyVarianceGaussian(object):
     def __init__(self, mean: torch.Tensor, cauchy_scale: float = 1.0, n_samples: int = 100):
-        self.mean = mean.to(cfg.torch_cfg.device)
+        self.mean = mean
         self.n_samples = n_samples
         self.cauchy_dist = torch.distributions.HalfCauchy(scale=cauchy_scale)
 
