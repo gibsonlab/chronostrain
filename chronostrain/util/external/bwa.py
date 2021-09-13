@@ -2,9 +2,9 @@ from .commandline import *
 
 
 def bwa_index(reference_path: Path, bwa_path="bwa"):
-    '''
+    """
     TODO: Allow configurable minimum seed length
-    '''
+    """
 
     exit_code = call_command(bwa_path, ['index', reference_path])
     if exit_code != 0:

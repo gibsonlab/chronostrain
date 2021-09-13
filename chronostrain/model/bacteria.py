@@ -158,7 +158,6 @@ class Population:
         return frag_freqs
 
     def get_strain_fragment_frequencies_sparse(self, window_size) -> SparseMatrix:
-        # TODO: Use Zack's 'SparseMatrix' class implementation.
         # TODO: Use a cached computation for this part.
         # For each strain, fill out the column.
         fragment_space = self.get_fragment_space(window_size)
