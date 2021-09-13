@@ -507,7 +507,7 @@ if __name__ == "__main__":
         tracemalloc.start()
         main()
         current, peak = tracemalloc.get_traced_memory()
-        print("Current memory: {cur:0.2f} MiB, Peak memory: {peak:0.2f} MiB".format(
+        logger.debug("Current memory: {cur:0.2f} MiB, Peak memory: {peak:0.2f} MiB".format(
             cur=current / 1048576,
             peak=peak / 1048576
         ))

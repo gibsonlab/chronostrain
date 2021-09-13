@@ -54,6 +54,11 @@ class SparseMatrix(object):
         return SparseMatrix(result_indices, result_values, (self.rows, x.columns), force_coalesce=False)
 
     def exp(self) -> 'SparseMatrix':
+        """
+        Component-wise exponentiation, applied to only the non-empty entries.
+        Note: Be careful of what the empty values mean. If the empty values before the call to exp() are meant to
+        be zeroes, then this is not consistent with the behavior in this implementation, since exp(0) = 1.
+        """
         return SparseMatrix(self.indices, torch.exp(self.values), (self.rows, self.columns), force_coalesce=False)
 
     def t(self) -> 'SparseMatrix':

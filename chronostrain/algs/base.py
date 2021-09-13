@@ -196,12 +196,12 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
     def __init__(self, model, reads):
         super().__init__(model, reads)
         self.marker_reference_file = cfg.database_cfg.get_database().multifasta_file
-        bwa_index(self.marker_reference_file)
 
     def _compute_read_frag_alignments(self, t_idx: int) -> defaultdict:
         read_to_fragments = defaultdict(set)
         alignment_output_path = Path(self.reads[0].src).parent / "all_alignments_{}.sam".format(t_idx)
 
+        bwa_index(self.marker_reference_file)
         bwa_mem(
             output_path=alignment_output_path,
             reference_path=self.marker_reference_file,
