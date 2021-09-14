@@ -4,6 +4,9 @@ export CHRONOSTRAIN_DATA_DIR="/data/cctm/chronostrain"
 export BASE_DIR="${PROJECT_DIR}/examples/performance_comparison"
 export CONDA_ENV="chronostrain"
 
+export PATH="/PHShome/yk847/CUDA/bin:${PATH}"
+export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:/PHShome/yk847/CUDA/lib64"
+
 # ======== Location of this file.
 export SETTINGS_PATH="${BASE_DIR}/scripts/eristwo/settings.sh"
 
