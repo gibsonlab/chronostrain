@@ -46,7 +46,7 @@ def fetch_entrez(entrez_db: str, accession: Union[str, List[str]], rettype: str,
             file_path
         ))
     else:
-        logger.debug("[{}] Downloading genbank file...".format(
+        logger.debug("[{}] Downloading entrez file...".format(
             accession[0] if isinstance(accession, list) else accession,
         ))
         net_handle = Entrez.efetch(

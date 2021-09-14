@@ -1,6 +1,7 @@
 # Modify these before running.
 export PROJECT_DIR="/mnt/f/microbiome_tracking"
 export CHRONOSTRAIN_DATA_DIR="/home/younhun/chronostrain"
+export BASE_DIR="${PROJECT_DIR}/examples/performance_comparison"
 
 # ======== Location of this file.
 export SETTINGS_PATH="${BASE_DIR}/scripts/single-run/settings.sh"
@@ -38,7 +39,6 @@ export STRAINGE_DB_PATH="${STRAINGE_DB_DIR}/ecoli-db.hdf5"
 export STRAINGE_OUTPUT_FILENAME="abundances.csv"
 
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)
-export BASE_DIR="${PROJECT_DIR}/examples/performance_comparison"
 export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
 export CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"
 export TRUE_ABUNDANCE_PATH="${BASE_DIR}/files/true_abundances.csv"
