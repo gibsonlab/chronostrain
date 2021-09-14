@@ -290,15 +290,6 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                 frag_indices.append(frag.index)
                 log_likelihood_values.append(self.model.error_model.compute_log_likelihood(frag, read))
 
-        logger.debug(
-            "Read-likelihood matrix (size {} x {}) has {} nonzero entries. (~{:.2f} hits per read)".format(
-                self.fragment_space.size(),
-                len(self.reads[t_idx]),
-                len(log_likelihood_values),
-                len(log_likelihood_values) / len(self.reads[t_idx])
-            )
-        )
-
         return SparseMatrix(
             indices=torch.tensor(
                 [frag_indices, read_indices],
@@ -351,6 +342,19 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                 dims=(size[0], size[1])
             )
 
+        def callback_(matrix: SparseMatrix):
+            _, counts_per_read = torch.unique(matrix.indices[1], sorted=False, return_inverse=False, return_counts=True)
+            logger.debug(
+                "Read-likelihood matrix (size {r} x {c}) has {nz} nonzero entries. "
+                "(~{meanct:.2f} hits per read, density={dens:.1e})".format(
+                    r=self.fragment_space.size(),
+                    c=len(self.reads[t_idx]),
+                    nz=len(matrix.values),
+                    meanct=counts_per_read.float().mean(),
+                    dens=matrix.density()
+                )
+            )
+
         # Create an array of cached computation jobs.
         for t_idx in range(self.model.num_times()):
             jobs.append(
@@ -360,7 +364,8 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                     filename="sparse_log_likelihoods_{}.npz".format(t_idx),
                     cache_tag=cache_tag,
                     save=save_,
-                    load=load_
+                    load=load_,
+                    success_callback=callback_
                 )
             )
 

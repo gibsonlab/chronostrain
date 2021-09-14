@@ -38,12 +38,15 @@ def parse_args():
                         help='<Required> A keyword specifying the inference method.')
     parser.add_argument('-l', '--read_length', required=True, type=int,
                         help='<Required> Length of each read')
+    parser.add_argument('--input_file', required=False, type=str,
+                        default='input_files.csv',
+                        help='<Optional> The CSV input file specifier inside reads_dir.')
 
     # Output specification.
     parser.add_argument('-o', '--out_dir', required=True, type=str,
                         help='<Required> The file path to save learned outputs to.')
 
-    # Optional params
+    # Other Optional params
     parser.add_argument('-s', '--seed', required=False, type=int, default=31415,
                         help='<Optional> Seed for randomness (for reproducibility).')
     parser.add_argument('-truth', '--true_abundance_path', required=False, type=str,
@@ -352,11 +355,11 @@ def create_model(population: Population,
     return model
 
 
-def get_input_paths(base_dir: Path) -> Tuple[List[Path], List[float]]:
+def get_input_paths(base_dir: Path, input_filename) -> Tuple[List[Path], List[float]]:
     time_points = []
     read_paths = []
 
-    input_specification_path = base_dir / "input_files.csv"
+    input_specification_path = base_dir / input_filename
     try:
         with open(input_specification_path, "r") as f:
             input_specs = csv.reader(f, delimiter=',', quotechar='"')
@@ -381,7 +384,7 @@ def main():
     # ==== Load Population instance from database info
     population = Population(strains=db.all_strains(), extra_strain=cfg.model_cfg.extra_strain)
 
-    read_paths, time_points = get_input_paths(Path(args.reads_dir))
+    read_paths, time_points = get_input_paths(Path(args.reads_dir), args.input_file)
 
     # ==== Load reads and validate.
     if len(read_paths) != len(time_points):

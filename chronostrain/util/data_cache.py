@@ -62,7 +62,8 @@ class CachedComputation(object):
                  args: Optional[List] = [],
                  kwargs: Optional[Dict] = {},
                  save: Optional[Callable] = None,
-                 load: Optional[Callable] = None,):
+                 load: Optional[Callable] = None,
+                 success_callback: Optional[Callable] = None):
         """
         :param save: A function or Callable which takes (1) a filepath and (2) a python object as input to
         save the designated object to the specified file.
@@ -90,8 +91,15 @@ class CachedComputation(object):
                 with open(path, "rb") as f:
                     return pickle.load(f)
             self.loader = load_
+        self.success_callback = success_callback
 
     def call(self):
+        data = self.call_with_caching()
+        if self.success_callback is not None:
+            self.success_callback(data)
+        return data
+
+    def call_with_caching(self):
         # Try to retrieve from cache.
         try:
             data = self.loader(self.cache_path)
@@ -111,4 +119,5 @@ class CachedComputation(object):
         logger.debug("[Cache {}] Saved {}.".format(
             self.cache_tag.encoding, self.cache_path
         ))
+
         return data
