@@ -1,7 +1,7 @@
 from pathlib import Path
 import subprocess
 from typing import List
-from chronostrain.util import logger
+from . import logger
 
 
 class CommandLineException(BaseException):

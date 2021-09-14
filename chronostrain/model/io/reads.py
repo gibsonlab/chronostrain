@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import List, Optional, Union, Iterable
 import numpy as np
 
+import gzip
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
@@ -11,11 +12,30 @@ from chronostrain.model.reads import SequenceRead
 from chronostrain.util.filesystem import convert_size
 
 
+class TimeSliceReadSource(object):
+    def __init__(self, path: Path, *args):
+        if len(args) == 0:
+            self.paths: List[Path] = [path]
+        else:
+            self.paths: List[Path] = [path] + [p for p in args]
+
+    def get_canonical_path(self) -> Path:
+        if len(self.paths) != 1:
+            raise ValueError("Found {} paths, cannot decide canonical one.".format(len(self.paths)))
+        return self.paths[0]
+
+    def __str__(self):
+        return self.paths.__str__()
+
+    def __repr__(self):
+        return "<TimeSliceReadSource:{}>".format(self.paths.__repr__())
+
+
 class TimeSliceReads(object):
-    def __init__(self, reads: List[SequenceRead], time_point: float, src: Optional[Path] = None):
+    def __init__(self, reads: List[SequenceRead], time_point: float, src: Optional[TimeSliceReadSource] = None):
         self.reads: List[SequenceRead] = reads
         self.time_point: float = time_point
-        self.src: Union[Path, None] = src
+        self.src: Union[TimeSliceReadSource, None] = src
 
     def save(self) -> int:
         """
@@ -26,42 +46,67 @@ class TimeSliceReads(object):
         if self.src is None:
             raise ValueError("Specify the `src` parameter if invoking save() of TimeSliceReads object.")
 
+        canonical_path = self.src.get_canonical_path()
         records = []
-        Path(self.src).parent.mkdir(parents=True, exist_ok=True)
+        canonical_path.parent.mkdir(parents=True, exist_ok=True)
 
         for i, read in enumerate(self.reads):
             # Code from https://biopython.org/docs/1.74/api/Bio.SeqRecord.html
             record = SeqRecord(Seq(read.nucleotide_content()), id="Read#{}".format(i), description=read.metadata)
             record.letter_annotations["phred_quality"] = read.quality
             records.append(record)
-        SeqIO.write(records, self.src, "fastq")
+        SeqIO.write(records, canonical_path, "fastq")
 
-        file_size = self.src.stat().st_size
+        file_size = canonical_path.stat().st_size
         logger.info("Wrote fastQ file {f}. ({sz})".format(
-            f=self.src,
+            f=canonical_path,
             sz=convert_size(file_size)
         ))
         return file_size
 
     @staticmethod
-    def load(file_path: Path, time_point: float):
-        reads = []
-        for record in SeqIO.parse(file_path, "fastq"):
-            quality = np.array(record.letter_annotations["phred_quality"], dtype=np.int)
-            read = SequenceRead(
-                read_id=record.id,
-                seq=str(record.seq),
-                quality=quality,
-                metadata=record.description
-            )
-            reads.append(read)
+    def read_fastq(fastq_path: Path) -> Iterable[SeqRecord]:
+        for record in SeqIO.parse(fastq_path, "fastq"):
+            yield record
 
-        logger.debug("Loaded {r} reads from fastQ file {f}. ({sz})".format(
-            r=len(reads),
-            f=file_path,
-            sz=convert_size(file_path.stat().st_size)
-        ))
-        return TimeSliceReads(reads, time_point, file_path)
+    @staticmethod
+    def read_gzipped_fastq(gz_path: Path) -> Iterable[SeqRecord]:
+        with gzip.open(str(gz_path), "r") as handle:
+            for record in SeqIO.parse(handle, "fastq"):
+                yield record
+
+    @staticmethod
+    def load(src: TimeSliceReadSource, time_point: float) -> "TimeSliceReads":
+        """
+        Creates an instance of TimeSliceReads() from the specified file path.
+
+        :param src: A TimeSliceReadSource instance pointing to the files on disk.
+        :param time_point: The timepoint that this source corresponds to.
+        :return:
+        """
+        reads = []
+        for file_path in src.paths:
+            if file_path.suffix == '.gz':
+                read_fn = TimeSliceReads.read_gzipped_fastq
+            else:
+                read_fn = TimeSliceReads.read_fastq
+
+            for record in read_fn(file_path):
+                quality = np.array(record.letter_annotations["phred_quality"], dtype=int)
+                read = SequenceRead(
+                    read_id=record.id,
+                    seq=str(record.seq),
+                    quality=quality,
+                    metadata=record.description
+                )
+                reads.append(read)
+
+            logger.debug("Loaded {r} reads from fastQ file {f}. ({sz})".format(
+                r=len(reads),
+                f=file_path,
+                sz=convert_size(file_path.stat().st_size)
+            ))
+        return TimeSliceReads(reads, time_point, src)
 
     def __iter__(self) -> Iterable[SequenceRead]:
         for read in self.reads:
@@ -91,16 +136,21 @@ class TimeSeriesReads(object):
         ))
 
     @staticmethod
-    def load(time_points: List[float], file_paths: List[Path]):
-        if len(time_points) != len(file_paths):
-            raise ValueError("Number of time points ({}) do not match number of file paths. ({})".format(
-                len(time_points), len(file_paths)
+    def load(time_points: List[float], source_entries: List[Iterable[Path]]):
+        if len(time_points) != len(source_entries):
+            raise ValueError("Number of time points ({}) do not match number of read sources. ({})".format(
+                len(time_points), len(source_entries)
             ))
-        time_slices = [
-            TimeSliceReads.load(file_path, t)
-            for file_path, t in zip(file_paths, time_points)
+
+        time_slice_sources = [
+            TimeSliceReadSource(*file_paths)
+            for file_paths in source_entries
         ]
-        return TimeSeriesReads(time_slices)
+
+        return TimeSeriesReads([
+            TimeSliceReads.load(src, t)
+            for src, t in zip(time_slice_sources, time_points)
+        ])
 
     def __iter__(self) -> TimeSliceReads:
         for time_slice in self.time_slices:

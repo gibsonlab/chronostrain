@@ -18,7 +18,7 @@ from chronostrain.util.external.bwa import bwa_index, bwa_mem
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.config import cfg
 from chronostrain.model.generative import GenerativeModel
-from chronostrain.util.data_cache import CachedComputation, CacheTag
+from chronostrain.util.data_cache import ComputationCache, CacheTag
 
 
 class AbstractModelSolver(metaclass=ABCMeta):
@@ -186,89 +186,132 @@ class DenseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         return ans
 
     def compute_likelihood_tensors(self) -> List[torch.Tensor]:
+        # TODO: explicitly define save() and load() here to write directly to torch tensor files.
         logger.debug("Computing read-fragment likelihoods...")
-        jobs: List[CachedComputation] = []
-
         cache_tag = CacheTag(
             file_paths=[reads_t.src for reads_t in self.reads],
             use_quality=cfg.model_cfg.use_quality_scores,
         )
+        cache = ComputationCache(cache_tag)
 
-        for t_idx in range(self.model.num_times()):
-            jobs.append(
-                CachedComputation(
-                    self.compute_matrix_single_timepoint,
-                    kwargs={"t_idx": t_idx},
-                    filename="log_likelihoods_{}.pkl".format(t_idx),
-                    cache_tag=cache_tag
-                )
-            )
+        jobs = [
+            {
+                "filename": "log_likelihoods_{}.pkl".format(t_idx),
+                "fn": lambda t: self.compute_matrix_single_timepoint(t),
+                "args": [],
+                "kwargs": {"t": t_idx}
+            }
+            for t_idx in range(self.model.num_times())
+        ]
 
         parallel = (cfg.model_cfg.num_cores > 1)
         if parallel:
             logger.debug("Computing read likelihoods with parallel pool size = {}.".format(cfg.model_cfg.num_cores))
 
-            with Parallel(n_jobs=cfg.model_cfg.num_cores) as parallel:
-                log_likelihoods_output = [
-                    parallel(delayed(job.call)())
-                    for job in jobs
-                ]
+            log_likelihoods_output = Parallel(n_jobs=cfg.model_cfg.num_cores)(
+                delayed(cache.call)(cache_kwargs)
+                for cache_kwargs in jobs
+            )
+
             log_likelihoods_tensors = [
                 torch.tensor(ll_array, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype)
                 for ll_array in log_likelihoods_output
             ]
         else:
             log_likelihoods_tensors = [
-                torch.tensor(job.call(), device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype)
-                for job in jobs
+                torch.tensor(cache.call(**cache_kwargs), device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype)
+                for cache_kwargs in jobs
             ]
 
         return log_likelihoods_tensors
 
 
 class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
-    def __init__(self, model, reads):
+    def __init__(self, model: GenerativeModel, reads: TimeSeriesReads):
         super().__init__(model, reads)
         self.marker_reference_file = cfg.database_cfg.get_database().multifasta_file
+        self._bwa_index_finished = False
+        self.cache = ComputationCache(CacheTag(
+            file_paths=[reads_t.src.paths for reads_t in self.reads],  # read files
+            use_quality=cfg.model_cfg.use_quality_scores,
+        ))
+
+    def _run_bwa_index_lazy(self):
+        if self._bwa_index_finished:
+            return
+        bwa_index(self.marker_reference_file)
+        self._bwa_index_finished = True
 
     def _compute_read_frag_alignments(self, t_idx: int) -> defaultdict:
+        """
+        Iterate through the timepoint's SamHandler instances (if the reads of t_idx came from more than one path).
+        Each of these SamHandlers provides alignment information.
+        :param t_idx: the timepoint index to use.
+        :return: A defaultdict representing the map (Read ID) -> {Fragments that the read aligns to}
+        """
         read_to_fragments = defaultdict(set)
-        alignment_output_path = Path(self.reads[0].src).parent / "all_alignments_{}.sam".format(t_idx)
 
-        bwa_index(self.marker_reference_file)
-        bwa_mem(
-            output_path=alignment_output_path,
-            reference_path=self.marker_reference_file,
-            read_path=self.reads[t_idx].src,
-            min_seed_length=20,
-            report_all_alignments=True
-        )
+        for target_reads_path in self.reads[t_idx].src.paths:
+            # Want to save to <CACHEDIR>/alignments_{t}/{read_file_name}.sam
+            relative_alignment_path = Path("alignments_{}".format(t_idx)) / "{}.sam".format(target_reads_path.stem)
 
-        sam_handler = SamHandler(alignment_output_path, self.marker_reference_file)
-        for sam_line in sam_handler.mapped_lines():
-            if sam_line.is_reverse_complemented:
-                # TODO: Rest of the model does not handle reverse-complements, so we will skip those for now.
-                continue
+            sam_handler = self._single_file_alignment(target_reads_path, relative_alignment_path)
+            for sam_line in sam_handler.mapped_lines():
+                if sam_line.is_reverse_complemented:
+                    # TODO: Rest of the model does not handle reverse-complements, so we will skip those for now.
+                    continue
 
-            # TODO - Future note: this might be a good starting place for handling/detecting indels.
-            #  (since this part already handles the aligned_frag not being found.)
-            #  (if one needs more control, handle this in the sam_line loop of _compute_read_frag_alignments().)
-            try:
-                aligned_frag = self.fragment_space.get_fragment(sam_line.fragment)
-            except KeyError:
-                # This happens because the aligned frag is not a full alignment, either due to edge effects or indels.
-                # Our model does not handle these, but see the note above.
-                continue
+                # TODO - Future note: this might be a good starting place for handling/detecting indels.
+                #  (since this part already handles the aligned_frag not being found.)
+                #  (if one needs more control, handle this in the sam_line loop of _compute_read_frag_alignments().)
+                try:
+                    aligned_frag = self.fragment_space.get_fragment(sam_line.fragment)
+                except KeyError:
+                    # This happens because the aligned frag is not a full alignment, either due to edge effects or indels.
+                    # Our model does not handle these, but see the note above.
+                    continue
 
-            read_id = sam_line.read
-            try:
-                read_to_fragments[read_id].add(aligned_frag)
-            except KeyError:
-                logger.debug("Problematic SAM line found: {}".format(
-                    sam_line
-                ))
-                raise
+                read_id = sam_line.read
+                try:
+                    read_to_fragments[read_id].add(aligned_frag)
+                except KeyError:
+                    logger.debug("Problematic SAM line found: {}".format(
+                        sam_line
+                    ))
+                    raise
         return read_to_fragments
+
+    def _single_file_alignment(self, target_reads_path: Path, relative_alignment_path: str) -> SamHandler:
+        self._run_bwa_index_lazy()
+
+        # ====== function bindings
+        def perform_alignment(align_path: Path, ref_path: Path, reads_path: Path):
+            align_path.parent.mkdir(exist_ok=True, parents=True)
+            bwa_mem(
+                output_path=align_path,
+                reference_path=ref_path,
+                read_path=reads_path,
+                min_seed_length=20,
+                report_all_alignments=True
+            )
+            return SamHandler(align_path, ref_path)
+
+        def save(path, obj):
+            pass
+
+        # ====== Run the cached computation.
+        alignment_output_path = self.cache.cache_dir / relative_alignment_path
+        return self.cache.call(
+            filename=alignment_output_path,
+            fn=perform_alignment,
+            save=save,
+            load=lambda p: SamHandler(alignment_output_path, self.marker_reference_file),
+            kwargs={
+                "align_path": alignment_output_path,
+                "ref_path": self.marker_reference_file,
+                "reads_path": target_reads_path
+            }
+        )
 
     def create_sparse_matrix(self, t_idx) -> SparseMatrix:
         """
@@ -306,12 +349,6 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
 
     def compute_likelihood_tensors(self) -> List[SparseMatrix]:
         logger.debug("Computing read-fragment likelihoods...")
-        jobs: List[CachedComputation] = []
-
-        cache_tag = CacheTag(
-            file_paths=[reads_t.src for reads_t in self.reads],
-            use_quality=cfg.model_cfg.use_quality_scores,
-        )
 
         # Save each sparse tensor as a tuple of indices/values/shape into a compressed numpy file (.npz).
         def save_(path, sparse_matrix: SparseMatrix):
@@ -347,37 +384,34 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
             logger.debug(
                 "Read-likelihood matrix (size {r} x {c}) has {nz} nonzero entries. "
                 "(~{meanct:.2f} hits per read, density={dens:.1e})".format(
-                    r=self.fragment_space.size(),
-                    c=len(self.reads[t_idx]),
+                    r=matrix.size()[0],
+                    c=matrix.size()[1],
                     nz=len(matrix.values),
                     meanct=counts_per_read.float().mean(),
                     dens=matrix.density()
                 )
             )
 
-        # Create an array of cached computation jobs.
-        for t_idx in range(self.model.num_times()):
-            jobs.append(
-                CachedComputation(
-                    self.create_sparse_matrix,
-                    kwargs={"t_idx": t_idx},
-                    filename="sparse_log_likelihoods_{}.npz".format(t_idx),
-                    cache_tag=cache_tag,
-                    save=save_,
-                    load=load_,
-                    success_callback=callback_
-                )
-            )
+        jobs = [
+            {
+                "filename": "sparse_log_likelihoods_{}.npz".format(t_idx),
+                "fn": lambda t: self.create_sparse_matrix(t),
+                "args": [],
+                "kwargs": {"t": t_idx},
+                "save": save_,
+                "load": load_,
+                "success_callback": callback_
+            }
+            for t_idx in range(self.model.num_times())
+        ]
 
         parallel = (cfg.model_cfg.num_cores > 1)
         if parallel:
             logger.debug("Computing read likelihoods with parallel pool size = {}.".format(cfg.model_cfg.num_cores))
 
-            with Parallel(n_jobs=cfg.model_cfg.num_cores) as parallel:
-                log_likelihoods_tensors = [
-                    parallel(delayed(job.call)())
-                    for job in jobs
-                ]
-            return log_likelihoods_tensors
+            return Parallel(n_jobs=cfg.model_cfg.num_cores)(
+                delayed(self.cache.call)(cache_kwargs_t)
+                for cache_kwargs_t in jobs
+            )
         else:
-            return [job_t.call() for job_t in jobs]
+            return [self.cache.call(**cache_kwargs_t) for cache_kwargs_t in jobs]

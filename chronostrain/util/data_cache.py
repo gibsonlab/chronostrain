@@ -7,7 +7,7 @@
     Generates a cache key to avoid re-computation in future runs.
 """
 from pathlib import Path
-from typing import Callable, Optional, List, Dict
+from typing import Callable, Optional, List, Dict, Any
 import pickle
 import hashlib
 
@@ -34,7 +34,10 @@ class CacheTag(object):
         return hashlib.md5(str(processed_dict).encode('utf-8')).hexdigest()
 
     def process_item(self, item) -> str:
-        if isinstance(item, list):
+        if isinstance(item, dict):
+            logger.warn("CacheTag might not properly handle dictionary attributes.")
+            return str(item)
+        elif isinstance(item, list):
             return "[{}]".format(",".join(
                 self.process_item(entry) for entry in item
             ))
@@ -44,80 +47,101 @@ class CacheTag(object):
             return str(item)
 
     def write_attributes_to_disk(self, path: Path):
+        def _recursive_render(o) -> str:
+            if isinstance(o, dict):
+                logger.warn("CacheTag might not properly handle dictionary attributes.")
+                o_str = str(o)
+            elif isinstance(o, list):
+                o_str = "[{}]".format(",".join(
+                    _recursive_render(entry) for entry in o
+                ))
+            elif isinstance(o, Path):
+                o_str = "<file:{}>".format(str(o))
+            else:
+                o_str = str(o)
+            return o_str
+
         with open(path, "w") as f:
             for key, value in self.attr_dict.items():
-                if isinstance(value, list):
-                    print("{}:".format(key), file=f)
-                    for item in value:
-                        print("\t{}".format(item), file=f)
-                else:
-                    print("{}: {}".format(key, value), file=f)
+                print(
+                    "{}: {}".format(key, _recursive_render(value)),
+                    file=f
+                )
+                print(_recursive_render(value))
 
 
-class CachedComputation(object):
-    def __init__(self,
-                 fn: Callable,
-                 filename: str,
-                 cache_tag: CacheTag,
-                 args: Optional[List] = [],
-                 kwargs: Optional[Dict] = {},
-                 save: Optional[Callable] = None,
-                 load: Optional[Callable] = None,
-                 success_callback: Optional[Callable] = None):
+def pickle_saver(path, obj):
+    """
+    Saves the object to the path using pickle.dump.
+    """
+    with open(path, "wb") as f:
+        pickle.dump(obj, f)
+
+
+def pickle_loader(path):
+    """
+    Loads an object using pickle.load.
+    """
+    with open(path, "rb") as f:
+        return pickle.load(f)
+
+
+class ComputationCache(object):
+    def __init__(self, cache_tag: CacheTag):
         """
+        """
+        self.cache_tag = cache_tag
+        self.cache_dir = cfg.model_cfg.cache_dir / self.cache_tag.encoding
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        logger.debug("Using cache dir {}.".format(self.cache_dir))
+
+    def call(self,
+             filename: str,
+             fn: Callable,
+             args: Optional[List] = None,
+             kwargs: Optional[Dict] = None,
+             save: Callable = pickle_saver,
+             load: Callable = pickle_loader,
+             success_callback: Optional[Callable] = None) -> Any:
+        """
+        :param filename: A unique filename to use to store the cached result, relative to the cache path.
+        :param fn: A function which returns the desired output of computation, with args and kwargs passed in.
+        :param args: arguments to pass to the callable `fn`.
+        :param kwargs: named arguments to pass to the callable `fn`.
         :param save: A function or Callable which takes (1) a filepath and (2) a python object as input to
         save the designated object to the specified file.
         :param load: A function or Callable which takes a filepath as input to load some object from the file.
+        :param success_callback: A callback to invoke at the end of either save() or load(), taking the output of
+        fn() as input.
+        :return: The desired output of fn(*args, **kwargs).
         """
-        self.fn = fn
-        self.cache_tag = cache_tag
+        if args is None:
+            args = []
+        if kwargs is None:
+            kwargs = {}
 
-        self.cache_dir = cfg.model_cfg.cache_dir / self.cache_tag.encoding
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
-        self.cache_path = self.cache_dir / filename
-
-        self.args = args
-        self.kwargs = kwargs
-
-        self.saver = save
-        self.loader = load
-        if self.saver is None:
-            def save_(path, obj):
-                with open(path, "wb") as f:
-                    pickle.dump(obj, f)
-            self.saver = save_
-        if self.loader is None:
-            def load_(path):
-                with open(path, "rb") as f:
-                    return pickle.load(f)
-            self.loader = load_
-        self.success_callback = success_callback
-
-    def call(self):
-        data = self.call_with_caching()
-        if self.success_callback is not None:
-            self.success_callback(data)
-        return data
-
-    def call_with_caching(self):
         # Try to retrieve from cache.
+        cache_path = self.cache_dir / filename
         try:
-            data = self.loader(self.cache_path)
+            data = load(cache_path)
             logger.debug("[Cache {}] Loaded pre-computed file {}.".format(
-                self.cache_tag.encoding, self.cache_path
+                self.cache_tag.encoding, cache_path
             ))
             return data
         except FileNotFoundError:
             logger.debug("[Cache {}] Could not load cached file {}. Recomputing.".format(
-                self.cache_tag.encoding, self.cache_path
+                self.cache_tag.encoding, cache_path
             ))
 
         self.cache_tag.write_attributes_to_disk(self.cache_dir / "attributes.txt")
-        data = self.fn(*self.args, **self.kwargs)
-        self.saver(self.cache_path, data)
+        data = fn(*args, **kwargs)
+        save(cache_path, data)
 
         logger.debug("[Cache {}] Saved {}.".format(
-            self.cache_tag.encoding, self.cache_path
+            self.cache_tag.encoding, cache_path
         ))
+
+        if success_callback is not None:
+            success_callback(data)
 
         return data

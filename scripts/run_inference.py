@@ -13,7 +13,7 @@ import argparse
 
 from matplotlib import pyplot as plt
 from matplotlib import animation
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Iterable
 
 from chronostrain import logger, cfg
 from chronostrain.algs import AbstractPosterior, BBVISolver, EMSolver
@@ -355,7 +355,7 @@ def create_model(population: Population,
     return model
 
 
-def get_input_paths(base_dir: Path, input_filename) -> Tuple[List[Path], List[float]]:
+def get_input_paths(base_dir: Path, input_filename) -> Tuple[List[Iterable[Path]], List[float]]:
     time_points = []
     read_paths = []
 
@@ -363,10 +363,12 @@ def get_input_paths(base_dir: Path, input_filename) -> Tuple[List[Path], List[fl
     try:
         with open(input_specification_path, "r") as f:
             input_specs = csv.reader(f, delimiter=',', quotechar='"')
-            for item in input_specs:
-                time_point_str, filename = item
+            for row in input_specs:
+                time_point_str = row[0]
+                filenames = [base_dir / f for f in row[1:]]
+
                 time_points.append(float(time_point_str))
-                read_paths.append(base_dir / filename)
+                read_paths.append(filenames)
     except FileNotFoundError:
         raise FileNotFoundError("Missing required file `input_files.csv` in directory {}.".format(base_dir)) from None
 
@@ -384,10 +386,10 @@ def main():
     # ==== Load Population instance from database info
     population = Population(strains=db.all_strains(), extra_strain=cfg.model_cfg.extra_strain)
 
-    read_paths, time_points = get_input_paths(Path(args.reads_dir), args.input_file)
+    read_sources, time_points = get_input_paths(Path(args.reads_dir), args.input_file)
 
     # ==== Load reads and validate.
-    if len(read_paths) != len(time_points):
+    if len(read_sources) != len(time_points):
         raise ValueError("There must be exactly one set of reads for each time point specified.")
 
     if len(time_points) != len(set(time_points)):
@@ -396,7 +398,7 @@ def main():
     logger.info("Loading time-series read files.")
     reads = TimeSeriesReads.load(
         time_points=time_points,
-        file_paths=read_paths
+        source_entries=read_sources
     )
     read_len = args.read_length
 
@@ -459,7 +461,7 @@ def main():
             # plot_elbo_history=True,
             do_training_animation=False,
             plot_elbo_history=False,
-            correlation_type="time"
+            correlation_type="block-diagonal" #"time"
         )
     else:
         raise ValueError("{} is not an implemented method.".format(args.method))
