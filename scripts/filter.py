@@ -9,6 +9,7 @@ from multiprocessing import cpu_count
 from chronostrain.util.external import bwa
 from chronostrain.util.external import CommandLineException
 from chronostrain.util.external.commandline import call_command
+from chronostrain.util.sam_handler import SamHandler
 
 
 def ref_base_name(ref_path: Path) -> str:
@@ -110,6 +111,13 @@ def parse_md_tag(tag: str):
         corresponding to the bases missing
     Dividing (1) by (1)+(2)+(3) will give matches/clipped_length, or percent identity
     """
+
+    '''
+    Splits on continuous number sequences.
+    '5A0C61^G' -> ['5', 'A', '0', 'C', '61', '^G']
+    Which would mean 5 correct bases, two incorrect, 61 correct, then one deleted base.
+    Sequential incorrect bases are always split by a 0.
+    '''
     split_md = re.findall('\d+|\D+', tag)
     total_clipped_length = 0
     total_matches = 0
@@ -135,9 +143,6 @@ def trim_read_quality(read_quality):
 
 
 def probability_from_ascii_encoding(ascii_quality):
-    """
-    TODO: Double check the encoding for other sequencers. This agrees with fastQC on illumina reads
-    """
     return 10**(-(ord(ascii_quality)-33)/10)
 
 
@@ -166,6 +171,7 @@ def filter_on_match_identity(percent_identity, identity_threshold=0.9):
 
 
 def filter_file(sam_file: Path,
+                reference_path: Path,
                 result_metadata_path: Path,
                 result_fq_path: Path,
                 result_sam_path: Path):
@@ -173,56 +179,35 @@ def filter_file(sam_file: Path,
     Parses a sam file and filters reads using the above criteria.
     Writes the results to a fastq file containing the passing reads and a TSV containing columns:
         Read Name    Percent Identity    Passes Filter?
-    :return: The full path to the relevant reads fastq path.
     """
 
-    # SAM file tag indices. Optional tags like MD can appear in any order after index 10
-    READ_ACCESSION_INDEX = 0
-    MAPPING_FLAG_INDEX = 1
-    READ_INDEX = 9
-    QUALITY_INDEX = 10
-
-    sam_file = open(sam_file, 'r')
     result_metadata = open(result_metadata_path, 'w')
     result_fq = open(result_fq_path, 'w')
     result_full_alignment = open(result_sam_path, 'w')
 
-    for aln in sam_file:
-        # Header line. Skip.
-        if aln[0] == '@':
-            continue
-    
-        tags = aln.strip().split('\t')
-
-        # Unmapped flag, no alignment.
-        if tags[MAPPING_FLAG_INDEX] == '4':
-            continue
-
-        for tag in tags:
-            if tag[:5] == 'MD:Z:':
-                percent_identity = parse_md_tag(tag[5:])
-                passed_filter = (
-                        filter_on_match_identity(percent_identity) and filter_on_read_quality(tags[QUALITY_INDEX])
-                )
-
-                result_metadata.write(
-                    tags[READ_ACCESSION_INDEX]
-                    + '\t{:0.4f}\t'.format(percent_identity)
-                    + str(int(passed_filter))
-                    + '\n'
-                )
-                if passed_filter:
-                    result_fq.write('@' + tags[READ_ACCESSION_INDEX] + '\n')
-                    result_fq.write(tags[READ_INDEX] + '\n')
-                    result_fq.write('+\n')
-                    result_fq.write(tags[QUALITY_INDEX] + '\n')
-                    result_full_alignment.write(aln)
+    sam_handler = SamHandler(sam_file, reference_path)
+    for sam_line in sam_handler.mapped_lines():
+        if sam_line.optional_tags['MD'] is not None:
+            percent_identity = parse_md_tag(sam_line.optional_tags['MD'])
+            passed_filter = (
+                filter_on_match_identity(percent_identity) and filter_on_read_quality(sam_line.quality)
+            )
+            result_metadata.write(
+                sam_line.readname
+                + '\t{:0.4f}\t'.format(percent_identity)
+                + str(int(passed_filter))
+                + '\n'
+            )
+            if passed_filter:
+                result_fq.write('@' + sam_line.readname + '\n')
+                result_fq.write(sam_line.read + '\n')
+                result_fq.write('+\n')
+                result_fq.write(sam_line.quality + '\n')
+                result_full_alignment.write(str(sam_line))
 
     result_full_alignment.close()
     result_metadata.close()
     result_fq.close()
-    sam_file.close()
-
 
 class Filter:
     def __init__(self,
@@ -275,7 +260,7 @@ class Filter:
             result_fq_path = self.output_dir / "reads_{}.fq".format(time_point)
             result_sam_path = self.output_dir / 'alignments_{}.sam'.format(time_point)
 
-            filter_file(sam_path, result_metadata_path, result_fq_path, result_sam_path)
+            filter_file(sam_path, self.reference_path, result_metadata_path, result_fq_path, result_sam_path)
             logger.info("Timepoint {t}, filtered reads file: {f}".format(
                 t=time_point, f=result_fq_path
             ))
