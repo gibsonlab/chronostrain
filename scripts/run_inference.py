@@ -4,6 +4,7 @@
 """
 import csv
 from pathlib import Path
+import time
 
 import numpy as np
 import pandas as pd
@@ -171,6 +172,7 @@ def perform_bbvi(
             elbo_history.append(elbo)
         callbacks.append(elbo_callback)
 
+    start_time = time.time()
     solver.solve(
         optim_class=torch.optim.Adam,
         optim_args={'lr': learning_rate, 'betas': (0.9, 0.999), 'eps': 1e-7, 'weight_decay': 0.},
@@ -179,6 +181,11 @@ def perform_bbvi(
         print_debug_every=100,
         callbacks=callbacks
     )
+    end_time = time.time()
+    logger.info("Finished inference in {} sec.".format(
+        (end_time - start_time)
+    ))
+
     posterior = solver.gaussian_posterior
 
     if plot_elbo_history:
@@ -429,9 +436,6 @@ def main():
         true_abundance_path = None
 
     # ============ Run the specified algorithm.
-    import time
-
-    start_time = time.time()
     if args.method == 'em':
         logger.info("Solving using Expectation-Maximization.")
         perform_em(
@@ -461,14 +465,11 @@ def main():
             # plot_elbo_history=True,
             do_training_animation=False,
             plot_elbo_history=False,
-            correlation_type="block-diagonal" #"time"
+            correlation_type="full"
+            # correlation_type="block-diagonal" #"time"
         )
     else:
         raise ValueError("{} is not an implemented method.".format(args.method))
-    end_time = time.time()
-    logger.info("Finished inference in {} sec.".format(
-        (end_time - start_time)
-    ))
 
 
 def plot_elbos(out_path: Path, elbos: List[float], plot_format: str):
