@@ -36,7 +36,7 @@ class BasicFastQErrorModel(AbstractErrorModel):
 
         # FASTQ model: log_e( 1/3 * 10^{q/10} )
         log_p_errors = -np.log(3) + np.log(10) * error_log10_prob[np.where(~matches)]
-        log_p_matches = np.log(1 - np.power(10, error_log10_prob)[np.where(matches)])
+        log_p_matches = np.log(1 - np.power(10, error_log10_prob[np.where(matches)]))
         return log_p_matches.sum() + log_p_errors.sum()
 
     def sample_noisy_read(self, read_id: str, fragment: Fragment, metadata="") -> SequenceRead:

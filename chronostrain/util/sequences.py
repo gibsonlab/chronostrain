@@ -66,6 +66,8 @@ def nucleotides_to_z4(nucleotides: str) -> np.ndarray:
     :param nucleotides:
     :return:
     """
+    # Note: This is the fastest known version (despite the for loop), by an order of magnitude.
+    # Even faster than np.vectorize(_acgt_to_z4.get)(list(s)), or using numba.jit(nopython=True) with numba.typed.Dict.
     z4seq = np.zeros(shape=len(nucleotides), dtype=SEQ_DTYPE)
     for i, nucleotide in enumerate(nucleotides):
         z4seq[i] = _acgt_to_z4[nucleotide]

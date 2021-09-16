@@ -21,6 +21,10 @@ class SequenceRead:
                     len(seq), len(quality)
                 )
             )
+
+        """
+        The sequence content of the read is stored as a numpy-optimized array of ubyte.
+        """
         if type(seq) == str:
             self.seq: np.ndarray = nucleotides_to_z4(seq)
         elif type(seq) == np.ndarray:
