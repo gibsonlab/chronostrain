@@ -135,7 +135,7 @@ def perform_bbvi(
         ground_truth_path: Path,
         out_dir: Path,
         plot_format: str,
-        correlation_type: str = "block-diagonal",
+        correlation_type: str = "strain",
         plot_elbo_history: bool = True,
         do_training_animation: bool = False,
 ):

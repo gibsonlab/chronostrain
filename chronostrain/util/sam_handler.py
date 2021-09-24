@@ -68,7 +68,7 @@ class SamLine:
         self.mate_pos: str = self.line[_SamTags.MatePos.value]
         self.template_len: str = self.line[_SamTags.TemplateLen.value]
         self.read: str = self.line[_SamTags.Read.value]
-        self.quality: str = self.line[_SamTags.Quality.value]
+        self.read_quality: str = self.line[_SamTags.Quality.value]
 
         is_secondary_alignment = _check_bit_flag(self.map_flag, _MapFlags.SecondaryAlignment.value)
         if is_secondary_alignment:

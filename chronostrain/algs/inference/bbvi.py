@@ -12,14 +12,16 @@ from torch.nn.functional import softplus
 from torch.distributions import Normal
 
 from chronostrain.config import cfg
-from chronostrain.algs.vi import AbstractPosterior
+from .base import AbstractModelSolver
+from .vi import AbstractPosterior
 from chronostrain.model import GenerativeModel, Fragment
 from chronostrain.model.io import TimeSeriesReads
-from chronostrain.algs.base import AbstractModelSolver
 from chronostrain.util.benchmarking import RuntimeEstimator
 from chronostrain.util.math import *
 from chronostrain.util.sparse import SparseMatrix
-from . import logger
+
+from chronostrain import create_logger
+logger = create_logger(__name__)
 
 
 # ============== Posteriors
@@ -72,6 +74,9 @@ class GaussianPosteriorFullCorrelation(AbstractPosterior):
             num_samples=num_samples, output_log_likelihoods=False, detach_grad=True
         )
 
+    def mean(self) -> torch.Tensor:
+        return self.reparam_network.bias.detach()
+
     def reparametrized_sample(self,
                               num_samples=1,
                               output_log_likelihoods=False,
@@ -92,10 +97,7 @@ class GaussianPosteriorFullCorrelation(AbstractPosterior):
             reparametrized_samples = reparametrized_samples.detach()
 
         if output_log_likelihoods:
-            log_likelihoods = torch.distributions.MultivariateNormal(
-                loc=self.reparam_network.bias,
-                covariance_matrix=self.reparam_network.weight.t().mm(self.reparam_network.weight)
-            ).log_prob(reparametrized_samples)
+            log_likelihoods = self.reparametrized_sample_log_likelihoods(reparametrized_samples)
             return reparametrized_samples.view(
                 num_samples, self.model.num_times(), self.model.num_strains()
             ).transpose(0, 1), log_likelihoods
@@ -103,6 +105,15 @@ class GaussianPosteriorFullCorrelation(AbstractPosterior):
             return reparametrized_samples.view(
                 num_samples, self.model.num_times(), self.model.num_strains()
             ).transpose(0, 1)
+
+    def reparametrized_sample_log_likelihoods(self, samples):
+        return torch.distributions.MultivariateNormal(
+            loc=self.reparam_network.bias,
+            covariance_matrix=self.reparam_network.weight.t().mm(self.reparam_network.weight)
+        ).log_prob(samples)
+
+    def log_likelihood(self, x: torch.Tensor) -> float:
+        return self.reparametrized_sample_log_likelihoods(x)  ## TODO might need to reshape (TxS) into (1xTxS). Check that this works as-is....
 
 
 # class GaussianPosteriorBlockDiagonalCorrelation(AbstractPosterior):
@@ -251,6 +262,12 @@ class GaussianPosteriorStrainCorrelation(AbstractPosterior):
             num_samples=num_samples, output_log_likelihoods=False, detach_grad=True
         )
 
+    def mean(self) -> torch.Tensor:
+        return torch.stack([
+            self.reparam_networks[t].bias.detach()
+            for t in range(self.model.num_times())
+        ], dim=0)
+
     def reparametrized_sample(self,
                               num_samples=1,
                               output_log_likelihoods=False,
@@ -270,11 +287,11 @@ class GaussianPosteriorStrainCorrelation(AbstractPosterior):
             samples = samples.detach()
 
         if output_log_likelihoods:
-            return samples, self.log_likelihood(samples)
+            return samples, self.reparametrized_sample_log_likelihoods(samples)
         else:
             return samples
 
-    def log_likelihood(self, samples):
+    def reparametrized_sample_log_likelihoods(self, samples):
         # samples is (T x N x S)
         n_samples = samples.size()[1]
         ans = torch.zeros(size=(n_samples,), requires_grad=True)
@@ -287,6 +304,9 @@ class GaussianPosteriorStrainCorrelation(AbstractPosterior):
             ).log_prob(samples_t)
             ans = ans + log_likelihood_t
         return ans
+
+    def log_likelihood(self, x: torch.Tensor) -> float:
+        return self.reparametrized_sample_log_likelihoods(x)  ## TODO might need to reshape (TxS) into (1xTxS). Check that this works as-is....
 
 
 class GaussianPosteriorTimeCorrelation(AbstractPosterior):
@@ -325,6 +345,12 @@ class GaussianPosteriorTimeCorrelation(AbstractPosterior):
             num_samples=num_samples, output_log_likelihoods=False, detach_grad=True
         )
 
+    def mean(self) -> torch.Tensor:
+        return torch.stack([
+            self.reparam_networks[s].bias.detach()
+            for s in range(self.model.num_strains())
+        ], dim=1)
+
     def reparametrized_sample(self,
                               num_samples=1,
                               output_log_likelihoods=False,
@@ -344,11 +370,11 @@ class GaussianPosteriorTimeCorrelation(AbstractPosterior):
             samples = samples.detach()
 
         if output_log_likelihoods:
-            return samples.transpose(0, 2), self.log_likelihoods(samples)
+            return samples.transpose(0, 2), self.reparametrized_sample_log_likelihoods(samples)
         else:
             return samples.transpose(0, 2)
 
-    def log_likelihoods(self, samples):
+    def reparametrized_sample_log_likelihoods(self, samples):
         # For this posterior, samples is (S x N x T).
         n_samples = samples.size()[1]
         ans = torch.zeros(size=(n_samples,), requires_grad=True, device=cfg.torch_cfg.device)
@@ -361,6 +387,9 @@ class GaussianPosteriorTimeCorrelation(AbstractPosterior):
             ).log_prob(samples_s)
             ans = ans + log_likelihood_s
         return ans
+
+    def log_likelihood(self, x: torch.Tensor) -> float:
+        return self.reparametrized_sample_log_likelihoods(x)  ## TODO might need to reshape (TxS) into (1xTxS). Check that this works as-is....
 
 
 class FragmentPosterior(object):

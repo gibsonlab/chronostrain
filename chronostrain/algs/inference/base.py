@@ -3,22 +3,22 @@
  Contains implementations of the proposed algorithms.
 """
 import torch
-from typing import List, Union
-from pathlib import Path
+from typing import List
 from collections import defaultdict
 import numpy as np
 
 from abc import ABCMeta, abstractmethod
 from joblib import Parallel, delayed
 
-from . import logger
+from chronostrain.algs.subroutines.alignment import CachedReadAlignments
+from chronostrain.algs.subroutines.read_cache import ReadsComputationCache
 from chronostrain.util.sparse.sparse_tensor import SparseMatrix
-from chronostrain.util.sam_handler import SamHandler
-from chronostrain.util.external.bwa import bwa_index, bwa_mem
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.config import cfg
 from chronostrain.model.generative import GenerativeModel
-from chronostrain.util.data_cache import ComputationCache, CacheTag
+
+from chronostrain import create_logger
+logger = create_logger(__name__)
 
 
 class AbstractModelSolver(metaclass=ABCMeta):
@@ -188,11 +188,7 @@ class DenseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
     def compute_likelihood_tensors(self) -> List[torch.Tensor]:
         # TODO: explicitly define save() and load() here to write directly to torch tensor files.
         logger.debug("Computing read-fragment likelihoods...")
-        cache_tag = CacheTag(
-            file_paths=[reads_t.src for reads_t in self.reads],
-            use_quality=cfg.model_cfg.use_quality_scores,
-        )
-        cache = ComputationCache(cache_tag)
+        cache = ReadsComputationCache(self.reads)
 
         jobs = [
             {
@@ -231,16 +227,8 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         super().__init__(model, reads)
         self.marker_reference_file = cfg.database_cfg.get_database().multifasta_file
         self._bwa_index_finished = False
-        self.cache = ComputationCache(CacheTag(
-            file_paths=[reads_t.src.paths for reads_t in self.reads],  # read files
-            use_quality=cfg.model_cfg.use_quality_scores,
-        ))
-
-    def _run_bwa_index_lazy(self):
-        if self._bwa_index_finished:
-            return
-        bwa_index(self.marker_reference_file)
-        self._bwa_index_finished = True
+        self.cached_alignments = CachedReadAlignments(self.marker_reference_file, self.reads)
+        self.cache = self.cached_alignments.cache
 
     def _compute_read_frag_alignments(self, t_idx: int) -> defaultdict:
         """
@@ -251,14 +239,13 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         """
         read_to_fragments = defaultdict(set)
 
-        for target_reads_path in self.reads[t_idx].src.paths:
-            # Want to save to <CACHEDIR>/alignments_{t}/{read_file_name}.sam
-            relative_alignment_path = Path("alignments_{}".format(t_idx)) / "{}.sam".format(target_reads_path.stem)
-
-            sam_handler = self._single_file_alignment(target_reads_path, relative_alignment_path)
+        for sam_handler in self.cached_alignments.get_alignments(t_idx):
             for sam_line in sam_handler.mapped_lines():
                 if sam_line.is_reverse_complemented:
-                    # TODO: Rest of the model does not handle reverse-complements, so we will skip those for now.
+                    logger.warning("Alignment ({f}) -- Found reverse-complemented alignment on line {lineno}.".format(
+                        f=sam_handler.file_path,
+                        lineno=sam_line.lineno
+                    ))
                     continue
 
                 # TODO - Future note: this might be a good starting place for handling/detecting indels.
@@ -280,38 +267,6 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                     ))
                     raise
         return read_to_fragments
-
-    def _single_file_alignment(self, target_reads_path: Path, relative_alignment_path: str) -> SamHandler:
-        self._run_bwa_index_lazy()
-
-        # ====== function bindings
-        def perform_alignment(align_path: Path, ref_path: Path, reads_path: Path):
-            align_path.parent.mkdir(exist_ok=True, parents=True)
-            bwa_mem(
-                output_path=align_path,
-                reference_path=ref_path,
-                read_path=reads_path,
-                min_seed_length=20,
-                report_all_alignments=True
-            )
-            return SamHandler(align_path, ref_path)
-
-        def save(path, obj):
-            pass
-
-        # ====== Run the cached computation.
-        alignment_output_path = self.cache.cache_dir / relative_alignment_path
-        return self.cache.call(
-            filename=alignment_output_path,
-            fn=perform_alignment,
-            save=save,
-            load=lambda p: SamHandler(alignment_output_path, self.marker_reference_file),
-            kwargs={
-                "align_path": alignment_output_path,
-                "ref_path": self.marker_reference_file,
-                "reads_path": target_reads_path
-            }
-        )
 
     def create_sparse_matrix(self, t_idx) -> SparseMatrix:
         """

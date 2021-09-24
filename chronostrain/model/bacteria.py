@@ -40,10 +40,7 @@ class Marker:
     metadata: Union[MarkerMetadata, None]
 
     def __repr__(self):
-        if self.metadata is None:
-            return "Marker[{}:{}]".format(self.name, self.seq)
-        else:
-            return "Marker[{}({}):{}]".format(self.name, self.metadata, self.seq)
+        return "Marker[{}:{}]".format(self.name, self.seq)
 
     def __str__(self):
         return self.__repr__()
@@ -67,10 +64,13 @@ class Strain:
     metadata: Optional[StrainMetadata]
 
     def __repr__(self):
-        return "Strain({})".format(self.id)
+        return "Strain({}:{})".format(
+            self.id,
+            self.markers.__repr__()
+        )
 
     def __str__(self):
-        return self.__repr__()
+        return "Strain({})".format(self.id)
 
 
 class Population:
@@ -96,6 +96,18 @@ class Population:
 
         self.fragment_space_map = {}  # Maps window sizes (ints) to their corresponding fragment space (list of strings)
         self.fragment_frequencies_map = {}  # Maps window sizes to their corresponding fragment frequencies matrices.
+
+    def __hash__(self):
+        """
+        Returns a hashed representation of the strain collection.
+        :return:
+        """
+        return "[{}]".format(
+            ",".join([
+                strain.__repr__()
+                for strain in self.strains
+            ])
+        ).__hash__()
 
     def get_fragment_space(self, window_size) -> FragmentSpace:
         """

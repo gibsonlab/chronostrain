@@ -7,8 +7,10 @@ from chronostrain.config import cfg
 from chronostrain.model.io.reads import TimeSeriesReads
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.util.benchmarking import RuntimeEstimator
-from chronostrain.algs.base import AbstractModelSolver
-from . import logger
+from .base import AbstractModelSolver
+
+from chronostrain import create_logger
+logger = create_logger(__name__)
 
 
 # ===========================================================================================

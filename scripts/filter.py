@@ -190,7 +190,7 @@ def filter_file(sam_file: Path,
         if sam_line.optional_tags['MD'] is not None:
             percent_identity = parse_md_tag(sam_line.optional_tags['MD'])
             passed_filter = (
-                filter_on_match_identity(percent_identity) and filter_on_read_quality(sam_line.quality)
+                filter_on_match_identity(percent_identity) and filter_on_read_quality(sam_line.read_quality)
             )
             result_metadata.write(
                 sam_line.readname
@@ -202,7 +202,7 @@ def filter_file(sam_file: Path,
                 result_fq.write('@' + sam_line.readname + '\n')
                 result_fq.write(sam_line.read + '\n')
                 result_fq.write('+\n')
-                result_fq.write(sam_line.quality + '\n')
+                result_fq.write(sam_line.read_quality + '\n')
                 result_full_alignment.write(str(sam_line))
 
     result_full_alignment.close()
