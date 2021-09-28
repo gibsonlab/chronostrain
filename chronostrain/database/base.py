@@ -3,10 +3,8 @@ from abc import abstractmethod, ABCMeta
 from typing import List
 
 from Bio import SeqIO
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
 
-from chronostrain.model.bacteria import Strain
+from chronostrain.model.bacteria import Strain, Marker
 from chronostrain.config import cfg
 from . import logger
 
@@ -39,6 +37,10 @@ class AbstractStrainDatabase(metaclass=ABCMeta):
 
     def get_strains(self, strain_ids: List[str]) -> List[Strain]:
         return [self.get_strain(s_id) for s_id in strain_ids]
+
+    @abstractmethod
+    def get_marker(self, marker_name: str) -> Marker:
+        pass
 
     @abstractmethod
     def num_strains(self) -> int:

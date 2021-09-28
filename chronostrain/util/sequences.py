@@ -60,6 +60,14 @@ _z4_to_acgt = ["A", "C", "G", "T", "N"]
 SEQ_DTYPE = np.ubyte
 
 
+def map_nucleotide_to_z4(nucleotide: str) -> int:
+    return _acgt_to_z4[nucleotide]
+
+
+def map_z4_to_nucleotide(z4: int) -> str:
+    return _z4_to_acgt[z4]
+
+
 def nucleotides_to_z4(nucleotides: str) -> np.ndarray:
     """
     Convert an input nucleotide string (A/C/G/T) to a torch tensor of elements of integers mod 4 (0/1/2/3).

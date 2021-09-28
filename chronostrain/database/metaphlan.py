@@ -152,6 +152,9 @@ class MetaphlanDatabase(AbstractStrainDatabase):
     def all_strains(self) -> List[Strain]:
         return [strain for _, strain in self.id_to_strains.items()]
 
+    def get_marker(self, marker_name: str) -> Marker:
+        raise NotImplementedError("Not implemented yet.")
+
 
 def remove_prefix(tax_token: str) -> str:
     """

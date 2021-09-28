@@ -23,6 +23,7 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
         If None, entire genome is used.
         """
         self.strains = dict()
+        self.markers = dict()
         self.entries_file = entries_file
         if trim_debug is not None:
             logger.debug("[SimpleCSVStrainDatabase: initialized in debug mode. Trim length = {L}]".format(L=trim_debug))
@@ -65,6 +66,8 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
                     file_path=strain_fasta_path
                 )
             )
+            for marker in markers:
+                self.markers[marker.name] = marker
 
     def get_strain(self, strain_id: str) -> Strain:
         """
@@ -81,6 +84,9 @@ class SimpleCSVStrainDatabase(AbstractStrainDatabase):
 
     def num_strains(self) -> int:
         return len(self.strains)
+
+    def get_marker(self, marker_name: str) -> Marker:
+        return self.markers[marker_name]
 
     def strain_markers_to_fasta(self, strain_id: str, out_path: Path, file_mode: str = "w"):
         if self.trim_debug is None:

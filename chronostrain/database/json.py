@@ -442,6 +442,7 @@ class JSONStrainDatabase(AbstractStrainDatabase):
         :param entries_file: JSON filename specifying accession numbers and marker locus tags.
         """
         self.strains = dict()  # accession -> Strain
+        self.markers = dict()  # marker name -> Marker
         self.entries_file = entries_file
         self.marker_max_len = marker_max_len
         super().__init__(force_refresh=force_refresh)
@@ -465,11 +466,11 @@ class JSONStrainDatabase(AbstractStrainDatabase):
                 marker_max_len=self.marker_max_len
             )
 
-            markers = [marker for marker in sequence_loader.parse_markers(force_refresh=force_refresh)]
+            strain_markers = [marker for marker in sequence_loader.parse_markers(force_refresh=force_refresh)]
 
             self.strains[strain_entry.accession] = Strain(
                 id=strain_entry.accession,
-                markers=markers,
+                markers=strain_markers,
                 genome_length=sequence_loader.get_genome_length(),
                 metadata=StrainMetadata(
                     ncbi_accession=strain_entry.accession,
@@ -478,12 +479,15 @@ class JSONStrainDatabase(AbstractStrainDatabase):
                     file_path=strain_fasta_path
                 ))
 
-            if len(markers) == 0:
+            for marker in strain_markers:
+                self.markers[marker.name] = marker
+
+            if len(strain_markers) == 0:
                 logger.warn("No markers parsed for entry {}.".format(strain_entry))
             else:
                 logger.debug("Strain {} loaded with {} markers.".format(
                     strain_entry.accession,
-                    len(markers)
+                    len(strain_markers)
                 ))
 
     def get_strain(self, strain_id: str) -> Strain:
@@ -497,6 +501,9 @@ class JSONStrainDatabase(AbstractStrainDatabase):
 
     def num_strains(self) -> int:
         return len(self.strains)
+
+    def get_marker(self, marker_name: str) -> Marker:
+        return self.markers[marker_name]
 
     def strain_entries(self) -> List[StrainEntry]:
         """
