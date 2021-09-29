@@ -10,7 +10,7 @@ import torch
 from typing import List, Tuple
 
 from chronostrain import logger, cfg
-from chronostrain.database import StrainNotFoundError
+from chronostrain.database import QueryNotFoundError
 from chronostrain.model import generative, reads
 from chronostrain.model.bacteria import Population
 from chronostrain.model.io import TimeSeriesReads, save_abundances, load_abundances
@@ -154,7 +154,7 @@ def main():
     if accessions:
         try:
             population = Population(database.get_strains(accessions), extra_strain=cfg.model_cfg.extra_strain)
-        except StrainNotFoundError as e:
+        except QueryNotFoundError as e:
             print("Strain `{}` from abundances file `{}` not found in database.".format(
                 e.strain_id,
                 args.abundance_path
