@@ -42,7 +42,7 @@ def reverse_complement_seq(seq: str, ignore_keyerror=False) -> str:
     return ''.join([_complement_char(c, ignore_keyerror=ignore_keyerror) for c in seq[::-1]])
 
 
-# ================ Dihedral group representation.
+# ================ Cyclic group representation.
 _acgt_to_z4 = {
     "A": 0,
     "a": 0,
@@ -54,6 +54,7 @@ _acgt_to_z4 = {
     "t": 3,
     "N": 4  # Special character.
 }
+nucleotide_N_z4 = _acgt_to_z4['N']
 
 _z4_to_acgt = ["A", "C", "G", "T", "N"]
 
