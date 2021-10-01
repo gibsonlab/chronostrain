@@ -25,10 +25,12 @@ class SequenceRead:
         """
         The sequence content of the read is stored as a numpy-optimized array of ubyte.
         """
-        if type(seq) == str:
+        if isinstance(seq, str):
             self.seq: np.ndarray = nucleotides_to_z4(seq)
-        elif type(seq) == np.ndarray:
+        elif isinstance(seq, np.ndarray):
             self.seq = seq
+        else:
+            raise TypeError("Unexpected type for argument `seq` (got `{}`)".format(type(seq)))
         self.quality: np.array = quality
         self.metadata: str = metadata
 
