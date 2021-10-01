@@ -113,7 +113,10 @@ class GaussianPosteriorFullCorrelation(AbstractPosterior):
         ).log_prob(samples)
 
     def log_likelihood(self, x: torch.Tensor) -> float:
-        return self.reparametrized_sample_log_likelihoods(x)
+        if len(x.size()) == 2:
+            r, c = x.size()
+            x = x.view(r, 1, c)
+        return self.reparametrized_sample_log_likelihoods(x).detach()
 
 
 class GaussianPosteriorStrainCorrelation(AbstractPosterior):
@@ -188,9 +191,6 @@ class GaussianPosteriorStrainCorrelation(AbstractPosterior):
         ans = torch.zeros(size=(n_samples,), requires_grad=True)
         for t in range(self.model.num_times()):
             samples_t = samples[t]
-            if len(samples_t.size()) == 1:
-                samples_t = samples_t.view(1, -1)
-
             linear = self.reparam_networks[t]
             log_likelihood_t = torch.distributions.MultivariateNormal(
                 loc=linear.bias,
@@ -200,7 +200,10 @@ class GaussianPosteriorStrainCorrelation(AbstractPosterior):
         return ans
 
     def log_likelihood(self, x: torch.Tensor) -> float:
-        return self.reparametrized_sample_log_likelihoods(x)
+        if len(x.size()) == 2:
+            r, c = x.size()
+            x = x.view(r, 1, c)
+        return self.reparametrized_sample_log_likelihoods(x).detach()
 
 
 class GaussianPosteriorTimeCorrelation(AbstractPosterior):
@@ -274,9 +277,6 @@ class GaussianPosteriorTimeCorrelation(AbstractPosterior):
         ans = torch.zeros(size=(n_samples,), requires_grad=True, device=cfg.torch_cfg.device)
         for s in range(self.model.num_strains()):
             samples_s = samples[s]
-            if len(samples_s.size()) == 1:
-                samples_s = samples_s.view(1, -1)
-
             linear = self.reparam_networks[s]
             log_likelihood_s = torch.distributions.MultivariateNormal(
                 loc=linear.bias,
@@ -286,7 +286,10 @@ class GaussianPosteriorTimeCorrelation(AbstractPosterior):
         return ans
 
     def log_likelihood(self, x: torch.Tensor) -> float:
-        return self.reparametrized_sample_log_likelihoods(x)
+        if len(x.size()) == 2:
+            r, c = x.size()
+            x = x.view(r, 1, c)
+        return self.reparametrized_sample_log_likelihoods(x).detach()
 
 
 class FragmentPosterior(object):

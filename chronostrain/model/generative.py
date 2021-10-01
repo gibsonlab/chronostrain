@@ -74,6 +74,12 @@ class GenerativeModel:
         return self.bacteria_pop.get_strain_fragment_frequencies(window_size=self.read_length)
 
     def log_likelihood_x(self, X: torch.Tensor) -> torch.Tensor:
+        """
+        Given an (T x N x S) tensor where N = # of instances/samples of X, compute the N different log-likelihoods.
+        """
+        if len(X.size()) == 2:
+            r, c = X.size()
+            X = X.view(r, 1, c)
         return self.log_likelihood_x_sics_prior(X)
 
     def data_likelihood(self, X: torch.Tensor, read_likelihoods: List[Union[torch.Tensor, SparseMatrix]]) -> float:
@@ -196,8 +202,6 @@ class GenerativeModel:
         ans = torch.zeros(size=[X[0].size()[0]], device=X[0].device)
         X_prev = None
         for t_idx, X_t in enumerate(X):
-            if len(X_t.size()) == 1:
-                X_t = X_t.view(1, -1)
             ans = ans + self.log_likelihood_xt_sics_prior_helper(
                 t_idx=t_idx,
                 X=X_t,

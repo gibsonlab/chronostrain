@@ -33,7 +33,7 @@ class CacheTag(object):
         processed_dict = dict()
         for key, value in self.attr_dict.items():
             processed_dict[key] = self.process_item(value)
-        return hashlib.md5(str(processed_dict).encode('utf-8')).hexdigest()
+        return hashlib.md5(repr(processed_dict).encode('utf-8')).hexdigest()
 
     def process_item(self, item) -> str:
         if isinstance(item, dict):
@@ -69,8 +69,6 @@ class CacheTag(object):
                     "{}: {}".format(key, _recursive_render(value)),
                     file=f
                 )
-                print(_recursive_render(value))
-
 
 def pickle_saver(path, obj):
     """

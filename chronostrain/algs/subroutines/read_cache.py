@@ -11,7 +11,6 @@ class ReadsComputationCache(ComputationCache):
     def __init__(self, reads: TimeSeriesReads):
         super().__init__(
             CacheTag(
-                file_paths=[reads_t.src.paths for reads_t in reads],  # read files
-                use_quality=cfg.model_cfg.use_quality_scores,
+                file_paths=[reads_t.src.paths for reads_t in reads]  # read files
             )
         )

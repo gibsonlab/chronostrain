@@ -12,6 +12,7 @@ from joblib import Parallel, delayed
 
 from chronostrain.algs.subroutines.alignment import CachedReadAlignments
 from chronostrain.algs.subroutines.read_cache import ReadsComputationCache
+from chronostrain.util.data_cache import ComputationCache, CacheTag
 from chronostrain.util.sparse.sparse_tensor import SparseMatrix
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.config import cfg
@@ -187,6 +188,8 @@ class DenseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
 
     def compute_likelihood_tensors(self) -> List[torch.Tensor]:
         # TODO: explicitly define save() and load() here to write directly to torch tensor files.
+        #  (Right now, the behavior is to compute List[List[float]] and save/load from pickle.)
+
         logger.debug("Computing read-fragment likelihoods...")
         cache = ReadsComputationCache(self.reads)
 
@@ -228,7 +231,15 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         self.marker_reference_file = cfg.database_cfg.get_database().multifasta_file
         self._bwa_index_finished = False
         self.cached_alignments = CachedReadAlignments(self.marker_reference_file, self.reads)
-        self.cache = self.cached_alignments.cache
+        self.cache = ComputationCache(CacheTag(
+            file_paths=[reads_t.src.paths for reads_t in reads],  # read files
+            use_quality=cfg.model_cfg.use_quality_scores,
+            markers=[
+                marker.seq
+                for strain in model.bacteria_pop.strains
+                for marker in strain.markers
+            ]
+        ))
 
     def _compute_read_frag_alignments(self, t_idx: int) -> defaultdict:
         """
