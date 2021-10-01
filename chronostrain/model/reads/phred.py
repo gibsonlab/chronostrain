@@ -35,7 +35,7 @@ class PhredErrorModel(AbstractErrorModel):
         error_log10_prob = -0.1 * read.quality
         matches: np.ndarray = (fragment.seq == read.seq) & (read.quality > 0)
         # TODO: check whether this filters out `N`s.
-        mismatches: np.ndarray = (fragment.seq != read.seq) & (read.quality < 0)
+        mismatches: np.ndarray = (fragment.seq != read.seq) & (read.quality > 0)
 
         """
         Phred model: Pr(measured base = 'A', true base = 'G' | q) = ( 1/3 * 10^{-q/10} )
