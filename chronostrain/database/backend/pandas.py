@@ -17,10 +17,10 @@ class PandasAssistedBackend(AbstractStrainDatabaseBackend):
     def add_strain(self, strain: Strain):
         self.strains[strain.id] = strain
         for marker in strain.markers:
-            self.markers[marker.name] = marker
+            self.markers[marker.id] = marker
             self.strain_df.append({
                 'Strain': strain.id,
-                'Marker': marker.name
+                'Marker': marker.id
             })
 
     def get_strain(self, strain_id: str) -> Strain:
@@ -29,11 +29,14 @@ class PandasAssistedBackend(AbstractStrainDatabaseBackend):
         except KeyError:
             raise QueryNotFoundError(strain_id)
 
-    def get_marker(self, marker_name: str) -> Marker:
+    def get_strains(self, strain_ids: List[str]) -> List[Strain]:
+        return [self.get_strain(strain_id) for strain_id in strain_ids]
+
+    def get_marker(self, marker_id: str) -> Marker:
         try:
-            return self.markers[marker_name]
+            return self.markers[marker_id]
         except KeyError:
-            raise QueryNotFoundError(marker_name)
+            raise QueryNotFoundError(marker_id)
 
     def num_strains(self) -> int:
         return len(self.strains)

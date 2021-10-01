@@ -1,25 +1,29 @@
 import torch
 from pathlib import Path
 from dataclasses import dataclass
-from typing import List, Union, Optional
+from typing import List, Union
 
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
 from chronostrain.config import cfg
 from chronostrain.model.fragments import FragmentSpace
-from . import logger
 from chronostrain.util.sparse import SparseMatrix
+
+from chronostrain.config.logging import create_logger
+logger = create_logger(__name__)
 
 
 @dataclass
 class MarkerMetadata:
     parent_accession: str
-    gene_id: str
-    file_path: Path
+    file_path: Union[Path, None]
     
     def __repr__(self):
-        return self.gene_id
+        if self.file_path is not None:
+            return "MarkerMetadata[{}:{}]".format(self.parent_accession, self.file_path)
+        else:
+            return "MarkerMetadata[{}]".format(self.parent_accession)
         
     def __str__(self):
         return self.__repr__()
@@ -35,12 +39,13 @@ class StrainMetadata:
 
 @dataclass
 class Marker:
+    id: str
     name: str
     seq: str
     metadata: Union[MarkerMetadata, None]
 
     def __repr__(self):
-        return "Marker[{}:{}]".format(self.name, self.seq)
+        return "Marker[{}:{}]".format(self.id, self.seq)
 
     def __str__(self):
         return self.__repr__()
@@ -51,7 +56,7 @@ class Marker:
     def to_seqrecord(self, description: str = "") -> SeqRecord:
         return SeqRecord(
             Seq(self.seq),
-            id="{}|{}|{}".format(self.metadata.parent_accession, self.name, self.metadata.gene_id),
+            id="{}|{}|{}".format(self.metadata.parent_accession, self.name, self.id),
             description=description
         )
 
@@ -61,7 +66,7 @@ class Strain:
     id: str  # Typically, ID is the accession number.
     markers: List[Marker]
     genome_length: int
-    metadata: Optional[StrainMetadata]
+    metadata: Union[StrainMetadata, None]
 
     def __repr__(self):
         return "Strain({}:{})".format(
@@ -103,11 +108,16 @@ class Population:
         :return:
         """
         return "[{}]".format(
-            ",".join([
-                strain.__repr__()
-                for strain in self.strains
-            ])
+            ",".join([strain.__repr__() for strain in self.strains])
         ).__hash__()
+
+    def __repr__(self):
+        return self.strains.__repr__()
+
+    def __str__(self):
+        return "[{}]".format(
+            ",".join([strain.__str__() for strain in self.strains])
+        )
 
     def get_fragment_space(self, window_size) -> FragmentSpace:
         """
@@ -122,12 +132,16 @@ class Population:
         for strain in self.strains:
             for marker in strain.markers:
                 for seq, pos in sliding_window(marker.seq, window_size):
-                    fragment_space.add_seq(seq, metadata="{}_{}_Pos({})".format(strain.id, marker.metadata.gene_id, pos))
+                    fragment_space.add_seq(seq, metadata="{}_{}_Pos({})".format(strain.id, marker.id, pos))
 
         self.fragment_space_map[window_size] = fragment_space
         logger.debug("Finished constructing fragment space. (Size={})".format(fragment_space.size()))
 
         return fragment_space
+
+    def clear_fragment_space(self):
+        self.fragment_space_map = {}
+        self.fragment_frequencies_map = {}
 
     def get_strain_fragment_frequencies(self, window_size) -> Union[torch.Tensor, SparseMatrix]:
         """

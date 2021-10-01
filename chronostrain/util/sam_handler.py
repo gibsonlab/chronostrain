@@ -2,8 +2,11 @@ import enum
 import re
 from typing import List, Iterable, Dict, Union
 
+import numpy as np
 from Bio import SeqIO
 from chronostrain.util.sequences import complement_seq
+
+from .quality import ascii_to_phred
 
 
 class _SamTags(enum.Enum):
@@ -45,7 +48,12 @@ def _check_bit_flag(x: int, pow2: int) -> bool:
 
 
 class SamLine:
-    def __init__(self, lineno: int, plaintext_line: str, reference_sequences: Dict[str, str], samline_prev: Union["SamLine", None]):
+    def __init__(self,
+                 lineno: int,
+                 plaintext_line: str,
+                 reference_sequences: Dict[str, str],
+                 samline_prev: Union["SamLine", None],
+                 quality_format: str):
         """
         Parse the line using the provided reference.
 
@@ -67,8 +75,6 @@ class SamLine:
         self.mate_pair: str = self.line[_SamTags.MatePair.value]
         self.mate_pos: str = self.line[_SamTags.MatePos.value]
         self.template_len: str = self.line[_SamTags.TemplateLen.value]
-        self.read: str = self.line[_SamTags.Read.value]
-        self.read_quality: str = self.line[_SamTags.Quality.value]
 
         is_secondary_alignment = _check_bit_flag(self.map_flag, _MapFlags.SecondaryAlignment.value)
         if is_secondary_alignment:
@@ -86,10 +92,15 @@ class SamLine:
                         lineno=self.lineno
                     )
                 )
-            self.read_len = self.prev_line.read_len
-            self.read = self.prev_line.read  # DEBUG; get rid of later.
+            self.read: str = self.prev_line.read
+            self.read_len: int = self.prev_line.read_len
+            self.read_quality: str = self.prev_line.read_quality
+            self.phred_quality: np.ndarray = self.prev_line.phred_quality
         else:
-            self.read_len = len(self.read)
+            self.read: str = self.line[_SamTags.Read.value]
+            self.read_len: int = len(self.read)
+            self.read_quality: str = self.line[_SamTags.Quality.value]
+            self.phred_quality: np.ndarray = ascii_to_phred(self.read_quality, quality_format)
 
         self.optional_tags = {}
         for optional_tag in self.line[11:]:
@@ -154,7 +165,7 @@ class SamLine:
 
 
 class SamHandler:
-    def __init__(self, file_path, reference_path):
+    def __init__(self, file_path, reference_path, quality_format):
         self.file_path = file_path
         self.reference_path = reference_path
         self.reference_sequences = self.get_multifasta_sequences()
@@ -167,11 +178,10 @@ class SamHandler:
                 if line[0] == '@':
                     self.header.append(line)
                     continue
-                sam_line = SamLine(line_idx + 1, line, self.reference_sequences, prev_sam_line)
+                sam_line = SamLine(line_idx + 1, line, self.reference_sequences, prev_sam_line, quality_format)
                 if sam_line.is_mapped:
                     self.contents.append(sam_line)
                 prev_sam_line = sam_line
-        # print("Constructed handler with " + str(len(self.contents)) + " sam lines")
 
     def mapped_lines(self) -> Iterable[SamLine]:
         yield from self.contents

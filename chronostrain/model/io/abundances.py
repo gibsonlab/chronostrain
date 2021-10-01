@@ -3,10 +3,12 @@ import csv
 from pathlib import Path
 from typing import List, Tuple
 
-from . import logger
 from chronostrain.config import cfg
 from chronostrain.model.bacteria import Population
 from chronostrain.util.filesystem import convert_size
+
+from chronostrain.config.logging import create_logger
+logger = create_logger(__name__)
 
 
 def save_abundances(

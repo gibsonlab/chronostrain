@@ -19,7 +19,7 @@ class BasicPhredScoreDistribution(RampUpRampDownDistribution):
         )
 
 
-class BasicFastQErrorModel(AbstractErrorModel):
+class PhredErrorModel(AbstractErrorModel):
     """
     A simple error model, based on reads of a fixed length, and q-vectors coming from an instance of
     BasicPhredScoreDistribution.
@@ -29,13 +29,18 @@ class BasicFastQErrorModel(AbstractErrorModel):
         self.q_dist = BasicPhredScoreDistribution(read_len)
 
     def compute_log_likelihood(self, fragment: Fragment, read: SequenceRead) -> float:
-        # NOTE: Ignore quality score distributions (assume negligible/constant likelihood for all q-score vectors.)
-        # This only uses phred scores to compute Pr(Read | Fragment, Quality).
+        """
+        Uses phred scores to compute Pr(Read | Fragment, Quality).
+        """
         error_log10_prob = -0.1 * read.quality
         matches: np.ndarray = (fragment.seq == read.seq) & (read.quality > 0)
+        # TODO: check whether this filters out `N`s.
+        mismatches: np.ndarray = (fragment.seq != read.seq) & (read.quality < 0)
 
-        # FASTQ model: log_e( 1/3 * 10^{q/10} )
-        log_p_errors = -np.log(3) + np.log(10) * error_log10_prob[np.where(~matches)]
+        """
+        Phred model: Pr(measured base = 'A', true base = 'G' | q) = ( 1/3 * 10^{-q/10} )
+        """
+        log_p_errors = -np.log(3) + np.log(10) * error_log10_prob[np.where(mismatches)]
         log_p_matches = np.log(1 - np.power(10, error_log10_prob[np.where(matches)]))
         return log_p_matches.sum() + log_p_errors.sum()
 

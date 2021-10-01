@@ -82,7 +82,7 @@ def sample_reads(
         logger.info("Flag --disable_quality turned on; Quality scores are disabled.")
         my_error_model = reads.NoiselessErrorModel()
     else:
-        my_error_model = reads.BasicFastQErrorModel(read_len=read_length)
+        my_error_model = reads.PhredErrorModel(read_len=read_length)
     my_model = generative.GenerativeModel(
         times=time_points,
         mu=mu,
@@ -184,7 +184,7 @@ def main():
         out_path_t = Path(args.out_dir) / "{}-reads.fastq".format(time_slice.time_point)
         out_paths.append(out_path_t)
         time_slice.src = out_path_t
-    sampled_reads.save()
+    sampled_reads.save("fastq")
 
     logger.debug("Saving (re-normalized) abundances to file...")
     save_abundances(

@@ -15,7 +15,9 @@ from chronostrain.model.reads import AbstractErrorModel, SequenceRead
 from chronostrain.model.io import TimeSeriesReads, TimeSliceReads
 from chronostrain.util.math.distributions import *
 from chronostrain.util.sparse import SparseMatrix
-from . import logger
+
+from chronostrain.config.logging import create_logger
+logger = create_logger(__name__)
 
 
 class GenerativeModel:
@@ -87,7 +89,7 @@ class GenerativeModel:
             total_ll = 0.
             for t in range(self.num_times()):
                 likelihoods_t = torch.mm(  # result is (T x N)
-                    y[t],  # (T x S)
+                    y[t].view(1, -1),  # (T x S)
                     self.get_fragment_frequencies().t().sparse_mul(read_likelihoods[t]).to_dense()  # (F x S).T x (F x N) -> (S x N)
                 ).log().sum()
                 total_ll += likelihoods_t
@@ -192,12 +194,16 @@ class GenerativeModel:
 
     def log_likelihood_x_sics_prior(self, X: torch.Tensor) -> torch.Tensor:
         ans = torch.zeros(size=[X[0].size()[0]], device=X[0].device)
+        X_prev = None
         for t_idx, X_t in enumerate(X):
+            if len(X_t.size()) == 1:
+                X_t = X_t.view(1, -1)
             ans = ans + self.log_likelihood_xt_sics_prior_helper(
                 t_idx=t_idx,
                 X=X_t,
-                X_prev=X[t_idx - 1, :, :] if t_idx > 0 else None
+                X_prev=X_prev
             )
+            X_prev = X_t
         return ans
 
     def log_likelihood_xt_sics_prior_helper(self,

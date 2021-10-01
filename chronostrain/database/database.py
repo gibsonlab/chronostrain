@@ -31,19 +31,22 @@ class StrainDatabase(object):
         return self.backend.all_strains()
 
     def get_strains(self, strain_ids: List[str]) -> List[Strain]:
-        return [self.get_strain(s_id) for s_id in strain_ids]
+        return self.backend.get_strains(strain_ids)
 
     def all_markers(self) -> List[Marker]:
         return self.backend.all_markers()
 
-    def get_marker(self, marker_name: str) -> Marker:
-        return self.backend.get_marker(marker_name)
+    def get_marker(self, marker_id: str) -> Marker:
+        return self.backend.get_marker(marker_id)
 
     def num_strains(self) -> int:
         return self.backend.num_strains()
 
     def num_markers(self) -> int:
         return self.backend.num_markers()
+
+    def get_strains_with_marker(self, marker: Marker) -> List[Strain]:
+        return self.backend.get_strains_with_marker(marker.id)
 
     @property
     def multifasta_file(self) -> Path:

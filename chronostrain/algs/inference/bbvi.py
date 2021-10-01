@@ -6,7 +6,7 @@
   This is an implementation of BBVI for the posterior q(X_1) q(X_2 | X_1) ...
   (Note: doesn't work as well as BBVI for mean-field assumption.)
 """
-from typing import Iterable, Tuple, Optional, Callable, Dict, Union
+from typing import Iterable, Tuple, Optional, Callable, Dict, Union, List
 
 from torch.nn.functional import softplus
 from torch.distributions import Normal
@@ -20,7 +20,7 @@ from chronostrain.util.benchmarking import RuntimeEstimator
 from chronostrain.util.math import *
 from chronostrain.util.sparse import SparseMatrix
 
-from chronostrain import create_logger
+from chronostrain.config.logging import create_logger
 logger = create_logger(__name__)
 
 
@@ -113,116 +113,7 @@ class GaussianPosteriorFullCorrelation(AbstractPosterior):
         ).log_prob(samples)
 
     def log_likelihood(self, x: torch.Tensor) -> float:
-        return self.reparametrized_sample_log_likelihoods(x)  ## TODO might need to reshape (TxS) into (1xTxS). Check that this works as-is....
-
-
-# class GaussianPosteriorBlockDiagonalCorrelation(AbstractPosterior):
-#     def __init__(self, model: GenerativeModel):
-#         """
-#         Mean-field assumption:
-#         1) Parametrize the (T x S) trajectory as a (TS)-dimensional Gaussian. We only learn the block-diagonal
-#         structures, e.g. Cov(x_t, x_t) and Cov(x_t, x_{t+1}).
-#         2) Parametrize F_1, ..., F_T as independent (but not identical) categorical RVs (for each read).
-#         :param model: The generative model to use.
-#         """
-#         # Check: might need this to be a matrix, not a vector.
-#         self.model = model
-#
-#         self.variance_matrices = [
-#             torch.eye(self.model.num_strains(), device=cfg.torch_cfg.device, requires_grad=True)
-#             for _ in range(self.model.num_times())
-#         ]
-#
-#         self.covariance_matrices = [
-#             torch.eye(self.model.num_strains(), device=cfg.torch_cfg.device, requires_grad=True)
-#             for _ in range(self.model.num_times()-1)
-#         ]
-#
-#         self.biases = [
-#             torch.zeros(self.model.num_strains(), device=cfg.torch_cfg.device, requires_grad=True)
-#             for _ in range(self.model.num_times())
-#         ]
-#
-#         self.trainable_parameters = self.variance_matrices + self.covariance_matrices + self.biases
-#
-#         self.standard_normal = Normal(
-#             loc=torch.tensor(0.0, device=cfg.torch_cfg.device),
-#             scale=torch.tensor(1.0, device=cfg.torch_cfg.device)
-#         )
-#
-#     def sample(self, num_samples=1) -> torch.Tensor:
-#         return self.reparametrized_sample(
-#             num_samples=num_samples, output_log_likelihoods=False, detach_grad=True
-#         )
-#
-#     def reparametrized_sample(self,
-#                               num_samples=1,
-#                               output_log_likelihoods=False,
-#                               detach_grad=False
-#                               ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
-#         std_gaussian_samples = self.standard_normal.sample(
-#             sample_shape=(self.model.num_times(), num_samples, self.model.num_strains())
-#         )
-#
-#         """
-#         Reparametrization
-#
-#         Uses the conditional gaussian distributional formula:
-#         (x1 | x2=a) ~ N(
-#             MEAN: mu_1 + Sigma_{12} Sigma_{22}^-1 (a - mu_2),  -> [This is a linear transformation of the previous sample without bias]
-#             COVAR: Sigma_{11} - Sigma_{12} Sigma_{22}^-1 Sigma_{21}  -> [This is an S x S PSD matrix]
-#         )
-#
-#         Variance_matrices[t]: SQRT(\Sigma_{t,t} - \Sigma_{t,t-1} Inv(\Sigma_{t-1,t-1}) \Sigma_{t-1,t})
-#             (or just SQRT(\Sigma_{t,t}) if t=0), where SQRT denotes the Cholesky factor.
-#         Covariance_matrices[t]: \Sigma_{t,t-1}
-#         Bias[t]: \mu_{t}
-#
-#         Note: since samples are transposed (size M x D), all the above equations are implemented via their
-#         transposes as well.
-#         """
-#         x_samples = []
-#         log_likelihood_components = []
-#
-#         x_0 = std_gaussian_samples[0].mm(self.variance_matrices[0].t()) + self.biases[0]  # (Ax+b)^T
-#         x_samples.append(x_0)
-#         log_likelihood_components.append(
-#             torch.distributions.MultivariateNormal(
-#                 loc=self.biases[0],
-#                 covariance_matrix=self.variance_matrices[0].mm(self.variance_matrices[0].t())
-#             ).log_prob(x_0)
-#         )
-#
-#         x_prev = x_0
-#         var_prev = self.variance_matrices[0].mm(self.variance_matrices[0].t())  # Cov(x) = AA^T
-#         mean_prev = self.biases[0]
-#         for t in range(1, self.model.num_times()):
-#             scaling = self.covariance_matrices[t-1].mm(torch.inverse(var_prev))
-#             mean_t = torch.mm(x_prev - self.biases[t-1], scaling.t()) + self.biases[t]
-#             x_t = std_gaussian_samples[t].mm(self.variance_matrices[t]) + mean_t
-#
-#             x_samples.append(x_t)
-#
-#             if output_log_likelihoods:
-#                 log_likelihood_components.append(
-#                     torch.distributions.MultivariateNormal(
-#                         loc=mean_t,
-#                         covariance_matrix=self.variance_matrices[t].mm(self.variance_matrices[t].t()),
-#                     ).log_prob(x_t)
-#                 )
-#
-#             # \Sigma_11 = \Sigma_bar + \Sigma_12 INV(Sigma_22) \Sigma_21
-#             var_prev = self.variance_matrices[t].mm(self.variance_matrices[t].t()) \
-#                        + scaling.mm(self.covariance_matrices[t-1].t())
-#
-#         x_samples = torch.stack(x_samples, dim=0).detach()
-#         if detach_grad:
-#             x_samples = x_samples.detach()
-#
-#         if output_log_likelihoods:
-#             return x_samples, torch.stack(log_likelihood_components, dim=0).sum(dim=0)
-#         else:
-#             return x_samples
+        return self.reparametrized_sample_log_likelihoods(x)
 
 
 class GaussianPosteriorStrainCorrelation(AbstractPosterior):
@@ -296,7 +187,10 @@ class GaussianPosteriorStrainCorrelation(AbstractPosterior):
         n_samples = samples.size()[1]
         ans = torch.zeros(size=(n_samples,), requires_grad=True)
         for t in range(self.model.num_times()):
-            samples_t = samples[t, :, :]
+            samples_t = samples[t]
+            if len(samples_t.size()) == 1:
+                samples_t = samples_t.view(1, -1)
+
             linear = self.reparam_networks[t]
             log_likelihood_t = torch.distributions.MultivariateNormal(
                 loc=linear.bias,
@@ -306,7 +200,7 @@ class GaussianPosteriorStrainCorrelation(AbstractPosterior):
         return ans
 
     def log_likelihood(self, x: torch.Tensor) -> float:
-        return self.reparametrized_sample_log_likelihoods(x)  ## TODO might need to reshape (TxS) into (1xTxS). Check that this works as-is....
+        return self.reparametrized_sample_log_likelihoods(x)
 
 
 class GaussianPosteriorTimeCorrelation(AbstractPosterior):
@@ -379,7 +273,10 @@ class GaussianPosteriorTimeCorrelation(AbstractPosterior):
         n_samples = samples.size()[1]
         ans = torch.zeros(size=(n_samples,), requires_grad=True, device=cfg.torch_cfg.device)
         for s in range(self.model.num_strains()):
-            samples_s = samples[s, :, :]
+            samples_s = samples[s]
+            if len(samples_s.size()) == 1:
+                samples_s = samples_s.view(1, -1)
+
             linear = self.reparam_networks[s]
             log_likelihood_s = torch.distributions.MultivariateNormal(
                 loc=linear.bias,
@@ -389,7 +286,7 @@ class GaussianPosteriorTimeCorrelation(AbstractPosterior):
         return ans
 
     def log_likelihood(self, x: torch.Tensor) -> float:
-        return self.reparametrized_sample_log_likelihoods(x)  ## TODO might need to reshape (TxS) into (1xTxS). Check that this works as-is....
+        return self.reparametrized_sample_log_likelihoods(x)
 
 
 class FragmentPosterior(object):
@@ -696,14 +593,14 @@ class BBVISolver(AbstractModelSolver):
             time_est.increment(secs_elapsed)
 
             if k % print_debug_every == 0:
-                logger.info("Iteration {iter} "
+                logger.debug("Iteration {iter} "
                             "| time left: {t:.2f} min. "
                             "| Last ELBO = {elbo:.2f}"
                             .format(iter=k,
                                     t=time_est.time_left() / 60000,
                                     elbo=elbo)
                             )
-                logger.info("Profiler: {}".format(
+                logger.debug("Profiler: {}".format(
                     " | ".join([
                         "{}: {:02f}".format(key, np.mean(time_entries))
                         for key, time_entries in times.items()
@@ -728,4 +625,8 @@ class BBVISolver(AbstractModelSolver):
                 "BBVI CUDA memory -- [MaxAlloc: {} MiB]".format(
                     torch.cuda.max_memory_allocated(cfg.torch_cfg.device) / 1048576
                 )
+            )
+        else:
+            logger.debug(
+                "BBVI CPU memory usage -- [Not implemented]"
             )

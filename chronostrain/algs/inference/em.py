@@ -9,7 +9,7 @@ from chronostrain.model.generative import GenerativeModel
 from chronostrain.util.benchmarking import RuntimeEstimator
 from .base import AbstractModelSolver
 
-from chronostrain import create_logger
+from chronostrain.config.logging import create_logger
 logger = create_logger(__name__)
 
 

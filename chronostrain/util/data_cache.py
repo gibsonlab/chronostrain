@@ -11,9 +11,11 @@ from typing import Callable, Optional, List, Dict, Any
 import pickle
 import hashlib
 
-from . import logger
 from chronostrain.config import cfg
 from chronostrain.util.filesystem import md5_checksum
+
+from chronostrain.config.logging import create_logger
+logger = create_logger(__name__)
 
 
 class CacheTag(object):

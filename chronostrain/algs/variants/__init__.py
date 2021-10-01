@@ -1,1 +1,1 @@
-from .local_search import *
+from .search import VariantSearchAlgorithm

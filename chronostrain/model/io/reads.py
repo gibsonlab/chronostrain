@@ -6,18 +6,19 @@ import gzip
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
+from Bio.SeqIO.QualityIO import phred_quality_from_solexa
 
-from . import logger
 from chronostrain.model.reads import SequenceRead
 from chronostrain.util.filesystem import convert_size
 
+from chronostrain.config.logging import create_logger
+logger = create_logger(__name__)
+
 
 class TimeSliceReadSource(object):
-    def __init__(self, path: Path, *args):
-        if len(args) == 0:
-            self.paths: List[Path] = [path]
-        else:
-            self.paths: List[Path] = [path] + [p for p in args]
+    def __init__(self, paths: List[Path], quality_format: str):
+        self.paths = paths
+        self.quality_format = quality_format
 
     def get_canonical_path(self) -> Path:
         if len(self.paths) != 1:
@@ -37,7 +38,7 @@ class TimeSliceReads(object):
         self.time_point: float = time_point
         self.src: Union[TimeSliceReadSource, None] = src
 
-    def save(self) -> int:
+    def save(self, quality_format: str) -> int:
         """
         Save the reads to a fastq file, whose path is specified by attribute `self.file_path`.
 
@@ -55,7 +56,7 @@ class TimeSliceReads(object):
             record = SeqRecord(Seq(read.nucleotide_content()), id="Read#{}".format(i), description=read.metadata)
             record.letter_annotations["phred_quality"] = read.quality
             records.append(record)
-        SeqIO.write(records, canonical_path, "fastq")
+        SeqIO.write(records, canonical_path, quality_format)
 
         file_size = canonical_path.stat().st_size
         logger.info("Wrote fastQ file {f}. ({sz})".format(
@@ -65,14 +66,14 @@ class TimeSliceReads(object):
         return file_size
 
     @staticmethod
-    def read_fastq(fastq_path: Path) -> Iterable[SeqRecord]:
-        for record in SeqIO.parse(fastq_path, "fastq"):
+    def read_fastq(fastq_path: Path, quality_format: str) -> Iterable[SeqRecord]:
+        for record in SeqIO.parse(fastq_path, quality_format):
             yield record
 
     @staticmethod
-    def read_gzipped_fastq(gz_path: Path) -> Iterable[SeqRecord]:
+    def read_gzipped_fastq(gz_path: Path, quality_format: str) -> Iterable[SeqRecord]:
         with gzip.open(str(gz_path), "r") as handle:
-            for record in SeqIO.parse(handle, "fastq"):
+            for record in SeqIO.parse(handle, quality_format):
                 yield record
 
     @staticmethod
@@ -85,14 +86,25 @@ class TimeSliceReads(object):
         :return:
         """
         reads = []
+        quality_format = src.quality_format
         for file_path in src.paths:
             if file_path.suffix == '.gz':
                 read_fn = TimeSliceReads.read_gzipped_fastq
             else:
                 read_fn = TimeSliceReads.read_fastq
 
-            for record in read_fn(file_path):
-                quality = np.array(record.letter_annotations["phred_quality"], dtype=int)
+            for record in read_fn(file_path, quality_format):
+                if (quality_format == "fastq") or (quality_format == "fastq-sanger") or (quality_format == "fastq-illumina"):
+                    quality = np.array(
+                        record.letter_annotations["phred_quality"],
+                        dtype=int
+                    )
+                elif quality_format == "fastq-solexa":
+                    quality = np.array([
+                        phred_quality_from_solexa(q) for q in record.letter_annotations["solexa_quality"]
+                    ], dtype=float)
+                else:
+                    raise ValueError("Unknown quality format `{}`.".format(quality_format))
                 read = SequenceRead(
                     read_id=record.id,
                     seq=str(record.seq),
@@ -123,27 +135,27 @@ class TimeSeriesReads(object):
     def __init__(self, time_slices: List[TimeSliceReads]):
         self.time_slices = time_slices
 
-    def save(self):
+    def save(self, quality_format: str):
         """
         Save the sampled reads to a fastq file, one for each timepoint.
         """
         total_sz = 0
         for time_slice in self.time_slices:
-            total_sz += time_slice.save()
+            total_sz += time_slice.save(quality_format)
 
         logger.info("Reads output successfully. ({sz} Total)".format(
             sz=convert_size(total_sz)
         ))
 
     @staticmethod
-    def load(time_points: List[float], source_entries: List[Iterable[Path]]):
+    def load(time_points: List[float], source_entries: List[Iterable[Path]], quality_format: str):
         if len(time_points) != len(source_entries):
             raise ValueError("Number of time points ({}) do not match number of read sources. ({})".format(
                 len(time_points), len(source_entries)
             ))
 
         time_slice_sources = [
-            TimeSliceReadSource(*file_paths)
+            TimeSliceReadSource(list(file_paths), quality_format)
             for file_paths in source_entries
         ]
 

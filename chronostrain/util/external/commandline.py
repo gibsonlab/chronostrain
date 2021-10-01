@@ -1,7 +1,9 @@
 from pathlib import Path
 import subprocess
 from typing import List
-from . import logger
+
+from chronostrain.config.logging import create_logger
+logger = create_logger(__name__)
 
 
 class CommandLineException(BaseException):

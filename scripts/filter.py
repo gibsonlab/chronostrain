@@ -174,7 +174,8 @@ def filter_file(sam_file: Path,
                 reference_path: Path,
                 result_metadata_path: Path,
                 result_fq_path: Path,
-                result_sam_path: Path):
+                result_sam_path: Path,
+                quality_format: str):
     """
     Parses a sam file and filters reads using the above criteria.
     Writes the results to a fastq file containing the passing reads and a TSV containing columns:
@@ -185,7 +186,7 @@ def filter_file(sam_file: Path,
     result_fq = open(result_fq_path, 'w')
     result_full_alignment = open(result_sam_path, 'w')
 
-    sam_handler = SamHandler(sam_file, reference_path)
+    sam_handler = SamHandler(sam_file, reference_path, quality_format)
     for sam_line in sam_handler.mapped_lines():
         if sam_line.optional_tags['MD'] is not None:
             percent_identity = parse_md_tag(sam_line.optional_tags['MD'])
@@ -215,7 +216,8 @@ class Filter:
                  reads_paths: List[Path],
                  time_points: List[float],
                  align_cmd: str,
-                 output_dir: Path):
+                 output_dir: Path,
+                 quality_format: str):
         logger.debug("Ref path: {}".format(reference_file_path))
 
         # Note: Bowtie2 does not have the restriction to uncompress bz2 files, but bwa does.
@@ -229,6 +231,7 @@ class Filter:
         self.time_points = time_points
         self.align_cmd = align_cmd
         self.output_dir = output_dir
+        self.quality_format = quality_format
 
     def apply_filter(self):
         """
@@ -260,7 +263,12 @@ class Filter:
             result_fq_path = self.output_dir / "reads_{}.fq".format(time_point)
             result_sam_path = self.output_dir / 'alignments_{}.sam'.format(time_point)
 
-            filter_file(sam_path, self.reference_path, result_metadata_path, result_fq_path, result_sam_path)
+            filter_file(sam_path,
+                        self.reference_path,
+                        result_metadata_path,
+                        result_fq_path,
+                        result_sam_path,
+                        self.quality_format)
             logger.info("Timepoint {t}, filtered reads file: {f}".format(
                 t=time_point, f=result_fq_path
             ))
@@ -303,6 +311,10 @@ def parse_args():
                         dest="output_dir",
                         help='<Required> The file path to save learned outputs to.')
 
+    parser.add_argument('-q', '--quality_format', required=False, type=str, default='fastq',
+                        help='<Optional> The quality format. Should be one of the options implemented in Biopython '
+                             '`Bio.SeqIO.QualityIO` module.')
+
     return parser.parse_args()
 
 
@@ -318,7 +330,8 @@ def main():
         reads_paths=read_paths,
         time_points=time_points,
         align_cmd=cfg.filter_cfg.align_cmd,
-        output_dir=Path(args.output_dir)
+        output_dir=Path(args.output_dir),
+        quality_format=args.quality_format
     )
     filt.apply_filter()
     logger.info("Finished filtering.")

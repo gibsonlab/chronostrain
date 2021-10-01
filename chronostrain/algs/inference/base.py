@@ -17,7 +17,7 @@ from chronostrain.model.io import TimeSeriesReads
 from chronostrain.config import cfg
 from chronostrain.model.generative import GenerativeModel
 
-from chronostrain import create_logger
+from chronostrain.config.logging import create_logger
 logger = create_logger(__name__)
 
 
@@ -128,7 +128,7 @@ class SparseDataLikelihoods(DataLikelihoods):
 
             projector = SparseMatrix(
                 indices=_support_indices,
-                values=torch.ones(_support_indices.size()[1], device=cfg.torch_cfg.device),
+                values=torch.ones(_support_indices.size()[1], device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype),
                 dims=(_F, F)
             )
 
@@ -329,7 +329,7 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                 values=torch.tensor(
                     data['sparse_values'],
                     device=cfg.torch_cfg.device,
-                    dtype=torch.float
+                    dtype=cfg.torch_cfg.default_dtype
                 ),
                 dims=(size[0], size[1])
             )

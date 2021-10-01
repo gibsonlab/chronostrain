@@ -14,7 +14,7 @@ import argparse
 import math
 import numpy as np
 
-from chronostrain.model.io import TimeSliceReads, TimeSeriesReads
+from chronostrain.model.io import TimeSliceReads, TimeSeriesReads, TimeSliceReadSource
 from chronostrain.model.reads import SequenceRead
 
 
@@ -28,11 +28,11 @@ def parse_args():
 def make_reads(num_reads_per_block: int, num_corrupted_reads: int):
     corrupted_quality = np.array(
         [1, 5, 8, 10, 15] + [17]*5 + [20]*5 + [25]*5 + [30]*5 + [40]*10 + [35]*5 + [30]*5 + [25]*5,
-        dtype=np.float
+        dtype=float
     )
     regular_quality = np.array(
         [10, 11, 12, 13, 15] + [17]*5 + [20]*5 + [25]*5 + [30]*5 + [40]*10 + [35]*5 + [30]*5 + [25]*5,
-        dtype=np.float
+        dtype=float
     )
 
     num_a = math.ceil(num_reads_per_block * 0.8)
@@ -127,9 +127,9 @@ def main():
             TimeSliceReads(
                 reads=reads,
                 time_point=1,
-                src=block_dir / read_filename
+                src=TimeSliceReadSource(block_dir / read_filename)
             )
-        ]).save()
+        ]).save("fastq")
 
         save_input_csv(out_dir=block_dir, read_file=read_filename)
 

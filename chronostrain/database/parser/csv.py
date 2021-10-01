@@ -4,7 +4,8 @@ from typing import Iterator, Tuple, Optional
 
 from Bio import SeqIO
 
-from ... import create_logger, cfg
+from chronostrain.config import cfg
+from chronostrain.config.logging import create_logger
 from chronostrain.model import Strain, Marker, MarkerMetadata
 from chronostrain.model.bacteria import StrainMetadata
 from .base import AbstractDatabaseParser, StrainDatabaseParseError
@@ -32,9 +33,9 @@ class CSVParser(AbstractDatabaseParser):
                 markers = [
                     Marker(
                         name="Genome_{}[{}:{}]".format(accession, 0, self.trim_debug),
+                        id="GENOME[{}]".format(accession),
                         seq=genome[:self.trim_debug],
                         metadata=MarkerMetadata(parent_accession=accession,
-                                                gene_id="GENOME",
                                                 file_path=strain_fasta_path)
                     )
                 ]
@@ -42,9 +43,9 @@ class CSVParser(AbstractDatabaseParser):
                 markers = [
                     Marker(
                         name="Genome_{}".format(accession),
+                        id="GENOME[{}]".format(accession),
                         seq=genome,
                         metadata=MarkerMetadata(parent_accession=accession,
-                                                gene_id="GENOME",
                                                 file_path=strain_fasta_path)
                     )
                 ]  # Each genome's marker is its own genome.

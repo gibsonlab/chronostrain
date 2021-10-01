@@ -20,7 +20,7 @@ from chronostrain import logger, cfg
 from chronostrain.algs import AbstractPosterior, BBVISolver, EMSolver
 from chronostrain.model import Population
 from chronostrain.model.generative import GenerativeModel
-from chronostrain.model.reads import BasicFastQErrorModel, NoiselessErrorModel
+from chronostrain.model.reads import PhredErrorModel, NoiselessErrorModel
 from chronostrain.model.io import TimeSeriesReads, save_abundances
 from chronostrain.util import filesystem
 from chronostrain.visualizations import plot_posterior_abundances, plot_abundances_comparison, plot_abundances
@@ -48,6 +48,9 @@ def parse_args():
                         help='<Required> The file path to save learned outputs to.')
 
     # Other Optional params
+    parser.add_argument('-q', '--quality_format', required=False, type=str, default='fastq',
+                        help='<Optional> The quality format. Should be one of the options implemented in Biopython '
+                             '`Bio.SeqIO.QualityIO` module.')
     parser.add_argument('-s', '--seed', required=False, type=int, default=31415,
                         help='<Optional> Seed for randomness (for reproducibility).')
     parser.add_argument('-truth', '--true_abundance_path', required=False, type=str,
@@ -345,7 +348,7 @@ def create_model(population: Population,
         logger.info("Flag --disable_quality turned on; Quality scores are diabled. Initializing NoiselessErrorModel.")
         error_model = NoiselessErrorModel(mismatch_likelihood=0.)
     else:
-        error_model = BasicFastQErrorModel(read_len=window_size)
+        error_model = PhredErrorModel(read_len=window_size)
 
     model = GenerativeModel(
         bacteria_pop=population,
@@ -405,7 +408,8 @@ def main():
     logger.info("Loading time-series read files.")
     reads = TimeSeriesReads.load(
         time_points=time_points,
-        source_entries=read_sources
+        source_entries=read_sources,
+        quality_format=args.quality_format
     )
     read_len = args.read_length
 

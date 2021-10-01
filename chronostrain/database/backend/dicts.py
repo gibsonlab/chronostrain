@@ -5,6 +5,7 @@ from .base import AbstractStrainDatabaseBackend, QueryNotFoundError
 
 
 class DictionaryBackend(AbstractStrainDatabaseBackend):
+
     def __init__(self):
         self.strains = {}
         self.markers = {}
@@ -13,10 +14,10 @@ class DictionaryBackend(AbstractStrainDatabaseBackend):
     def add_strain(self, strain: Strain):
         self.strains[strain.id] = strain
         for marker in strain.markers:
-            self.markers[marker.name] = marker
-            if not (marker.name in self.markers_to_strains):
-                self.markers_to_strains[marker.name] = []
-            self.markers_to_strains[marker.name].append(strain)
+            self.markers[marker.id] = marker
+            if not (marker.id in self.markers_to_strains):
+                self.markers_to_strains[marker.id] = []
+            self.markers_to_strains[marker.id].append(strain)
 
     def get_strain(self, strain_id: str) -> Strain:
         try:
@@ -24,11 +25,14 @@ class DictionaryBackend(AbstractStrainDatabaseBackend):
         except KeyError:
             raise QueryNotFoundError(strain_id)
 
-    def get_marker(self, marker_name: str) -> Marker:
+    def get_strains(self, strain_ids: List[str]) -> List[Strain]:
+        return [self.get_strain(strain_id) for strain_id in strain_ids]
+
+    def get_marker(self, marker_id: str) -> Marker:
         try:
-            return self.markers[marker_name]
+            return self.markers[marker_id]
         except KeyError:
-            raise QueryNotFoundError(marker_name)
+            raise QueryNotFoundError(marker_id)
 
     def num_strains(self) -> int:
         return len(self.strains)

@@ -7,13 +7,14 @@ from typing import Iterator, List, Iterable, Union, Tuple
 
 from Bio import SeqIO
 
-from ... import create_logger, cfg
+from chronostrain.config import cfg
 from chronostrain.model import Strain, Marker, MarkerMetadata
 from chronostrain.util.entrez import fetch_fasta, fetch_genbank
 from .base import AbstractDatabaseParser, StrainDatabaseParseError
 from ...model.bacteria import StrainMetadata
 from ...util.sequences import complement_seq
 
+from chronostrain.config.logging import create_logger
 logger = create_logger(__name__)
 
 
@@ -144,7 +145,11 @@ class PrimerMarkerEntry(MarkerEntry):
         )
 
     def entry_id(self) -> str:
-        return '-'.join([self.forward, self.reverse])
+        return "{}[{}]".format(
+            self.parent.accession,
+            '-'.join([self.forward, self.reverse])
+        )
+
 
     @staticmethod
     def deserialize(entry_dict: dict, idx: int, parent: StrainEntry) -> "PrimerMarkerEntry":
@@ -252,10 +257,10 @@ class SubsequenceLoader:
             marker_filepath = self.marker_filepath(subseq_obj.name)
             marker = Marker(
                 name=subseq_obj.name,
+                id=subseq_obj.id,
                 seq=subseq_obj.get_subsequence(self.get_full_genome()),
                 metadata=MarkerMetadata(
                     parent_accession=self.strain_accession,
-                    gene_id=subseq_obj.id,
                     file_path=marker_filepath
                 )
             )
@@ -322,10 +327,10 @@ class SubsequenceLoader:
         else:
             return Marker(
                 name=expected_marker_name,
+                id=expected_marker_id,
                 seq=str(record.seq),
                 metadata=MarkerMetadata(
                     parent_accession=self.strain_accession,
-                    gene_id=expected_marker_id,
                     file_path=filepath
                 )
             )

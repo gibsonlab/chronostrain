@@ -33,10 +33,11 @@ class CachedReadAlignments(object):
         return Path("alignments") / "{}.sam".format(reads_path.stem)
 
     def get_alignments(self, t_idx: int) -> Iterable[SamHandler]:
+        time_slice = self.reads[t_idx]
         for reads_path in self.reads[t_idx].src.paths:
-            yield self._get_alignment(reads_path)
+            yield self._get_alignment(reads_path, time_slice.src.quality_format)
 
-    def _get_alignment(self, reads_path: Path) -> SamHandler:
+    def _get_alignment(self, reads_path: Path, quality_format: str) -> SamHandler:
         # ====== function bindings
         def perform_alignment(align_path: Path, ref_path: Path, reads_path: Path):
             align_path.parent.mkdir(exist_ok=True, parents=True)
@@ -47,7 +48,7 @@ class CachedReadAlignments(object):
                 min_seed_length=20,
                 report_all_alignments=True
             )
-            return SamHandler(align_path, ref_path)
+            return SamHandler(align_path, ref_path, quality_format)
 
         # ====== Run the cached computation.
         alignment_output_path = self.cache.cache_dir / self.get_path(reads_path)
@@ -55,7 +56,7 @@ class CachedReadAlignments(object):
             filename=alignment_output_path,
             fn=perform_alignment,
             save=lambda p, o: None,
-            load=lambda p: SamHandler(alignment_output_path, self.marker_reference_path),
+            load=lambda p: SamHandler(alignment_output_path, self.marker_reference_path, quality_format),
             kwargs={
                 "align_path": alignment_output_path,
                 "ref_path": self.marker_reference_path,

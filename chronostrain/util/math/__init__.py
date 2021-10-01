@@ -1,4 +1,4 @@
-from .block import *
 from .mappings import *
 from .numpy_random import *
-import chronostrain.util.math.distributions
+from . import distributions
+from . import block

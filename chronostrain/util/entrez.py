@@ -2,8 +2,9 @@ from typing import Union, List
 from pathlib import Path
 from Bio import Entrez
 
-from . import logger
 from chronostrain.util.filesystem import convert_size
+from chronostrain.config.logging import create_logger
+logger = create_logger(__name__)
 
 
 _fasta_filename = "{accession}.fasta"

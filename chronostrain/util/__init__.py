@@ -1,8 +1,9 @@
-from chronostrain import create_logger
-logger = create_logger(__name__)
-
-import chronostrain.util.benchmarking
-import chronostrain.util.data_cache
-import chronostrain.util.filesystem
-import chronostrain.util.entrez
-import chronostrain.util.sequences
+from . import benchmarking
+from . import data_cache
+from . import filesystem
+from . import entrez
+from . import sequences
+from . import quality
+from . import external
+from . import math
+from . import sparse
