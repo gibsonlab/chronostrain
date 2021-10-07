@@ -6,7 +6,7 @@
   This is an implementation of BBVI for the posterior q(X_1) q(X_2 | X_1) ...
   (Note: doesn't work as well as BBVI for mean-field assumption.)
 """
-from typing import Iterable, Tuple, Optional, Callable, Dict, Union, List
+from typing import Iterator, Tuple, Optional, Callable, Dict, Union, List
 
 from torch.nn.functional import softplus
 from torch.distributions import Normal
@@ -306,7 +306,7 @@ class FragmentPosterior(object):
         self.phi: List[torch.Tensor] = []
         self.frag_index_map = frag_index_map  # A mapping from internal frag indices to FragmentSpace indexing.
 
-    def top_fragments(self, time_idx, read_idx, top=5) -> Iterable[Tuple[Fragment, float]]:
+    def top_fragments(self, time_idx, read_idx, top=5) -> Iterator[Tuple[Fragment, float]]:
         phi_t = self.phi[time_idx]
         if isinstance(phi_t, SparseMatrix):
             # Assumes that this is a 1-d tensor (representing sparse values)

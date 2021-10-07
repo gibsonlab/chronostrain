@@ -46,10 +46,13 @@ class SequenceReadAlignment(object):
         self.read_seq = read_seq
         self.read_qual = read_qual
         self.marker = marker
+
+        assert (marker_end - marker_start) == (read_end - read_start)
         self.read_start = read_start
         self.read_end = read_end
         self.marker_start = marker_start
         self.marker_end = marker_end
+
         self.marker_frag = marker.seq[marker_start:marker_end + 1]
         self.reverse_complemented = reverse_complemented  # Indicates whether the read has been reverse complemented.
 

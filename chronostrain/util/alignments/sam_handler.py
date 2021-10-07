@@ -1,5 +1,5 @@
 import enum
-from typing import List, Iterable, Dict, Union
+from typing import List, Iterator, Dict, Union
 
 import numpy as np
 from Bio import SeqIO
@@ -140,7 +140,7 @@ class SamHandler:
                     self.contents.append(sam_line)
                 prev_sam_line = sam_line
 
-    def mapped_lines(self) -> Iterable[SamLine]:
+    def mapped_lines(self) -> Iterator[SamLine]:
         yield from self.contents
 
     def get_multifasta_sequences(self) -> Dict[str, str]:

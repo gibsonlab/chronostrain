@@ -3,7 +3,7 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator, List, Iterable, Union, Tuple
+from typing import Iterator, List, Union, Tuple
 
 from Bio import SeqIO
 
@@ -239,7 +239,7 @@ class SubsequenceLoader:
                 / "{acc}-{seq}.fasta".format(acc=self.strain_accession, seq=name)
         )
 
-    def parse_markers(self, force_refresh: bool = False) -> Iterable[Marker]:
+    def parse_markers(self, force_refresh: bool = False) -> Iterator[Marker]:
         """
         Markers are expected to be a list of JSON objects of one of the following formats:
         (1) {'type': 'tag', 'name': <COMMON_NAME>, 'id': <NCBI_ID>}
@@ -267,7 +267,7 @@ class SubsequenceLoader:
             self.save_marker_to_disk(marker, marker_filepath)
             yield marker
 
-    def load_entries_from_disk(self) -> Iterable[Marker]:
+    def load_entries_from_disk(self) -> Iterator[Marker]:
         tag_entries_missed = []
         for tag_entry in self.tag_entries:
             marker_name = tag_entry.name
@@ -482,7 +482,7 @@ class JSONParser(AbstractDatabaseParser):
                 )
             )
 
-    def strain_entries(self) -> Iterable[StrainEntry]:
+    def strain_entries(self) -> Iterator[StrainEntry]:
         """
         Deserialize JSON into StrainEntry instances.
         """

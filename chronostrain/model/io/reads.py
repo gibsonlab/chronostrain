@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Optional, Union, Iterable
+from typing import List, Optional, Union, Iterable, Iterator
 import numpy as np
 
 import gzip
@@ -66,12 +66,12 @@ class TimeSliceReads(object):
         return file_size
 
     @staticmethod
-    def read_fastq(fastq_path: Path, quality_format: str) -> Iterable[SeqRecord]:
+    def read_fastq(fastq_path: Path, quality_format: str) -> Iterator[SeqRecord]:
         for record in SeqIO.parse(fastq_path, quality_format):
             yield record
 
     @staticmethod
-    def read_gzipped_fastq(gz_path: Path, quality_format: str) -> Iterable[SeqRecord]:
+    def read_gzipped_fastq(gz_path: Path, quality_format: str) -> Iterator[SeqRecord]:
         with gzip.open(str(gz_path), "rt") as handle:
             for record in SeqIO.parse(handle, quality_format):
                 yield record
@@ -120,7 +120,7 @@ class TimeSliceReads(object):
             ))
         return TimeSliceReads(reads, time_point, src)
 
-    def __iter__(self) -> Iterable[SequenceRead]:
+    def __iter__(self) -> Iterator[SequenceRead]:
         for read in self.reads:
             yield read
 
@@ -164,7 +164,7 @@ class TimeSeriesReads(object):
             for src, t in zip(time_slice_sources, time_points)
         ])
 
-    def __iter__(self) -> TimeSliceReads:
+    def __iter__(self) -> Iterator[TimeSliceReads]:
         for time_slice in self.time_slices:
             yield time_slice
 
