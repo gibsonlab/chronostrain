@@ -55,6 +55,7 @@ _acgt_to_z4 = {
     "N": 4  # Special character.
 }
 nucleotide_N_z4 = _acgt_to_z4['N']
+z4_nucleotides = [0, 1, 2, 3]
 
 _z4_to_acgt = ["A", "C", "G", "T", "N"]
 

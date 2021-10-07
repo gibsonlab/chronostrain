@@ -18,6 +18,7 @@ from typing import Optional, List, Tuple, Iterable
 
 from chronostrain import logger, cfg
 from chronostrain.algs import AbstractPosterior, BBVISolver, EMSolver
+from chronostrain.database import StrainDatabase
 from chronostrain.model import Population
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.reads import PhredErrorModel, NoiselessErrorModel
@@ -76,6 +77,7 @@ def parse_args():
 
 
 def perform_em(
+        db: StrainDatabase,
         reads: TimeSeriesReads,
         model: GenerativeModel,
         out_dir: Path,
@@ -90,6 +92,7 @@ def perform_em(
     # ==== Run the solver.
     solver = EMSolver(model,
                       reads,
+                      db,
                       lr=learning_rate)
     abundances, var_1, var = solver.solve(
         iters=iters,
@@ -129,6 +132,7 @@ def perform_em(
 
 
 def perform_bbvi(
+        db: StrainDatabase,
         model: GenerativeModel,
         reads: TimeSeriesReads,
         disable_quality: bool,
@@ -144,7 +148,7 @@ def perform_bbvi(
 ):
 
     # ==== Run the solver.
-    solver = BBVISolver(model=model, data=reads, correlation_type=correlation_type)
+    solver = BBVISolver(model=model, data=reads, correlation_type=correlation_type, db=db)
 
     callbacks = []
 
@@ -443,6 +447,7 @@ def main():
     if args.method == 'em':
         logger.info("Solving using Expectation-Maximization.")
         perform_em(
+            db=db,
             reads=reads,
             model=model,
             out_dir=out_dir,
@@ -456,6 +461,7 @@ def main():
     elif args.method == 'bbvi':
         logger.info("Solving using Black-Box Variational Inference.")
         perform_bbvi(
+            db=db,
             model=model,
             reads=reads,
             disable_quality=not cfg.model_cfg.use_quality_scores,

@@ -52,6 +52,11 @@ class SequenceRead:
     def __len__(self):
         return self.seq.shape[0]
 
+    def __eq__(self, other):
+        if not isinstance(other, SequenceRead):
+            return False
+        return other.id == self.id
+
 
 class AbstractErrorModel(metaclass=ABCMeta):
     """

@@ -19,6 +19,7 @@ from chronostrain.model.io import TimeSeriesReads
 from chronostrain.util.benchmarking import RuntimeEstimator
 from chronostrain.util.math import *
 from chronostrain.util.sparse import SparseMatrix
+from chronostrain.database import StrainDatabase
 
 from chronostrain.config.logging import create_logger
 logger = create_logger(__name__)
@@ -192,10 +193,15 @@ class GaussianPosteriorStrainCorrelation(AbstractPosterior):
         for t in range(self.model.num_times()):
             samples_t = samples[t]
             linear = self.reparam_networks[t]
-            log_likelihood_t = torch.distributions.MultivariateNormal(
-                loc=linear.bias,
-                covariance_matrix=linear.weight.t().mm(linear.weight)
-            ).log_prob(samples_t)
+            try:
+                log_likelihood_t = torch.distributions.MultivariateNormal(
+                    loc=linear.bias,
+                    covariance_matrix=linear.weight.t().mm(linear.weight)
+                ).log_prob(samples_t)
+            except ValueError:
+                cov = linear.weight.t().mm(linear.weight).detach()
+                logger.debug("Resulting covariance matrix: (t={}) {}, mean: {}".format(t, cov, linear.bias))
+                raise
             ans = ans + log_likelihood_t
         return ans
 
@@ -335,8 +341,9 @@ class BBVISolver(AbstractModelSolver):
     def __init__(self,
                  model: GenerativeModel,
                  data: TimeSeriesReads,
+                 db: StrainDatabase,
                  correlation_type: str = "time"):
-        super().__init__(model, data)
+        super().__init__(model, data, db)
         self.correlation_type = correlation_type
         if correlation_type == "time":
             self.gaussian_posterior = GaussianPosteriorTimeCorrelation(model=model)

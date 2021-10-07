@@ -1,12 +1,11 @@
 import enum
-import re
 from typing import List, Iterable, Dict, Union
 
 import numpy as np
 from Bio import SeqIO
-from chronostrain.util.sequences import complement_seq
 
-from .quality import ascii_to_phred
+from chronostrain.util.quality import ascii_to_phred
+from .cigar import CigarElement, parse_cigar
 
 
 class _SamTags(enum.Enum):
@@ -71,7 +70,8 @@ class SamLine:
         self.contig_name: str = self.line[_SamTags.ContigName.value]
         self.map_pos_str: str = self.line[_SamTags.MapPos.value]
         self.map_quality: str = self.line[_SamTags.MapQuality.value]
-        self.cigar: str = self.line[_SamTags.Cigar.value]
+        self.cigar_str: str = self.line[_SamTags.Cigar.value]
+        self.cigar: List[CigarElement] = parse_cigar(self.cigar_str)
         self.mate_pair: str = self.line[_SamTags.MatePair.value]
         self.mate_pos: str = self.line[_SamTags.MatePos.value]
         self.template_len: str = self.line[_SamTags.TemplateLen.value]
@@ -110,49 +110,6 @@ class SamLine:
             '''
             if optional_tag[:5] == 'MD:Z:':
                 self.optional_tags['MD'] = optional_tag[5:]
-
-        if self.is_mapped:
-            self.fragment = self._parse_fragment(reference_sequences)
-
-    def _parse_fragment(self, reference_sequences: Dict[str, str]):
-        """
-        Finds the fragment in the reference associated with this mapped line
-
-        :param Dict: A mapping from contig names to their respective sequences given by the reference
-            multifasta
-        :return: The associated fragment as a string
-        """
-
-        map_pos_int = int(self.map_pos_str)
-        split_cigar = re.findall('\d+|\D+', self.cigar)
-
-        start_clip = 0
-        end_clip = 0
-
-        '''
-        S and H represent soft and hard clipping respectively. These therefore may occur only at the
-        beginning or end of a CIGAR string and represent an offset in starting/ending index into the reference.
-        The number of bases clipped precedes the letter demarkation
-        '''
-        if split_cigar[1] == "S" or split_cigar[1] == "H":
-            start_clip = int(split_cigar[0])
-        if split_cigar[-1] == 'S' or split_cigar[-1] == "H":
-            end_clip = int(split_cigar[-2])
-
-        ref_seq = reference_sequences[self.contig_name]
-
-        start_frame = map_pos_int - start_clip - 1
-        end_frame = start_frame + self.read_len
-
-        if start_frame < 0:
-            start_frame = 0
-
-        frag = ref_seq[start_frame:end_frame]
-
-        if not self.is_reverse_complemented:
-            return frag
-        else:
-            return complement_seq(frag[::-1])
 
     def __str__(self):
         return "SamLine(L={lineno}):{tokens}".format(

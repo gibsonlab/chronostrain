@@ -72,7 +72,7 @@ class TimeSliceReads(object):
 
     @staticmethod
     def read_gzipped_fastq(gz_path: Path, quality_format: str) -> Iterable[SeqRecord]:
-        with gzip.open(str(gz_path), "r") as handle:
+        with gzip.open(str(gz_path), "rt") as handle:
             for record in SeqIO.parse(handle, quality_format):
                 yield record
 

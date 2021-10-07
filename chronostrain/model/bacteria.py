@@ -53,6 +53,9 @@ class Marker:
     def __len__(self):
         return len(self.seq)
 
+    def __hash__(self):
+        return hash(self.id)
+
     def to_seqrecord(self, description: str = "") -> SeqRecord:
         return SeqRecord(
             Seq(self.seq),

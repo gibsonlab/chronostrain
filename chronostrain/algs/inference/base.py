@@ -12,6 +12,7 @@ from joblib import Parallel, delayed
 
 from chronostrain.algs.subroutines.alignment import CachedReadAlignments
 from chronostrain.algs.subroutines.read_cache import ReadsComputationCache
+from chronostrain.database import StrainDatabase
 from chronostrain.util.data_cache import ComputationCache, CacheTag
 from chronostrain.util.sparse.sparse_tensor import SparseMatrix
 from chronostrain.model.io import TimeSeriesReads
@@ -23,11 +24,11 @@ logger = create_logger(__name__)
 
 
 class AbstractModelSolver(metaclass=ABCMeta):
-    def __init__(self, model: GenerativeModel, data: TimeSeriesReads):
+    def __init__(self, model: GenerativeModel, data: TimeSeriesReads, db: StrainDatabase):
         self.model = model
         self.data = data
         if cfg.model_cfg.use_sparse:
-            self.data_likelihoods = SparseDataLikelihoods(model, data)
+            self.data_likelihoods = SparseDataLikelihoods(model, data, db)
         else:
             self.data_likelihoods = DenseDataLikelihoods(model, data)
 
@@ -109,8 +110,10 @@ class SparseDataLikelihoods(DataLikelihoods):
             self,
             model: GenerativeModel,
             data: TimeSeriesReads,
+            db: StrainDatabase,
             read_likelihood_lower_bound: float = 1e-30
     ):
+        self.db = db
         super().__init__(model, data, read_likelihood_lower_bound=read_likelihood_lower_bound)
         self.supported_frags = []
 
@@ -137,7 +140,7 @@ class SparseDataLikelihoods(DataLikelihoods):
             self.supported_frags.append(row_support)
 
     def _likelihood_computer(self) -> 'AbstractLogLikelihoodComputer':
-        return SparseLogLikelihoodComputer(self.model, self.data)
+        return SparseLogLikelihoodComputer(self.model, self.data, self.db)
 
 
 class DenseDataLikelihoods(DataLikelihoods):
@@ -226,11 +229,10 @@ class DenseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
 
 
 class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
-    def __init__(self, model: GenerativeModel, reads: TimeSeriesReads):
+    def __init__(self, model: GenerativeModel, reads: TimeSeriesReads, db: StrainDatabase):
         super().__init__(model, reads)
-        self.marker_reference_file = cfg.database_cfg.get_database().multifasta_file
         self._bwa_index_finished = False
-        self.cached_alignments = CachedReadAlignments(self.marker_reference_file, self.reads)
+        self.cached_alignments = CachedReadAlignments(self.reads, db)
         self.cache = ComputationCache(CacheTag(
             file_paths=[reads_t.src.paths for reads_t in reads],  # read files
             use_quality=cfg.model_cfg.use_quality_scores,
@@ -249,32 +251,34 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         :return: A defaultdict representing the map (Read ID) -> {Fragments that the read aligns to}
         """
         read_to_fragments = defaultdict(set)
-
-        for sam_handler in self.cached_alignments.get_alignments(t_idx):
-            for sam_line in sam_handler.mapped_lines():
-                if sam_line.is_reverse_complemented:
-                    logger.warning("Alignment ({f}) -- Found reverse-complemented alignment on line {lineno}.".format(
-                        f=sam_handler.file_path,
-                        lineno=sam_line.lineno
-                    ))
-                    continue
-
+        for marker, alns in self.cached_alignments.get_alignments(t_idx).items():
+            for aln in alns:
                 # TODO - Future note: this might be a good starting place for handling/detecting indels.
-                #  (since this part already handles the aligned_frag not being found.)
-                #  (if one needs more control, handle this in the sam_line loop of _compute_read_frag_alignments().)
+                #  (Note: the below logic defaults to a KeyError.)
+                #  (if one needs more control, handle this in the parse_alignments() function invoked in
+                #  get_alignments().
+
+                if aln.reverse_complemented:
+                    logger.warning(
+                        "Alignment ({f}) -- Found reverse-complemented alignment for read {r}.".format(
+                            f=str(aln.sam_path),
+                            r=aln.id
+                        ))
+
                 try:
-                    aligned_frag = self.fragment_space.get_fragment(sam_line.fragment)
+                    aligned_frag = self.fragment_space.get_fragment(aln.marker_frag)
                 except KeyError:
-                    # This happens because the aligned frag is not a full alignment, either due to edge effects or indels.
-                    # Our model does not handle these, but see the note above.
+                    # This happens because the aligned frag is not a full alignment, either due to edge effects
+                    # or indels. Our model does not handle these yet; see the note above.
                     continue
 
-                read_id = sam_line.read
                 try:
-                    read_to_fragments[read_id].add(aligned_frag)
+                    read_to_fragments[aln.read_id].add(aligned_frag)
                 except KeyError:
-                    logger.debug("Problematic SAM line found: {}".format(
-                        sam_line
+                    logger.debug("Line {} points to Read `{}`, but encountered KeyError. (Sam = {})".format(
+                        aln.sam_line_no,
+                        aln.read_id,
+                        aln.sam_path,
                     ))
                     raise
         return read_to_fragments

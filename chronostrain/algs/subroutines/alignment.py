@@ -3,13 +3,15 @@ Contains alignment-specific subroutines necessary for other algorithm implementa
 """
 
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Dict, List
 
 from chronostrain.algs.subroutines.read_cache import ReadsComputationCache
+from chronostrain.model import Marker
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.util.data_cache import ComputationCache
 from chronostrain.util.external.bwa import bwa_mem, bwa_index
-from chronostrain.util.sam_handler import SamHandler
+from chronostrain.util.alignments import parse_alignments, SequenceReadAlignment, SamHandler
+from chronostrain.database import StrainDatabase
 
 
 class CachedReadAlignments(object):
@@ -17,11 +19,14 @@ class CachedReadAlignments(object):
     A wrapper around bwa_mem and bwa_index, but checks whether the output of these alignments already exist.
     If so, load them from disk instead of re-computing them.
     """
-    def __init__(self, marker_reference_path: Path,
+    def __init__(self,
                  reads: TimeSeriesReads,
+                 db: StrainDatabase,
                  cache_override: Optional[ComputationCache] = None):
-        self.marker_reference_path = marker_reference_path
         self.reads = reads
+        self.db = db
+        self.marker_reference_path = db.multifasta_file
+
         if cache_override is not None:
             self.cache = cache_override
         else:
@@ -32,13 +37,20 @@ class CachedReadAlignments(object):
     def get_path(reads_path: Path) -> Path:
         return Path("alignments") / "{}.sam".format(reads_path.stem)
 
-    def get_alignments(self, t_idx: int) -> Iterable[SamHandler]:
+    def get_alignments(self, t_idx: int) -> Dict[Marker, List[SequenceReadAlignment]]:
         time_slice = self.reads[t_idx]
-        for reads_path in self.reads[t_idx].src.paths:
-            yield self._get_alignment(reads_path, time_slice.src.quality_format)
+        alignments = {
+            marker: []
+            for marker in self.db.all_markers()
+        }
+        for reads_path in time_slice.src.paths:
+            handler = self._get_alignment(reads_path, time_slice.src.quality_format)
+            for marker, alns in parse_alignments(handler, self.db).items():
+                alignments[marker] = alignments[marker] + alns
+        return alignments
 
     def _get_alignment(self, reads_path: Path, quality_format: str) -> SamHandler:
-        # ====== function bindings
+        # ====== function bindings to pass to ComputationCache.
         def perform_alignment(align_path: Path, ref_path: Path, reads_path: Path):
             align_path.parent.mkdir(exist_ok=True, parents=True)
             bwa_mem(
