@@ -8,7 +8,8 @@ import torch
 from chronostrain import logger, cfg
 from chronostrain.model import Population, PhredErrorModel, GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
-from chronostrain.algs import VariantSearchAlgorithm
+from chronostrain.algs.variants import StrainVariantComputer
+from chronostrain.algs.subroutines import CachedReadAlignments
 
 
 def parse_args():
@@ -157,21 +158,35 @@ def main():
         true_abundance_path = None
 
     # ============ Run the algorithm.
-    algorithm = VariantSearchAlgorithm(
-        base_model=model,
+    # algorithm = VariantSearchAlgorithm(
+    #     base_model=model,
+    #     reads=reads,
+    #     optim_iters=args.iters,
+    #     optim_mc_samples=args.num_samples,
+    #     optim_kwargs={
+    #         'lr': args.learning_rate,
+    #         'betas': (0.9, 0.999),
+    #         'eps': 1e-7,
+    #         'weight_decay': 0.
+    #     }
+    # )
+
+    # variant_population, likelihood, vi_solution = algorithm.perform_search()
+    # logger.info("Result: {}".format(variant_population))
+
+    # =============== Clustering approach.
+    computer = StrainVariantComputer(
+        db=db,
         reads=reads,
-        optim_iters=args.iters,
-        optim_mc_samples=args.num_samples,
-        optim_kwargs={
-            'lr': args.learning_rate,
-            'betas': (0.9, 0.999),
-            'eps': 1e-7,
-            'weight_decay': 0.
-        }
+        quality_threshold=20,
+        eig_lower_bound=1e-3,
+        variant_distance_upper_bound=1e-2
     )
 
-    variant_population, likelihood, vi_solution = algorithm.perform_search()
-    logger.info(variant_population)
+    variants = list(computer.construct_variants())
+    for variant in variants:
+        print(variant)
+    print("# of strain variants = {}".format(len(variants)))
 
 
 if __name__ == "__main__":

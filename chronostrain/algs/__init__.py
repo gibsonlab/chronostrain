@@ -1,2 +1,2 @@
 from .inference import EMSolver, BBVISolver, AbstractPosterior
-from .variants import VariantSearchAlgorithm
+from .variants import StrainVariantComputer, StrainVariant, MarkerVariant

@@ -1,7 +1,8 @@
 from typing import List
 
 from chronostrain.model import Marker, Strain
-from .base import AbstractStrainDatabaseBackend, QueryNotFoundError
+from .base import AbstractStrainDatabaseBackend
+from ..error import QueryNotFoundError
 
 
 class DictionaryBackend(AbstractStrainDatabaseBackend):
@@ -23,7 +24,7 @@ class DictionaryBackend(AbstractStrainDatabaseBackend):
         try:
             return self.strains[strain_id]
         except KeyError:
-            raise QueryNotFoundError(strain_id)
+            raise QueryNotFoundError("Unable to find strain with id `{}`.".format(strain_id))
 
     def get_strains(self, strain_ids: List[str]) -> List[Strain]:
         return [self.get_strain(strain_id) for strain_id in strain_ids]
@@ -32,7 +33,7 @@ class DictionaryBackend(AbstractStrainDatabaseBackend):
         try:
             return self.markers[marker_id]
         except KeyError:
-            raise QueryNotFoundError(marker_id)
+            raise QueryNotFoundError("Unable to find marker with id `{}`.".format(marker_id))
 
     def num_strains(self) -> int:
         return len(self.strains)
@@ -46,8 +47,8 @@ class DictionaryBackend(AbstractStrainDatabaseBackend):
     def all_markers(self) -> List[Marker]:
         return list(self.markers.values())
 
-    def get_strains_with_marker(self, marker_name: str) -> List[Strain]:
+    def get_strains_with_marker(self, marker: Marker) -> List[Strain]:
         try:
-            return self.markers_to_strains[marker_name]
+            return self.markers_to_strains[marker.id]
         except KeyError:
-            raise QueryNotFoundError(marker_name)
+            return []

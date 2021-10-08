@@ -1,3 +1,3 @@
-from .base import AbstractStrainDatabaseBackend, QueryNotFoundError
+from .base import AbstractStrainDatabaseBackend
 from .dicts import DictionaryBackend
 from .pandas import PandasAssistedBackend

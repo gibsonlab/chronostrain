@@ -1,3 +1,4 @@
+from collections import defaultdict
 from pathlib import Path
 from typing import List, Union, Optional
 
@@ -6,6 +7,7 @@ from Bio import SeqIO
 from chronostrain.model import Strain, Marker
 from .parser import AbstractDatabaseParser, JSONParser, CSVParser
 from .backend import AbstractStrainDatabaseBackend, DictionaryBackend
+from .error import QueryNotFoundError
 from .. import cfg, create_logger
 
 logger = create_logger(__name__)
@@ -46,7 +48,29 @@ class StrainDatabase(object):
         return self.backend.num_markers()
 
     def get_strains_with_marker(self, marker: Marker) -> List[Strain]:
-        return self.backend.get_strains_with_marker(marker.id)
+        return self.backend.get_strains_with_marker(marker)
+
+    def best_matching_strain(self, query_markers: List[Marker]) -> Strain:
+        strain_num_hits = defaultdict(int)
+        for marker in query_markers:
+            for strain in self.get_strains_with_marker(marker):
+                strain_num_hits[strain.id] += 1
+
+        if len(strain_num_hits) == 0:
+            raise QueryNotFoundError("No available strains with any of query markers.")
+
+        highest_n_hits = max(*strain_num_hits.values())
+        best_hits = []
+        for strain_id, n_hits in strain_num_hits.items():
+            if n_hits == highest_n_hits:
+                best_hits.append(strain_id)
+
+        if len(best_hits) > 1:
+            logger.warning("Found multiple hits ({}) for query marker set. Returning the first hit only.".format(
+                best_hits
+            ))
+
+        return self.get_strain(best_hits[0])
 
     @property
     def multifasta_file(self) -> Path:

@@ -48,7 +48,7 @@ class MarginalEvidence(object):
         for aln in alignments:
             read_seq, read_quality = aln.read_aligned_section
             relative_positions_of_variants = np.where(
-                (read_seq != nucleotides_to_z4(aln.marker_frag)) & (read_quality > self.quality_threshold)
+                (read_seq != aln.marker_frag) & (read_quality > self.quality_threshold)
             )[0]
             bases = read_seq[relative_positions_of_variants]
             self.evidence_matrix[relative_positions_of_variants + aln.marker_start, bases] += 1
@@ -62,7 +62,7 @@ class MarkerVariantEvidence(object):
         self.marker = marker
         self.quality_threshold = quality_threshold
         self.counts_evidence = [
-            MarginalEvidence(self.marker, alns_t, self.quality_threshold, "counts")
+            MarginalEvidence(self.marker, alns_t, self.quality_threshold, "count")
             for alns_t in time_series_alignments
         ]
         self.quality_evidence = [
@@ -78,7 +78,7 @@ class MarkerVariantEvidence(object):
         :param time_series_alignments:
         :return: A (2 x V) numpy array of dtype int, where each column represents a (position, base) pair.
         """
-        total_evidence = MarginalEvidence(self.marker, [], self.quality_threshold, "counts")
+        total_evidence = MarginalEvidence(self.marker, [], self.quality_threshold, "count")
         for alns_t in time_series_alignments:
             total_evidence.add_alignments(alns_t)
         return np.stack(np.where(total_evidence.evidence_matrix > 0), axis=0)

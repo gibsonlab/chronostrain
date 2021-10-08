@@ -152,14 +152,7 @@ def main():
 
     # ========== Create Population instance.
     if accessions:
-        try:
-            population = Population(database.get_strains(accessions), extra_strain=cfg.model_cfg.extra_strain)
-        except QueryNotFoundError as e:
-            print("Strain `{}` from abundances file `{}` not found in database.".format(
-                e.strain_id,
-                args.abundance_path
-            ))
-            raise e
+        population = Population(database.get_strains(accessions), extra_strain=cfg.model_cfg.extra_strain)
     else:
         population = Population(database.all_strains(), extra_strain=cfg.model_cfg.extra_strain)
 

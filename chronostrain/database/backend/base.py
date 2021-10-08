@@ -4,11 +4,6 @@ from typing import List
 from chronostrain.model import Strain, Marker
 
 
-class QueryNotFoundError(BaseException):
-    def __init__(self, query):
-        super().__init__("Query `{}` not found in database.".format(query))
-
-
 class AbstractStrainDatabaseBackend(object):
     @abstractmethod
     def add_strain(self, strain: Strain):
@@ -67,7 +62,7 @@ class AbstractStrainDatabaseBackend(object):
         pass
 
     @abstractmethod
-    def get_strains_with_marker(self, marker_name: str) -> List[Strain]:
+    def get_strains_with_marker(self, marker: Marker) -> List[Strain]:
         """
         Retrieve all strains that contains this marker.
         """

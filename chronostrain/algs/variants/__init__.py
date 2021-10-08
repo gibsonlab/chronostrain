@@ -1,1 +1,1 @@
-from .search import VariantSearchAlgorithm
+from .correlations import StrainVariant, MarkerVariant, StrainVariantComputer
