@@ -3,89 +3,21 @@ from typing import List, Dict, Set
 from collections import defaultdict
 import numpy as np
 
-from abc import ABCMeta, abstractmethod
 from joblib import Parallel, delayed
 
 from chronostrain.algs.subroutines.alignment import CachedReadAlignments
-from chronostrain.algs.subroutines.read_cache import ReadsComputationCache
 from chronostrain.database import StrainDatabase
 from chronostrain.model import Fragment
-from chronostrain.util.data_cache import ComputationCache, CacheTag
 from chronostrain.util.sparse.sparse_tensor import SparseMatrix
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.config import cfg
 from chronostrain.model.generative import GenerativeModel
 
+from .base import DataLikelihoods, AbstractLogLikelihoodComputer
+from .likelihood_cache import LikelihoodMatrixCache
+
 from chronostrain.config.logging import create_logger
 logger = create_logger(__name__)
-
-
-class DataLikelihoods(object):
-    def __init__(
-            self,
-            model: GenerativeModel,
-            data: TimeSeriesReads,
-            read_likelihood_lower_bound: float = 1e-30
-    ):
-        """
-        :param model:
-        :param data:
-        :param read_likelihood_lower_bound: Thresholds reads by this likelihood value.
-            For each read, if the sum of all fragment-read likelihoods over all fragments does not exceed this value,
-            the read is trimmed from the matrix (at the particular timepoint which it belongs to).
-            (Note: passing '0' for this argument is the same as bypassing this filter.)
-        """
-        self.model = model
-        self.data = data
-        self.read_likelihood_lower_bound = read_likelihood_lower_bound
-
-        log_likelihoods_tensors = self._likelihood_computer().compute_likelihood_tensors()
-        self.matrices = [
-            ll_tensor.exp() for ll_tensor in log_likelihoods_tensors
-        ]
-        self.retained_indices = self._trim()
-
-    @abstractmethod
-    def _likelihood_computer(self) -> 'AbstractLogLikelihoodComputer':
-        raise NotImplementedError()
-
-    def _trim(self) -> List[List[int]]:
-        """
-        Trims the likelihood matrices using the specified lower bound. Reads are removed if there are no fragments
-        with likelihood greater than the lower bound. (This should ideally not happen if a stringent alignment-based
-        filter was applied.)
-
-        :return: List of the index of kept reads (exceeding the lower bound threshold).
-        """
-        read_indices = []
-        for t_idx in range(self.model.num_times()):
-            read_likelihoods_t = self.matrices[t_idx]
-            sums = read_likelihoods_t.sum(dim=0)
-
-            zero_indices = {i.item() for i in torch.where(sums <= self.read_likelihood_lower_bound)[0]}
-            if len(zero_indices) > 0:
-                logger.warn("[t = {}] Discarding reads with overall likelihood < {}: {}".format(
-                    self.model.times[t_idx],
-                    self.read_likelihood_lower_bound,
-                    ",".join([str(read_idx) for read_idx in zero_indices])
-                ))
-
-                leftover_indices = [
-                    read_idx
-                    for read_idx in range(len(self.data[t_idx]))
-                    if read_idx not in zero_indices
-                ]
-                read_indices.append(leftover_indices)
-
-                if isinstance(read_likelihoods_t, SparseMatrix):
-                    self.matrices[t_idx] = read_likelihoods_t.slice_columns(
-                        leftover_indices
-                    )
-                else:
-                    self.matrices[t_idx] = read_likelihoods_t[:, leftover_indices]
-            else:
-                read_indices.append(list(range(len(self.data[t_idx]))))
-        return read_indices
 
 
 class SparseDataLikelihoods(DataLikelihoods):
@@ -124,94 +56,8 @@ class SparseDataLikelihoods(DataLikelihoods):
             self.matrices[t_idx] = projector.sparse_mul(self.matrices[t_idx])
             self.supported_frags.append(row_support)
 
-    def _likelihood_computer(self) -> 'AbstractLogLikelihoodComputer':
+    def _likelihood_computer(self) -> AbstractLogLikelihoodComputer:
         return SparseLogLikelihoodComputer(self.model, self.data, self.db)
-
-
-class DenseDataLikelihoods(DataLikelihoods):
-    def _likelihood_computer(self) -> 'AbstractLogLikelihoodComputer':
-        return DenseLogLikelihoodComputer(self.model, self.data)
-
-
-# ===================================================================
-# ========================= Helper classes ==========================
-# ===================================================================
-
-class AbstractLogLikelihoodComputer(metaclass=ABCMeta):
-
-    def __init__(self, model: GenerativeModel, reads: TimeSeriesReads):
-        self.model = model
-        self.reads = reads
-        self.fragment_space = model.get_fragment_space()
-
-    @abstractmethod
-    def compute_likelihood_tensors(self) -> List[torch.Tensor]:
-        """
-        For each time point, evaluate the (F x N_t) array of fragment-to-read likelihoods.
-
-        :returns: The array of likelihood tensors, indexed by timepoint indices.
-        """
-        pass
-
-
-class DenseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
-
-    def __init__(self, model: GenerativeModel, reads: TimeSeriesReads):
-        super().__init__(model, reads)
-
-    def compute_matrix_single_timepoint(self, t_idx: int) -> List[List[float]]:
-        """
-        For the specified time point, evaluate the (F x N_t) array of fragment-to-read likelihoods.
-
-        :param t_idx: The time point index to run this function on.
-        :returns: The array of likelihoods, stored as a length-F list of length-N_t lists.
-        """
-        ans = [
-            [
-                self.model.error_model.compute_log_likelihood(frag, read)
-                for read in self.reads[t_idx]
-            ]
-            for frag in self.fragment_space.get_fragments()
-        ]
-        return ans
-
-    def compute_likelihood_tensors(self) -> List[torch.Tensor]:
-        # TODO: explicitly define save() and load() here to write directly to torch tensor files.
-        #  (Right now, the behavior is to compute List[List[float]] and save/load from pickle.)
-
-        logger.debug("Computing read-fragment likelihoods...")
-        cache = ReadsComputationCache(self.reads)
-
-        jobs = [
-            {
-                "filename": "log_likelihoods_{}.pkl".format(t_idx),
-                "fn": lambda t: self.compute_matrix_single_timepoint(t),
-                "args": [],
-                "kwargs": {"t": t_idx}
-            }
-            for t_idx in range(self.model.num_times())
-        ]
-
-        parallel = (cfg.model_cfg.num_cores > 1)
-        if parallel:
-            logger.debug("Computing read likelihoods with parallel pool size = {}.".format(cfg.model_cfg.num_cores))
-
-            log_likelihoods_output = Parallel(n_jobs=cfg.model_cfg.num_cores)(
-                delayed(cache.call)(cache_kwargs)
-                for cache_kwargs in jobs
-            )
-
-            log_likelihoods_tensors = [
-                torch.tensor(ll_array, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype)
-                for ll_array in log_likelihoods_output
-            ]
-        else:
-            log_likelihoods_tensors = [
-                torch.tensor(cache.call(**cache_kwargs), device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype)
-                for cache_kwargs in jobs
-            ]
-
-        return log_likelihoods_tensors
 
 
 class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
@@ -219,15 +65,7 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         super().__init__(model, reads)
         self._bwa_index_finished = False
         self.cached_alignments = CachedReadAlignments(self.reads, db)
-        self.cache = ComputationCache(CacheTag(
-            file_paths=[reads_t.src.paths for reads_t in reads],  # read files
-            use_quality=cfg.model_cfg.use_quality_scores,
-            markers=[
-                marker
-                for strain in model.bacteria_pop.strains
-                for marker in strain.markers
-            ]
-        ))
+        self.cache = LikelihoodMatrixCache(reads, model.bacteria_pop)
 
     def _compute_read_frag_alignments(self, t_idx: int) -> Dict[str, Set[Fragment]]:
         """

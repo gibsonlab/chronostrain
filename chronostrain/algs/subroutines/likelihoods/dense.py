@@ -1,0 +1,78 @@
+import torch
+from typing import List
+from joblib import Parallel, delayed
+
+from chronostrain.model.io import TimeSeriesReads
+from chronostrain.config import cfg
+from chronostrain.model.generative import GenerativeModel
+
+from .base import DataLikelihoods, AbstractLogLikelihoodComputer
+from .likelihood_cache import LikelihoodMatrixCache
+
+from chronostrain.config.logging import create_logger
+logger = create_logger(__name__)
+
+
+class DenseDataLikelihoods(DataLikelihoods):
+    def _likelihood_computer(self) -> AbstractLogLikelihoodComputer:
+        return DenseLogLikelihoodComputer(self.model, self.data)
+
+
+class DenseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
+
+    def __init__(self, model: GenerativeModel, reads: TimeSeriesReads):
+        super().__init__(model, reads)
+
+    def compute_matrix_single_timepoint(self, t_idx: int) -> List[List[float]]:
+        """
+        For the specified time point, evaluate the (F x N_t) array of fragment-to-read likelihoods.
+
+        :param t_idx: The time point index to run this function on.
+        :returns: The array of likelihoods, stored as a length-F list of length-N_t lists.
+        """
+        ans = [
+            [
+                self.model.error_model.compute_log_likelihood(frag, read)
+                for read in self.reads[t_idx]
+            ]
+            for frag in self.fragment_space.get_fragments()
+        ]
+        return ans
+
+    def compute_likelihood_tensors(self) -> List[torch.Tensor]:
+        # TODO: explicitly define save() and load() here to write directly to torch tensor files.
+        #  (Right now, the behavior is to compute List[List[float]] and save/load from pickle.)
+
+        logger.debug("Computing read-fragment likelihoods...")
+        cache = LikelihoodMatrixCache(self.reads, self.model.bacteria_pop)
+
+        jobs = [
+            {
+                "filename": "log_likelihoods_{}.pkl".format(t_idx),
+                "fn": lambda t: self.compute_matrix_single_timepoint(t),
+                "args": [],
+                "kwargs": {"t": t_idx}
+            }
+            for t_idx in range(self.model.num_times())
+        ]
+
+        parallel = (cfg.model_cfg.num_cores > 1)
+        if parallel:
+            logger.debug("Computing read likelihoods with parallel pool size = {}.".format(cfg.model_cfg.num_cores))
+
+            log_likelihoods_output = Parallel(n_jobs=cfg.model_cfg.num_cores)(
+                delayed(cache.call)(cache_kwargs)
+                for cache_kwargs in jobs
+            )
+
+            log_likelihoods_tensors = [
+                torch.tensor(ll_array, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype)
+                for ll_array in log_likelihoods_output
+            ]
+        else:
+            log_likelihoods_tensors = [
+                torch.tensor(cache.call(**cache_kwargs), device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype)
+                for cache_kwargs in jobs
+            ]
+
+        return log_likelihoods_tensors

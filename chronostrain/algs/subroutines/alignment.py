@@ -3,15 +3,27 @@ Contains alignment-specific subroutines necessary for other algorithm implementa
 """
 
 from pathlib import Path
-from typing import Iterable, Optional, Dict, List
+from typing import Optional, Dict, List
 
-from chronostrain.algs.subroutines.read_cache import ReadsComputationCache
 from chronostrain.model import Marker
 from chronostrain.model.io import TimeSeriesReads
-from chronostrain.util.data_cache import ComputationCache
+from chronostrain.util.data_cache import ComputationCache, CacheTag
 from chronostrain.util.external.bwa import bwa_mem, bwa_index
 from chronostrain.util.alignments import parse_alignments, SequenceReadAlignment, SamHandler
 from chronostrain.database import StrainDatabase
+
+
+class ReadsComputationCache(ComputationCache):
+    """
+    A subclass of ComputationCache representing the results of all computation associated with a particular
+    TimeSeriesReads instance (or equivalent instantiations).
+    """
+    def __init__(self, reads: TimeSeriesReads):
+        super().__init__(
+            CacheTag(
+                file_paths=[reads_t.src.paths for reads_t in reads]  # read files
+            )
+        )
 
 
 class CachedReadAlignments(object):

@@ -12,6 +12,7 @@ import pickle
 import hashlib
 
 from chronostrain.config import cfg
+from chronostrain.model.bacteria import Strain, Marker
 from chronostrain.util.filesystem import md5_checksum
 
 from chronostrain.config.logging import create_logger
@@ -57,6 +58,15 @@ class CacheTag(object):
                 o_str = "[{}]".format(",".join(
                     _recursive_render(entry) for entry in o
                 ))
+            elif isinstance(o, Strain):
+                o_str = "Strain({}){}".format(
+                    o.id,
+                    _recursive_render(o.markers)
+                )
+            elif isinstance(o, Marker):
+                o_str = "Marker:{}".format(
+                    o.id
+                )
             elif isinstance(o, Path):
                 o_str = "<file:{}>".format(str(o))
             else:
