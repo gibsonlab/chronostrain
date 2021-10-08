@@ -229,10 +229,9 @@ def perform_bbvi(
                     "frag_prob": frag_prob,
                     "frag_metadata": fragment.metadata,
                 })
-    df = pd.DataFrame(df_entries).set_index(["time_idx", "read_idx"])
 
     frag_prob_path = out_dir / "reads_to_frags.csv"
-    df.to_csv(str(frag_prob_path), mode="w")
+    pd.DataFrame(df_entries).set_index(["time_idx", "read_idx"]).to_csv(str(frag_prob_path), mode="w")
     logger.info("Saved read-to-fragment likelihoods to {} [{}].".format(
         frag_prob_path,
         filesystem.convert_size(frag_prob_path.stat().st_size)

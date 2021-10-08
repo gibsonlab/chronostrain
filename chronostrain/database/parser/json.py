@@ -8,11 +8,12 @@ from typing import Iterator, List, Union, Tuple
 from Bio import SeqIO
 
 from chronostrain.config import cfg
-from chronostrain.model import Strain, Marker, MarkerMetadata
+from chronostrain.model import Strain, Marker, MarkerMetadata, StrainMetadata
 from chronostrain.util.entrez import fetch_fasta, fetch_genbank
+from chronostrain.util.sequences import complement_seq, nucleotides_to_z4
+
 from .base import AbstractDatabaseParser, StrainDatabaseParseError
-from ...model.bacteria import StrainMetadata
-from ...util.sequences import complement_seq
+
 
 from chronostrain.config.logging import create_logger
 logger = create_logger(__name__)
@@ -258,7 +259,7 @@ class SubsequenceLoader:
             marker = Marker(
                 name=subseq_obj.name,
                 id=subseq_obj.id,
-                seq=subseq_obj.get_subsequence(self.get_full_genome()),
+                seq=nucleotides_to_z4(subseq_obj.get_subsequence(self.get_full_genome())),
                 metadata=MarkerMetadata(
                     parent_accession=self.strain_accession,
                     file_path=marker_filepath
@@ -328,7 +329,7 @@ class SubsequenceLoader:
             return Marker(
                 name=expected_marker_name,
                 id=expected_marker_id,
-                seq=str(record.seq),
+                seq=nucleotides_to_z4(str(record.seq)),
                 metadata=MarkerMetadata(
                     parent_accession=self.strain_accession,
                     file_path=filepath

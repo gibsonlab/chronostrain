@@ -46,9 +46,9 @@ class CacheTag(object):
         elif isinstance(item, Path):
             return md5_checksum(item)
         else:
-            return str(item)
+            return repr(item)
 
-    def write_attributes_to_disk(self, path: Path):
+    def write_readable_attributes_to_disk(self, path: Path):
         def _recursive_render(o) -> str:
             if isinstance(o, dict):
                 logger.warn("CacheTag might not properly handle dictionary attributes.")
@@ -133,7 +133,7 @@ class ComputationCache(object):
                 self.cache_tag.encoding, cache_path
             ))
 
-        self.cache_tag.write_attributes_to_disk(self.cache_dir / "attributes.txt")
+        self.cache_tag.write_readable_attributes_to_disk(self.cache_dir / "attributes.txt")
         data = fn(*args, **kwargs)
         save(cache_path, data)
 

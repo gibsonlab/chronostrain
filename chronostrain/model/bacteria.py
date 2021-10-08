@@ -11,6 +11,7 @@ from chronostrain.model.fragments import FragmentSpace
 from chronostrain.util.sparse import SparseMatrix
 
 from chronostrain.config.logging import create_logger
+from chronostrain.util.sequences import SeqType, z4_to_nucleotides
 logger = create_logger(__name__)
 
 
@@ -39,16 +40,16 @@ class StrainMetadata:
 
 @dataclass
 class Marker:
-    id: str
-    name: str
-    seq: str
-    metadata: Union[MarkerMetadata, None]
+    id: str  # A unique identifier.
+    name: str  # A human-readable name.
+    seq: SeqType
+    metadata: Union[MarkerMetadata, None] = None
 
     def __repr__(self):
-        return "Marker[{}:{}]".format(self.id, self.seq)
+        return "Marker[{}]({})".format(self.id, self.seq)
 
     def __str__(self):
-        return self.__repr__()
+        return "Marker[{}]({})".format(self.id, self.nucleotide_seq)
 
     def __len__(self):
         return len(self.seq)
@@ -56,9 +57,13 @@ class Marker:
     def __hash__(self):
         return hash(self.id)
 
+    @property
+    def nucleotide_seq(self) -> str:
+        return z4_to_nucleotides(self.seq)
+
     def to_seqrecord(self, description: str = "") -> SeqRecord:
         return SeqRecord(
-            Seq(self.seq),
+            Seq(self.nucleotide_seq),
             id="{}|{}|{}".format(self.metadata.parent_accession, self.name, self.id),
             description=description
         )
@@ -69,7 +74,7 @@ class Strain:
     id: str  # Typically, ID is the accession number.
     markers: List[Marker]
     genome_length: int
-    metadata: Union[StrainMetadata, None]
+    metadata: Union[StrainMetadata, None] = None
 
     def __repr__(self):
         return "Strain({}:{})".format(
@@ -219,7 +224,7 @@ class Population:
         return self.num_known_strains() + self.num_unknown_strains()
 
 
-def sliding_window(seq: str, width: int) -> Iterator[Tuple[str, int]]:
+def sliding_window(seq: SeqType, width: int) -> Iterator[Tuple[str, int]]:
     """
     A generator for the subsequences produced by a sliding window of specified width.
     """

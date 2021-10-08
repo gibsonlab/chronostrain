@@ -8,8 +8,9 @@ from chronostrain.config import cfg
 from chronostrain.config.logging import create_logger
 from chronostrain.model import Strain, Marker, MarkerMetadata
 from chronostrain.model.bacteria import StrainMetadata
+from chronostrain.util.sequences import nucleotides_to_z4
+from chronostrain.util.entrez import fetch_fasta
 from .base import AbstractDatabaseParser, StrainDatabaseParseError
-from ...util.entrez import fetch_fasta
 
 logger = create_logger(__name__)
 
@@ -34,7 +35,7 @@ class CSVParser(AbstractDatabaseParser):
                     Marker(
                         name="Genome_{}[{}:{}]".format(accession, 0, self.trim_debug),
                         id="GENOME[{}]".format(accession),
-                        seq=genome[:self.trim_debug],
+                        seq=nucleotides_to_z4(genome[:self.trim_debug]),
                         metadata=MarkerMetadata(parent_accession=accession,
                                                 file_path=strain_fasta_path)
                     )
@@ -44,7 +45,7 @@ class CSVParser(AbstractDatabaseParser):
                     Marker(
                         name="Genome_{}".format(accession),
                         id="GENOME[{}]".format(accession),
-                        seq=genome,
+                        seq=nucleotides_to_z4(genome),
                         metadata=MarkerMetadata(parent_accession=accession,
                                                 file_path=strain_fasta_path)
                     )

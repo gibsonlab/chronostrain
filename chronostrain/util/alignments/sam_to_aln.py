@@ -6,7 +6,7 @@ import numpy as np
 from chronostrain.database import StrainDatabase
 from chronostrain.model import Marker
 from chronostrain.util.alignments import SamHandler, SamLine, CigarOp
-from chronostrain.util.sequences import nucleotides_to_z4
+from chronostrain.util.sequences import nucleotides_to_z4, SeqType
 
 from chronostrain.config.logging import create_logger
 logger = create_logger(__name__)
@@ -53,7 +53,7 @@ class SequenceReadAlignment(object):
         self.marker_start = marker_start
         self.marker_end = marker_end
 
-        self.marker_frag = marker.seq[marker_start:marker_end + 1]
+        self.marker_frag: SeqType = marker.seq[marker_start:marker_end + 1]
         self.reverse_complemented = reverse_complemented  # Indicates whether the read has been reverse complemented.
 
     @property

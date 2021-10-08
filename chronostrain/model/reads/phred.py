@@ -53,7 +53,7 @@ class PhredErrorModel(AbstractErrorModel):
         error_probs = np.power(10, -0.1 * qvec)
         error_locations: np.ndarray = (np.random.rand(error_probs.shape[0]) < error_probs)  # dtype `bool`
 
-        rand_shift = np.random.randint(low=0, high=4, size=np.sum(error_locations), dtype=cseq.SEQ_DTYPE)
+        rand_shift = np.random.randint(low=0, high=4, size=np.sum(error_locations), dtype=cseq.NucleotideDtype)
         read.seq[np.where(error_locations)] = np.mod(
             read.seq[np.where(error_locations)] + rand_shift,
             4

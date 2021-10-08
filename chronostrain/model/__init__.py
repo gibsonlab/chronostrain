@@ -1,4 +1,4 @@
-from .bacteria import Marker, MarkerMetadata, Strain, Population
+from .bacteria import Marker, MarkerMetadata, Strain, Population, StrainMetadata
 from .fragments import Fragment, FragmentSpace
 from .generative import GenerativeModel
 

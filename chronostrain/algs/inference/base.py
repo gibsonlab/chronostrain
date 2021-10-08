@@ -237,7 +237,7 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
             file_paths=[reads_t.src.paths for reads_t in reads],  # read files
             use_quality=cfg.model_cfg.use_quality_scores,
             markers=[
-                marker.seq
+                marker
                 for strain in model.bacteria_pop.strains
                 for marker in strain.markers
             ]
