@@ -59,14 +59,14 @@ class FragmentSpace:
         self.frag_list: List[Fragment] = list()
 
     def contains_seq(self, seq: SeqType) -> bool:
-        return z4_to_nucleotides(seq) in self.seq_to_frag
+        return self.seq_to_key(seq) in self.seq_to_frag
 
-    def get_frag(self, seq: SeqType) -> Fragment:
-        return self.seq_to_frag[z4_to_nucleotides(seq)]
+    def seq_to_key(self, seq: SeqType) -> str:
+        return str(seq)
 
-    def _create_seq(self, seq: SeqType):
+    def _create_frag(self, seq: SeqType):
         frag = Fragment(seq=seq, index=self.fragment_instances_counter, metadata="")
-        self.seq_to_frag[seq] = frag
+        self.seq_to_frag[self.seq_to_key(seq)] = frag
         self.frag_list.append(frag)
         self.fragment_instances_counter += 1
         return frag
@@ -81,9 +81,9 @@ class FragmentSpace:
         :return: the Fragment instance that got added.
         """
         if self.contains_seq(seq):
-            frag = self.get_frag(seq)
+            frag = self.get_fragment(seq)
         else:
-            frag = self._create_seq(seq)
+            frag = self._create_frag(seq)
 
         if metadata:
             frag.add_metadata(metadata)
@@ -92,7 +92,7 @@ class FragmentSpace:
     def get_fragments(self) -> Iterable[Fragment]:
         return self.seq_to_frag.values()
 
-    def get_fragment(self, seq: str) -> Fragment:
+    def get_fragment(self, seq: SeqType) -> Fragment:
         """
         Retrieves a Fragment instance corresponding to the sequence.
         Raises KeyError if the sequence is not found in the space.
@@ -101,7 +101,7 @@ class FragmentSpace:
         :return: the Fragment instance encapsulating the seq.
         """
         try:
-            return self.seq_to_frag[seq]
+            return self.seq_to_frag[self.seq_to_key(seq)]
         except KeyError:
             raise KeyError("Sequence '{}' not in dictionary.".format(seq)) from None
 

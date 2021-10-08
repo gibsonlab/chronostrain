@@ -3,7 +3,7 @@
  Contains implementations of the proposed algorithms.
 """
 import torch
-from typing import List
+from typing import List, Dict, Set
 from collections import defaultdict
 import numpy as np
 
@@ -13,6 +13,7 @@ from joblib import Parallel, delayed
 from chronostrain.algs.subroutines.alignment import CachedReadAlignments
 from chronostrain.algs.subroutines.read_cache import ReadsComputationCache
 from chronostrain.database import StrainDatabase
+from chronostrain.model import Fragment
 from chronostrain.util.data_cache import ComputationCache, CacheTag
 from chronostrain.util.sparse.sparse_tensor import SparseMatrix
 from chronostrain.model.io import TimeSeriesReads
@@ -243,14 +244,14 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
             ]
         ))
 
-    def _compute_read_frag_alignments(self, t_idx: int) -> defaultdict:
+    def _compute_read_frag_alignments(self, t_idx: int) -> Dict[str, Set[Fragment]]:
         """
         Iterate through the timepoint's SamHandler instances (if the reads of t_idx came from more than one path).
         Each of these SamHandlers provides alignment information.
         :param t_idx: the timepoint index to use.
         :return: A defaultdict representing the map (Read ID) -> {Fragments that the read aligns to}
         """
-        read_to_fragments = defaultdict(set)
+        read_to_fragments: Dict[str, Set[Fragment]] = defaultdict(set)
         for marker, alns in self.cached_alignments.get_alignments(t_idx).items():
             for aln in alns:
                 # TODO - Future note: this might be a good starting place for handling/detecting indels.
@@ -292,13 +293,13 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         log P(read | frag).
         """
         # Perform alignment for approximate fine-grained search.
-        read_to_fragments = self._compute_read_frag_alignments(t_idx)
+        read_to_fragments: Dict[str, Set[Fragment]] = self._compute_read_frag_alignments(t_idx)
 
         read_indices: List[int] = []
         frag_indices: List[int] = []
         log_likelihood_values: List[float] = []
         for read_idx, read in enumerate(self.reads[t_idx]):
-            for frag in read_to_fragments[read.nucleotide_content()]:
+            for frag in read_to_fragments[read.id]:
                 read_indices.append(read_idx)
                 frag_indices.append(frag.index)
                 log_likelihood_values.append(self.model.error_model.compute_log_likelihood(frag, read))
