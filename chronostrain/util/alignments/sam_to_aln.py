@@ -57,7 +57,7 @@ class SequenceReadAlignment(object):
         self.reverse_complemented = reverse_complemented  # Indicates whether the read has been reverse complemented.
 
     @property
-    def read_aligned_section(self) -> Tuple[np.array, np.array]:
+    def read_aligned_section(self) -> Tuple[np.ndarray, np.ndarray]:
         section = slice(self.read_start, self.read_end + 1)
         return self.read_seq[section], self.read_qual[section]
 

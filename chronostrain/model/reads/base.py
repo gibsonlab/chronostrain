@@ -13,7 +13,7 @@ class SequenceRead:
     """
     A class representing a sequence-quality vector pair.
     """
-    def __init__(self, read_id: str, seq: Union[str, np.ndarray], quality: np.array, metadata: str):
+    def __init__(self, read_id: str, seq: Union[str, np.ndarray], quality: np.ndarray, metadata: str):
         self.id: str = read_id
         if len(seq) != len(quality):
             raise ValueError(
@@ -114,7 +114,7 @@ class AbstractQScoreDistribution(metaclass=ABCMeta):
         self.length = length
 
     @abstractmethod
-    def compute_log_likelihood(self, qvec: np.array) -> float:
+    def compute_log_likelihood(self, qvec: np.ndarray) -> float:
         """
         Compute the likelihood of a given q-vector.
         :param qvec: The query.
@@ -123,7 +123,7 @@ class AbstractQScoreDistribution(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def sample_qvec(self) -> np.array:
+    def sample_qvec(self) -> np.ndarray:
         """
         Obtain a random sample.
         :return: A quality score vector from the specified distribution.

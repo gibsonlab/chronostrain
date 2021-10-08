@@ -1,7 +1,7 @@
 import torch
 from pathlib import Path
 from dataclasses import dataclass
-from typing import List, Union, Iterator
+from typing import List, Union, Iterator, Tuple
 
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
@@ -219,7 +219,7 @@ class Population:
         return self.num_known_strains() + self.num_unknown_strains()
 
 
-def sliding_window(seq: str, width: int) -> Iterator[str, int]:
+def sliding_window(seq: str, width: int) -> Iterator[Tuple[str, int]]:
     """
     A generator for the subsequences produced by a sliding window of specified width.
     """

@@ -32,7 +32,7 @@ def _phred_fastq_sanger(qstr) -> List[int]:
     return _parse_ascii_using_offset(qstr, ord('!'))
 
 
-def ascii_to_phred(qstr: str, quality_format: str) -> np.array:
+def ascii_to_phred(qstr: str, quality_format: str) -> np.ndarray:
     if quality_format == 'fastq':
         return np.array(_phred_fastq_sanger(qstr), dtype=float)
     elif quality_format == 'fastq-sanger':
