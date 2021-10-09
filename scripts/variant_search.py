@@ -6,10 +6,10 @@ from typing import Tuple, List, Iterable
 import torch
 
 from chronostrain import logger, cfg
+from chronostrain.algs import StrainVariant
 from chronostrain.model import Population, PhredErrorModel, GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.algs.variants import StrainVariantComputer
-from chronostrain.algs.subroutines import CachedReadAlignments
 
 
 def parse_args():
@@ -180,10 +180,11 @@ def main():
         reads=reads,
         quality_threshold=20,
         eig_lower_bound=1e-3,
-        variant_distance_upper_bound=1e-2
+        variant_distance_upper_bound=1e-5
     )
 
-    variants = list(computer.construct_variants())
+    variants: List[StrainVariant] = list(computer.construct_variants())
+    variants.sort(reverse=True, key=lambda v: v.quality_evidence)
     for variant in variants:
         print(variant)
     print("# of strain variants = {}".format(len(variants)))

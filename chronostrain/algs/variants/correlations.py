@@ -24,6 +24,23 @@ def entrywise_sum(*arrays):
     return ans
 
 
+def upper_triangular_upper_bounded(x: np.ndarray,
+                                   upper_bound: float,
+                                   k: int = 0
+                                   ) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Computes the indices satisfying the condition x < upper_bound only on the upper triangular part of
+    the provided array (with diagonal offset k).
+
+    Is equivalent to performing np.where(x > upper_bound), then filtering according to whether row + k <= col.
+    :return: A tuple of numpy arrays, representing the array of valid rows and the matching array valid columns.
+    """
+    r, c = np.triu_indices_from(x)
+    values = x[r, c]
+    valid_indices = np.where(values < upper_bound)
+    return r[valid_indices], c[valid_indices]
+
+
 def pairwise_euclidean_distance(x: np.ndarray):
     """
     Given an (N x D) matrix, interpret each row of input matrix as a point in R^D.
@@ -213,27 +230,23 @@ class StrainVariantComputer(object):
 
         # Use all entries above main diagonal to determine similarity.
         similar_variant_pairs = zip(
-            *np.where(
-                np.triu(pairwise_distances, k=1) < self.variant_distance_upper_bound
+            *upper_triangular_upper_bounded(
+                x=pairwise_distances,
+                upper_bound=self.variant_distance_upper_bound,
+                k=1
             )
         )
-
-        from chronostrain.util.sequences import map_z4_to_nucleotide
-        for r, c in zip(*np.where(np.triu(pairwise_distances, k=1) < self.variant_distance_upper_bound)):
-            marker1_idx, pos1, base1 = variant_getter(r)
-            marker2_idx, pos2, base2 = variant_getter(c)
-            marker1 = self.all_markers[marker1_idx]
-            marker2 = self.all_markers[marker2_idx]
-            print("{}, {} -> {}".format(
-                "{}[{}:{}->{}]".format(marker1.id, pos1, map_z4_to_nucleotide(marker1.seq[pos1]), map_z4_to_nucleotide(base1)),
-                "{}[{}:{}->{}]".format(marker2.id, pos2, map_z4_to_nucleotide(marker2.seq[pos2]), map_z4_to_nucleotide(base2)),
-                pairwise_distances[r][c])
-            )
 
         G = nx.Graph()
         for v in range(pairwise_distances.shape[0]):
             G.add_node(v)
         G.add_edges_from(similar_variant_pairs)
+
+        logger.debug("# of similar pairs (threshold < {:.2e}): {}".format(
+            self.variant_distance_upper_bound,
+            len(G.edges())
+        ))
+
         if len(G.edges) == 0:
             raise NoVariantsException("No inferrable variants from embedding-space similarity threshold {}.".format(
                 self.variant_distance_upper_bound
