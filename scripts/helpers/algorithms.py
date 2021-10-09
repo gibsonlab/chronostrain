@@ -23,7 +23,7 @@ def perform_bbvi(
         learning_rate: float,
         num_samples: int,
         correlation_type: str = "strain",
-        save_elbo_history: bool = True,
+        save_elbo_history: bool = False,
         save_training_history: bool = False,
 ):
 

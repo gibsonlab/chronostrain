@@ -20,4 +20,10 @@ def get_input_paths(base_dir: Path, input_filename) -> Tuple[List[Iterable[Path]
     except FileNotFoundError:
         raise FileNotFoundError("Missing required file `input_files.csv` in directory {}.".format(base_dir)) from None
 
+    if len(read_paths) != len(time_points):
+        raise ValueError("There must be exactly one set of reads for each time point specified.")
+
+    if len(time_points) != len(set(time_points)):
+        raise ValueError("Specified sample times must be distinct.")
+
     return read_paths, time_points

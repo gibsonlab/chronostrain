@@ -81,13 +81,6 @@ def main():
 
     read_sources, time_points = get_input_paths(Path(args.reads_dir), args.input_file)
 
-    # ==== Load reads and validate.
-    if len(read_sources) != len(time_points):
-        raise ValueError("There must be exactly one set of reads for each time point specified.")
-
-    if len(time_points) != len(set(time_points)):
-        raise ValueError("Specified sample times must be distinct.")
-
     logger.info("Loading time-series read files.")
     reads = TimeSeriesReads.load(
         time_points=time_points,
