@@ -10,6 +10,8 @@ import logging.handlers
 __env_key__ = "CHRONOSTRAIN_LOG_INI"
 __ini_path__ = os.getenv(__env_key__, "log_config.ini")
 
+from typing import Callable
+
 
 class LoggingLevelFilter(logging.Filter):
     def __init__(self, levels):
@@ -72,7 +74,7 @@ def default_logger(name: str):
 
     stderr_handler = logging.StreamHandler(sys.stderr)
     stderr_handler.addFilter(LoggingLevelFilter([logging.ERROR, logging.WARNING, logging.CRITICAL]))
-    stderr_handler.setLevel(logging.ERROR)
+    stderr_handler.setLevel(logging.WARNING)
     stderr_formatter = logging.Formatter("[%(levelname)s - %(name)s] - %(message)s")
     stderr_handler.setFormatter(stderr_formatter)
 
@@ -81,12 +83,23 @@ def default_logger(name: str):
     return logger
 
 
-def create_logger(module_name: str):
-    # ============= Create logger instance. ===========
-    logging.handlers.MakeDirTimedRotatingFileHandler = MakeDirTimedRotatingFileHandler
-    if not Path(__ini_path__).exists():
-        logger = default_logger(module_name)
+def meta_create_logger(ini_path: Path) -> Callable[[str], logging.Logger]:
+    if not ini_path.exists():
+        def __create_logger(module_name):
+            return default_logger(module_name)
+
+        this_logger = __create_logger(__name__)
+        this_logger.debug("Using default logger (stdout, stderr).")
     else:
-        logging.config.fileConfig(__ini_path__)
-        logger = logging.getLogger(module_name)
-    return logger
+        def __create_logger(module_name):
+            return logging.getLogger(module_name)
+
+        this_logger = __create_logger(__name__)
+        this_logger.debug("Using logging configuration {}".format(
+            str(ini_path)
+        ))
+
+    return __create_logger
+
+
+create_logger = meta_create_logger(Path(__ini_path__))
