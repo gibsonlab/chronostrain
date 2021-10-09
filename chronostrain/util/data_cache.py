@@ -38,7 +38,7 @@ class CacheTag(object):
 
     def process_item(self, item) -> str:
         if isinstance(item, dict):
-            logger.warn("CacheTag might not properly handle dictionary attributes.")
+            logger.warning("CacheTag might not properly handle dictionary attributes.")
             return str(item)
         elif isinstance(item, list):
             return "[{}]".format(",".join(
@@ -52,7 +52,7 @@ class CacheTag(object):
     def write_readable_attributes_to_disk(self, path: Path):
         def _recursive_render(o) -> str:
             if isinstance(o, dict):
-                logger.warn("CacheTag might not properly handle dictionary attributes.")
+                logger.warning("CacheTag might not properly handle dictionary attributes.")
                 o_str = str(o)
             elif isinstance(o, list):
                 o_str = "[{}]".format(",".join(

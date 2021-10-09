@@ -59,7 +59,7 @@ class StrainDatabase(object):
         if len(strain_num_hits) == 0:
             raise QueryNotFoundError("No available strains with any of query markers.")
 
-        highest_n_hits = max(*strain_num_hits.values())
+        highest_n_hits = max(strain_num_hits.values())
         best_hits = []
         for strain_id, n_hits in strain_num_hits.items():
             if n_hits == highest_n_hits:

@@ -9,7 +9,7 @@ from multiprocessing import cpu_count
 from chronostrain.util.external import bwa
 from chronostrain.util.external import CommandLineException
 from chronostrain.util.external.commandline import call_command
-from chronostrain.util.sam_handler import SamHandler
+from chronostrain.util.alignments import SamHandler
 
 
 def ref_base_name(ref_path: Path) -> str:
@@ -131,7 +131,7 @@ def parse_md_tag(tag: str):
             elif len(sequence) == 1:  # (2)
                 total_clipped_length += 1
             else:
-                logger.warn("Unrecognized sequence in MD tag: " + sequence)
+                logger.warning("Unrecognized sequence in MD tag: " + sequence)
     return total_matches / total_clipped_length
 
 

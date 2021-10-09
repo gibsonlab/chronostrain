@@ -106,7 +106,7 @@ def parse_line_into_alignment(sam_path: Path, samline: SamLine, db: StrainDataba
         end_clip = 0
 
     if start_clip > 0 and end_clip > 0:
-        logger.warn("Read `{}` clipped on both ends; this might indicate repeated subsequences of different markers,"
+        logger.warning("Read `{}` clipped on both ends; this might indicate repeated subsequences of different markers,"
                     "or a significant mutation (bulk insertion/deletion). Check the results at the end.")
 
     # ============ Handle all intermediate elements.
@@ -204,6 +204,6 @@ def parse_alignments(sam_output: SamHandler, db: StrainDatabase) -> Dict[Marker,
                 aln = parse_line_into_alignment(sam_output.file_path, samline, db)
                 marker_alignments[aln.marker].append(aln)
             except NotImplementedError as e:
-                logger.warn(str(e))
+                logger.warning(str(e))
 
     return marker_alignments

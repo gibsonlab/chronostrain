@@ -279,7 +279,7 @@ class SubsequenceLoader:
             except FileNotFoundError:
                 tag_entries_missed.append(tag_entry)
             except StrainDatabaseParseError as e:
-                logger.warn(str(e))
+                logger.warning(str(e))
                 tag_entries_missed.append(tag_entry)
         self.tag_entries = tag_entries_missed
 
@@ -293,7 +293,7 @@ class SubsequenceLoader:
             except FileNotFoundError:
                 primer_entries_missed.append(primer_entry)
             except StrainDatabaseParseError as e:
-                logger.warn(str(e))
+                logger.warning(str(e))
                 primer_entries_missed.append(primer_entry)
         self.primer_entries = primer_entries_missed
 
@@ -369,7 +369,7 @@ class SubsequenceLoader:
 
         for tag, entry in tags_to_entries.items():
             if tag not in tags_found:
-                logger.warn("Unable to find matches for tag entry {}.".format(entry))
+                logger.warning("Unable to find matches for tag entry {}.".format(entry))
 
         return subsequences
 
@@ -386,7 +386,7 @@ class SubsequenceLoader:
                 result = self._regex_match_primers(entry.reverse, entry.forward)
 
             if result is None:
-                logger.warn("Couldn't find matches for primer entry {}.".format(
+                logger.warning("Couldn't find matches for primer entry {}.".format(
                     str(entry)
                 ))
             else:
@@ -464,7 +464,7 @@ class JSONParser(AbstractDatabaseParser):
             ]
 
             if len(strain_markers) == 0:
-                logger.warn("No markers parsed for entry {}.".format(strain_entry))
+                logger.warning("No markers parsed for entry {}.".format(strain_entry))
             else:
                 logger.debug("Strain {} loaded with {} markers.".format(
                     strain_entry.accession,
