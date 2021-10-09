@@ -22,6 +22,11 @@ logger = create_logger(__name__)
 class CacheTag(object):
     def __init__(self, **kwargs):
         """
+        A cache identification object, whose initialization kwargs specify the dependencies which generate the
+        cache key.
+        In particular, if a file path (Path object) is passed in, then the cache key is a function of the md5 checksum
+        of the file contents.
+
         :param kwargs: Other optional kwargs to use for generating the cache key.
         If a list is passed, each item is processed recursively.
         If a Path-like instance is passed, it is processed using its MD5 checksum.
