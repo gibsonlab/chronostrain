@@ -77,17 +77,21 @@ class Strain:
     metadata: Union[StrainMetadata, None] = None
 
     def __repr__(self):
-        return "Strain({}:{})".format(
+        return "{}({}:{})".format(
+            self.__class__.__name__,
             self.id,
             self.markers.__repr__()
         )
 
     def __str__(self):
-        return "Strain({})".format(self.id)
+        return "{}({})".format(
+            self.__class__.__name__,
+            self.id
+        )
 
 
 class Population:
-    def __init__(self, strains: List[Strain], extra_strain: bool):
+    def __init__(self, strains: List[Strain], extra_strain: bool = False):
         """
         :param strains: a list of Strain instances.
         """

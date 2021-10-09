@@ -186,7 +186,7 @@ def main():
     variants: List[StrainVariant] = list(computer.construct_variants())
     variants.sort(reverse=True, key=lambda v: v.quality_evidence)
     for variant in variants:
-        print(variant)
+        print(repr(variant))
     print("# of strain variants = {}".format(len(variants)))
 
 

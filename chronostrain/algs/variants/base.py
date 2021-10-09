@@ -67,13 +67,11 @@ class StrainVariant(Strain):
         )
 
     def __repr__(self):
-        return "(Evidence={})_{}".format(
-            self.quality_evidence,
+        return "{}".format(
             super().__repr__()
         )
 
     def __str__(self):
-        return "(Evidence={})_{}".format(
-            self.quality_evidence,
+        return "{}".format(
             super().__str__()
         )
