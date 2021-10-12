@@ -11,6 +11,9 @@ from chronostrain.model import Population, PhredErrorModel, GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.algs.variants import StrainVariantComputer
 
+from .helpers import get_input_paths, initialize_seed, create_model, perform_bbvi
+
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Perform inference on time-series reads, and perform a meta-algorithm"
@@ -57,54 +60,6 @@ def parse_args():
     return parser.parse_args()
 
 
-def get_input_paths(base_dir: Path, input_filename) -> Tuple[List[Iterable[Path]], List[float]]:
-    time_points = []
-    read_paths = []
-
-    input_specification_path = base_dir / input_filename
-    try:
-        with open(input_specification_path, "r") as f:
-            input_specs = csv.reader(f, delimiter=',', quotechar='"')
-            for row in input_specs:
-                time_point_str = row[0]
-                filenames = [base_dir / f for f in row[1:]]
-
-                time_points.append(float(time_point_str))
-                read_paths.append(filenames)
-    except FileNotFoundError:
-        raise FileNotFoundError("Missing required file `input_files.csv` in directory {}.".format(base_dir)) from None
-
-    return read_paths, time_points
-
-
-def create_model(population: Population,
-                 window_size: int,
-                 time_points: List[float]):
-    """
-    Simple wrapper for creating a generative model.
-    @param population: The bacteria population.
-    @param window_size: Fragment read length to use.
-    @param time_points: List of time points for which samples are taken from.
-    @return A Generative model object.
-    """
-    mu = torch.zeros(population.num_strains(), device=cfg.torch_cfg.device)
-    error_model = PhredErrorModel(read_len=window_size)
-
-    model = GenerativeModel(
-        bacteria_pop=population,
-        read_length=window_size,
-        times=time_points,
-        mu=mu,
-        tau_1_dof=cfg.model_cfg.sics_dof_1,
-        tau_1_scale=cfg.model_cfg.sics_scale_1,
-        tau_dof=cfg.model_cfg.sics_dof,
-        tau_scale=cfg.model_cfg.sics_scale,
-        read_error_model=error_model
-    )
-
-    return model
-
-
 def main():
     args = parse_args()
 
@@ -119,18 +74,12 @@ def main():
     # ==== Load Population instance from database info
     population = Population(strains=db.all_strains(), extra_strain=cfg.model_cfg.extra_strain)
 
-    read_sources, time_points = get_input_paths(Path(args.reads_dir), args.input_file)
-
-    # ==== Load reads and validate.
-    if len(read_sources) != len(time_points):
-        raise ValueError("There must be exactly one set of reads for each time point specified.")
-
-    if len(time_points) != len(set(time_points)):
-        raise ValueError("Specified sample times must be distinct.")
+    read_sources, read_depths, time_points = get_input_paths(Path(args.reads_dir), args.input_file)
 
     logger.info("Loading time-series read files.")
     reads = TimeSeriesReads.load(
         time_points=time_points,
+        read_depths=read_depths,
         source_entries=read_sources,
         quality_format=args.quality_format
     )

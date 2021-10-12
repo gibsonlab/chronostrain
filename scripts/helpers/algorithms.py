@@ -68,7 +68,7 @@ def perform_bbvi(
         callbacks=callbacks
     )
     end_time = time.time()
-    logger.info("Finished inference in {} sec.".format(
+    logger.debug("Finished inference in {} sec.".format(
         (end_time - start_time)
     ))
 

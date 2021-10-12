@@ -1,14 +1,11 @@
 import argparse
-import csv
 from pathlib import Path
-from typing import Tuple, List, Iterable
-
-import torch
+from typing import Tuple, List
 
 from chronostrain import logger, cfg
 from chronostrain.algs import StrainVariant, BBVISolver
 from chronostrain.database import StrainDatabase
-from chronostrain.model import Population, PhredErrorModel, GenerativeModel
+from chronostrain.model import Population
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.algs.variants import StrainVariantComputer
 
@@ -31,6 +28,9 @@ def parse_args():
                         help='<Required> The file path to save learned outputs to.')
 
     # Other Optional params
+    parser.add_argument('--seed_with_database', action='store_true',
+                        help='If flag is turned on, initialize search with database-seeded strains. Otherwise,'
+                             'the seed is determined by the variant with highest correlation.')
     parser.add_argument('-q', '--quality_format', required=False, type=str, default='fastq',
                         help='<Optional> The quality format. Should be one of the options implemented in Biopython '
                              '`Bio.SeqIO.QualityIO` module.')
@@ -109,7 +109,7 @@ def search_best_variant_solution(
             iters=num_iters,
             learning_rate=learning_rate,
             num_samples=num_samples,
-            correlation_type="full",
+            correlation_type="strain",
             save_elbo_history=False,
             save_training_history=False
         )
@@ -121,6 +121,11 @@ def search_best_variant_solution(
         data_ll_estimate = (data_ll + prior_ll - posterior_ll_est).item()
 
         if data_ll_estimate <= best_data_ll_estimate:
+            logger.debug("Data LL didn't improve ({:.3f} --> {:.3f}). Terminating search at variants [{}].".format(
+                best_data_ll_estimate,
+                data_ll_estimate,
+                best_variants
+            ))
             break
         else:
             best_variants = included_variants
@@ -141,12 +146,13 @@ def main():
     db = cfg.database_cfg.get_database()
 
     # ==== Load Population instance from database info
-    read_sources, time_points = get_input_paths(Path(args.reads_dir), args.input_file)
+    read_sources, read_depths, time_points = get_input_paths(Path(args.reads_dir), args.input_file)
 
     # ==== Load reads.
     logger.info("Loading time-series read files.")
     reads = TimeSeriesReads.load(
         time_points=time_points,
+        read_depths=read_depths,
         source_entries=read_sources,
         quality_format=args.quality_format
     )

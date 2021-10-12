@@ -7,7 +7,6 @@ from typing import List, Tuple
 
 from tqdm import tqdm
 from torch.distributions.multivariate_normal import MultivariateNormal
-from torch.nn.functional import softmax
 
 from chronostrain.model.bacteria import Population
 from chronostrain.model.fragments import FragmentSpace
@@ -89,9 +88,10 @@ class GenerativeModel:
         :param read_likelihoods: A length-T list of (F x N) tensors representing the fragment-to-read likelihoods.
         :return:
         """
+        y = torch.softmax(X, dim=1)
+
         # Calculation is sigma(X) @ W @ E.
         if cfg.model_cfg.use_sparse:
-            y = softmax(X, dim=1)
             total_ll = 0.
             for t in range(self.num_times()):
                 likelihoods_t = torch.mm(  # result is (T x N)
@@ -101,7 +101,6 @@ class GenerativeModel:
                 total_ll += likelihoods_t
             return total_ll
         else:
-            y = softmax(X, dim=1)
             total_ll = 0.
             for t in range(self.num_times()):
                 # (T x S) * (S x F) * (F x N)
@@ -292,7 +291,8 @@ class GenerativeModel:
             time_slices.append(TimeSliceReads(
                 reads=reads_arr,
                 time_point=self.times[t],
-                src=None
+                src=None,
+                read_depth=read_depth
             ))
 
         return TimeSeriesReads(time_slices)

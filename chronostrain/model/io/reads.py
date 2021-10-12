@@ -33,10 +33,15 @@ class TimeSliceReadSource(object):
 
 
 class TimeSliceReads(object):
-    def __init__(self, reads: List[SequenceRead], time_point: float, src: Optional[TimeSliceReadSource] = None):
+    def __init__(self,
+                 reads: List[SequenceRead],
+                 time_point: float,
+                 read_depth: int,
+                 src: Optional[TimeSliceReadSource] = None):
         self.reads: List[SequenceRead] = reads
         self.time_point: float = time_point
         self.src: Union[TimeSliceReadSource, None] = src
+        self.read_depth: int = read_depth
 
     def save(self, quality_format: str) -> int:
         """
@@ -77,11 +82,12 @@ class TimeSliceReads(object):
                 yield record
 
     @staticmethod
-    def load(src: TimeSliceReadSource, time_point: float) -> "TimeSliceReads":
+    def load(src: TimeSliceReadSource, read_depth: int, time_point: float) -> "TimeSliceReads":
         """
         Creates an instance of TimeSliceReads() from the specified file path.
 
         :param src: A TimeSliceReadSource instance pointing to the files on disk.
+        :param read_depth: The read depth (total number of reads in the experiment) for this particular timepoint.
         :param time_point: The timepoint that this source corresponds to.
         :return:
         """
@@ -118,7 +124,7 @@ class TimeSliceReads(object):
                 f=file_path,
                 sz=convert_size(file_path.stat().st_size)
             ))
-        return TimeSliceReads(reads, time_point, src)
+        return TimeSliceReads(reads, time_point, read_depth, src)
 
     def __iter__(self) -> Iterator[SequenceRead]:
         for read in self.reads:
@@ -148,7 +154,10 @@ class TimeSeriesReads(object):
         ))
 
     @staticmethod
-    def load(time_points: List[float], source_entries: List[Iterable[Path]], quality_format: str):
+    def load(time_points: List[float],
+             read_depths: List[int],
+             source_entries: List[Iterable[Path]],
+             quality_format: str):
         if len(time_points) != len(source_entries):
             raise ValueError("Number of time points ({}) do not match number of read sources. ({})".format(
                 len(time_points), len(source_entries)
@@ -160,8 +169,8 @@ class TimeSeriesReads(object):
         ]
 
         return TimeSeriesReads([
-            TimeSliceReads.load(src, t)
-            for src, t in zip(time_slice_sources, time_points)
+            TimeSliceReads.load(src, read_depth_t, t)
+            for src, read_depth_t, t in zip(time_slice_sources, read_depths, time_points)
         ])
 
     def __iter__(self) -> Iterator[TimeSliceReads]:

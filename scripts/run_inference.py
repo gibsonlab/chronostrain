@@ -79,11 +79,12 @@ def main():
     # ==== Load Population instance from database info
     population = Population(strains=db.all_strains(), extra_strain=cfg.model_cfg.extra_strain)
 
-    read_sources, time_points = get_input_paths(Path(args.reads_dir), args.input_file)
+    read_sources, read_depths, time_points = get_input_paths(Path(args.reads_dir), args.input_file)
 
     logger.info("Loading time-series read files.")
     reads = TimeSeriesReads.load(
         time_points=time_points,
+        read_depths=read_depths,
         source_entries=read_sources,
         quality_format=args.quality_format
     )

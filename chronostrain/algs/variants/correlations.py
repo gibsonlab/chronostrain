@@ -171,7 +171,7 @@ class StrainVariantComputer(object):
         for marker_idx, (marker, alns) in enumerate(self._alignments_by_marker(self.all_markers)):
             # Create the observation matrix for this marker, to be concatenated.
             variants = MarkerVariantEvidence(marker, alns, self.quality_threshold)
-            obs = variants.supported_evidence_change()
+            obs = variants.supported_mean_evidence_change()
             all_obs.append(obs)
 
             assert obs.shape[0] == len(self.reads) - 1
@@ -264,7 +264,8 @@ class StrainVariantComputer(object):
 
         for t_idx in range(len(self.reads)):
             alns_t = self.cached_alignments.get_alignments(t_idx)
+            read_depth_t = self.reads.time_slices[t_idx].read_depth
             for marker, alns in alns_t.items():
-                markers_to_alns[marker].set_alignments(alns, t_idx)
+                markers_to_alns[marker].set_alignments(alns, read_depth_t, t_idx)
 
         yield from markers_to_alns.items()
