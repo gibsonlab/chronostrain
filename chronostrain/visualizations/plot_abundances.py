@@ -291,7 +291,7 @@ def render_read_counts(dataframe: pd.DataFrame,
     ax2.set_xlabel("# Reads")
 
 
-def plot_elbo(elbo: np.array,
+def plot_elbo(elbo: np.ndarray,
               x_label: str,
               y_label: str,
               title: str,

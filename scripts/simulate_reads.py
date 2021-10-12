@@ -10,7 +10,7 @@ import torch
 from typing import List, Tuple
 
 from chronostrain import logger, cfg
-from chronostrain.database import StrainNotFoundError
+from chronostrain.database import QueryNotFoundError
 from chronostrain.model import generative, reads
 from chronostrain.model.bacteria import Population
 from chronostrain.model.io import TimeSeriesReads, save_abundances, load_abundances
@@ -82,7 +82,7 @@ def sample_reads(
         logger.info("Flag --disable_quality turned on; Quality scores are disabled.")
         my_error_model = reads.NoiselessErrorModel()
     else:
-        my_error_model = reads.BasicFastQErrorModel(read_len=read_length)
+        my_error_model = reads.PhredErrorModel(read_len=read_length)
     my_model = generative.GenerativeModel(
         times=time_points,
         mu=mu,
@@ -152,14 +152,7 @@ def main():
 
     # ========== Create Population instance.
     if accessions:
-        try:
-            population = Population(database.get_strains(accessions), extra_strain=cfg.model_cfg.extra_strain)
-        except StrainNotFoundError as e:
-            print("Strain `{}` from abundances file `{}` not found in database.".format(
-                e.strain_id,
-                args.abundance_path
-            ))
-            raise e
+        population = Population(database.get_strains(accessions), extra_strain=cfg.model_cfg.extra_strain)
     else:
         population = Population(database.all_strains(), extra_strain=cfg.model_cfg.extra_strain)
 
@@ -184,7 +177,7 @@ def main():
         out_path_t = Path(args.out_dir) / "{}-reads.fastq".format(time_slice.time_point)
         out_paths.append(out_path_t)
         time_slice.src = out_path_t
-    sampled_reads.save()
+    sampled_reads.save("fastq")
 
     logger.debug("Saving (re-normalized) abundances to file...")
     save_abundances(

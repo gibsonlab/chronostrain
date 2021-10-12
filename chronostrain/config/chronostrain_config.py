@@ -8,7 +8,8 @@ from configparser import SafeConfigParser
 import torch
 import chronostrain
 
-from . import logger
+from .logging import create_logger
+logger = create_logger(__name__)
 
 
 class ConfigurationParseError(BaseException):
@@ -55,16 +56,19 @@ class DatabaseConfig(AbstractConfig):
 
         return class_name, kwargs, datadir
 
-    def get_database(self, force_refresh: bool = False) -> "chronostrain.database.AbstractStrainDatabase":
+    def get_database(self, force_refresh: bool = False) -> "chronostrain.database.StrainDatabase":
+        """
+        Creates a new instance of a StrainDatabase object.
+        """
         module_name, class_name = self.class_name.rsplit(".", 1)
         class_ = getattr(importlib.import_module(module_name), class_name)
         db_kwargs = self.kwargs.copy()
         db_kwargs["force_refresh"] = force_refresh
         db_obj = class_(**db_kwargs)
-        if not isinstance(db_obj, chronostrain.database.AbstractStrainDatabase):
+        if not isinstance(db_obj, chronostrain.database.StrainDatabase):
             raise RuntimeError("Specified database class {} is not a subclass of {}".format(
                 self.class_name,
-                chronostrain.database.AbstractStrainDatabase.__class__.__name__
+                chronostrain.database.StrainDatabase.__class__.__name__
             ))
         return db_obj
 

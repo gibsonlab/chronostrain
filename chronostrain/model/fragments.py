@@ -1,15 +1,15 @@
 """
   fragments.py
 """
+import numpy as np
 from typing import Dict, List, Iterable
 
-import numpy as np
-from chronostrain.util.sequences import nucleotides_to_z4, z4_to_nucleotides
+from chronostrain.util.sequences import z4_to_nucleotides, SeqType
 
 
 class Fragment:
-    def __init__(self, seq: str, index: int, metadata: str):
-        self.seq: np.ndarray = nucleotides_to_z4(seq)
+    def __init__(self, seq: SeqType, index: int, metadata: str):
+        self.seq: SeqType = seq
         self.seq_len = len(seq)
         self.index: int = index
         self.metadata: str = metadata
@@ -21,7 +21,9 @@ class Fragment:
         if not isinstance(other, Fragment):
             return False
         else:
-            return self.index == other.index
+            return self.index == other.index \
+                   and len(self.seq) == len(other.seq) \
+                   and np.sum(self.seq != other.seq) == 0
 
     def add_metadata(self, metadata):
         if self.metadata:
@@ -56,17 +58,20 @@ class FragmentSpace:
         self.seq_to_frag: Dict[str, Fragment] = dict()
         self.frag_list: List[Fragment] = list()
 
-    def contains_seq(self, seq):
-        return seq in self.seq_to_frag
+    def contains_seq(self, seq: SeqType) -> bool:
+        return self.seq_to_key(seq) in self.seq_to_frag
 
-    def _create_seq(self, seq):
+    def seq_to_key(self, seq: SeqType) -> str:
+        return str(seq)
+
+    def _create_frag(self, seq: SeqType):
         frag = Fragment(seq=seq, index=self.fragment_instances_counter, metadata="")
-        self.seq_to_frag[seq] = frag
+        self.seq_to_frag[self.seq_to_key(seq)] = frag
         self.frag_list.append(frag)
         self.fragment_instances_counter += 1
         return frag
 
-    def add_seq(self, seq: str, metadata: str = None) -> Fragment:
+    def add_seq(self, seq: SeqType, metadata: str = None) -> Fragment:
         """
         Tries to add a new Fragment instance encapsulating the string seq.
         If the seq is already in the space, nothing happens.
@@ -76,9 +81,9 @@ class FragmentSpace:
         :return: the Fragment instance that got added.
         """
         if self.contains_seq(seq):
-            frag = self.seq_to_frag[seq]
+            frag = self.get_fragment(seq)
         else:
-            frag = self._create_seq(seq)
+            frag = self._create_frag(seq)
 
         if metadata:
             frag.add_metadata(metadata)
@@ -87,7 +92,7 @@ class FragmentSpace:
     def get_fragments(self) -> Iterable[Fragment]:
         return self.seq_to_frag.values()
 
-    def get_fragment(self, seq: str) -> Fragment:
+    def get_fragment(self, seq: SeqType) -> Fragment:
         """
         Retrieves a Fragment instance corresponding to the sequence.
         Raises KeyError if the sequence is not found in the space.
@@ -96,7 +101,7 @@ class FragmentSpace:
         :return: the Fragment instance encapsulating the seq.
         """
         try:
-            return self.seq_to_frag[seq]
+            return self.seq_to_frag[self.seq_to_key(seq)]
         except KeyError:
             raise KeyError("Sequence '{}' not in dictionary.".format(seq)) from None
 

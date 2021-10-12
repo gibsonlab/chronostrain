@@ -7,7 +7,6 @@ from typing import List, Tuple
 
 from tqdm import tqdm
 from torch.distributions.multivariate_normal import MultivariateNormal
-from torch.nn.functional import softmax
 
 from chronostrain.model.bacteria import Population
 from chronostrain.model.fragments import FragmentSpace
@@ -15,7 +14,9 @@ from chronostrain.model.reads import AbstractErrorModel, SequenceRead
 from chronostrain.model.io import TimeSeriesReads, TimeSliceReads
 from chronostrain.util.math.distributions import *
 from chronostrain.util.sparse import SparseMatrix
-from . import logger
+
+from chronostrain.config.logging import create_logger
+logger = create_logger(__name__)
 
 
 class GenerativeModel:
@@ -72,7 +73,39 @@ class GenerativeModel:
         return self.bacteria_pop.get_strain_fragment_frequencies(window_size=self.read_length)
 
     def log_likelihood_x(self, X: torch.Tensor) -> torch.Tensor:
+        """
+        Given an (T x N x S) tensor where N = # of instances/samples of X, compute the N different log-likelihoods.
+        """
+        if len(X.size()) == 2:
+            r, c = X.size()
+            X = X.view(r, 1, c)
         return self.log_likelihood_x_sics_prior(X)
+
+    def data_likelihood(self, X: torch.Tensor, read_likelihoods: List[Union[torch.Tensor, SparseMatrix]]) -> float:
+        """
+        Computes the conditional data likelihood p(Data | X).
+        :param X: The (T x S) tensor of latent abundance representations.
+        :param read_likelihoods: A length-T list of (F x N) tensors representing the fragment-to-read likelihoods.
+        :return:
+        """
+        y = torch.softmax(X, dim=1)
+
+        # Calculation is sigma(X) @ W @ E.
+        if cfg.model_cfg.use_sparse:
+            total_ll = 0.
+            for t in range(self.num_times()):
+                likelihoods_t = torch.mm(  # result is (T x N)
+                    y[t].view(1, -1),  # (T x S)
+                    self.get_fragment_frequencies().t().sparse_mul(read_likelihoods[t]).to_dense()  # (F x S).T x (F x N) -> (S x N)
+                ).log().sum()
+                total_ll += likelihoods_t
+            return total_ll
+        else:
+            total_ll = 0.
+            for t in range(self.num_times()):
+                # (T x S) * (S x F) * (F x N)
+                total_ll += torch.log(y[t] @ (self.get_fragment_frequencies().t() @ read_likelihoods[t])).sum()
+            return total_ll
 
     def log_likelihood_x_halfcauchy_prior(self, X: torch.Tensor) -> torch.Tensor:
         """
@@ -166,12 +199,14 @@ class GenerativeModel:
 
     def log_likelihood_x_sics_prior(self, X: torch.Tensor) -> torch.Tensor:
         ans = torch.zeros(size=[X[0].size()[0]], device=X[0].device)
+        X_prev = None
         for t_idx, X_t in enumerate(X):
             ans = ans + self.log_likelihood_xt_sics_prior_helper(
                 t_idx=t_idx,
                 X=X_t,
-                X_prev=X[t_idx - 1, :, :] if t_idx > 0 else None
+                X_prev=X_prev
             )
+            X_prev = X_t
         return ans
 
     def log_likelihood_xt_sics_prior_helper(self,
@@ -256,7 +291,8 @@ class GenerativeModel:
             time_slices.append(TimeSliceReads(
                 reads=reads_arr,
                 time_point=self.times[t],
-                src=None
+                src=None,
+                read_depth=read_depth
             ))
 
         return TimeSeriesReads(time_slices)

@@ -11,14 +11,22 @@ from typing import Callable, Optional, List, Dict, Any
 import pickle
 import hashlib
 
-from . import logger
 from chronostrain.config import cfg
+from chronostrain.model.bacteria import Strain, Marker
 from chronostrain.util.filesystem import md5_checksum
+
+from chronostrain.config.logging import create_logger
+logger = create_logger(__name__)
 
 
 class CacheTag(object):
     def __init__(self, **kwargs):
         """
+        A cache identification object, whose initialization kwargs specify the dependencies which generate the
+        cache key.
+        In particular, if a file path (Path object) is passed in, then the cache key is a function of the md5 checksum
+        of the file contents.
+
         :param kwargs: Other optional kwargs to use for generating the cache key.
         If a list is passed, each item is processed recursively.
         If a Path-like instance is passed, it is processed using its MD5 checksum.
@@ -31,11 +39,11 @@ class CacheTag(object):
         processed_dict = dict()
         for key, value in self.attr_dict.items():
             processed_dict[key] = self.process_item(value)
-        return hashlib.md5(str(processed_dict).encode('utf-8')).hexdigest()
+        return hashlib.md5(repr(processed_dict).encode('utf-8')).hexdigest()
 
     def process_item(self, item) -> str:
         if isinstance(item, dict):
-            logger.warn("CacheTag might not properly handle dictionary attributes.")
+            logger.warning("CacheTag might not properly handle dictionary attributes.")
             return str(item)
         elif isinstance(item, list):
             return "[{}]".format(",".join(
@@ -44,17 +52,26 @@ class CacheTag(object):
         elif isinstance(item, Path):
             return md5_checksum(item)
         else:
-            return str(item)
+            return repr(item)
 
-    def write_attributes_to_disk(self, path: Path):
+    def write_readable_attributes_to_disk(self, path: Path):
         def _recursive_render(o) -> str:
             if isinstance(o, dict):
-                logger.warn("CacheTag might not properly handle dictionary attributes.")
+                logger.warning("CacheTag might not properly handle dictionary attributes.")
                 o_str = str(o)
             elif isinstance(o, list):
                 o_str = "[{}]".format(",".join(
                     _recursive_render(entry) for entry in o
                 ))
+            elif isinstance(o, Strain):
+                o_str = "Strain({}){}".format(
+                    o.id,
+                    _recursive_render(o.markers)
+                )
+            elif isinstance(o, Marker):
+                o_str = "Marker:{}".format(
+                    o.id
+                )
             elif isinstance(o, Path):
                 o_str = "<file:{}>".format(str(o))
             else:
@@ -67,8 +84,6 @@ class CacheTag(object):
                     "{}: {}".format(key, _recursive_render(value)),
                     file=f
                 )
-                print(_recursive_render(value))
-
 
 def pickle_saver(path, obj):
     """
@@ -133,7 +148,7 @@ class ComputationCache(object):
                 self.cache_tag.encoding, cache_path
             ))
 
-        self.cache_tag.write_attributes_to_disk(self.cache_dir / "attributes.txt")
+        self.cache_tag.write_readable_attributes_to_disk(self.cache_dir / "attributes.txt")
         data = fn(*args, **kwargs)
         save(cache_path, data)
 

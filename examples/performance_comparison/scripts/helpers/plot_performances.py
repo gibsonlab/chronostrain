@@ -78,7 +78,7 @@ def plot_performance_comparison(
             try:
                 time_points, abundances, accessions = load_abundances(path)
             except FileNotFoundError as e:
-                logger.warn("File {} not found. Skipping.".format(path))
+                logger.warning("File {} not found. Skipping.".format(path))
                 continue
 
             # Reorder abundances based on order of accessions.
@@ -105,7 +105,7 @@ def plot_performance_comparison(
             try:
                 abundances = load_abundance_samples(path)  # (T x N x S)
             except FileNotFoundError as e:
-                logger.warn("File {} not found. Skipping.".format(path))
+                logger.warning("File {} not found. Skipping.".format(path))
                 continue
             hellinger_errors = torch.pow(
                 abundances.sqrt() - true_abundances.unsqueeze(1).sqrt(),

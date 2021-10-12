@@ -1,4 +1,4 @@
-from chronostrain.database.json import *
+from chronostrain.database.parser.json import *
 
 
 def test_deserialization():

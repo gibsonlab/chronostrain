@@ -37,7 +37,7 @@ class RampUpRampDownDistribution(AbstractQScoreDistribution):
         self.quality_score_values = quality_score_values
         self.qvec = self.create_qvec()  # Hardcoded quality score vector.
 
-    def compute_log_likelihood(self, qvec: np.array):
+    def compute_log_likelihood(self, qvec: np.ndarray):
         """
         Likelihood is just the indicator function.
         :param qvec: the query
@@ -45,10 +45,10 @@ class RampUpRampDownDistribution(AbstractQScoreDistribution):
         """
         return int(np.equal(qvec, self.qvec))
 
-    def sample_qvec(self) -> np.array:
+    def sample_qvec(self) -> np.ndarray:
         return self.qvec
 
-    def create_qvec(self) -> np.array:
+    def create_qvec(self) -> np.ndarray:
         """
         Returns a single quality score vector ('q vector').
 

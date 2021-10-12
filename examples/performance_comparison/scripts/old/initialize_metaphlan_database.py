@@ -123,7 +123,7 @@ def convert_to_metaphlan_db(chronostrain_db, metaphlan_in_path: Path, metaphlan_
             new_metaphlan_db['taxonomy'][strain_gtdb_levels] = (strain_ncbi_levels, strain.genome_length)
 
             for marker in strain.markers:
-                marker_id = "{}-{}".format(strain.metadata.ncbi_accession, marker.name)
+                marker_id = "{}-{}".format(strain.metadata.ncbi_accession, marker.id)
                 # Add the information of the new marker as the other markers
 
                 new_metaphlan_db['markers'][marker_id] = {

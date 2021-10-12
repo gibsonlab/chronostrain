@@ -18,3 +18,15 @@ class AbstractPosterior(metaclass=ABCMeta):
         :return: A time-indexed (T x N x S) abundance tensor.
         """
         pass
+
+    @abstractmethod
+    def mean(self) -> torch.Tensor:
+        """
+        Returns the mean of this posterior distribution.
+        :return: A time-indexed (T x S) abundance tensor.
+        """
+        pass
+
+    @abstractmethod
+    def log_likelihood(self, x) -> float:
+        pass

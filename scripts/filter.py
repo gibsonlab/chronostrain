@@ -2,14 +2,16 @@ import argparse
 import csv
 import re
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Iterable
 
 from chronostrain import logger, cfg
 from multiprocessing import cpu_count
 from chronostrain.util.external import bwa
 from chronostrain.util.external import CommandLineException
 from chronostrain.util.external.commandline import call_command
-from chronostrain.util.sam_handler import SamHandler
+from chronostrain.util.alignments import SamHandler
+
+from .helpers import get_input_paths
 
 
 def ref_base_name(ref_path: Path) -> str:
@@ -131,7 +133,7 @@ def parse_md_tag(tag: str):
             elif len(sequence) == 1:  # (2)
                 total_clipped_length += 1
             else:
-                logger.warn("Unrecognized sequence in MD tag: " + sequence)
+                logger.warning("Unrecognized sequence in MD tag: " + sequence)
     return total_matches / total_clipped_length
 
 
@@ -170,11 +172,12 @@ def filter_on_match_identity(percent_identity, identity_threshold=0.9):
     return percent_identity > identity_threshold
 
 
-def filter_file(sam_file: Path,
+def filter_file(sam_files: List[Path],
                 reference_path: Path,
                 result_metadata_path: Path,
                 result_fq_path: Path,
-                result_sam_path: Path):
+                result_sam_path: Path,
+                quality_format: str):
     """
     Parses a sam file and filters reads using the above criteria.
     Writes the results to a fastq file containing the passing reads and a TSV containing columns:
@@ -185,37 +188,44 @@ def filter_file(sam_file: Path,
     result_fq = open(result_fq_path, 'w')
     result_full_alignment = open(result_sam_path, 'w')
 
-    sam_handler = SamHandler(sam_file, reference_path)
-    for sam_line in sam_handler.mapped_lines():
-        if sam_line.optional_tags['MD'] is not None:
-            percent_identity = parse_md_tag(sam_line.optional_tags['MD'])
-            passed_filter = (
-                filter_on_match_identity(percent_identity) and filter_on_read_quality(sam_line.quality)
-            )
-            result_metadata.write(
-                sam_line.readname
-                + '\t{:0.4f}\t'.format(percent_identity)
-                + str(int(passed_filter))
-                + '\n'
-            )
-            if passed_filter:
-                result_fq.write('@' + sam_line.readname + '\n')
-                result_fq.write(sam_line.read + '\n')
-                result_fq.write('+\n')
-                result_fq.write(sam_line.quality + '\n')
-                result_full_alignment.write(str(sam_line))
+    for sam_file in sam_files:
+        sam_handler = SamHandler(sam_file, reference_path, quality_format)
+        for sam_line in sam_handler.mapped_lines():
+            if sam_line.optional_tags['MD'] is not None:
+                percent_identity = parse_md_tag(sam_line.optional_tags['MD'])
+                passed_filter = (
+                    filter_on_match_identity(percent_identity) and filter_on_read_quality(sam_line.read_quality)
+                )
+                result_metadata.write(
+                    sam_line.readname
+                    + '\t{:0.4f}\t'.format(percent_identity)
+                    + str(int(passed_filter))
+                    + '\n'
+                )
+                if passed_filter:
+                    logger.warning("@ TODO == Change filter.py's filter_file() to use Bio.SeqIO library.")
+                    # TODO [IMPORTANT]: change this to use BioPython's writer.
+
+                    result_fq.write('@' + sam_line.readname + '\n')
+                    result_fq.write(sam_line.read + '\n')
+                    result_fq.write('+\n')
+                    result_fq.write(sam_line.read_quality + '\n')
+                    result_full_alignment.write(str(sam_line))
 
     result_full_alignment.close()
     result_metadata.close()
     result_fq.close()
 
+
 class Filter:
     def __init__(self,
                  reference_file_path: Path,
-                 reads_paths: List[Path],
+                 read_source_paths: List[Iterable[Path]],
                  time_points: List[float],
+                 read_depths: List[int],
                  align_cmd: str,
-                 output_dir: Path):
+                 output_dir: Path,
+                 quality_format: str):
         logger.debug("Ref path: {}".format(reference_file_path))
 
         # Note: Bowtie2 does not have the restriction to uncompress bz2 files, but bwa does.
@@ -225,10 +235,12 @@ class Filter:
         else:
             self.reference_path = reference_file_path
 
-        self.reads_paths = reads_paths
+        self.read_source_paths = read_source_paths
         self.time_points = time_points
+        self.read_depths = read_depths
         self.align_cmd = align_cmd
         self.output_dir = output_dir
+        self.quality_format = quality_format
 
     def apply_filter(self):
         """
@@ -244,52 +256,48 @@ class Filter:
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         resulting_files = []
-        for time_point, reads_path in zip(self.time_points, self.reads_paths):
-            base_path = reads_path.parent
-            aligner_tmp_dir = base_path / "tmp"
-            aligner_tmp_dir.mkdir(parents=True, exist_ok=True)
+        for time_point, read_sources_t in zip(self.time_points, self.read_source_paths):
+            sam_paths_t = []
+            for read_path in read_sources_t:
+                base_path = read_path.parent
+                aligner_tmp_dir = base_path / "tmp"
+                aligner_tmp_dir.mkdir(parents=True, exist_ok=True)
 
-            sam_path = aligner_tmp_dir / "{}-{}.sam".format(time_point, ref_base_name(self.reference_path))
+                sam_path = aligner_tmp_dir / "{}-{}.sam".format(time_point, ref_base_name(self.reference_path))
 
-            bwa.bwa_mem(output_path=sam_path,
-                        reference_path=self.reference_path,
-                        read_path=reads_path,
-                        min_seed_length=100)
+                bwa.bwa_mem(output_path=sam_path,
+                            reference_path=self.reference_path,
+                            read_path=read_path,
+                            min_seed_length=100)
+                sam_paths_t.append(sam_path)
 
             result_metadata_path = self.output_dir / 'metadata_{}.tsv'.format(time_point)
             result_fq_path = self.output_dir / "reads_{}.fq".format(time_point)
             result_sam_path = self.output_dir / 'alignments_{}.sam'.format(time_point)
 
-            filter_file(sam_path, self.reference_path, result_metadata_path, result_fq_path, result_sam_path)
+            filter_file(sam_paths_t,
+                        self.reference_path,
+                        result_metadata_path,
+                        result_fq_path,
+                        result_sam_path,
+                        self.quality_format)
             logger.info("Timepoint {t}, filtered reads file: {f}".format(
                 t=time_point, f=result_fq_path
             ))
             resulting_files.append(result_fq_path)
 
-        save_input_csv(self.time_points, self.output_dir, "input_files.csv", resulting_files)
+        save_input_csv(self.time_points, self.read_depths, self.output_dir, "input_files.csv", resulting_files)
 
 
-def get_input_paths(base_dir: Path) -> Tuple[List[Path], List[float]]:
-    time_points = []
-    read_files = []
-
-    input_specification_path = base_dir / "input_files.csv"
-    try:
-        with open(input_specification_path, "r") as f:
-            input_specs = csv.reader(f, delimiter=',', quotechar='"')
-            for item in input_specs:
-                time_points.append(float(item[0]))
-                read_files.append(base_dir / item[1])
-    except FileNotFoundError:
-        raise FileNotFoundError("Missing required file `input_files.csv` in directory {}.".format(base_dir)) from None
-
-    return read_files, time_points
-
-
-def save_input_csv(time_points, out_dir: Path, out_filename, read_files):
+def save_input_csv(time_points: List[float], read_depths: List[int], out_dir: Path, out_filename, read_files):
     with open(out_dir / out_filename, "w") as f:
-        for t, read_file in zip(time_points, read_files):
-            print("\"{}\",\"{}\"".format(t, read_file), file=f)
+        writer = csv.writer(f, delimiter=',', quotechar='\"', quoting=csv.QUOTE_ALL)
+        for t, read_depth, read_file in zip(time_points, read_depths, read_files):
+            writer.writerow([
+                t,
+                read_depth,
+                read_file
+            ])
 
 
 def parse_args():
@@ -303,22 +311,35 @@ def parse_args():
                         dest="output_dir",
                         help='<Required> The file path to save learned outputs to.')
 
+    parser.add_argument('-q', '--quality_format', required=False, type=str, default='fastq',
+                        help='<Optional> The quality format. Should be one of the options implemented in Biopython '
+                             '`Bio.SeqIO.QualityIO` module.')
+
+    parser.add_argument('--input_file', required=False, type=str,
+                        default='input_files.csv',
+                        help='<Optional> The CSV input file specifier inside reads_dir.')
+
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
     db = cfg.database_cfg.get_database()
-    read_paths, time_points = get_input_paths(Path(args.reads_dir))
+    read_paths, read_depths, time_points = get_input_paths(
+        base_dir=Path(args.reads_dir),
+        input_filename=args.input_file
+    )
 
     # ============ Perform read filtering.
     logger.info("Performing filter on reads.")
     filt = Filter(
         reference_file_path=db.multifasta_file,
-        reads_paths=read_paths,
+        read_source_paths=read_paths,
         time_points=time_points,
+        read_depths=read_depths,
         align_cmd=cfg.filter_cfg.align_cmd,
-        output_dir=Path(args.output_dir)
+        output_dir=Path(args.output_dir),
+        quality_format=args.quality_format
     )
     filt.apply_filter()
     logger.info("Finished filtering.")

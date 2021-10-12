@@ -7,8 +7,12 @@ from chronostrain.config import cfg
 from chronostrain.model.io.reads import TimeSeriesReads
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.util.benchmarking import RuntimeEstimator
-from chronostrain.algs.base import AbstractModelSolver
-from . import logger
+from .base import AbstractModelSolver
+
+from chronostrain.config.logging import create_logger
+from chronostrain.database import StrainDatabase
+
+logger = create_logger(__name__)
 
 
 # ===========================================================================================
@@ -26,15 +30,17 @@ class EMSolver(AbstractModelSolver):
     def __init__(self,
                  generative_model: GenerativeModel,
                  data: TimeSeriesReads,
+                 db: StrainDatabase,
                  lr: float = 1e-3):
         """
         Instantiates an EMSolver instance.
 
         :param generative_model: The underlying generative model with prior parameters.
         :param data: the observed data, a time-indexed list of read collections.
+        :param db: The StrainDatabase instance.
         :param lr: the learning rate (default: 1e-3)
         """
-        super().__init__(generative_model, data)
+        super().__init__(generative_model, data, db)
         self.lr = lr
 
     def solve(self,
