@@ -60,7 +60,7 @@ class MarginalEvidence(object):
                 self.evidence_matrix[relative_positions_of_variants + aln.marker_start, bases] += qualities
 
     @property
-    def average_evidence(self):
+    def relative_evidence(self):
         return self.evidence_matrix / self.read_depth
 
 
@@ -101,7 +101,7 @@ class MarkerVariantEvidence(object):
         """
         return np.diff(
             np.stack([
-                evidence_t.average_evidence[self.support[0, :], self.support[1, :]]
+                evidence_t.relative_evidence[self.support[0, :], self.support[1, :]]
                 for evidence_t in self.counts_evidence
             ], axis=0),
             axis=0
