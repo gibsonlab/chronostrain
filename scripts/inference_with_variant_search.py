@@ -5,9 +5,11 @@ from typing import Tuple, List
 from chronostrain import logger, cfg
 from chronostrain.algs import StrainVariant, BBVISolver
 from chronostrain.database import StrainDatabase
-from chronostrain.model import Population
+from chronostrain.model import Population, GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.algs.variants import StrainVariantComputer
+
+import chronostrain.visualizations as viz
 
 from scripts.helpers import *
 
@@ -48,13 +50,9 @@ def parse_args():
                         help='<Optional> The number of monte-carlo samples for BBVI.')
     parser.add_argument('-lr', '--learning_rate', required=False, type=float, default=1e-4,
                         help='<Optional> The learning rate to use for the optimizer, if using EM or VI. Default: 1e-4.')
-    # parser.add_argument('--abundances_file', required=False, default='abundances.out',
-    #                     help='<Optional> Specify the filename for the learned abundances. '
-    #                          'The file format depends on the method. '
-    #                          'The file is saved to the output directory, specified by the -o option.')
-    # parser.add_argument('--num_posterior_samples', required=False, type=int, default=5000,
-    #                     help='<Optional> If using a variational method, specify the number of '
-    #                          'samples to generate as output.')
+    parser.add_argument('--num_posterior_samples', required=False, type=int, default=5000,
+                        help='<Optional> If using a variational method, specify the number of '
+                             'samples to generate as output.')
     # parser.add_argument('--plot_format', required=False, type=str, default="pdf")
 
     return parser.parse_args()
@@ -68,7 +66,7 @@ def search_best_variant_solution(
         num_iters: int,
         learning_rate: float,
         num_samples: int
-) -> Tuple[List[StrainVariant], Population, BBVISolver, float]:
+) -> Tuple[List[StrainVariant], GenerativeModel, BBVISolver, float]:
     computer = StrainVariantComputer(
         db=db,
         reads=reads,
@@ -88,7 +86,7 @@ def search_best_variant_solution(
 
     best_variants = []
     best_data_ll_estimate = float('-inf')
-    best_result: Tuple[Population, BBVISolver] = (None, None)
+    best_result: Tuple[GenerativeModel, BBVISolver] = (None, None)
 
     for n_top_variants in range(len(variants) + 1):
         included_variants = variants[:n_top_variants]
@@ -126,12 +124,13 @@ def search_best_variant_solution(
                 data_ll_estimate,
                 best_variants
             ))
-            break
+            return best_variants, model, best_result[1], best_data_ll_estimate
         else:
             best_variants = included_variants
             best_data_ll_estimate = data_ll_estimate
-            best_result = (population, solver)
-    return best_variants, best_result[0], best_result[1], best_data_ll_estimate
+            best_result = (model, solver)
+
+    raise RuntimeError("Unexpected behavior: Could not iterate through variants.")
 
 
 def main():
@@ -165,7 +164,7 @@ def main():
         raise RuntimeError("Filesystem error: out_dir argument points to something other than a directory.")
 
     # =============== Run the variant search + inference.
-    variants, population, solver, likelihood = search_best_variant_solution(
+    variants, model, solver, likelihood = search_best_variant_solution(
         db=db,
         reads=reads,
         read_len=read_len,
@@ -175,8 +174,32 @@ def main():
         num_samples=args.num_samples
     )
 
-    print("Final variants: {}".format(variants))
-    print("likelihood = {}".format(likelihood))
+    logger.info("Final variants: {}".format(variants))
+    logger.info("Final likelihood = {}".format(likelihood))
+
+    # =============== output BBVI result.
+    if args.save_fragment_probs:
+        viz.save_frag_probabilities(
+            reads=reads,
+            solver=solver,
+            out_path=out_dir / "reads_to_frags.csv"
+        )
+
+    if args.true_abundance_path is not None:
+        true_abundance_path = Path(args.true_abundance_path)
+    else:
+        true_abundance_path = None
+
+    # ==== Finally, plot the posterior.
+    viz.plot_bbvi_posterior(
+        model=model,
+        posterior=solver.gaussian_posterior,
+        plot_path=out_dir / "plot.{}".format(args.plot_format),
+        samples_path=out_dir / "samples.pt",
+        plot_format=args.plot_format,
+        ground_truth_path=true_abundance_path,
+        num_samples=args.num_posterior_samples
+    )
 
 
 if __name__ == "__main__":

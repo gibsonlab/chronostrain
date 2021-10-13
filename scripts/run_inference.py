@@ -51,7 +51,7 @@ def parse_args():
     parser.add_argument('-lr', '--learning_rate', required=False, type=float, default=1e-5,
                         help='<Optional> The learning rate to use for the optimizer, if using EM or VI. Default: 1e-5.')
     parser.add_argument('--abundances_file', required=False, default='abundances.out',
-                        help='<Optional> Specify the filename for the learned abundances. '
+                        help='<Optional> (For EM only) Specify the filename for the learned abundances. '
                              'The file format depends on the method. '
                              'The file is saved to the output directory, specified by the -o option.')
     parser.add_argument('--num_posterior_samples', required=False, type=int, default=5000,
@@ -176,7 +176,7 @@ def main():
             samples_path=out_dir / "samples.pt",
             plot_format=args.plot_format,
             ground_truth_path=true_abundance_path,
-            num_samples=10000
+            num_samples=args.num_posterior_samples
         )
     else:
         raise ValueError("{} is not an implemented method.".format(args.method))
