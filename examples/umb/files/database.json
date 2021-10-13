@@ -1,0 +1,16 @@
+[
+    {
+        "name": "Escherichia coli K-12",
+        "markers": [
+            {"type":"tag", "locus_id":"BW25113_4314", "name":"fimA"},
+        ],
+        "accession": "CP009273.1"
+    },
+    {
+        "name": "Escherichia coli A1_136",
+        "markers": [
+            {"type":"tag", "locus_id":"FE198_16990", "name":"fimA"},
+        ],
+        "accession": "CP040390.1"
+    }
+]

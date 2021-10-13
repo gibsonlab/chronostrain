@@ -53,7 +53,7 @@ def parse_args():
     parser.add_argument('--num_posterior_samples', required=False, type=int, default=5000,
                         help='<Optional> If using a variational method, specify the number of '
                              'samples to generate as output.')
-    # parser.add_argument('--plot_format', required=False, type=str, default="pdf")
+    parser.add_argument('--plot_format', required=False, type=str, default="pdf")
 
     return parser.parse_args()
 
@@ -65,7 +65,8 @@ def search_best_variant_solution(
         time_points: List[float],
         num_iters: int,
         learning_rate: float,
-        num_samples: int
+        num_samples: int,
+        seed_with_database: bool
 ) -> Tuple[List[StrainVariant], GenerativeModel, BBVISolver, float]:
     computer = StrainVariantComputer(
         db=db,
@@ -88,9 +89,18 @@ def search_best_variant_solution(
     best_data_ll_estimate = float('-inf')
     best_result: Tuple[GenerativeModel, BBVISolver] = (None, None)
 
-    for n_top_variants in range(len(variants) + 1):
-        included_variants = variants[:n_top_variants]
-        population = Population(strains=original_strains + included_variants)
+    if seed_with_database:
+        gen = range(len(variants) + 1)
+    else:
+        gen = range(1, len(variants) + 1)
+
+    for n_top_variants in gen:
+        if seed_with_database:
+            included_variants = variants[:n_top_variants]
+            population = Population(strains=original_strains + included_variants)
+        else:
+            included_variants = variants[:n_top_variants]
+            population = Population(strains=included_variants)
 
         # ============ Create model instance
         model = create_model(
@@ -171,7 +181,8 @@ def main():
         time_points=time_points,
         num_iters=args.iters,
         learning_rate=args.learning_rate,
-        num_samples=args.num_samples
+        num_samples=args.num_samples,
+        seed_with_database=args.seed_with_database
     )
 
     logger.info("Final variants: {}".format(variants))
