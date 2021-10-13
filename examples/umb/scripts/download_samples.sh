@@ -33,8 +33,20 @@ do
     continue
   fi
 
+  if [[ $lib_name =~ [a-zA-Z]+$ ]]; then
+  	echo "Skipping ${lib_name}."
+  	continue
+  fi
+
+	echo "-=-=-=-=-=-=-= Handling ${sra_id} (${lib_name}). =-=-=-=-=-=-=-"
+
+  # Extract token from UMB(patient)_(token).xyz
+  suffix=${lib_name##*_}
+  month=${suffix%.*}
+  time=$((10#${month} * 30))  # 30 days per month is a crude estimate.
+
 	# Prefetch
-	echo "[*] Prefetching ${sra_id}..."
+	echo "[*] Prefetching..."
 	prefetch --output-directory $SRA_PREFETCH_DIR --progress --verify yes $sra_id
 
 	# Fasterq-dump
@@ -50,15 +62,17 @@ do
 	# Gzip
 	fq_file_1="${SAMPLES_DIR}/${sra_id}_1.fastq"
 	fq_file_2="${SAMPLES_DIR}/${sra_id}_2.fastq"
+	num_lines=$(wc -l $fq_file_1 | awk '{print $1}')
+	num_reads=$((${num_lines} / 4))
+
 	echo "[*] Compressing..."
 	gzip $fq_file_1 --force
 
 	# ===== TEMPORARY: we aren't properly using paired-end information.
-#	rm $fq_file_2
+	echo "[*] Cleaning up reverse reads."
+	rm $fq_file_2
 
 	# Create index
-	time=1
-	n_reads=100
 	gz_file="${fq_file_1}.gz"
-	echo "\"${time}\",\"${n_reads}\",\"${gz_file}\"" >> $INPUT_INDEX_PATH
+	echo "\"${time}\",\"${num_reads}\",\"${gz_file}\"" >> $INPUT_INDEX_PATH
 done < <(cut -d "," -f${loc_col_a},${loc_col_b} ${SRA_CSV_PATH} | tail -n +2)
