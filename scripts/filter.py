@@ -1,6 +1,7 @@
 import argparse
 import csv
 import re
+import numpy as np
 from pathlib import Path
 from typing import List, Iterable
 
@@ -9,10 +10,12 @@ import Bio.SeqIO
 
 from chronostrain import logger, cfg
 from multiprocessing import cpu_count
+
+from chronostrain.database import StrainDatabase
 from chronostrain.util.external import bwa
 from chronostrain.util.external import CommandLineException
 from chronostrain.util.external.commandline import call_command
-from chronostrain.util.alignments import SamFile
+from chronostrain.util.alignments import SamFile, parse_alignments
 
 from helpers import get_input_paths
 
@@ -147,24 +150,11 @@ def trim_read_quality(read_quality):
     return read_quality[5:-10]
 
 
-def probability_from_ascii_encoding(ascii_quality):
-    return 10**(-(ord(ascii_quality)-33)/10)
-
-
-def find_expected_errors(probs):
-    return sum(probs)
-
-
-def filter_on_read_quality(read_quality, error_threshold=3):
-    """
-    TODO: Allow configurable expected error threshold
-    """
-    # trimmed_quality = trim_read_quality(read_quality)
-    probs = [probability_from_ascii_encoding(ascii_quality) for ascii_quality in read_quality]
-    expected_errs = find_expected_errors(probs)
-    if expected_errs > error_threshold:
-        return False
-    return True
+def filter_on_read_quality(phred_quality: np.ndarray, error_threshold: float = 3):
+    num_expected_errors = np.sum(
+        np.power(10, -0.1 * phred_quality)
+    )
+    return num_expected_errors < error_threshold
 
 
 def filter_on_match_identity(percent_identity, identity_threshold=0.9):
@@ -175,10 +165,13 @@ def filter_on_match_identity(percent_identity, identity_threshold=0.9):
     return percent_identity > identity_threshold
 
 
-def filter_file(sam_files: List[Path],
-                result_metadata_path: Path,
-                result_fq_path: Path,
-                quality_format: str):
+def filter_file(
+        db: StrainDatabase,
+        sam_files: List[Path],
+        result_metadata_path: Path,
+        result_fq_path: Path,
+        quality_format: str
+):
     """
     Parses a sam file and filters reads using the above criteria.
     Writes the results to a fastq file containing the passing reads and a metadata TSV containing columns:
@@ -187,32 +180,55 @@ def filter_file(sam_files: List[Path],
 
     result_metadata = open(result_metadata_path, 'w')
     metadata_csv_writer = csv.writer(result_metadata, delimiter='\t', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    metadata_csv_writer.writerow(
+        [
+            "READ",
+            "MARKER",
+            "MARKER_START",
+            "MARKER_END",
+            "PASSED_FILTER"
+        ]
+    )
 
     result_fq = open(result_fq_path, 'w')
+    reads_already_passed = set()
 
-    for sam_file in sam_files:
-        sam_handler = SamFile(sam_file, quality_format)
-        for sam_line in sam_handler.mapped_lines():
-            if sam_line.optional_tags['MD'] is not None:
+    for sam_file_path in sam_files:
+        for aln in parse_alignments(SamFile(sam_file_path, quality_format), db):
 
-                percent_identity = parse_md_tag(sam_line.optional_tags['MD'])
+            if aln.read_id in reads_already_passed:
+                # Read is already included in output file. Don't do anything.
+                continue
 
-                passed_filter = (
-                    filter_on_match_identity(percent_identity) and filter_on_read_quality(sam_line.read_quality)
+            # Pass filter if quality is high enough, and entire read is mapped.
+            passed_filter = (
+                    filter_on_read_quality(aln.read_qual)
+                    and ((aln.marker_end - aln.marker_start + 1) == len(aln.read_seq))
+            )
+
+            # Write to metadata file.
+            metadata_csv_writer.writerow(
+                [
+                    aln.read_id,
+                    aln.marker.id,
+                    aln.marker_start,
+                    aln.marker_end,
+                    str(int(passed_filter))
+                ]
+            )
+
+            if passed_filter:
+                # Add to collection of already added reads.
+                reads_already_passed.add(aln.read_id)
+
+                # Write SeqRecord to file.
+                record = Bio.SeqIO.SeqRecord(
+                    Seq(aln.read_seq_nucleotide),
+                    id=aln.read_id,
+                    description="{}_{}:{}".format(aln.marker.id, aln.marker_start, aln.marker_end)
                 )
-
-                metadata_csv_writer.writerow(
-                    [sam_line.readname, '{:0.4f}'.format(percent_identity), str(int(passed_filter))]
-                )
-
-                if passed_filter:
-                    record = Bio.SeqIO.SeqRecord(
-                        Seq(sam_line.read),
-                        id=sam_line.readname,
-                        description="PctId:{:.4f}({})".format(percent_identity, sam_line.contig_name)
-                    )
-                    record.letter_annotations["phred_quality"] = sam_line.phred_quality
-                    Bio.SeqIO.write(record, result_fq, "fastq")
+                record.letter_annotations["phred_quality"] = aln.read_qual
+                Bio.SeqIO.write(record, result_fq, "fastq")
 
     result_metadata.close()
     result_fq.close()
@@ -220,6 +236,7 @@ def filter_file(sam_files: List[Path],
 
 class Filter:
     def __init__(self,
+                 db: StrainDatabase,
                  reference_file_path: Path,
                  read_source_paths: List[Iterable[Path]],
                  time_points: List[float],
@@ -228,6 +245,8 @@ class Filter:
                  output_dir: Path,
                  quality_format: str):
         logger.debug("Reference path: {}".format(reference_file_path))
+
+        self.db = db
 
         # Note: Bowtie2 does not have the restriction to uncompress bz2 files, but bwa does.
         if reference_file_path.suffix == ".bz2":
@@ -273,7 +292,7 @@ class Filter:
                     reference_path=self.reference_path,
                     read_path=read_path,
                     min_seed_length=100,
-                    report_all_alignments=False  # Don't report multi-mappings for reads.
+                    report_all_alignments=True  # Just to make sure, report all possible alignments (multi-mapped reads)
                 )
                 sam_paths_t.append(sam_path)
 
@@ -287,10 +306,13 @@ class Filter:
                 ])
             ))
 
-            filter_file(sam_paths_t,
-                        result_metadata_path,
-                        result_fq_path,
-                        self.quality_format)
+            filter_file(
+                self.db,
+                sam_paths_t,
+                result_metadata_path,
+                result_fq_path,
+                self.quality_format
+            )
             logger.info("Timepoint {t}, filtered reads file: {f}".format(
                 t=time_point, f=result_fq_path
             ))
@@ -346,6 +368,7 @@ def main():
     # ============ Perform read filtering.
     logger.info("Performing filter on reads.")
     filt = Filter(
+        db=db,
         reference_file_path=db.multifasta_file,
         read_source_paths=read_paths,
         time_points=time_points,

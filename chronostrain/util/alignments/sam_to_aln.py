@@ -1,12 +1,12 @@
 import re
 from pathlib import Path
-from typing import Tuple, Dict, List
+from typing import Tuple, Dict, List, Iterator
 import numpy as np
 
 from chronostrain.database import StrainDatabase
 from chronostrain.model import Marker
 from chronostrain.util.alignments import SamFile, SamLine, CigarOp
-from chronostrain.util.sequences import nucleotides_to_z4, SeqType
+from chronostrain.util.sequences import nucleotides_to_z4, SeqType, z4_to_nucleotides
 
 from chronostrain.config.logging import create_logger
 logger = create_logger(__name__)
@@ -17,8 +17,8 @@ class SequenceReadAlignment(object):
                  read_id: str,
                  sam_path: Path,
                  sam_line_no: int,
-                 read_seq: np.array,
-                 read_qual: np.array,
+                 read_seq: np.ndarray,
+                 read_qual: np.ndarray,
                  marker: Marker,
                  read_start: int,
                  read_end: int,
@@ -39,27 +39,31 @@ class SequenceReadAlignment(object):
         :param reverse_complemented: Indicates whether the read sequence has been reverse-complemented from the original
             query. If so, then the quality is assumed to be reversed from the original query.
         """
-        self.read_id = read_id
-        self.sam_path = sam_path
-        self.sam_line_no = sam_line_no
-        self.id = "{}[{},{}]".format(read_id, marker_start, marker_end)
-        self.read_seq = read_seq
-        self.read_qual = read_qual
-        self.marker = marker
+        self.read_id: str = read_id
+        self.sam_path: Path = sam_path
+        self.sam_line_no: int = sam_line_no
+        self.id: str = "{}[{},{}]".format(read_id, marker_start, marker_end)
+        self.read_seq: np.ndarray = read_seq
+        self.read_qual: np.ndarray = read_qual
+        self.marker: Marker = marker
 
         assert (marker_end - marker_start) == (read_end - read_start)
-        self.read_start = read_start
-        self.read_end = read_end
-        self.marker_start = marker_start
-        self.marker_end = marker_end
+        self.read_start: int = read_start
+        self.read_end: int = read_end
+        self.marker_start: int = marker_start
+        self.marker_end: int = marker_end
 
         self.marker_frag: SeqType = marker.seq[marker_start:marker_end + 1]
-        self.reverse_complemented = reverse_complemented  # Indicates whether the read has been reverse complemented.
+        self.reverse_complemented: bool = reverse_complemented  # Indicates whether the read has been reverse complemented.
 
     @property
     def read_aligned_section(self) -> Tuple[np.ndarray, np.ndarray]:
         section = slice(self.read_start, self.read_end + 1)
         return self.read_seq[section], self.read_qual[section]
+
+    @property
+    def read_seq_nucleotide(self) -> str:
+        return z4_to_nucleotides(self.read_seq)
 
     def __eq__(self, other: 'SequenceReadAlignment') -> bool:
         return self.id == other.id
@@ -192,18 +196,21 @@ def parse_line_into_alignment(sam_path: Path, samline: SamLine, db: StrainDataba
     )
 
 
-def parse_alignments(sam_output: SamFile, db: StrainDatabase) -> Dict[Marker, List[SequenceReadAlignment]]:
+def parse_alignments(sam_file: SamFile, db: StrainDatabase) -> Iterator[SequenceReadAlignment]:
+    for samline in sam_file.mapped_lines():
+        try:
+            yield parse_line_into_alignment(sam_file.file_path, samline, db)
+        except NotImplementedError as e:
+            logger.warning(str(e))
+
+
+def marker_categorized_alignments(sam_file: SamFile, db: StrainDatabase) -> Dict[Marker, List[SequenceReadAlignment]]:
     marker_alignments = {
         marker: []
         for marker in db.all_markers()
     }
 
-    for samline in sam_output.mapped_lines():
-        if samline.is_mapped:
-            try:
-                aln = parse_line_into_alignment(sam_output.file_path, samline, db)
-                marker_alignments[aln.marker].append(aln)
-            except NotImplementedError as e:
-                logger.warning(str(e))
+    for aln in parse_alignments(sam_file, db):
+        marker_alignments[aln.marker].append(aln)
 
     return marker_alignments

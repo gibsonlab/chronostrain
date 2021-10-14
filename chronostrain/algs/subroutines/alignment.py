@@ -9,7 +9,7 @@ from chronostrain.model import Marker
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.util.data_cache import ComputationCache, CacheTag
 from chronostrain.util.external.bwa import bwa_mem, bwa_index
-from chronostrain.util.alignments import parse_alignments, SequenceReadAlignment, SamFile
+from chronostrain.util.alignments import marker_categorized_alignments, SequenceReadAlignment, SamFile
 from chronostrain.database import StrainDatabase
 
 
@@ -57,7 +57,7 @@ class CachedReadAlignments(object):
         }
         for reads_path in time_slice.src.paths:
             handler = self._get_alignment(reads_path, time_slice.src.quality_format)
-            for marker, alns in parse_alignments(handler, self.db).items():
+            for marker, alns in marker_categorized_alignments(handler, self.db).items():
                 alignments[marker] = alignments[marker] + alns
         return alignments
 
