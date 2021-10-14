@@ -1,5 +1,5 @@
 # Modify these before running.
-export PROJECT_DIR="~/chronostrain"
+export PROJECT_DIR="/PHShome/yk847/chronostrain"
 export CHRONOSTRAIN_DATA_DIR="/data/cctm/chronostrain"
 export BASE_DIR="${PROJECT_DIR}/examples/umb"
 
