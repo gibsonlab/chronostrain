@@ -14,12 +14,12 @@ from chronostrain.util.alignments import SamHandler
 from helpers import get_input_paths
 
 
-def ref_base_name(ref_path: Path) -> str:
+def file_base_name(file_path: Path) -> str:
     """
     Convert a reference fasta path to the "base name" (typically the accession + marker name).
     e.g. "/data/CP007799.1-16S.fq" -> "CP007799.1-16S"
     """
-    return ref_path.with_suffix('').name
+    return file_path.with_suffix('').name
 
 
 def call_cora(read_length: int,
@@ -263,7 +263,10 @@ class Filter:
                 aligner_tmp_dir = base_path / "tmp"
                 aligner_tmp_dir.mkdir(parents=True, exist_ok=True)
 
-                sam_path = aligner_tmp_dir / "{}-{}.sam".format(time_point, ref_base_name(self.reference_path))
+                sam_path = aligner_tmp_dir / "{}-{}.sam".format(
+                    time_point,
+                    file_base_name(read_path)
+                )
 
                 bwa.bwa_mem(output_path=sam_path,
                             reference_path=self.reference_path,
