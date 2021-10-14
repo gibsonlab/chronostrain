@@ -5,7 +5,7 @@ import numpy as np
 
 from chronostrain.database import StrainDatabase
 from chronostrain.model import Marker
-from chronostrain.util.alignments import SamHandler, SamLine, CigarOp
+from chronostrain.util.alignments import SamFile, SamLine, CigarOp
 from chronostrain.util.sequences import nucleotides_to_z4, SeqType
 
 from chronostrain.config.logging import create_logger
@@ -192,7 +192,7 @@ def parse_line_into_alignment(sam_path: Path, samline: SamLine, db: StrainDataba
     )
 
 
-def parse_alignments(sam_output: SamHandler, db: StrainDatabase) -> Dict[Marker, List[SequenceReadAlignment]]:
+def parse_alignments(sam_output: SamFile, db: StrainDatabase) -> Dict[Marker, List[SequenceReadAlignment]]:
     marker_alignments = {
         marker: []
         for marker in db.all_markers()

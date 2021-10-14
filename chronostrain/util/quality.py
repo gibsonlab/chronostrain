@@ -33,6 +33,10 @@ def _phred_fastq_sanger(qstr) -> List[int]:
 
 
 def ascii_to_phred(qstr: str, quality_format: str) -> np.ndarray:
+    """
+    :param qstr: The string of quality scores for a particular read.
+    :param quality_format: An option (as documented in Bio.SeqIO.QualityIO) for the quality score format.
+    """
     if quality_format == 'fastq':
         return np.array(_phred_fastq_sanger(qstr), dtype=float)
     elif quality_format == 'fastq-sanger':

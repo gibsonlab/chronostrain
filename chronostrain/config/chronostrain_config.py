@@ -3,7 +3,7 @@ import importlib
 from abc import ABCMeta, abstractmethod
 from typing import Tuple, Any
 from pathlib import Path
-from configparser import SafeConfigParser
+from configparser import ConfigParser
 
 import torch
 import chronostrain
@@ -250,7 +250,7 @@ def _config_load(ini_path: str) -> ChronostrainConfig:
             )
         )
 
-    cfg_parser = SafeConfigParser()
+    cfg_parser = ConfigParser()
     cfg_parser.read(ini_path)
 
     config_dict = {}
@@ -269,4 +269,4 @@ __ini__ = os.getenv(
     key=__env_key__,
     default=str(Path.cwd() / "chronostrain.ini")
 )
-cfg = _config_load(__ini__)
+cfg_instance = _config_load(__ini__)
