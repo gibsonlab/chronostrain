@@ -263,8 +263,7 @@ class Filter:
                 aligner_tmp_dir = base_path / "tmp"
                 aligner_tmp_dir.mkdir(parents=True, exist_ok=True)
 
-                sam_path = aligner_tmp_dir / "{}-{}.sam".format(
-                    time_point,
+                sam_path = aligner_tmp_dir / "{}.sam".format(
                     file_base_name(read_path)
                 )
 
