@@ -2,7 +2,7 @@
 set -e
 
 source settings.sh
-export CHRONOSTRAIN_LOG_FILEPATH="${CHRONOSTRAIN_DATA_DIR}/umb/logs/chronostrain.log"
+export CHRONOSTRAIN_LOG_FILEPATH="${LOGDIR}/chronostrain.log"
 SEED=31415
 
 # =========== Run chronostrain. ==================

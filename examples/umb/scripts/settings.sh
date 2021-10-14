@@ -31,6 +31,8 @@ export CHRONOSTRAIN_DB_DIR="${CHRONOSTRAIN_DATA_DIR}/umb/database"
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)
 export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
 export CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"
+export LOGDIR="${CHRONOSTRAIN_DATA_DIR}/umb/logs"
 
 # ========= Done.
 echo "Loaded shell settings from ${SETTINGS_PATH}."
+echo "Logging dir: ${LOGDIR}"

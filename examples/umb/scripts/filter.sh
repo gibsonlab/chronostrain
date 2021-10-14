@@ -2,7 +2,7 @@
 set -e
 
 source settings.sh
-export CHRONOSTRAIN_LOG_FILEPATH="${CHRONOSTRAIN_DATA_DIR}/umb/logs/filter.log"
+export CHRONOSTRAIN_LOG_FILEPATH="${LOGDIR}/filter.log"
 SEED=31415
 
 # =========== Read filtering. ===============
