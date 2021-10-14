@@ -11,7 +11,7 @@ from chronostrain.util.external import CommandLineException
 from chronostrain.util.external.commandline import call_command
 from chronostrain.util.alignments import SamHandler
 
-from .helpers import get_input_paths
+from helpers import get_input_paths
 
 
 def ref_base_name(ref_path: Path) -> str:
