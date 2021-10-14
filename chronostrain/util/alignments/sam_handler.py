@@ -71,7 +71,6 @@ class SamLine:
         self.map_pos_str: str = self.line[_SamTags.MapPos.value]
         self.map_quality: str = self.line[_SamTags.MapQuality.value]
         self.cigar_str: str = self.line[_SamTags.Cigar.value]
-        self.cigar: List[CigarElement] = parse_cigar(self.cigar_str)
         self.mate_pair: str = self.line[_SamTags.MatePair.value]
         self.mate_pos: str = self.line[_SamTags.MatePos.value]
         self.template_len: str = self.line[_SamTags.TemplateLen.value]
@@ -119,6 +118,10 @@ class SamLine:
 
     def __repr__(self):
         return self.__str__()
+
+    @property
+    def cigar(self) -> List[CigarElement]:
+        return parse_cigar(self.cigar_str)
 
 
 class SamHandler:
