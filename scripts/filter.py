@@ -242,20 +242,20 @@ class Filter:
         self.output_dir = output_dir
         self.quality_format = quality_format
 
-    def apply_filter(self):
+    def apply_filter(self, input_csv_filename: str):
         """
         :return: A list of paths to the resulting filtered read files.
         """
         if self.align_cmd == 'bwa':
-            self.apply_bwa_filter()
+            self.apply_bwa_filter(input_csv_filename)
         else:
             raise NotImplementedError("Alignment command `{}` not currently supported.".format(self.align_cmd))
 
-    def apply_bwa_filter(self):
+    def apply_bwa_filter(self, input_csv_filename: str):
         bwa.bwa_index(reference_path=self.reference_path)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        resulting_files = []
+        resulting_files: List[Path] = []
         for time_point, read_sources_t in zip(self.time_points, self.read_source_paths):
             sam_paths_t = []
             for read_path in read_sources_t:
@@ -286,10 +286,12 @@ class Filter:
             ))
             resulting_files.append(result_fq_path)
 
-        save_input_csv(self.time_points, self.read_depths, self.output_dir, "input_files.csv", resulting_files)
+        save_input_csv(self.time_points, self.read_depths, self.output_dir, input_csv_filename, resulting_files)
 
 
-def save_input_csv(time_points: List[float], read_depths: List[int], out_dir: Path, out_filename, read_files):
+def save_input_csv(time_points: List[float], read_depths: List[int],
+                   out_dir: Path, out_filename: str,
+                   read_files: List[Path]):
     with open(out_dir / out_filename, "w") as f:
         writer = csv.writer(f, delimiter=',', quotechar='\"', quoting=csv.QUOTE_ALL)
         for t, read_depth, read_file in zip(time_points, read_depths, read_files):
@@ -341,7 +343,7 @@ def main():
         output_dir=Path(args.output_dir),
         quality_format=args.quality_format
     )
-    filt.apply_filter()
+    filt.apply_filter(f"filtered_{args.input_file}")
     logger.info("Finished filtering.")
 
 
