@@ -4,12 +4,15 @@ import re
 from pathlib import Path
 from typing import List, Iterable
 
+from Bio.Seq import Seq
+import Bio.SeqIO
+
 from chronostrain import logger, cfg
 from multiprocessing import cpu_count
 from chronostrain.util.external import bwa
 from chronostrain.util.external import CommandLineException
 from chronostrain.util.external.commandline import call_command
-from chronostrain.util.alignments import SamHandler
+from chronostrain.util.alignments import SamFile
 
 from helpers import get_input_paths
 
@@ -36,7 +39,7 @@ def call_cora(read_length: int,
     cora_read_file_path = read_path_dir / "coraReadFileList"
 
     for reference_path, output_path in zip(reference_paths, output_paths):
-        ref_base = ref_base_name(reference_path)
+        ref_base = file_base_name(reference_path)
         hom_exact_path = hom_table_dir / "{}.exact".format(ref_base)
         hom_inexact_path = hom_table_dir / "{}.inexact".format(ref_base)
 
@@ -173,46 +176,44 @@ def filter_on_match_identity(percent_identity, identity_threshold=0.9):
 
 
 def filter_file(sam_files: List[Path],
-                reference_path: Path,
                 result_metadata_path: Path,
                 result_fq_path: Path,
-                result_sam_path: Path,
                 quality_format: str):
     """
     Parses a sam file and filters reads using the above criteria.
-    Writes the results to a fastq file containing the passing reads and a TSV containing columns:
+    Writes the results to a fastq file containing the passing reads and a metadata TSV containing columns:
         Read Name    Percent Identity    Passes Filter?
     """
 
     result_metadata = open(result_metadata_path, 'w')
+    metadata_csv_writer = csv.writer(result_metadata, delimiter='\t', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+
     result_fq = open(result_fq_path, 'w')
-    result_full_alignment = open(result_sam_path, 'w')
 
     for sam_file in sam_files:
-        sam_handler = SamHandler(sam_file, reference_path, quality_format)
+        sam_handler = SamFile(sam_file, quality_format)
         for sam_line in sam_handler.mapped_lines():
             if sam_line.optional_tags['MD'] is not None:
+
                 percent_identity = parse_md_tag(sam_line.optional_tags['MD'])
+
                 passed_filter = (
                     filter_on_match_identity(percent_identity) and filter_on_read_quality(sam_line.read_quality)
                 )
-                result_metadata.write(
-                    sam_line.readname
-                    + '\t{:0.4f}\t'.format(percent_identity)
-                    + str(int(passed_filter))
-                    + '\n'
+
+                metadata_csv_writer.writerow(
+                    [sam_line.readname, '{:0.4f}'.format(percent_identity), str(int(passed_filter))]
                 )
+
                 if passed_filter:
-                    logger.warning("@ TODO == Change filter.py's filter_file() to use Bio.SeqIO library.")
-                    # TODO [IMPORTANT]: change this to use BioPython's writer.
+                    record = Bio.SeqIO.SeqRecord(
+                        Seq(sam_line.read),
+                        id=sam_line.readname,
+                        description="PctId:{:.4f}({})".format(percent_identity, sam_line.contig_name)
+                    )
+                    record.letter_annotations["phred_quality"] = sam_line.phred_quality
+                    Bio.SeqIO.write(record, result_fq, "fastq")
 
-                    result_fq.write('@' + sam_line.readname + '\n')
-                    result_fq.write(sam_line.read + '\n')
-                    result_fq.write('+\n')
-                    result_fq.write(sam_line.read_quality + '\n')
-                    result_full_alignment.write(str(sam_line))
-
-    result_full_alignment.close()
     result_metadata.close()
     result_fq.close()
 
@@ -226,7 +227,7 @@ class Filter:
                  align_cmd: str,
                  output_dir: Path,
                  quality_format: str):
-        logger.debug("Ref path: {}".format(reference_file_path))
+        logger.debug("Reference path: {}".format(reference_file_path))
 
         # Note: Bowtie2 does not have the restriction to uncompress bz2 files, but bwa does.
         if reference_file_path.suffix == ".bz2":
@@ -242,16 +243,16 @@ class Filter:
         self.output_dir = output_dir
         self.quality_format = quality_format
 
-    def apply_filter(self, input_csv_filename: str):
+    def apply_filter(self, destination_csv: str):
         """
         :return: A list of paths to the resulting filtered read files.
         """
         if self.align_cmd == 'bwa':
-            self.apply_bwa_filter(input_csv_filename)
+            self.apply_bwa_filter(destination_csv)
         else:
             raise NotImplementedError("Alignment command `{}` not currently supported.".format(self.align_cmd))
 
-    def apply_bwa_filter(self, input_csv_filename: str):
+    def apply_bwa_filter(self, destination_csv: str):
         bwa.bwa_index(reference_path=self.reference_path)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -267,28 +268,35 @@ class Filter:
                     file_base_name(read_path)
                 )
 
-                bwa.bwa_mem(output_path=sam_path,
-                            reference_path=self.reference_path,
-                            read_path=read_path,
-                            min_seed_length=100)
+                bwa.bwa_mem(
+                    output_path=sam_path,
+                    reference_path=self.reference_path,
+                    read_path=read_path,
+                    min_seed_length=100,
+                    report_all_alignments=False  # Don't report multi-mappings for reads.
+                )
                 sam_paths_t.append(sam_path)
 
             result_metadata_path = self.output_dir / 'metadata_{}.tsv'.format(time_point)
             result_fq_path = self.output_dir / "reads_{}.fq".format(time_point)
-            result_sam_path = self.output_dir / 'alignments_{}.sam'.format(time_point)
+
+            logger.debug("(t = {}) Reading SAM files {}".format(
+                time_point,
+                "".join([
+                    str(p) for p in sam_paths_t
+                ])
+            ))
 
             filter_file(sam_paths_t,
-                        self.reference_path,
                         result_metadata_path,
                         result_fq_path,
-                        result_sam_path,
                         self.quality_format)
             logger.info("Timepoint {t}, filtered reads file: {f}".format(
                 t=time_point, f=result_fq_path
             ))
             resulting_files.append(result_fq_path)
 
-        save_input_csv(self.time_points, self.read_depths, self.output_dir, input_csv_filename, resulting_files)
+        save_input_csv(self.time_points, self.read_depths, self.output_dir, destination_csv, resulting_files)
 
 
 def save_input_csv(time_points: List[float], read_depths: List[int],

@@ -9,7 +9,7 @@ from chronostrain.model import Marker
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.util.data_cache import ComputationCache, CacheTag
 from chronostrain.util.external.bwa import bwa_mem, bwa_index
-from chronostrain.util.alignments import parse_alignments, SequenceReadAlignment, SamHandler
+from chronostrain.util.alignments import parse_alignments, SequenceReadAlignment, SamFile
 from chronostrain.database import StrainDatabase
 
 
@@ -61,7 +61,7 @@ class CachedReadAlignments(object):
                 alignments[marker] = alignments[marker] + alns
         return alignments
 
-    def _get_alignment(self, reads_path: Path, quality_format: str) -> SamHandler:
+    def _get_alignment(self, reads_path: Path, quality_format: str) -> SamFile:
         # ====== function bindings to pass to ComputationCache.
         def perform_alignment(align_path: Path, ref_path: Path, reads_path: Path):
             align_path.parent.mkdir(exist_ok=True, parents=True)
@@ -72,7 +72,7 @@ class CachedReadAlignments(object):
                 min_seed_length=20,
                 report_all_alignments=True
             )
-            return SamHandler(align_path, ref_path, quality_format)
+            return SamFile(align_path, quality_format)
 
         # ====== Run the cached computation.
         alignment_output_path = self.cache.cache_dir / self.get_path(reads_path)
@@ -80,7 +80,7 @@ class CachedReadAlignments(object):
             filename=alignment_output_path,
             fn=perform_alignment,
             save=lambda p, o: None,
-            load=lambda p: SamHandler(alignment_output_path, self.marker_reference_path, quality_format),
+            load=lambda p: SamFile(alignment_output_path, quality_format),
             kwargs={
                 "align_path": alignment_output_path,
                 "ref_path": self.marker_reference_path,

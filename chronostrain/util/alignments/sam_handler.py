@@ -1,11 +1,14 @@
 import enum
-from typing import List, Iterator, Dict, Union
+from pathlib import Path
+from typing import List, Iterator, Union
 
 import numpy as np
-from Bio import SeqIO
 
 from chronostrain.util.quality import ascii_to_phred
 from .cigar import CigarElement, parse_cigar
+
+from chronostrain.config import create_logger
+logger = create_logger(__name__)
 
 
 class _SamTags(enum.Enum):
@@ -50,14 +53,15 @@ class SamLine:
     def __init__(self,
                  lineno: int,
                  plaintext_line: str,
-                 reference_sequences: Dict[str, str],
                  samline_prev: Union["SamLine", None],
                  quality_format: str):
         """
         Parse the line using the provided reference.
 
-        :param plaintext_line: A raw SAM file (Tab-separated) entry.
-        :param reference_sequences: A dictionary mapping reference (marker) IDS to their sequences.
+        :param lineno: The line number in the .sam file corresponding to this instance.
+        :param plaintext_line: The raw line read from the .sam file.
+        :param samline_prev: The previous instance of SamLine corresponding to the previously parsed line.
+        :param quality_format: An option (as documented in Bio.SeqIO.QualityIO) for the quality score format.
         """
         self.lineno = lineno
         self.line = plaintext_line.strip().split('\t')
@@ -124,33 +128,28 @@ class SamLine:
         return parse_cigar(self.cigar_str)
 
 
-class SamHandler:
-    def __init__(self, file_path, reference_path, quality_format):
+class SamFile:
+    def __init__(self, file_path: Path, quality_format: str):
+        """
+        :param file_path:
+        :param quality_format: An option (as documented in Bio.SeqIO.QualityIO) for the quality score format.
+        """
         self.file_path = file_path
-        self.reference_path = reference_path
-        self.reference_sequences = self.get_multifasta_sequences()
+        self.quality_format = quality_format
 
-        self.header = []
-        self.contents: List[SamLine] = []
-        with open(file_path, 'r') as f:
+    def mapped_lines(self) -> Iterator[SamLine]:
+        n_lines = 0
+        n_mapped_lines = 0
+        with open(self.file_path, 'r') as f:
             prev_sam_line = None
             for line_idx, line in enumerate(f):
                 if line[0] == '@':
-                    self.header.append(line)
                     continue
-                sam_line = SamLine(line_idx + 1, line, self.reference_sequences, prev_sam_line, quality_format)
+
+                sam_line = SamLine(line_idx + 1, line, prev_sam_line, self.quality_format)
                 if sam_line.is_mapped:
-                    self.contents.append(sam_line)
+                    n_mapped_lines += 1
+                    yield sam_line
                 prev_sam_line = sam_line
-
-    def mapped_lines(self) -> Iterator[SamLine]:
-        yield from self.contents
-
-    def get_multifasta_sequences(self) -> Dict[str, str]:
-        """
-        Returns a dictionary mapping Each Record ID (typically a marker identifier) to the sequence.
-        """
-        reference_sequences = {}
-        for record in SeqIO.parse(self.reference_path, format="fasta"):
-            reference_sequences[str(record.id)] = str(record.seq)
-        return reference_sequences
+                n_lines += 1
+        logger.debug(f"Total # SAM lines parsed: {n_lines}; # mapped lines: {n_mapped_lines}")
