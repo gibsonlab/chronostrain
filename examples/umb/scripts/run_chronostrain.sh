@@ -20,5 +20,6 @@ python inference_with_variant_search.py \
 --num_samples $CHRONOSTRAIN_NUM_SAMPLES \
 --learning_rate $CHRONOSTRAIN_LR \
 --abundances_file $CHRONOSTRAIN_OUTPUT_FILENAME \
---plot_format "pdf"
+--plot_format "pdf" \
+--input_file "${INPUT_INDEX_FILENAME}"
 # ================================================

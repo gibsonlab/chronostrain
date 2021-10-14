@@ -12,7 +12,8 @@ export READS_DIR="${CHRONOSTRAIN_DATA_DIR}/umb/reads"
 export CHRONOSTRAIN_OUTPUT_DIR="${OUTPUT_DIR}/chronostrain"
 
 # The chronostrain input index.
-export INPUT_INDEX_PATH="${READS_DIR}/inputs.csv"
+export INPUT_INDEX_FILENAME="inputs.csv"
+export INPUT_INDEX_PATH="${READS_DIR}/${INPUT_INDEX_FILENAME}"
 
 # sratools prefetch/sample output directories.
 export SRA_PREFETCH_DIR="${CHRONOSTRAIN_DATA_DIR}/umb/prefetch"
