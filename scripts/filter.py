@@ -325,6 +325,7 @@ def parse_args():
 
 
 def main():
+    logger.info("Filtering script active.")
     args = parse_args()
     db = cfg.database_cfg.get_database()
     read_paths, read_depths, time_points = get_input_paths(
