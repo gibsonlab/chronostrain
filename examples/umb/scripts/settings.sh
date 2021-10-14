@@ -1,6 +1,6 @@
 # Modify these before running.
-export PROJECT_DIR="/mnt/f/microbiome_tracking"
-export CHRONOSTRAIN_DATA_DIR="/home/younhun/chronostrain"
+export PROJECT_DIR="~/chronostrain"
+export CHRONOSTRAIN_DATA_DIR="/data/cctm/chronostrain"
 export BASE_DIR="${PROJECT_DIR}/examples/umb"
 
 # ======== Location of this file.
