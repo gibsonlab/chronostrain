@@ -172,15 +172,22 @@ class BasicErrorModel(AbstractErrorModel):
         self.read_len = read_len
         self.q_dist = BasicQScoreDistribution(read_len)
 
-    def compute_log_likelihood(self, fragment: Fragment, read: SequenceRead) -> float:
+    def compute_log_likelihood(self, fragment: Fragment, read: SequenceRead, read_reverse_complemented: bool) -> float:
         """
         Computes the log likelihood of reading 'fragment' as 'read'
         :param: read - a SequenceRead instance.
         :param: fragment
         """
+        if read_reverse_complemented:
+            read_qual = read.quality[::-1]
+            read_seq = read.seq[::-1]
+        else:
+            read_qual = read.quality
+            read_seq = read.seq
+
         # Take advantage of array indexing.
         # For example, see section "Integer array indexing", https://numpy.org/doc/stable/reference/arrays.indexing.html
-        return np.log(BasicErrorModel.Q_SCORE_BASE_CHANGE_MATRICES[read.quality, fragment.seq, read.seq]).sum()
+        return np.log(BasicErrorModel.Q_SCORE_BASE_CHANGE_MATRICES[read_qual, fragment.seq, read_seq]).sum()
 
     def sample_noisy_read(self, read_id: str, fragment: Fragment, metadata: str = "") -> SequenceRead:
         quality_score_vector = self.q_dist.sample_qvec()

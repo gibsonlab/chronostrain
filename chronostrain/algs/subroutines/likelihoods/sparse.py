@@ -1,5 +1,5 @@
 import torch
-from typing import List, Dict, Set
+from typing import List, Dict, Set, Tuple
 from collections import defaultdict
 import numpy as np
 
@@ -67,27 +67,17 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         self.cached_alignments = CachedReadAlignments(self.reads, db)
         self.cache = LikelihoodMatrixCache(reads, model.bacteria_pop)
 
-    def _compute_read_frag_alignments(self, t_idx: int) -> Dict[str, Set[Fragment]]:
+    def _compute_read_frag_alignments(self, t_idx: int) -> Dict[str, Set[Tuple[Fragment, bool]]]:
         """
         Iterate through the timepoint's SamHandler instances (if the reads of t_idx came from more than one path).
         Each of these SamHandlers provides alignment information.
         :param t_idx: the timepoint index to use.
         :return: A defaultdict representing the map (Read ID) -> {Fragments that the read aligns to}
         """
-        read_to_fragments: Dict[str, Set[Fragment]] = defaultdict(set)
+        read_to_fragments: Dict[str, Set[Tuple[Fragment, bool]]] = defaultdict(set)
         for marker, alns in self.cached_alignments.get_alignments(t_idx).items():
             for aln in alns:
-                # TODO - Future note: this might be a good starting place for handling/detecting indels.
-                #  (Note: the below logic defaults to a KeyError.)
-                #  (if one needs more control, handle this in the parse_alignments() function invoked in
-                #  get_alignments().
-
-                if aln.reverse_complemented:
-                    logger.warning(
-                        "Alignment ({f}) -- Found reverse-complemented alignment for read {r}.".format(
-                            f=str(aln.sam_path),
-                            r=aln.id
-                        ))
+                # TODO: iterate through all variants of target marker, in addition to the aligned marker.
 
                 try:
                     aligned_frag = self.fragment_space.get_fragment(aln.marker_frag)
@@ -97,7 +87,7 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                     continue
 
                 try:
-                    read_to_fragments[aln.read_id].add(aligned_frag)
+                    read_to_fragments[aln.read_id].add((aligned_frag, aln.reverse_complemented))
                 except KeyError:
                     logger.debug("Line {} points to Read `{}`, but encountered KeyError. (Sam = {})".format(
                         aln.sam_line_no,
@@ -116,16 +106,24 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         log P(read | frag).
         """
         # Perform alignment for approximate fine-grained search.
-        read_to_fragments: Dict[str, Set[Fragment]] = self._compute_read_frag_alignments(t_idx)
+        read_to_fragments: Dict[str, Set[Tuple[Fragment, bool]]] = self._compute_read_frag_alignments(t_idx)
 
         read_indices: List[int] = []
         frag_indices: List[int] = []
         log_likelihood_values: List[float] = []
         for read_idx, read in enumerate(self.reads[t_idx]):
-            for frag in read_to_fragments[read.id]:
+            for frag, rev_comp in read_to_fragments[read.id]:
                 read_indices.append(read_idx)
                 frag_indices.append(frag.index)
-                log_likelihood_values.append(self.model.error_model.compute_log_likelihood(frag, read))
+
+                """
+                0.5 chance of forward/reverse (rev_comp). This is an approximation of the dense version, 
+                assuming that either p_forward or p_reverse is approximately zero.
+                """
+                log_likelihood_values.append(
+                    self.model.error_model.compute_log_likelihood(frag, read, read_reverse_complemented=rev_comp)
+                    - np.log(2)
+                )
 
         return SparseMatrix(
             indices=torch.tensor(

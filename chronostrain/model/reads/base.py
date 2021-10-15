@@ -65,11 +65,12 @@ class AbstractErrorModel(metaclass=ABCMeta):
     """
 
     @abstractmethod
-    def compute_log_likelihood(self, fragment: Fragment, read: SequenceRead) -> float:
+    def compute_log_likelihood(self, fragment: Fragment, read: SequenceRead, read_reverse_complemented: bool) -> float:
         """
         Compute the log probability of observing the read, conditional on the fragment.
         :param fragment: The source fragment (a String)
         :param read: The read (of type SequenceRead)
+        :param read_reverse_complemented: Indicates whether the read ought to be reverse complemented.
         :return: the value P(read | fragment).
         """
         pass

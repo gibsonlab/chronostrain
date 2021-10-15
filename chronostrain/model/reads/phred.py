@@ -28,13 +28,20 @@ class PhredErrorModel(AbstractErrorModel):
         self.read_len = read_len
         self.q_dist = BasicPhredScoreDistribution(read_len)
 
-    def compute_log_likelihood(self, fragment: Fragment, read: SequenceRead) -> float:
+    def compute_log_likelihood(self, fragment: Fragment, read: SequenceRead, read_reverse_complemented: bool) -> float:
         """
         Uses phred scores to compute Pr(Read | Fragment, Quality).
         """
-        error_log10_prob = -0.1 * read.quality
-        matches: np.ndarray = (fragment.seq == read.seq) & (read.quality > 0)
-        mismatches: np.ndarray = (fragment.seq != read.seq) & (read.seq != cseq.nucleotide_N_z4)
+        if read_reverse_complemented:
+            read_qual = read.quality[::-1]
+            read_seq = read.seq[::-1]
+        else:
+            read_qual = read.quality
+            read_seq = read.seq
+
+        error_log10_prob = -0.1 * read_qual
+        matches: np.ndarray = (fragment.seq == read_seq) & (read_qual > 0)
+        mismatches: np.ndarray = (fragment.seq != read_seq) & (read_seq != cseq.nucleotide_N_z4)
 
         # TODO: N's might need to be included and handled differently.
 

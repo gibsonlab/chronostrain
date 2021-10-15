@@ -1,7 +1,9 @@
+import numpy as np
 import torch
 from typing import List
 from joblib import Parallel, delayed
 
+from chronostrain.model import Fragment, SequenceRead
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.config import cfg
 from chronostrain.model.generative import GenerativeModel
@@ -32,12 +34,22 @@ class DenseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         """
         ans = [
             [
-                self.model.error_model.compute_log_likelihood(frag, read)
+                self.compute_forward_reverse_log_likelihood(frag, read)
                 for read in self.reads[t_idx]
             ]
             for frag in self.fragment_space.get_fragments()
         ]
         return ans
+
+    def compute_forward_reverse_log_likelihood(self, frag: Fragment, read: SequenceRead) -> float:
+        """
+        Computes log(p), where p = 0.5 * P(read | frag, forward) + 0.5 * P(read | frag, reverse)
+        which assumes an equal likelihood of sampling from the forward and reverse strands in sequencing.
+        """
+        forward_ll = self.model.error_model.compute_log_likelihood(frag, read, read_reverse_complemented=False)
+        reverse_ll = self.model.error_model.compute_log_likelihood(frag, read, read_reverse_complemented=True)
+        log2 = np.log(2)
+        return np.log(np.exp(forward_ll - log2) + np.exp(reverse_ll - log2))
 
     def compute_likelihood_tensors(self) -> List[torch.Tensor]:
         # TODO: explicitly define save() and load() here to write directly to torch tensor files.

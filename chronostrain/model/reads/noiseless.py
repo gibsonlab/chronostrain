@@ -12,8 +12,13 @@ class NoiselessErrorModel(AbstractErrorModel):
         self.mismatch_log_likelihood = math.log(mismatch_likelihood) if mismatch_likelihood != 0 else -float("inf")
         self.match_log_likelihood = math.log(1 - mismatch_likelihood)
 
-    def compute_log_likelihood(self, fragment: Fragment, read: SequenceRead) -> float:
-        if np.sum(fragment.seq != read.seq) == 0:
+    def compute_log_likelihood(self, fragment: Fragment, read: SequenceRead, read_reverse_complemented: bool) -> float:
+        if read_reverse_complemented:
+            read_seq = read.seq[::-1]
+        else:
+            read_seq = read.seq
+
+        if np.sum(fragment.seq != read_seq) == 0:
             return self.match_log_likelihood
         else:
             return self.mismatch_log_likelihood
