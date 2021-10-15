@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List
+from typing import List, Dict, Optional
 
 import numpy as np
 import seaborn as sns
@@ -191,10 +191,15 @@ def plot_posterior_abundances(
     """
 
     true_abundances = None
-    truth_acc_dict = None
+    truth_strain_id_to_idx: Dict[str, int] = None
     if truth_path is not None:
         _, true_abundances, accessions = load_abundances(truth_path)
-        truth_acc_dict = {acc: i for i, acc in enumerate(accessions)}
+        truth_strain_id_to_idx = {
+            acc: i
+            for i, acc in enumerate(accessions)
+        }
+    else:
+        truth_strain_id_to_idx = {}
 
     # Convert gaussians to rel abundances.
     abundance_samples = softmax(posterior_samples, axis=2)
@@ -206,38 +211,46 @@ def plot_posterior_abundances(
     ax.set_xlabel("Time")
     ax.set_ylabel("Relative abundance")
 
+    ground_truth_colors = {}
+
+    for truth_strain_id, truth_strain_idx in truth_strain_id_to_idx.items():
+        true_trajectory = np.array([
+            abundance_t[truth_strain_idx].item()
+            for abundance_t in true_abundances
+        ])
+        color = render_single_abundance_trajectory(
+            times=times,
+            abundances=true_trajectory,
+            label=truth_strain_id,
+            ax=ax,
+            thickness=thickness,
+            legend_elements=legend_elements
+        )
+        ground_truth_colors[truth_strain_id] = color
+
     for s_idx, strain in enumerate(population.strains):
         # This is (T x N), for the particular strain.
         traj_samples = abundance_samples[:, :, s_idx]
 
-        if true_abundances is not None:
-            true_trajectory = np.array([
-                abundance_t[truth_acc_dict[strain.id]].item()
-                for abundance_t in true_abundances
-            ])
-        else:
-            true_trajectory = None
-
-        plot_posterior_abundances_helper(
-            times,
-            strain.id,
-            traj_samples,
-            ax,
-            thickness,
-            true_trajectory,
-            legend_elements
+        render_posterior_abundances(
+            times=times,
+            label=strain.id,
+            traj_samples=traj_samples,
+            ax=ax,
+            thickness=thickness,
+            legend_elements=legend_elements,
+            color=ground_truth_colors.get(strain.id, None)
         )
 
     for garbage_s_idx, garbage_strain in enumerate(population.garbage_strains):
         traj_samples = abundance_samples[:, :, garbage_s_idx + len(population.strains)]
-        plot_posterior_abundances_helper(
-            times,
-            garbage_strain.id,
-            traj_samples,
-            ax,
-            thickness,
-            None,
-            legend_elements
+        render_posterior_abundances(
+            times=times,
+            label=garbage_strain.id,
+            traj_samples=traj_samples,
+            ax=ax,
+            thickness=thickness,
+            legend_elements=legend_elements
         )
 
     if draw_legend:
@@ -246,26 +259,51 @@ def plot_posterior_abundances(
     fig.savefig(plots_out_path, bbox_inches='tight', format=img_format, dpi=dpi)
 
 
-def plot_posterior_abundances_helper(times, strain_id, traj_samples, ax, thickness, true_trajectory, legend_elements):
+def render_posterior_abundances(
+        times: List[float],
+        traj_samples: np.ndarray,
+        label: str,
+        ax,
+        thickness: float,
+        legend_elements: List,
+        color: Optional = None,
+):
     upper_quantile = np.quantile(traj_samples, q=0.975, axis=1)
     lower_quantile = np.quantile(traj_samples, q=0.025, axis=1)
     median = np.quantile(traj_samples, q=0.5, axis=1)
 
     # Plot the trajectory of medians.
-    line, = ax.plot(times, median, linestyle='--', marker='x', linewidth=thickness)
-    color = line.get_color()
+    if color is None:
+        line, = ax.plot(times, median, linestyle='--', marker='x', linewidth=thickness)
+        color = line.get_color()
+    else:
+        ax.plot(times, median, linestyle='--', marker='x', linewidth=thickness, color=color)
 
     # Fill between the quantiles.
     ax.fill_between(times, lower_quantile, upper_quantile, alpha=0.2, color=color)
 
-    # Plot true trajectory, if available.
-    if true_trajectory is not None:
-        ax.plot(times, true_trajectory, linestyle='-', marker='o', color=color, linewidth=thickness)
-
     # Populate the legend.
     legend_elements.append(
-        Line2D([0], [0], color=color, lw=2, label=strain_id)
+        Line2D([0], [0], color=color, lw=2, label=label)
     )
+    return color
+
+
+def render_single_abundance_trajectory(
+        times: List[float],
+        abundances: np.ndarray,
+        label: str,
+        ax,
+        thickness: float,
+        legend_elements: List,
+        color: Optional = None
+):
+    if color is None:
+        line, = ax.plot(times, abundances, linestyle='-', marker='o', linewidth=thickness)
+        color = line.get_color()
+    else:
+        ax.plot(times, abundances, linestyle='-', marker='o', color=color, linewidth=thickness)
+    return color
 
 
 def render_read_counts(dataframe: pd.DataFrame,
