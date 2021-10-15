@@ -227,8 +227,13 @@ class Population:
     def num_strains(self) -> int:
         return self.num_known_strains() + self.num_unknown_strains()
 
+    def markers_iterator(self) -> Iterator[Marker]:
+        for strain in self.strains:
+            for marker in strain.markers:
+                yield marker
 
-def sliding_window(seq: SeqType, width: int) -> Iterator[Tuple[str, int]]:
+
+def sliding_window(seq: SeqType, width: int) -> Iterator[Tuple[SeqType, int]]:
     """
     A generator for the subsequences produced by a sliding window of specified width.
     """

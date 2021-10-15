@@ -1,72 +1,18 @@
 import re
 from pathlib import Path
-from typing import Tuple, Dict, List, Iterator
+from typing import Dict, List, Iterator
 import numpy as np
 
 from chronostrain.database import StrainDatabase
 from chronostrain.model import Marker
-from chronostrain.util.alignments import SamFile, SamLine, CigarOp
-from chronostrain.util.sequences import nucleotides_to_z4, SeqType, z4_to_nucleotides
+from .sam_handler import SamFile, SamLine
+from .cigar import CigarOp, CigarElement
+from chronostrain.util.sequences import nucleotides_to_z4
+
+from .alignment import SequenceReadAlignment, NucleotideDeletion, NucleotideInsertion
 
 from chronostrain.config.logging import create_logger
 logger = create_logger(__name__)
-
-
-class SequenceReadAlignment(object):
-    def __init__(self,
-                 read_id: str,
-                 sam_path: Path,
-                 sam_line_no: int,
-                 read_seq: np.ndarray,
-                 read_qual: np.ndarray,
-                 marker: Marker,
-                 read_start: int,
-                 read_end: int,
-                 marker_start: int,
-                 marker_end: int,
-                 reverse_complemented: bool):
-        """
-        :param read_id: The query read ID.
-        :param sam_path: The SAM file that this alignment was parsed from.
-        :param sam_line_no: The line number of the samhandler.
-        :param read_seq: The query read sequence, minus any hard-clipped regions.
-        :param read_qual: The query read quality, minus any hard-clipped regions.
-        :param marker: The reference marker.
-        :param read_start: The left endpoint of the read at which alignment starts; inclusive.
-        :param read_end: The right endpoint of the read at which alignment starts; inclusive.
-        :param marker_start: The left endpoint of the marker at which alignment starts; inclusive.
-        :param marker_end: The left endpoint of the marker at which alignment starts; inclusive.
-        :param reverse_complemented: Indicates whether the read sequence has been reverse-complemented from the original
-            query. If so, then the quality is assumed to be reversed from the original query.
-        """
-        self.read_id: str = read_id
-        self.sam_path: Path = sam_path
-        self.sam_line_no: int = sam_line_no
-        self.id: str = "{}[{},{}]".format(read_id, marker_start, marker_end)
-        self.read_seq: np.ndarray = read_seq
-        self.read_qual: np.ndarray = read_qual
-        self.marker: Marker = marker
-
-        assert (marker_end - marker_start) == (read_end - read_start)
-        self.read_start: int = read_start
-        self.read_end: int = read_end
-        self.marker_start: int = marker_start
-        self.marker_end: int = marker_end
-
-        self.marker_frag: SeqType = marker.seq[marker_start:marker_end + 1]
-        self.reverse_complemented: bool = reverse_complemented  # Indicates whether the read has been reverse complemented.
-
-    @property
-    def read_aligned_section(self) -> Tuple[np.ndarray, np.ndarray]:
-        section = slice(self.read_start, self.read_end + 1)
-        return self.read_seq[section], self.read_qual[section]
-
-    @property
-    def read_seq_nucleotide(self) -> str:
-        return z4_to_nucleotides(self.read_seq)
-
-    def __eq__(self, other: 'SequenceReadAlignment') -> bool:
-        return self.id == other.id
 
 
 def find_start_clip(cigar_tag):
@@ -77,9 +23,12 @@ def find_start_clip(cigar_tag):
 
 
 def parse_line_into_alignment(sam_path: Path, samline: SamLine, db: StrainDatabase) -> SequenceReadAlignment:
-    cigar_els = samline.cigar
-    read_seq = samline.read
-    read_qual = samline.phred_quality
+    cigar_els: List[CigarElement] = samline.cigar
+    read_seq: str = samline.read
+    read_qual: np.ndarray = samline.phred_quality
+
+    insertions: List[NucleotideInsertion] = []
+    deletions: List[NucleotideDeletion] = []
 
     read_seq_aln_tokens = []
     read_qual_aln_tokens = []
@@ -131,12 +80,25 @@ def parse_line_into_alignment(sam_path: Path, samline: SamLine, db: StrainDataba
             current_read_idx += cigar_el.num
             pass
         elif cigar_el.op == CigarOp.INSERTION:
+            # TODO: this represents an insertion into reference marker.
+            #   1) Store into the alignment instance the (position, nucleotides) pair which corresponds to
+            #   this insertion.
+            #   This is to be translated into (start_insert_pos, insert_len, relative_pos, nucleotide)
+            #   tuples, e.g. (3, AC) means "insert AC into position 3 of marker", which translates into
+            #       [(3, 2, 0, A), (3, 2, 1, C)].
+            #   2) Remove from the read sequence the nucleotides inserted.
             raise NotImplementedError(
                 "Line {}, Cigar `{}`: Single nucleotide insertions are not currently supported.".format(
                     samline.lineno, samline.cigar_str
                 )
             )
         elif cigar_el.op == CigarOp.DELETION:
+            # TODO: this represents a deletion from the reference marker.
+            #   1) Store into the alignment instance the (marker_start, marker_end) pair which corresponds to the
+            #   location of the deleted segment.
+            #   This is to be translated into a list of (delete_pos), e.g. (3, 5) means
+            #   "delete 5 chars starting at pos 3", which translates into [3, 4, 5, 6, 7].
+            #   2) Add into the read sequence a special "DELETED" character/number (in z4 representation space).
             raise NotImplementedError(
                 "Line {}, Cigar `{}`: Single nucleotide deletions are not currently supported.".format(
                     samline.lineno, samline.cigar_str
@@ -192,7 +154,9 @@ def parse_line_into_alignment(sam_path: Path, samline: SamLine, db: StrainDataba
         read_end,
         marker_start,
         marker_end,
-        samline.is_reverse_complemented
+        samline.is_reverse_complemented,
+        insertions,
+        deletions
     )
 
 

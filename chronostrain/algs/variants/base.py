@@ -6,29 +6,29 @@ from chronostrain.util.sequences import SeqType, map_z4_to_nucleotide
 
 
 class MarkerVariant(Marker):
-    def __init__(self, base_marker: Marker, nucleotide_variants: Iterable[Tuple[int, int, int]]):
+    def __init__(self, base_marker: Marker, substitutions: Iterable[Tuple[int, int, int]]):
         """
         :param base_marker: The base marker of which this marker is a variant of.
-        :param nucleotide_variants: An iterable of (position, base, evidence) tuples.
+        :param substitutions: An iterable of (position, base, evidence) tuples.
         """
         self.base_marker = base_marker
-        self.quality_evidence = np.sum([qual for _, _, qual in nucleotide_variants])
+        self.quality_evidence = np.sum([qual for _, _, qual in substitutions])
 
         new_id = "{}<{}>".format(
             base_marker.id,
             "|".join([
                 "{}:{}".format(pos, base)
-                for pos, base, _ in nucleotide_variants
+                for pos, base, _ in substitutions
             ])
         )
 
         new_name: str = "{}-Variant[{}]".format(
             base_marker.name,
-            "|".join(["{}:{}".format(pos, map_z4_to_nucleotide(z4base)) for pos, z4base, _ in nucleotide_variants])
+            "|".join(["{}:{}".format(pos, map_z4_to_nucleotide(z4base)) for pos, z4base, _ in substitutions])
         )
 
         new_seq: SeqType = base_marker.seq.copy()
-        for pos, z4base, _ in nucleotide_variants:
+        for pos, z4base, _ in substitutions:
             new_seq[pos] = z4base
 
         super().__init__(
@@ -37,6 +37,9 @@ class MarkerVariant(Marker):
             seq=new_seq,
             metadata=base_marker.metadata
         )
+
+    def subseq_from_base_marker_positions(self, base_marker_start: int, base_marker_end: int) -> SeqType:
+        return self.seq[base_marker_start:base_marker_end + 1]
 
 
 class StrainVariant(Strain):

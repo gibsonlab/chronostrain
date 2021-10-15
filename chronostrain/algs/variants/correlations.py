@@ -148,7 +148,7 @@ class StrainVariantComputer(object):
             # Here, the positions are guaranteed to be unique.
             yield MarkerVariant(
                 base_marker=base_marker,
-                nucleotide_variants=variant_desc
+                substitutions=variant_desc
             )
 
     def _construct_similarity_graph(

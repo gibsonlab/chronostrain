@@ -37,7 +37,7 @@ class DenseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                 self.compute_forward_reverse_log_likelihood(frag, read)
                 for read in self.reads[t_idx]
             ]
-            for frag in self.fragment_space.get_fragments()
+            for frag in self.model.get_fragment_space().get_fragments()
         ]
         return ans
 

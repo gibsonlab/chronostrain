@@ -1,5 +1,5 @@
 import torch
-from typing import List, Dict, Set, Tuple
+from typing import List, Dict, Set, Tuple, Iterator
 from collections import defaultdict
 import numpy as np
 
@@ -7,7 +7,7 @@ from joblib import Parallel, delayed
 
 from chronostrain.algs.subroutines.alignment import CachedReadAlignments
 from chronostrain.database import StrainDatabase
-from chronostrain.model import Fragment
+from chronostrain.model import Fragment, Marker
 from chronostrain.util.sparse.sparse_tensor import SparseMatrix
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.config import cfg
@@ -17,6 +17,8 @@ from .base import DataLikelihoods, AbstractLogLikelihoodComputer
 from .likelihood_cache import LikelihoodMatrixCache
 
 from chronostrain.config.logging import create_logger
+from ... import MarkerVariant
+
 logger = create_logger(__name__)
 
 
@@ -64,37 +66,77 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
     def __init__(self, model: GenerativeModel, reads: TimeSeriesReads, db: StrainDatabase):
         super().__init__(model, reads)
         self._bwa_index_finished = False
-        self.cached_alignments = CachedReadAlignments(self.reads, db)
+
+        # Remember, these are alignments of reads to the database reference markers!
+        self.cached_reference_alignments = CachedReadAlignments(self.reads, db)
         self.cache = LikelihoodMatrixCache(reads, model.bacteria_pop)
 
-    def _compute_read_frag_alignments(self, t_idx: int) -> Dict[str, Set[Tuple[Fragment, bool]]]:
+        self.markers_present: Set[Marker] = set()
+        self.variants_present: Dict[Marker, List[MarkerVariant]] = {
+            marker: []
+            for marker in db.all_markers()
+        }
+
+        for marker in model.bacteria_pop.markers_iterator():
+            if isinstance(marker, MarkerVariant):
+                self.variants_present[marker.base_marker].append(marker)
+            else:
+                self.markers_present.add(marker)
+
+    def marker_variants_of(self, marker: Marker) -> Iterator[MarkerVariant]:
+        yield from self.variants_present[marker]
+
+    def marker_isin_pop(self, marker: Marker) -> bool:
+        return marker in self.markers_present
+
+    def _compute_read_frag_alignments(self, t_idx: int) -> Dict[str, List[Tuple[Fragment, bool]]]:
         """
         Iterate through the timepoint's SamHandler instances (if the reads of t_idx came from more than one path).
         Each of these SamHandlers provides alignment information.
         :param t_idx: the timepoint index to use.
         :return: A defaultdict representing the map (Read ID) -> {Fragments that the read aligns to}
         """
-        read_to_fragments: Dict[str, Set[Tuple[Fragment, bool]]] = defaultdict(set)
-        for marker, alns in self.cached_alignments.get_alignments(t_idx).items():
+        read_to_fragments: Dict[str, List[Tuple[Fragment, bool]]] = defaultdict(list)
+
+        """
+        Overall philosophy of this method: Keep things as simple as possible!
+        Assume that indels have either been taken care of, either by passing in:
+            1) appropriate MarkerVariant instances into the population, or
+            2) include a complete reference cohort of Markers into the reference db 
+            (but this is infeasible, as it requires knowing the ground truth on real data!)
+        
+        In particular, this means that we don't have to worry about indels.
+        """
+        for tgt_base_marker, alns in self.cached_reference_alignments.get_alignments(t_idx).items():
             for aln in alns:
-                # TODO: iterate through all variants of target marker, in addition to the aligned marker.
+                # First, add the likelihood for the fragment for the aligned base marker.
+                if self.marker_isin_pop(tgt_base_marker):
+                    """ We only care about one-to-one alignments (no insertions/deletions/clipping). """
+                    marker_frag_seq = aln.marker_frag
+                    try:
+                        tgt_frag = self.model.get_fragment_space().get_fragment(marker_frag_seq)
+                        read_to_fragments[aln.read_id].append((tgt_frag, aln.reverse_complemented))
+                    except KeyError:
+                        # Ignore these errors (see above note).
+                        pass
 
-                try:
-                    aligned_frag = self.fragment_space.get_fragment(aln.marker_frag)
-                except KeyError:
-                    # This happens because the aligned frag is not a full alignment, either due to edge effects
-                    # or indels. Our model does not handle these yet; see the note above.
-                    continue
-
-                try:
-                    read_to_fragments[aln.read_id].add((aligned_frag, aln.reverse_complemented))
-                except KeyError:
-                    logger.debug("Line {} points to Read `{}`, but encountered KeyError. (Sam = {})".format(
-                        aln.sam_line_no,
-                        aln.read_id,
-                        aln.sam_path,
-                    ))
-                    raise
+                # Next, look up any variants of the base marker.
+                for variant in self.marker_variants_of(tgt_base_marker):
+                    variant_frag_seq = variant.subseq_from_base_marker_positions(
+                        base_marker_start=aln.marker_start,
+                        base_marker_end=aln.marker_end
+                    )
+                    variant_frag = self.model.get_fragment_space().get_fragment(variant_frag_seq)
+                    logger.debug("Read: {}, Variant frag: {}".format(aln.read_seq, variant_frag))
+                    try:
+                        read_to_fragments[aln.read_id].append((variant_frag, aln.reverse_complemented))
+                    except KeyError:
+                        logger.debug("Line {} points to Read `{}`, but encountered KeyError. (Sam = {})".format(
+                            aln.sam_line_no,
+                            aln.read_id,
+                            aln.sam_path,
+                        ))
+                        raise
         return read_to_fragments
 
     def create_sparse_matrix(self, t_idx) -> SparseMatrix:
@@ -106,7 +148,7 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         log P(read | frag).
         """
         # Perform alignment for approximate fine-grained search.
-        read_to_fragments: Dict[str, Set[Tuple[Fragment, bool]]] = self._compute_read_frag_alignments(t_idx)
+        read_to_fragments: Dict[str, List[Tuple[Fragment, bool]]] = self._compute_read_frag_alignments(t_idx)
 
         read_indices: List[int] = []
         frag_indices: List[int] = []
@@ -136,7 +178,7 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                 device=cfg.torch_cfg.device,
                 dtype=cfg.torch_cfg.default_dtype
             ),
-            dims=(self.fragment_space.size(), len(self.reads[t_idx]))
+            dims=(self.model.get_fragment_space().size(), len(self.reads[t_idx]))
         )
 
     def compute_likelihood_tensors(self) -> List[SparseMatrix]:

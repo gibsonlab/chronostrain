@@ -83,7 +83,6 @@ class AbstractLogLikelihoodComputer(metaclass=ABCMeta):
     def __init__(self, model: GenerativeModel, reads: TimeSeriesReads):
         self.model = model
         self.reads = reads
-        self.fragment_space = model.get_fragment_space()
 
     @abstractmethod
     def compute_likelihood_tensors(self) -> List[torch.Tensor]:

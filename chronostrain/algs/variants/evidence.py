@@ -68,7 +68,8 @@ class MarkerVariantEvidence(object):
     def __init__(self,
                  marker: Marker,
                  time_series_alignments: TimeSeriesMarkerAlignments,
-                 quality_threshold: float,):
+                 quality_threshold: float):
+        # TODO: have MarginalEvidence record deletions and insertions, using the alignments.
         self.marker = marker
         self.quality_threshold = quality_threshold
         self.counts_evidence = [
