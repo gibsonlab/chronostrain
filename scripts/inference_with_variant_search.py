@@ -32,7 +32,8 @@ def parse_args():
     # Other Optional params
     parser.add_argument('--seed_with_database', action='store_true',
                         help='If flag is turned on, initialize search with database-seeded strains. Otherwise,'
-                             'the seed is determined by the variant with highest correlation.')
+                             'the algorithm is initialized using the maximal-evidence variant '
+                             '(as decided by the algorithm).')
     parser.add_argument('-q', '--quality_format', required=False, type=str, default='fastq',
                         help='<Optional> The quality format. Should be one of the options implemented in Biopython '
                              '`Bio.SeqIO.QualityIO` module.')
@@ -53,6 +54,8 @@ def parse_args():
     parser.add_argument('--num_posterior_samples', required=False, type=int, default=5000,
                         help='<Optional> If using a variational method, specify the number of '
                              'samples to generate as output.')
+    parser.add_argument('--save_fragment_probs', action="store_true",
+                        help='If flag is set, then save posterior fragment probabilities for valid reads.')
     parser.add_argument('--plot_format', required=False, type=str, default="pdf")
 
     return parser.parse_args()
@@ -78,16 +81,19 @@ def search_best_variant_solution(
 
     variants: List[StrainVariant] = list(computer.construct_variants())
     variants.sort(reverse=True, key=lambda v: v.quality_evidence)
-    for variant in variants:
-        print(variant)
-    print("# of proposal strain variants = {}".format(len(variants)))
+
+    # for variant in variants:
+    #     logger.debug(variant)
+
+    logger.debug("# of proposal strain variants = {}".format(len(variants)))
 
     # =============== Iteratively evaluate each variant.
     original_strains = db.all_strains()
 
     best_variants = []
     best_data_ll_estimate = float('-inf')
-    best_result: Tuple[GenerativeModel, BBVISolver] = (None, None)
+    best_model: GenerativeModel = None
+    best_result: BBVISolver = None
 
     if seed_with_database:
         gen = range(len(variants) + 1)
@@ -129,16 +135,18 @@ def search_best_variant_solution(
         data_ll_estimate = (data_ll + prior_ll - posterior_ll_est).item()
 
         if data_ll_estimate <= best_data_ll_estimate:
-            logger.debug("Data LL didn't improve ({:.3f} --> {:.3f}). Terminating search at variants [{}].".format(
+            logger.debug("Data LL didn't improve ({:.3f} --> {:.3f}). Terminating search at {} strains ({} non-base variants).".format(
                 best_data_ll_estimate,
                 data_ll_estimate,
-                best_variants
+                best_model.bacteria_pop.num_strains(),
+                len(best_variants)
             ))
-            return best_variants, model, best_result[1], best_data_ll_estimate
+            return best_variants, best_model, best_result, best_data_ll_estimate
         else:
             best_variants = included_variants
             best_data_ll_estimate = data_ll_estimate
-            best_result = (model, solver)
+            best_model = model
+            best_result = solver
 
     raise RuntimeError("Unexpected behavior: Could not iterate through variants.")
 

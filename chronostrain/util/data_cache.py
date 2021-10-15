@@ -137,13 +137,13 @@ class ComputationCache(object):
 
         # Try to retrieve from cache.
         cache_path = self.cache_dir / filename
-        try:
+        if cache_path.exists():
             data = load(cache_path)
             logger.debug("[Cache {}] Loaded pre-computed file {}.".format(
                 self.cache_tag.encoding, cache_path
             ))
             return data
-        except FileNotFoundError:
+        else:
             logger.debug("[Cache {}] Could not load cached file {}. Recomputing.".format(
                 self.cache_tag.encoding, cache_path
             ))

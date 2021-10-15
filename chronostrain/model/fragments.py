@@ -103,7 +103,7 @@ class FragmentSpace:
         try:
             return self.seq_to_frag[self.seq_to_key(seq)]
         except KeyError:
-            raise KeyError("Sequence '{}' not in dictionary.".format(seq)) from None
+            raise KeyError("Sequence query (len={}) not in dictionary.".format(len(seq))) from None
 
     def get_fragment_by_index(self, idx: int) -> Fragment:
         return self.frag_list[idx]

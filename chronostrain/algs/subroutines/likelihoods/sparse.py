@@ -8,6 +8,7 @@ from joblib import Parallel, delayed
 from chronostrain.algs.subroutines.alignment import CachedReadAlignments
 from chronostrain.database import StrainDatabase
 from chronostrain.model import Fragment, Marker
+from chronostrain.util.sequences import SeqType
 from chronostrain.util.sparse.sparse_tensor import SparseMatrix
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.config import cfg
@@ -17,7 +18,7 @@ from .base import DataLikelihoods, AbstractLogLikelihoodComputer
 from .likelihood_cache import LikelihoodMatrixCache
 
 from chronostrain.config.logging import create_logger
-from ... import MarkerVariant
+from chronostrain.algs.variants import MarkerVariant
 
 logger = create_logger(__name__)
 
@@ -107,12 +108,14 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         
         In particular, this means that we don't have to worry about indels.
         """
+        from chronostrain.util.sequences import z4_to_nucleotides
         for tgt_base_marker, alns in self.cached_reference_alignments.get_alignments(t_idx).items():
             for aln in alns:
                 # First, add the likelihood for the fragment for the aligned base marker.
                 if self.marker_isin_pop(tgt_base_marker):
                     """ We only care about one-to-one alignments (no insertions/deletions/clipping). """
-                    marker_frag_seq = aln.marker_frag
+                    marker_frag_seq: SeqType = aln.marker_frag
+
                     try:
                         tgt_frag = self.model.get_fragment_space().get_fragment(marker_frag_seq)
                         read_to_fragments[aln.read_id].append((tgt_frag, aln.reverse_complemented))
@@ -122,12 +125,15 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
 
                 # Next, look up any variants of the base marker.
                 for variant in self.marker_variants_of(tgt_base_marker):
-                    variant_frag_seq = variant.subseq_from_base_marker_positions(
+                    variant_frag_seq: SeqType = variant.subseq_from_base_marker_positions(
                         base_marker_start=aln.marker_start,
                         base_marker_end=aln.marker_end
                     )
+                    if len(variant_frag_seq) != self.model.read_length:
+                        # Read only partially maps to marker (usually edge effect).
+                        continue
+
                     variant_frag = self.model.get_fragment_space().get_fragment(variant_frag_seq)
-                    logger.debug("Read: {}, Variant frag: {}".format(aln.read_seq, variant_frag))
                     try:
                         read_to_fragments[aln.read_id].append((variant_frag, aln.reverse_complemented))
                     except KeyError:
