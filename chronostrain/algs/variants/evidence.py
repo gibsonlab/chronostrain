@@ -1,9 +1,11 @@
-from typing import List, Iterator, Tuple, Callable
+from collections import defaultdict
+from typing import List, Iterator, Tuple, Callable, Iterable, Set
 import numpy as np
+import itertools
 
 from chronostrain.model import Marker
 from chronostrain.util.alignments import SequenceReadAlignment
-from chronostrain.util.sequences import map_z4_to_nucleotide
+from chronostrain.util.sequences import nucleotide_N_z4
 
 
 class TimeSeriesMarkerAlignments(object):
@@ -19,49 +21,115 @@ class TimeSeriesMarkerAlignments(object):
         yield from zip(self.alns, self.read_depths)
 
 
-class MarginalEvidence(object):
+class MarginalVariantQualityEvidence(object):
+    def __init__(self,
+                 marker: Marker,
+                 alignments: Iterable[SequenceReadAlignment],
+                 quality_threshold: float):
+        """
+        Stores the total quality score of each observed variant (e.g. the read's base does not match the reference
+        base).
+
+        :param marker:
+        :param alignments:
+        :param quality_threshold:
+        """
+        self.quality_threshold = quality_threshold
+        self.matrix = self.create_evidence_matrix(marker, alignments)
+
+    def create_evidence_matrix(self, marker: Marker, alignments: Iterable[SequenceReadAlignment]) -> np.ndarray:
+        m = np.zeros(shape=(len(marker), 4), dtype=float)
+
+        # ============== Parsing ==============
+        for aln in alignments:
+            read_seq, read_quality = aln.read_aligned_section
+            relative_variant_positions = np.where(
+                (read_seq != nucleotide_N_z4) & (read_seq != aln.marker_frag) & (
+                            read_quality > self.quality_threshold)
+            )[0]
+            variant_bases = read_seq[relative_variant_positions]
+            variant_quals = read_quality[relative_variant_positions]
+            m[relative_variant_positions + aln.marker_start, variant_bases] += variant_quals
+
+        return m
+
+    @property
+    def supported_positions(self) -> Set[int]:
+        return set(np.where(
+            np.sum(self.matrix, axis=1) > 0
+        )[0])
+
+
+class PairwiseFrequencyEvidence(object):
     """
     A utility class representing the overall tally (a pileup) of single-nucleotide variants.
     """
     def __init__(self,
-                 marker: Marker,
-                 alignments: List[SequenceReadAlignment],
-                 quality_threshold: float,
-                 read_depth: int,
-                 type_option: str):
-        if type_option == "quality":
-            self.evidence_matrix = np.zeros(
-                shape=(len(marker), 4),
-                dtype=float
-            )
-        elif type_option == "count":
-            self.evidence_matrix = np.zeros(
-                shape=(len(marker), 4),
-                dtype=int
-            )
-        else:
-            raise ValueError("Unknown evidence option `{}`.".format(type_option))
+                 supported_positions: Set[int],
+                 alignments: Iterable[SequenceReadAlignment],
+                 quality_threshold: float):
         self.quality_threshold = quality_threshold
-        self.type_option = type_option
-        self.read_depth = read_depth
-        self.add_alignments(alignments)
-
-    def add_alignments(self, alignments: List[SequenceReadAlignment]):
-        for aln in alignments:
-            read_seq, read_quality = aln.read_aligned_section
-            relative_positions_of_variants = np.where(
-                (read_seq != aln.marker_frag) & (read_quality > self.quality_threshold)
-            )[0]
-            bases = read_seq[relative_positions_of_variants]
-            if self.type_option == "count":
-                self.evidence_matrix[relative_positions_of_variants + aln.marker_start, bases] += 1
-            elif self.type_option == "quality":
-                qualities = read_quality[relative_positions_of_variants]
-                self.evidence_matrix[relative_positions_of_variants + aln.marker_start, bases] += qualities
+        self.supported_positions = supported_positions
+        self.pairwise_counts = defaultdict(int)
+        self._count_pairwise_occurrences(alignments)
 
     @property
-    def relative_evidence(self):
-        return self.evidence_matrix / self.read_depth
+    def pairwise_support(self):
+        return self.pairwise_counts.keys()
+
+    @staticmethod
+    def lexicographic_ordering_bases(pos: int, z4_base: int):
+        return (4 * pos) + z4_base
+
+    def _get_count(self, pos1: int, base1: int, pos2: int, base2: int) -> int:
+        # Only store nondecreasing pairs.
+        if self.lexicographic_ordering_bases(pos1, base1) > self.lexicographic_ordering_bases(pos2, base2):
+            return self._get_count(pos2, base2, pos1, base1)
+        else:
+            return self.pairwise_counts[(pos1, base1, pos2, base2)]
+
+    def _increment(self, pos1, base1, pos2, base2):
+        # Only store nondecreasing pairs.
+        if self.lexicographic_ordering_bases(pos1, base1) > self.lexicographic_ordering_bases(pos2, base2):
+            self._increment(pos2, base2, pos1, base1)
+        else:
+            self.pairwise_counts[(pos1, base1, pos2, base2)] += 1
+
+    def specified_counts(self, variant_pairs: List[Tuple[int, int, int, int]]) -> np.ndarray:
+        return np.array([
+            self._get_count(*pair) for pair in variant_pairs
+        ])
+
+    def _count_pairwise_occurrences(self, alignments: Iterable[SequenceReadAlignment]):
+        # ============= Helper functions =============
+        def supported_positions(positions: Iterable[int]) -> Iterator[int]:
+            for position in positions:
+                if position in self.supported_positions:
+                    yield position
+
+        # ============== Parsing ==============
+        """
+        Add to the matrix all observed high-quality pairs of nucleotides at the supported positions.
+        Includes reference nucleotides, since the lack of a variant observed at position p is also a signal 
+        (indicating negative correlation).
+        """
+        for aln in alignments:
+            read_seq, read_quality = aln.read_aligned_section
+            high_quality_positions = np.where(
+                (read_seq != nucleotide_N_z4) & (read_quality > self.quality_threshold)
+            )[0]
+
+            for pos1, pos2 in itertools.combinations(supported_positions(high_quality_positions), r=2):
+                base1 = read_seq[pos1]
+                base2 = read_seq[pos2]
+
+                ref_base1 = aln.marker_frag[pos1]
+                ref_base2 = aln.marker_frag[pos2]
+                if (ref_base1 == base1) and (ref_base2 == base2):
+                    # Both positions are reference bases; to save space, ignore these.
+                    continue
+
+                self._increment(pos1, base1, pos2, base2)
 
 
 class MarkerVariantEvidence(object):
@@ -69,71 +137,47 @@ class MarkerVariantEvidence(object):
                  marker: Marker,
                  time_series_alignments: TimeSeriesMarkerAlignments,
                  quality_threshold: float):
+        """
+        Encapsulates the other two Evidence classes.
+
+        :param marker:
+        :param time_series_alignments:
+        :param quality_threshold:
+        """
         # TODO: have MarginalEvidence record deletions and insertions, using the alignments.
         self.marker = marker
         self.quality_threshold = quality_threshold
-        self.counts_evidence = [
-            MarginalEvidence(self.marker, alns_t, self.quality_threshold, read_depth_t, "count")
-            for alns_t, read_depth_t in time_series_alignments
-        ]
-        self.quality_evidence = [
-            MarginalEvidence(self.marker, alns_t, self.quality_threshold, read_depth_t, "quality")
+
+        self.marginal_evidences = [
+            MarginalVariantQualityEvidence(self.marker, alns_t, self.quality_threshold)
             for alns_t, read_depth_t in time_series_alignments
         ]
 
-        self.support = self._compute_support(time_series_alignments)
+        self.supported_positions = set()
+        for ev in self.marginal_evidences:
+            self.supported_positions = self.supported_positions.union(ev.supported_positions)
 
-    def _compute_support(self, time_series_alignments: TimeSeriesMarkerAlignments):
-        """
-        Computes the total evidence across all timepoints, and returns all variants with nonzero # of occurrences.
-        :param time_series_alignments:
-        :return: A (2 x V) numpy array of dtype int, where each column represents a (position, base) pair.
-        """
-        total_evidence = MarginalEvidence(self.marker, [], self.quality_threshold, 0, "count")
-        for alns_t, read_depths_t in time_series_alignments:
-            total_evidence.add_alignments(alns_t)
-        return np.stack(np.where(total_evidence.evidence_matrix > 0), axis=0)
+        self.pairwise_evidences = [
+            PairwiseFrequencyEvidence(self.supported_positions, alns_t, self.quality_threshold)
+            for alns_t, read_depth_t in time_series_alignments
+        ]
 
-    def supported_mean_evidence_change(self):
-        """
-        :return: A (T-1) x (V) numpy matrix of timepoint differences in evidences. It is assumed (for
-            downstream calculations) that if two variants are from the same marker, then their count
-            changes are correlated.
-        """
-        return np.diff(
-            np.stack([
-                evidence_t.relative_evidence[self.support[0, :], self.support[1, :]]
-                for evidence_t in self.counts_evidence
-            ], axis=0),
-            axis=0
-        )
+        relevant_pairs_set = set()
+        for ev in self.pairwise_evidences:
+            relevant_pairs_set = relevant_pairs_set.union(ev.pairwise_support)
+        self.relevant_pairs: List[Tuple[int, int, int, int]] = list(relevant_pairs_set)
 
-    def num_supported_variants(self) -> int:
+    def timeseries_pairwise_counts_matrix(self):
         """
-        :return: The number of supported variants.
+        :return: A (T) x (V^2) numpy matrix of timepoint-wise counts of each relevant pair.
         """
-        return self.support.shape[1]
-
-    def supported_variants(self) -> Iterator[Tuple[int, int]]:
-        """
-        :return: A generator over the supported variants, represented as a (position, z4-base) tuple.
-        """
-        for i in range(self.num_supported_variants()):
-            yield self.support[0, i], self.support[1, i]
-
-    def variant_desc(self) -> Iterator[str]:
-        """
-        :return: A generator yielding a informative representation of each tuple. For debugging purposes.
-        """
-        for pos, base in self.supported_variants():
-            yield "{pos}:{ref}->{var}".format(
-                pos=pos,
-                ref=self.marker.nucleotide_seq[pos],
-                var=map_z4_to_nucleotide(base)
-            )
+        return np.stack([
+            evidence_t.specified_counts(self.relevant_pairs)
+            for evidence_t in self.pairwise_evidences
+        ], axis=0)
 
     @property
-    def variant_getter(self) -> Callable[[int], Tuple[int, int]]:
-        def my_getter(variant_idx: int):
-            return self.support[0, variant_idx], self.support[1, variant_idx]
+    def variant_pair_getter(self) -> Callable[[int], Tuple[int, int, int, int]]:
+        def my_getter(variant_pair_idx: int):
+            return self.relevant_pairs[variant_pair_idx]
         return my_getter

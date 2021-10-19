@@ -10,7 +10,7 @@ from chronostrain.database import StrainDatabase
 from chronostrain.model import Marker
 from chronostrain.model.io import TimeSeriesReads
 
-from .evidence import MarginalEvidence, MarkerVariantEvidence, TimeSeriesMarkerAlignments
+from .evidence import MarkerVariantEvidence, TimeSeriesMarkerAlignments, MarginalVariantQualityEvidence
 from .base import MarkerVariant, StrainVariant
 
 from chronostrain.config import create_logger
@@ -35,7 +35,7 @@ def upper_triangular_upper_bounded(x: np.ndarray,
     Is equivalent to performing np.where(x > upper_bound), then filtering according to whether row + k <= col.
     :return: A tuple of numpy arrays, representing the array of valid rows and the matching array valid columns.
     """
-    r, c = np.triu_indices_from(x)
+    r, c = np.triu_indices_from(x, k=k)
     values = x[r, c]
     valid_indices = np.where(values < upper_bound)
     return r[valid_indices], c[valid_indices]
@@ -80,35 +80,39 @@ class StrainVariantComputer(object):
         """
         :return: An iterator over variants (a 1-d numpy array containing a marker sequence.
         """
-        G, variant_getter, quality_evidences = self._construct_similarity_graph()
+        G, variant_pair_getter, quality_evidences = self._construct_similarity_graph()
         for clique in nx.find_cliques(G):
-            yield self._strain_variant_from_clique(clique, variant_getter, quality_evidences)
+            yield self._strain_variant_from_clique(clique, variant_pair_getter, quality_evidences)
 
     def _strain_variant_from_clique(
             self,
             clique: List[int],
-            variant_getter: Callable[[int], Tuple[int, int, int]],
-            quality_evidences: List[List[MarginalEvidence]]
+            variant_pair_getter: Callable[[int], Tuple[int, int, int, int, int]],
+            quality_evidences: List[List[MarginalVariantQualityEvidence]]
     ) -> StrainVariant:
         """
         :param clique: The list of variant indices representing a clique.
-        :param variant_getter: A callable instance representing the map (variant index) -> (Marker, pos, base).
+        :param variant_pair_getter: A callable instance representing the semantic mapping
+            (cumulative 2-NV index) -> (Marker, pos1, base1, pos2, base2).
         :param quality_evidences: A marker-indexed list of time-series marginal quality score evidences.
         :return: A generator yielding resolutions of the clique into variants.
         """
         # For each marker, tally up the total evidence across time.
         total_marker_evidences = [
-            entrywise_sum(*(marker_evidence_t.evidence_matrix for marker_evidence_t in marker_evidences))
+            entrywise_sum(*(marker_evidence_t.matrix for marker_evidence_t in marker_evidences))
             for marker_evidences in quality_evidences
         ]
 
         # Group together the variants in the clique by their marker.
         markers_to_subcliques = defaultdict(list)
-        for nuc_variant_idx in clique:
-            target_marker_idx, pos, base = variant_getter(nuc_variant_idx)
-            markers_to_subcliques[target_marker_idx].append((pos, base))
+        for paired_variant_idx in clique:
+            target_marker_idx, pos1, base1, pos2, base2 = variant_pair_getter(paired_variant_idx)
+            markers_to_subcliques[target_marker_idx].append((pos1, base1))
+            markers_to_subcliques[target_marker_idx].append((pos2, base2))
 
         # Instantiate the marker variants.
+        # By concatenating all the possible combinatorial constructions from the clique into the same strain, the
+        # interpretation here is that multiple marker variants with very high correlation are due to copy numbers.
         marker_variants: List[MarkerVariant] = []
         for marker_idx, subclique in markers_to_subcliques.items():
             marker = self.all_markers[marker_idx]
@@ -136,6 +140,7 @@ class StrainVariantComputer(object):
         :param quality_evidences: A (L x 4) array of totaled quality evidence scores.
         :return: A MarkerVariant instance.
         """
+        # For each position, tally up which variants it has, if any.
         variants = defaultdict(list)
         for pos, base in clique:
             variants[pos].append(base)
@@ -144,51 +149,75 @@ class StrainVariantComputer(object):
             for base in base_list:
                 yield pos, base, quality_evidences[pos, base]
 
-        for variant_desc in itertools.product(*(nucleotide_iterator(pos, base_list) for pos, base_list in variants.items())):
-            # Here, the positions are guaranteed to be unique.
+        # Take all possible combinatorial combinations.
+        for variant_desc in itertools.product(
+                *(nucleotide_iterator(pos, base_list)
+                  for pos, base_list in variants.items())
+        ):
+            # Ignore reference (position, base) pairs.
+            substitutions = [
+                substitution
+                for substitution in variant_desc
+                if base_marker.seq[substitution[0]] != substitution[1]
+            ]
+
+            # At this point, the positions are guaranteed to be unique.
             yield MarkerVariant(
                 base_marker=base_marker,
-                substitutions=variant_desc
+                substitutions=substitutions
             )
 
     def _construct_similarity_graph(
             self
     ) -> Tuple[
         nx.Graph,
-        Callable[[int], Tuple[int, int, int]],
-        List[List[MarginalEvidence]]
+        Callable[[int], Tuple[int, int, int, int, int]],
+        List[List[MarginalVariantQualityEvidence]]
     ]:
         """
         Computes the similarity graph based on the inner-product similarity measure on the embedding space.
         The embedding is the nonzero eigenvector set of the correlation matrix.
+
+        :return: A tuple of three outputs:
+        1) The Graph instance, where edges imply high correlation between pairs of variants.
+        2)
         """
         # ==== Retrieve alignments and initialize necessary values.
         all_obs = []
+
+        # ==== To be used in identifying variant indices across different markers.
         sizes = np.zeros(shape=len(self.all_markers), dtype=int)
         variant_getters = []
         quality_evidences = []
 
+        # ==== Normalization for computing frequencies from counts.
+        read_depth_normalization = np.array([
+            1 / self.reads.time_slices[t_idx].read_depth
+            for t_idx in range(len(self.reads))
+        ])
+
+        # ==== Tally up evidence for variants.
         for marker_idx, (marker, alns) in enumerate(self._alignments_by_marker(self.all_markers)):
             # Create the observation matrix for this marker, to be concatenated.
             variants = MarkerVariantEvidence(marker, alns, self.quality_threshold)
-            obs = variants.supported_mean_evidence_change()
+            obs = variants.timeseries_pairwise_counts_matrix() * read_depth_normalization
             all_obs.append(obs)
-
-            assert obs.shape[0] == len(self.reads) - 1
-            assert obs.shape[1] == variants.num_supported_variants()
-            logger.debug("Marker {}: # supported variants: {}".format(marker.name, variants.num_supported_variants()))
+            logger.debug("Marker {}: # variant pairs: {}".format(marker.name, len(variants.relevant_pairs)))
 
             # To be used in making the variant idx -> variant mapping.
-            sizes[marker_idx] = variants.num_supported_variants()
-            variant_getters.append(variants.variant_getter)
+            assert obs.shape[0] == len(self.reads)
+            assert obs.shape[1] == len(variants.relevant_pairs)
+            sizes[marker_idx] = len(variants.relevant_pairs)
+            variant_getters.append(variants.variant_pair_getter)
 
             # To be used in determining the evidence of variants.
-            quality_evidences.append(variants.quality_evidence)
+            quality_evidences.append(variants.marginal_evidences)
 
-        cumulative_sizes = np.cumsum(sizes)
+        cumulative_sizes = np.cumsum(sizes)  # To be used in identifying variant indices across different markers.
 
         # ==== A callable which maps the cumulative variant index into the individual marker's relative variant index.
-        def variant_getter(cumulative_variant_idx: int) -> Tuple[int, int, int]:
+        def variant_pair_getter(cumulative_variant_idx: int) -> Tuple[int, int, int, int, int]:
+            # Try to figure out the marker index based on the cumulative variant index.
             try:
                 tgt_marker_idx = np.where(cumulative_variant_idx < cumulative_sizes)[0][0]
             except IndexError as e:
@@ -198,24 +227,27 @@ class StrainVariantComputer(object):
                     )
                 ) from e
 
+            # Convert the cumulative variant index into an index relative to the marker.
             if tgt_marker_idx > 0:
                 relative_idx = cumulative_variant_idx - cumulative_sizes[tgt_marker_idx - 1]
             else:
                 relative_idx = cumulative_variant_idx
-            pos, base = variant_getters[tgt_marker_idx](relative_idx)
-            return tgt_marker_idx, pos, base
 
-        # ==== The master correlation matrix.
-        corrs = np.corrcoef(np.concatenate(all_obs, axis=1).transpose())
-        logger.debug("corrs dim: {}".format(corrs.shape))
+            # Invoke the getter.
+            pos1, base1, pos2, base2 = variant_getters[tgt_marker_idx](relative_idx)
+            return tgt_marker_idx, pos1, base1, pos2, base2
 
-        if corrs.shape[0] == 0:
+        # ==== The (T x V^2) master frequency matrix.
+        freqs = np.concatenate(all_obs, axis=1)
+        logger.debug("Frequency matrix dim: {}".format(freqs.shape))
+
+        if freqs.shape[1] == 0:
             raise NoVariantsException("No inferrable variants from provided quality threshold setting {}.".format(
                 self.quality_threshold
             ))
 
         # ==== Only report eigenvalues > eig_lower_bound.
-        evals, evecs = eigh(corrs, subset_by_value=[self.eig_lower_bound, np.inf])
+        evals, evecs = eigh(freqs.transpose() @ freqs, subset_by_value=[self.eig_lower_bound, np.inf])
         if len(evals) == 0:
             raise NoVariantsException(
                 "No inferrable variants from eigenspace decomposition. "
@@ -251,7 +283,7 @@ class StrainVariantComputer(object):
             raise NoVariantsException("No inferrable variants from embedding-space similarity threshold {}.".format(
                 self.variant_distance_upper_bound
             ))
-        return G, variant_getter, quality_evidences
+        return G, variant_pair_getter, quality_evidences
 
     def _alignments_by_marker(self, markers: List[Marker]) -> Iterator[Tuple[Marker, TimeSeriesMarkerAlignments]]:
         """

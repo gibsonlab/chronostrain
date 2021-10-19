@@ -12,6 +12,7 @@ class MarkerVariant(Marker):
         :param substitutions: An iterable of (position, base, evidence) tuples.
         """
         self.base_marker = base_marker
+
         self.quality_evidence = np.sum([qual for _, _, qual in substitutions])
 
         new_id = "{}<{}>".format(
