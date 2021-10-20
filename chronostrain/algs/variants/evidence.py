@@ -42,9 +42,12 @@ class MarginalVariantQualityEvidence(object):
 
         # ============== Parsing ==============
         for aln in alignments:
-            read_seq, read_quality = aln.read_aligned_section
+            read_seq, read_quality = aln.read_aligned_section(delete_indels=ASLKDF)
+            marker_frag = aln.marker_aligned_frag(delete_indels=ASDFASD)
+            assert len(read_seq) == len(marker_frag)
+
             relative_variant_positions = np.where(
-                (read_seq != nucleotide_N_z4) & (read_seq != aln.marker_frag) & (
+                (read_seq != nucleotide_N_z4) & (read_seq != marker_frag) & (
                             read_quality > self.quality_threshold)
             )[0]
             variant_bases = read_seq[relative_variant_positions]
@@ -114,17 +117,19 @@ class PairwiseFrequencyEvidence(object):
         (indicating negative correlation).
         """
         for aln in alignments:
-            read_seq, read_quality = aln.read_aligned_section
+            read_seq, read_quality = aln.read_aligned_section(delete_indels=ASDFASDF)
             high_quality_positions = np.where(
                 (read_seq != nucleotide_N_z4) & (read_quality > self.quality_threshold)
             )[0]
+            marker_frag = aln.marker_aligned_frag(delete_indels=True)
+            # TODO indels
 
             for pos1, pos2 in itertools.combinations(supported_positions(high_quality_positions), r=2):
                 base1 = read_seq[pos1]
                 base2 = read_seq[pos2]
 
-                ref_base1 = aln.marker_frag[pos1]
-                ref_base2 = aln.marker_frag[pos2]
+                ref_base1 = marker_frag[pos1]
+                ref_base2 = marker_frag[pos2]
                 if (ref_base1 == base1) and (ref_base2 == base2):
                     # Both positions are reference bases; to save space, ignore these.
                     continue
