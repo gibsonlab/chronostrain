@@ -1,11 +1,12 @@
 import argparse
 from pathlib import Path
-from typing import Tuple, List
+from typing import Tuple, List, Optional
 
 from chronostrain import logger, cfg
 from chronostrain.algs import StrainVariant, BBVISolver
+from chronostrain.algs.subroutines import CachedReadAlignments
 from chronostrain.database import StrainDatabase
-from chronostrain.model import Population, GenerativeModel
+from chronostrain.model import Population, GenerativeModel, construct_fragment_space_uniform_length, FragmentSpace
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.algs.variants import StrainVariantComputer
 
@@ -22,8 +23,9 @@ def parse_args():
     parser.add_argument('-r', '--reads_dir', required=True, type=str,
                         help='<Required> Directory containing read files. The directory requires a `input_files.csv` '
                              'which contains information about the input reads and corresponding time points.')
-    parser.add_argument('-l', '--read_length', required=True, type=int,
-                        help='<Required> Length of each read')
+    parser.add_argument('-l', '--read_length', required=False, type=int,
+                        help='<Optional> Length of each read. If specified, fragments will be constructed with this '
+                             'fixed read length.')
 
     # Output specification.
     parser.add_argument('-o', '--out_dir', required=True, type=str,
@@ -61,15 +63,31 @@ def parse_args():
     return parser.parse_args()
 
 
+def create_fragments(reads: TimeSeriesReads,
+                     db: StrainDatabase,
+                     variant_population: Population,
+                     read_length: Optional[int] = None):
+    if (read_length is not None) or (not cfg.model_cfg.use_sparse):
+        return construct_fragment_space_uniform_length(read_length, variant_population)
+    else:
+        cached_alignments = CachedReadAlignments(reads, db)
+        fragment_space = FragmentSpace()
+        for t_idx in range(len(reads)):
+            for marker, alignments in cached_alignments.get_alignments(t_idx).items():
+                for aln in alignments:
+                    # fragment_space.add_seq(aln.marker_aligned_frag(delete_indels=True))
+        return fragment_space
+
+
 def search_best_variant_solution(
         db: StrainDatabase,
         reads: TimeSeriesReads,
-        read_len: int,
         time_points: List[float],
         num_iters: int,
         learning_rate: float,
         num_samples: int,
-        seed_with_database: bool
+        seed_with_database: bool,
+        read_len: Optional[int] = None
 ) -> Tuple[List[StrainVariant], GenerativeModel, BBVISolver, float]:
     computer = StrainVariantComputer(
         db=db,
@@ -107,11 +125,12 @@ def search_best_variant_solution(
         else:
             included_variants = variants[:n_top_variants]
             population = Population(strains=included_variants)
+        fragments = create_fragments(reads, db, population, read_len)
 
         # ============ Create model instance
         model = create_model(
             population=population,
-            window_size=read_len,
+            fragments=fragments,
             time_points=time_points,
             disable_quality=False
         )
@@ -135,12 +154,14 @@ def search_best_variant_solution(
         data_ll_estimate = (data_ll + prior_ll - posterior_ll_est).item()
 
         if data_ll_estimate <= best_data_ll_estimate:
-            logger.debug("Data LL didn't improve ({:.3f} --> {:.3f}). Terminating search at {} strains ({} non-base variants).".format(
-                best_data_ll_estimate,
-                data_ll_estimate,
-                best_model.bacteria_pop.num_strains(),
-                len(best_variants)
-            ))
+            logger.debug(
+                "Data LL decrease ({:.3f} --> {:.3f}). Terminating search at {} strains ({} non-base variants).".format(
+                    best_data_ll_estimate,
+                    data_ll_estimate,
+                    best_model.bacteria_pop.num_strains(),
+                    len(best_variants)
+                )
+            )
             return best_variants, best_model, best_result, best_data_ll_estimate
         else:
             best_variants = included_variants
@@ -153,6 +174,9 @@ def search_best_variant_solution(
 
 def main():
     args = parse_args()
+    if not cfg.model_cfg.use_sparse:
+        raise NotImplementedError("Inference with variant construction not supported with `use_sparse=False`. "
+                                  "Change this in the configuration file.")
 
     logger.info("Inference started on read inputs {}.".format(
         args.reads_dir
@@ -185,12 +209,12 @@ def main():
     variants, model, solver, likelihood = search_best_variant_solution(
         db=db,
         reads=reads,
-        read_len=read_len,
         time_points=time_points,
         num_iters=args.iters,
         learning_rate=args.learning_rate,
         num_samples=args.num_samples,
-        seed_with_database=args.seed_with_database
+        seed_with_database=args.seed_with_database,
+        read_len=read_len
     )
 
     logger.info("Final variants: {}".format(variants))

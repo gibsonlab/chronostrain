@@ -73,37 +73,26 @@ def parse_line_into_alignment(sam_path: Path, samline: SamLine, db: StrainDataba
             read_seq_aln_tokens.append(read_seq[current_read_idx:current_read_idx + cigar_el.num])
             read_qual_aln_tokens.append(read_qual[current_read_idx:current_read_idx + cigar_el.num])
             current_read_idx += cigar_el.num
-            pass
         elif cigar_el.op == CigarOp.MISMATCH:
             read_seq_aln_tokens.append(read_seq[current_read_idx:current_read_idx + cigar_el.num])
             read_qual_aln_tokens.append(read_qual[current_read_idx:current_read_idx + cigar_el.num])
             current_read_idx += cigar_el.num
-            pass
         elif cigar_el.op == CigarOp.INSERTION:
-            # TODO: this represents an insertion into reference marker.
-            #   1) Store into the alignment instance the (position, nucleotides) pair which corresponds to
-            #   this insertion.
-            #   This is to be translated into (start_insert_pos, insert_len, relative_pos, nucleotide)
-            #   tuples, e.g. (3, AC) means "insert AC into position 3 of marker", which translates into
-            #       [(3, 2, 0, A), (3, 2, 1, C)].
-            #   2) Remove from the read sequence the nucleotides inserted.
-            raise NotImplementedError(
-                "Line {}, Cigar `{}`: Single nucleotide insertions are not currently supported.".format(
-                    samline.lineno, samline.cigar_str
+            insertions.append(
+                NucleotideInsertion(
+                    relative_start_pos=current_read_idx,
+                    insert_len=cigar_el.num
                 )
             )
+            current_read_idx += cigar_el.num
         elif cigar_el.op == CigarOp.DELETION:
-            # TODO: this represents a deletion from the reference marker.
-            #   1) Store into the alignment instance the (marker_start, marker_end) pair which corresponds to the
-            #   location of the deleted segment.
-            #   This is to be translated into a list of (delete_pos), e.g. (3, 5) means
-            #   "delete 5 chars starting at pos 3", which translates into [3, 4, 5, 6, 7].
-            #   2) Add into the read sequence a special "DELETED" character/number (in z4 representation space).
-            raise NotImplementedError(
-                "Line {}, Cigar `{}`: Single nucleotide deletions are not currently supported.".format(
-                    samline.lineno, samline.cigar_str
+            deletions.append(
+                NucleotideDeletion(
+                    relative_start_pos=current_read_idx,
+                    delete_len=cigar_el.num
                 )
             )
+            current_read_idx += cigar_el.num
         elif cigar_el.op == CigarOp.SKIPREF:
             raise NotImplementedError(
                 "Line {}, Cigar `{}`: Reference skips are not currently supported.".format(

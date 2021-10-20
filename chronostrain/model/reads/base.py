@@ -111,9 +111,6 @@ class AbstractQScoreDistribution(metaclass=ABCMeta):
     error models (AbstractErrorModel).
     """
 
-    def __init__(self, length):
-        self.length = length
-
     @abstractmethod
     def compute_log_likelihood(self, qvec: np.ndarray) -> float:
         """

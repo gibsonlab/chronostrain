@@ -108,16 +108,15 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         
         In particular, this means that we don't have to worry about indels.
         """
-        from chronostrain.util.sequences import z4_to_nucleotides
         for tgt_base_marker, alns in self.cached_reference_alignments.get_alignments(t_idx).items():
             for aln in alns:
                 # First, add the likelihood for the fragment for the aligned base marker.
                 if self.marker_isin_pop(tgt_base_marker):
                     """ We only care about one-to-one alignments (no insertions/deletions/clipping). """
-                    marker_frag_seq: SeqType = aln.marker_frag
+                    marker_frag_seq: SeqType = aln.marker_aligned_frag(delete_indels=ASDFASF)
 
                     try:
-                        tgt_frag = self.model.get_fragment_space().get_fragment(marker_frag_seq)
+                        tgt_frag = self.model.fragments.get_fragment(marker_frag_seq)
                         read_to_fragments[aln.read_id].append((tgt_frag, aln.reverse_complemented))
                     except KeyError:
                         # Ignore these errors (see above note).
@@ -125,15 +124,17 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
 
                 # Next, look up any variants of the base marker.
                 for variant in self.marker_variants_of(tgt_base_marker):
-                    variant_frag_seq: SeqType = variant.subseq_from_base_marker_positions(
-                        base_marker_start=aln.marker_start,
-                        base_marker_end=aln.marker_end
-                    )
-                    if len(variant_frag_seq) != self.model.read_length:
+                    variant_frag_seq: SeqType = variant.subseq_from_ref_alignment(aln)
+                    if aln.read_start > 0 or aln.read_end < len(aln.read_seq) - 1:
                         # Read only partially maps to marker (usually edge effect).
+                        logger.debug(
+                            f"Discarding alignment of read {aln.read_id} (length={len(aln.read_seq)}) "
+                            f"to marker {aln.marker.id}, alignment got clipped "
+                            f"(read_start = {aln.read_start}, read_end = {aln.read_end})"
+                        )
                         continue
 
-                    variant_frag = self.model.get_fragment_space().get_fragment(variant_frag_seq)
+                    variant_frag = self.model.fragments.get_fragment(variant_frag_seq)
                     try:
                         read_to_fragments[aln.read_id].append((variant_frag, aln.reverse_complemented))
                     except KeyError:

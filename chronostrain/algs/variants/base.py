@@ -2,6 +2,7 @@ from typing import Iterable, Tuple, List
 import numpy as np
 
 from chronostrain.model import Marker, Strain
+from chronostrain.util.alignments import SequenceReadAlignment
 from chronostrain.util.sequences import SeqType, map_z4_to_nucleotide
 
 
@@ -39,8 +40,28 @@ class MarkerVariant(Marker):
             metadata=base_marker.metadata
         )
 
-    def subseq_from_base_marker_positions(self, base_marker_start: int, base_marker_end: int) -> SeqType:
-        return self.seq[base_marker_start:base_marker_end + 1]
+    def subseq_from_ref_alignment(self, alignment: SequenceReadAlignment) -> SeqType:
+        """
+        Retrieve the subsequence of this marker, given the relative positioning (with respect to the base marker)
+        stored inside the SequenceReadAlignment instance.
+
+        :param alignment:
+        :return: The sequence, returned as a numpy array (SeqType).
+        """
+
+        this_marker_start = alignment.marker_start + (ASDFASDF)
+        this_marker_end = alignment.marker_end + (ASDF)
+
+        """
+        Note:
+        The only complexity added is due to indels, otherwise the answer would just be seq[marker_start:marker_end + 1].
+        """
+        return self.seq[
+            this_marker_start:this_marker_end + 1
+        ]
+
+    # def subseq_from_base_marker_positions(self, base_marker_start: int, base_marker_end: int) -> SeqType:
+    #     return self.seq[base_marker_start:base_marker_end + 1]
 
 
 class StrainVariant(Strain):

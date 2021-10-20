@@ -203,7 +203,7 @@ def filter_file(
             # Pass filter if quality is high enough, and entire read is mapped.
             passed_filter = (
                     filter_on_read_quality(aln.read_qual)
-                    and ((aln.marker_end - aln.marker_start + 1) == len(aln.read_seq))
+                    and ((aln.marker_end - aln.marker_start + 1) == len(aln.read_seq))  # TODO remove this after indels are implemented into the algorithm.
             )
 
             # Write to metadata file.

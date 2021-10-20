@@ -28,7 +28,8 @@ class RampUpRampDownDistribution(AbstractQScoreDistribution):
         :param distribution: An array of numbers, where the ith element describes the proportion for which
             the ith quality score should appear in the quality vector.
         """
-        super().__init__(length)
+        super().__init__()
+        self.length = length
 
         if not (len(quality_score_values) == len(distribution)):
             raise ValueError("There must be exactly one ratio/frequency assigned for each quality score")
@@ -82,7 +83,7 @@ class RampUpRampDownDistribution(AbstractQScoreDistribution):
                 lengths[index] = length
                 lengths[len(lengths)-1-index] = length
 
-        lengths = np.floor(lengths).astype(np.int)
+        lengths = np.floor(lengths).astype(int)
         total_len = lengths.sum().item()
 
         if not (total_len <= self.length):
@@ -194,6 +195,6 @@ class BasicErrorModel(AbstractErrorModel):
         random_seq = choice_vectorized(
             p=BasicErrorModel.Q_SCORE_BASE_CHANGE_MATRICES[quality_score_vector, fragment.seq, :],
             axis=1,
-            dtype=cseq.SEQ_DTYPE
+            dtype=cseq.NucleotideDtype
         )
         return SequenceRead(read_id=read_id, seq=random_seq, quality=quality_score_vector, metadata=metadata)

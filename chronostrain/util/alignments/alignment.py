@@ -4,7 +4,7 @@ from typing import Tuple, List
 import numpy as np
 
 from chronostrain.model import Marker
-from chronostrain.util.sequences import SeqType, NucleotideDtype, z4_to_nucleotides
+from chronostrain.util.sequences import SeqType, z4_to_nucleotides
 
 from chronostrain.config.logging import create_logger
 logger = create_logger(__name__)
@@ -12,15 +12,14 @@ logger = create_logger(__name__)
 
 @dataclass
 class NucleotideInsertion(object):
-    insert_pos: int
+    relative_start_pos: int
     insert_len: int
-    relative_pos: int
-    nucleotide: NucleotideDtype
 
 
 @dataclass
 class NucleotideDeletion(object):
-    delete_pos: int
+    relative_start_pos: int
+    delete_len: int
 
 
 class SequenceReadAlignment(object):
@@ -55,7 +54,7 @@ class SequenceReadAlignment(object):
         self.read_id: str = read_id
         self.sam_path: Path = sam_path
         self.sam_line_no: int = sam_line_no
-        self.id: str = "{}[{},{}]".format(read_id, marker_start, marker_end)
+        self.unique_id: str = "{}[{},{}]".format(read_id, marker_start, marker_end)
         self.read_seq: np.ndarray = read_seq
         self.read_qual: np.ndarray = read_qual
         self.marker: Marker = marker
@@ -66,22 +65,37 @@ class SequenceReadAlignment(object):
         self.marker_start: int = marker_start
         self.marker_end: int = marker_end
 
-        self.marker_frag: SeqType = marker.seq[marker_start:marker_end + 1]
-
         # Indicates whether the read has been reverse complemented.
         self.reverse_complemented: bool = reverse_complemented
 
         self.insertions_into_marker: List[NucleotideInsertion] = insertions_into_marker
         self.deletions_from_marker: List[NucleotideDeletion] = deletions_from_marker
 
-    @property
-    def read_aligned_section(self) -> Tuple[np.ndarray, np.ndarray]:
-        section = slice(self.read_start, self.read_end + 1)
-        return self.read_seq[section], self.read_qual[section]
+    def read_aligned_section(self, delete_indels: bool) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Returns the section of the read corresponding to matches/mismatches.
+        Specifically removes clipped edges. Optionally deletes insertions and/or deletions.
+        """
+        if delete_indels:
+            # TODO indels
+            raise NotImplementedError()
+        else:
+            section = slice(self.read_start, self.read_end + 1)
+            return self.read_seq[section], self.read_qual[section]
+
+    def marker_aligned_frag(self, delete_indels: bool) -> SeqType:
+        """
+        Returns the section of the fragment corresponding to matches/mismatches.
+        Specifically removes clipped edges. Also deletes insertions and/or deletions by default, unless specified.
+        """
+        if delete_indels:
+            return self.marker.seq[self.marker_start:self.marker_end + 1]
+        else:
+            return self.marker.seq[self.marker_start:self.marker_end + 1]
 
     @property
     def read_seq_nucleotide(self) -> str:
         return z4_to_nucleotides(self.read_seq)
 
     def __eq__(self, other: 'SequenceReadAlignment') -> bool:
-        return self.id == other.id
+        return self.unique_id == other.unique_id
