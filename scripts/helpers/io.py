@@ -2,13 +2,24 @@ import csv
 from pathlib import Path
 from typing import Dict, Tuple, List, Iterable
 
+from chronostrain.model.io import TimeSeriesReads
 
-def get_input_paths(base_dir: Path, input_filename) -> Tuple[List[Iterable[Path]], List[int], List[float]]:
+
+def parse_reads(input_spec_path: Path, quality_format: str):
+    read_paths, read_depths, time_points = parse_input_spec(input_spec_path)
+    return TimeSeriesReads.load(
+        time_points=time_points,
+        read_depths=read_depths,
+        source_entries=read_paths,
+        quality_format=quality_format
+    )
+
+
+def parse_input_spec(input_spec_path: Path) -> Tuple[List[Iterable[Path]], List[int], List[float]]:
     time_points_to_reads: Dict[float, List[Tuple[int, Path]]] = {}
 
-    input_specification_path = base_dir / input_filename
     try:
-        with open(input_specification_path, "r") as f:
+        with open(input_spec_path, "r") as f:
             input_specs = csv.reader(f, delimiter=',', quotechar='"')
             for row in input_specs:
                 time_point = float(row[0])
@@ -23,7 +34,7 @@ def get_input_paths(base_dir: Path, input_filename) -> Tuple[List[Iterable[Path]
 
                 time_points_to_reads[time_point].append((num_reads, read_path))
     except FileNotFoundError:
-        raise FileNotFoundError(f"Missing required file `{input_filename}` in directory {base_dir}.") from None
+        raise FileNotFoundError(f"Missing required file `{str(input_spec_path)}`") from None
 
     time_points = sorted(time_points_to_reads.keys(), reverse=False)
     read_depths = [

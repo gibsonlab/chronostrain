@@ -49,8 +49,9 @@ class MarkerVariant(Marker):
         :return: The sequence, returned as a numpy array (SeqType).
         """
 
-        this_marker_start = alignment.marker_start + (ASDFASDF)
-        this_marker_end = alignment.marker_end + (ASDF)
+        # TODO indel
+        this_marker_start = alignment.marker_start
+        this_marker_end = alignment.marker_end
 
         """
         Note:
@@ -59,9 +60,6 @@ class MarkerVariant(Marker):
         return self.seq[
             this_marker_start:this_marker_end + 1
         ]
-
-    # def subseq_from_base_marker_positions(self, base_marker_start: int, base_marker_end: int) -> SeqType:
-    #     return self.seq[base_marker_start:base_marker_end + 1]
 
 
 class StrainVariant(Strain):

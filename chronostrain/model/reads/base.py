@@ -1,19 +1,19 @@
 """
     Contains abstract classes. See the other python files for implementations.
 """
-from typing import Union
+from typing import Union, Optional
 
 import numpy as np
 from abc import abstractmethod, ABCMeta
 from chronostrain.model import Fragment
-from chronostrain.util.sequences import nucleotides_to_z4, z4_to_nucleotides
+from chronostrain.util.sequences import nucleotides_to_z4, z4_to_nucleotides, SeqType
 
 
 class SequenceRead:
     """
     A class representing a sequence-quality vector pair.
     """
-    def __init__(self, read_id: str, seq: Union[str, np.ndarray], quality: np.ndarray, metadata: str):
+    def __init__(self, read_id: str, seq: Union[str, SeqType], quality: np.ndarray, metadata: str):
         self.id: str = read_id
         if len(seq) != len(quality):
             raise ValueError(
@@ -40,13 +40,13 @@ class SequenceRead:
     def __str__(self):
         return "[SEQ:{},QUAL:{}]".format(
             z4_to_nucleotides(self.seq),
-            self.quality.numpy()
+            self.quality
         )
 
     def __repr__(self):
         return "[SEQ:{},QUAL:{}]".format(
             self.seq,
-            self.quality.numpy()
+            self.quality
         )
 
     def __len__(self):
@@ -57,6 +57,9 @@ class SequenceRead:
             return False
         return other.id == self.id
 
+    def __hash__(self):
+        return hash(self.id)
+
 
 class AbstractErrorModel(metaclass=ABCMeta):
     """
@@ -65,12 +68,19 @@ class AbstractErrorModel(metaclass=ABCMeta):
     """
 
     @abstractmethod
-    def compute_log_likelihood(self, fragment: Fragment, read: SequenceRead, read_reverse_complemented: bool) -> float:
+    def compute_log_likelihood(self,
+                               fragment: Fragment,
+                               read: SequenceRead,
+                               read_reverse_complemented: bool,
+                               insertions: Optional[np.ndarray] = None,
+                               deletions: Optional[np.ndarray] = None) -> float:
         """
         Compute the log probability of observing the read, conditional on the fragment.
         :param fragment: The source fragment (a String)
         :param read: The read (of type SequenceRead)
         :param read_reverse_complemented: Indicates whether the read ought to be reverse complemented.
+        :param insertions: Indicates inserted nucleotides of the read (extra characters not in fragment).
+        :param deletions: Indicated deleted nucleotides from the fragment (characters missing in read from fragment).
         :return: the value P(read | fragment).
         """
         pass

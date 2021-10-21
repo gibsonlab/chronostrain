@@ -1,12 +1,12 @@
 import argparse
 from pathlib import Path
-from typing import Tuple, List, Optional
+from typing import Tuple, List
 
 from chronostrain import logger, cfg
 from chronostrain.algs import StrainVariant, BBVISolver
-from chronostrain.algs.subroutines import CachedReadAlignments
+from chronostrain.algs.subroutines import CachedReadPairwiseAlignments
 from chronostrain.database import StrainDatabase
-from chronostrain.model import Population, GenerativeModel, construct_fragment_space_uniform_length, FragmentSpace
+from chronostrain.model import Population, GenerativeModel, FragmentSpace
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.algs.variants import StrainVariantComputer
 
@@ -23,9 +23,6 @@ def parse_args():
     parser.add_argument('-r', '--reads_dir', required=True, type=str,
                         help='<Required> Directory containing read files. The directory requires a `input_files.csv` '
                              'which contains information about the input reads and corresponding time points.')
-    parser.add_argument('-l', '--read_length', required=False, type=int,
-                        help='<Optional> Length of each read. If specified, fragments will be constructed with this '
-                             'fixed read length.')
 
     # Output specification.
     parser.add_argument('-o', '--out_dir', required=True, type=str,
@@ -64,19 +61,18 @@ def parse_args():
 
 
 def create_fragments(reads: TimeSeriesReads,
-                     db: StrainDatabase,
-                     variant_population: Population,
-                     read_length: Optional[int] = None):
-    if (read_length is not None) or (not cfg.model_cfg.use_sparse):
-        return construct_fragment_space_uniform_length(read_length, variant_population)
-    else:
-        cached_alignments = CachedReadAlignments(reads, db)
-        fragment_space = FragmentSpace()
-        for t_idx in range(len(reads)):
-            for marker, alignments in cached_alignments.get_alignments(t_idx).items():
-                for aln in alignments:
-                    # fragment_space.add_seq(aln.marker_aligned_frag(delete_indels=True))
-        return fragment_space
+                     db: StrainDatabase):
+    if not cfg.model_cfg.use_sparse:
+        raise NotImplementedError("Variant search not implemented for usage with dense matrices.")
+
+    cached_alignments = CachedReadPairwiseAlignments(reads, db)
+    fragment_space = FragmentSpace()
+    for t_idx in range(len(reads)):
+        for marker, alignments in cached_alignments.alignments_by_marker_and_timepoint(t_idx).items():
+            for aln in alignments:
+                raise NotImplementedError("TODO")
+                # TODO: invoke each strain variant's method which extracts the variant fragment.
+    return fragment_space
 
 
 def search_best_variant_solution(
@@ -87,7 +83,6 @@ def search_best_variant_solution(
         learning_rate: float,
         num_samples: int,
         seed_with_database: bool,
-        read_len: Optional[int] = None
 ) -> Tuple[List[StrainVariant], GenerativeModel, BBVISolver, float]:
     computer = StrainVariantComputer(
         db=db,
@@ -110,7 +105,11 @@ def search_best_variant_solution(
 
     best_variants = []
     best_data_ll_estimate = float('-inf')
+
+    # noinspection PyTypeChecker
     best_model: GenerativeModel = None
+
+    # noinspection PyTypeChecker
     best_result: BBVISolver = None
 
     if seed_with_database:
@@ -125,7 +124,7 @@ def search_best_variant_solution(
         else:
             included_variants = variants[:n_top_variants]
             population = Population(strains=included_variants)
-        fragments = create_fragments(reads, db, population, read_len)
+        fragments = create_fragments(reads, db)
 
         # ============ Create model instance
         model = create_model(
@@ -186,18 +185,14 @@ def main():
     # ==== Create database instance.
     db = cfg.database_cfg.get_database()
 
-    # ==== Load Population instance from database info
-    read_sources, read_depths, time_points = get_input_paths(Path(args.reads_dir), args.input_file)
-
     # ==== Load reads.
     logger.info("Loading time-series read files.")
-    reads = TimeSeriesReads.load(
-        time_points=time_points,
-        read_depths=read_depths,
-        source_entries=read_sources,
+
+    reads = parse_reads(
+        Path(args.reads_dir) / args.input_file,
         quality_format=args.quality_format
     )
-    read_len = args.read_length
+    time_points = [time_slice.time_point for time_slice in reads]
 
     # ============ Prepare for algorithm output.
     out_dir = Path(args.out_dir)
@@ -214,7 +209,6 @@ def main():
         learning_rate=args.learning_rate,
         num_samples=args.num_samples,
         seed_with_database=args.seed_with_database,
-        read_len=read_len
     )
 
     logger.info("Final variants: {}".format(variants))

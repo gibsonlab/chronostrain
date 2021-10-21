@@ -7,7 +7,7 @@ from pathlib import Path
 
 from chronostrain import cfg, logger
 import chronostrain.visualizations as viz
-from chronostrain.algs.subroutines import CachedReadAlignments
+from chronostrain.algs.subroutines import CachedReadPairwiseAlignments
 from chronostrain.database import StrainDatabase
 from chronostrain.model import Population, construct_fragment_space_uniform_length, FragmentSpace
 from chronostrain.model.io import TimeSeriesReads
@@ -71,14 +71,18 @@ def parse_args():
     return parser.parse_args()
 
 
-def aligned_fragments(reads: TimeSeriesReads, db: StrainDatabase) -> FragmentSpace:
-    cached_alignments = CachedReadAlignments(reads, db)
+def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase) -> FragmentSpace:
+    """
+    Performs a pairwise alignment (each read to the reference marker), and then extracts all of the exactly aligned
+    fragments, ignoring indels.
+    """
+    cached_alignments = CachedReadPairwiseAlignments(reads, db)
     fragment_space = FragmentSpace()
     for t_idx in range(len(reads)):
-        for marker, alignments in cached_alignments.get_alignments(t_idx).items():
+        for marker, alignments in cached_alignments.alignments_by_marker_and_timepoint(t_idx).items():
             for aln in alignments:
                 # don't include indels in this function; it's not our job to identify indel variants.
-                fragment_space.add_seq(aln.marker_aligned_frag(delete_indels=True))
+                fragment_space.add_seq(aln.marker_frag)
     return fragment_space
 
 
@@ -92,18 +96,16 @@ def main():
 
     # ==== Parse input reads.
     logger.info("Loading time-series read files.")
-    read_sources, read_depths, time_points = get_input_paths(Path(args.reads_dir), args.input_file)
-    reads = TimeSeriesReads.load(
-        time_points=time_points,
-        read_depths=read_depths,
-        source_entries=read_sources,
+    reads = parse_reads(
+        Path(args.reads_dir) / args.input_file,
         quality_format=args.quality_format
     )
+    time_points = [time_slice.time_point for time_slice in reads]
 
     # ==== Load Population instance from database info
     population = Population(strains=db.all_strains(), extra_strain=cfg.model_cfg.extra_strain)
     if cfg.model_cfg.use_sparse:
-        fragments = aligned_fragments(reads, db)
+        fragments = aligned_exact_fragments(reads, db)
     else:
         fragments = construct_fragment_space_uniform_length(args.read_length, population)
 

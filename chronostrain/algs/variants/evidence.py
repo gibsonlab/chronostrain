@@ -42,8 +42,9 @@ class MarginalVariantQualityEvidence(object):
 
         # ============== Parsing ==============
         for aln in alignments:
-            read_seq, read_quality = aln.read_aligned_section(delete_indels=ASLKDF)
-            marker_frag = aln.marker_aligned_frag(delete_indels=ASDFASD)
+            # TODO indel
+            read_seq, read_quality = aln.read_aligned_section(delete_indels=False)
+            marker_frag = aln.marker_aligned_frag(delete_indels=False)
             assert len(read_seq) == len(marker_frag)
 
             relative_variant_positions = np.where(
@@ -117,7 +118,8 @@ class PairwiseFrequencyEvidence(object):
         (indicating negative correlation).
         """
         for aln in alignments:
-            read_seq, read_quality = aln.read_aligned_section(delete_indels=ASDFASDF)
+            # TODO indel
+            read_seq, read_quality = aln.read_aligned_section(delete_indels=False)
             high_quality_positions = np.where(
                 (read_seq != nucleotide_N_z4) & (read_quality > self.quality_threshold)
             )[0]

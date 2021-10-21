@@ -27,7 +27,11 @@ def create_model(population: Population,
         logger.info("Flag --disable_quality turned on; Quality scores are diabled. Initializing NoiselessErrorModel.")
         error_model = NoiselessErrorModel(mismatch_likelihood=0.)
     else:
-        error_model = PhredErrorModel()
+        logger.warning("TODO set the insertion/deletion probabilities.")
+        error_model = PhredErrorModel(
+            insertion_error_prob=1e-30,  # TODO config
+            deletion_error_prob=1e-30  # todo config
+        )
 
     model = GenerativeModel(
         bacteria_pop=population,
