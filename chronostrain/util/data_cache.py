@@ -7,7 +7,7 @@
     Generates a cache key to avoid re-computation in future runs.
 """
 from pathlib import Path
-from typing import Callable, Optional, List, Dict, Any
+from typing import Callable, Optional, List, Dict, Any, Union
 import pickle
 import hashlib
 
@@ -111,18 +111,18 @@ class ComputationCache(object):
         logger.debug("Using cache dir {}.".format(self.cache_dir))
 
     def call(self,
-             filename: str,
+             relative_filepath: Union[str, Path],
              fn: Callable,
-             args: Optional[List] = None,
-             kwargs: Optional[Dict] = None,
+             call_args: Optional[List] = None,
+             call_kwargs: Optional[Dict] = None,
              save: Callable = pickle_saver,
              load: Callable = pickle_loader,
              success_callback: Optional[Callable] = None) -> Any:
         """
-        :param filename: A unique filename to use to store the cached result, relative to the cache path.
+        :param relative_filepath: A unique filename to use to store the cached result, relative to the cache path.
         :param fn: A function which returns the desired output of computation, with args and kwargs passed in.
-        :param args: arguments to pass to the callable `fn`.
-        :param kwargs: named arguments to pass to the callable `fn`.
+        :param call_args: arguments to pass to the callable `fn`.
+        :param call_kwargs: named arguments to pass to the callable `fn`.
         :param save: A function or Callable which takes (1) a filepath and (2) a python object as input to
         save the designated object to the specified file.
         :param load: A function or Callable which takes a filepath as input to load some object from the file.
@@ -130,13 +130,13 @@ class ComputationCache(object):
         fn() as input.
         :return: The desired output of fn(*args, **kwargs).
         """
-        if args is None:
-            args = []
-        if kwargs is None:
-            kwargs = {}
+        if call_args is None:
+            call_args = []
+        if call_kwargs is None:
+            call_kwargs = {}
 
         # Try to retrieve from cache.
-        cache_path = self.cache_dir / filename
+        cache_path = self.cache_dir / relative_filepath
         if cache_path.exists():
             data = load(cache_path)
             logger.debug("[Cache {}] Loaded pre-computed file {}.".format(
@@ -149,7 +149,7 @@ class ComputationCache(object):
             ))
 
         self.cache_tag.write_readable_attributes_to_disk(self.cache_dir / "attributes.txt")
-        data = fn(*args, **kwargs)
+        data = fn(*call_args, **call_kwargs)
         save(cache_path, data)
 
         logger.debug("[Cache {}] Saved {}.".format(

@@ -5,7 +5,7 @@ import numpy as np
 from scipy.linalg import eigh
 import networkx as nx
 
-from chronostrain.algs.subroutines import CachedReadAlignments
+from chronostrain.algs.subroutines import CachedReadPairwiseAlignments
 from chronostrain.database import StrainDatabase
 from chronostrain.model import Marker
 from chronostrain.model.io import TimeSeriesReads
@@ -74,7 +74,7 @@ class StrainVariantComputer(object):
         self.quality_threshold = quality_threshold
         self.eig_lower_bound = eig_lower_bound
         self.variant_distance_upper_bound = variant_distance_upper_bound
-        self.cached_alignments = CachedReadAlignments(reads=self.reads, db=self.db)
+        self.cached_alignments = CachedReadPairwiseAlignments(reads=self.reads, db=self.db)
 
     def construct_variants(self) -> Iterator[StrainVariant]:
         """
@@ -295,7 +295,7 @@ class StrainVariantComputer(object):
         }
 
         for t_idx in range(len(self.reads)):
-            alns_t = self.cached_alignments.get_alignments(t_idx)
+            alns_t = self.cached_alignments.alignments_by_marker_and_timepoint(t_idx)
             read_depth_t = self.reads.time_slices[t_idx].read_depth
             for marker, alns in alns_t.items():
                 markers_to_alns[marker].set_alignments(alns, read_depth_t, t_idx)

@@ -1,2 +1,2 @@
-from .alignment import CachedReadAlignments
+from .alignments import CachedReadPairwiseAlignments
 from .likelihoods import DataLikelihoods, DenseDataLikelihoods, SparseDataLikelihoods

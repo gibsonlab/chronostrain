@@ -2,6 +2,8 @@
     Classes written for simple toy examples, modelling deterministic Q scores
     and noisy reads (conditioned on these q-scores).
 """
+from typing import Optional
+
 import numpy as np
 from chronostrain.model import Fragment
 from chronostrain.model.reads.base import SequenceRead, AbstractErrorModel, AbstractQScoreDistribution
@@ -169,26 +171,38 @@ class BasicErrorModel(AbstractErrorModel):
         VERYHIGH_Q_BASE_CHANGE_MATRIX
     ], dtype=float)
 
-    def __init__(self, read_len=150):
+    def __init__(self, insertion_error_prob: float, deletion_error_prob: float, read_len: int = 150):
         self.read_len = read_len
         self.q_dist = BasicQScoreDistribution(read_len)
+        self.insertion_error_prob = insertion_error_prob
+        self.deletion_error_prob = deletion_error_prob
 
-    def compute_log_likelihood(self, fragment: Fragment, read: SequenceRead, read_reverse_complemented: bool) -> float:
+    def compute_log_likelihood(self,
+                               fragment: Fragment,
+                               read: SequenceRead,
+                               read_reverse_complemented: bool,
+                               insertions: Optional[np.ndarray] = None,
+                               deletions: Optional[np.ndarray] = None) -> float:
         """
         Computes the log likelihood of reading 'fragment' as 'read'
         :param: read - a SequenceRead instance.
         :param: fragment
         """
-        if read_reverse_complemented:
-            read_qual = read.quality[::-1]
-            read_seq = read.seq[::-1]
-        else:
-            read_qual = read.quality
-            read_seq = read.seq
+        insertion_ll = np.sum(insertions) * np.log(self.insertion_error_prob)
+        deletion_ll = np.sum(deletions) * np.log(self.deletion_error_prob)
 
-        # Take advantage of array indexing.
-        # For example, see section "Integer array indexing", https://numpy.org/doc/stable/reference/arrays.indexing.html
-        return np.log(BasicErrorModel.Q_SCORE_BASE_CHANGE_MATRICES[read_qual, fragment.seq, read_seq]).sum()
+        # take care of insertions.
+        read_qual = read.quality[not insertions]
+        read_seq = read.seq[not insertions]
+        fragment_seq = fragment.seq[not deletions]
+
+        if read_reverse_complemented:
+            read_qual = read_qual[::-1]
+            read_seq = read.seq[::-1]
+
+        return insertion_ll + deletion_ll + np.log(
+            BasicErrorModel.Q_SCORE_BASE_CHANGE_MATRICES[read_qual, fragment_seq, read_seq]
+        ).sum()
 
     def sample_noisy_read(self, read_id: str, fragment: Fragment, metadata: str = "") -> SequenceRead:
         quality_score_vector = self.q_dist.sample_qvec()

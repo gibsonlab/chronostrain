@@ -37,7 +37,7 @@ class DenseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                 self.compute_forward_reverse_log_likelihood(frag, read)
                 for read in self.reads[t_idx]
             ]
-            for frag in self.model.get_fragment_space().get_fragments()
+            for frag in self.model.fragments.get_fragments()
         ]
         return ans
 
@@ -45,6 +45,8 @@ class DenseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         """
         Computes log(p), where p = 0.5 * P(read | frag, forward) + 0.5 * P(read | frag, reverse)
         which assumes an equal likelihood of sampling from the forward and reverse strands in sequencing.
+
+        This computation assumes no indel errors. The specified fragment's length must equal the read's length.
         """
         forward_ll = self.model.error_model.compute_log_likelihood(frag, read, read_reverse_complemented=False)
         reverse_ll = self.model.error_model.compute_log_likelihood(frag, read, read_reverse_complemented=True)

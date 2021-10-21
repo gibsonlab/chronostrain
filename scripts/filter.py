@@ -3,7 +3,7 @@ import csv
 import re
 import numpy as np
 from pathlib import Path
-from typing import List, Iterable
+from typing import List
 
 from Bio.Seq import Seq
 import Bio.SeqIO
@@ -12,12 +12,13 @@ from chronostrain import logger, cfg
 from multiprocessing import cpu_count
 
 from chronostrain.database import StrainDatabase
+from chronostrain.model.io import TimeSliceReads, TimeSeriesReads
 from chronostrain.util.external import bwa
 from chronostrain.util.external import CommandLineException
 from chronostrain.util.external.commandline import call_command
-from chronostrain.util.alignments import SamFile, parse_alignments
+from chronostrain.util.alignments.pairwise import SamFile, parse_alignments
 
-from helpers import get_input_paths
+from helpers import parse_reads
 
 
 def file_base_name(file_path: Path) -> str:
@@ -126,7 +127,7 @@ def parse_md_tag(tag: str):
     Which would mean 5 correct bases, two incorrect, 61 correct, then one deleted base.
     Sequential incorrect bases are always split by a 0.
     '''
-    split_md = re.findall('\d+|\D+', tag)
+    split_md = re.findall(r'\d+|\D+', tag)
     total_clipped_length = 0
     total_matches = 0
     for sequence in split_md:
@@ -166,6 +167,7 @@ def filter_on_match_identity(percent_identity, identity_threshold=0.9):
 
 
 def filter_file(
+        time_slice: TimeSliceReads,
         db: StrainDatabase,
         sam_files: List[Path],
         result_metadata_path: Path,
@@ -194,22 +196,25 @@ def filter_file(
     reads_already_passed = set()
 
     for sam_file_path in sam_files:
-        for aln in parse_alignments(SamFile(sam_file_path, quality_format), db):
+        for aln in parse_alignments(
+                SamFile(sam_file_path, quality_format), db, lambda read_id: time_slice.get_read(read_id)
+        ):
 
-            if aln.read_id in reads_already_passed:
+            if aln.read.id in reads_already_passed:
                 # Read is already included in output file. Don't do anything.
                 continue
 
             # Pass filter if quality is high enough, and entire read is mapped.
             passed_filter = (
-                    filter_on_read_quality(aln.read_qual)
-                    and ((aln.marker_end - aln.marker_start + 1) == len(aln.read_seq))  # TODO remove this after indels are implemented into the algorithm.
+                    filter_on_read_quality(aln.read.quality)
+                    # TODO remove this after indels are implemented into the algorithm.
+                    and ((aln.marker_end - aln.marker_start + 1) == len(aln.read.seq))
             )
 
             # Write to metadata file.
             metadata_csv_writer.writerow(
                 [
-                    aln.read_id,
+                    aln.read.id,
                     aln.marker.id,
                     aln.marker_start,
                     aln.marker_end,
@@ -219,15 +224,15 @@ def filter_file(
 
             if passed_filter:
                 # Add to collection of already added reads.
-                reads_already_passed.add(aln.read_id)
+                reads_already_passed.add(aln.read.id)
 
                 # Write SeqRecord to file.
                 record = Bio.SeqIO.SeqRecord(
-                    Seq(aln.read_seq_nucleotide),
-                    id=aln.read_id,
+                    Seq(aln.read.nucleotide_content()),
+                    id=aln.read.id,
                     description="{}_{}:{}".format(aln.marker.id, aln.marker_start, aln.marker_end)
                 )
-                record.letter_annotations["phred_quality"] = aln.read_qual
+                record.letter_annotations["phred_quality"] = aln.read.quality
                 Bio.SeqIO.write(record, result_fq, "fastq")
 
     result_metadata.close()
@@ -238,9 +243,7 @@ class Filter:
     def __init__(self,
                  db: StrainDatabase,
                  reference_file_path: Path,
-                 read_source_paths: List[Iterable[Path]],
-                 time_points: List[float],
-                 read_depths: List[int],
+                 reads: TimeSeriesReads,
                  align_cmd: str,
                  output_dir: Path,
                  quality_format: str):
@@ -255,9 +258,7 @@ class Filter:
         else:
             self.reference_path = reference_file_path
 
-        self.read_source_paths = read_source_paths
-        self.time_points = time_points
-        self.read_depths = read_depths
+        self.reads = reads
         self.align_cmd = align_cmd
         self.output_dir = output_dir
         self.quality_format = quality_format
@@ -276,9 +277,9 @@ class Filter:
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         resulting_files: List[Path] = []
-        for time_point, read_sources_t in zip(self.time_points, self.read_source_paths):
+        for time_slice in self.reads:
             sam_paths_t = []
-            for read_path in read_sources_t:
+            for read_path in time_slice.src.paths:
                 base_path = read_path.parent
                 aligner_tmp_dir = base_path / "tmp"
                 aligner_tmp_dir.mkdir(parents=True, exist_ok=True)
@@ -296,17 +297,18 @@ class Filter:
                 )
                 sam_paths_t.append(sam_path)
 
-            result_metadata_path = self.output_dir / 'metadata_{}.tsv'.format(time_point)
-            result_fq_path = self.output_dir / "reads_{}.fq".format(time_point)
+            result_metadata_path = self.output_dir / 'metadata_{}.tsv'.format(time_slice.time_point)
+            result_fq_path = self.output_dir / "reads_{}.fq".format(time_slice.time_point)
 
             logger.debug("(t = {}) Reading SAM files {}".format(
-                time_point,
+                time_slice.time_point,
                 "".join([
                     str(p) for p in sam_paths_t
                 ])
             ))
 
             filter_file(
+                time_slice,
                 self.db,
                 sam_paths_t,
                 result_metadata_path,
@@ -314,23 +316,26 @@ class Filter:
                 self.quality_format
             )
             logger.info("Timepoint {t}, filtered reads file: {f}".format(
-                t=time_point, f=result_fq_path
+                t=time_slice.time_point, f=result_fq_path
             ))
             resulting_files.append(result_fq_path)
 
-        save_input_csv(self.time_points, self.read_depths, self.output_dir, destination_csv, resulting_files)
+        save_input_csv(self.reads, self.output_dir / destination_csv, resulting_files)
 
 
-def save_input_csv(time_points: List[float], read_depths: List[int],
-                   out_dir: Path, out_filename: str,
-                   read_files: List[Path]):
-    with open(out_dir / out_filename, "w") as f:
+def save_input_csv(reads: TimeSeriesReads,
+                   out_path: Path,
+                   filtered_files: List[Path]):
+    """
+    Generates the target input.csv file pointing to the proper sources (of the filtered reads).
+    """
+    with open(out_path, "w") as f:
         writer = csv.writer(f, delimiter=',', quotechar='\"', quoting=csv.QUOTE_ALL)
-        for t, read_depth, read_file in zip(time_points, read_depths, read_files):
+        for time_slice, filtered_file in zip(reads, filtered_files):
             writer.writerow([
-                t,
-                read_depth,
-                read_file
+                time_slice.time_point,
+                time_slice.read_depth,
+                str(filtered_file)
             ])
 
 
@@ -360,9 +365,11 @@ def main():
     logger.info("Filtering script active.")
     args = parse_args()
     db = cfg.database_cfg.get_database()
-    read_paths, read_depths, time_points = get_input_paths(
-        base_dir=Path(args.reads_dir),
-        input_filename=args.input_file
+
+    # =========== Parse reads.
+    reads = parse_reads(
+        Path(args.reads_dir) / args.input_file,
+        quality_format=args.quality_format
     )
 
     # ============ Perform read filtering.
@@ -370,9 +377,7 @@ def main():
     filt = Filter(
         db=db,
         reference_file_path=db.multifasta_file,
-        read_source_paths=read_paths,
-        time_points=time_points,
-        read_depths=read_depths,
+        reads=reads,
         align_cmd=cfg.filter_cfg.align_cmd,
         output_dir=Path(args.output_dir),
         quality_format=args.quality_format

@@ -81,7 +81,11 @@ def sample_reads(
         logger.info("Flag --disable_quality turned on; Quality scores are disabled.")
         my_error_model = reads.NoiselessErrorModel()
     else:
-        my_error_model = reads.PhredErrorModel()
+        logger.warning("TODO configure indel rates.")
+        my_error_model = reads.PhredErrorModel(
+            insertion_error_prob=1e-30,  # TODO config
+            deletion_error_prob=1e-30  # todo config
+        )
     my_model = generative.GenerativeModel(
         times=time_points,
         mu=mu,
