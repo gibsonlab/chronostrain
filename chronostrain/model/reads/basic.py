@@ -171,11 +171,11 @@ class BasicErrorModel(AbstractErrorModel):
         VERYHIGH_Q_BASE_CHANGE_MATRIX
     ], dtype=float)
 
-    def __init__(self, insertion_error_prob: float, deletion_error_prob: float, read_len: int = 150):
+    def __init__(self, insertion_error_ll: float, deletion_error_ll: float, read_len: int = 150):
         self.read_len = read_len
         self.q_dist = BasicQScoreDistribution(read_len)
-        self.insertion_error_prob = insertion_error_prob
-        self.deletion_error_prob = deletion_error_prob
+        self.insertion_error_ll = insertion_error_ll
+        self.deletion_error_ll = deletion_error_ll
 
     def compute_log_likelihood(self,
                                fragment: Fragment,
@@ -188,8 +188,8 @@ class BasicErrorModel(AbstractErrorModel):
         :param: read - a SequenceRead instance.
         :param: fragment
         """
-        insertion_ll = np.sum(insertions) * np.log(self.insertion_error_prob)
-        deletion_ll = np.sum(deletions) * np.log(self.deletion_error_prob)
+        insertion_ll = np.sum(insertions) * self.insertion_error_ll
+        deletion_ll = np.sum(deletions) * self.deletion_error_ll
 
         # take care of insertions.
         read_qual = read.quality[~insertions]

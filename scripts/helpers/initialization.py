@@ -29,8 +29,8 @@ def create_model(population: Population,
     else:
         logger.warning("TODO set the insertion/deletion probabilities.")
         error_model = PhredErrorModel(
-            insertion_error_prob=1e-30,  # TODO config
-            deletion_error_prob=1e-30  # todo config
+            insertion_error_ll=cfg.model_cfg.insertion_error_log10,
+            deletion_error_ll=cfg.model_cfg.deletion_error_log10
         )
 
     model = GenerativeModel(
