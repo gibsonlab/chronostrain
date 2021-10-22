@@ -83,8 +83,8 @@ def sample_reads(
     else:
         logger.warning("TODO configure indel rates.")
         my_error_model = reads.PhredErrorModel(
-            insertion_error_prob=1e-30,  # TODO config
-            deletion_error_prob=1e-30  # todo config
+            insertion_error_ll=1e-30,
+            deletion_error_ll=1e-30
         )
     my_model = generative.GenerativeModel(
         times=time_points,

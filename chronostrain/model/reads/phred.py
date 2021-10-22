@@ -26,12 +26,12 @@ class PhredErrorModel(AbstractErrorModel):
     A simple error model, based on reads of a fixed length, and q-vectors coming from an instance of
     BasicPhredScoreDistribution.
     """
-    def __init__(self, insertion_error_prob: float, deletion_error_prob: float, read_len: int = 150):
+    def __init__(self, insertion_error_ll: float, deletion_error_ll: float, read_len: int = 150):
         """
         :param read_len: DEPRECATED. Specifies the length of reads.
         """
-        self.insertion_error_prob = insertion_error_prob
-        self.deletion_error_prob = deletion_error_prob
+        self.insertion_error_ll = insertion_error_ll
+        self.deletion_error_ll = deletion_error_ll
         self.q_dist = BasicPhredScoreDistribution(length=read_len)  # These are deprecated/not being properly used.
 
     def compute_log_likelihood(self,
@@ -43,8 +43,8 @@ class PhredErrorModel(AbstractErrorModel):
         """
         Uses phred scores to compute Pr(Read | Fragment, Quality).
         """
-        insertion_ll = np.sum(insertions) * np.log(self.insertion_error_prob)
-        deletion_ll = np.sum(deletions) * np.log(self.deletion_error_prob)
+        insertion_ll = np.sum(insertions) * self.insertion_error_ll
+        deletion_ll = np.sum(deletions) * self.deletion_error_ll
 
         # take care of insertions.
         read_qual = read.quality[~insertions]
