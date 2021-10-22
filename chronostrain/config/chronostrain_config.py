@@ -1,7 +1,7 @@
 import os
 import importlib
 from abc import ABCMeta, abstractmethod
-from typing import Tuple, Any
+from typing import Tuple, Any, Dict
 from pathlib import Path
 from configparser import ConfigParser
 
@@ -17,44 +17,63 @@ class ConfigurationParseError(BaseException):
 
 
 class AbstractConfig(metaclass=ABCMeta):
-    def __init__(self, name: str):
+    def __init__(self, name: str, cfg_dict: Dict[str, str]):
         self.name = name
+        self.cfg_dict = cfg_dict
 
-    def parse(self, cfg: dict):
+    def get_item(self, key: str) -> Any:
         try:
-            return self.parse_impl(cfg)
+            return self.cfg_dict[key]
         except KeyError as e:
             raise ConfigurationParseError("Could not find key {} in configuration '{}'.".format(
                 str(e),
                 self.name,
             ))
 
-    @abstractmethod
-    def parse_impl(self, cfg: dict):
-        raise NotImplementedError()
+    def get_str(self, key: str) -> str:
+        return self.get_item(key).strip()
+
+    def get_float(self, key: str) -> float:
+        try:
+            return float(self.get_str(key))
+        except ValueError:
+            raise ConfigurationParseError(
+                f"Field `{key}`: Expected `float`, got value `{self.get_str(key)}`"
+            )
+
+    def get_int(self, key: str) -> int:
+        try:
+            return int(self.get_str(key))
+        except ValueError:
+            raise ConfigurationParseError(
+                f"Field `{key}`: Expected `int`, got value `{self.get_str(key)}`"
+            )
+
+    def get_bool(self, key: str) -> bool:
+        item = self.get_str(key)
+        if item.lower() == "true":
+            return True
+        elif item.lower() == "false":
+            return False
+        else:
+            raise ConfigurationParseError(
+                f"Field `{key}`: Expected `float`, got value `{item}`"
+            )
+
+    def get_path(self, key: str) -> Path:
+        return Path(self.get_str(key))
 
 
 class DatabaseConfig(AbstractConfig):
-    def __init__(self, cfg: dict, args_cfg: dict):
-        super().__init__("Database")
-        self.args_cfg = args_cfg
-        tokens = self.parse(cfg)
-        self.class_name: str = tokens[0]
-        self.kwargs: dict = tokens[1]
-        self.data_dir: Path = tokens[2]
-
-    def parse_impl(self, cfg: dict) -> Tuple[str, dict, Path]:
-        class_name = cfg["DB_CLASS"]
-
-        datadir = Path(cfg["DATA_DIR"])
-        datadir.mkdir(parents=True, exist_ok=True)
-
-        kwargs = {
+    def __init__(self, cfg: Dict[str, str], database_kwargs: dict):
+        super().__init__("Database", cfg)
+        self.db_kwargs = {
             key.lower(): (value if value != 'None' else None)
-            for key, value in self.args_cfg.items()
+            for key, value in database_kwargs.items()
         }
-
-        return class_name, kwargs, datadir
+        self.class_name: str = self.get_item("DB_CLASS")
+        self.data_dir: Path = self.get_path("DATA_DIR")
+        self.data_dir.mkdir(parents=True, exist_ok=True)
 
     def get_database(self, force_refresh: bool = False) -> "chronostrain.database.StrainDatabase":
         """
@@ -62,7 +81,7 @@ class DatabaseConfig(AbstractConfig):
         """
         module_name, class_name = self.class_name.rsplit(".", 1)
         class_ = getattr(importlib.import_module(module_name), class_name)
-        db_kwargs = self.kwargs.copy()
+        db_kwargs = self.db_kwargs.copy()
         db_kwargs["force_refresh"] = force_refresh
         db_obj = class_(**db_kwargs)
         if not isinstance(db_obj, chronostrain.database.StrainDatabase):
@@ -75,95 +94,19 @@ class DatabaseConfig(AbstractConfig):
 
 class ModelConfig(AbstractConfig):
     def __init__(self, cfg: dict):
-        super().__init__("Model")
-        tokens = self.parse(cfg)
-        self.use_quality_scores: bool = tokens[0]
-        self.num_cores: int = tokens[1]
-        self.cache_dir: Path = tokens[2]
-        self.sics_dof_1: float = tokens[3]
-        self.sics_scale_1: float = tokens[4]
-        self.sics_dof: float = tokens[5]
-        self.sics_scale: float = tokens[6]
-        self.use_sparse: bool = tokens[7]
-        self.extra_strain: bool = tokens[8]
-        self.mean_read_length: float = tokens[9]
-
-    def parse_impl(self, cfg: dict) -> Tuple[bool, int, Path, float, float, float, float, bool, bool, float]:
-        q_token = cfg["USE_QUALITY_SCORES"].strip().lower()
-        if q_token == "true":
-            use_quality_scores = True
-        elif q_token == "false":
-            use_quality_scores = False
-        else:
-            raise ConfigurationParseError(
-                "Field `USE_QUALITY_SCORES`: Expected `true` or `false`, got `{}`".format(q_token)
-            )
-
-        try:
-            n_cores = int(cfg["NUM_CORES"].strip())
-        except ValueError:
-            raise ConfigurationParseError(
-                "Field `NUM_CORES`: Expected int, got `{}`".format(cfg["NUM_CORES"])
-            )
-
-        cache_dir = Path(cfg["CACHE_DIR"])
-
-        try:
-            sics_dof_1 = float(cfg["SICS_DOF_1"].strip())
-        except ValueError:
-            raise ConfigurationParseError(
-                "Field `SICS_DOF_1`: Expect float, got `{}`".format(cfg["SICS_DOF_1"])
-            )
-
-        try:
-            sics_scale_1 = float(cfg["SICS_SCALE_1"].strip())
-        except ValueError:
-            raise ConfigurationParseError(
-                "Field `SICS_SCALE_1`: Expect float, got `{}`".format(cfg["SICS_SCALE_1"])
-            )
-
-        try:
-            sics_dof = float(cfg["SICS_DOF"].strip())
-        except ValueError:
-            raise ConfigurationParseError(
-                "Field `SICS_DOF`: Expect float, got `{}`".format(cfg["SICS_DOF"])
-            )
-
-        try:
-            sics_scale = float(cfg["SICS_SCALE"].strip())
-        except ValueError:
-            raise ConfigurationParseError(
-                "Field `SICS_SCALE`: Expect float, got `{}`".format(cfg["SICS_SCALE"])
-            )
-
-        use_sparse_token = cfg["SPARSE_MATRICES"].strip().lower()
-        if use_sparse_token == "true":
-            use_sparse = True
-        elif use_sparse_token == "false":
-            use_sparse = False
-        else:
-            raise ConfigurationParseError(
-                "Field `SPARSE_MATRICES`: Expected `true` or `false`, got `{}`".format(use_sparse_token)
-            )
-
-        extra_strain_str = cfg["EXTRA_STRAIN"].strip().lower()
-        if extra_strain_str == "true":
-            extra_strain = True
-        elif extra_strain_str == "false":
-            extra_strain = False
-        else:
-            raise ConfigurationParseError(
-                "Field `EXTRA_STRAIN`: Expected `true` or `false`, got `{}`".format(cfg["EXTRA_STRAIN"])
-            )
-
-        try:
-            mean_read_len = float(cfg["MEAN_READ_LEN"].strip())
-        except ValueError:
-            raise ConfigurationParseError(
-                "Field `MEAN_READ_LEN`: Expect float, got `{}`".format(cfg["MEAN_READ_LEN"])
-            )
-
-        return use_quality_scores, n_cores, cache_dir, sics_dof_1, sics_scale_1, sics_dof, sics_scale, use_sparse, extra_strain, mean_read_len
+        super().__init__("Model", cfg)
+        self.use_quality_scores: bool = self.get_bool("USE_QUALITY_SCORES")
+        self.num_cores: int = self.get_int("NUM_CORES")
+        self.cache_dir: Path = self.get_path("CACHE_DIR")
+        self.sics_dof_1: float = self.get_float("SICS_DOF_1")
+        self.sics_scale_1: float = self.get_float("SICS_SCALE_1")
+        self.sics_dof: float = self.get_float("SICS_DOF")
+        self.sics_scale: float = self.get_float("SICS_SCALE")
+        self.use_sparse: bool = self.get_bool("SPARSE_MATRICES")
+        self.extra_strain: bool = self.get_bool("EXTRA_STRAIN")
+        self.mean_read_length: float = self.get_float("MEAN_READ_LEN")
+        self.insertion_error_log10: float = self.get_float("INSERTION_ERROR_LN")
+        self.deletion_error_log10: float = self.get_float("DELETION_ERROR_LN")
 
 
 class TorchConfig(AbstractConfig):
@@ -195,58 +138,43 @@ class TorchConfig(AbstractConfig):
     }
 
     def __init__(self, cfg: dict):
-        super().__init__("PyTorch")
-        (self.device, self.default_dtype) = self.parse(cfg)
-        torch.set_default_dtype(self.default_dtype)
-
-    def parse_impl(self, cfg: dict) -> Tuple[torch.device, Any]:
-        device_token = cfg["DEVICE"]
+        super().__init__("PyTorch", cfg)
+        device_token = self.get_item("DEVICE")
         if device_token == "cuda":
-            device = torch.device("cuda")
+            self.device = torch.device("cuda")
         elif device_token == "cpu":
-            device = torch.device("cpu")
+            self.device = torch.device("cpu")
         else:
             raise ConfigurationParseError(
                 "Field `DEVICE`:Invalid or unsupported device token `{}`".format(device_token)
             )
 
-        dtype_str = cfg["DEFAULT_DTYPE"]
-
+        dtype_str = self.get_item("DEFAULT_DTYPE")
         try:
-            default_dtype = TorchConfig.torch_dtypes[dtype_str]
+            self.default_dtype = TorchConfig.torch_dtypes[dtype_str]
         except KeyError:
             raise ConfigurationParseError("Invalid dtype token `{}`.".format(
                 dtype_str
             ))
-
-        return device, default_dtype
+        torch.set_default_dtype(self.default_dtype)
 
 
 class AlignmentConfig(AbstractConfig):
     def __init__(self, cfg: dict):
-        super().__init__("Alignments")
-        self.pairwise_align_cmd = self.parse(cfg)
-
-    def parse_impl(self, cfg: dict) -> Tuple[str, str]:
-        return cfg["PAIRWISE_ALN_BACKEND"]
+        super().__init__("Alignments", cfg)
+        self.pairwise_align_cmd = self.get_item("PAIRWISE_ALN_BACKEND")
 
 
 class ChronostrainConfig(AbstractConfig):
     def __init__(self, cfg: dict):
-        super().__init__("ChronoStrain")
-        database_cfg, model_cfg, torch_cfg, filter_cfg = self.parse(cfg)
-        self.database_cfg: DatabaseConfig = database_cfg
-        self.model_cfg: ModelConfig = model_cfg
-        self.torch_cfg: TorchConfig = torch_cfg
-        self.alignment_cfg: AlignmentConfig = filter_cfg
-
-    def parse_impl(self, cfg: dict) -> Tuple[DatabaseConfig, ModelConfig, TorchConfig, AlignmentConfig]:
-        return (
-            DatabaseConfig(cfg["Database"], cfg["Database.args"]),
-            ModelConfig(cfg["Model"]),
-            TorchConfig(cfg["PyTorch"]),
-            AlignmentConfig(cfg["Alignments"])
+        super().__init__("ChronoStrain", cfg)
+        self.database_cfg: DatabaseConfig = DatabaseConfig(
+            cfg=self.get_item("Database"),
+            database_kwargs=self.get_item("Database.args")
         )
+        self.model_cfg: ModelConfig = ModelConfig(self.get_item("Model"))
+        self.torch_cfg: TorchConfig = TorchConfig(self.get_item("PyTorch"))
+        self.alignment_cfg: AlignmentConfig = AlignmentConfig(self.get_item("Alignments"))
 
 
 def _config_load(ini_path: str) -> ChronostrainConfig:
