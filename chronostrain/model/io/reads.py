@@ -132,6 +132,9 @@ class TimeSliceReads(object):
     def get_read(self, read_id: str) -> SequenceRead:
         return self._ids_to_reads[read_id]
 
+    def contains_read(self, read_id: str) -> bool:
+        return read_id in self._ids_to_reads
+
     def __iter__(self) -> Iterator[SequenceRead]:
         for read in self.reads:
             yield read

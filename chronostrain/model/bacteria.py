@@ -98,6 +98,11 @@ class Population:
             raise ValueError("All elements in strains must be Strain instances")
 
         self.strains = list(strains)  # A list of Strain objects.
+        self.all_markers = {
+            marker
+            for strain in strains
+            for marker in strain.markers
+        }
 
         if extra_strain:
             self.garbage_strains = [Strain(
@@ -115,7 +120,7 @@ class Population:
         :return:
         """
         return "[{}]".format(
-            ",".join([strain.__repr__() for strain in self.strains])
+            ",".join(strain.__repr__() for strain in self.strains)
         ).__hash__()
 
     def __repr__(self):
@@ -123,7 +128,7 @@ class Population:
 
     def __str__(self):
         return "[{}]".format(
-            ",".join([strain.__str__() for strain in self.strains])
+            ",".join(strain.__str__() for strain in self.strains)
         )
 
     def num_known_strains(self) -> int:
@@ -139,3 +144,6 @@ class Population:
         for strain in self.strains:
             for marker in strain.markers:
                 yield marker
+
+    def contains_marker(self, marker: Marker) -> bool:
+        return marker in self.all_markers

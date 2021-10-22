@@ -15,6 +15,9 @@ from chronostrain.database import StrainDatabase
 from .cache import ReadsComputationCache
 from .reads_pairwise import CachedReadPairwiseAlignments
 
+from chronostrain.config import create_logger
+logger = create_logger(__name__)
+
 
 class CachedReadMultipleAlignments(object):
     def __init__(self,
@@ -47,7 +50,12 @@ class CachedReadMultipleAlignments(object):
         For each marker, a multiple alignment is performed with the collection reads that
         map to it.
         """
-        for marker, pairwise_aligns in self.pairwise_seed():
+        for m_idx, (marker, pairwise_aligns) in enumerate(self.pairwise_seed()):
+            logger.debug("Computing multiple alignment for marker `{}`... ({} of {})".format(
+                marker.id,
+                m_idx + 1,
+                self.db.num_markers()
+            ))
             yield self._perform_cached_alignment(marker, pairwise_aligns)
 
     def _perform_cached_alignment(self,
@@ -56,6 +64,7 @@ class CachedReadMultipleAlignments(object):
                                   ) -> multialign.MarkerMultipleAlignment:
         def read_gen():
             for aln in pairwise_aligns:
+
                 yield aln.read, aln.reverse_complemented
 
         # ====== function bindings to pass to ComputationCache.

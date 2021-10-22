@@ -34,6 +34,10 @@ class CacheTag(object):
         """
         self.attr_dict = kwargs
         self.encoding = self.generate_encoding()
+        self.directory().mkdir(exist_ok=True, parents=True)
+
+    def directory(self) -> Path:
+        return cfg.model_cfg.cache_dir / self.encoding
 
     def generate_encoding(self) -> str:
         processed_dict = dict()
@@ -106,8 +110,7 @@ class ComputationCache(object):
         """
         """
         self.cache_tag = cache_tag
-        self.cache_dir = cfg.model_cfg.cache_dir / self.cache_tag.encoding
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self.cache_dir = cache_tag.directory()
         logger.debug("Using cache dir {}.".format(self.cache_dir))
 
     def call(self,
@@ -138,11 +141,11 @@ class ComputationCache(object):
         # Try to retrieve from cache.
         cache_path = self.cache_dir / relative_filepath
         if cache_path.exists():
-            data = load(cache_path)
-            logger.debug("[Cache {}] Loaded pre-computed file {}.".format(
+            logger.debug("[Cache {}] Loading pre-computed file {}.".format(
                 self.cache_tag.encoding, cache_path
             ))
-            return data
+
+            return load(cache_path)
         else:
             logger.debug("[Cache {}] Could not load cached file {}. Recomputing.".format(
                 self.cache_tag.encoding, cache_path

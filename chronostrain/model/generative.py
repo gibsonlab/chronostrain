@@ -121,24 +121,27 @@ class GenerativeModel:
         strain_indices = []
         frag_indices = []
         matrix_values = []
-        for strain_idx, strain in self.bacteria_pop.strains:
+        for strain_idx, strain in enumerate(self.bacteria_pop.strains):
             strain = self.bacteria_pop.strains[strain_idx]
             for marker in strain.markers:
-                sa = WonderString("".join(marker.seq))
+                sa = WonderString("".join(str(i) for i in marker.seq))
                 for fragment in self.fragments:
-                    n_occurrences = sa.search("".join(fragment.seq))
+                    n_hits, suffix_position = sa.search("".join(str(i) for i in fragment.seq))
+                    if n_hits == 0:
+                        continue
 
                     # TODO replace with arbitrary distribution, specified by user.
                     length_likelihood = poisson.pmf(len(fragment), self.mean_frag_length)
 
                     strain_indices.append(strain_idx)
                     frag_indices.append(fragment.index)
-                    matrix_values.append(length_likelihood * n_occurrences / strain.genome_length)
+                    matrix_values.append(length_likelihood * n_hits / strain.genome_length)
 
         return SparseMatrix(
             indices=torch.tensor([frag_indices, strain_indices], device=cfg.torch_cfg.device, dtype=torch.long),
             values=torch.tensor(matrix_values, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype),
-            dims=(self.num_fragments(), self.num_strains())
+            dims=(self.num_fragments(), self.num_strains()),
+            force_coalesce=True
         )
 
     def log_likelihood_x(self, X: torch.Tensor) -> torch.Tensor:

@@ -302,9 +302,7 @@ class Filter:
 
             logger.debug("(t = {}) Reading SAM files {}".format(
                 time_slice.time_point,
-                "".join([
-                    str(p) for p in sam_paths_t
-                ])
+                "".join(str(p) for p in sam_paths_t)
             ))
 
             filter_file(
@@ -378,7 +376,7 @@ def main():
         db=db,
         reference_file_path=db.multifasta_file,
         reads=reads,
-        align_cmd=cfg.filter_cfg.align_cmd,
+        align_cmd=cfg.alignment_cfg.align_cmd,
         output_dir=Path(args.output_dir),
         quality_format=args.quality_format
     )

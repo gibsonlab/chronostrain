@@ -115,7 +115,7 @@ class FragmentSpace:
         return len(self.frag_list)
 
     def __str__(self):
-        return ",".join([str(frag) for frag in self.frag_list])
+        return ",".join(str(frag) for frag in self.frag_list)
 
     def __iter__(self):
         return self.frag_list.__iter__()

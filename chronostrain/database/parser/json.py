@@ -9,7 +9,7 @@ from Bio import SeqIO
 
 from chronostrain.config import cfg
 from chronostrain.model import Strain, Marker, MarkerMetadata, StrainMetadata
-from chronostrain.util.entrez import fetch_fasta, fetch_genbank
+from chronostrain.util.entrez import fetch_genbank
 from chronostrain.util.sequences import complement_seq, nucleotides_to_z4
 
 from .base import AbstractDatabaseParser, StrainDatabaseParseError
@@ -199,12 +199,10 @@ class SubsequenceLoader:
 
     def __init__(self,
                  strain_accession: str,
-                 fasta_path: Path,
                  genbank_filename: Path,
                  marker_entries: List[MarkerEntry],
                  marker_max_len: int):
         self.strain_accession = strain_accession
-        self.fasta_path = fasta_path
         self.genbank_filename = genbank_filename
 
         self.tag_entries: List[TagMarkerEntry] = []
@@ -223,7 +221,7 @@ class SubsequenceLoader:
 
     def get_full_genome(self, trim_debug=None) -> str:
         if self.full_genome is None:
-            record = next(SeqIO.parse(self.fasta_path, "fasta"))
+            record = next(SeqIO.parse(self.genbank_filename, "genbank"))
             self.full_genome = str(record.seq)
             if trim_debug is not None:
                 self.full_genome = self.full_genome[:trim_debug]
@@ -234,10 +232,10 @@ class SubsequenceLoader:
             self.genome_length = len(self.get_full_genome())
         return self.genome_length
 
-    def marker_filepath(self, name: str) -> Path:
+    def marker_filepath(self, marker_id: str) -> Path:
         return (
                 Path(cfg.database_cfg.data_dir)
-                / "{acc}-{seq}.fasta".format(acc=self.strain_accession, seq=name)
+                / "{acc}-{marker}.fasta".format(acc=self.strain_accession, marker=marker_id)
         )
 
     def parse_markers(self, force_refresh: bool = False) -> Iterator[Marker]:
@@ -255,7 +253,7 @@ class SubsequenceLoader:
                 yield marker
 
         for subseq_obj in itertools.chain(self.get_subsequences_from_tags(), self.get_subsequences_from_primers()):
-            marker_filepath = self.marker_filepath(subseq_obj.name)
+            marker_filepath = self.marker_filepath(subseq_obj.id)
             marker = Marker(
                 name=subseq_obj.name,
                 id=subseq_obj.id,
@@ -273,7 +271,7 @@ class SubsequenceLoader:
         for tag_entry in self.tag_entries:
             marker_name = tag_entry.name
             marker_id = tag_entry.locus_tag
-            marker_filepath = self.marker_filepath(marker_name)
+            marker_filepath = self.marker_filepath(marker_id)
             try:
                 yield self.load_marker_from_disk(marker_filepath, marker_name, marker_id)
             except FileNotFoundError:
@@ -287,7 +285,7 @@ class SubsequenceLoader:
         for primer_entry in self.primer_entries:
             marker_name = primer_entry.name
             marker_id = primer_entry.entry_id()
-            marker_filepath = self.marker_filepath(marker_name)
+            marker_filepath = self.marker_filepath(marker_id)
             try:
                 yield self.load_marker_from_disk(marker_filepath, marker_name, marker_id)
             except FileNotFoundError:
@@ -443,16 +441,12 @@ class JSONParser(AbstractDatabaseParser):
         logger.info("Loading from JSON marker database file {}.".format(self.entries_file))
         logger.debug("Data will be saved to/load from: {}".format(cfg.database_cfg.data_dir))
         for strain_entry in self.strain_entries():
-            strain_fasta_path = fetch_fasta(strain_entry.accession,
-                                            base_dir=cfg.database_cfg.data_dir,
-                                            force_download=self.force_refresh)
             genbank_filename = fetch_genbank(strain_entry.accession,
                                              base_dir=cfg.database_cfg.data_dir,
                                              force_download=self.force_refresh)
 
             sequence_loader = SubsequenceLoader(
                 strain_accession=strain_entry.accession,
-                fasta_path=strain_fasta_path,
                 genbank_filename=genbank_filename,
                 marker_entries=strain_entry.marker_entries,
                 marker_max_len=self.marker_max_len
@@ -479,7 +473,7 @@ class JSONParser(AbstractDatabaseParser):
                     ncbi_accession=strain_entry.accession,
                     genus=strain_entry.genus,
                     species=strain_entry.species,
-                    file_path=strain_fasta_path
+                    file_path=genbank_filename
                 )
             )
 

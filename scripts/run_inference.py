@@ -7,7 +7,7 @@ from pathlib import Path
 
 from chronostrain import cfg, logger
 import chronostrain.visualizations as viz
-from chronostrain.algs.subroutines import CachedReadPairwiseAlignments
+from chronostrain.algs.subroutines import CachedReadMultipleAlignments
 from chronostrain.database import StrainDatabase
 from chronostrain.model import Population, construct_fragment_space_uniform_length, FragmentSpace
 from chronostrain.model.io import TimeSeriesReads
@@ -71,18 +71,28 @@ def parse_args():
     return parser.parse_args()
 
 
-def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase) -> FragmentSpace:
+def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase, pop: Population) -> FragmentSpace:
     """
     Performs a pairwise alignment (each read to the reference marker), and then extracts all of the exactly aligned
     fragments, ignoring indels.
     """
-    cached_alignments = CachedReadPairwiseAlignments(reads, db)
+    logger.debug("Using fragment construction from alignments.")
+    multiple_alignments = CachedReadMultipleAlignments(reads, db)
     fragment_space = FragmentSpace()
-    for t_idx in range(len(reads)):
-        for marker, alignments in cached_alignments.alignments_by_marker_and_timepoint(t_idx).items():
-            for aln in alignments:
-                # don't include indels in this function; it's not our job to identify indel variants.
-                fragment_space.add_seq(aln.marker_frag)
+    for multi_align in multiple_alignments.get_alignments():
+        if not pop.contains_marker(multi_align.marker):
+            continue
+
+        for reverse in [False, True]:
+            for read_id in multi_align.read_ids(reverse=reverse):
+                subseq, insertions, deletions = multi_align.get_aligned_reference_region(
+                    read_id, reverse=reverse
+                )
+
+                fragment_space.add_seq(
+                    subseq,
+                    metadata=f"ClustalO({read_id}->{multi_align.marker.id})"
+                )
     return fragment_space
 
 
@@ -105,7 +115,7 @@ def main():
     # ==== Load Population instance from database info
     population = Population(strains=db.all_strains(), extra_strain=cfg.model_cfg.extra_strain)
     if cfg.model_cfg.use_sparse:
-        fragments = aligned_exact_fragments(reads, db)
+        fragments = aligned_exact_fragments(reads, db, population)
     else:
         fragments = construct_fragment_space_uniform_length(args.read_length, population)
 

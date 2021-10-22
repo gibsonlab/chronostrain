@@ -25,7 +25,7 @@ def clustal_omega(
     tokens = str(cline).split()
 
     exit_code = call_command(
-        tokens[0],
+        'clustalo',
         args=tokens[1:]
     )
     if exit_code != 0:

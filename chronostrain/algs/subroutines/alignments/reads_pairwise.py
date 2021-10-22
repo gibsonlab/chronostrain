@@ -3,7 +3,7 @@ Contains alignment-specific subroutines necessary for other algorithm implementa
 """
 
 from pathlib import Path
-from typing import Optional, Dict, List, Iterator
+from typing import Optional, Dict, List, Iterator, Tuple
 
 from chronostrain.model import Marker
 from chronostrain.model.io import TimeSeriesReads
@@ -55,7 +55,7 @@ class CachedReadPairwiseAlignments(object):
                 alignments[marker] = alignments[marker] + alns
         return alignments
 
-    def reads_with_alignments_to_marker(self) -> Iterator[Marker, List[SequenceReadPairwiseAlignment]]:
+    def reads_with_alignments_to_marker(self) -> Iterator[Tuple[Marker, List[SequenceReadPairwiseAlignment]]]:
         """
         Returns a mapping of marker -> (read alignments to marker from t, across all t_idx)
         """
