@@ -112,12 +112,10 @@ def parse(target_marker: Marker, aln_path: Path) -> MarkerMultipleAlignment:
                                  f"but instead found `{parsed_marker_id}` in alignment file.")
             marker_seq = nucleotides_to_z4(str(record.seq))
         else:
-            separator_idx = record_id.find(_SEPARATOR)
-            suffix = record_id[separator_idx + 1:]
+            tokens = record_id.split(_SEPARATOR)
+            rev_comp = int(tokens[1]) == 1
+            read_id = tokens[2]
 
-            separator2 = suffix.find(_SEPARATOR)
-            rev_comp = int(suffix[:separator2]) == 1
-            read_id = suffix[separator2+1:]
             if not rev_comp:
                 forward_read_ids.append(read_id)
                 forward_seqs.append(nucleotides_to_z4(str(record.seq)))
