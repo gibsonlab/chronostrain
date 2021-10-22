@@ -4,27 +4,27 @@ import numpy as np
 import itertools
 
 from chronostrain.model import Marker
-from chronostrain.util.alignments import SequenceReadAlignment
+from chronostrain.util.alignments.pairwise import SequenceReadPairwiseAlignment
 from chronostrain.util.sequences import nucleotide_N_z4
 
 
 class TimeSeriesMarkerAlignments(object):
     def __init__(self, num_times: int):
-        self.alns: List[List[SequenceReadAlignment]] = [[] for _ in range(num_times)]
+        self.alns: List[List[SequenceReadPairwiseAlignment]] = [[] for _ in range(num_times)]
         self.read_depths: List[int] = [0 for _ in range(num_times)]
 
-    def set_alignments(self, alns: List[SequenceReadAlignment], read_depth: int, t_idx: int):
+    def set_alignments(self, alns: List[SequenceReadPairwiseAlignment], read_depth: int, t_idx: int):
         self.alns[t_idx] = alns
         self.read_depths[t_idx] = read_depth
 
-    def __iter__(self) -> Iterator[Tuple[List[SequenceReadAlignment], int]]:
+    def __iter__(self) -> Iterator[Tuple[List[SequenceReadPairwiseAlignment], int]]:
         yield from zip(self.alns, self.read_depths)
 
 
 class MarginalVariantQualityEvidence(object):
     def __init__(self,
                  marker: Marker,
-                 alignments: Iterable[SequenceReadAlignment],
+                 alignments: Iterable[SequenceReadPairwiseAlignment],
                  quality_threshold: float):
         """
         Stores the total quality score of each observed variant (e.g. the read's base does not match the reference
@@ -37,7 +37,7 @@ class MarginalVariantQualityEvidence(object):
         self.quality_threshold = quality_threshold
         self.matrix = self.create_evidence_matrix(marker, alignments)
 
-    def create_evidence_matrix(self, marker: Marker, alignments: Iterable[SequenceReadAlignment]) -> np.ndarray:
+    def create_evidence_matrix(self, marker: Marker, alignments: Iterable[SequenceReadPairwiseAlignment]) -> np.ndarray:
         m = np.zeros(shape=(len(marker), 4), dtype=float)
 
         # ============== Parsing ==============
@@ -70,7 +70,7 @@ class PairwiseFrequencyEvidence(object):
     """
     def __init__(self,
                  supported_positions: Set[int],
-                 alignments: Iterable[SequenceReadAlignment],
+                 alignments: Iterable[SequenceReadPairwiseAlignment],
                  quality_threshold: float):
         self.quality_threshold = quality_threshold
         self.supported_positions = supported_positions
@@ -104,7 +104,7 @@ class PairwiseFrequencyEvidence(object):
             self._get_count(*pair) for pair in variant_pairs
         ])
 
-    def _count_pairwise_occurrences(self, alignments: Iterable[SequenceReadAlignment]):
+    def _count_pairwise_occurrences(self, alignments: Iterable[SequenceReadPairwiseAlignment]):
         # ============= Helper functions =============
         def supported_positions(positions: Iterable[int]) -> Iterator[int]:
             for position in positions:

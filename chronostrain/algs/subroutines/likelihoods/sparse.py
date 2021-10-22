@@ -10,7 +10,7 @@ from chronostrain.database import StrainDatabase
 from chronostrain.model import Fragment, Marker, SequenceRead
 from chronostrain.util.alignments.multiple import MarkerMultipleAlignment
 from chronostrain.util.sequences import SeqType
-from chronostrain.util.sparse.sparse_tensor import SparseMatrix
+from chronostrain.util.sparse import SparseMatrix
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.config import cfg
 from chronostrain.model.generative import GenerativeModel
@@ -86,7 +86,6 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         # ==== Cache.
         self.cache = LikelihoodMatrixCache(reads, model.bacteria_pop)
 
-        self.markers_present: Set[Marker] = set()
         self.variants_present: Dict[Marker, List[MarkerVariant]] = {
             marker: []
             for marker in db.all_markers()
@@ -95,16 +94,11 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         for marker in model.bacteria_pop.markers_iterator():
             if isinstance(marker, MarkerVariant):
                 self.variants_present[marker.base_marker].append(marker)
-            else:
-                self.markers_present.add(marker)
 
         self.alignment_mode = alignment_mode
 
     def marker_variants_of(self, marker: Marker) -> Iterator[MarkerVariant]:
         yield from self.variants_present[marker]
-
-    def marker_isin_pop(self, marker: Marker) -> bool:
-        return marker in self.markers_present
 
     def _compute_read_frag_alignments(self, t_idx: int) -> Dict[str, List[Tuple[Fragment, float]]]:
         if self.alignment_mode == "pairwise":
@@ -152,7 +146,7 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         for base_marker, alns in self.pairwise_reference_alignments.alignments_by_marker_and_timepoint(t_idx).items():
             for aln in alns:
                 # First, add the likelihood for the fragment for the aligned base marker.
-                if self.marker_isin_pop(base_marker):
+                if self.model.bacteria_pop.contains_marker(base_marker):
                     marker_frag_seq: SeqType = aln.marker_frag
                     aln_insertion_locs = aln.read_insertion_locs()
                     if aln.reverse_complemented:
@@ -214,15 +208,21 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         """
         read_to_frag_likelihoods: Dict[str, List[Tuple[Fragment, float]]] = defaultdict(list)
 
+        logger.debug("Calculating multiple alignments.")
         if self._multi_align_instances is None:
             self._multi_align_instances = list(self.multiple_alignments.get_alignments())
 
+        logger.debug("Parsing alignment into likelihoods.")
         time_slice = self.reads[t_idx]
+
         for multi_align in self._multi_align_instances:
             # First, take care of the base markers (if applicable).
-            if self.marker_isin_pop(multi_align.marker):
+            if self.model.bacteria_pop.contains_marker(multi_align.marker):
                 for reverse in [False, True]:
                     for read_id in multi_align.read_ids(reverse=reverse):
+                        if not time_slice.contains_read(read_id):
+                            continue
+
                         read = time_slice.get_read(read_id)
                         subseq, insertions, deletions = multi_align.get_aligned_reference_region(
                             read_id, reverse=reverse
@@ -236,6 +236,16 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                         frag = self.model.fragments.get_fragment(subseq)
 
                         ll = self.read_frag_ll(frag, read, insertions, deletions, reverse_complemented=reverse)
+
+                        if np.sum(insertions) == 0 and np.sum(deletions) == 0:
+                            print("********************")
+                            print("Reversed: {}".format(reverse))
+                            print(frag.nucleotide_content())
+                            print(read.nucleotide_content())
+                            print(read.quality)
+                            print("Insertions: {}, Deletions: {}".format(insertions.sum(), deletions.sum()))
+                            print(ll)
+
                         read_to_frag_likelihoods[read_id].append((frag, ll))
 
             # Next, take care of the variant markers (if applicable).
@@ -262,6 +272,9 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                 read_indices.append(read_idx)
                 frag_indices.append(frag.index)
                 log_likelihood_values.append(log_likelihood)
+
+        print(frag_indices)
+        print(read_indices)
 
         return SparseMatrix(
             indices=torch.tensor(
@@ -324,10 +337,10 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
 
         jobs = [
             {
-                "filename": "sparse_log_likelihoods_{}.npz".format(t_idx),
+                "relative_filepath": "sparse_log_likelihoods_{}.npz".format(t_idx),
                 "fn": lambda t: self.create_sparse_matrix(t),
-                "args": [],
-                "kwargs": {"t": t_idx},
+                "call_args": [],
+                "call_kwargs": {"t": t_idx},
                 "save": save_,
                 "load": load_,
                 "success_callback": callback_

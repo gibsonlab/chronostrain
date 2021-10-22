@@ -614,10 +614,10 @@ class BBVISolver(AbstractModelSolver):
                     )
                 )
                 logger.debug("Profiler: {}".format(
-                    " | ".join([
+                    " | ".join(
                         "{}: {:02f}".format(key, np.mean(time_entries))
                         for key, time_entries in times.items()
-                    ])
+                    )
                 ))
 
             elbo_value = elbo.detach()

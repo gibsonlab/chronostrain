@@ -47,13 +47,13 @@ class PhredErrorModel(AbstractErrorModel):
         deletion_ll = np.sum(deletions) * np.log(self.deletion_error_prob)
 
         # take care of insertions.
-        read_qual = read.quality[not insertions]
-        read_seq = read.seq[not insertions]
-        fragment_seq = fragment.seq[not deletions]
+        read_qual = read.quality[~insertions]
+        read_seq = read.seq[~insertions]
+        fragment_seq = fragment.seq[~deletions]
 
         if read_reverse_complemented:
             read_qual = read_qual[::-1]
-            read_seq = read.seq[::-1]
+            read_seq = read_seq[::-1]
 
         error_log10_prob = -0.1 * read_qual
         matches: np.ndarray = (fragment_seq == read_seq) & (read_qual > 0)

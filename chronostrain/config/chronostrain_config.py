@@ -222,13 +222,13 @@ class TorchConfig(AbstractConfig):
         return device, default_dtype
 
 
-class FilteringConfig(AbstractConfig):
+class AlignmentConfig(AbstractConfig):
     def __init__(self, cfg: dict):
-        super().__init__("Filtering")
-        self.align_cmd = self.parse(cfg)
+        super().__init__("Alignments")
+        self.pairwise_align_cmd = self.parse(cfg)
 
-    def parse_impl(self, cfg: dict) -> str:
-        return cfg["ALIGNMENT_BACKEND"]
+    def parse_impl(self, cfg: dict) -> Tuple[str, str]:
+        return cfg["PAIRWISE_ALN_BACKEND"]
 
 
 class ChronostrainConfig(AbstractConfig):
@@ -238,14 +238,14 @@ class ChronostrainConfig(AbstractConfig):
         self.database_cfg: DatabaseConfig = database_cfg
         self.model_cfg: ModelConfig = model_cfg
         self.torch_cfg: TorchConfig = torch_cfg
-        self.filter_cfg: FilteringConfig = filter_cfg
+        self.alignment_cfg: AlignmentConfig = filter_cfg
 
-    def parse_impl(self, cfg: dict) -> Tuple[DatabaseConfig, ModelConfig, TorchConfig, FilteringConfig]:
+    def parse_impl(self, cfg: dict) -> Tuple[DatabaseConfig, ModelConfig, TorchConfig, AlignmentConfig]:
         return (
             DatabaseConfig(cfg["Database"], cfg["Database.args"]),
             ModelConfig(cfg["Model"]),
             TorchConfig(cfg["PyTorch"]),
-            FilteringConfig(cfg["Filtering"])
+            AlignmentConfig(cfg["Alignments"])
         )
 
 

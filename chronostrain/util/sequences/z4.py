@@ -63,6 +63,6 @@ def z4_to_nucleotides(z4seq: SeqType) -> str:
             z4seq.shape
         ))
 
-    return "".join([
+    return "".join(
         _z4_to_acgt[element] for element in z4seq
-    ])
+    )

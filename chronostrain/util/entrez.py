@@ -39,7 +39,12 @@ def fetch_genbank(accession: str, base_dir: Path, force_download: bool = False) 
     return file_path
 
 
-def fetch_entrez(entrez_db: str, accession: Union[str, List[str]], rettype: str, file_path: Path, retmode: str = "text", force_download: bool = False):
+def fetch_entrez(entrez_db: str,
+                 accession: Union[str, List[str]],
+                 rettype: str,
+                 file_path: Path,
+                 retmode: str = "text",
+                 force_download: bool = False):
     Entrez.email = "younhun@mit.edu"
     if not force_download and file_path.exists() and file_path.stat().st_size > 0:
         logger.debug("[{}] File found: {}".format(
@@ -47,8 +52,9 @@ def fetch_entrez(entrez_db: str, accession: Union[str, List[str]], rettype: str,
             file_path
         ))
     else:
-        logger.debug("[{}] Downloading entrez file...".format(
+        logger.debug("[{}] Downloading entrez file ({})...".format(
             accession[0] if isinstance(accession, list) else accession,
+            str(file_path.name)
         ))
         net_handle = Entrez.efetch(
             db=entrez_db, id=accession, rettype=rettype, retmode=retmode

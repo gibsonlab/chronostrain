@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Generator, Dict, Tuple, Iterator
+from typing import Dict, Tuple, Iterator
 
 import Bio.AlignIO
 from Bio import SeqIO
@@ -8,10 +8,13 @@ from Bio.SeqRecord import SeqRecord
 import numpy as np
 
 from chronostrain.model import Marker, SequenceRead
-from ...external.clustal_omega import clustal_omega
+from ...external import mafft_fragment
 from ...sequences import *
 
-_REF_PREFIX = "REF"
+from chronostrain.config import create_logger
+logger = create_logger(__name__)
+
+
 _READ_PREFIX = "READ"
 _SEPARATOR = "#"
 
@@ -45,9 +48,9 @@ class MarkerMultipleAlignment(object):
 
     def get_alignment(self, read_id: str, reverse: bool) -> SeqType:
         if reverse:
-            read_idx, _ = self.reverse_read_index_map[read_id]
+            read_idx = self.reverse_read_index_map[read_id]
         else:
-            read_idx, _ = self.forward_read_index_map[read_id]
+            read_idx = self.forward_read_index_map[read_id]
         return self.delete_double_gaps(self.aligned_marker_seq, self.read_multi_alignment[read_idx, :])
 
     def get_aligned_reference_region(self, read_id: str, reverse: bool) -> Tuple[SeqType, np.ndarray, np.ndarray]:
@@ -61,7 +64,7 @@ class MarkerMultipleAlignment(object):
         start = locations[0]
         end = locations[-1]
 
-        align_section = aln[:, start:end]
+        align_section = aln[:, start:end+1]
         marker_section = align_section[0]
 
         insertion_locs = np.equal(align_section[0], nucleotide_GAP_z4)
@@ -84,7 +87,7 @@ class MarkerMultipleAlignment(object):
         Eliminate from the pair of alignment strings the indices where both sequences simultaneously have gaps.
         """
         ungapped_indices = (marker_aln != nucleotide_GAP_z4) | (read_aln != nucleotide_GAP_z4)
-        return np.concatenate([
+        return np.stack([
             marker_aln[ungapped_indices], read_aln[ungapped_indices]
         ], axis=0)
 
@@ -100,66 +103,74 @@ def parse(target_marker: Marker, aln_path: Path) -> MarkerMultipleAlignment:
     # Parse from file.
     for record_idx, record in enumerate(Bio.AlignIO.read(str(aln_path), 'fasta')):
         record_id: str = record.id
-        separator_idx = record_id.find(_SEPARATOR)
-        prefix = record_id[:separator_idx]
-        suffix = record_id[separator_idx:]
 
-        if prefix == _REF_PREFIX:
-            if target_marker != suffix:
+        if not record_id.startswith(f"{_READ_PREFIX}{_SEPARATOR}"):
+            # Found marker.
+            parsed_marker_id = record_id.split("|")[2]
+            if target_marker.id != parsed_marker_id:
                 raise ValueError(f"Expected marker `{target_marker.id}`, "
-                                 f"but instead found `{suffix}` in alignment file.")
+                                 f"but instead found `{parsed_marker_id}` in alignment file.")
             marker_seq = nucleotides_to_z4(str(record.seq))
-        elif prefix == _READ_PREFIX:
+        else:
+            separator_idx = record_id.find(_SEPARATOR)
+            suffix = record_id[separator_idx + 1:]
+
             separator2 = suffix.find(_SEPARATOR)
-            rev_comp = suffix[:separator2]
-            read_id = suffix[separator2:]
+            rev_comp = int(suffix[:separator2]) == 1
+            read_id = suffix[separator2+1:]
             if not rev_comp:
                 forward_read_ids.append(read_id)
-                forward_seqs.append(record.seq)
+                forward_seqs.append(nucleotides_to_z4(str(record.seq)))
             else:
                 reverse_read_ids.append(read_id)
-                reverse_seqs.append(record.seq)
-        else:
-            raise ValueError(f"Unexpected prefix {prefix} at record {record_idx}.")
+                reverse_seqs.append(nucleotides_to_z4(str(record.seq)))
+
     if marker_seq is None:
         raise ValueError(f"Couldn't find marker sequence in specified alignment {str(aln_path)}")
 
     return MarkerMultipleAlignment(
         marker=target_marker,
         aligned_marker_seq=marker_seq,
-        read_multi_alignment=np.concatenate(forward_seqs + reverse_seqs, axis=0),
-        read_index_map={read_id: idx for idx, read_id in enumerate(forward_read_ids)},
+        read_multi_alignment=np.stack(forward_seqs + reverse_seqs, axis=0),
+        forward_read_index_map={read_id: idx for idx, read_id in enumerate(forward_read_ids)},
         reverse_read_index_map={read_id: idx for idx, read_id in enumerate(reverse_read_ids)}
     )
 
 
 def align(marker: Marker,
-          read_descriptions: Generator[Tuple[SequenceRead, bool]],
+          read_descriptions: Iterator[Tuple[SequenceRead, bool]],
           intermediate_fasta_path: Path,
           out_fasta_path: Path):
     """
     Write these records to file (using a predetermined format), then perform multiple alignment.
     """
     # First write to temporary file, with the reads reverse complemented if necessary.
-    records = [SeqRecord(Seq(marker.nucleotide_seq), id=f"{_REF_PREFIX}{_SEPARATOR}{marker.id}")]
+    records = []
     for read, should_reverse_comp in read_descriptions:
         if should_reverse_comp:
             read_seq = reverse_complement_seq(read.seq)
         else:
             read_seq = read.seq
+
+        if should_reverse_comp:
+            revcomp_flag = 1
+        else:
+            revcomp_flag = 0
+
         record = SeqRecord(
             Seq(z4_to_nucleotides(read_seq)),
-            id=f"{_READ_PREFIX}{_SEPARATOR}{should_reverse_comp}{_SEPARATOR}{read.id}"
+            id=f"{_READ_PREFIX}{_SEPARATOR}{revcomp_flag}{_SEPARATOR}{read.id}",
+            description=f"(Read, reverse complement:{should_reverse_comp})"
         )
         records.append(record)
     SeqIO.write(records, intermediate_fasta_path, "fasta")
 
+    logger.debug(f"Invoking `mafft --addfragments` on {len(records)} sequences.")
+
     # Now invoke clustal omega aligner.
-    clustal_omega(
-        input_path=intermediate_fasta_path,
+    mafft_fragment(
+        reference_fasta_path=marker.metadata.file_path,
+        fragment_fasta_path=intermediate_fasta_path,
         output_path=out_fasta_path,
-        force=True,
-        verbose=False,
-        out_format='fasta',
         auto=True
     )

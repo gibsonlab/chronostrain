@@ -16,6 +16,7 @@ class CommandLineException(BaseException):
 def call_command(command: str,
                  args: List[str],
                  cwd: Path = None,
+                 shell: bool = False,
                  output_path: Path = None) -> int:
     """
     Executes the command (using the subprocess module).
@@ -23,6 +24,7 @@ def call_command(command: str,
     :param args: The command-line arguments.
     :param cwd: The `cwd param in subprocess. If not `None`, the function changes
     the working directory to cwd prior to execution.
+    :param shell: Indicates whether or not to instantiate a shell from which to invoke the command (not recommended!)
     :param output_path: A path to print the contents of STDOUT to. (If None, logs STDOUT instead.)
     :return: The exit code. (zero by default, the program's returncode if error.)
     """
@@ -34,23 +36,33 @@ def call_command(command: str,
         arguments=" ".join(args)
     ))
 
-    if output_path is None:
+    if output_path is not None:
+        logger.debug("STDOUT redirect to {}.".format(output_path))
+        output_file = open(output_path, 'w')
+    else:
+        output_file = None
+
+    try:
         p = subprocess.run(
             [command] + args,
+            stdin=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            stdout=subprocess.PIPE,
+            stdout=output_file if output_file is not None else subprocess.PIPE,
+            shell=shell,
             cwd=None if cwd is None else str(cwd)
         )
-        logger.debug("STDOUT: {}".format(p.stdout.decode("utf-8")))
-        logger.debug("STDERR: {}".format(p.stderr.decode("utf-8")))
-    else:
-        with open(output_path, 'w') as outfile:
-            p = subprocess.run(
-                [command] + args,
-                stdout=outfile,
-                stderr=subprocess.PIPE,
-                cwd=cwd
-            )
-        logger.debug("STDOUT saved to {}.".format(output_path))
-        logger.debug("STDERR: {}".format(p.stderr.decode("utf-8")))
+    except FileNotFoundError:
+        raise RuntimeError("Encountered file error running subprocess. Is `{command}` installed?")
+
+    if output_file is not None:
+        output_file.close()
+
+    stdout_bytes = p.stdout
+    stderr_bytes = p.stderr
+
+    if stdout_bytes is not None and len(stdout_bytes) > 0:
+        logger.debug("STDOUT: {}".format(stdout_bytes.decode("utf-8").strip()))
+    if stderr_bytes is not None and len(stderr_bytes) > 0:
+        logger.debug("STDERR: {}".format(stderr_bytes.decode("utf-8").strip()))
+
     return p.returncode

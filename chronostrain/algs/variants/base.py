@@ -2,7 +2,7 @@ from typing import Iterable, Tuple, List
 import numpy as np
 
 from chronostrain.model import Marker, Strain
-from chronostrain.util.alignments import SequenceReadAlignment
+from chronostrain.util.alignments.pairwise import SequenceReadPairwiseAlignment
 from chronostrain.util.sequences import SeqType, map_z4_to_nucleotide
 
 
@@ -18,15 +18,15 @@ class MarkerVariant(Marker):
 
         new_id = "{}<{}>".format(
             base_marker.id,
-            "|".join([
+            "|".join(
                 "{}:{}".format(pos, base)
                 for pos, base, _ in substitutions
-            ])
+            )
         )
 
         new_name: str = "{}-Variant[{}]".format(
             base_marker.name,
-            "|".join(["{}:{}".format(pos, map_z4_to_nucleotide(z4base)) for pos, z4base, _ in substitutions])
+            "|".join("{}:{}".format(pos, map_z4_to_nucleotide(z4base)) for pos, z4base, _ in substitutions)
         )
 
         new_seq: SeqType = base_marker.seq.copy()
@@ -40,7 +40,7 @@ class MarkerVariant(Marker):
             metadata=base_marker.metadata
         )
 
-    def subseq_from_ref_alignment(self, alignment: SequenceReadAlignment) -> SeqType:
+    def subseq_from_ref_alignment(self, alignment: SequenceReadPairwiseAlignment) -> SeqType:
         """
         Retrieve the subsequence of this marker, given the relative positioning (with respect to the base marker)
         stored inside the SequenceReadAlignment instance.
@@ -69,7 +69,7 @@ class StrainVariant(Strain):
 
         new_id = "{}_Variant[{}]".format(
             base_strain.id,
-            "+".join([marker_variant.id for marker_variant in marker_variants])
+            "+".join(marker_variant.id for marker_variant in marker_variants)
         )
 
         # Compute the new genome length, assuming that multiple variants of the same marker is coming from increased

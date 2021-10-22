@@ -4,7 +4,7 @@ import numpy as np
 
 from chronostrain.database import StrainDatabase
 from chronostrain.model import Marker, SequenceRead
-from chronostrain.util.sequences import SeqType, reverse_complement_seq
+from chronostrain.util.sequences import SeqType, reverse_complement_seq, NucleotideDtype
 from chronostrain.util.sequences import nucleotide_GAP_z4 as GapChar
 
 from .sam_handler import SamFile, SamLine
@@ -52,7 +52,6 @@ class SequenceReadPairwiseAlignment(object):
         self.sam_line_no: int = sam_line_no
         self.unique_id: str = "{}[{},{}]".format(read.id, marker_start, marker_end)
 
-        assert (marker_end - marker_start) == (read_end - read_start)
         self.read_start: int = read_start
         self.read_end: int = read_end
         self.marker_start: int = marker_start
@@ -104,33 +103,40 @@ def parse_line_into_alignment(sam_path: Path,
 
     if samline.is_reverse_complemented:
         read_seq = reverse_complement_seq(read.seq)
-        qual_seq = read.quality[::-1]
     else:
         read_seq = read.seq
-        qual_seq = read.quality
 
     read_tokens = []
-    qual_tokens = []
     marker_tokens = []
+    n_soft_clips = 0
+    n_hard_clips = 0
 
     # ============ Handle hard clips at the ends.
     if cigar_els[0].op == CigarOp.CLIPHARD:
         cigar_els = cigar_els[1:]
+        n_hard_clips += 1
     if cigar_els[-1].op == CigarOp.CLIPHARD:
         cigar_els = cigar_els[:-1]
+        n_hard_clips += 1
 
     # ============ Handle soft clips at the ends.
     if cigar_els[0].op == CigarOp.CLIPSOFT:
         start_clip = cigar_els[0].num
         cigar_els = cigar_els[1:]
+        n_soft_clips += 1
     else:
         start_clip = 0
 
     if cigar_els[-1].op == CigarOp.CLIPSOFT:
         end_clip = cigar_els[-1].num
         cigar_els = cigar_els[:-1]
+        n_soft_clips += 1
     else:
         end_clip = 0
+
+    if n_soft_clips > 0 or n_hard_clips > 0:
+        raise NotImplementedError("Proper interpretation of Hard/Soft clips not implemented yet! "
+                                  "Hard clips may be due to chimeric reads.")
 
     if start_clip > 0 and end_clip > 0:
         logger.warning("Read `{}` clipped on both ends; this might indicate repeated subsequences of different "
@@ -146,20 +152,17 @@ def parse_line_into_alignment(sam_path: Path,
         if cigar_el.op == CigarOp.ALIGN or cigar_el.op == CigarOp.MATCH or cigar_el.op == CigarOp.MISMATCH:
             # Consume both query and marker.
             read_tokens.append(read_seq[current_read_idx:current_read_idx + cigar_el.num])
-            qual_tokens.append(qual_seq[current_read_idx:current_read_idx + cigar_el.num])
             marker_tokens.append(marker.seq[current_marker_idx:current_marker_idx + cigar_el.num])
             current_read_idx += cigar_el.num
             current_marker_idx += cigar_el.num
         elif cigar_el.op == CigarOp.INSERTION:
             # Consume query but not marker.
             read_tokens.append(read_seq[current_read_idx:current_read_idx + cigar_el.num])
-            qual_tokens.append(qual_seq[current_read_idx:current_read_idx + cigar_el.num])
-            marker_tokens.append(GapChar * np.ones(cigar_el.num))
+            marker_tokens.append(GapChar * np.ones(cigar_el.num, dtype=NucleotideDtype))
             current_read_idx += cigar_el.num
         elif cigar_el.op == CigarOp.DELETION:
             # consume marker but not query.
-            read_tokens.append(GapChar * np.ones(cigar_el.num))
-            qual_tokens.append(np.zeros(cigar_el.num))
+            read_tokens.append(GapChar * np.ones(cigar_el.num, dtype=NucleotideDtype))
             marker_tokens.append(marker.seq[current_marker_idx:current_marker_idx + cigar_el.num])
             current_marker_idx += cigar_el.num
         elif cigar_el.op == CigarOp.SKIPREF:
@@ -180,8 +183,7 @@ def parse_line_into_alignment(sam_path: Path,
 
     alignment = np.stack([
         np.concatenate(marker_tokens),
-        np.concatenate(read_tokens),
-        np.concatenate(qual_tokens)
+        np.concatenate(read_tokens)
     ], axis=0)  # matrix of characters and gaps showing the alignment. (third row shows quality scores of each base.)
 
     frag = alignment[0]
@@ -210,6 +212,10 @@ def parse_alignments(sam_file: SamFile,
     A basic function which parses a SamFile instance and outputs a generator over alignments.
     """
     for samline in sam_file.mapped_lines():
+        if samline.cigar[0].op == CigarOp.CLIPHARD or samline.cigar[-1].op == CigarOp.CLIPHARD:
+            # See the warning about hard clips and chimeric alignments.
+            # Also check out: https://www.biostars.org/p/109333/
+            continue
         try:
             yield parse_line_into_alignment(sam_file.file_path, samline, db, read_getter)
         except NotImplementedError as e:
