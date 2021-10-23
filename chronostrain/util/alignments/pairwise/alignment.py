@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Tuple, Dict, List, Iterator, Callable
+from typing import Tuple, Dict, List, Iterator, Callable, Optional, Union
 import numpy as np
 
 from chronostrain.database import StrainDatabase
@@ -26,6 +26,11 @@ class SequenceReadPairwiseAlignment(object):
                  read_end: int,
                  marker_start: int,
                  marker_end: int,
+                 hard_clip_start: float,
+                 hard_clip_end: float,
+                 soft_clip_start: float,
+                 soft_clip_end: float,
+                 percent_identity: Optional[float],
                  reverse_complemented: bool):
         """
         :param read: The SequenceRead instance.
@@ -56,6 +61,13 @@ class SequenceReadPairwiseAlignment(object):
         self.read_end: int = read_end
         self.marker_start: int = marker_start
         self.marker_end: int = marker_end
+
+        self.hard_clip_start = hard_clip_start  # the number of bases at the left end (5') that got hard clipped.
+        self.hard_clip_end = hard_clip_end  # the number of bases at the right end (3') that got hard clipped.
+        self.soft_clip_start = soft_clip_start  # the number of bases at the right end (5') that got soft clipped.
+        self.soft_clip_end = soft_clip_end  # the number of bases at the right end (3') that got soft clipped.
+
+        self.percent_identity: Union[None, float] = percent_identity
 
         # Indicates whether the read has been reverse complemented.
         self.reverse_complemented: bool = reverse_complemented
@@ -108,42 +120,29 @@ def parse_line_into_alignment(sam_path: Path,
 
     read_tokens = []
     marker_tokens = []
-    n_soft_clips = 0
-    n_hard_clips = 0
+    hard_clip_start = 0
+    hard_clip_end = 0
+    soft_clip_start = 0
+    soft_clip_end = 0
 
-    # ============ Handle hard clips at the ends.
+    # ============ Handle hard clips at the ends (always comes before the soft clips).
     if cigar_els[0].op == CigarOp.CLIPHARD:
+        hard_clip_start = cigar_els[0].num
         cigar_els = cigar_els[1:]
-        n_hard_clips += 1
     if cigar_els[-1].op == CigarOp.CLIPHARD:
+        hard_clip_end = cigar_els[-1].num
         cigar_els = cigar_els[:-1]
-        n_hard_clips += 1
 
     # ============ Handle soft clips at the ends.
     if cigar_els[0].op == CigarOp.CLIPSOFT:
-        start_clip = cigar_els[0].num
+        soft_clip_start = cigar_els[0].num
         cigar_els = cigar_els[1:]
-        n_soft_clips += 1
-    else:
-        start_clip = 0
-
     if cigar_els[-1].op == CigarOp.CLIPSOFT:
-        end_clip = cigar_els[-1].num
+        soft_clip_end = cigar_els[-1].num
         cigar_els = cigar_els[:-1]
-        n_soft_clips += 1
-    else:
-        end_clip = 0
-
-    if n_soft_clips > 0 or n_hard_clips > 0:
-        raise NotImplementedError("Proper interpretation of Hard/Soft clips not implemented yet! "
-                                  "Hard clips may be due to chimeric reads.")
-
-    if start_clip > 0 and end_clip > 0:
-        logger.warning("Read `{}` clipped on both ends; this might indicate repeated subsequences of different "
-                       "markers, or a significant mutation (bulk insertion/deletion). Check the results at the end.")
 
     marker_start = int(samline.map_pos_str) - 1
-    read_start = start_clip
+    read_start = soft_clip_start + hard_clip_start
 
     # ============ Handle all intermediate elements.
     current_read_idx = read_start
@@ -201,30 +200,49 @@ def parse_line_into_alignment(sam_path: Path,
         read_end,
         marker_start,
         marker_end,
+        hard_clip_start,
+        hard_clip_end,
+        soft_clip_start,
+        soft_clip_end,
+        samline.percent_identity,
         samline.is_reverse_complemented
     )
 
 
+def aln_is_edge_mapped(aln: SequenceReadPairwiseAlignment):
+    if aln.marker_start == 0:
+        return aln.soft_clip_start > 0 or aln.hard_clip_start > 0
+    elif aln.marker_end == len(aln.marker) - 1:
+        return aln.soft_clip_end > 0 or aln.hard_clip_end > 0
+    return False
+
+
 def parse_alignments(sam_file: SamFile,
                      db: StrainDatabase,
-                     read_getter: Callable[[str], SequenceRead]) -> Iterator[SequenceReadPairwiseAlignment]:
+                     read_getter: Callable[[str], SequenceRead],
+                     ignore_edge_mapped_reads: bool = True) -> Iterator[SequenceReadPairwiseAlignment]:
     """
     A basic function which parses a SamFile instance and outputs a generator over alignments.
     """
     for samline in sam_file.mapped_lines():
-        if samline.cigar[0].op == CigarOp.CLIPHARD or samline.cigar[-1].op == CigarOp.CLIPHARD:
-            # See the warning about hard clips and chimeric alignments.
-            # Also check out: https://www.biostars.org/p/109333/
-            continue
         try:
-            yield parse_line_into_alignment(sam_file.file_path, samline, db, read_getter)
+            aln = parse_line_into_alignment(sam_file.file_path, samline, db, read_getter)
+            if ignore_edge_mapped_reads and aln_is_edge_mapped(aln):
+                logger.debug(
+                    f"Skipping alignment read[{aln.read.id}] -> marker[{aln.marker.id}] due to "
+                    f"`ignore_edge_mapped_reads=True` setting. "
+                    f"(Line {aln.sam_line_no}, File {str(aln.sam_path.name)})"
+                )
+            else:
+                yield aln
         except NotImplementedError as e:
             logger.warning(str(e))
 
 
 def marker_categorized_alignments(sam_file: SamFile,
                                   db: StrainDatabase,
-                                  read_getter: Callable[[str], SequenceRead]
+                                  read_getter: Callable[[str], SequenceRead],
+                                  ignore_edge_mapped_reads: bool = True
                                   ) -> Dict[Marker, List[SequenceReadPairwiseAlignment]]:
     """
     Parses the input SamFile instance into a dictionary, mapping each marker to alignments that map to
@@ -235,7 +253,7 @@ def marker_categorized_alignments(sam_file: SamFile,
         for marker in db.all_markers()
     }
 
-    for aln in parse_alignments(sam_file, db, read_getter):
+    for aln in parse_alignments(sam_file, db, read_getter, ignore_edge_mapped_reads=ignore_edge_mapped_reads):
         marker_alignments[aln.marker].append(aln)
 
     return marker_alignments

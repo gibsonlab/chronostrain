@@ -27,7 +27,6 @@ def create_model(population: Population,
         logger.info("Flag --disable_quality turned on; Quality scores are diabled. Initializing NoiselessErrorModel.")
         error_model = NoiselessErrorModel(mismatch_likelihood=0.)
     else:
-        logger.warning("TODO set the insertion/deletion probabilities.")
         error_model = PhredErrorModel(
             insertion_error_ll=cfg.model_cfg.insertion_error_log10,
             deletion_error_ll=cfg.model_cfg.deletion_error_log10

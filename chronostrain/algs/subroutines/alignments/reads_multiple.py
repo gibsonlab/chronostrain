@@ -64,7 +64,6 @@ class CachedReadMultipleAlignments(object):
                                   ) -> multialign.MarkerMultipleAlignment:
         def read_gen():
             for aln in pairwise_aligns:
-
                 yield aln.read, aln.reverse_complemented
 
         # ====== function bindings to pass to ComputationCache.

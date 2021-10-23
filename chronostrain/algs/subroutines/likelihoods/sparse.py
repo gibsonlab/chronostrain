@@ -1,5 +1,5 @@
 import torch
-from typing import List, Dict, Set, Iterator, Tuple
+from typing import List, Dict, Iterator, Tuple
 from collections import defaultdict
 import numpy as np
 
@@ -143,6 +143,8 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         
         In particular, this means that we don't have to worry about indels.
         """
+        logger.warning("_compute_read_frag_alignments_pairwise: Treating hard clipped reads the same as "
+                       "soft clipped reads. (Developer note: keep an eye on this)")
         for base_marker, alns in self.pairwise_reference_alignments.alignments_by_marker_and_timepoint(t_idx).items():
             for aln in alns:
                 # First, add the likelihood for the fragment for the aligned base marker.
@@ -236,16 +238,6 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                         frag = self.model.fragments.get_fragment(subseq)
 
                         ll = self.read_frag_ll(frag, read, insertions, deletions, reverse_complemented=reverse)
-
-                        if np.sum(insertions) == 0 and np.sum(deletions) == 0:
-                            print("********************")
-                            print("Reversed: {}".format(reverse))
-                            print(frag.nucleotide_content())
-                            print(read.nucleotide_content())
-                            print(read.quality)
-                            print("Insertions: {}, Deletions: {}".format(insertions.sum(), deletions.sum()))
-                            print(ll)
-
                         read_to_frag_likelihoods[read_id].append((frag, ll))
 
             # Next, take care of the variant markers (if applicable).
@@ -272,9 +264,6 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                 read_indices.append(read_idx)
                 frag_indices.append(frag.index)
                 log_likelihood_values.append(log_likelihood)
-
-        print(frag_indices)
-        print(read_indices)
 
         return SparseMatrix(
             indices=torch.tensor(
