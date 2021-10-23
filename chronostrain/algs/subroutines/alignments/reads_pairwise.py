@@ -48,9 +48,12 @@ class CachedReadPairwiseAlignments(object):
             for marker in self.db.all_markers()
         }
         for reads_path in time_slice.src.paths:
-            handler = self._get_alignment(reads_path, time_slice.src.quality_format)
+            sam_file = self._get_alignment(reads_path, time_slice.src.quality_format)
             for marker, alns in marker_categorized_alignments(
-                    handler, self.db, lambda read_id: time_slice.get_read(read_id)
+                    sam_file,
+                    self.db,
+                    lambda read_id: time_slice.get_read(read_id),
+                    ignore_edge_mapped_reads=True
             ).items():
                 alignments[marker] = alignments[marker] + alns
         return alignments
@@ -64,9 +67,12 @@ class CachedReadPairwiseAlignments(object):
         }
         for time_slice in self.reads:
             for reads_path in time_slice.src.paths:
-                handler = self._get_alignment(reads_path, time_slice.src.quality_format)
+                sam_file = self._get_alignment(reads_path, time_slice.src.quality_format)
                 for aln in parse_alignments(
-                        handler, self.db, lambda read_id: time_slice.get_read(read_id)
+                        sam_file,
+                        self.db,
+                        lambda read_id: time_slice.get_read(read_id),
+                        ignore_edge_mapped_reads=True
                 ):
                     marker_to_reads[aln.marker].append(aln)
         yield from marker_to_reads.items()

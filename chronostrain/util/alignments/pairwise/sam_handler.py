@@ -1,4 +1,5 @@
 import enum
+import re
 from pathlib import Path
 from typing import List, Iterator, Union
 
@@ -106,13 +107,16 @@ class SamLine:
             self.phred_quality: np.ndarray = ascii_to_phred(self.read_quality, quality_format)
 
         self.optional_tags = {}
+        self.percent_identity: Union[float, None] = None
         for optional_tag in self.line[11:]:
             '''
             The MD tag stores information about which bases match to the reference and is necessary
             for determining percent identity
             '''
+            # MD tag: shows percent identity
             if optional_tag[:5] == 'MD:Z:':
                 self.optional_tags['MD'] = optional_tag[5:]
+                self.percent_identity = percent_identity_from_md_tag(self.optional_tags['MD'])
 
     def __str__(self):
         return "SamLine(L={lineno}):{tokens}".format(
@@ -126,6 +130,39 @@ class SamLine:
     @property
     def cigar(self) -> List[CigarElement]:
         return parse_cigar(self.cigar_str)
+
+
+def percent_identity_from_md_tag(tag: str):
+    """
+    Calculate the percent identity from a clipped MD tag. Three types of subsequences are read:
+    (1) Numbers represent the corresponding amount of sequential matches
+    (2) Letters represent a mismatch and two sequential mismatches are separated by a 0
+    (3) A ^ represents a deletion and will be followed by a sequence of consecutive letters
+        corresponding to the bases missing
+    Dividing (1) by (1)+(2)+(3) will give matches/clipped_length, or percent identity
+    """
+
+    '''
+    Splits on continuous number sequences.
+    '5A0C61^G' -> ['5', 'A', '0', 'C', '61', '^G']
+    Which would mean 5 correct bases, two incorrect, 61 correct, then one deleted base.
+    Sequential incorrect bases are always split by a 0.
+    '''
+    split_md = re.findall(r'\d+|\D+', tag)
+    total_clipped_length = 0
+    total_matches = 0
+    for sequence in split_md:
+        if sequence.isnumeric():  # (1)
+            total_clipped_length += int(sequence)
+            total_matches += int(sequence)
+        else:
+            if sequence[0] == '^':  # (3)
+                total_clipped_length += len(sequence) - 1
+            elif len(sequence) == 1:  # (2)
+                total_clipped_length += 1
+            else:
+                logger.warning("Unrecognized sequence in MD tag: " + sequence)
+    return total_matches / total_clipped_length
 
 
 class SamFile:

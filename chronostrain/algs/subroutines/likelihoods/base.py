@@ -55,13 +55,17 @@ class DataLikelihoods(object):
 
             zero_indices = {i.item() for i in torch.where(sums <= self.read_likelihood_lower_bound)[0]}
             if len(zero_indices) > 0:
-                logger.warning("[t = {}] Discarding {} of {} reads with overall likelihood < {}: {}".format(
-                    self.model.times[t_idx],
-                    len(zero_indices),
-                    len(sums),
-                    self.read_likelihood_lower_bound,
-                    ",".join(str(read_idx) for read_idx in zero_indices)
-                ))
+                logger.debug(
+                    "[t = {}] For numerical stability, "
+                    "discarding {} of {} reads "
+                    "with overall likelihood < {}: {}".format(
+                        self.model.times[t_idx],
+                        len(zero_indices),
+                        len(sums),
+                        self.read_likelihood_lower_bound,
+                        ",".join(str(read_idx) for read_idx in zero_indices)
+                    )
+                )
 
                 leftover_indices = [
                     read_idx

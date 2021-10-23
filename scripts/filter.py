@@ -111,39 +111,6 @@ def reconstruct_md_tags(cora_output_paths: List[Path], reference_paths: List[Pat
             raise CommandLineException("samtools fillmd", exit_code)
 
 
-def parse_md_tag(tag: str):
-    """
-    Calculate the percent identity from a clipped MD tag. Three types of subsequences are read:
-    (1) Numbers represent the corresponding amount of sequential matches
-    (2) Letters represent a mismatch and two sequential mismatches are separated by a 0
-    (3) A ^ represents a deletion and will be followed by a sequence of consecutive letters
-        corresponding to the bases missing
-    Dividing (1) by (1)+(2)+(3) will give matches/clipped_length, or percent identity
-    """
-
-    '''
-    Splits on continuous number sequences.
-    '5A0C61^G' -> ['5', 'A', '0', 'C', '61', '^G']
-    Which would mean 5 correct bases, two incorrect, 61 correct, then one deleted base.
-    Sequential incorrect bases are always split by a 0.
-    '''
-    split_md = re.findall(r'\d+|\D+', tag)
-    total_clipped_length = 0
-    total_matches = 0
-    for sequence in split_md:
-        if sequence.isnumeric():  # (1)
-            total_clipped_length += int(sequence)
-            total_matches += int(sequence)
-        else:
-            if sequence[0] == '^':  # (3)
-                total_clipped_length += len(sequence) - 1
-            elif len(sequence) == 1:  # (2)
-                total_clipped_length += 1
-            else:
-                logger.warning("Unrecognized sequence in MD tag: " + sequence)
-    return total_matches / total_clipped_length
-
-
 def trim_read_quality(read_quality):
     """
     TODO: This trim is for HiSeq150, avg phred score of 30. Add setup in config, possibly by reading quality profile
@@ -158,7 +125,7 @@ def filter_on_read_quality(phred_quality: np.ndarray, error_threshold: float = 3
     return num_expected_errors < error_threshold
 
 
-def filter_on_match_identity(percent_identity, identity_threshold=0.9):
+def filter_on_match_identity(percent_identity: float, identity_threshold=0.9):
     """
     Applies a filtering criteria for reads that continue in the pipeline.
     Currently a simple threshold on percent identity, likely should be adjusted to maximize downstream sensitivity?
@@ -205,10 +172,12 @@ def filter_file(
                 continue
 
             # Pass filter if quality is high enough, and entire read is mapped.
+            if aln.percent_identity is None:
+                raise ValueError(f"Unknown percent identity from alignment of read `{aln.read.id}`")
+
             passed_filter = (
-                    filter_on_read_quality(aln.read.quality)
-                    # TODO remove this after indels are implemented into the algorithm.
-                    and ((aln.marker_end - aln.marker_start + 1) == len(aln.read.seq))
+                filter_on_match_identity(aln.percent_identity, identity_threshold=0.9)
+                and filter_on_read_quality(aln.read.quality)
             )
 
             # Write to metadata file.

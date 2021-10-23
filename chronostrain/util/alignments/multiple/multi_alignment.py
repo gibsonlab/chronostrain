@@ -43,7 +43,6 @@ class MarkerMultipleAlignment(object):
         self.reverse_read_index_map = reverse_read_index_map
 
     def contains_read_id(self, read_id: str) -> bool:
-        print(reversed)
         return read_id in self.forward_read_index_map or read_id in self.reverse_read_index_map
 
     def get_alignment(self, read_id: str, reverse: bool) -> SeqType:

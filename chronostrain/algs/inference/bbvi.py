@@ -565,13 +565,6 @@ class BBVISolver(AbstractModelSolver):
         elbo_diff = float("inf")
         k = 0
 
-        times = {
-            'sampling': [],
-            'update-phi': [],
-            'elbo': [],
-            'backward': []
-        }
-
         while k < iters:
             k += 1
             time_est.stopwatch_click()
@@ -583,20 +576,16 @@ class BBVISolver(AbstractModelSolver):
                 output_log_likelihoods=True,
                 detach_grad=False
             )  # (T x N x S)
-            times['sampling'].append(_t.stopwatch_click())
 
             optimizer.zero_grad()
             with torch.no_grad():
                 self.update_phi(x_samples.detach())
-            times['update-phi'].append(_t.stopwatch_click())
 
             elbo = self.elbo_marginal_gaussian(x_samples, gaussian_log_likelihoods)
-            times['elbo'].append(_t.stopwatch_click())
 
             elbo_loss = -elbo  # Quantity to minimize. (want to maximize ELBO)
             elbo_loss.backward()
             optimizer.step()
-            times['backward'].append(_t.stopwatch_click())
 
             if callbacks is not None:
                 for callback in callbacks:
@@ -613,12 +602,6 @@ class BBVISolver(AbstractModelSolver):
                         elbo=elbo
                     )
                 )
-                logger.debug("Profiler: {}".format(
-                    " | ".join(
-                        "{}: {:02f}".format(key, np.mean(time_entries))
-                        for key, time_entries in times.items()
-                    )
-                ))
 
             elbo_value = elbo.detach()
             elbo_diff = elbo_value - last_elbo
