@@ -9,7 +9,7 @@ from chronostrain.config import cfg
 from chronostrain.model.generative import GenerativeModel
 
 from .base import DataLikelihoods, AbstractLogLikelihoodComputer
-from .likelihood_cache import LikelihoodMatrixCache
+from ..cache import ReadsPopulationCache
 
 from chronostrain.config.logging import create_logger
 logger = create_logger(__name__)
@@ -58,7 +58,7 @@ class DenseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         #  (Right now, the behavior is to compute List[List[float]] and save/load from pickle.)
 
         logger.debug("Computing read-fragment likelihoods...")
-        cache = LikelihoodMatrixCache(self.reads, self.model.bacteria_pop)
+        cache = ReadsPopulationCache(self.reads, self.model.bacteria_pop)
 
         jobs = [
             {

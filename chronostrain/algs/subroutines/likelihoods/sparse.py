@@ -16,7 +16,7 @@ from chronostrain.config import cfg
 from chronostrain.model.generative import GenerativeModel
 
 from .base import DataLikelihoods, AbstractLogLikelihoodComputer
-from .likelihood_cache import LikelihoodMatrixCache
+from ..cache import ReadsPopulationCache
 
 from chronostrain.config.logging import create_logger
 from chronostrain.algs.variants import MarkerVariant
@@ -84,7 +84,7 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         self._multi_align_instances: List[MarkerMultipleAlignment] = None  # lazy loading
 
         # ==== Cache.
-        self.cache = LikelihoodMatrixCache(reads, model.bacteria_pop)
+        self.cache = ReadsPopulationCache(reads, model.bacteria_pop)
 
         self.variants_present: Dict[Marker, List[MarkerVariant]] = {
             marker: []

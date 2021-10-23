@@ -1,3 +1,2 @@
-from .reads_pairwise import CachedReadPairwiseAlignments
-from .reads_multiple import CachedReadMultipleAlignments
-from .cache import ReadsComputationCache
+from .cached_pairwise_alignment import CachedReadPairwiseAlignments
+from .cached_multiple_alignment import CachedReadMultipleAlignments

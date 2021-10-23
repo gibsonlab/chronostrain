@@ -7,12 +7,12 @@ from typing import Optional, Dict, List, Iterator, Tuple
 
 from chronostrain.model import Marker
 from chronostrain.model.io import TimeSeriesReads
-from chronostrain.util.data_cache import ComputationCache
+from chronostrain.util.cache import ComputationCache
 from chronostrain.util.external.bwa import bwa_mem, bwa_index
 from chronostrain.util.alignments.pairwise import *
 from chronostrain.database import StrainDatabase
 
-from .cache import ReadsComputationCache
+from chronostrain.algs.subroutines.cache import ReadsComputationCache
 
 
 class CachedReadPairwiseAlignments(object):

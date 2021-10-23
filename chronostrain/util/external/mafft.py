@@ -11,6 +11,7 @@ def mafft_fragment(
         reorder: bool = False,
         auto: bool = False
 ):
+    # Biopython's interface appears outdated (as of 10/23/2021). Use our own cline interface.
     params = [
         '--addfragments',
         str(fragment_fasta_path)

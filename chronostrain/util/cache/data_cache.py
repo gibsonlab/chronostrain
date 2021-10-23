@@ -89,6 +89,7 @@ class CacheTag(object):
                     file=f
                 )
 
+
 def pickle_saver(path, obj):
     """
     Saves the object to the path using pickle.dump.

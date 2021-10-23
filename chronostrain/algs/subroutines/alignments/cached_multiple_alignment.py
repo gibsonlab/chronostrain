@@ -8,12 +8,12 @@ from typing import Optional, List, Iterator, Tuple
 from chronostrain.model import Marker
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.util.alignments.pairwise import SequenceReadPairwiseAlignment
-from chronostrain.util.data_cache import ComputationCache
+from chronostrain.util.cache import ComputationCache
 import chronostrain.util.alignments.multiple as multialign
 from chronostrain.database import StrainDatabase
 
-from .cache import ReadsComputationCache
-from .reads_pairwise import CachedReadPairwiseAlignments
+from chronostrain.algs.subroutines.cache import ReadsComputationCache
+from .cached_pairwise_alignment import CachedReadPairwiseAlignments
 
 from chronostrain.config import create_logger
 logger = create_logger(__name__)

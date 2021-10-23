@@ -1,6 +1,6 @@
 .idea/
 __pycache__/
-cache/
+.cache/
 data/
 data/*/
 tests/
