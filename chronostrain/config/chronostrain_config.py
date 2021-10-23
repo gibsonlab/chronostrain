@@ -71,7 +71,7 @@ class DatabaseConfig(AbstractConfig):
             key.lower(): (value if value != 'None' else None)
             for key, value in database_kwargs.items()
         }
-        self.class_name: str = self.get_item("DB_CLASS")
+        self.class_name: str = self.get_str("DB_CLASS")
         self.data_dir: Path = self.get_path("DATA_DIR")
         self.data_dir.mkdir(parents=True, exist_ok=True)
 
@@ -139,7 +139,7 @@ class TorchConfig(AbstractConfig):
 
     def __init__(self, cfg: dict):
         super().__init__("PyTorch", cfg)
-        device_token = self.get_item("DEVICE")
+        device_token = self.get_str("DEVICE")
         if device_token == "cuda":
             self.device = torch.device("cuda")
         elif device_token == "cpu":
@@ -149,7 +149,7 @@ class TorchConfig(AbstractConfig):
                 "Field `DEVICE`:Invalid or unsupported device token `{}`".format(device_token)
             )
 
-        dtype_str = self.get_item("DEFAULT_DTYPE")
+        dtype_str = self.get_str("DEFAULT_DTYPE")
         try:
             self.default_dtype = TorchConfig.torch_dtypes[dtype_str]
         except KeyError:
@@ -159,10 +159,11 @@ class TorchConfig(AbstractConfig):
         torch.set_default_dtype(self.default_dtype)
 
 
-class AlignmentConfig(AbstractConfig):
+class ExternalToolsConfig(AbstractConfig):
     def __init__(self, cfg: dict):
-        super().__init__("Alignments", cfg)
-        self.pairwise_align_cmd = self.get_item("PAIRWISE_ALN_BACKEND")
+        super().__init__("ExternalTools", cfg)
+        self.pairwise_align_cmd = self.get_str("PAIRWISE_ALN_BACKEND")
+        self.glopp_path = self.get_str("GLOPP")
 
 
 class ChronostrainConfig(AbstractConfig):
@@ -174,7 +175,7 @@ class ChronostrainConfig(AbstractConfig):
         )
         self.model_cfg: ModelConfig = ModelConfig(self.get_item("Model"))
         self.torch_cfg: TorchConfig = TorchConfig(self.get_item("PyTorch"))
-        self.alignment_cfg: AlignmentConfig = AlignmentConfig(self.get_item("Alignments"))
+        self.external_tools_cfg: ExternalToolsConfig = ExternalToolsConfig(self.get_item("ExternalTools"))
 
 
 def _config_load(ini_path: str) -> ChronostrainConfig:
