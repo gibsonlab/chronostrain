@@ -1,1 +1,1 @@
-from .cached_glopp_assembly import CachedGloppVariantAssembly
+from .cached_glopp_assembly import CachedGloppVariantAssembly, MarkerContig

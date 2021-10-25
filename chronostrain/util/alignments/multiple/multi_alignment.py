@@ -49,11 +49,14 @@ class MarkerMultipleFragmentAlignment(object):
     def contains_read_id(self, read_id: str) -> bool:
         return read_id in self.forward_read_index_map or read_id in self.reverse_read_index_map
 
-    def get_alignment(self, read: SequenceRead, reverse: bool, delete_double_gaps: bool = True) -> SeqType:
+    def get_index_of(self, read: SequenceRead, reverse: bool) -> int:
         if reverse:
-            read_idx = self.reverse_read_index_map[read]
+            return self.reverse_read_index_map[read]
         else:
-            read_idx = self.forward_read_index_map[read]
+            return self.forward_read_index_map[read]
+
+    def get_alignment(self, read: SequenceRead, reverse: bool, delete_double_gaps: bool = True) -> SeqType:
+        read_idx = self.get_index_of(read, reverse)
 
         if delete_double_gaps:
             return self.delete_double_gaps(self.aligned_marker_seq, self.read_multi_alignment[read_idx, :])

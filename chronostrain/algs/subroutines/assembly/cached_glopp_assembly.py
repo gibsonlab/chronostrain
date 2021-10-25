@@ -1,184 +1,34 @@
-import csv
 from pathlib import Path
-from typing import Optional, List, Tuple, Dict
+from typing import Optional, Tuple, List
 
 import numpy as np
 
-from chronostrain.model import SequenceRead
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.util.alignments.multiple import MarkerMultipleFragmentAlignment
-from chronostrain.util.alignments.sam import SamFlags
 from chronostrain.util.cache import ComputationCache
-from chronostrain.util.external import run_glopp, sam_to_bam
-from chronostrain.util.quality import phred_to_ascii
-from chronostrain.util.sequences import *
+from chronostrain.util.external import run_glopp
+from chronostrain.util.sequences import NucleotideDtype, nucleotide_GAP_z4
 from ..cache import ReadsComputationCache
+from .classes import MarkerContig
 
 from chronostrain.config import create_logger
+from .preprocess import _z4_base_ordering, to_bam, to_vcf
 logger = create_logger(__name__)
-
-
-_z4_base_ordering: SeqType = nucleotides_to_z4("ACGT-")
-_base_to_idx: Dict[NucleotideDtype, int] = {base: idx for idx, base in enumerate(_z4_base_ordering)}
-
-
-def to_bam(alignment: MarkerMultipleFragmentAlignment, out_path: Path):
-    """
-    Converts the alignment into a BAM file, but with a minor unconventional change: GAPs are converted into Ns so that
-    we can properly call indel variants.
-    """
-    sam_path = out_path.with_suffix(".sam")
-    sam_version = "1.6"
-    chronostrain_version = "empty"  # TODO insert explicit versioning.
-
-    def write_read(read: SequenceRead,
-                   map_first_idx: int,
-                   map_last_idx: int,
-                   revcomp: bool,
-                   sam_flags: List[SamFlags], w: csv.writer):
-        # Flag calculation (Bitwise OR)
-        read_flag = 0
-        for flag in sam_flags:
-            read_flag = read_flag | flag.value
-
-        # Mapping positions
-        aln = alignment.get_alignment(read, revcomp, delete_double_gaps=False)
-        query_map_len = map_last_idx - map_first_idx + 1
-        assert query_map_len == len(read)
-
-        # Mapping quality
-        mapq: int = 255  # (not available)
-        rnext: str = "*"
-        pnext: int = 0
-        tlen: int = 0
-
-        # Query seqs (Convert gaps into N's.)
-        query_seq = aln[1, map_first_idx:map_last_idx+1].copy()
-        quality = np.zeros(shape=query_seq.shape, dtype=float)
-        quality[query_seq == nucleotide_GAP_z4] = 0
-        quality[query_seq != nucleotide_GAP_z4] = read.quality
-        query_seq[query_seq == nucleotide_GAP_z4] = nucleotide_N_z4
-
-        w.writerow([
-            read.id,
-            read_flag,
-            alignment.marker.id,
-            str(map_first_idx + 1),  # 1-indexed mapping position
-            str(mapq),
-            f"{query_map_len}M",
-            rnext,
-            str(pnext),
-            str(tlen),
-            z4_to_nucleotides(query_seq),
-            phred_to_ascii(quality, "fastq")
-        ])
-
-    with open(sam_path, "w") as f:
-        tsv = csv.writer(f, delimiter='\t', quoting=csv.QUOTE_NONE)
-        # ========== METADATA.
-        tsv.writerow(["@HD", f"VN:{sam_version}", "SO:unsorted"])
-        tsv.writerow(["@SQ", f"SN:{alignment.marker.id}", f"LN:{len(alignment.marker.seq)}"])
-        tsv.writerow(["@PG", "ID:chronostr", f"VN:{chronostrain_version}", "PN:chronostrain", "CL:empty"])
-        tsv.writerow(["@CO", f"Chronostrain BAM from multiple alignment (marker: {alignment.marker.id})"])
-
-        # ========== SEQUENCE ALIGNMENTS.
-        entries = [
-            (read_obj, False, *alignment.aln_gapped_boundary(read_obj, False))
-            for read_obj, r_idx in alignment.forward_read_index_map.items()
-        ] + [
-            (read_obj, True, *alignment.aln_gapped_boundary(read_obj, True))
-            for read_obj, r_idx in alignment.reverse_read_index_map.items()
-        ]  # Tuple of (Read, Rev_comp, Start_idx, End_idx).
-
-        entries.sort(key=lambda x: x[2])
-
-        for read_obj, revcomp, start_idx, end_idx in entries:
-            flags = [SamFlags.SeqReverseComplement] if revcomp else []
-            write_read(read_obj, start_idx, end_idx, revcomp, flags, tsv)
-
-    # now create the BAM file via compression.
-    logger.debug(f"Compression SAM ({str(sam_path.name)}) to BAM ({str(out_path.name)}).")
-    sam_to_bam(sam_path, out_path)
-
-
-def to_vcf(alignment: MarkerMultipleFragmentAlignment, variant_counts: np.ndarray, ploidy: int, out_path: Path):
-    """
-    :param alignment: The multiple alignment instance to use.
-    :param variant_counts: The (N x 5) matrix of variants, where each row stores the number of occurrences of each base,
-    where the columns are indexed as [A, C, G, T, -].
-    :param ploidy: the desired ploidy to run glopp with.
-    :param out_path: The path to save the VCF to.
-    """
-
-    def render_base(base: NucleotideDtype) -> str:
-        if base == nucleotide_GAP_z4:
-            return "*"
-        return map_z4_to_nucleotide(base)
-
-    with open(out_path, "w") as f:
-        tsv = csv.writer(f, quotechar='', delimiter='\t', quoting=csv.QUOTE_NONE)
-        # Header rows
-        tsv.writerow(["##fileformat=VCFv4.2"])
-        tsv.writerow([f"##contig=<ID={alignment.marker.id}>"])
-        # tsv.writerow(["##INFO=<ID=NS,Number=1,Type=Integer,Description=\"Number of samples with Data\">"])
-        tsv.writerow(["##INFO=<ID=AN,Number=1,Type=Integer,Description=\"Total number of variants identified\">"])
-        tsv.writerow(["##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Read count for each ALT variant\">"])
-        tsv.writerow(["##INFO=<ID=INS,Number=0,Type=Flag,Description=\"Insertion into marker\">"])
-        tsv.writerow(["##INFO=<ID=DEL,Number=0,Type=Flag,Description=\"At least one of ALT is deletion from marker\">"])
-        tsv.writerow(["##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">"])
-        tsv.writerow([
-            "#CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO", "FORMAT", "VARIANT_GENOTYPE"
-        ])
-
-        idx_gap = _base_to_idx[nucleotide_GAP_z4]
-
-        for idx in range(alignment.num_bases()):
-            ref_base_z4 = alignment.aligned_marker_seq[idx]
-            ref_base_idx = _base_to_idx[ref_base_z4]
-            variant_counts_i = variant_counts[idx]
-
-            # Compute the supported variants, not equal to the reference base.
-            supported_variant_indices = np.where(variant_counts_i > 0)[0]
-            supported_variant_indices = [i for i in supported_variant_indices if i != ref_base_idx]
-
-            # No reads map to this position. Nothing to do.
-            if (
-                    len(supported_variant_indices) == 0  # no supported variants other than ref.
-                    or (len(supported_variant_indices) == 1 and supported_variant_indices[0] == idx_gap)  # only gaps.
-            ):
-                continue
-
-            # Info tags.
-            info_tags = [
-                f"AC={','.join(str(variant_counts_i[v]) for v in supported_variant_indices)}",
-                f"AN={len(supported_variant_indices)}"
-            ]
-            if ref_base_z4 == nucleotide_GAP_z4:
-                info_tags.append("INS")
-            elif variant_counts_i[-1] > 0:  # Assumes that "-" is indexed at the last column!
-                info_tags.append("DEL")
-
-            # Write the row to file.
-            tsv.writerow([
-                alignment.marker.id,  # chrom
-                idx + 1,  # pos
-                ".",  # id
-                map_z4_to_nucleotide(ref_base_z4),  # ref
-                ",".join(render_base(_z4_base_ordering[v]) for v in supported_variant_indices),  # alt
-                "100",  # qual
-                "PASS",  # filter
-                ";".join(info_tags),  # info
-                "GT",  # FORMAT
-                "/".join("." for _ in range(ploidy))
-            ])
 
 
 class CachedGloppVariantAssembly(object):
     def __init__(self,
                  reads: TimeSeriesReads,
                  alignment: MarkerMultipleFragmentAlignment,
+                 quality_lower_bound: float = 20,
                  cache_override: Optional[ComputationCache] = None
                  ):
+        """
+        :param reads: The input time-series reads.
+        :param alignment: The multiple alignment for a particular parker.
+        :param quality_lower_bound: A lower bound for the quality score at which to (roughly) call variants.
+        :param cache_override: If specified, uses this cache instead of the default cache depending on the reads.
+        """
         self.reads = reads
 
         if cache_override is not None:
@@ -187,6 +37,7 @@ class CachedGloppVariantAssembly(object):
             self.cache = ReadsComputationCache(reads)
 
         self.alignment: MarkerMultipleFragmentAlignment = alignment
+        self.quality_lower_bound = quality_lower_bound
 
         self.relative_dir = Path(f"glopp/{self.alignment.marker.id}")
         self.absolute_dir = self.cache.cache_dir / self.relative_dir
@@ -197,13 +48,31 @@ class CachedGloppVariantAssembly(object):
         :return: An (N x 5) array of variant counts.
         """
         counts = np.zeros(shape=(self.alignment.num_bases(), len(_z4_base_ordering)), dtype=int)
-        for r in range(self.alignment.read_multi_alignment.shape[0]):
-            row = self.alignment.read_multi_alignment[r]
-            first_idx, last_idx = self.alignment.aln_gapped_boundary_of_row(r)
-            row = row[first_idx:last_idx + 1]
+
+        def add_to_tally(seq_aln_row, quality):
+            # for each of A,C,G,T,- tally the variant, provided that the quality score is high enough.
             for b_idx, z4base in enumerate(_z4_base_ordering):
-                z4_base_locs = np.where(row == z4base)[0]
+                z4_base_locs = np.where((seq_aln_row == z4base) & (quality > self.quality_lower_bound))[0]
                 counts[first_idx + z4_base_locs, b_idx] += 1
+
+        for read in self.alignment.reads(reverse=True):
+            row_idx = self.alignment.get_index_of(read, True)
+            row = self.alignment.read_multi_alignment[row_idx]
+            first_idx, last_idx = self.alignment.aln_gapped_boundary_of_row(row_idx)
+
+            row = row[first_idx:last_idx + 1]
+            qual = np.zeros(shape=row.shape, dtype=float)
+            qual[row != nucleotide_GAP_z4] = read.quality
+            add_to_tally(row, qual)
+        for read in self.alignment.reads(reverse=False):
+            row_idx = self.alignment.get_index_of(read, False)
+            row = self.alignment.read_multi_alignment[row_idx]
+            first_idx, last_idx = self.alignment.aln_gapped_boundary_of_row(row_idx)
+
+            row = row[first_idx:last_idx + 1]
+            qual = np.zeros(shape=row.shape, dtype=float)
+            qual[row != nucleotide_GAP_z4] = read.quality[::-1]
+            add_to_tally(row, qual)
         return counts
 
     def prepare_glopp_input(self, ploidy: int) -> Tuple[Path, Path]:
@@ -211,28 +80,84 @@ class CachedGloppVariantAssembly(object):
         vcf_path = self.prepare_vcf(self.variant_counts, ploidy)
         return bam_path, vcf_path
 
-    def run_glopp(self, num_strains: int):
-        subdir = f"ploidy_{num_strains}/output"
+    def run_glopp(self, num_variants: int) -> List[MarkerContig]:
+        subdir = f"ploidy_{num_variants}/output"
         phasing_rel_output_dir = self.relative_dir / subdir
         phasing_abs_output_dir = self.absolute_dir / subdir
         expected_rel_output_path = phasing_rel_output_dir / f"{self.alignment.marker.id}_phasing.txt"
+        expected_abs_output_path = phasing_abs_output_dir / f"{self.alignment.marker.id}_phasing.txt"
 
         def _call():
-            bam, vcf = self.prepare_glopp_input(ploidy=num_strains)
+            bam, vcf = self.prepare_glopp_input(ploidy=num_variants)
             run_glopp(
                 bam_path=bam,
                 vcf_path=vcf,
                 output_dir=phasing_abs_output_dir,
-                ploidy=num_strains
+                ploidy=num_variants
             )
-            return "todo return variants here"
+            return self.parse_marker_contigs(expected_abs_output_path, num_variants)
 
-        self.cache.call(
+        return self.cache.call(
             relative_filepath=expected_rel_output_path,
             fn=_call,
             save=lambda p, o: None,
-            load=lambda p: "todo parse variants from glopp output here"
+            load=lambda p: self.parse_marker_contigs(expected_abs_output_path, num_variants)
         )
+
+    def parse_marker_contigs(self, path: Path, expected_ploidy: int) -> List[MarkerContig]:
+        """
+        :param path: The glopp output to parse.
+        :return: A length-C array of MarkerContig instances, where the c-th instance represents the N-ploidy
+        "haplotype" assembly of the c-th region.
+        """
+        logger.debug(f"Parsing Marker assembly from {str(path)}")
+        marker = self.alignment.marker
+        all_positions: List[List[int]] = []
+        contig_objects: List[MarkerContig] = []
+
+        # First pass through file: verify file format and grab all positions.
+        with open(path, "r") as glopp_file:
+            glopp_contig_name = next(glopp_file).strip()[2:-2]
+            if glopp_contig_name != marker.id:
+                raise ValueError(
+                    "Glopp output contained a different contig ID ({}) than what was expected ({}).".format(
+                        glopp_contig_name, marker.id
+                    )
+                )
+
+            cur_positions: List[int] = []
+            for hap_line in glopp_file:
+                if hap_line.startswith("-") or hap_line.startswith("*"):
+                    all_positions.append(cur_positions)
+                    cur_positions = []
+                else:
+                    tokens = hap_line.strip().split("\t")
+                    if len(tokens) != (1 + 2 * expected_ploidy):
+                        raise ValueError("Expected glopp output to have 2k+1 = {} columns, but got {}".format(
+                            1 + 2 * expected_ploidy,
+                            len(tokens)
+                        ))
+
+                    pos_order, pos = (int(token) for token in tokens[0].split(":"))
+                    cur_positions.append(pos)
+
+        # Second pass: Parse assembly.
+        with open(path, "r") as glopp_file:
+            # pass the header line.
+            next(glopp_file)
+
+            # parse.
+            for contig_pos in all_positions:
+                contig_assembly = np.empty(shape=(len(contig_pos), expected_ploidy), dtype=NucleotideDtype)
+                for pos_idx, pos in enumerate(contig_pos):
+                    hap_line = next(glopp_file)
+                    tokens = hap_line.strip().split("\t")
+                    for k in range(expected_ploidy):
+                        contig_assembly[pos_idx, k] = int(tokens[k + 1])
+                intermediate_line = next(glopp_file)
+                assert intermediate_line.startswith("--") or intermediate_line.startswith("**")
+                contig_objects.append(MarkerContig(marker, contig_pos, contig_assembly))
+        return contig_objects
 
     def prepare_bam(self, ploidy: int) -> Path:
         target_path = self.absolute_dir / f"ploidy_{ploidy}" / "alignments.bam"
