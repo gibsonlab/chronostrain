@@ -8,7 +8,7 @@ from joblib import Parallel, delayed
 from chronostrain.algs.subroutines.alignments import CachedReadPairwiseAlignments, CachedReadMultipleAlignments
 from chronostrain.database import StrainDatabase
 from chronostrain.model import Fragment, Marker, SequenceRead
-from chronostrain.util.alignments.multiple import MarkerMultipleAlignment
+from chronostrain.util.alignments.multiple import MarkerMultipleFragmentAlignment
 from chronostrain.util.sequences import SeqType
 from chronostrain.util.sparse import SparseMatrix
 from chronostrain.model.io import TimeSeriesReads
@@ -81,7 +81,7 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         self.multiple_alignments = CachedReadMultipleAlignments(reads, db)
 
         # noinspection PyTypeChecker
-        self._multi_align_instances: List[MarkerMultipleAlignment] = None  # lazy loading
+        self._multi_align_instances: List[MarkerMultipleFragmentAlignment] = None  # lazy loading
 
         # ==== Cache.
         self.cache = ReadsPopulationCache(reads, model.bacteria_pop)
@@ -170,7 +170,7 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
 
                 # Next, look up any variants of the base marker.
                 for variant in self.marker_variants_of(base_marker):
-                    variant_frag_seq, variant_read_insertions, variant_marker_deletions = variant.subseq_from_ref_alignment(aln)
+                    v_marker_frag_seq, v_read_insertions, v_marker_deletions = variant.subseq_from_ref_alignment(aln)
                     if aln.read_start > 0 or aln.read_end < len(aln.read.seq) - 1:
                         # Read only partially maps to marker (usually edge effect).
                         logger.debug(
@@ -180,15 +180,15 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                         )
                         continue
 
-                    variant_frag = self.model.fragments.get_fragment(variant_frag_seq)
+                    variant_frag = self.model.fragments.get_fragment(v_marker_frag_seq)
                     if aln.reverse_complemented:
-                        variant_read_insertions = variant_read_insertions[::-1]
+                        v_read_insertions = v_read_insertions[::-1]
                     try:
                         read_ll = self.read_frag_ll(
                             read=aln.read,
                             frag=variant_frag,
-                            insertions=variant_read_insertions,
-                            deletions=variant_marker_deletions,
+                            insertions=v_read_insertions,
+                            deletions=v_marker_deletions,
                             reverse_complemented=aln.reverse_complemented
                         )
                         read_to_fragments[aln.read.id].append((variant_frag, read_ll))
@@ -221,13 +221,12 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
             # First, take care of the base markers (if applicable).
             if self.model.bacteria_pop.contains_marker(multi_align.marker):
                 for reverse in [False, True]:
-                    for read_id in multi_align.read_ids(reverse=reverse):
-                        if not time_slice.contains_read(read_id):
+                    for read in multi_align.reads(reverse=reverse):
+                        if not time_slice.contains_read(read.id):
                             continue
 
-                        read = time_slice.get_read(read_id)
                         subseq, insertions, deletions = multi_align.get_aligned_reference_region(
-                            read_id, reverse=reverse
+                            read, reverse=reverse
                         )
 
                         # Key point: insertions is ordered with respect to the alignment
@@ -238,7 +237,7 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                         frag = self.model.fragments.get_fragment(subseq)
 
                         ll = self.read_frag_ll(frag, read, insertions, deletions, reverse_complemented=reverse)
-                        read_to_frag_likelihoods[read_id].append((frag, ll))
+                        read_to_frag_likelihoods[read.id].append((frag, ll))
 
             # Next, take care of the variant markers (if applicable).
             ### TODO -- test run without variants before proceeding!

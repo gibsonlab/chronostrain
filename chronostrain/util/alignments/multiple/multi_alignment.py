@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict, Tuple, Iterator
+from typing import Dict, Tuple, Iterator, List
 
 import Bio.AlignIO
 from Bio import SeqIO
@@ -8,6 +8,7 @@ from Bio.SeqRecord import SeqRecord
 import numpy as np
 
 from chronostrain.model import Marker, SequenceRead
+from chronostrain.model.io import TimeSeriesReads
 from ...external import mafft_fragment
 from ...sequences import *
 
@@ -19,7 +20,7 @@ _READ_PREFIX = "READ"
 _SEPARATOR = "#"
 
 
-class MarkerMultipleAlignment(object):
+class MarkerMultipleFragmentAlignment(object):
     """
     Encapsulates a multiple alignment of a marker sequence and short reads.
     """
@@ -27,8 +28,8 @@ class MarkerMultipleAlignment(object):
                  marker: Marker,
                  aligned_marker_seq: SeqType,
                  read_multi_alignment: SeqType,
-                 forward_read_index_map: Dict[str, int],
-                 reverse_read_index_map: Dict[str, int]
+                 forward_read_index_map: Dict[SequenceRead, int],
+                 reverse_read_index_map: Dict[SequenceRead, int]
                  ):
         if aligned_marker_seq.shape[0] != read_multi_alignment.shape[1]:
             raise ValueError("Read alignments must be of the same length as the marker alignment string.")
@@ -42,23 +43,32 @@ class MarkerMultipleAlignment(object):
         self.forward_read_index_map = forward_read_index_map
         self.reverse_read_index_map = reverse_read_index_map
 
+    def num_bases(self) -> int:
+        return len(self.aligned_marker_seq)
+
     def contains_read_id(self, read_id: str) -> bool:
         return read_id in self.forward_read_index_map or read_id in self.reverse_read_index_map
 
-    def get_alignment(self, read_id: str, reverse: bool) -> SeqType:
+    def get_alignment(self, read: SequenceRead, reverse: bool, delete_double_gaps: bool = True) -> SeqType:
         if reverse:
-            read_idx = self.reverse_read_index_map[read_id]
+            read_idx = self.reverse_read_index_map[read]
         else:
-            read_idx = self.forward_read_index_map[read_id]
-        return self.delete_double_gaps(self.aligned_marker_seq, self.read_multi_alignment[read_idx, :])
+            read_idx = self.forward_read_index_map[read]
 
-    def get_aligned_reference_region(self, read_id: str, reverse: bool) -> Tuple[SeqType, np.ndarray, np.ndarray]:
+        if delete_double_gaps:
+            return self.delete_double_gaps(self.aligned_marker_seq, self.read_multi_alignment[read_idx, :])
+        else:
+            return np.stack([
+                self.aligned_marker_seq, self.read_multi_alignment[read_idx, :]
+            ], axis=0)
+
+    def get_aligned_reference_region(self, read: SequenceRead, reverse: bool) -> Tuple[SeqType, np.ndarray, np.ndarray]:
         """
         Returns the aligned fragment (with gaps removed), and a pair of boolean arrays (insertion, deletion).
         The insertion array indicates which positions of the read (with gaps removed) are insertions,
         and the deletion array indicates which positions of the fragment (with gaps removed) are deleted in the read.
         """
-        aln = self.get_alignment(read_id, reverse)
+        aln = self.get_alignment(read, reverse)
         locations = np.where(aln[1] != nucleotide_GAP_z4)[0]
         start = locations[0]
         end = locations[-1]
@@ -74,7 +84,7 @@ class MarkerMultipleAlignment(object):
 
         return marker_section[marker_section != nucleotide_GAP_z4], insertion_locs, deletion_locs
 
-    def read_ids(self, reverse: bool) -> Iterator[str]:
+    def reads(self, reverse: bool) -> Iterator[SequenceRead]:
         if reverse:
             yield from self.reverse_read_index_map.keys()
         else:
@@ -91,16 +101,29 @@ class MarkerMultipleAlignment(object):
         ], axis=0)
 
 
-def parse(target_marker: Marker, aln_path: Path) -> MarkerMultipleAlignment:
-    marker_seq = None
-    forward_read_ids = []
-    forward_seqs = []
+def parse(target_marker: Marker, reads: TimeSeriesReads, aln_path: Path) -> MarkerMultipleFragmentAlignment:
+    forward_reads: List[SequenceRead] = []
+    forward_seqs: List[SeqType] = []
 
-    reverse_read_ids = []
-    reverse_seqs = []
+    reverse_reads: List[SequenceRead] = []
+    reverse_seqs: List[SeqType] = []
 
     # Parse from file.
-    for record_idx, record in enumerate(Bio.AlignIO.read(str(aln_path), 'fasta')):
+    records = iter(Bio.AlignIO.read(str(aln_path), 'fasta'))
+
+    # First entry should always be the marker.
+    first_record = next(records)
+    if first_record.id.startswith(f"{_READ_PREFIX}{_SEPARATOR}"):
+        raise ValueError(f"Expected Marker aligned sequence, but instead got read identifier {first_record.id}.")
+
+    parsed_marker_id = first_record.id.split("|")[2]
+    if target_marker.id != parsed_marker_id:
+        raise ValueError(f"Expected marker `{target_marker.id}`, "
+                         f"but instead found `{parsed_marker_id}` in alignment file.")
+    marker_seq = nucleotides_to_z4(str(first_record.seq))
+
+    # Parse the other entries.
+    for record in records:
         record_id: str = record.id
 
         if not record_id.startswith(f"{_READ_PREFIX}{_SEPARATOR}"):
@@ -112,30 +135,42 @@ def parse(target_marker: Marker, aln_path: Path) -> MarkerMultipleAlignment:
             marker_seq = nucleotides_to_z4(str(record.seq))
         else:
             tokens = record_id.split(_SEPARATOR)
-            rev_comp = int(tokens[1]) == 1
-            read_id = tokens[2]
+            t_idx = int(tokens[1])
+            rev_comp = int(tokens[2]) == 1
+            read_id = tokens[3]
+
+            read_obj = reads[t_idx].get_read(read_id)
 
             if not rev_comp:
-                forward_read_ids.append(read_id)
+                forward_reads.append(read_obj)
                 forward_seqs.append(nucleotides_to_z4(str(record.seq)))
             else:
-                reverse_read_ids.append(read_id)
+                reverse_reads.append(read_obj)
                 reverse_seqs.append(nucleotides_to_z4(str(record.seq)))
 
-    if marker_seq is None:
-        raise ValueError(f"Couldn't find marker sequence in specified alignment {str(aln_path)}")
+    # Build the mappings.
+    forward_read_index_map = {}
+    reverse_read_index_map = {}
+    for idx, read in enumerate(forward_reads):
+        if read in forward_read_index_map:
+            raise RuntimeError(f"Found multiple mapping positions for forward-mapped read {read.id}.")
+        forward_read_index_map[read] = idx
+    for idx, read in enumerate(reverse_reads):
+        if read in reverse_read_index_map:
+            raise RuntimeError(f"Found multiple mapping positions for reverse-mapped read {read.id}.")
+        reverse_read_index_map[read] = idx
 
-    return MarkerMultipleAlignment(
+    return MarkerMultipleFragmentAlignment(
         marker=target_marker,
         aligned_marker_seq=marker_seq,
         read_multi_alignment=np.stack(forward_seqs + reverse_seqs, axis=0),
-        forward_read_index_map={read_id: idx for idx, read_id in enumerate(forward_read_ids)},
-        reverse_read_index_map={read_id: idx for idx, read_id in enumerate(reverse_read_ids)}
+        forward_read_index_map=forward_read_index_map,
+        reverse_read_index_map=reverse_read_index_map
     )
 
 
 def align(marker: Marker,
-          read_descriptions: Iterator[Tuple[SequenceRead, bool]],
+          read_descriptions: Iterator[Tuple[int, SequenceRead, bool]],
           intermediate_fasta_path: Path,
           out_fasta_path: Path):
     """
@@ -143,7 +178,7 @@ def align(marker: Marker,
     """
     # First write to temporary file, with the reads reverse complemented if necessary.
     records = []
-    for read, should_reverse_comp in read_descriptions:
+    for t_idx, read, should_reverse_comp in read_descriptions:
         if should_reverse_comp:
             read_seq = reverse_complement_seq(read.seq)
         else:
@@ -156,15 +191,15 @@ def align(marker: Marker,
 
         record = SeqRecord(
             Seq(z4_to_nucleotides(read_seq)),
-            id=f"{_READ_PREFIX}{_SEPARATOR}{revcomp_flag}{_SEPARATOR}{read.id}",
-            description=f"(Read, reverse complement:{should_reverse_comp})"
+            id=f"{_READ_PREFIX}{_SEPARATOR}{t_idx}{_SEPARATOR}{revcomp_flag}{_SEPARATOR}{read.id}",
+            description=f"(Read, t: {t_idx}, reverse complement:{should_reverse_comp})"
         )
         records.append(record)
     SeqIO.write(records, intermediate_fasta_path, "fasta")
 
     logger.debug(f"Invoking `mafft --addfragments` on {len(records)} sequences.")
 
-    # Now invoke clustal omega aligner.
+    # Now invoke MAFFT aligner.
     mafft_fragment(
         reference_fasta_path=marker.metadata.file_path,
         fragment_fasta_path=intermediate_fasta_path,

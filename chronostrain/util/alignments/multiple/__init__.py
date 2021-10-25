@@ -1,1 +1,1 @@
-from .multi_alignment import align, parse, MarkerMultipleAlignment
+from .multi_alignment import align, parse, MarkerMultipleFragmentAlignment

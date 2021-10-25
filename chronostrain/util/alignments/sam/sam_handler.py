@@ -26,7 +26,7 @@ class _SamTags(enum.Enum):
     Quality = 10
 
 
-class _MapFlags(enum.Enum):
+class SamFlags(enum.Enum):
     """
     The mapping types given in the MapFlag tag. The actual tag is given bitwise,
     so the presence of these tags is found as:
@@ -70,8 +70,8 @@ class SamLine:
 
         self.readname: str = self.line[_SamTags.ReadName.value]
         self.map_flag = int(self.line[_SamTags.MapFlag.value])
-        self.is_mapped: bool = not _check_bit_flag(self.map_flag, _MapFlags.SegmentUnmapped.value)
-        self.is_reverse_complemented = _check_bit_flag(self.map_flag, _MapFlags.SeqReverseComplement.value)
+        self.is_mapped: bool = not _check_bit_flag(self.map_flag, SamFlags.SegmentUnmapped.value)
+        self.is_reverse_complemented = _check_bit_flag(self.map_flag, SamFlags.SeqReverseComplement.value)
         self.contig_name: str = self.line[_SamTags.ContigName.value]
         self.map_pos_str: str = self.line[_SamTags.MapPos.value]
         self.map_quality: str = self.line[_SamTags.MapQuality.value]
@@ -80,7 +80,7 @@ class SamLine:
         self.mate_pos: str = self.line[_SamTags.MatePos.value]
         self.template_len: str = self.line[_SamTags.TemplateLen.value]
 
-        is_secondary_alignment = _check_bit_flag(self.map_flag, _MapFlags.SecondaryAlignment.value)
+        is_secondary_alignment = _check_bit_flag(self.map_flag, SamFlags.SecondaryAlignment.value)
         if is_secondary_alignment:
             if self.prev_line is None:
                 raise RuntimeError(

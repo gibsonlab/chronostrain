@@ -9,6 +9,7 @@ from chronostrain.model import Marker
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.util.cache import ComputationCache
 from chronostrain.util.external.bwa import bwa_mem, bwa_index
+from chronostrain.util.alignments.sam import SamFile
 from chronostrain.util.alignments.pairwise import *
 from chronostrain.database import StrainDatabase
 
@@ -58,14 +59,16 @@ class CachedReadPairwiseAlignments(object):
                 alignments[marker] = alignments[marker] + alns
         return alignments
 
-    def reads_with_alignments_to_marker(self) -> Iterator[Tuple[Marker, List[SequenceReadPairwiseAlignment]]]:
+    def reads_with_alignments_to_marker(self) -> Iterator[Tuple[Marker, List[List[SequenceReadPairwiseAlignment]]]]:
         """
         Returns a mapping of marker -> (read alignments to marker from t, across all t_idx)
         """
-        marker_to_reads: Dict[Marker, List[SequenceReadPairwiseAlignment]] = {
-            marker: [] for marker in self.db.all_markers()
+        marker_to_reads: Dict[Marker, List[List[SequenceReadPairwiseAlignment]]] = {
+            marker: [
+                [] for _ in self.reads
+            ] for marker in self.db.all_markers()
         }
-        for time_slice in self.reads:
+        for t_idx, time_slice in enumerate(self.reads):
             for reads_path in time_slice.src.paths:
                 sam_file = self._get_alignment(reads_path, time_slice.src.quality_format)
                 for aln in parse_alignments(
@@ -74,7 +77,7 @@ class CachedReadPairwiseAlignments(object):
                         lambda read_id: time_slice.get_read(read_id),
                         ignore_edge_mapped_reads=True
                 ):
-                    marker_to_reads[aln.marker].append(aln)
+                    marker_to_reads[aln.marker][t_idx].append(aln)
         yield from marker_to_reads.items()
 
     def _get_alignment(self, reads_path: Path, quality_format: str) -> SamFile:

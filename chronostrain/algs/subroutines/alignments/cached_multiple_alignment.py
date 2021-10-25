@@ -26,7 +26,6 @@ class CachedReadMultipleAlignments(object):
                  cache_override: Optional[ComputationCache] = None):
         self.reads = reads
         self.db = db
-        self.marker_reference_path = db.multifasta_file
 
         if cache_override is not None:
             self.cache = cache_override
@@ -37,11 +36,11 @@ class CachedReadMultipleAlignments(object):
     def get_path(reads_path: Path) -> Path:
         return Path("") / "{}.sam".format(reads_path.stem)
 
-    def pairwise_seed(self) -> Iterator[Tuple[Marker, List[SequenceReadPairwiseAlignment]]]:
+    def pairwise_seed(self) -> Iterator[Tuple[Marker, List[List[SequenceReadPairwiseAlignment]]]]:
         cache_pairwise_align = CachedReadPairwiseAlignments(self.reads, self.db, cache_override=self.cache)
         yield from cache_pairwise_align.reads_with_alignments_to_marker()
 
-    def get_alignments(self) -> Iterator[multialign.MarkerMultipleAlignment]:
+    def get_alignments(self) -> Iterator[multialign.MarkerMultipleFragmentAlignment]:
         """
         Uses a pairwise alignment to initialize a multiple alignment.
 
@@ -50,24 +49,25 @@ class CachedReadMultipleAlignments(object):
         For each marker, a multiple alignment is performed with the collection reads that
         map to it.
         """
-        for m_idx, (marker, pairwise_aligns) in enumerate(self.pairwise_seed()):
+        for m_idx, (marker, timeseries_pairwise_aligns) in enumerate(self.pairwise_seed()):
             logger.debug("Computing multiple alignment for marker `{}`... ({} of {})".format(
                 marker.id,
                 m_idx + 1,
                 self.db.num_markers()
             ))
-            yield self._perform_cached_alignment(marker, pairwise_aligns)
+            yield self._perform_cached_alignment(marker, timeseries_pairwise_aligns)
 
     def _perform_cached_alignment(self,
                                   marker: Marker,
-                                  pairwise_aligns: List[SequenceReadPairwiseAlignment]
-                                  ) -> multialign.MarkerMultipleAlignment:
+                                  timeseries_pairwise_aligns: List[List[SequenceReadPairwiseAlignment]]
+                                  ) -> multialign.MarkerMultipleFragmentAlignment:
         def read_gen():
-            for aln in pairwise_aligns:
-                yield aln.read, aln.reverse_complemented
+            for t_idx, alignments in enumerate(timeseries_pairwise_aligns):
+                for aln in alignments:
+                    yield t_idx, aln.read, aln.reverse_complemented
 
         # ====== function bindings to pass to ComputationCache.
-        def perform_alignment(out_path: Path) -> multialign.MarkerMultipleAlignment:
+        def perform_alignment(out_path: Path) -> multialign.MarkerMultipleFragmentAlignment:
             base_dir = out_path.parent
             base_dir.mkdir(exist_ok=True, parents=True)
             multialign.align(
@@ -76,7 +76,7 @@ class CachedReadMultipleAlignments(object):
                 intermediate_fasta_path=base_dir / f"{marker.id}_reads.fasta",
                 out_fasta_path=out_path
             )
-            return multialign.parse(marker, out_path)
+            return multialign.parse(marker, self.reads, out_path)
 
         # ====== Run the cached computation.
         cache_relative_path = Path("multiple_alignments") / f"{marker.id}_multi_align.fasta"
@@ -85,7 +85,7 @@ class CachedReadMultipleAlignments(object):
             relative_filepath=cache_relative_path,
             fn=perform_alignment,
             save=lambda path, obj: None,
-            load=lambda path: multialign.parse(marker, path),
+            load=lambda path: multialign.parse(marker, self.reads, path),
             call_kwargs={
                 "out_path": self.cache.cache_dir / cache_relative_path
             }

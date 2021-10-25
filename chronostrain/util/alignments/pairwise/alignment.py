@@ -7,8 +7,7 @@ from chronostrain.model import Marker, SequenceRead
 from chronostrain.util.sequences import SeqType, reverse_complement_seq, NucleotideDtype
 from chronostrain.util.sequences import nucleotide_GAP_z4 as GapChar
 
-from .sam_handler import SamFile, SamLine
-from .cigar import CigarOp, CigarElement
+from ..sam import *
 
 from chronostrain.config.logging import create_logger
 logger = create_logger(__name__)
