@@ -5,14 +5,13 @@ Contains alignment-specific subroutines necessary for other algorithm implementa
 from pathlib import Path
 from typing import Optional, List, Iterator, Tuple
 
+import chronostrain.util.alignments.multiple as multialign
+from chronostrain.algs.subroutines.cache import ReadsComputationCache
+from chronostrain.database import StrainDatabase
 from chronostrain.model import Marker
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.util.alignments.pairwise import SequenceReadPairwiseAlignment
 from chronostrain.util.cache import ComputationCache
-import chronostrain.util.alignments.multiple as multialign
-from chronostrain.database import StrainDatabase
-
-from chronostrain.algs.subroutines.cache import ReadsComputationCache
 from .cached_pairwise_alignment import CachedReadPairwiseAlignments
 
 from chronostrain.config import create_logger
