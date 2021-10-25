@@ -51,8 +51,8 @@ def call_command(command: str,
             shell=shell,
             cwd=None if cwd is None else str(cwd)
         )
-    except FileNotFoundError:
-        raise RuntimeError("Encountered file error running subprocess. Is `{command}` installed?")
+    except FileNotFoundError as e:
+        raise RuntimeError(f"Encountered file error running subprocess. Is `{command}` installed?") from e
 
     if output_file is not None:
         output_file.close()

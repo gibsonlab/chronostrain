@@ -1,0 +1,1 @@
+from .cached_glopp_assembly import CachedGloppVariantAssembly

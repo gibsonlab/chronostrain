@@ -1,3 +1,4 @@
+import math
 from typing import List
 
 import numpy as np
@@ -51,7 +52,7 @@ def ascii_to_phred(qstr: str, quality_format: str) -> np.ndarray:
 
 def phred_to_ascii(phred_arr: np.ndarray, quality_format: str) -> str:
     if quality_format == 'fastq':
-        return "".join(chr(i) for i in ord('!') + phred_arr)
+        return "".join(chr(math.floor(i)) for i in ord('!') + phred_arr)
     else:
         raise NotImplementedError("Unknown quality_format input `{}`.".format(quality_format))
 

@@ -8,13 +8,13 @@ from .commandline import CommandLineException, call_command
 def run_glopp(
         bam_path: Path,
         vcf_path: Path,
-        output_path: Path,
+        output_dir: Path,
         ploidy: Optional[int] = None
 ):
     params = [
         '-b', str(bam_path),
         '-c', str(vcf_path),
-        '-o', str(output_path)
+        '-o', str(output_dir)
     ]
     if ploidy is not None:
         params += ['-p', str(ploidy)]

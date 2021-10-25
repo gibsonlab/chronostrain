@@ -90,7 +90,7 @@ class CacheTag(object):
                 )
 
 
-def pickle_saver(path, obj):
+def pickle_saver(path: Path, obj: Any):
     """
     Saves the object to the path using pickle.dump.
     """
@@ -98,7 +98,7 @@ def pickle_saver(path, obj):
         pickle.dump(obj, f)
 
 
-def pickle_loader(path):
+def pickle_loader(path: Path) -> Any:
     """
     Loads an object using pickle.load.
     """
@@ -119,8 +119,8 @@ class ComputationCache(object):
              fn: Callable,
              call_args: Optional[List] = None,
              call_kwargs: Optional[Dict] = None,
-             save: Callable = pickle_saver,
-             load: Callable = pickle_loader,
+             save: Callable[[Path, Any], None] = pickle_saver,
+             load: Callable[[Path], Any] = pickle_loader,
              success_callback: Optional[Callable] = None) -> Any:
         """
         :param relative_filepath: A unique filename to use to store the cached result, relative to the cache path.

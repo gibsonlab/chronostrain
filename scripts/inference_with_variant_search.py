@@ -4,7 +4,7 @@ from typing import Tuple, List
 
 from chronostrain import logger, cfg
 from chronostrain.algs import StrainVariant, BBVISolver
-from chronostrain.algs.subroutines import CachedReadPairwiseAlignments
+from chronostrain.algs.subroutines import CachedReadPairwiseAlignments, CachedReadMultipleAlignments
 from chronostrain.database import StrainDatabase
 from chronostrain.model import Population, GenerativeModel, FragmentSpace
 from chronostrain.model.io import TimeSeriesReads
@@ -171,6 +171,15 @@ def search_best_variant_solution(
     raise RuntimeError("Unexpected behavior: Could not iterate through variants.")
 
 
+def glopp_variant_search(db: StrainDatabase, reads: TimeSeriesReads):
+    cached = CachedReadMultipleAlignments(reads, db)
+    from chronostrain.algs.subroutines.assembly import CachedGloppVariantAssembly
+    for marker_multi_align in cached.get_alignments():
+        x = CachedGloppVariantAssembly(reads, marker_multi_align)
+        x.run_glopp(1)
+        exit(1)  # TODO
+
+
 def main():
     args = parse_args()
     if not cfg.model_cfg.use_sparse:
@@ -200,43 +209,48 @@ def main():
     if not out_dir.is_dir():
         raise RuntimeError("Filesystem error: out_dir argument points to something other than a directory.")
 
-    # =============== Run the variant search + inference.
-    variants, model, solver, likelihood = search_best_variant_solution(
+    glopp_variant_search(
         db=db,
-        reads=reads,
-        time_points=time_points,
-        num_iters=args.iters,
-        learning_rate=args.learning_rate,
-        num_samples=args.num_samples,
-        seed_with_database=args.seed_with_database,
+        reads=reads
     )
 
-    logger.info("Final variants: {}".format(variants))
-    logger.info("Final likelihood = {}".format(likelihood))
-
-    # =============== output BBVI result.
-    if args.save_fragment_probs:
-        viz.save_frag_probabilities(
-            reads=reads,
-            solver=solver,
-            out_path=out_dir / "reads_to_frags.csv"
-        )
-
-    if args.true_abundance_path is not None:
-        true_abundance_path = Path(args.true_abundance_path)
-    else:
-        true_abundance_path = None
-
-    # ==== Finally, plot the posterior.
-    viz.plot_bbvi_posterior(
-        model=model,
-        posterior=solver.gaussian_posterior,
-        plot_path=out_dir / "plot.{}".format(args.plot_format),
-        samples_path=out_dir / "samples.pt",
-        plot_format=args.plot_format,
-        ground_truth_path=true_abundance_path,
-        num_samples=args.num_posterior_samples
-    )
+    # =============== Run the variant search + inference.
+    # variants, model, solver, likelihood = search_best_variant_solution(
+    #     db=db,
+    #     reads=reads,
+    #     time_points=time_points,
+    #     num_iters=args.iters,
+    #     learning_rate=args.learning_rate,
+    #     num_samples=args.num_samples,
+    #     seed_with_database=args.seed_with_database,
+    # )
+    #
+    # logger.info("Final variants: {}".format(variants))
+    # logger.info("Final likelihood = {}".format(likelihood))
+    #
+    # # =============== output BBVI result.
+    # if args.save_fragment_probs:
+    #     viz.save_frag_probabilities(
+    #         reads=reads,
+    #         solver=solver,
+    #         out_path=out_dir / "reads_to_frags.csv"
+    #     )
+    #
+    # if args.true_abundance_path is not None:
+    #     true_abundance_path = Path(args.true_abundance_path)
+    # else:
+    #     true_abundance_path = None
+    #
+    # # ==== Finally, plot the posterior.
+    # viz.plot_bbvi_posterior(
+    #     model=model,
+    #     posterior=solver.gaussian_posterior,
+    #     plot_path=out_dir / "plot.{}".format(args.plot_format),
+    #     samples_path=out_dir / "samples.pt",
+    #     plot_format=args.plot_format,
+    #     ground_truth_path=true_abundance_path,
+    #     num_samples=args.num_posterior_samples
+    # )
 
 
 if __name__ == "__main__":

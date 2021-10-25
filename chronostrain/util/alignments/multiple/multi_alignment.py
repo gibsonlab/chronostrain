@@ -62,6 +62,23 @@ class MarkerMultipleFragmentAlignment(object):
                 self.aligned_marker_seq, self.read_multi_alignment[read_idx, :]
             ], axis=0)
 
+    def aln_gapped_boundary(self, read: SequenceRead, revcomp: bool) -> Tuple[int, int]:
+        """
+        Find the first and last ungapped positions.
+        :return: A tuple (i, j) such that aln_seq[i] != GAP and aln_seq[j] != GAP, and all elements to the left of i, and
+        to the right of j, are GAPs.
+        """
+        if revcomp:
+            r_idx = self.reverse_read_index_map[read]
+        else:
+            r_idx = self.forward_read_index_map[read]
+        return self.aln_gapped_boundary_of_row(r_idx)
+
+    def aln_gapped_boundary_of_row(self, row_idx: int) -> Tuple[int, int]:
+        aln_seq = self.read_multi_alignment[row_idx]
+        ungapped_indices = np.where(aln_seq != nucleotide_GAP_z4)[0]
+        return ungapped_indices[0], ungapped_indices[-1]
+
     def get_aligned_reference_region(self, read: SequenceRead, reverse: bool) -> Tuple[SeqType, np.ndarray, np.ndarray]:
         """
         Returns the aligned fragment (with gaps removed), and a pair of boolean arrays (insertion, deletion).
@@ -122,31 +139,44 @@ def parse(target_marker: Marker, reads: TimeSeriesReads, aln_path: Path) -> Mark
                          f"but instead found `{parsed_marker_id}` in alignment file.")
     marker_seq = nucleotides_to_z4(str(first_record.seq))
 
+    # Check for clipped reads (reads that map to the edges of the marker).
+    matched_indices = np.where(marker_seq != nucleotide_GAP_z4)[0]
+    start_clip = matched_indices[0]
+    end_clip = matched_indices[-1]
+    marker_seq = marker_seq[start_clip:end_clip + 1]
+
     # Parse the other entries.
     for record in records:
-        record_id: str = record.id
+        # Parse the tokens in the ID.
+        tokens = record.id.split(_SEPARATOR)
+        t_idx = int(tokens[1])
+        rev_comp = int(tokens[2]) == 1
+        read_id = tokens[3]
 
-        if not record_id.startswith(f"{_READ_PREFIX}{_SEPARATOR}"):
-            # Found marker.
-            parsed_marker_id = record_id.split("|")[2]
-            if target_marker.id != parsed_marker_id:
-                raise ValueError(f"Expected marker `{target_marker.id}`, "
-                                 f"but instead found `{parsed_marker_id}` in alignment file.")
-            marker_seq = nucleotides_to_z4(str(record.seq))
+        # Get the read instance.
+        read_obj = reads[t_idx].get_read(read_id)
+
+        # Check if alignment is clipped.
+        aln_seq = nucleotides_to_z4(str(record.seq))
+        n_clipped_bases = np.sum(
+            aln_seq[:start_clip] != nucleotide_GAP_z4
+        ) + np.sum(
+            aln_seq[end_clip + 1:] != nucleotide_GAP_z4
+        )
+        if n_clipped_bases > 0:
+            logger.debug(f"Skipping alignment of read {read_id} in multiple alignment, "
+                         f"due to {n_clipped_bases} clipped bases.")
+            continue
+
+        aln_seq = aln_seq[start_clip:end_clip+1]
+
+        # Store the alignment into the proper category (whether or not the read was reverse complemented).
+        if not rev_comp:
+            forward_reads.append(read_obj)
+            forward_seqs.append(aln_seq)
         else:
-            tokens = record_id.split(_SEPARATOR)
-            t_idx = int(tokens[1])
-            rev_comp = int(tokens[2]) == 1
-            read_id = tokens[3]
-
-            read_obj = reads[t_idx].get_read(read_id)
-
-            if not rev_comp:
-                forward_reads.append(read_obj)
-                forward_seqs.append(nucleotides_to_z4(str(record.seq)))
-            else:
-                reverse_reads.append(read_obj)
-                reverse_seqs.append(nucleotides_to_z4(str(record.seq)))
+            reverse_reads.append(read_obj)
+            reverse_seqs.append(aln_seq)
 
     # Build the mappings.
     forward_read_index_map = {}
