@@ -40,7 +40,10 @@ def construct_variants(
         raise NotImplementedError("seed_with_database not implemented yet.")
 
     n_max_variants = 100  # TODO: set this in a more smart way. Maybe count the number of single nucleotide variants from an alignment?
+
+    # noinspection PyTypeChecker
     best_pop: Population = None
+
     best_ll: float = float("-inf")
     for n_variants in range(1, n_max_variants + 1):
         new_ll, new_pop = construct_variants_with_ploidy(
@@ -75,6 +78,5 @@ def construct_variants_with_ploidy(db: StrainDatabase,
 
     for marker_multi_align in alns:
         marker_contigs: List[MarkerContig] = CachedGloppVariantAssembly(
-            reads, marker_multi_align
-        ).run_glopp(num_variants=ploidy)
-
+            reads, marker_multi_align, quality_lower_bound=q_lower_bound
+        ).run(num_variants=ploidy)

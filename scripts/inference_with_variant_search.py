@@ -176,7 +176,7 @@ def glopp_variant_search(db: StrainDatabase, reads: TimeSeriesReads):
     from chronostrain.algs.subroutines.assembly import CachedGloppVariantAssembly
     for marker_multi_align in cached.get_alignments():
         x = CachedGloppVariantAssembly(reads, marker_multi_align)
-        x.run_glopp(num_variants=1)
+        x.run()
         exit(1)  # TODO
 
 

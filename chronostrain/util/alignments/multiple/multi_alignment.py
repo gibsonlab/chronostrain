@@ -29,7 +29,8 @@ class MarkerMultipleFragmentAlignment(object):
                  aligned_marker_seq: SeqType,
                  read_multi_alignment: SeqType,
                  forward_read_index_map: Dict[SequenceRead, int],
-                 reverse_read_index_map: Dict[SequenceRead, int]
+                 reverse_read_index_map: Dict[SequenceRead, int],
+                 time_idxs: np.ndarray
                  ):
         if aligned_marker_seq.shape[0] != read_multi_alignment.shape[1]:
             raise ValueError("Read alignments must be of the same length as the marker alignment string.")
@@ -40,6 +41,7 @@ class MarkerMultipleFragmentAlignment(object):
         self.marker = marker
         self.aligned_marker_seq = aligned_marker_seq
         self.read_multi_alignment = read_multi_alignment
+        self.time_idxs = time_idxs
         self.forward_read_index_map = forward_read_index_map
         self.reverse_read_index_map = reverse_read_index_map
 
@@ -55,14 +57,18 @@ class MarkerMultipleFragmentAlignment(object):
         else:
             return self.forward_read_index_map[read]
 
-    def get_alignment(self, read: SequenceRead, reverse: bool, delete_double_gaps: bool = True) -> SeqType:
+    def get_aligned_read_seq(self, read: SequenceRead, reverse: bool) -> SeqType:
         read_idx = self.get_index_of(read, reverse)
+        return self.read_multi_alignment[read_idx, :]
+
+    def get_alignment(self, read: SequenceRead, reverse: bool, delete_double_gaps: bool = True) -> SeqType:
+        read_seq = self.get_aligned_read_seq(read, reverse)
 
         if delete_double_gaps:
-            return self.delete_double_gaps(self.aligned_marker_seq, self.read_multi_alignment[read_idx, :])
+            return self.delete_double_gaps(self.aligned_marker_seq, read_seq)
         else:
             return np.stack([
-                self.aligned_marker_seq, self.read_multi_alignment[read_idx, :]
+                self.aligned_marker_seq, read_seq
             ], axis=0)
 
     def aln_gapped_boundary(self, read: SequenceRead, revcomp: bool) -> Tuple[int, int]:
@@ -124,9 +130,11 @@ class MarkerMultipleFragmentAlignment(object):
 def parse(target_marker: Marker, reads: TimeSeriesReads, aln_path: Path) -> MarkerMultipleFragmentAlignment:
     forward_reads: List[SequenceRead] = []
     forward_seqs: List[SeqType] = []
+    forward_time_idxs: List[int] = []
 
     reverse_reads: List[SequenceRead] = []
     reverse_seqs: List[SeqType] = []
+    reverse_time_idxs: List[int] = []
 
     # Parse from file.
     records = iter(Bio.AlignIO.read(str(aln_path), 'fasta'))
@@ -177,9 +185,11 @@ def parse(target_marker: Marker, reads: TimeSeriesReads, aln_path: Path) -> Mark
         if not rev_comp:
             forward_reads.append(read_obj)
             forward_seqs.append(aln_seq)
+            forward_time_idxs.append(t_idx)
         else:
             reverse_reads.append(read_obj)
             reverse_seqs.append(aln_seq)
+            reverse_time_idxs.append(t_idx)
 
     # Build the mappings.
     forward_read_index_map = {}
@@ -198,7 +208,8 @@ def parse(target_marker: Marker, reads: TimeSeriesReads, aln_path: Path) -> Mark
         aligned_marker_seq=marker_seq,
         read_multi_alignment=np.stack(forward_seqs + reverse_seqs, axis=0),
         forward_read_index_map=forward_read_index_map,
-        reverse_read_index_map=reverse_read_index_map
+        reverse_read_index_map=reverse_read_index_map,
+        time_idxs=np.array(forward_time_idxs + reverse_time_idxs, dtype=int),
     )
 
 

@@ -1,6 +1,6 @@
 import csv
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 import numpy as np
 
@@ -29,6 +29,7 @@ def to_bam(alignment: MarkerMultipleFragmentAlignment, out_path: Path):
     chronostrain_version = "empty"  # TODO insert explicit versioning.
 
     def write_read(read: SequenceRead,
+                   t_idx: int,
                    map_first_idx: int,
                    map_last_idx: int,
                    reverse_complement: bool,
@@ -57,7 +58,7 @@ def to_bam(alignment: MarkerMultipleFragmentAlignment, out_path: Path):
         query_seq[query_seq == nucleotide_GAP_z4] = nucleotide_N_z4
 
         w.writerow([
-            read.id,
+            f"T{t_idx};R{int(reverse_complement)};{read.id}",
             read_flag,
             alignment.marker.id,
             str(map_first_idx + 1),  # 1-indexed mapping position
@@ -80,31 +81,34 @@ def to_bam(alignment: MarkerMultipleFragmentAlignment, out_path: Path):
 
         # ========== SEQUENCE ALIGNMENTS.
         entries = [
-            (read_obj, False, *alignment.aln_gapped_boundary(read_obj, False))
+            (read_obj, alignment.time_idxs[r_idx], False, *alignment.aln_gapped_boundary(read_obj, False))
             for read_obj, r_idx in alignment.forward_read_index_map.items()
         ] + [
-            (read_obj, True, *alignment.aln_gapped_boundary(read_obj, True))
+            (read_obj, alignment.time_idxs[r_idx], True, *alignment.aln_gapped_boundary(read_obj, True))
             for read_obj, r_idx in alignment.reverse_read_index_map.items()
-        ]  # Tuple of (Read, Rev_comp, Start_idx, End_idx).
+        ]  # Tuple of (Read, read_t_idx, Rev_comp, Start_idx, End_idx).
 
-        entries.sort(key=lambda x: x[2])
+        entries.sort(key=lambda x: x[3])
 
-        for read_obj, revcomp, start_idx, end_idx in entries:
+        for read_obj, time_idx, revcomp, start_idx, end_idx in entries:
             flags = [SamFlags.SeqReverseComplement] if revcomp else []
-            write_read(read_obj, start_idx, end_idx, revcomp, flags, tsv)
+            write_read(read_obj, time_idx, start_idx, end_idx, revcomp, flags, tsv)
 
     # now create the BAM file via compression.
     logger.debug(f"Compression SAM ({str(sam_path.name)}) to BAM ({str(out_path.name)}).")
     sam_to_bam(sam_path, out_path)
 
 
-def to_vcf(alignment: MarkerMultipleFragmentAlignment, variant_counts: np.ndarray, ploidy: int, out_path: Path):
+def to_vcf(alignment: MarkerMultipleFragmentAlignment,
+           variant_counts: np.ndarray,
+           out_path: Path,
+           ploidy: Optional[int] = None):
     """
     :param alignment: The multiple alignment instance to use.
     :param variant_counts: The (N x 5) matrix of variants, where each row stores the number of occurrences of each base,
     where the columns are indexed as [A, C, G, T, -].
-    :param ploidy: the desired ploidy to run glopp with.
     :param out_path: The path to save the VCF to.
+    :param ploidy: the desired ploidy to run glopp with.
     """
 
     def render_base(base: NucleotideDtype) -> str:
@@ -166,5 +170,5 @@ def to_vcf(alignment: MarkerMultipleFragmentAlignment, variant_counts: np.ndarra
                 "PASS",  # filter
                 ";".join(info_tags),  # info
                 "GT",  # FORMAT
-                "/".join("." for _ in range(ploidy))
+                "/".join("." for _ in range(ploidy)) if ploidy is not None else "."
             ])
