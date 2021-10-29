@@ -1,6 +1,5 @@
 import argparse
 import csv
-import re
 import numpy as np
 from pathlib import Path
 from typing import List
@@ -13,10 +12,11 @@ from multiprocessing import cpu_count
 
 from chronostrain.database import StrainDatabase
 from chronostrain.model.io import TimeSliceReads, TimeSeriesReads
+from chronostrain.util.alignments.sam import SamFile
 from chronostrain.util.external import bwa
 from chronostrain.util.external import CommandLineException
 from chronostrain.util.external.commandline import call_command
-from chronostrain.util.alignments.pairwise import SamFile, parse_alignments
+from chronostrain.util.alignments.pairwise import parse_alignments
 
 from helpers import parse_reads
 
