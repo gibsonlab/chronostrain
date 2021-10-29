@@ -53,7 +53,6 @@ class CSVParser(AbstractDatabaseParser):
             yield Strain(
                 id=accession,
                 markers=markers,
-                genome_length=len(genome),
                 metadata=StrainMetadata(
                     ncbi_accession=accession,
                     genus="",

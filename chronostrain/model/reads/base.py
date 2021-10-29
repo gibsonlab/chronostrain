@@ -79,8 +79,10 @@ class AbstractErrorModel(metaclass=ABCMeta):
         :param fragment: The source fragment (a String)
         :param read: The read (of type SequenceRead)
         :param read_reverse_complemented: Indicates whether the read ought to be reverse complemented.
-        :param insertions: Indicates inserted nucleotides of the read (extra characters not in fragment).
-        :param deletions: Indicated deleted nucleotides from the fragment (characters missing in read from fragment).
+        :param insertions: A boolean array that indicates inserted nucleotides of the read.
+            The length of the array must match length of read. (extra characters not in fragment).
+        :param deletions: A boolean array that indicates deleted nucleotides from the fragment
+            The length of the array much match length of fragment. (characters missing in read from fragment).
         :return: the value P(read | fragment).
         """
         pass

@@ -71,7 +71,6 @@ class Marker:
 class Strain:
     id: str  # Typically, ID is the accession number.
     markers: List[Marker]
-    genome_length: int
     metadata: Union[StrainMetadata, None] = None
 
     def __repr__(self):
@@ -85,6 +84,11 @@ class Strain:
         return "{}({})".format(
             self.__class__.__name__,
             self.id
+        )
+
+    def num_marker_frags(self, frag_len: int) -> int:
+        return sum(
+            len(marker) - frag_len + 1 for marker in self.markers
         )
 
 
@@ -108,7 +112,6 @@ class Population:
             self.garbage_strains = [Strain(
                     id="UNKNOWN",
                     markers=[],
-                    genome_length=-1,
                     metadata=None
             )]
         else:

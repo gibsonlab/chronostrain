@@ -48,8 +48,11 @@ class MarkerMultipleFragmentAlignment(object):
     def num_bases(self) -> int:
         return len(self.aligned_marker_seq)
 
-    def contains_read_id(self, read_id: str) -> bool:
-        return read_id in self.forward_read_index_map or read_id in self.reverse_read_index_map
+    def contains_read(self, read: SequenceRead, reverse: bool) -> bool:
+        if reverse:
+            return read in self.reverse_read_index_map
+        else:
+            return read in self.forward_read_index_map
 
     def get_index_of(self, read: SequenceRead, reverse: bool) -> int:
         if reverse:
@@ -94,18 +97,18 @@ class MarkerMultipleFragmentAlignment(object):
         The insertion array indicates which positions of the read (with gaps removed) are insertions,
         and the deletion array indicates which positions of the fragment (with gaps removed) are deleted in the read.
         """
-        aln = self.get_alignment(read, reverse)
-        locations = np.where(aln[1] != nucleotide_GAP_z4)[0]
-        start = locations[0]
-        end = locations[-1]
+        aln = self.get_alignment(read, reverse, delete_double_gaps=True)
+        first, last = self.aln_gapped_boundary(read, reverse)
 
-        align_section = aln[:, start:end+1]
+        align_section = aln[:, first:last+1]
         marker_section = align_section[0]
 
         insertion_locs = np.equal(align_section[0], nucleotide_GAP_z4)
+        # Get rid of indices corresponding to deletions.
         insertion_locs = insertion_locs[align_section[1] != nucleotide_GAP_z4]
 
         deletion_locs = np.equal(align_section[1], nucleotide_GAP_z4)
+        # Get rid of indices corresponding to insertions.
         deletion_locs = deletion_locs[align_section[0] != nucleotide_GAP_z4]
 
         return marker_section[marker_section != nucleotide_GAP_z4], insertion_locs, deletion_locs

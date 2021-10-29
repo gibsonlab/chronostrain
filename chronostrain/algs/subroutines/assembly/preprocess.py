@@ -10,6 +10,7 @@ from chronostrain.util.alignments.sam import SamFlags
 from chronostrain.util.external import sam_to_bam
 from chronostrain.util.quality import phred_to_ascii
 from chronostrain.util.sequences import *
+from .constants import VCF_GAP_CHAR
 
 from chronostrain.config import create_logger
 logger = create_logger(__name__)
@@ -113,7 +114,7 @@ def to_vcf(alignment: MarkerMultipleFragmentAlignment,
 
     def render_base(base: NucleotideDtype) -> str:
         if base == nucleotide_GAP_z4:
-            return "*"
+            return VCF_GAP_CHAR
         return map_z4_to_nucleotide(base)
 
     with open(out_path, "w") as f:
@@ -139,13 +140,13 @@ def to_vcf(alignment: MarkerMultipleFragmentAlignment,
             variant_counts_i = variant_counts[idx]
 
             # Compute the supported variants, not equal to the reference base.
-            supported_variant_indices = np.where(variant_counts_i > 0)[0]
-            supported_variant_indices = [i for i in supported_variant_indices if i != ref_base_idx]
+            supported_variant_indices = set(np.where(variant_counts_i > 0)[0])
 
             # No reads map to this position. Nothing to do.
             if (
-                    len(supported_variant_indices) == 0  # no supported variants other than ref.
-                    or (len(supported_variant_indices) == 1 and supported_variant_indices[0] == idx_gap)  # only gaps.
+                    len(supported_variant_indices.difference(
+                        {idx_gap, ref_base_idx}
+                    )) == 0
             ):
                 continue
 

@@ -7,3 +7,4 @@ from .reads import BasicQScoreDistribution, BasicPhredScoreDistribution, BasicEr
 from .reads import NoiselessErrorModel
 
 from .util import construct_fragment_space_uniform_length, sliding_window
+from .variants import StrainVariant, AbstractMarkerVariant

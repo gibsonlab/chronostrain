@@ -103,14 +103,16 @@ class GenerativeModel:
         for strain_idx, strain in self.bacteria_pop.strains:
             strain = self.bacteria_pop.strains[strain_idx]
             for marker in strain.markers:
-                sa = WonderString("".join(marker.seq))
+                sa = WonderString(marker.seq)
                 for fragment in self.fragments:
-                    n_occurrences = sa.search("".join(fragment.seq))
+                    n_occurrences = sa.search(fragment.seq)
 
                     # TODO replace with arbitrary distribution, specified by user.
                     length_likelihood = poisson.pmf(len(fragment), self.mean_frag_length)
 
-                    frag_freqs[fragment.index, strain_idx] = length_likelihood * n_occurrences / strain.genome_length
+                    frag_freqs[fragment.index, strain_idx] += (
+                            length_likelihood * n_occurrences / strain.num_marker_frags(len(fragment))
+                    )
         return frag_freqs
 
     def construct_strain_fragment_frequencies_sparse(self) -> SparseMatrix:
@@ -135,7 +137,7 @@ class GenerativeModel:
 
                     strain_indices.append(strain_idx)
                     frag_indices.append(fragment.index)
-                    matrix_values.append(length_likelihood * n_hits / strain.genome_length)
+                    matrix_values.append(length_likelihood * n_hits / strain.num_marker_frags(len(fragment)))
 
         return SparseMatrix(
             indices=torch.tensor([frag_indices, strain_indices], device=cfg.torch_cfg.device, dtype=torch.long),

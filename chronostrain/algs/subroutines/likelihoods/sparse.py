@@ -5,9 +5,8 @@ import numpy as np
 
 from joblib import Parallel, delayed
 
-from chronostrain.algs.subroutines.alignments import CachedReadPairwiseAlignments, CachedReadMultipleAlignments
 from chronostrain.database import StrainDatabase
-from chronostrain.model import Fragment, Marker, SequenceRead
+from chronostrain.model import Fragment, Marker, SequenceRead, AbstractMarkerVariant
 from chronostrain.util.alignments.multiple import MarkerMultipleFragmentAlignment
 from chronostrain.util.sequences import SeqType
 from chronostrain.util.sparse import SparseMatrix
@@ -16,11 +15,10 @@ from chronostrain.config import cfg
 from chronostrain.model.generative import GenerativeModel
 
 from .base import DataLikelihoods, AbstractLogLikelihoodComputer
+from ..alignments import CachedReadMultipleAlignments, CachedReadPairwiseAlignments
 from ..cache import ReadsPopulationCache
 
 from chronostrain.config.logging import create_logger
-from chronostrain.algs.variants import MarkerVariant
-
 logger = create_logger(__name__)
 
 
@@ -69,8 +67,7 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
     def __init__(self,
                  model: GenerativeModel,
                  reads: TimeSeriesReads,
-                 db: StrainDatabase,
-                 alignment_mode: str = "multiple"):
+                 db: StrainDatabase):
         super().__init__(model, reads)
         self._bwa_index_finished = False
 
@@ -86,27 +83,24 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         # ==== Cache.
         self.cache = ReadsPopulationCache(reads, model.bacteria_pop)
 
-        self.variants_present: Dict[Marker, List[MarkerVariant]] = {
+        # ==== Marker variants present in population.
+        self.variants_present: Dict[Marker, List[AbstractMarkerVariant]] = {
             marker: []
             for marker in db.all_markers()
         }
 
         for marker in model.bacteria_pop.markers_iterator():
-            if isinstance(marker, MarkerVariant):
+            if isinstance(marker, AbstractMarkerVariant):
                 self.variants_present[marker.base_marker].append(marker)
 
-        self.alignment_mode = alignment_mode
-
-    def marker_variants_of(self, marker: Marker) -> Iterator[MarkerVariant]:
+    def marker_variants_of(self, marker: Marker) -> Iterator[AbstractMarkerVariant]:
         yield from self.variants_present[marker]
 
     def _compute_read_frag_alignments(self, t_idx: int) -> Dict[str, List[Tuple[Fragment, float]]]:
-        if self.alignment_mode == "pairwise":
-            return self._compute_read_frag_alignments_pairwise(t_idx)
-        elif self.alignment_mode == "multiple":
-            return self._compute_read_frag_alignments_multiple(t_idx)
-        else:
-            raise ValueError(f"Unexpected alignment_mode argument `{self.alignment_mode}`.")
+        # Note: this method used to have multiple implementations.
+        # Now we provide a default one which uses multiple alignment.
+        # See _compute_read_frag_alignments_pairwise for the defunct implementation.
+        return self._compute_read_frag_alignments_multiple(t_idx)
 
     def read_frag_ll(self,
                      frag: Fragment,
@@ -170,7 +164,7 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
 
                 # Next, look up any variants of the base marker.
                 for variant in self.marker_variants_of(base_marker):
-                    v_marker_frag_seq, v_read_insertions, v_marker_deletions = variant.subseq_from_ref_alignment(aln)
+                    v_marker_frag_seq, v_read_insertions, v_marker_deletions = variant.subseq_from_pairwise_aln(aln)
                     if aln.read_start > 0 or aln.read_end < len(aln.read.seq) - 1:
                         # Read only partially maps to marker (usually edge effect).
                         logger.debug(
@@ -240,8 +234,12 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                         read_to_frag_likelihoods[read.id].append((frag, ll))
 
             # Next, take care of the variant markers (if applicable).
-            ### TODO -- test run without variants before proceeding!
-
+            for variant in self.marker_variants_of(multi_align.marker):
+                for read in multi_align.reads(True):
+                    for subseq, insertions, deletions in variant.subseq_from_read(read):
+                        frag = self.model.fragments.get_fragment(subseq)
+                        ll = self.read_frag_ll(frag, read, insertions, deletions, reverse_complemented=True)
+                        read_to_frag_likelihoods[read.id].append((frag, ll))
         return read_to_frag_likelihoods
 
     def create_sparse_matrix(self, t_idx: int) -> SparseMatrix:

@@ -215,8 +215,7 @@ class SubsequenceLoader:
             else:
                 raise NotImplementedError("Entry class `{}` not implemented.".format(entry.__class__.__name__))
 
-        self.full_genome = None  # Lazy loading in get_full_genome() and get_genome_length()
-        self.genome_length = None
+        self.full_genome = None  # Lazy loading in get_full_genome()
         self.marker_max_len = int(marker_max_len)
 
     def get_full_genome(self, trim_debug=None) -> str:
@@ -226,11 +225,6 @@ class SubsequenceLoader:
             if trim_debug is not None:
                 self.full_genome = self.full_genome[:trim_debug]
         return self.full_genome
-
-    def get_genome_length(self):
-        if self.genome_length is None:
-            self.genome_length = len(self.get_full_genome())
-        return self.genome_length
 
     def marker_filepath(self, marker_id: str) -> Path:
         return (
@@ -468,7 +462,6 @@ class JSONParser(AbstractDatabaseParser):
             yield Strain(
                 id=strain_entry.accession,
                 markers=strain_markers,
-                genome_length=sequence_loader.get_genome_length(),
                 metadata=StrainMetadata(
                     ncbi_accession=strain_entry.accession,
                     genus=strain_entry.genus,

@@ -1,18 +1,11 @@
 import argparse
 from pathlib import Path
-from typing import Tuple, List
 
-from chronostrain import logger, cfg
-from chronostrain.algs import StrainVariant, BBVISolver
-from chronostrain.algs.subroutines import CachedReadPairwiseAlignments, CachedReadMultipleAlignments
-from chronostrain.database import StrainDatabase
-from chronostrain.model import Population, GenerativeModel, FragmentSpace
-from chronostrain.model.io import TimeSeriesReads
-from chronostrain.algs.variants import StrainVariantComputer
-
-import chronostrain.visualizations as viz
+from chronostrain.config import create_logger, cfg
+from chronostrain.algs import GloppVariantSolver
 
 from scripts.helpers import *
+logger = create_logger(__name__)
 
 
 def parse_args():
@@ -60,126 +53,6 @@ def parse_args():
     return parser.parse_args()
 
 
-def create_fragments(reads: TimeSeriesReads,
-                     db: StrainDatabase):
-    if not cfg.model_cfg.use_sparse:
-        raise NotImplementedError("Variant search not implemented for usage with dense matrices.")
-
-    cached_alignments = CachedReadPairwiseAlignments(reads, db)
-    fragment_space = FragmentSpace()
-    for t_idx in range(len(reads)):
-        for marker, alignments in cached_alignments.alignments_by_marker_and_timepoint(t_idx).items():
-            for aln in alignments:
-                raise NotImplementedError("TODO")
-                # TODO: invoke each strain variant's method which extracts the variant fragment.
-    return fragment_space
-
-
-def search_best_variant_solution(
-        db: StrainDatabase,
-        reads: TimeSeriesReads,
-        time_points: List[float],
-        num_iters: int,
-        learning_rate: float,
-        num_samples: int,
-        seed_with_database: bool,
-) -> Tuple[List[StrainVariant], GenerativeModel, BBVISolver, float]:
-    computer = StrainVariantComputer(
-        db=db,
-        reads=reads,
-        quality_threshold=20,
-        eig_lower_bound=1e-3,
-        variant_distance_upper_bound=1e-5
-    )
-
-    variants: List[StrainVariant] = list(computer.construct_variants())
-    variants.sort(reverse=True, key=lambda v: v.quality_evidence)
-
-    # for variant in variants:
-    #     logger.debug(variant)
-
-    logger.debug("# of proposal strain variants = {}".format(len(variants)))
-
-    # =============== Iteratively evaluate each variant.
-    original_strains = db.all_strains()
-
-    best_variants = []
-    best_data_ll_estimate = float('-inf')
-
-    # noinspection PyTypeChecker
-    best_model: GenerativeModel = None
-
-    # noinspection PyTypeChecker
-    best_result: BBVISolver = None
-
-    if seed_with_database:
-        gen = range(len(variants) + 1)
-    else:
-        gen = range(1, len(variants) + 1)
-
-    for n_top_variants in gen:
-        if seed_with_database:
-            included_variants = variants[:n_top_variants]
-            population = Population(strains=original_strains + included_variants)
-        else:
-            included_variants = variants[:n_top_variants]
-            population = Population(strains=included_variants)
-        fragments = create_fragments(reads, db)
-
-        # ============ Create model instance
-        model = create_model(
-            population=population,
-            fragments=fragments,
-            time_points=time_points,
-            disable_quality=False
-        )
-
-        solver, posterior, _, _ = perform_bbvi(
-            db=db,
-            model=model,
-            reads=reads,
-            iters=num_iters,
-            learning_rate=learning_rate,
-            num_samples=num_samples,
-            correlation_type="strain",
-            save_elbo_history=False,
-            save_training_history=False
-        )
-
-        x_latent_mean = solver.gaussian_posterior.mean()
-        prior_ll = model.log_likelihood_x(x_latent_mean)
-        data_ll = model.data_likelihood(x_latent_mean, solver.data_likelihoods.matrices)
-        posterior_ll_est = solver.gaussian_posterior.log_likelihood(x_latent_mean)
-        data_ll_estimate = (data_ll + prior_ll - posterior_ll_est).item()
-
-        if data_ll_estimate <= best_data_ll_estimate:
-            logger.debug(
-                "Data LL decrease ({:.3f} --> {:.3f}). Terminating search at {} strains ({} non-base variants).".format(
-                    best_data_ll_estimate,
-                    data_ll_estimate,
-                    best_model.bacteria_pop.num_strains(),
-                    len(best_variants)
-                )
-            )
-            return best_variants, best_model, best_result, best_data_ll_estimate
-        else:
-            best_variants = included_variants
-            best_data_ll_estimate = data_ll_estimate
-            best_model = model
-            best_result = solver
-
-    raise RuntimeError("Unexpected behavior: Could not iterate through variants.")
-
-
-def glopp_variant_search(db: StrainDatabase, reads: TimeSeriesReads):
-    cached = CachedReadMultipleAlignments(reads, db)
-    from chronostrain.algs.subroutines.assembly import CachedGloppVariantAssembly
-    for marker_multi_align in cached.get_alignments():
-        x = CachedGloppVariantAssembly(reads, marker_multi_align)
-        x.run()
-        exit(1)  # TODO
-
-
 def main():
     args = parse_args()
     if not cfg.model_cfg.use_sparse:
@@ -209,10 +82,16 @@ def main():
     if not out_dir.is_dir():
         raise RuntimeError("Filesystem error: out_dir argument points to something other than a directory.")
 
-    glopp_variant_search(
+    population, bbvi_soln = GloppVariantSolver(
         db=db,
-        reads=reads
-    )
+        reads=reads,
+        time_points=time_points,
+        bbvi_iters=args.iters,
+        bbvi_lr=args.learning_rate,
+        bbvi_num_samples=args.num_samples,
+        quality_lower_bound=20,
+        seed_with_database=args.seed_with_database
+    ).construct_variants()
 
     # =============== Run the variant search + inference.
     # variants, model, solver, likelihood = search_best_variant_solution(
