@@ -2,6 +2,8 @@
     Classes written for simple toy examples, modelling deterministic Q scores
     and noisy reads (conditioned on these q-scores).
 """
+from typing import Optional
+
 import numpy as np
 from chronostrain.model import Fragment
 from chronostrain.model.reads.base import SequenceRead, AbstractErrorModel, AbstractQScoreDistribution
@@ -28,7 +30,8 @@ class RampUpRampDownDistribution(AbstractQScoreDistribution):
         :param distribution: An array of numbers, where the ith element describes the proportion for which
             the ith quality score should appear in the quality vector.
         """
-        super().__init__(length)
+        super().__init__()
+        self.length = length
 
         if not (len(quality_score_values) == len(distribution)):
             raise ValueError("There must be exactly one ratio/frequency assigned for each quality score")
@@ -82,7 +85,7 @@ class RampUpRampDownDistribution(AbstractQScoreDistribution):
                 lengths[index] = length
                 lengths[len(lengths)-1-index] = length
 
-        lengths = np.floor(lengths).astype(np.int)
+        lengths = np.floor(lengths).astype(int)
         total_len = lengths.sum().item()
 
         if not (total_len <= self.length):
@@ -168,32 +171,44 @@ class BasicErrorModel(AbstractErrorModel):
         VERYHIGH_Q_BASE_CHANGE_MATRIX
     ], dtype=float)
 
-    def __init__(self, read_len=150):
+    def __init__(self, insertion_error_ll: float, deletion_error_ll: float, read_len: int = 150):
         self.read_len = read_len
         self.q_dist = BasicQScoreDistribution(read_len)
+        self.insertion_error_ll = insertion_error_ll
+        self.deletion_error_ll = deletion_error_ll
 
-    def compute_log_likelihood(self, fragment: Fragment, read: SequenceRead, read_reverse_complemented: bool) -> float:
+    def compute_log_likelihood(self,
+                               fragment: Fragment,
+                               read: SequenceRead,
+                               read_reverse_complemented: bool,
+                               insertions: Optional[np.ndarray] = None,
+                               deletions: Optional[np.ndarray] = None) -> float:
         """
         Computes the log likelihood of reading 'fragment' as 'read'
         :param: read - a SequenceRead instance.
         :param: fragment
         """
-        if read_reverse_complemented:
-            read_qual = read.quality[::-1]
-            read_seq = read.seq[::-1]
-        else:
-            read_qual = read.quality
-            read_seq = read.seq
+        insertion_ll = np.sum(insertions) * self.insertion_error_ll
+        deletion_ll = np.sum(deletions) * self.deletion_error_ll
 
-        # Take advantage of array indexing.
-        # For example, see section "Integer array indexing", https://numpy.org/doc/stable/reference/arrays.indexing.html
-        return np.log(BasicErrorModel.Q_SCORE_BASE_CHANGE_MATRICES[read_qual, fragment.seq, read_seq]).sum()
+        # take care of insertions.
+        read_qual = read.quality[~insertions]
+        read_seq = read.seq[~insertions]
+        fragment_seq = fragment.seq[~deletions]
+
+        if read_reverse_complemented:
+            read_qual = read_qual[::-1]
+            read_seq = read.seq[::-1]
+
+        return insertion_ll + deletion_ll + np.log(
+            BasicErrorModel.Q_SCORE_BASE_CHANGE_MATRICES[read_qual, fragment_seq, read_seq]
+        ).sum()
 
     def sample_noisy_read(self, read_id: str, fragment: Fragment, metadata: str = "") -> SequenceRead:
         quality_score_vector = self.q_dist.sample_qvec()
         random_seq = choice_vectorized(
             p=BasicErrorModel.Q_SCORE_BASE_CHANGE_MATRICES[quality_score_vector, fragment.seq, :],
             axis=1,
-            dtype=cseq.SEQ_DTYPE
+            dtype=cseq.NucleotideDtype
         )
         return SequenceRead(read_id=read_id, seq=random_seq, quality=quality_score_vector, metadata=metadata)

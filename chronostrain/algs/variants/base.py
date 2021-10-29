@@ -1,80 +1,78 @@
-from typing import Iterable, Tuple, List
+from typing import Tuple, List, Iterator
 import numpy as np
 
-from chronostrain.model import Marker, Strain
-from chronostrain.util.sequences import SeqType, map_z4_to_nucleotide
+from chronostrain.model import Marker, Strain, SequenceRead, AbstractMarkerVariant, StrainVariant
+from chronostrain.util.alignments.multiple import MarkerMultipleFragmentAlignment
+from chronostrain.util.sequences import *
 
 
-class MarkerVariant(Marker):
-    def __init__(self, base_marker: Marker, substitutions: Iterable[Tuple[int, int, int]]):
-        """
-        :param base_marker: The base marker of which this marker is a variant of.
-        :param substitutions: An iterable of (position, base, evidence) tuples.
-        """
-        self.base_marker = base_marker
-        self.quality_evidence = np.sum([qual for _, _, qual in substitutions])
-
-        new_id = "{}<{}>".format(
-            base_marker.id,
-            "|".join([
-                "{}:{}".format(pos, base)
-                for pos, base, _ in substitutions
-            ])
-        )
-
-        new_name: str = "{}-Variant[{}]".format(
-            base_marker.name,
-            "|".join(["{}:{}".format(pos, map_z4_to_nucleotide(z4base)) for pos, z4base, _ in substitutions])
-        )
-
-        new_seq: SeqType = base_marker.seq.copy()
-        for pos, z4base, _ in substitutions:
-            new_seq[pos] = z4base
-
+class FloppMarkerVariant(AbstractMarkerVariant):
+    def __init__(self,
+                 id: str,
+                 base_marker: Marker,
+                 seq_with_gaps: SeqType,
+                 aln: MarkerMultipleFragmentAlignment,
+                 num_supporting_reads: int):
         super().__init__(
-            id=new_id,
-            name=new_name,
-            seq=new_seq,
+            id=id,
+            name=base_marker.name,
+            seq=seq_with_gaps[seq_with_gaps != nucleotide_GAP_z4],
+            base_marker=base_marker,
             metadata=base_marker.metadata
         )
+        self.seq_with_gaps = seq_with_gaps
+        self.multi_align = aln
+        self.num_supporting_reads = num_supporting_reads
 
-    def subseq_from_base_marker_positions(self, base_marker_start: int, base_marker_end: int) -> SeqType:
-        return self.seq[base_marker_start:base_marker_end + 1]
-
-
-class StrainVariant(Strain):
-    def __init__(self, marker_variants: List[MarkerVariant], base_strain: Strain):
-        self.base_strain = base_strain
-        self.quality_evidence = np.sum([marker_variant.quality_evidence for marker_variant in marker_variants])
-
-        new_id = "{}_Variant[{}]".format(
-            base_strain.id,
-            "+".join([marker_variant.id for marker_variant in marker_variants])
+    def get_aligned_reference_region(self, read: SequenceRead, reverse: bool) -> Tuple[SeqType, np.ndarray, np.ndarray]:
+        """
+        Returns the aligned fragment (with gaps removed), and a pair of boolean arrays (insertion, deletion).
+        The insertion array indicates which positions of the read (with gaps removed) are insertions,
+        and the deletion array indicates which positions of the fragment (with gaps removed) are deleted in the read.
+        """
+        first_idx, last_idx = self.multi_align.aln_gapped_boundary(read, reverse)
+        aln = MarkerMultipleFragmentAlignment.delete_double_gaps(
+            marker_aln=self.seq_with_gaps[first_idx:last_idx + 1],
+            read_aln=self.multi_align.get_aligned_read_seq(read, reverse)[first_idx:last_idx + 1]
         )
+        marker_section = aln[0]
+        read_section = aln[1]
 
-        # Compute the new genome length, assuming that multiple variants of the same marker is coming from increased
-        # copy number.
-        base_altered_markers = {marker_variant.base_marker for marker_variant in marker_variants}
-        base_altered_marker_lengths = np.sum([len(marker.seq) for marker in base_altered_markers])
+        insertion_locs = np.equal(marker_section, nucleotide_GAP_z4)
+        # Get rid of indices corresponding to deletions.
+        insertion_locs = insertion_locs[read_section != nucleotide_GAP_z4]
 
-        variant_marker_lengths = np.sum([len(variant.seq) for variant in marker_variants])
-        new_genome_length = base_strain.genome_length - base_altered_marker_lengths + variant_marker_lengths
+        deletion_locs = np.equal(read_section, nucleotide_GAP_z4)
+        # Get rid of indices corresponding to insertions.
+        deletion_locs = deletion_locs[marker_section != nucleotide_GAP_z4]
 
-        base_unaltered_markers = {marker for marker in base_strain.markers}.difference()
+        return marker_section[marker_section != nucleotide_GAP_z4], insertion_locs, deletion_locs
 
+    def subseq_from_read(self, read: SequenceRead) -> Iterator[Tuple[SeqType, np.ndarray, np.ndarray]]:
+        # We already have the alignments from the read to the reference,
+        #   so just get the corresponding fragment from this variant.
+        if self.multi_align.contains_read(read, True):
+            yield self.get_aligned_reference_region(read, True)
+        if self.multi_align.contains_read(read, False):
+            yield self.get_aligned_reference_region(read, False)
+
+    def subseq_from_pairwise_aln(self, aln):
+        raise NotImplementedError("Pairwise alignment to subsequence mapping not implemented, "
+                                  "should only be invoked using multiple alignments.")
+
+
+class FloppStrainVariant(StrainVariant):
+    def __init__(self,
+                 base_strain: Strain,
+                 id: str,
+                 variant_markers: List[FloppMarkerVariant],
+                 ):
         super().__init__(
-            id=new_id,
-            markers=list(base_unaltered_markers) + marker_variants,
-            genome_length=new_genome_length,
-            metadata=None
+            base_strain=base_strain,
+            id=id,
+            variant_markers=variant_markers
         )
-
-    def __repr__(self):
-        return "{}".format(
-            super().__repr__()
-        )
-
-    def __str__(self):
-        return "{}".format(
-            super().__str__()
+        self.total_num_supporting_reads = sum(
+            marker.num_supporting_reads
+            for marker in variant_markers
         )

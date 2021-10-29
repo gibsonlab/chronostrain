@@ -1,1 +1,1 @@
-from .correlations import StrainVariant, MarkerVariant, StrainVariantComputer
+from .glopp_with_corr import GloppVariantSolver

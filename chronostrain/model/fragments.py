@@ -61,7 +61,8 @@ class FragmentSpace:
     def contains_seq(self, seq: SeqType) -> bool:
         return self.seq_to_key(seq) in self.seq_to_frag
 
-    def seq_to_key(self, seq: SeqType) -> str:
+    @staticmethod
+    def seq_to_key(seq: SeqType) -> str:
         return str(seq)
 
     def _create_frag(self, seq: SeqType):
@@ -114,8 +115,24 @@ class FragmentSpace:
         """
         return len(self.frag_list)
 
+    def merge_with(self, other: 'FragmentSpace'):
+        num_new_frags = 0
+        for other_frag in other.frag_list:
+            if self.contains_seq(other_frag.seq):
+                continue
+
+            new_frag = Fragment(
+                seq=other_frag.seq,
+                index=self.fragment_instances_counter + other_frag.index,
+                metadata=other_frag.metadata
+            )
+            self.frag_list.append(new_frag)
+            self.seq_to_frag[self.seq_to_key(other_frag.seq)] = new_frag
+            num_new_frags += 1
+        self.fragment_instances_counter += num_new_frags
+
     def __str__(self):
-        return ",".join([str(frag) for frag in self.frag_list])
+        return ",".join(str(frag) for frag in self.frag_list)
 
     def __iter__(self):
         return self.frag_list.__iter__()

@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Optional, Union, Iterable, Iterator
+from typing import List, Optional, Union, Iterable, Iterator, Dict
 import numpy as np
 
 import gzip
@@ -17,8 +17,8 @@ logger = create_logger(__name__)
 
 class TimeSliceReadSource(object):
     def __init__(self, paths: List[Path], quality_format: str):
-        self.paths = paths
-        self.quality_format = quality_format
+        self.paths: List[Path] = paths
+        self.quality_format: str = quality_format
 
     def get_canonical_path(self) -> Path:
         if len(self.paths) != 1:
@@ -42,6 +42,7 @@ class TimeSliceReads(object):
         self.time_point: float = time_point
         self.src: Union[TimeSliceReadSource, None] = src
         self.read_depth: int = read_depth
+        self._ids_to_reads: Dict[str, SequenceRead] = {read.id: read for read in reads}
 
     def save(self, quality_format: str) -> int:
         """
@@ -100,7 +101,9 @@ class TimeSliceReads(object):
                 read_fn = TimeSliceReads.read_fastq
 
             for record in read_fn(file_path, quality_format):
-                if (quality_format == "fastq") or (quality_format == "fastq-sanger") or (quality_format == "fastq-illumina"):
+                if (quality_format == "fastq") \
+                        or (quality_format == "fastq-sanger") \
+                        or (quality_format == "fastq-illumina"):
                     quality = np.array(
                         record.letter_annotations["phred_quality"],
                         dtype=int
@@ -125,6 +128,12 @@ class TimeSliceReads(object):
                 sz=convert_size(file_path.stat().st_size)
             ))
         return TimeSliceReads(reads, time_point, read_depth, src)
+
+    def get_read(self, read_id: str) -> SequenceRead:
+        return self._ids_to_reads[read_id]
+
+    def contains_read(self, read_id: str) -> bool:
+        return read_id in self._ids_to_reads
 
     def __iter__(self) -> Iterator[SequenceRead]:
         for read in self.reads:

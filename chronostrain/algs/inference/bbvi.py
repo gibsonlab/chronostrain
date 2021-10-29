@@ -320,7 +320,7 @@ class FragmentPosterior(object):
             for sparse_idx, frag_prob in zip(sparse_topk.indices, sparse_topk.values):
                 internal_frag_idx = read_slice.indices[0, sparse_idx]
                 frag_idx = self.frag_index_map(internal_frag_idx, time_idx)
-                yield self.model.get_fragment_space().get_fragment_by_index(frag_idx), frag_prob.item()
+                yield self.model.fragments.get_fragment_by_index(frag_idx), frag_prob.item()
         elif isinstance(phi_t, torch.Tensor):
             topk_result = torch.topk(
                 input=phi_t[:, read_idx],
@@ -328,7 +328,7 @@ class FragmentPosterior(object):
                 sorted=True
             )
             for frag_idx, frag_prob in zip(topk_result.indices, topk_result.values):
-                yield self.model.get_fragment_space().get_fragment_by_index(frag_idx), frag_prob.item()
+                yield self.model.fragments.get_fragment_by_index(frag_idx), frag_prob.item()
         else:
             raise RuntimeError("Unexpected type for fragment posterior parametrization `phi_t`.")
 
@@ -359,7 +359,7 @@ class BBVISolver(AbstractModelSolver):
         # self.model.get_fragment_frequencies()
         self._sparse_frag_freqs = []
         if cfg.model_cfg.use_sparse:
-            frag_freqs = self.model.get_fragment_frequencies()  # F x S
+            frag_freqs: SparseMatrix = self.model.fragment_frequencies  # F x S
             for t_idx in range(model.num_times()):
 
                 frag_support = self.data_likelihoods.supported_frags[t_idx]
@@ -439,7 +439,7 @@ class BBVISolver(AbstractModelSolver):
                 x_samples[t_idx, :, :],  # (N x S)
                 dim=1
             ).mm(
-                self.model.get_fragment_frequencies().t()  # (S x F)
+                self.model.fragment_frequencies.t()  # (S x F)
             ).log()  # (N x F)
             expectation_model_log_fragment_probs += model_frag_likelihoods_t.mv(
                 self.fragment_posterior.phi[t_idx].sum(dim=1)  # length F
@@ -500,7 +500,7 @@ class BBVISolver(AbstractModelSolver):
         :param x_samples:
         :return:
         """
-        W = self.model.get_fragment_frequencies()
+        W = self.model.fragment_frequencies
         self.fragment_posterior.phi = []
 
         for t in range(self.model.num_times()):
@@ -550,24 +550,20 @@ class BBVISolver(AbstractModelSolver):
             **optim_args
         )
 
-        logger.debug("BBVI algorithm started. (Correlation={corr}, Gradient method, Target iterations={it}, lr={lr}, n_samples={n_samples})".format(
-            corr=self.correlation_type,
-            it=iters,
-            lr=optim_args["lr"],
-            n_samples=num_samples
-        ))
+        logger.debug(
+            "BBVI algorithm started. "
+            "(Correlation={corr}, Gradient method, Target iterations={it}, lr={lr}, n_samples={n_samples})".format(
+                corr=self.correlation_type,
+                it=iters,
+                lr=optim_args["lr"],
+                n_samples=num_samples
+            )
+        )
 
         time_est = RuntimeEstimator(total_iters=iters, horizon=print_debug_every)
         last_elbo = float("-inf")
         elbo_diff = float("inf")
         k = 0
-
-        times = {
-            'sampling': [],
-            'update-phi': [],
-            'elbo': [],
-            'backward': []
-        }
 
         while k < iters:
             k += 1
@@ -580,20 +576,16 @@ class BBVISolver(AbstractModelSolver):
                 output_log_likelihoods=True,
                 detach_grad=False
             )  # (T x N x S)
-            times['sampling'].append(_t.stopwatch_click())
 
             optimizer.zero_grad()
             with torch.no_grad():
                 self.update_phi(x_samples.detach())
-            times['update-phi'].append(_t.stopwatch_click())
 
             elbo = self.elbo_marginal_gaussian(x_samples, gaussian_log_likelihoods)
-            times['elbo'].append(_t.stopwatch_click())
 
             elbo_loss = -elbo  # Quantity to minimize. (want to maximize ELBO)
             elbo_loss.backward()
             optimizer.step()
-            times['backward'].append(_t.stopwatch_click())
 
             if callbacks is not None:
                 for callback in callbacks:
@@ -603,19 +595,13 @@ class BBVISolver(AbstractModelSolver):
             time_est.increment(secs_elapsed)
 
             if k % print_debug_every == 0:
-                logger.debug("Iteration {iter} "
-                            "| time left: {t:.2f} min. "
-                            "| Last ELBO = {elbo:.2f}"
-                            .format(iter=k,
-                                    t=time_est.time_left() / 60000,
-                                    elbo=elbo)
-                            )
-                logger.debug("Profiler: {}".format(
-                    " | ".join([
-                        "{}: {:02f}".format(key, np.mean(time_entries))
-                        for key, time_entries in times.items()
-                    ])
-                ))
+                logger.debug(
+                    "Iteration {iter} | time left: {t:.2f} min. | Last ELBO = {elbo:.2f}".format(
+                        iter=k,
+                        t=time_est.time_left() / 60000,
+                        elbo=elbo
+                    )
+                )
 
             elbo_value = elbo.detach()
             elbo_diff = elbo_value - last_elbo

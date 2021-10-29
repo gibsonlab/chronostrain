@@ -7,7 +7,9 @@ from pathlib import Path
 
 from chronostrain import cfg, logger
 import chronostrain.visualizations as viz
-from chronostrain.model import Population
+from chronostrain.algs.subroutines import CachedReadMultipleAlignments
+from chronostrain.database import StrainDatabase
+from chronostrain.model import Population, construct_fragment_space_uniform_length, FragmentSpace
 from chronostrain.model.io import TimeSeriesReads
 
 from scripts.helpers import *
@@ -24,8 +26,9 @@ def parse_args():
                         choices=['em', 'bbvi', 'bbvi_reparametrization'],
                         required=True,
                         help='<Required> A keyword specifying the inference method.')
-    parser.add_argument('-l', '--read_length', required=True, type=int,
-                        help='<Required> Length of each read')
+    parser.add_argument('-l', '--read_length', required=False, type=int,
+                        help='<Situationally Required> Specify the length of each read. Required if configuration'
+                             'is set to use dense computation, which assumes uniform read lengths.')
     parser.add_argument('--input_file', required=False, type=str,
                         default='input_files.csv',
                         help='<Optional> The CSV input file specifier inside reads_dir.')
@@ -68,6 +71,31 @@ def parse_args():
     return parser.parse_args()
 
 
+def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase, pop: Population) -> FragmentSpace:
+    """
+    Performs a pairwise alignment (each read to the reference marker), and then extracts all of the exactly aligned
+    fragments, ignoring indels.
+    """
+    logger.debug("Using fragment construction from alignments.")
+    multiple_alignments = CachedReadMultipleAlignments(reads, db)
+    fragment_space = FragmentSpace()
+    for multi_align in multiple_alignments.get_alignments():
+        if not pop.contains_marker(multi_align.marker):
+            continue
+
+        for reverse in [False, True]:
+            for read in multi_align.reads(reverse=reverse):
+                subseq, insertions, deletions = multi_align.get_aligned_reference_region(
+                    read, reverse=reverse
+                )
+
+                fragment_space.add_seq(
+                    subseq,
+                    metadata=f"ClustalO({read.id}->{multi_align.marker.id})"
+                )
+    return fragment_space
+
+
 def main():
     logger.info("Pipeline for inference started.")
     args = parse_args()
@@ -76,24 +104,25 @@ def main():
     # ==== Create database instance.
     db = cfg.database_cfg.get_database()
 
-    # ==== Load Population instance from database info
-    population = Population(strains=db.all_strains(), extra_strain=cfg.model_cfg.extra_strain)
-
-    read_sources, read_depths, time_points = get_input_paths(Path(args.reads_dir), args.input_file)
-
+    # ==== Parse input reads.
     logger.info("Loading time-series read files.")
-    reads = TimeSeriesReads.load(
-        time_points=time_points,
-        read_depths=read_depths,
-        source_entries=read_sources,
+    reads = parse_reads(
+        Path(args.reads_dir) / args.input_file,
         quality_format=args.quality_format
     )
-    read_len = args.read_length
+    time_points = [time_slice.time_point for time_slice in reads]
+
+    # ==== Load Population instance from database info
+    population = Population(strains=db.all_strains(), extra_strain=cfg.model_cfg.extra_strain)
+    if cfg.model_cfg.use_sparse:
+        fragments = aligned_exact_fragments(reads, db, population)
+    else:
+        fragments = construct_fragment_space_uniform_length(args.read_length, population)
 
     # ============ Create model instance
     model = create_model(
         population=population,
-        window_size=read_len,
+        fragments=fragments,
         time_points=time_points,
         disable_quality=not cfg.model_cfg.use_quality_scores
     )

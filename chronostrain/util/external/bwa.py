@@ -17,7 +17,7 @@ def bwa_mem(output_path: Path,
             min_seed_length: int,
             report_all_alignments=False,
             bwa_path="bwa"):
-    params=[
+    params = [
         'mem',
         '-o', output_path,
         '-k', str(min_seed_length),

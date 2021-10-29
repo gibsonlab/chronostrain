@@ -30,6 +30,10 @@ class SparseMatrix(object):
     def size(self) -> torch.Size:
         return torch.Size((self.rows, self.columns))
 
+    def get(self, r: int, c: int):
+        matches = (self.indices[0, :] == r) and (self.indices[1, :] == c)
+        return torch.sum(self.values[matches])
+
     def sparsity(self) -> float:
         """
         Measures the sparsity of the matrix, computed as (# of empty entries) / (row * cols).
@@ -60,6 +64,23 @@ class SparseMatrix(object):
         be zeroes, then this is not consistent with the behavior in this implementation, since exp(0) = 1.
         """
         return SparseMatrix(self.indices, torch.exp(self.values), (self.rows, self.columns), force_coalesce=False)
+
+    def add(self, y: 'SparseMatrix') -> 'SparseMatrix':
+        """
+        :param y: The other matrix in the summand.
+        :return: A SparseMatrix instance representing x + y, where x is this matrix.
+        """
+        if self.rows != y.rows:
+            raise ValueError("The number of rows must match in both matrices.")
+        if self.columns != y.columns:
+            raise ValueError("The number of columns must match in both matrices.")
+
+        return SparseMatrix(
+            indices=torch.cat([self.indices, y.indices], dim=-1),
+            values=torch.cat([self.values, y.values], dim=-1),
+            dims=(self.rows, self.columns),
+            force_coalesce=True
+        )
 
     def t(self) -> 'SparseMatrix':
         result_indices, result_values = torch_sparse.transpose(self.indices, self.values, self.rows, self.columns)

@@ -8,7 +8,7 @@ from chronostrain.model.io import TimeSeriesReads
 from chronostrain.config import cfg
 from chronostrain.model.generative import GenerativeModel
 
-from chronostrain.algs.subroutines import DenseDataLikelihoods, SparseDataLikelihoods
+from chronostrain.algs.subroutines.likelihoods import DenseDataLikelihoods, SparseDataLikelihoods
 
 from chronostrain.config.logging import create_logger
 logger = create_logger(__name__)

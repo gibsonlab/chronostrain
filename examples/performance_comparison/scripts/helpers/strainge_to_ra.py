@@ -71,10 +71,7 @@ def main():
 
     abundances = []
     for t, input_path in zip(args.time_points, args.inputs):
-        print("{t}: {i}".format(
-            t=t,
-            i=input_path
-        ))
+        print(f"{t}: {input_path}")
         abundances.append(extract_abunds(input_path))
 
     strains = set()

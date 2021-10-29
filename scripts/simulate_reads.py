@@ -10,8 +10,7 @@ import torch
 from typing import List, Tuple
 
 from chronostrain import logger, cfg
-from chronostrain.database import QueryNotFoundError
-from chronostrain.model import generative, reads
+from chronostrain.model import generative, reads, FragmentSpace, construct_fragment_space_uniform_length
 from chronostrain.model.bacteria import Population
 from chronostrain.model.io import TimeSeriesReads, save_abundances, load_abundances
 
@@ -51,7 +50,7 @@ def parse_args():
 def sample_reads(
         population: Population,
         read_depths: List[int],
-        read_length: int,
+        fragments: FragmentSpace,
         time_points: List[float],
         disable_quality: bool,
         abundances: torch.Tensor = None,
@@ -62,7 +61,7 @@ def sample_reads(
 
     :param population: The population containing the Strain instances.
     :param read_depths: The read counts for each time point.
-    :param read_length: The read length.
+    :param fragments: The FragmentSpace instance representing all possible fragments representable by reads.
     :param time_points: A list of time values (in increasing order).
     :param disable_quality: A flag to indicate whether to use NoiselessErrorModel.
     :param abundances: (Optional) An abundance profile as a T x S tensor.
@@ -82,7 +81,11 @@ def sample_reads(
         logger.info("Flag --disable_quality turned on; Quality scores are disabled.")
         my_error_model = reads.NoiselessErrorModel()
     else:
-        my_error_model = reads.PhredErrorModel(read_len=read_length)
+        logger.warning("TODO configure indel rates.")
+        my_error_model = reads.PhredErrorModel(
+            insertion_error_ll=1e-30,
+            deletion_error_ll=1e-30
+        )
     my_model = generative.GenerativeModel(
         times=time_points,
         mu=mu,
@@ -91,7 +94,8 @@ def sample_reads(
         tau_dof=cfg.model_cfg.sics_dof,
         tau_scale=cfg.model_cfg.sics_scale,
         bacteria_pop=population,
-        read_length=read_length,
+        fragments=fragments,
+        mean_frag_length=cfg.model_cfg.mean_read_length,
         read_error_model=my_error_model
     )
 
@@ -156,13 +160,15 @@ def main():
     else:
         population = Population(database.all_strains(), extra_strain=cfg.model_cfg.extra_strain)
 
+    fragments = construct_fragment_space_uniform_length(args.read_length, population)
+
     # ========== Sample reads.
     logger.debug("Sampling reads...")
     abundances, sampled_reads = sample_reads(
         population=population,
         read_depths=args.num_reads,
         abundances=abundances,
-        read_length=args.read_length,
+        fragments=fragments,
         disable_quality=(not cfg.model_cfg.use_quality_scores),
         time_points=time_points,
         seed=args.seed

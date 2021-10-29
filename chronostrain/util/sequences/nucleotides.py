@@ -30,11 +30,11 @@ def _complement_char(nucleotide: str, ignore_keyerror=False):
 
 
 def complement_seq(seq: str, ignore_keyerror=False) -> str:
-    return ''.join([_complement_char(c, ignore_keyerror=ignore_keyerror) for c in seq])
+    return ''.join(_complement_char(c, ignore_keyerror=ignore_keyerror) for c in seq)
 
 
 def reverse_complement_seq(seq: str, ignore_keyerror=False) -> str:
-    return ''.join([_complement_char(c, ignore_keyerror=ignore_keyerror) for c in seq[::-1]])
+    return ''.join(_complement_char(c, ignore_keyerror=ignore_keyerror) for c in seq[::-1])
 
 
 

@@ -1,3 +1,4 @@
+import math
 from typing import List
 
 import numpy as np
@@ -13,11 +14,11 @@ def _parse_ascii_using_offset(qstr: str, offset: int) -> List[int]:
 
 
 # === Offsets: ord('@') = 64, ord('!') = 33.
-def _phred_fastq_solexa(qstr) -> List[float]:
+def _str_to_phred_fastq_solexa(qstr: str) -> List[float]:
     return [phred_quality_from_solexa(q) for q in _parse_ascii_using_offset(qstr, ord("@"))]
 
 
-def _phred_fastq_illumina(qstr) -> List[int]:
+def _str_to_phred_fastq_illumina(qstr) -> List[int]:
     """
     Corresponds to the 'fastq-illumina' option in Bio.SeqIO.QualityIO.
     As stated in the Bio.SeqIO.QualityIO documentation, this is for newer Illumina 1.3-1.7 FASTQ files.
@@ -25,7 +26,7 @@ def _phred_fastq_illumina(qstr) -> List[int]:
     return _parse_ascii_using_offset(qstr, ord("@"))
 
 
-def _phred_fastq_sanger(qstr) -> List[int]:
+def _str_to_phred_fastq_sanger(qstr) -> List[int]:
     """
     Sanger-style phred scores, also used by Illumina 1.8+ (according to Bio.SeqIO.QualityIO docs).
     """
@@ -38,12 +39,20 @@ def ascii_to_phred(qstr: str, quality_format: str) -> np.ndarray:
     :param quality_format: An option (as documented in Bio.SeqIO.QualityIO) for the quality score format.
     """
     if quality_format == 'fastq':
-        return np.array(_phred_fastq_sanger(qstr), dtype=float)
+        return np.array(_str_to_phred_fastq_sanger(qstr), dtype=float)
     elif quality_format == 'fastq-sanger':
-        return np.array(_phred_fastq_sanger(qstr), dtype=float)
+        return np.array(_str_to_phred_fastq_sanger(qstr), dtype=float)
     elif quality_format == 'fastq-solexa':
-        return np.array(_phred_fastq_solexa(qstr), dtype=float)
+        return np.array(_str_to_phred_fastq_solexa(qstr), dtype=float)
     elif quality_format == 'fastq-illumina':
-        return np.array(_phred_fastq_illumina(qstr), dtype=float)
+        return np.array(_str_to_phred_fastq_illumina(qstr), dtype=float)
     else:
-        raise ValueError("Unknown quality_format input `{}`.".format(quality_format))
+        raise NotImplementedError("Unknown quality_format input `{}`.".format(quality_format))
+
+
+def phred_to_ascii(phred_arr: np.ndarray, quality_format: str) -> str:
+    if quality_format == 'fastq':
+        return "".join(chr(math.floor(i)) for i in ord('!') + phred_arr)
+    else:
+        raise NotImplementedError("Unknown quality_format input `{}`.".format(quality_format))
+

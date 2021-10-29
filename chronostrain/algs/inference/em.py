@@ -23,6 +23,7 @@ def _sics_mode(dof: float, scale: float) -> float:
     return dof * scale / (dof + 2)
 
 
+# noinspection PyPep8Naming
 class EMSolver(AbstractModelSolver):
     """
     MAP estimation via Expectation-Maximization.
@@ -160,7 +161,7 @@ class EMSolver(AbstractModelSolver):
                 sigmoid_jacobian = torch.diag(sigmoid) - torch.ger(sigmoid, sigmoid)  # symmetric matrix.
 
                 x_gradient[t] = x_gradient[t] + sigmoid_jacobian.mv(
-                    self.model.get_fragment_frequencies().t().dense_mul(Q.view(F, 1)).view(S)
+                    self.model.fragment_frequencies.t().dense_mul(Q.view(F, 1)).view(S)
                 )
             else:
                 Z_t = self.model.strain_abundance_to_frag_abundance(y[t].view(S, 1))
@@ -170,7 +171,7 @@ class EMSolver(AbstractModelSolver):
                 sigmoid = y[t]
                 sigmoid_jacobian = torch.diag(sigmoid) - torch.ger(sigmoid, sigmoid)  # symmetric matrix.
                 x_gradient[t] = x_gradient[t] + sigmoid_jacobian.mv(
-                    self.model.get_fragment_frequencies().t().mv(Q)
+                    self.model.fragment_frequencies.t().mv(Q)
                 )
 
         # ==== Gradient clipping.

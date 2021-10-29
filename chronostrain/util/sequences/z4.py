@@ -14,17 +14,29 @@ _acgt_to_z4 = {
     "g": 2,
     "T": 3,
     "t": 3,
-    "N": 4  # Special character.
+    "N": 4,  # Special character (unknown base)
+    "-": 5   # Special character (gap)
 }
-_z4_to_acgt = ["A", "C", "G", "T", "N"]
+_z4_to_acgt = ["A", "C", "G", "T", "N", "-"]
 
 nucleotide_N_z4 = _acgt_to_z4['N']
-z4_nucleotides = [0, 1, 2, 3]
+nucleotide_GAP_z4 = _acgt_to_z4['-']
+_nucleotides = ['A', 'C', 'G', 'T']
+_special = ['N', '-']
+
+z4_nucleotides = [_acgt_to_z4[b] for b in _nucleotides]
+z4_special = [_acgt_to_z4[b] for b in _special]
 
 
 # ================================= Function definitions.
 def map_nucleotide_to_z4(nucleotide: str) -> int:
     return _acgt_to_z4[nucleotide]
+
+
+def reverse_complement_z4(z4seq: SeqType) -> SeqType:
+    comp = z4seq.copy()
+    comp[0 <= comp <= 3] = 3 - comp[0 <= comp <= 3]
+    return comp[::-1]
 
 
 def map_z4_to_nucleotide(z4: int) -> str:
@@ -51,6 +63,6 @@ def z4_to_nucleotides(z4seq: SeqType) -> str:
             z4seq.shape
         ))
 
-    return "".join([
+    return "".join(
         _z4_to_acgt[element] for element in z4seq
-    ])
+    )
