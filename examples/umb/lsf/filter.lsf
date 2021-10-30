@@ -1,0 +1,14 @@
+#!/bin/bash
+export LSF_OUTPUT_DIR="${OUTPUT_DIR}/lsf"
+
+#BSUB -J umb-filter
+#BSUB -o ${LSF_OUTPUT_DIR}/umb-filter-%J.out
+#BSUB -e ${LSF_OUTPUT_DIR}/umb-filter-%J.err
+#BSUB -q bigmem
+#BSUB -n 4
+#BSUB -M 60000
+#BSUB -R rusage[mem=60000]
+
+source activate
+conda activate chronostrain
+bash ${BASE_DIR}/scripts/filter.sh
