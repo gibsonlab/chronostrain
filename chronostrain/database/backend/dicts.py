@@ -32,8 +32,8 @@ class DictionaryBackend(AbstractStrainDatabaseBackend):
     def get_marker(self, marker_id: str) -> Marker:
         try:
             return self.markers[marker_id]
-        except KeyError:
-            raise QueryNotFoundError("Unable to find marker with id `{}`.".format(marker_id))
+        except KeyError as e:
+            raise QueryNotFoundError("Unable to find marker with id `{}`.".format(marker_id)) from e
 
     def num_strains(self) -> int:
         return len(self.strains)

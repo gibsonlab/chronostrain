@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Tuple, Dict, List, Iterator, Callable, Optional, Union
 import numpy as np
 
-from chronostrain.database import StrainDatabase
+from chronostrain.database import StrainDatabase, QueryNotFoundError
 from chronostrain.model import Marker, SequenceRead
 from chronostrain.util.sequences import SeqType, reverse_complement_seq, NucleotideDtype
 from chronostrain.util.sequences import *
@@ -128,10 +128,17 @@ def parse_line_into_alignment(sam_path: Path,
 
     # ============ Retrieve the marker.
     accession_token, name_token, id_token = samline.contig_name.split("|")
-    marker = db.get_marker(
-        # Assumes that the reference marker was stored automatically using Marker.to_seqrecord().
-        id_token
-    )
+    try:
+        marker = db.get_marker(
+            # Assumes that the reference marker was stored automatically using Marker.to_seqrecord().
+            id_token
+        )
+    except QueryNotFoundError as e:
+        logger.error("Encountered bad marker ID from token {}. File: {}, Line: {}.".format(
+            samline.contig_name,
+            str(sam_path),
+            samline.lineno
+        ))
 
     # ============ Parse the cigar string to generate alignments.
     cigar_els: List[CigarElement] = samline.cigar

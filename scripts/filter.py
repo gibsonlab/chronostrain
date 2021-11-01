@@ -280,7 +280,7 @@ class Filter:
 
             logger.debug("(t = {}) Reading SAM files {}".format(
                 time_point,
-                "".join(str(p) for p in sam_paths_t)
+                ",".join(str(p) for p in sam_paths_t)
             ))
 
             filter_file(
