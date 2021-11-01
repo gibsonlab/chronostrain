@@ -107,11 +107,21 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
             yield self.reference_markers_to_assembly[marker]
 
     def propose_variants(self) -> Iterator[StrainVariant]:
-        return list(
+        variants: List[FloppStrainVariant] = list(
             self.construct_variants_using_assembly(
                 precision_lower_bound=0.5
             )
         )
+
+        def sort_key(v: FloppStrainVariant) -> int:
+            return v.total_num_supporting_reads
+
+        variants.sort(
+            key=sort_key,
+            reverse=True  # descending order of evidence.
+        )
+
+        yield from variants
 
     def construct_variants_using_assembly(self, precision_lower_bound: float) -> Iterator[FloppStrainVariant]:
         precision_matrix = self.compute_precision_matrix()

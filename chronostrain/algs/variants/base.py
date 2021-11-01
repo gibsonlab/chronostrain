@@ -72,7 +72,7 @@ class FloppStrainVariant(StrainVariant):
             id=id,
             variant_markers=variant_markers
         )
-        self.total_num_supporting_reads = sum(
+        self.total_num_supporting_reads: int = sum(
             marker.num_supporting_reads
             for marker in variant_markers
         )

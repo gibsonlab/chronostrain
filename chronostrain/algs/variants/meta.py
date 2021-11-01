@@ -79,7 +79,7 @@ class AbstractVariantBBVISolver(object):
             for marker_variant in strain_variant.variant_markers:
                 for time_slice in self.reads:
                     for read in time_slice:
-                        for subseq in marker_variant.subseq_from_read(read):
+                        for subseq, insertions, deletions in marker_variant.subseq_from_read(read):
                             cumulative_fragments.add_seq(
                                 subseq,
                                 metadata=f"Subseq_{marker_variant.id}"
