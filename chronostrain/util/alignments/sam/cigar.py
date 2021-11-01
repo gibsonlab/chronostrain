@@ -51,7 +51,7 @@ class CigarElement(object):
 
 def parse_cigar(cigar: str) -> List[CigarElement]:
     if cigar == "*":
-        raise ValueError('No cigar string to parse. (Cigar string "*" hints at an unmapped read.)')
+        return []
 
     tokens = re.findall(r'\d+|\D+', cigar)
     if len(tokens) % 2 != 0:
