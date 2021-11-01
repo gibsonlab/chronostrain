@@ -296,7 +296,7 @@ class SubsequenceLoader:
 
     def load_marker_from_disk(self, filepath: Path, expected_marker_name: str, expected_marker_id: str) -> Marker:
         record = next(SeqIO.parse(filepath, "fasta"))
-        accession_token, name_token, id_token = record.id.split("|")
+        accession_token, name_token, id_token = record.id.strip().split("|")
         if accession_token != self.strain_accession:
             raise StrainDatabaseParseError(
                 "Marker's strain accession {} does not match input strain accession {}. (File={})".format(

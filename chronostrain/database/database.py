@@ -23,6 +23,7 @@ class StrainDatabase(object):
 
         for strain in parser.strains():
             backend.add_strain(strain)
+            logger.debug(f"Added strain entry {strain.id} to database.")
 
         self._save_markers_to_multifasta(force_refresh=force_refresh)
 
