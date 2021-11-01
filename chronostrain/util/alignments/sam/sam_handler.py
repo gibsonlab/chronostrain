@@ -54,19 +54,18 @@ class SamLine:
     def __init__(self,
                  lineno: int,
                  plaintext_line: str,
-                 samline_prev: Union["SamLine", None],
+                 plaintext_prevline: Union[str, None],
                  quality_format: str):
         """
         Parse the line using the provided reference.
 
         :param lineno: The line number in the .sam file corresponding to this instance.
         :param plaintext_line: The raw line read from the .sam file.
-        :param samline_prev: The previous instance of SamLine corresponding to the previously parsed line.
+        :param plaintext_prevline: The previous instance of SamLine corresponding to the previously parsed line.
         :param quality_format: An option (as documented in Bio.SeqIO.QualityIO) for the quality score format.
         """
         self.lineno = lineno
         self.line = plaintext_line.strip().split('\t')
-        self.prev_line = samline_prev
 
         self.readname: str = self.line[_SamTags.ReadName.value]
         self.map_flag = int(self.line[_SamTags.MapFlag.value])
@@ -82,30 +81,29 @@ class SamLine:
 
         is_secondary_alignment = _check_bit_flag(self.map_flag, SamFlags.SecondaryAlignment.value)
         if is_secondary_alignment:
-            if self.prev_line is None:
+            if plaintext_prevline is None:
                 raise RuntimeError(
                     "Unexpected SAM file output. Line ({lineno}) was flagged as a secondary alignment, "
                     "but this was the first line to be parsed.".format(
                         lineno=self.lineno
                     )
                 )
-            if self.readname != self.prev_line.readname:
+            prev_line_tokens = plaintext_prevline.strip().split('\t')
+            if self.readname != prev_line_tokens[_SamTags.ReadName.value]:
                 raise RuntimeError(
                     "Unexpected SAM file output. Line ({lineno}) was flagged as a secondary alignment, "
                     "but the previous line described a different input read ID.".format(
                         lineno=self.lineno
                     )
                 )
-            self.read: str = self.prev_line.read
-            self.read_len: int = self.prev_line.read_len
-            self.read_quality: str = self.prev_line.read_quality
-            self.phred_quality: np.ndarray = self.prev_line.phred_quality
+            self.read: str = prev_line_tokens[_SamTags.Read.value]
+            self.read_quality: str = prev_line_tokens[_SamTags.Quality.value]
+
         else:
             self.read: str = self.line[_SamTags.Read.value]
-            self.read_len: int = len(self.read)
             self.read_quality: str = self.line[_SamTags.Quality.value]
-            self.phred_quality: np.ndarray = ascii_to_phred(self.read_quality, quality_format)
 
+        self.phred_quality: np.ndarray = ascii_to_phred(self.read_quality, quality_format)
         self.optional_tags = {}
         self.percent_identity: Union[float, None] = None
         for optional_tag in self.line[11:]:
@@ -117,6 +115,10 @@ class SamLine:
             if optional_tag[:5] == 'MD:Z:':
                 self.optional_tags['MD'] = optional_tag[5:]
                 self.percent_identity = percent_identity_from_md_tag(self.optional_tags['MD'])
+
+    @property
+    def read_len(self) -> int:
+        return len(self.read)
 
     def __str__(self):
         return "SamLine(L={lineno}):{tokens}".format(
@@ -178,15 +180,15 @@ class SamFile:
         n_lines = 0
         n_mapped_lines = 0
         with open(self.file_path, 'r') as f:
-            prev_sam_line = None
+            prev_line = None
             for line_idx, line in enumerate(f):
                 if line[0] == '@':
                     continue
 
-                sam_line = SamLine(line_idx + 1, line, prev_sam_line, self.quality_format)
+                sam_line = SamLine(line_idx + 1, line, prev_line, self.quality_format)
                 if sam_line.is_mapped:
                     n_mapped_lines += 1
                     yield sam_line
-                prev_sam_line = sam_line
+                prev_line = line
                 n_lines += 1
         logger.debug(f"{self.file_path.name} -- Total # SAM lines parsed: {n_lines}; # mapped lines: {n_mapped_lines}")

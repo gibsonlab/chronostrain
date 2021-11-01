@@ -163,6 +163,7 @@ def filter_file(
     reads_already_passed = set()
 
     for sam_file_path in sam_files:
+        logger.debug(f"Reading: {sam_file_path.name}")
         for aln in parse_alignments(
                 SamFile(sam_file_path, quality_format), db
         ):
