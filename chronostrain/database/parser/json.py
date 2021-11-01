@@ -291,7 +291,7 @@ class SubsequenceLoader:
 
     def save_marker_to_disk(self, marker: Marker, filepath: Path):
         SeqIO.write([
-            marker.to_seqrecord(description="Strain:{}".format(self.strain_accession))
+            marker.to_seqrecord(description="")
         ], filepath, "fasta")
 
     def load_marker_from_disk(self, filepath: Path, expected_marker_name: str, expected_marker_id: str) -> Marker:

@@ -86,6 +86,8 @@ class StrainDatabase(object):
 
         def _generate():
             self.multifasta_file.unlink(missing_ok=True)
+            with open(self.multifasta_file, "w"):
+                pass
             for strain in self.all_strains():
                 self.strain_markers_to_fasta(strain.id, self.multifasta_file, "a+")
 
@@ -114,7 +116,7 @@ class StrainDatabase(object):
         strain = self.get_strain(strain_id)
         records = []
         for marker in strain.markers:
-            records.append(marker.to_seqrecord(description="Strain:{}".format(strain.metadata.ncbi_accession)))
+            records.append(marker.to_seqrecord(description=""))
         with open(out_path, file_mode) as out_file:
             SeqIO.write(records, out_file, "fasta")
 
