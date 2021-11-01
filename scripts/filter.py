@@ -218,6 +218,7 @@ class Filter:
                  align_cmd: str,
                  output_dir: Path,
                  quality_format: str,
+                 min_seed_length: int,
                  pct_identity_threshold: float):
         logger.debug("Reference path: {}".format(reference_file_path))
 
@@ -233,6 +234,7 @@ class Filter:
         self.read_sources = read_sources
         self.read_depths = read_depths
         self.time_points = time_points
+        self.min_seed_length = min_seed_length
 
         self.align_cmd = align_cmd
         self.output_dir = output_dir
@@ -271,7 +273,7 @@ class Filter:
                     output_path=sam_path,
                     reference_path=self.reference_path,
                     read_path=read_path,
-                    min_seed_length=100,
+                    min_seed_length=self.min_seed_length,
                     report_all_alignments=True  # Just to make sure, report all possible alignments (multi-mapped reads)
                 )
                 sam_paths_t.append(sam_path)
@@ -331,6 +333,8 @@ def parse_args():
     parser.add_argument('-q', '--quality_format', required=False, type=str, default='fastq',
                         help='<Optional> The quality format. Should be one of the options implemented in Biopython '
                              '`Bio.SeqIO.QualityIO` module.')
+    parser.add_argument('-m', '--min_seed_length', required=True, type=int,
+                        help='<Required> The minimal seed length to pass to bwa-mem.')
 
     parser.add_argument('--input_file', required=False, type=str,
                         default='input_files.csv',
@@ -364,7 +368,8 @@ def main():
         align_cmd=cfg.external_tools_cfg.pairwise_align_cmd,
         output_dir=Path(args.output_dir),
         quality_format=args.quality_format,
-        pct_identity_threshold=args.pct_identity_threshold
+        pct_identity_threshold=args.pct_identity_threshold,
+        min_seed_length=args.min_seed_length
     )
     filt.apply_filter(f"filtered_{args.input_file}")
     logger.info("Finished filtering.")
