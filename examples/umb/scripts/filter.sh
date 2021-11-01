@@ -13,4 +13,4 @@ python filter.py \
 --input_file "${INPUT_INDEX_FILENAME}" \
 -o "${READS_DIR}/filtered" \
 --pct_identity_threshold 0.3 \
---min_seed_length 30
+--min_seed_length 20
