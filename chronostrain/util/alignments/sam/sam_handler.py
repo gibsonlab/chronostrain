@@ -189,4 +189,4 @@ class SamFile:
                     yield sam_line
                 prev_sam_line = sam_line
                 n_lines += 1
-        logger.debug(f"Total # SAM lines parsed: {n_lines}; # mapped lines: {n_mapped_lines}")
+        logger.debug(f"{self.file_path.name} -- Total # SAM lines parsed: {n_lines}; # mapped lines: {n_mapped_lines}")

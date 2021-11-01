@@ -114,7 +114,7 @@ def parse_line_into_alignment(sam_path: Path,
         if samline.is_reverse_complemented:
             read = SequenceRead(
                 read_id=samline.readname,
-                seq=nucleotides_to_z4(reverse_complement_seq(samline.read[::-1])),
+                seq=reverse_complement_seq(nucleotides_to_z4(samline.read[::-1])),
                 quality=samline.phred_quality[::-1],
                 metadata=f"Sam_parsed(f={str(sam_path)},L={samline.lineno},revcomp)"
             )

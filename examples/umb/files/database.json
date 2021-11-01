@@ -7,14 +7,5 @@
         "markers": [
             {"type":"tag", "locus_tag":"BW25113_4314", "name":"fimA"}
         ]
-    },
-    {
-        "genus": "Escherichia",
-        "species": "coli",
-        "strain": "A1_136",
-        "accession": "CP040390.1",
-        "markers": [
-            {"type":"tag", "locus_tag":"FE198_16990", "name":"fimA"}
-        ]
     }
 ]
