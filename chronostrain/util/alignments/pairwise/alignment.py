@@ -139,6 +139,7 @@ def parse_line_into_alignment(sam_path: Path,
             str(sam_path),
             samline.lineno
         ))
+        raise e
 
     # ============ Parse the cigar string to generate alignments.
     cigar_els: List[CigarElement] = samline.cigar
