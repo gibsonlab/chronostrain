@@ -130,7 +130,7 @@ def main():
                 read_depth=num_reads_per_block,
                 src=TimeSliceReadSource([block_dir / read_filename], 'fastq')
             )
-        ]).save("fastq")
+        ]).save()
 
         save_input_csv(out_dir=block_dir, read_file=read_filename)
 

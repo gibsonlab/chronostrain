@@ -1,21 +1,21 @@
 import csv
 from pathlib import Path
-from typing import Dict, Tuple, List, Iterable
+from typing import Dict, Tuple, List
 
-from chronostrain.model.io import TimeSeriesReads
+from chronostrain.model.io import TimeSeriesReads, TimeSliceReadSource
 
 
 def parse_reads(input_spec_path: Path, quality_format: str):
-    read_paths, read_depths, time_points = parse_input_spec(input_spec_path)
+    read_sources, read_depths, time_points = parse_input_spec(input_spec_path, quality_format)
+
     return TimeSeriesReads.load(
         time_points=time_points,
         read_depths=read_depths,
-        source_entries=read_paths,
-        quality_format=quality_format
+        sources=read_sources
     )
 
 
-def parse_input_spec(input_spec_path: Path) -> Tuple[List[Iterable[Path]], List[int], List[float]]:
+def parse_input_spec(input_spec_path: Path, quality_format: str) -> Tuple[List[TimeSliceReadSource], List[int], List[float]]:
     time_points_to_reads: Dict[float, List[Tuple[int, Path]]] = {}
 
     try:
@@ -43,11 +43,12 @@ def parse_input_spec(input_spec_path: Path) -> Tuple[List[Iterable[Path]], List[
         ])
         for t in time_points
     ]
-    read_paths = [
-        [
+
+    time_slice_sources = [
+        TimeSliceReadSource([
             read_path for _, read_path in time_points_to_reads[t]
-        ]
+        ], quality_format)
         for t in time_points
     ]
 
-    return read_paths, read_depths, time_points
+    return time_slice_sources, read_depths, time_points

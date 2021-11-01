@@ -44,7 +44,7 @@ class TimeSliceReads(object):
         self.read_depth: int = read_depth
         self._ids_to_reads: Dict[str, SequenceRead] = {read.id: read for read in reads}
 
-    def save(self, quality_format: str) -> int:
+    def save(self) -> int:
         """
         Save the reads to a fastq file, whose path is specified by attribute `self.file_path`.
 
@@ -53,6 +53,7 @@ class TimeSliceReads(object):
         if self.src is None:
             raise ValueError("Specify the `src` parameter if invoking save() of TimeSliceReads object.")
 
+        quality_format = self.src.quality_format
         canonical_path = self.src.get_canonical_path()
         records = []
         canonical_path.parent.mkdir(parents=True, exist_ok=True)
@@ -150,13 +151,13 @@ class TimeSeriesReads(object):
     def __init__(self, time_slices: List[TimeSliceReads]):
         self.time_slices = time_slices
 
-    def save(self, quality_format: str):
+    def save(self):
         """
         Save the sampled reads to a fastq file, one for each timepoint.
         """
         total_sz = 0
         for time_slice in self.time_slices:
-            total_sz += time_slice.save(quality_format)
+            total_sz += time_slice.save()
 
         logger.info("Reads output successfully. ({sz} Total)".format(
             sz=convert_size(total_sz)
@@ -165,21 +166,15 @@ class TimeSeriesReads(object):
     @staticmethod
     def load(time_points: List[float],
              read_depths: List[int],
-             source_entries: List[Iterable[Path]],
-             quality_format: str):
-        if len(time_points) != len(source_entries):
+             sources: List[TimeSliceReadSource]):
+        if len(time_points) != len(sources):
             raise ValueError("Number of time points ({}) do not match number of read sources. ({})".format(
-                len(time_points), len(source_entries)
+                len(time_points), len(sources)
             ))
-
-        time_slice_sources = [
-            TimeSliceReadSource(list(file_paths), quality_format)
-            for file_paths in source_entries
-        ]
 
         return TimeSeriesReads([
             TimeSliceReads.load(src, read_depth_t, t)
-            for src, read_depth_t, t in zip(time_slice_sources, read_depths, time_points)
+            for src, read_depth_t, t in zip(sources, read_depths, time_points)
         ])
 
     def __iter__(self) -> Iterator[TimeSliceReads]:

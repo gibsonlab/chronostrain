@@ -183,7 +183,7 @@ def main():
         out_path_t = Path(args.out_dir) / "{}-reads.fastq".format(time_slice.time_point)
         out_paths.append(out_path_t)
         time_slice.src = out_path_t
-    sampled_reads.save("fastq")
+    sampled_reads.save()
 
     logger.debug("Saving (re-normalized) abundances to file...")
     save_abundances(

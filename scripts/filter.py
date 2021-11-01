@@ -2,7 +2,7 @@ import argparse
 import csv
 import numpy as np
 from pathlib import Path
-from typing import List
+from typing import List, Iterator, Tuple
 
 from Bio.Seq import Seq
 import Bio.SeqIO
@@ -11,14 +11,14 @@ from chronostrain import logger, cfg
 from multiprocessing import cpu_count
 
 from chronostrain.database import StrainDatabase
-from chronostrain.model.io import TimeSliceReads, TimeSeriesReads
+from chronostrain.model.io import TimeSliceReadSource
 from chronostrain.util.alignments.sam import SamFile
 from chronostrain.util.external import bwa
 from chronostrain.util.external import CommandLineException
 from chronostrain.util.external.commandline import call_command
 from chronostrain.util.alignments.pairwise import parse_alignments
 
-from helpers import parse_reads
+from helpers import parse_input_spec
 
 
 def file_base_name(file_path: Path) -> str:
@@ -134,12 +134,12 @@ def filter_on_match_identity(percent_identity: float, identity_threshold=0.9):
 
 
 def filter_file(
-        time_slice: TimeSliceReads,
         db: StrainDatabase,
         sam_files: List[Path],
         result_metadata_path: Path,
         result_fq_path: Path,
-        quality_format: str
+        quality_format: str,
+        pct_identity_threshold: float
 ):
     """
     Parses a sam file and filters reads using the above criteria.
@@ -164,9 +164,8 @@ def filter_file(
 
     for sam_file_path in sam_files:
         for aln in parse_alignments(
-                SamFile(sam_file_path, quality_format), db, lambda read_id: time_slice.get_read(read_id)
+                SamFile(sam_file_path, quality_format), db
         ):
-
             if aln.read.id in reads_already_passed:
                 # Read is already included in output file. Don't do anything.
                 continue
@@ -176,7 +175,7 @@ def filter_file(
                 raise ValueError(f"Unknown percent identity from alignment of read `{aln.read.id}`")
 
             passed_filter = (
-                filter_on_match_identity(aln.percent_identity, identity_threshold=0.9)
+                filter_on_match_identity(aln.percent_identity, identity_threshold=pct_identity_threshold)
                 and filter_on_read_quality(aln.read.quality)
             )
 
@@ -212,10 +211,13 @@ class Filter:
     def __init__(self,
                  db: StrainDatabase,
                  reference_file_path: Path,
-                 reads: TimeSeriesReads,
+                 read_sources: List[TimeSliceReadSource],
+                 read_depths: List[int],
+                 time_points: List[float],
                  align_cmd: str,
                  output_dir: Path,
-                 quality_format: str):
+                 quality_format: str,
+                 pct_identity_threshold: float):
         logger.debug("Reference path: {}".format(reference_file_path))
 
         self.db = db
@@ -227,10 +229,17 @@ class Filter:
         else:
             self.reference_path = reference_file_path
 
-        self.reads = reads
+        self.read_sources = read_sources
+        self.read_depths = read_depths
+        self.time_points = time_points
+
         self.align_cmd = align_cmd
         self.output_dir = output_dir
         self.quality_format = quality_format
+        self.pct_identity_threshold = pct_identity_threshold
+
+    def time_point_specs(self) -> Iterator[Tuple[TimeSliceReadSource, int, float]]:
+        yield from zip(self.read_sources, self.read_depths, self.time_points)
 
     def apply_filter(self, destination_csv: str):
         """
@@ -246,9 +255,9 @@ class Filter:
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         resulting_files: List[Path] = []
-        for time_slice in self.reads:
+        for t_idx, (src, read_depth, time_point) in enumerate(self.time_point_specs()):
             sam_paths_t = []
-            for read_path in time_slice.src.paths:
+            for read_path in src.paths:
                 base_path = read_path.parent
                 aligner_tmp_dir = base_path / "tmp"
                 aligner_tmp_dir.mkdir(parents=True, exist_ok=True)
@@ -266,31 +275,32 @@ class Filter:
                 )
                 sam_paths_t.append(sam_path)
 
-            result_metadata_path = self.output_dir / 'metadata_{}.tsv'.format(time_slice.time_point)
-            result_fq_path = self.output_dir / "reads_{}.fq".format(time_slice.time_point)
+            result_metadata_path = self.output_dir / 'metadata_{}.tsv'.format(time_point)
+            result_fq_path = self.output_dir / "reads_{}.fq".format(time_point)
 
             logger.debug("(t = {}) Reading SAM files {}".format(
-                time_slice.time_point,
+                time_point,
                 "".join(str(p) for p in sam_paths_t)
             ))
 
             filter_file(
-                time_slice,
-                self.db,
-                sam_paths_t,
-                result_metadata_path,
-                result_fq_path,
-                self.quality_format
+                db=self.db,
+                sam_files=sam_paths_t,
+                result_metadata_path=result_metadata_path,
+                result_fq_path=result_fq_path,
+                quality_format=self.quality_format,
+                pct_identity_threshold=self.pct_identity_threshold
             )
             logger.info("Timepoint {t}, filtered reads file: {f}".format(
-                t=time_slice.time_point, f=result_fq_path
+                t=time_point, f=result_fq_path
             ))
             resulting_files.append(result_fq_path)
 
-        save_input_csv(self.reads, self.output_dir / destination_csv, resulting_files)
+        save_input_csv(self.time_points, self.read_depths, self.output_dir / destination_csv, resulting_files)
 
 
-def save_input_csv(reads: TimeSeriesReads,
+def save_input_csv(time_points: List[float],
+                   read_depths: List[int],
                    out_path: Path,
                    filtered_files: List[Path]):
     """
@@ -298,10 +308,10 @@ def save_input_csv(reads: TimeSeriesReads,
     """
     with open(out_path, "w") as f:
         writer = csv.writer(f, delimiter=',', quotechar='\"', quoting=csv.QUOTE_ALL)
-        for time_slice, filtered_file in zip(reads, filtered_files):
+        for time_point, read_depth, filtered_file in zip(time_points, read_depths, filtered_files):
             writer.writerow([
-                time_slice.time_point,
-                time_slice.read_depth,
+                time_point,
+                read_depth,
                 str(filtered_file)
             ])
 
@@ -324,6 +334,9 @@ def parse_args():
     parser.add_argument('--input_file', required=False, type=str,
                         default='input_files.csv',
                         help='<Optional> The CSV input file specifier inside reads_dir.')
+    parser.add_argument('--pct_identity_threshold', required=False, type=float,
+                        default=0.7,
+                        help='<Optional> The percent identity threshold at which to filter reads. Default is 0.7.')
 
     return parser.parse_args()
 
@@ -334,9 +347,9 @@ def main():
     db = cfg.database_cfg.get_database()
 
     # =========== Parse reads.
-    reads = parse_reads(
+    read_sources, read_depths, time_points = parse_input_spec(
         Path(args.reads_dir) / args.input_file,
-        quality_format=args.quality_format
+        args.quality_format
     )
 
     # ============ Perform read filtering.
@@ -344,10 +357,13 @@ def main():
     filt = Filter(
         db=db,
         reference_file_path=db.multifasta_file,
-        reads=reads,
-        align_cmd=cfg.external_tools_cfg.align_cmd,
+        read_sources=read_sources,
+        read_depths=read_depths,
+        time_points=time_points,
+        align_cmd=cfg.external_tools_cfg.pairwise_align_cmd,
         output_dir=Path(args.output_dir),
-        quality_format=args.quality_format
+        quality_format=args.quality_format,
+        pct_identity_threshold=args.pct_identity_threshold
     )
     filt.apply_filter(f"filtered_{args.input_file}")
     logger.info("Finished filtering.")

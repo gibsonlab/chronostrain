@@ -14,6 +14,8 @@ from chronostrain.util.alignments.pairwise import *
 from chronostrain.database import StrainDatabase
 
 from chronostrain.algs.subroutines.cache import ReadsComputationCache
+from chronostrain.config import create_logger
+logger = create_logger(__name__)
 
 
 class CachedReadPairwiseAlignments(object):
@@ -74,9 +76,12 @@ class CachedReadPairwiseAlignments(object):
                 for aln in parse_alignments(
                         sam_file,
                         self.db,
-                        lambda read_id: time_slice.get_read(read_id),
-                        ignore_edge_mapped_reads=True
+                        read_getter=lambda read_id: time_slice.get_read(read_id),
                 ):
+                    if aln.is_edge_mapped:
+                        logger.debug(f"Ignoring alignment of read {aln.read.id} to marker {aln.marker.id} "
+                                     f"({aln.sam_path.name}, Line {aln.sam_line_no}), which is edge-mapped.")
+                        continue
                     marker_to_reads[aln.marker][t_idx].append(aln)
         yield from marker_to_reads.items()
 

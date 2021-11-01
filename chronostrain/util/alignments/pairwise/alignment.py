@@ -5,7 +5,7 @@ import numpy as np
 from chronostrain.database import StrainDatabase
 from chronostrain.model import Marker, SequenceRead
 from chronostrain.util.sequences import SeqType, reverse_complement_seq, NucleotideDtype
-from chronostrain.util.sequences import nucleotide_GAP_z4 as GapChar
+from chronostrain.util.sequences import *
 
 from ..sam import *
 
@@ -72,6 +72,14 @@ class SequenceReadPairwiseAlignment(object):
         self.reverse_complemented: bool = reverse_complemented
 
     @property
+    def is_edge_mapped(self) -> bool:
+        if self.marker_start == 0:
+            return self.soft_clip_start > 0 or self.hard_clip_start > 0
+        elif self.marker_end == len(self.marker) - 1:
+            return self.soft_clip_end > 0 or self.hard_clip_end > 0
+        return False
+
+    @property
     def read_aligned_section(self) -> Tuple[SeqType, SeqType]:
         """
         Returns the section of the read corresponding to matches/mismatches.
@@ -81,12 +89,12 @@ class SequenceReadPairwiseAlignment(object):
         return self.read.seq[section], self.read.quality[section]
 
     def read_insertion_locs(self) -> np.ndarray:
-        insertion_locs = np.equal(self.aln_matrix[0], GapChar)
-        return insertion_locs[self.aln_matrix[1] != GapChar]
+        insertion_locs = np.equal(self.aln_matrix[0], nucleotide_GAP_z4)
+        return insertion_locs[self.aln_matrix[1] != nucleotide_GAP_z4]
 
     def marker_deletion_locs(self) -> np.ndarray:
-        deletion_locs = np.equal(self.aln_matrix[1], GapChar)
-        return deletion_locs[self.aln_matrix[0] != GapChar]
+        deletion_locs = np.equal(self.aln_matrix[1], nucleotide_GAP_z4)
+        return deletion_locs[self.aln_matrix[0] != nucleotide_GAP_z4]
 
     def __eq__(self, other: 'SequenceReadPairwiseAlignment') -> bool:
         return self.unique_id == other.unique_id
@@ -95,12 +103,28 @@ class SequenceReadPairwiseAlignment(object):
 def parse_line_into_alignment(sam_path: Path,
                               samline: SamLine,
                               db: StrainDatabase,
-                              read_getter: Callable[[str], SequenceRead]) -> SequenceReadPairwiseAlignment:
+                              read_getter: Optional[Callable[[str], SequenceRead]] = None) -> SequenceReadPairwiseAlignment:
     """
     Parse a given SamLine (excluding metadata) into an alignment instance.
     """
     # ============ Retrieve the read.
-    read = read_getter(samline.readname)
+    if read_getter is not None:
+        read = read_getter(samline.readname)
+    else:
+        if samline.is_reverse_complemented:
+            read = SequenceRead(
+                read_id=samline.readname,
+                seq=nucleotides_to_z4(reverse_complement_seq(samline.read[::-1])),
+                quality=samline.phred_quality[::-1],
+                metadata=f"Sam_parsed(f={str(sam_path)},L={samline.lineno},revcomp)"
+            )
+        else:
+            read = SequenceRead(
+                read_id=samline.readname,
+                seq=nucleotides_to_z4(samline.read),
+                quality=samline.phred_quality,
+                metadata=f"Sam_parsed(f={str(sam_path)},L={samline.lineno})"
+            )
 
     # ============ Retrieve the marker.
     accession_token, name_token, id_token = samline.contig_name.split("|")
@@ -156,11 +180,11 @@ def parse_line_into_alignment(sam_path: Path,
         elif cigar_el.op == CigarOp.INSERTION:
             # Consume query but not marker.
             read_tokens.append(read_seq[current_read_idx:current_read_idx + cigar_el.num])
-            marker_tokens.append(GapChar * np.ones(cigar_el.num, dtype=NucleotideDtype))
+            marker_tokens.append(nucleotide_GAP_z4 * np.ones(cigar_el.num, dtype=NucleotideDtype))
             current_read_idx += cigar_el.num
         elif cigar_el.op == CigarOp.DELETION:
             # consume marker but not query.
-            read_tokens.append(GapChar * np.ones(cigar_el.num, dtype=NucleotideDtype))
+            read_tokens.append(nucleotide_GAP_z4 * np.ones(cigar_el.num, dtype=NucleotideDtype))
             marker_tokens.append(marker.seq[current_marker_idx:current_marker_idx + cigar_el.num])
             current_marker_idx += cigar_el.num
         elif cigar_el.op == CigarOp.SKIPREF:
@@ -185,7 +209,7 @@ def parse_line_into_alignment(sam_path: Path,
     ], axis=0)  # matrix of characters and gaps showing the alignment. (third row shows quality scores of each base.)
 
     frag = alignment[0]
-    fragment = frag[frag != GapChar]
+    fragment = frag[frag != nucleotide_GAP_z4]
 
     # ============ Return the appropriate instance.
     return SequenceReadPairwiseAlignment(
@@ -208,32 +232,18 @@ def parse_line_into_alignment(sam_path: Path,
     )
 
 
-def aln_is_edge_mapped(aln: SequenceReadPairwiseAlignment):
-    if aln.marker_start == 0:
-        return aln.soft_clip_start > 0 or aln.hard_clip_start > 0
-    elif aln.marker_end == len(aln.marker) - 1:
-        return aln.soft_clip_end > 0 or aln.hard_clip_end > 0
-    return False
-
-
 def parse_alignments(sam_file: SamFile,
                      db: StrainDatabase,
-                     read_getter: Callable[[str], SequenceRead],
-                     ignore_edge_mapped_reads: bool = True) -> Iterator[SequenceReadPairwiseAlignment]:
+                     read_getter: Optional[Callable[[str], SequenceRead]] = None) -> Iterator[SequenceReadPairwiseAlignment]:
     """
     A basic function which parses a SamFile instance and outputs a generator over alignments.
+    :param sam_file: The Sam file to parse.
+    :param db: The database to create.
+    :param read_getter:
     """
     for samline in sam_file.mapped_lines():
         try:
-            aln = parse_line_into_alignment(sam_file.file_path, samline, db, read_getter)
-            if ignore_edge_mapped_reads and aln_is_edge_mapped(aln):
-                logger.debug(
-                    f"Skipping alignment read[{aln.read.id}] -> marker[{aln.marker.id}] due to "
-                    f"`ignore_edge_mapped_reads=True` setting. "
-                    f"(Line {aln.sam_line_no}, File {str(aln.sam_path.name)})"
-                )
-            else:
-                yield aln
+            yield parse_line_into_alignment(sam_file.file_path, samline, db, read_getter)
         except NotImplementedError as e:
             logger.warning(str(e))
 
@@ -252,7 +262,13 @@ def marker_categorized_alignments(sam_file: SamFile,
         for marker in db.all_markers()
     }
 
-    for aln in parse_alignments(sam_file, db, read_getter, ignore_edge_mapped_reads=ignore_edge_mapped_reads):
+    for aln in parse_alignments(sam_file,
+                                db,
+                                read_getter=read_getter):
+        if ignore_edge_mapped_reads and aln.is_edge_mapped:
+            logger.debug(f"Ignoring alignment of read {aln.read.id} to marker {aln.marker.id} "
+                         f"({aln.sam_path.name}, Line {aln.sam_line_no}), which is edge-mapped.")
+            continue
         marker_alignments[aln.marker].append(aln)
 
     return marker_alignments
