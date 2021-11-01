@@ -1,12 +1,13 @@
 import enum
 import re
 from pathlib import Path
-from typing import List, Iterator, Union
+from typing import List, Iterator, Union, Optional
 
 import numpy as np
 
 from chronostrain.util.quality import ascii_to_phred
 from .cigar import CigarElement, parse_cigar
+from chronostrain.util.sequences import SeqType, nucleotides_to_z4
 
 from chronostrain.config import create_logger
 logger = create_logger(__name__)
@@ -54,71 +55,46 @@ class SamLine:
     def __init__(self,
                  lineno: int,
                  plaintext_line: str,
-                 plaintext_prevline: Union[str, None],
-                 quality_format: str):
+                 readname: str,
+                 read_seq: SeqType,
+                 read_phred: np.ndarray,
+                 is_mapped: bool,
+                 is_reverse_complemented: bool,
+                 contig_name: str,
+                 contig_map_idx: int,
+                 cigar: List[CigarElement],
+                 mate_pair: str,
+                 mate_pos: str,
+                 template_len: str,
+                 percent_identity: Optional[float],
+                 ):
         """
         Parse the line using the provided reference.
 
         :param lineno: The line number in the .sam file corresponding to this instance.
         :param plaintext_line: The raw line read from the .sam file.
-        :param plaintext_prevline: The previous instance of SamLine corresponding to the previously parsed line.
-        :param quality_format: An option (as documented in Bio.SeqIO.QualityIO) for the quality score format.
         """
         self.lineno = lineno
-        self.line = plaintext_line.strip().split('\t')
+        self.line = plaintext_line
 
-        self.readname: str = self.line[_SamTags.ReadName.value]
-        self.map_flag = int(self.line[_SamTags.MapFlag.value])
-        self.is_mapped: bool = not _check_bit_flag(self.map_flag, SamFlags.SegmentUnmapped.value)
-        self.is_reverse_complemented = _check_bit_flag(self.map_flag, SamFlags.SeqReverseComplement.value)
-        self.contig_name: str = self.line[_SamTags.ContigName.value]
-        self.map_pos_str: str = self.line[_SamTags.MapPos.value]
-        self.map_quality: str = self.line[_SamTags.MapQuality.value]
-        self.cigar_str: str = self.line[_SamTags.Cigar.value]
-        self.mate_pair: str = self.line[_SamTags.MatePair.value]
-        self.mate_pos: str = self.line[_SamTags.MatePos.value]
-        self.template_len: str = self.line[_SamTags.TemplateLen.value]
+        self.readname = readname
+        self.read_seq = read_seq
+        self.read_phred = read_phred
 
-        is_secondary_alignment = _check_bit_flag(self.map_flag, SamFlags.SecondaryAlignment.value)
-        if is_secondary_alignment:
-            if plaintext_prevline is None:
-                raise RuntimeError(
-                    "Unexpected SAM file output. Line ({lineno}) was flagged as a secondary alignment, "
-                    "but this was the first line to be parsed.".format(
-                        lineno=self.lineno
-                    )
-                )
-            prev_line_tokens = plaintext_prevline.strip().split('\t')
-            if self.readname != prev_line_tokens[_SamTags.ReadName.value]:
-                raise RuntimeError(
-                    "Unexpected SAM file output. Line ({lineno}) was flagged as a secondary alignment, "
-                    "but the previous line described a different input read ID.".format(
-                        lineno=self.lineno
-                    )
-                )
-            self.read: str = prev_line_tokens[_SamTags.Read.value]
-            self.read_quality: str = prev_line_tokens[_SamTags.Quality.value]
+        self.is_mapped = is_mapped
+        self.is_reverse_complemented = is_reverse_complemented
+        self.contig_name = contig_name
+        self.contig_map_idx = contig_map_idx
+        self.cigar = cigar
 
-        else:
-            self.read: str = self.line[_SamTags.Read.value]
-            self.read_quality: str = self.line[_SamTags.Quality.value]
-
-        self.phred_quality: np.ndarray = ascii_to_phred(self.read_quality, quality_format)
-        self.optional_tags = {}
-        self.percent_identity: Union[float, None] = None
-        for optional_tag in self.line[11:]:
-            '''
-            The MD tag stores information about which bases match to the reference and is necessary
-            for determining percent identity
-            '''
-            # MD tag: shows percent identity
-            if optional_tag[:5] == 'MD:Z:':
-                self.optional_tags['MD'] = optional_tag[5:]
-                self.percent_identity = percent_identity_from_md_tag(self.optional_tags['MD'])
+        self.mate_pair = mate_pair
+        self.mate_pos = mate_pos
+        self.template_len = template_len
+        self.percent_identity = percent_identity
 
     @property
     def read_len(self) -> int:
-        return len(self.read)
+        return len(self.read_seq)
 
     def __str__(self):
         return "SamLine(L={lineno}):{tokens}".format(
@@ -129,9 +105,68 @@ class SamLine:
     def __repr__(self):
         return self.__str__()
 
-    @property
-    def cigar(self) -> List[CigarElement]:
-        return parse_cigar(self.cigar_str)
+    @staticmethod
+    def parse(lineno: int,
+              plaintext_line: str,
+              prev_sam_line: Union['SamLine', None],
+              quality_format: str) -> 'SamLine':
+        tokens = plaintext_line.strip().split('\t')
+
+        readname = tokens[_SamTags.ReadName.value]
+        map_flag = int(tokens[_SamTags.MapFlag.value])
+        is_secondary_alignment = _check_bit_flag(map_flag, SamFlags.SecondaryAlignment.value)
+        optional_tags = {}
+        percent_identity: Union[float, None] = None
+        for optional_tag in tokens[11:]:
+            '''
+            The MD tag stores information about which bases match to the reference and is necessary
+            for determining percent identity
+            '''
+            # MD tag: shows percent identity
+            if optional_tag[:5] == 'MD:Z:':
+                optional_tags['MD'] = optional_tag[5:]
+                percent_identity = percent_identity_from_md_tag(optional_tags['MD'])
+            else:
+                pass
+
+        if is_secondary_alignment:
+            if prev_sam_line is None:
+                raise RuntimeError(
+                    "Unexpected SAM file output. Line ({lineno}) was flagged as a secondary alignment, "
+                    "but this was the first line to be parsed.".format(
+                        lineno=lineno
+                    )
+                )
+            elif readname != prev_sam_line.readname:
+                raise RuntimeError(
+                    "Unexpected SAM file output. Line ({lineno}) was flagged as a secondary alignment, "
+                    "but the previous line described a different input read ID.".format(
+                        lineno=lineno
+                    )
+                )
+
+            read_seq = prev_sam_line.read_seq
+            read_phred = prev_sam_line.read_phred
+        else:
+            read_seq = nucleotides_to_z4(tokens[_SamTags.Read.value])
+            read_phred = ascii_to_phred(tokens[_SamTags.Quality.value], quality_format)
+
+        return SamLine(
+            lineno=lineno,
+            plaintext_line=plaintext_line,
+            readname=readname,
+            read_seq=read_seq,
+            read_phred=read_phred,
+            is_mapped=not _check_bit_flag(map_flag, SamFlags.SegmentUnmapped.value),
+            is_reverse_complemented=_check_bit_flag(map_flag, SamFlags.SeqReverseComplement.value),
+            contig_name=tokens[_SamTags.ContigName.value],
+            contig_map_idx=int(tokens[_SamTags.MapPos.value]) - 1,
+            cigar=parse_cigar(tokens[_SamTags.Cigar.value]),
+            mate_pair=tokens[_SamTags.MatePair.value],
+            mate_pos=tokens[_SamTags.MatePos.value],
+            template_len=tokens[_SamTags.TemplateLen.value],
+            percent_identity=percent_identity
+        )
 
 
 def percent_identity_from_md_tag(tag: str):
@@ -179,16 +214,22 @@ class SamFile:
     def mapped_lines(self) -> Iterator[SamLine]:
         n_lines = 0
         n_mapped_lines = 0
+        prev_sam_line: Union[SamLine, None] = None
         with open(self.file_path, 'r') as f:
-            prev_line = None
             for line_idx, line in enumerate(f):
                 if line[0] == '@':
                     continue
 
-                sam_line = SamLine(line_idx + 1, line, prev_line, self.quality_format)
+                sam_line = SamLine.parse(
+                    lineno=line_idx+1,
+                    plaintext_line=line,
+                    prev_sam_line=prev_sam_line,
+                    quality_format=self.quality_format
+                )
                 if sam_line.is_mapped:
                     n_mapped_lines += 1
                     yield sam_line
-                prev_line = line
+
+                prev_sam_line = sam_line
                 n_lines += 1
         logger.debug(f"{self.file_path.name} -- Total # SAM lines parsed: {n_lines}; # mapped lines: {n_mapped_lines}")

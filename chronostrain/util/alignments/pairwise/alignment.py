@@ -114,15 +114,15 @@ def parse_line_into_alignment(sam_path: Path,
         if samline.is_reverse_complemented:
             read = SequenceRead(
                 read_id=samline.readname,
-                seq=reverse_complement_seq(nucleotides_to_z4(samline.read[::-1])),
-                quality=samline.phred_quality[::-1],
+                seq=reverse_complement_seq(samline.read_seq[::-1]),
+                quality=samline.read_phred[::-1],
                 metadata=f"Sam_parsed(f={str(sam_path)},L={samline.lineno},revcomp)"
             )
         else:
             read = SequenceRead(
                 read_id=samline.readname,
-                seq=nucleotides_to_z4(samline.read),
-                quality=samline.phred_quality,
+                seq=samline.read_seq,
+                quality=samline.read_phred,
                 metadata=f"Sam_parsed(f={str(sam_path)},L={samline.lineno})"
             )
 
@@ -172,7 +172,7 @@ def parse_line_into_alignment(sam_path: Path,
         soft_clip_end = cigar_els[-1].num
         cigar_els = cigar_els[:-1]
 
-    marker_start = int(samline.map_pos_str) - 1
+    marker_start = samline.contig_map_idx
     read_start = soft_clip_start + hard_clip_start
 
     # ============ Handle all intermediate elements.
