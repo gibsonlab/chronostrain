@@ -11,4 +11,5 @@ cd $PROJECT_DIR/scripts
 python filter.py \
 -r "${READS_DIR}" \
 --input_file "${INPUT_INDEX_FILENAME}" \
--o "${READS_DIR}/filtered"
+-o "${READS_DIR}/filtered" \
+--pct_identity_threshold 0.3
