@@ -34,6 +34,10 @@ class SparseMatrix(object):
         matches = (self.indices[0, :] == r) and (self.indices[1, :] == c)
         return torch.sum(self.values[matches])
 
+    @property
+    def nnz(self) -> int:
+        return self.values.size()[0]
+
     def sparsity(self) -> float:
         """
         Measures the sparsity of the matrix, computed as (# of empty entries) / (row * cols).
@@ -47,7 +51,7 @@ class SparseMatrix(object):
         Note: this is the complement of x.sparsity(), so that x.sparsity() + x.density() = 1.
         """
         if self.rows > 0 and self.columns > 0:
-            return self.values.size()[0] / (self.rows * self.columns)
+            return self.nnz / (self.rows * self.columns)
         else:
             return float("inf")
 
@@ -127,6 +131,12 @@ class SparseMatrix(object):
         :param dim: The dimension to collapse.
         :return: A dense 1-d vector.
         """
+        if self.nnz == 0:
+            return torch.zeros(
+                self.rows if dim == 1 else self.columns,
+                dtype=self.values.dtype,
+                device=self.values.device
+            )
         x = torch.sparse_coo_tensor(self.indices, self.values, (self.rows, self.columns)).coalesce()
         return torch.sparse.sum(x, dim=dim).to_dense()
 
