@@ -284,8 +284,6 @@ class Filter:
                     )
                     sam_paths_t.append(sam_path)
 
-
-
                 logger.debug("(t = {}) Reading SAM files {}".format(
                     time_point,
                     ",".join(str(p) for p in sam_paths_t)
