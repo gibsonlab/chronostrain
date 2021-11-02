@@ -155,6 +155,7 @@ def filter_file(
             "MARKER",
             "MARKER_START",
             "MARKER_END",
+            "REVCOMP",
             "PASSED_FILTER"
         ]
     )
@@ -187,6 +188,7 @@ def filter_file(
                     aln.marker.id,
                     aln.marker_start,
                     aln.marker_end,
+                    int(aln.reverse_complemented),
                     str(int(passed_filter))
                 ]
             )

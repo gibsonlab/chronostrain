@@ -4,7 +4,6 @@ import numpy as np
 
 from chronostrain.database import StrainDatabase, QueryNotFoundError
 from chronostrain.model import Marker, SequenceRead
-from chronostrain.util.sequences import SeqType, reverse_complement_seq, NucleotideDtype
 from chronostrain.util.sequences import *
 
 from ..sam import *
@@ -114,7 +113,7 @@ def parse_line_into_alignment(sam_path: Path,
         if samline.is_reverse_complemented:
             read = SequenceRead(
                 read_id=samline.readname,
-                seq=reverse_complement_seq(samline.read_seq[::-1]),
+                seq=reverse_complement_seq(samline.read_seq),
                 quality=samline.read_phred[::-1],
                 metadata=f"Sam_parsed(f={str(sam_path)},L={samline.lineno},revcomp)"
             )

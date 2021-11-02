@@ -63,7 +63,7 @@ class DataLikelihoods(object):
                         len(zero_indices),
                         len(sums),
                         self.read_likelihood_lower_bound,
-                        ",".join(str(read_idx) for read_idx in zero_indices)
+                        ",".join(str(self.data[t_idx][read_idx].id) for read_idx in zero_indices)
                     )
                 )
 

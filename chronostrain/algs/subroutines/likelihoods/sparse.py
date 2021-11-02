@@ -204,7 +204,7 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         """
         read_to_frag_likelihoods: Dict[str, List[Tuple[Fragment, float]]] = defaultdict(list)
 
-        logger.debug("Calculating multiple alignments.")
+        logger.debug(f"(t = {t_idx}) Calculating multiple alignments.")
         if self._multi_align_instances is None:
             self._multi_align_instances = list(self.multiple_alignments.get_alignments())
 
@@ -238,11 +238,12 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
 
             # Next, take care of the variant markers (if applicable).
             for variant in self.marker_variants_of(multi_align.marker):
-                for read in multi_align.reads(True):
-                    for subseq, insertions, deletions in variant.subseq_from_read(read):
-                        frag = self.model.fragments.get_fragment(subseq)
-                        ll = self.read_frag_ll(frag, read, insertions, deletions, reverse_complemented=True)
-                        read_to_frag_likelihoods[read.id].append((frag, ll))
+                for revcomp in [True, False]:
+                    for read in multi_align.reads(revcomp):
+                        for subseq, insertions, deletions in variant.subseq_from_read(read):
+                            frag = self.model.fragments.get_fragment(subseq)
+                            ll = self.read_frag_ll(frag, read, insertions, deletions, reverse_complemented=revcomp)
+                            read_to_frag_likelihoods[read.id].append((frag, ll))
         return read_to_frag_likelihoods
 
     def create_sparse_matrix(self, t_idx: int) -> SparseMatrix:
