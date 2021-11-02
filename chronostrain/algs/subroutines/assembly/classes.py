@@ -4,14 +4,10 @@ import numpy as np
 
 from chronostrain.model import Marker
 from chronostrain.util.alignments.multiple import MarkerMultipleFragmentAlignment
-from chronostrain.util.sequences import SeqType, nucleotide_GAP_z4
+from chronostrain.util.sequences import SeqType
 
 from chronostrain.config import create_logger
 logger = create_logger(__name__)
-
-
-def remove_gaps(seq: SeqType) -> SeqType:
-    return seq[seq != nucleotide_GAP_z4]
 
 
 class FloppMarkerAssembly(object):
@@ -56,7 +52,7 @@ class FloppMarkerAssembly(object):
             if strand_idx is not None:
                 seq[contig.positions] = contig.get_strand(strand_idx)
                 read_count += contig.num_reads_of_strand(strand_idx)
-        return remove_gaps(seq), read_count
+        return seq, read_count
 
 
 class FloppMarkerContig(object):
