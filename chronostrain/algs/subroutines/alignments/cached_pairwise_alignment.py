@@ -97,7 +97,7 @@ class CachedReadPairwiseAlignments(object):
                 output_path=absolute_path,
                 reference_path=self.marker_reference_path,
                 read_path=reads_path,
-                min_seed_length=20,
+                min_seed_length=3,
                 report_all_alignments=True
             )
             return SamFile(absolute_path, quality_format)
