@@ -208,10 +208,13 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         if self._multi_align_instances is None:
             self._multi_align_instances = list(self.multiple_alignments.get_alignments())
 
-        logger.debug("Parsing alignment into likelihoods.")
         time_slice = self.reads[t_idx]
 
         for multi_align in self._multi_align_instances:
+            logger.debug(f"[{multi_align.marker.id}] Parsing alignment of reads "
+                         f"({len(multi_align.forward_read_index_map)} forward, "
+                         f"{len(multi_align.reverse_read_index_map)} reverse) "
+                         f"into likelihoods.")
             # First, take care of the base markers (if applicable).
             if self.model.bacteria_pop.contains_marker(multi_align.marker):
                 for reverse in [False, True]:
