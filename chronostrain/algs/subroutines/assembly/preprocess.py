@@ -43,7 +43,7 @@ def to_bam(alignment: MarkerMultipleFragmentAlignment, out_path: Path):
         # Mapping positions
         aln = alignment.get_alignment(read, reverse_complement, delete_double_gaps=False)
         query_map_len = map_last_idx - map_first_idx + 1
-        assert query_map_len == len(read)
+        assert np.sum(aln[1] != nucleotide_GAP_z4) == len(read)
 
         # Mapping quality
         mapq: int = 255  # (not available)
