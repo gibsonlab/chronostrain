@@ -46,7 +46,10 @@ class SparseMatrix(object):
         Measures the density of the matrix, computed as (# of nonempty entries) / (row * cols).
         Note: this is the complement of x.sparsity(), so that x.sparsity() + x.density() = 1.
         """
-        return self.values.size()[0] / (self.rows * self.columns)
+        if self.rows > 0 and self.columns > 0:
+            return self.values.size()[0] / (self.rows * self.columns)
+        else:
+            return float("inf")
 
     def dense_mul(self, x: torch.Tensor) -> torch.Tensor:
         return torch_sparse.spmm(self.indices, self.values, self.rows, self.columns, x)
