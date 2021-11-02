@@ -4,7 +4,7 @@ from pathlib import Path
 from chronostrain.config import create_logger, cfg
 from chronostrain.algs import GloppVariantSolver
 
-from scripts.helpers import *
+from helpers import *
 logger = create_logger(__name__)
 
 
