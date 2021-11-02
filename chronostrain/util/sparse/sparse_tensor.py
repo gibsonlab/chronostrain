@@ -149,10 +149,7 @@ class SparseMatrix(object):
         Note: only efficient if `dim` is over a sufficiently sparse dimension. (The 1-d row/col sum matrix will be
         converted to dense.)
         """
-        sums = torch.sparse.sum(
-            torch.sparse_coo_tensor(self.indices, self.values, (self.rows, self.columns)),
-            dim=dim
-        ).to_dense()
+        sums = self.sum(dim=dim)
         rescaled_values = self.values / sums[self.indices[1 - dim]]
 
         return SparseMatrix(self.indices, rescaled_values, (self.rows, self.columns), force_coalesce=False)

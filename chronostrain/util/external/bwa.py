@@ -15,11 +15,13 @@ def bwa_mem(output_path: Path,
             reference_path: Path,
             read_path: Path,
             min_seed_length: int,
-            report_all_alignments=False,
+            num_threads: int = 1,
+            report_all_alignments: bool = False,
             bwa_path="bwa"):
     params = [
         'mem',
         '-o', output_path,
+        '-t', num_threads,
         '-k', str(min_seed_length),
         reference_path,
         read_path

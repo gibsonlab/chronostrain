@@ -222,7 +222,8 @@ class Filter:
                  quality_format: str,
                  min_seed_length: int,
                  pct_identity_threshold: float,
-                 continue_from_idx: int = 0):
+                 continue_from_idx: int = 0,
+                 num_threads: int = 1):
         logger.debug("Reference path: {}".format(reference_file_path))
 
         self.db = db
@@ -244,6 +245,7 @@ class Filter:
         self.quality_format = quality_format
         self.pct_identity_threshold = pct_identity_threshold
         self.continue_from_idx = continue_from_idx
+        self.num_threads = num_threads
 
     def time_point_specs(self) -> Iterator[Tuple[TimeSliceReadSource, int, float]]:
         yield from zip(self.read_sources, self.read_depths, self.time_points)
@@ -282,6 +284,7 @@ class Filter:
                         reference_path=self.reference_path,
                         read_path=read_path,
                         min_seed_length=self.min_seed_length,
+                        num_threads=self.num_threads,
                         report_all_alignments=True  # Just to make sure, report all possible alignments (multi-mapped reads)
                     )
                     sam_paths_t.append(sam_path)
@@ -353,7 +356,9 @@ def parse_args():
     parser.add_argument('--continue_from_idx', required=False, type=int,
                         default=0,
                         help='<Optional> For debugging purposes, assumes that the first N timepoints have already '
-                             'been processed, and resumes the filtering at N+1.')
+                             'been processed, and resumes the filtering at timepoint index N.')
+    parser.add_argument('--num_threads', required=False, type=int, default=1,
+                        help='<Optional> Specifies the number of threads. Is passed to underlying alignment tools.')
 
     return parser.parse_args()
 
@@ -382,7 +387,8 @@ def main():
         quality_format=args.quality_format,
         pct_identity_threshold=args.pct_identity_threshold,
         min_seed_length=args.min_seed_length,
-        continue_from_idx=args.continue_from_idx
+        continue_from_idx=args.continue_from_idx,
+        num_threads=args.num_threads
     )
     filt.apply_filter(f"filtered_{args.input_file}")
     logger.info("Finished filtering.")

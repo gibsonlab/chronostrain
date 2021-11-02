@@ -7,7 +7,7 @@ from pathlib import Path
 
 from chronostrain import cfg, logger
 import chronostrain.visualizations as viz
-from chronostrain.algs.subroutines import CachedReadMultipleAlignments
+from chronostrain.algs.subroutines.alignments import CachedReadMultipleAlignments
 from chronostrain.database import StrainDatabase
 from chronostrain.model import Population, construct_fragment_space_uniform_length, FragmentSpace
 from chronostrain.model.io import TimeSeriesReads
