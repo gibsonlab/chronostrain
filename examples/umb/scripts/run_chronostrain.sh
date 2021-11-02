@@ -18,6 +18,5 @@ python inference_with_variant_search.py \
 --iters $CHRONOSTRAIN_NUM_ITERS \
 --num_samples $CHRONOSTRAIN_NUM_SAMPLES \
 --learning_rate $CHRONOSTRAIN_LR \
---plot_format "pdf" \
---input_file "${INPUT_INDEX_FILENAME}"
+--plot_format "pdf"
 # ================================================
