@@ -1,9 +1,8 @@
 #!/bin/bash
-export LSF_OUTPUT_DIR="${OUTPUT_DIR}/lsf"
 
 #BSUB -J umb-chronostrain
-#BSUB -o ${LSF_OUTPUT_DIR}/umb-chronostrain-%J.out
-#BSUB -e ${LSF_OUTPUT_DIR}/umb-chronostrain-%J.err
+#BSUB -o /data/cctm/chronostrain/umb/lsf/umb-chronostrain-%J.out
+#BSUB -e /data/cctm/chronostrain/umb/lsf/umb-chronostrain-%J.err
 #BSUB -q bigmem
 #BSUB -n 4
 #BSUB -M 60000
@@ -11,4 +10,4 @@ export LSF_OUTPUT_DIR="${OUTPUT_DIR}/lsf"
 
 source activate
 conda activate chronostrain
-bash ${BASE_DIR}/scripts/run_chronostrain.sh
+bash /PHShome/yk847/chronostrain/examples/umb/scripts/run_chronostrain.sh

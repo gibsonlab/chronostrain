@@ -1,14 +1,13 @@
 #!/bin/bash
-export LSF_OUTPUT_DIR="${OUTPUT_DIR}/lsf"
 
 #BSUB -J umb-filter
-#BSUB -o ${LSF_OUTPUT_DIR}/umb-filter-%J.out
-#BSUB -e ${LSF_OUTPUT_DIR}/umb-filter-%J.err
-#BSUB -q bigmem
+#BSUB -o /data/cctm/chronostrain/umb/lsf/umb-filter-%J.out
+#BSUB -e /data/cctm/chronostrain/umb/lsf/umb-filter-%J.err
+#BSUB -q normal
 #BSUB -n 4
-#BSUB -M 60000
-#BSUB -R rusage[mem=60000]
+#BSUB -M 16000
+#BSUB -R rusage[mem=16000]
 
-source activate
-conda activate chronostrain
-bash ${BASE_DIR}/scripts/filter.sh
+source activate chronostrain
+cd /PHShome/yk847/chronostrain/examples/umb/scripts
+bash filter.sh
