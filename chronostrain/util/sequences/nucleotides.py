@@ -12,7 +12,9 @@ _complement_translation: Dict[int, int] = {
     map_nucleotide_to_z4('A'): map_nucleotide_to_z4('T'),
     map_nucleotide_to_z4('T'): map_nucleotide_to_z4('A'),
     map_nucleotide_to_z4('G'): map_nucleotide_to_z4('C'),
-    map_nucleotide_to_z4('C'): map_nucleotide_to_z4('G')
+    map_nucleotide_to_z4('C'): map_nucleotide_to_z4('G'),
+    map_nucleotide_to_z4('N'): map_nucleotide_to_z4('N'),
+    map_nucleotide_to_z4('-'): map_nucleotide_to_z4('-')
 }
 
 

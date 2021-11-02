@@ -219,7 +219,8 @@ class Filter:
                  output_dir: Path,
                  quality_format: str,
                  min_seed_length: int,
-                 pct_identity_threshold: float):
+                 pct_identity_threshold: float,
+                 continue_from_idx: int = 0):
         logger.debug("Reference path: {}".format(reference_file_path))
 
         self.db = db
@@ -240,6 +241,7 @@ class Filter:
         self.output_dir = output_dir
         self.quality_format = quality_format
         self.pct_identity_threshold = pct_identity_threshold
+        self.continue_from_idx = continue_from_idx
 
     def time_point_specs(self) -> Iterator[Tuple[TimeSliceReadSource, int, float]]:
         yield from zip(self.read_sources, self.read_depths, self.time_points)
@@ -259,44 +261,48 @@ class Filter:
 
         resulting_files: List[Path] = []
         for t_idx, (src, read_depth, time_point) in enumerate(self.time_point_specs()):
-            sam_paths_t = []
-            for read_path in src.paths:
-                base_path = read_path.parent
-                aligner_tmp_dir = base_path / "tmp"
-                aligner_tmp_dir.mkdir(parents=True, exist_ok=True)
-
-                sam_path = aligner_tmp_dir / "{}.sam".format(
-                    file_base_name(read_path)
-                )
-
-                bwa.bwa_mem(
-                    output_path=sam_path,
-                    reference_path=self.reference_path,
-                    read_path=read_path,
-                    min_seed_length=self.min_seed_length,
-                    report_all_alignments=True  # Just to make sure, report all possible alignments (multi-mapped reads)
-                )
-                sam_paths_t.append(sam_path)
-
             result_metadata_path = self.output_dir / 'metadata_{}.tsv'.format(time_point)
             result_fq_path = self.output_dir / "reads_{}.fq".format(time_point)
 
-            logger.debug("(t = {}) Reading SAM files {}".format(
-                time_point,
-                ",".join(str(p) for p in sam_paths_t)
-            ))
+            if t_idx >= self.continue_from_idx:
+                sam_paths_t = []
+                for read_path in src.paths:
+                    base_path = read_path.parent
+                    aligner_tmp_dir = base_path / "tmp"
+                    aligner_tmp_dir.mkdir(parents=True, exist_ok=True)
 
-            filter_file(
-                db=self.db,
-                sam_files=sam_paths_t,
-                result_metadata_path=result_metadata_path,
-                result_fq_path=result_fq_path,
-                quality_format=self.quality_format,
-                pct_identity_threshold=self.pct_identity_threshold
-            )
-            logger.info("Timepoint {t}, filtered reads file: {f}".format(
-                t=time_point, f=result_fq_path
-            ))
+                    sam_path = aligner_tmp_dir / "{}.sam".format(
+                        file_base_name(read_path)
+                    )
+
+                    bwa.bwa_mem(
+                        output_path=sam_path,
+                        reference_path=self.reference_path,
+                        read_path=read_path,
+                        min_seed_length=self.min_seed_length,
+                        report_all_alignments=True  # Just to make sure, report all possible alignments (multi-mapped reads)
+                    )
+                    sam_paths_t.append(sam_path)
+
+                logger.debug("(t = {}) Reading SAM files {}".format(
+                    time_point,
+                    ",".join(str(p) for p in sam_paths_t)
+                ))
+
+                filter_file(
+                    db=self.db,
+                    sam_files=sam_paths_t,
+                    result_metadata_path=result_metadata_path,
+                    result_fq_path=result_fq_path,
+                    quality_format=self.quality_format,
+                    pct_identity_threshold=self.pct_identity_threshold
+                )
+                logger.info("Timepoint {t}, filtered reads file: {f}".format(
+                    t=time_point, f=result_fq_path
+                ))
+            else:
+                pass
+
             resulting_files.append(result_fq_path)
 
         save_input_csv(self.time_points, self.read_depths, self.output_dir / destination_csv, resulting_files)
@@ -342,6 +348,10 @@ def parse_args():
     parser.add_argument('--pct_identity_threshold', required=False, type=float,
                         default=0.7,
                         help='<Optional> The percent identity threshold at which to filter reads. Default is 0.7.')
+    parser.add_argument('--continue_from_idx', required=False, type=int,
+                        default=0,
+                        help='<Optional> For debugging purposes, assumes that the first N timepoints have already '
+                             'been processed, and resumes the filtering at N+1.')
 
     return parser.parse_args()
 
@@ -369,7 +379,8 @@ def main():
         output_dir=Path(args.output_dir),
         quality_format=args.quality_format,
         pct_identity_threshold=args.pct_identity_threshold,
-        min_seed_length=args.min_seed_length
+        min_seed_length=args.min_seed_length,
+        continue_from_idx=args.continue_from_idx
     )
     filt.apply_filter(f"filtered_{args.input_file}")
     logger.info("Finished filtering.")
