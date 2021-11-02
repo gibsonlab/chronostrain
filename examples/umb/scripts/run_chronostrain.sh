@@ -13,7 +13,7 @@ python inference_with_variant_search.py \
 --reads_dir "${READS_DIR}/filtered" \
 --out_dir $CHRONOSTRAIN_OUTPUT_DIR \
 --quality_format "fastq" \
---input_file "input_files.csv" \
+--input_file "filtered_inputs.csv" \
 --seed $SEED \
 --iters $CHRONOSTRAIN_NUM_ITERS \
 --num_samples $CHRONOSTRAIN_NUM_SAMPLES \
