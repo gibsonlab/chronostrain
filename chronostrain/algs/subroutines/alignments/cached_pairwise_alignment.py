@@ -78,10 +78,6 @@ class CachedReadPairwiseAlignments(object):
                         self.db,
                         read_getter=lambda read_id: time_slice.get_read(read_id),
                 ):
-                    if aln.is_edge_mapped:
-                        logger.debug(f"Ignoring alignment of read {aln.read.id} to marker {aln.marker.id} "
-                                     f"({aln.sam_path.name}, Line {aln.sam_line_no}), which is edge-mapped.")
-                        continue
                     marker_to_reads[aln.marker][t_idx].append(aln)
         yield from marker_to_reads.items()
 

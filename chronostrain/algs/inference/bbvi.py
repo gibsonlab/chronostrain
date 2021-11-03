@@ -200,7 +200,8 @@ class GaussianPosteriorStrainCorrelation(AbstractPosterior):
                 ).log_prob(samples_t)
             except ValueError:
                 cov = linear.weight.t().mm(linear.weight).detach()
-                logger.debug("Resulting covariance matrix: (t={}) {}, mean: {}".format(t, cov, linear.bias))
+                logger.debug("# strains = {}".format(self.model.num_strains()))
+                logger.error("Resulting covariance matrix: (t={}) {}, mean: {}".format(t, cov, linear.bias))
                 raise
             ans = ans + log_likelihood_t
         return ans

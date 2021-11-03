@@ -132,7 +132,7 @@ def save_frag_probabilities(
                 })
 
     import pandas as pd
-    pd.DataFrame(df_entries).set_index(["time_idx", "read_idx"]).to_csv(str(frag_prob_path), mode="w")
+    pd.DataFrame(df_entries).set_index(["time_idx", "read_idx"]).to_csv(str(out_path), mode="w")
     logger.info("Saved read-to-fragment likelihoods to {} [{}].".format(
         out_path,
         filesystem.convert_size(out_path.stat().st_size)

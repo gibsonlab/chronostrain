@@ -204,7 +204,7 @@ def parse(target_marker: Marker, reads: TimeSeriesReads, aln_path: Path) -> Mark
     for idx, read in enumerate(reverse_reads):
         if read in reverse_read_index_map:
             raise RuntimeError(f"Found multiple mapping positions for reverse-mapped read {read.id}.")
-        reverse_read_index_map[read] = idx
+        reverse_read_index_map[read] = idx + len(forward_reads)
 
     return MarkerMultipleFragmentAlignment(
         marker=target_marker,

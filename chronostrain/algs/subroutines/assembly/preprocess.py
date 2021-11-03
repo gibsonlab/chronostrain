@@ -56,7 +56,11 @@ def to_bam(alignment: MarkerMultipleFragmentAlignment, out_path: Path):
         quality = np.zeros(shape=query_seq.shape, dtype=float)
         quality[query_seq == nucleotide_GAP_z4] = 0
         quality[query_seq != nucleotide_GAP_z4] = read.quality
-        query_seq[query_seq == nucleotide_GAP_z4] = nucleotide_N_z4
+        # query_seq[query_seq == nucleotide_GAP_z4]
+        query = "".join(
+            map_z4_to_nucleotide(x) if x != nucleotide_GAP_z4 else VCF_GAP_CHAR
+            for x in query_seq
+        )
 
         w.writerow([
             f"T{t_idx};R{int(reverse_complement)};{read.id}",
@@ -68,7 +72,7 @@ def to_bam(alignment: MarkerMultipleFragmentAlignment, out_path: Path):
             rnext,
             str(pnext),
             str(tlen),
-            z4_to_nucleotides(query_seq),
+            query,
             phred_to_ascii(quality, "fastq")
         ])
 
@@ -140,7 +144,7 @@ def to_vcf(alignment: MarkerMultipleFragmentAlignment,
             variant_counts_i = variant_counts[idx]
 
             # Compute the supported variants, not equal to the reference base.
-            supported_variant_indices = set(np.where(variant_counts_i > 0)[0])
+            supported_variant_indices = set(np.where(variant_counts_i > 0)[0]).difference({ref_base_idx})
 
             # No reads map to this position. Nothing to do.
             if (
@@ -155,6 +159,7 @@ def to_vcf(alignment: MarkerMultipleFragmentAlignment,
                 f"AC={','.join(str(variant_counts_i[v]) for v in supported_variant_indices)}",
                 f"AN={len(supported_variant_indices)}"
             ]
+
             if ref_base_z4 == nucleotide_GAP_z4:
                 info_tags.append("INS")
             elif variant_counts_i[-1] > 0:  # Assumes that "-" is indexed at the last column!
@@ -165,7 +170,7 @@ def to_vcf(alignment: MarkerMultipleFragmentAlignment,
                 alignment.marker.id,  # chrom
                 idx + 1,  # pos
                 ".",  # id
-                map_z4_to_nucleotide(ref_base_z4),  # ref
+                map_z4_to_nucleotide(ref_base_z4) if ref_base_z4 != nucleotide_GAP_z4 else VCF_GAP_CHAR,  # ref
                 ",".join(render_base(_z4_base_ordering[v]) for v in supported_variant_indices),  # alt
                 "100",  # qual
                 "PASS",  # filter

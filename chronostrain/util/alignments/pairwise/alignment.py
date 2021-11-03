@@ -71,6 +71,10 @@ class SequenceReadPairwiseAlignment(object):
         self.reverse_complemented: bool = reverse_complemented
 
     @property
+    def is_clipped(self) -> bool:
+        return self.soft_clip_start > 0 or self.hard_clip_start > 0 or self.soft_clip_end > 0 or self.hard_clip_end > 0
+
+    @property
     def is_edge_mapped(self) -> bool:
         if self.marker_start == 0:
             return self.soft_clip_start > 0 or self.hard_clip_start > 0

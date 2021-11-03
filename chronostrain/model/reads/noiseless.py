@@ -22,7 +22,7 @@ class NoiselessErrorModel(AbstractErrorModel):
             return self.mismatch_log_likelihood
 
         if read_reverse_complemented:
-            read_seq = read.seq[::-1]
+            read_seq = reverse_complement_seq(read.seq)
         else:
             read_seq = read.seq
 

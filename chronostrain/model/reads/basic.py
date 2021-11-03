@@ -198,7 +198,7 @@ class BasicErrorModel(AbstractErrorModel):
 
         if read_reverse_complemented:
             read_qual = read_qual[::-1]
-            read_seq = read.seq[::-1]
+            read_seq = cseq.reverse_complement_seq(read_seq)
 
         return insertion_ll + deletion_ll + np.log(
             BasicErrorModel.Q_SCORE_BASE_CHANGE_MATRICES[read_qual, fragment_seq, read_seq]

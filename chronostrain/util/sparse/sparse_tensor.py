@@ -59,6 +59,8 @@ class SparseMatrix(object):
         return torch_sparse.spmm(self.indices, self.values, self.rows, self.columns, x)
 
     def sparse_mul(self, x: 'SparseMatrix') -> 'SparseMatrix':
+        if self.columns != x.rows:
+            raise RuntimeError(f"Matrices cannot be multiplied ({self.rows}x{self.columns}) and ({x.rows}x{x.columns})")
         result_indices, result_values = torch_sparse.spspmm(
             self.indices, self.values, x.indices, x.values, self.rows, self.columns, x.columns
         )

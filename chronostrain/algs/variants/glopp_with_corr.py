@@ -96,7 +96,7 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
         for marker_multi_align in self.multi_alignments:
             marker_assembly: FloppMarkerAssembly = CachedGloppVariantAssembly(
                 self.reads, marker_multi_align, quality_lower_bound=self.quality_lower_bound
-            ).run()
+            ).run(num_variants=None)  # TODO
 
             marker_assemblies[marker_assembly.marker] = marker_assembly
         return marker_assemblies
@@ -206,6 +206,10 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
                 variant.id for variant in marker_variants
             )
         )
+
+        logger.debug("Creating Strain Variant ({})".format(
+            variant_id
+        ))
 
         return FloppStrainVariant(
             base_strain=base_strain,

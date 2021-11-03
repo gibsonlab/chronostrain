@@ -19,6 +19,15 @@ class DenseDataLikelihoods(DataLikelihoods):
     def _likelihood_computer(self) -> AbstractLogLikelihoodComputer:
         return DenseLogLikelihoodComputer(self.model, self.data)
 
+    def conditional_likelihood(self, X: torch.Tensor) -> float:
+        y = torch.softmax(X, dim=1)
+        # Calculation is sigma(X) @ W @ E.
+        total_ll = 0.
+        for t in range(self.model.num_times()):
+            # (T x S) * (S x F) * (F x N)
+            total_ll += torch.log(y[t] @ (self.model.fragment_frequencies.t() @ self.matrices[t])).sum()
+        return total_ll
+
 
 class DenseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
 

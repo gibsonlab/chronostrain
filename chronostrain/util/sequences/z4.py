@@ -15,6 +15,7 @@ _acgt_to_z4 = {
     "T": 3,
     "t": 3,
     "N": 4,  # Special character (unknown base)
+    "n": 4,
     "-": 5   # Special character (gap)
 }
 _z4_to_acgt = ["A", "C", "G", "T", "N", "-"]

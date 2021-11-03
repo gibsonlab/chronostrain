@@ -155,33 +155,6 @@ class GenerativeModel:
             X = X.view(r, 1, c)
         return self.log_likelihood_x_sics_prior(X)
 
-    def data_likelihood(self, X: torch.Tensor, read_likelihoods: List[Union[torch.Tensor, SparseMatrix]]) -> float:
-        """
-        Computes the conditional data likelihood p(Data | X).
-        :param X: The (T x S) tensor of latent abundance representations.
-        :param read_likelihoods: A length-T list of (F x N) tensors representing the fragment-to-read likelihoods.
-        :return:
-        """
-        y = torch.softmax(X, dim=1)
-
-        # Calculation is sigma(X) @ W @ E.
-        if cfg.model_cfg.use_sparse:
-            total_ll = 0.
-            for t in range(self.num_times()):
-                likelihoods_t = torch.mm(  # result is (T x N)
-                    y[t].view(1, -1),  # (T x S)
-                    self.fragment_frequencies.t().sparse_mul(read_likelihoods[t]).to_dense()
-                    # (F x S).T x (F x N) -> (S x N)
-                ).log().sum()
-                total_ll += likelihoods_t
-            return total_ll
-        else:
-            total_ll = 0.
-            for t in range(self.num_times()):
-                # (T x S) * (S x F) * (F x N)
-                total_ll += torch.log(y[t] @ (self.fragment_frequencies.t() @ read_likelihoods[t])).sum()
-            return total_ll
-
     def log_likelihood_x_halfcauchy_prior(self, X: torch.Tensor) -> torch.Tensor:
         """
         Implementation of log_likelihood_x using HalfCauchy prior for the variance.

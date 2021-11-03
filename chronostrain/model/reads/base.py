@@ -6,7 +6,7 @@ from typing import Union, Optional
 import numpy as np
 from abc import abstractmethod, ABCMeta
 from chronostrain.model import Fragment
-from chronostrain.util.sequences import nucleotides_to_z4, z4_to_nucleotides, SeqType
+from chronostrain.util.sequences import nucleotides_to_z4, z4_to_nucleotides, SeqType, reverse_complement_seq
 
 
 class SequenceRead:
@@ -34,8 +34,11 @@ class SequenceRead:
         self.quality: np.array = quality
         self.metadata: str = metadata
 
-    def nucleotide_content(self) -> str:
-        return z4_to_nucleotides(self.seq)
+    def nucleotide_content(self, reverse_complement: bool = False) -> str:
+        if reverse_complement:
+            return z4_to_nucleotides(reverse_complement_seq(self.seq))
+        else:
+            return z4_to_nucleotides(self.seq)
 
     def __str__(self):
         return "[SEQ:{},QUAL:{}]".format(

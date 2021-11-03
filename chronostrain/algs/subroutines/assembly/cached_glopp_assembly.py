@@ -91,8 +91,11 @@ class CachedGloppVariantAssembly(object):
         vcf_path = self.prepare_vcf()
         return bam_path, vcf_path
 
-    def run(self) -> FloppMarkerAssembly:
-        subdir = "output"
+    def run(self, num_variants: Optional[int] = None) -> FloppMarkerAssembly:
+        if num_variants is None:
+            subdir = "output"
+        else:
+            subdir = f"output_ploidy_{num_variants}"
         rel_output_dir = self.relative_dir / subdir
         abs_output_dir = self.absolute_dir / subdir
         phasing_rel_output_path = rel_output_dir / f"{self.alignment.marker.id}_phasing.txt"
@@ -108,7 +111,7 @@ class CachedGloppVariantAssembly(object):
                 bam_path=self.bam_path,
                 vcf_path=self.vcf_path,
                 output_dir=abs_output_dir,
-                # ploidy=num_variants,
+                ploidy=num_variants,
                 use_mec_score=True
             )
 
@@ -212,7 +215,6 @@ class CachedGloppVariantAssembly(object):
                     hap_line = next(phasing_file)
                     abs_pos_idx += 1
                     tokens = hap_line.strip().split("\t")
-
                     for k in range(parsed_ploidy):
                         contig_assembly[contig_pos_idx, k] = allele_parser(abs_pos_idx, int(tokens[k + 1]))
                 intermediate_line = next(phasing_file)
@@ -239,7 +241,13 @@ class CachedGloppVariantAssembly(object):
                     revcomp = int(revcomp_tok[1:]) == 1
 
                     # Obtain the read's aligned sequence.
-                    read_obj = self.reads[t_idx].get_read(read_id)
+                    try:
+                        read_obj = self.reads[t_idx].get_read(read_id)
+                    except KeyError:
+                        logger.error("Missing key `{}` from timepoint index `{}`.".format(
+                            read_id, t_idx
+                        ))
+                        raise
                     read_full_seq = self.alignment.get_aligned_read_seq(read_obj, revcomp)
 
                     # Parse the read's first/last positions.

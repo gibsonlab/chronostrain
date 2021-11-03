@@ -34,7 +34,13 @@ class DataLikelihoods(object):
         self.matrices = [
             ll_tensor.exp() for ll_tensor in log_likelihoods_tensors
         ]
-        self.retained_indices = self._trim()
+
+        # TODO: remove this. Filtering by alignment now solves this issue.
+        # self.retained_indices = self._trim()
+        self.retained_indices = [
+            list(range(len(self.data[t_idx])))
+            for t_idx in range(self.model.num_times())
+        ]
 
     @abstractmethod
     def _likelihood_computer(self) -> 'AbstractLogLikelihoodComputer':
@@ -57,8 +63,7 @@ class DataLikelihoods(object):
             if len(zero_indices) > 0:
                 logger.debug(
                     "[t = {}] For numerical stability, "
-                    "discarding {} of {} reads "
-                    "with overall likelihood < {}: {}".format(
+                    "discarding {} of {} reads with overall likelihood < {}: {}".format(
                         self.model.times[t_idx],
                         len(zero_indices),
                         len(sums),
@@ -83,6 +88,14 @@ class DataLikelihoods(object):
             else:
                 read_indices.append(list(range(len(self.data[t_idx]))))
         return read_indices
+
+    @abstractmethod
+    def conditional_likelihood(self, X: torch.Tensor) -> float:
+        """
+        Computes the conditional data likelihood p(Data | X).
+        :param X: The (T x S) tensor of latent abundance representations.
+        :return:
+        """
 
 
 class AbstractLogLikelihoodComputer(metaclass=ABCMeta):

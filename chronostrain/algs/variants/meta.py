@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Optional, Iterator, Tuple, List
+from typing import Iterator, Tuple, List
 
 import torch
 
@@ -8,9 +8,10 @@ from chronostrain.model import Population, GenerativeModel, FragmentSpace, Strai
 from chronostrain.model.io import TimeSeriesReads
 from .base import StrainVariant
 from ..inference import BBVISolver
-from ..subroutines.alignments import CachedReadMultipleAlignments
+from ..subroutines.alignments import CachedReadMultipleAlignments, CachedReadPairwiseAlignments
 
 from chronostrain.config import create_logger, cfg
+
 logger = create_logger(__name__)
 
 
@@ -88,7 +89,7 @@ class AbstractVariantBBVISolver(object):
             # obtain the solution and likelihood.
             model, solver, data_ll_estimate = self.run_bbvi(population, cumulative_fragments)
 
-            if data_ll_estimate <= best_data_ll_estimate:
+            if best_model is not None and data_ll_estimate < best_data_ll_estimate:
                 # Found local max.
                 logger.debug(
                     "Data LL decrease ({:.3f} --> {:.3f}). Terminating search at {} strains ({} non-base variants).".format(
@@ -101,10 +102,16 @@ class AbstractVariantBBVISolver(object):
                 return best_model.bacteria_pop, best_result
             else:
                 # Keep searching.
+                logger.debug("New data ll estimate: {:.3f}".format(data_ll_estimate))
                 best_data_ll_estimate = data_ll_estimate
                 best_model = model
                 best_result = solver
+                best_strains = best_strains + [strain_variant]
                 best_num_variants += 1
+        if best_model is None:
+            raise RuntimeError("Unable to decide on variant-only population.")
+        else:
+            return best_model.bacteria_pop, best_result
 
     def database_reference(self) -> Tuple[Population, FragmentSpace]:
         fragments = FragmentSpace()
@@ -149,18 +156,33 @@ class AbstractVariantBBVISolver(object):
             mean_frag_length=cfg.model_cfg.mean_read_length
         )
 
-        solver = BBVISolver(model=model, data=self.reads, correlation_type="strain", db=self.db)
-        solver.solve(
-            optim_class=torch.optim.Adam,
-            optim_args={'lr': self.bbvi_lr, 'betas': (0.9, 0.999), 'eps': 1e-7, 'weight_decay': 0.},
-            iters=self.bbvi_iters,
-            num_samples=self.bbvi_num_samples,
-            print_debug_every=100
-        )
+        if model.num_strains() > 1:
+            solver = BBVISolver(model=model, data=self.reads, correlation_type="strain", db=self.db)
+            solver.solve(
+                optim_class=torch.optim.Adam,
+                optim_args={'lr': self.bbvi_lr, 'betas': (0.9, 0.999), 'eps': 1e-7, 'weight_decay': 0.},
+                iters=self.bbvi_iters,
+                num_samples=self.bbvi_num_samples,
+                print_debug_every=100
+            )
 
-        x_latent_mean = solver.gaussian_posterior.mean()
-        prior_ll = model.log_likelihood_x(x_latent_mean)
-        data_ll = model.data_likelihood(x_latent_mean, solver.data_likelihoods.matrices)
-        posterior_ll_est = solver.gaussian_posterior.log_likelihood(x_latent_mean)
-        data_ll_estimate = (data_ll + prior_ll - posterior_ll_est).item()
-        return model, solver, data_ll_estimate
+            x_latent_mean = solver.gaussian_posterior.mean()
+            prior_ll = model.log_likelihood_x(x_latent_mean)
+            data_ll = solver.data_likelihoods.conditional_likelihood(x_latent_mean)
+            posterior_ll_est = solver.gaussian_posterior.log_likelihood(x_latent_mean)
+            logger.debug("Log likelihoods: Data={}, Prior={}, Posterior={}".format(
+                data_ll,
+                prior_ll.item(),
+                posterior_ll_est.item()
+            ))
+
+            # Bayes Rule: Pr(Data|Variants) = Pr(Data|X,Variants) * Pr(X|Variants) / Pr(X|Data,Variants)
+            data_ll_estimate = (data_ll + prior_ll - posterior_ll_est).item()
+            return model, solver, data_ll_estimate
+        else:
+            # Special case when there is only one strain in the population. (Nothing to do)
+            solver = BBVISolver(model=model, data=self.reads, correlation_type="strain", db=self.db)
+            data_ll = solver.data_likelihoods.conditional_likelihood(
+                torch.ones((model.num_times(), 1))
+            )
+            return model, solver, data_ll

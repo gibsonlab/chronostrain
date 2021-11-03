@@ -4,7 +4,7 @@ import numpy as np
 from chronostrain.model import Fragment
 from chronostrain.model.reads.base import AbstractErrorModel, SequenceRead
 from chronostrain.model.reads.basic import RampUpRampDownDistribution
-from chronostrain.util.sequences import nucleotide_N_z4, NucleotideDtype
+from chronostrain.util.sequences import nucleotide_N_z4, NucleotideDtype, reverse_complement_seq
 
 
 class BasicPhredScoreDistribution(RampUpRampDownDistribution):
@@ -53,7 +53,7 @@ class PhredErrorModel(AbstractErrorModel):
 
         if read_reverse_complemented:
             read_qual = read_qual[::-1]
-            read_seq = read_seq[::-1]
+            read_seq = reverse_complement_seq(read_seq)
 
         error_log10_prob = -0.1 * read_qual
         matches: np.ndarray = (fragment_seq == read_seq) & (read_qual > 0)

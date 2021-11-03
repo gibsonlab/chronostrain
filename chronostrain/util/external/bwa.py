@@ -1,12 +1,15 @@
 from .commandline import *
 
 
-def bwa_index(reference_path: Path, bwa_path="bwa"):
-    """
-    TODO: Allow configurable minimum seed length
-    """
-
-    exit_code = call_command(bwa_path, ['index', reference_path])
+def bwa_index(reference_path: Path, bwa_path="bwa", algorithm: str = "is"):
+    exit_code = call_command(
+        bwa_path,
+        [
+            'index',
+            '-a', algorithm,
+            reference_path
+        ]
+    )
     if exit_code != 0:
         raise CommandLineException("bwa index", exit_code)
 

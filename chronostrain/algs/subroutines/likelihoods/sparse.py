@@ -33,9 +33,10 @@ class SparseDataLikelihoods(DataLikelihoods):
     ):
         self.db = db
         super().__init__(model, data, read_likelihood_lower_bound=read_likelihood_lower_bound)
-        self.supported_frags = []
+        self.supported_frags: List[torch.Tensor] = []
+        self.projectors: List[SparseMatrix] = []
 
-        # Delete empty rows.
+        # Delete empty rows (Fragments)
         for t_idx in range(self.model.num_times()):
             F = self.matrices[t_idx].size()[0]
             row_support = self.matrices[t_idx].indices[0, :].unique(
@@ -57,10 +58,30 @@ class SparseDataLikelihoods(DataLikelihoods):
             )
 
             self.matrices[t_idx] = projector.sparse_mul(self.matrices[t_idx])
+            self.projectors.append(projector)
             self.supported_frags.append(row_support)
 
     def _likelihood_computer(self) -> AbstractLogLikelihoodComputer:
         return SparseLogLikelihoodComputer(self.model, self.data, self.db)
+
+    def conditional_likelihood(self, X: torch.Tensor) -> float:
+        y = torch.softmax(X, dim=1)
+        total_ll = 0.
+        for t_idx in range(self.model.num_times()):
+            log_likelihood_t = torch.mm(  # result is (T x N)
+                y[t_idx].view(1, -1),  # (T x S)
+                self.model.fragment_frequencies.t().sparse_mul(
+                    self.projectors[t_idx].t()
+                ).sparse_mul(
+                    self.matrices[t_idx]
+                ).to_dense()
+                # (S x F) x (F x F') x (F' x F) x (F x N) -> (S x N)
+            ).log().sum()
+
+            total_ll += log_likelihood_t
+            # if True:
+            #     print("t_idx = {}, ll = {}".format(t_idx, log_likelihood_t))
+        return total_ll
 
 
 class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
@@ -141,6 +162,10 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                        "soft clipped reads. (Developer note: keep an eye on this)")
         for base_marker, alns in self.pairwise_reference_alignments.alignments_by_marker_and_timepoint(t_idx).items():
             for aln in alns:
+                if aln.is_edge_mapped or aln.is_clipped:
+                    logger.debug(f"Ignoring alignment of read {aln.read.id} to marker {aln.marker.id} "
+                                 f"({aln.sam_path.name}, Line {aln.sam_line_no}), which is edge-mapped.")
+                    continue
                 # First, add the likelihood for the fragment for the aligned base marker.
                 if self.model.bacteria_pop.contains_marker(base_marker):
                     marker_frag_seq: SeqType = aln.marker_frag
@@ -240,9 +265,21 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
             for variant in self.marker_variants_of(multi_align.marker):
                 for revcomp in [True, False]:
                     for read in multi_align.reads(revcomp):
+                        if not time_slice.contains_read(read.id):
+                            continue
+
                         for subseq, insertions, deletions in variant.subseq_from_read(read):
                             frag = self.model.fragments.get_fragment(subseq)
                             ll = self.read_frag_ll(frag, read, insertions, deletions, reverse_complemented=revcomp)
+                            # print("(T = {}) ({}) read={}, frag={}: {} ({} ins, {} dels)".format(
+                            #     t_idx,
+                            #     read.id,
+                            #     read.nucleotide_content(),
+                            #     frag.nucleotide_content(),
+                            #     ll,
+                            #     np.sum(insertions),
+                            #     np.sum(deletions)
+                            # ))
                             read_to_frag_likelihoods[read.id].append((frag, ll))
         return read_to_frag_likelihoods
 

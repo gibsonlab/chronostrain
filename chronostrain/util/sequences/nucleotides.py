@@ -32,7 +32,7 @@ def complement_seq(seq: SeqType) -> SeqType:
     ], dtype=NucleotideDtype)
 
 
-def reverse_complement_seq(seq: SeqType) -> str:
+def reverse_complement_seq(seq: SeqType) -> SeqType:
     return complement_seq(seq)[::-1]
 
 

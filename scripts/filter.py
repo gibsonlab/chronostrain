@@ -177,9 +177,17 @@ def filter_file(
                 raise ValueError(f"Unknown percent identity from alignment of read `{aln.read.id}`")
 
             passed_filter = (
-                filter_on_match_identity(aln.percent_identity, identity_threshold=pct_identity_threshold)
+                not aln.is_edge_mapped
+                and filter_on_match_identity(aln.percent_identity, identity_threshold=pct_identity_threshold)
                 and filter_on_read_quality(aln.read.quality)
             )
+
+            if aln.is_edge_mapped:
+                logger.debug("Skipping read {}, which was edge mapped. Alignment to {} had percent identity = {}.".format(
+                    aln.read.id,
+                    aln.marker.id,
+                    aln.percent_identity
+                ))
 
             # Write to metadata file.
             metadata_csv_writer.writerow(
