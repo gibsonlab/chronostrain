@@ -488,41 +488,45 @@ class BBVISolver(AbstractModelSolver):
                         - posterior_gaussian_log_likelihoods)
         return elbo_samples.mean()
 
-    def update_phi(self, x_samples: torch.Tensor):
+    def update_phi(self, x_samples: torch.Tensor, eps_smoothing: float = 1e-30):
         if cfg.model_cfg.use_sparse:
-            return self.update_phi_sparse(x_samples)
+            return self.update_phi_sparse(x_samples, eps_smoothing)
         else:
-            return self.update_phi_dense(x_samples)
+            return self.update_phi_dense(x_samples, eps_smoothing)
 
-    def update_phi_dense(self, x_samples: torch.Tensor):
+    def update_phi_dense(self, x_samples: torch.Tensor, eps_smoothing: float):
         """
         This step represents the explicit solution of maximizing the ELBO of Q_phi (the mean-field portion of
         the read-to-fragment posteriors), given a particular solution of (samples from) Q_X.
         :param x_samples:
+        :param eps_smoothing: A small epsilon parameter to smooth out estimates (e.g. normalize eps + phi,
+            instead of phi which may contain columns of all zeros due to numerical precision.)
         :return:
         """
         W = self.model.fragment_frequencies
         self.fragment_posterior.phi = []
 
         for t in range(self.model.num_times()):
-            phi_t = self.data_likelihoods.matrices[t] * torch.exp(
+            phi_t = self.data_likelihoods.matrices[t].exp() * torch.exp(
                 torch.mean(
                     torch.log(W @ softmax(x_samples[t], dim=1).transpose(0, 1)),
                     dim=1
                 )
-            ).unsqueeze(1)
+            ).unsqueeze(1) + eps_smoothing
             self.fragment_posterior.phi.append(normalize(phi_t, dim=0))
 
-    def update_phi_sparse(self, x_samples: torch.Tensor):
+    def update_phi_sparse(self, x_samples: torch.Tensor, eps_smoothing: float):
         """
         Same as update_phi_dense, but accounts for the fact that the W and read_likelihoods[t] matrices are sparse.
         :param x_samples:
+        :param eps_smoothing: A small epsilon parameter to smooth out estimates (e.g. normalize eps + phi,
+            instead of phi which may contain columns of all zeros due to numerical precision.)
         :return:
         """
         self.fragment_posterior.phi = []
 
         for t in range(self.model.num_times()):
-            phi_t: SparseMatrix = self.data_likelihoods.matrices[t].scale_row(
+            phi_t: SparseMatrix = self.data_likelihoods.matrices[t].exp().scale_row(
                 torch.exp(torch.mean(
                     torch.log(
                         # (F' x S) @ (S x N)
@@ -533,7 +537,7 @@ class BBVISolver(AbstractModelSolver):
                 dim=0
             )
 
-            self.fragment_posterior.phi.append(phi_t.normalize(dim=0))
+            self.fragment_posterior.phi.append(phi_t.add_constant(eps_smoothing).normalize(dim=0))
 
     def solve(self,
               optim_class=torch.optim.Adam,

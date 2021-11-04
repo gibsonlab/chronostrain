@@ -5,7 +5,7 @@ from chronostrain.config import create_logger, cfg
 from chronostrain.algs import GloppVariantSolver
 
 from helpers import *
-logger = create_logger(__name__)
+logger = create_logger("variant_search")
 
 
 def parse_args():

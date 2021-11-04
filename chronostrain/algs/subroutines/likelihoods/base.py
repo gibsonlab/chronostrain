@@ -32,62 +32,12 @@ class DataLikelihoods(object):
 
         log_likelihoods_tensors = self._likelihood_computer().compute_likelihood_tensors()
         self.matrices = [
-            ll_tensor.exp() for ll_tensor in log_likelihoods_tensors
-        ]
-
-        # TODO: remove this. Filtering by alignment now solves this issue.
-        # self.retained_indices = self._trim()
-        self.retained_indices = [
-            list(range(len(self.data[t_idx])))
-            for t_idx in range(self.model.num_times())
+            ll_tensor for ll_tensor in log_likelihoods_tensors
         ]
 
     @abstractmethod
     def _likelihood_computer(self) -> 'AbstractLogLikelihoodComputer':
         raise NotImplementedError()
-
-    def _trim(self) -> List[List[int]]:
-        """
-        Trims the likelihood matrices using the specified lower bound. Reads are removed if there are no fragments
-        with likelihood greater than the lower bound. (This should ideally not happen if a stringent alignment-based
-        filter was applied.)
-
-        :return: List of the index of kept reads (exceeding the lower bound threshold).
-        """
-        read_indices = []
-        for t_idx in range(self.model.num_times()):
-            read_likelihoods_t = self.matrices[t_idx]
-            sums = read_likelihoods_t.sum(dim=0)
-
-            zero_indices = {i.item() for i in torch.where(sums <= self.read_likelihood_lower_bound)[0]}
-            if len(zero_indices) > 0:
-                logger.debug(
-                    "[t = {}] For numerical stability, "
-                    "discarding {} of {} reads with overall likelihood < {}: {}".format(
-                        self.model.times[t_idx],
-                        len(zero_indices),
-                        len(sums),
-                        self.read_likelihood_lower_bound,
-                        ",".join(str(self.data[t_idx][read_idx].id) for read_idx in zero_indices)
-                    )
-                )
-
-                leftover_indices = [
-                    read_idx
-                    for read_idx in range(len(self.data[t_idx]))
-                    if read_idx not in zero_indices
-                ]
-                read_indices.append(leftover_indices)
-
-                if isinstance(read_likelihoods_t, SparseMatrix):
-                    self.matrices[t_idx] = read_likelihoods_t.slice_columns(
-                        leftover_indices
-                    )
-                else:
-                    self.matrices[t_idx] = read_likelihoods_t[:, leftover_indices]
-            else:
-                read_indices.append(list(range(len(self.data[t_idx]))))
-        return read_indices
 
     @abstractmethod
     def conditional_likelihood(self, X: torch.Tensor) -> float:

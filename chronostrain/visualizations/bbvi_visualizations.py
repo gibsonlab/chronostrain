@@ -117,9 +117,8 @@ def save_frag_probabilities(
     df_entries = []
     for t_idx, reads_t in enumerate(reads):
         # Some reads got trimmed, take that into account by asking data_likelihoods about what the "true" index is.
-        for solver_r_idx, r_idx in enumerate(solver.data_likelihoods.retained_indices[t_idx]):
-            read = reads_t[r_idx]
-            for fragment, frag_prob in solver.fragment_posterior.top_fragments(t_idx, solver_r_idx, top=5):
+        for r_idx, read in reads_t:
+            for fragment, frag_prob in solver.fragment_posterior.top_fragments(t_idx, r_idx, top=5):
                 if frag_prob < 0.05:
                     continue
                 df_entries.append({

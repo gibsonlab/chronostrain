@@ -8,6 +8,7 @@ from joblib import Parallel, delayed
 from chronostrain.database import StrainDatabase
 from chronostrain.model import Fragment, Marker, SequenceRead, AbstractMarkerVariant
 from chronostrain.util.alignments.multiple import MarkerMultipleFragmentAlignment
+from chronostrain.util.math import logmatmulexp
 from chronostrain.util.sequences import SeqType
 from chronostrain.util.sparse import SparseMatrix
 from chronostrain.model.io import TimeSeriesReads
@@ -68,19 +69,16 @@ class SparseDataLikelihoods(DataLikelihoods):
         y = torch.softmax(X, dim=1)
         total_ll = 0.
         for t_idx in range(self.model.num_times()):
-            log_likelihood_t = torch.mm(  # result is (T x N)
-                y[t_idx].view(1, -1),  # (T x S)
-                self.model.fragment_frequencies.t().sparse_mul(
-                    self.projectors[t_idx].t()
-                ).sparse_mul(
-                    self.matrices[t_idx]
-                ).to_dense()
-                # (S x F) x (F x F') x (F' x F) x (F x N) -> (S x N)
-            ).log().sum()
+            log_likelihood_t = logmatmulexp(
+                y[t_idx].log().view(1, -1),
+                logmatmulexp(
+                    self.model.fragment_frequencies.t().sparse_mul(self.projectors[t_idx].t()).log().to_dense(float("-inf")),
+                    self.matrices[t_idx].to_dense(float("-inf"))
+                )  # TODO: replace this with a direct logmatmulexp_sparse implementation.
+            )
 
+            log_likelihood_t = log_likelihood_t.sum()
             total_ll += log_likelihood_t
-            # if True:
-            #     print("t_idx = {}, ll = {}".format(t_idx, log_likelihood_t))
         return total_ll
 
 
@@ -271,15 +269,6 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                         for subseq, insertions, deletions in variant.subseq_from_read(read):
                             frag = self.model.fragments.get_fragment(subseq)
                             ll = self.read_frag_ll(frag, read, insertions, deletions, reverse_complemented=revcomp)
-                            # print("(T = {}) ({}) read={}, frag={}: {} ({} ins, {} dels)".format(
-                            #     t_idx,
-                            #     read.id,
-                            #     read.nucleotide_content(),
-                            #     frag.nucleotide_content(),
-                            #     ll,
-                            #     np.sum(insertions),
-                            #     np.sum(deletions)
-                            # ))
                             read_to_frag_likelihoods[read.id].append((frag, ll))
         return read_to_frag_likelihoods
 

@@ -4,7 +4,7 @@ A sparse 2-d matrix in COO format. Uses torch_sparse as a backend.
 Note: since torch_sparse largely already uses C-compiled computations or JIT whenever possible, calls using
 torch_sparse need not be optimized. For custom model-specific operations, we use @torch.jit ourselves.
 """
-from typing import Tuple, List
+from typing import Tuple, List, Union
 import torch
 import torch_sparse
 
@@ -74,6 +74,14 @@ class SparseMatrix(object):
         """
         return SparseMatrix(self.indices, torch.exp(self.values), (self.rows, self.columns), force_coalesce=False)
 
+    def log(self) -> 'SparseMatrix':
+        """
+        Component-wise logarithm, applie to only the non-empty entries.
+        Note: Be careful of what the empty values mean. If the empty values before the call to log() are meant to
+        be zeroes, then this is not consistent with the behavior in this implementation, since log(0) = -inf.
+        """
+        return SparseMatrix(self.indices, torch.log(self.values), (self.rows, self.columns), force_coalesce=False)
+
     def add(self, y: 'SparseMatrix') -> 'SparseMatrix':
         """
         :param y: The other matrix in the summand.
@@ -91,19 +99,28 @@ class SparseMatrix(object):
             force_coalesce=True
         )
 
+    def add_constant(self, x: Union[int, float], inplace: bool = True) -> 'SparseMatrix':
+        if inplace:
+            self.values = self.values + x
+            return self
+        else:
+            return SparseMatrix(self.indices, self.values + x, (self.columns, self.rows), force_coalesce=False)
+
     def t(self) -> 'SparseMatrix':
         result_indices, result_values = torch_sparse.transpose(self.indices, self.values, self.rows, self.columns)
-        return SparseMatrix(result_indices, result_values, (self.columns, self.rows))
+        return SparseMatrix(result_indices, result_values, (self.columns, self.rows), force_coalesce=False)
 
-    def to_dense(self) -> torch.Tensor:
-        return torch.sparse_coo_tensor(
-            self.indices,
-            self.values,
-            (self.rows, self.columns)
-        ).to_dense()
-
-    def sparse_scalar_sum(self, scalar: float) -> 'SparseMatrix':
-        return SparseMatrix(self.indices, self.values + scalar, (self.rows, self.columns))
+    def to_dense(self, zero_fill=0.) -> torch.Tensor:
+        if zero_fill == 0.:
+            return torch.sparse_coo_tensor(
+                self.indices,
+                self.values,
+                (self.rows, self.columns)
+            ).to_dense()
+        else:
+            x = torch.ones((self.rows, self.columns), dtype=self.values.dtype, device=self.values.device) * zero_fill
+            x[self.indices[0], self.indices[1]] = self.values
+            return x
 
     def scale_row(self, vec: torch.Tensor, dim: int = 0) -> 'SparseMatrix':
         """
@@ -123,7 +140,8 @@ class SparseMatrix(object):
         return SparseMatrix(
             self.indices,
             self.values * vec[self.indices[dim, :]],
-            (self.rows, self.columns)
+            (self.rows, self.columns),
+            force_coalesce=False
         )
 
     def sum(self, dim: int):
@@ -198,7 +216,7 @@ class SparseMatrix(object):
         """
         # Deleting entries
         cols_to_keep = torch.tensor(cols_to_keep, device=self.indices.device).unsqueeze(1)
-        mask = torch.sum(cols_to_keep == self.indices[1, :], dim=0).bool()
+        mask = torch.sum(torch.eq(cols_to_keep, self.indices[1, :]), dim=0).bool()
         indices = self.indices[:, mask]
         values = self.values[mask]
 
@@ -207,4 +225,4 @@ class SparseMatrix(object):
         adj = torch.cumsum(~range_mask, 0)
         indices[1, :] = indices[1, :] - torch.index_select(adj, 0, indices[1, :])
 
-        return SparseMatrix(indices, values, (self.rows, cols_to_keep.size(-2)))
+        return SparseMatrix(indices, values, (self.rows, cols_to_keep.size(-2)), force_coalesce=False)
