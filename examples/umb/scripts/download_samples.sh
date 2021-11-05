@@ -80,7 +80,7 @@ do
 	kneaddata \
 	--input1 $fq_file_1 \
 	--input2 $fq_file_2 \
-	-db $KNEADDATA_DB_DIR \
+	-db ${KNEADDATA_DB_DIR} \
 	--output ${SAMPLES_DIR}/kneaddata_output \
 	--trimmomatic $TRIMMOMATIC_DIR \
 	--trimmomatic-options SLIDINGWINDOW:100:0 MINLEN:35 \
