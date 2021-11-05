@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+source settings.sh
 
 # REQUIRES: wget, sratools, kneaddata, gzip
 check_program()
@@ -15,7 +16,22 @@ check_program 'kneaddata'
 check_program 'prefetch'
 check_program 'fasterq-dump'
 
-source settings.sh
+# Gzips the input fastq file, and appends the fastq-timepoint pair as an entry.
+gzip_and_append_fastq()
+{
+	fq_path=$1
+	time=$2
+	num_lines=$(wc -l $fq_path | awk '{print $1}')
+	num_reads=$((${num_lines} / 4))
+	if [[ $num_reads > 0 ]]; then
+  	echo "[*] Compressing: ${fq_path}"
+		gzip $fq_path --force
+		gz_file="${fq_path}.gz"
+		echo "\"${time}\",\"${num_reads}\",\"${gz_file}\"" >> $INPUT_INDEX_PATH
+  else
+  	echo "Skipping ${fq_path}."
+  fi
+}
 
 # Clear index file.
 mkdir -p ${READS_DIR}
@@ -28,6 +44,7 @@ query="${BIOPROJECT}+AND+UMB24+AND+stool"
 mkdir -p ${SAMPLES_DIR}
 mkdir -p ${SRA_PREFETCH_DIR}
 
+# Download seq repository.
 wget \
 "http://trace.ncbi.nlm.nih.gov/Traces/sra/sra.cgi?save=efetch&rettype=runinfo&db=sra&term=${query}" \
 -O "${SRA_CSV_PATH}"
@@ -80,25 +97,15 @@ do
 	echo "KNEADDATA DIR: ${KNEADDATA_DB_DIR}"
 	echo "kneaddata --input1 $fq_file_1 --input2 $fq_file_2 -db ${KNEADDATA_DB_DIR} --output ${SAMPLES_DIR}/kneaddata_output --trimmomatic $TRIMMOMATIC_DIR --trimmomatic-options SLIDINGWINDOW:100:0 MINLEN:35 --sequencer-source NexteraPE --bypass-trf"
 	kneaddata \
-	--input1 $fq_file_1 \
-	--input2 $fq_file_2 \
+	--input $fq_file_1 \
+	--input $fq_file_2 \
 	-db ${KNEADDATA_DB_DIR} \
 	--output ${SAMPLES_DIR}/kneaddata_output \
 	--trimmomatic $TRIMMOMATIC_DIR \
-	--trimmomatic-options SLIDINGWINDOW:100:0 MINLEN:35 \
+	--trimmomatic-options "SLIDINGWINDOW:100:0 MINLEN:35" \
 	--sequencer-source NexteraPE \
 	--bypass-trf
 
-	exit 1;
-	num_lines=$(wc -l $fq_file_1 | awk '{print $1}')
-	num_reads=$((${num_lines} / 4))
-
-	# Gzip compression.
-	echo "[*] Compressing..."
-	gzip $fq_file_1 --force
-	gzip $fq_file_2 --force
-
-	# Create index
-	gz_file="${fq_file_1}.gz"
-	echo "\"${time}\",\"${num_reads}\",\"${gz_file}\"" >> $INPUT_INDEX_PATH
+	gzip_and_append_fastq "${SAMPLES_DIR}/kneaddata_output/${sra_id}_1_kneaddata_paired_1.fastq"
+	gzip_and_append_fastq "${SAMPLES_DIR}/kneaddata_output/${sra_id}_1_kneaddata_unmatched_1.fastq"
 done < <(cut -d "," -f${loc_col_a},${loc_col_b} ${SRA_CSV_PATH} | tail -n +2)
