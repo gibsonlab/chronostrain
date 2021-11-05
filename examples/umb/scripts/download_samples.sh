@@ -9,11 +9,11 @@ check_program()
 		exit 1;
 	}
 }
-check_program('wget')
-check_program('gzip')
-check_program('kneaddata')
-check_program('prefetch')
-check_program('fasterq-dump')
+check_program 'wget'
+check_program 'gzip'
+check_program 'kneaddata'
+check_program 'prefetch'
+check_program 'fasterq-dump'
 
 source settings.sh
 
