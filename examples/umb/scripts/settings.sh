@@ -22,6 +22,10 @@ export SAMPLES_DIR="${CHRONOSTRAIN_DATA_DIR}/umb/samples"
 # ========= Bioproject/ncbi targets.
 export BIOPROJECT="PRJNA400628"
 
+# ========= Kneaddata
+export KNEADDATA_DB_DIR="/data/cctm/chronostrain/kneaddata_db"
+export TRIMMOMATIC_DIR="/PHShome/yk847/.conda/envs/chronostrain/share/trimmomatic-0.39-2"
+
 # ========= Chronostrain settings
 export CHRONOSTRAIN_NUM_ITERS=2000
 export CHRONOSTRAIN_NUM_SAMPLES=150
