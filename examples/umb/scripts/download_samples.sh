@@ -2,10 +2,10 @@
 set -e
 
 # REQUIRES: wget, sratools, kneaddata, gzip
-check_program(progname)
+check_program()
 {
-	command -v $progname >/dev/null 2>&1 || {
-		echo >&2 "I require $progname but it's not installed.  Aborting.";
+	command -v ${1} >/dev/null 2>&1 || {
+		echo >&2 "I require ${1} but it's not installed.  Aborting.";
 		exit 1;
 	}
 }
