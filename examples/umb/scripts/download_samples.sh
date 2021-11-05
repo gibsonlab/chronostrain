@@ -1,7 +1,19 @@
 #!/bin/bash
 set -e
 
-# Requires sratools!
+# REQUIRES: wget, sratools, kneaddata, gzip
+check_program(progname)
+{
+	command -v $progname >/dev/null 2>&1 || {
+		echo >&2 "I require $progname but it's not installed.  Aborting.";
+		exit 1;
+	}
+}
+check_program('wget')
+check_program('gzip')
+check_program('kneaddata')
+check_program('prefetch')
+check_program('fasterq-dump')
 
 source settings.sh
 
@@ -59,18 +71,30 @@ do
 	--force \
 	"${SRA_PREFETCH_DIR}/${sra_id}/${sra_id}.sra"
 
-	# Gzip
+	# Obtained fastq files.
 	fq_file_1="${SAMPLES_DIR}/${sra_id}_1.fastq"
 	fq_file_2="${SAMPLES_DIR}/${sra_id}_2.fastq"
+
+	# Preprocess
+	echo "[*] Invoking kneaddata..."
+	kneaddata \
+	--input1 $fq_file_1 \
+	--input2 $fq_file_2 \
+	-db $KNEADDATA_DB_DIR \
+	--output ${SAMPLES_DIR}/kneaddata_output \
+	--trimmomatic $TRIMMOMATIC_DIR \
+	--trimmomatic-options SLIDINGWINDOW:100:0 MINLEN:35 \
+	--sequencer-source NexteraPE \
+	--bypass-trf
+
+	exit 1;
 	num_lines=$(wc -l $fq_file_1 | awk '{print $1}')
 	num_reads=$((${num_lines} / 4))
 
+	# Gzip compression.
 	echo "[*] Compressing..."
 	gzip $fq_file_1 --force
-
-	# ===== TEMPORARY: we aren't properly using paired-end information.
-	echo "[*] Cleaning up reverse reads."
-	rm $fq_file_2
+	gzip $fq_file_2 --force
 
 	# Create index
 	gz_file="${fq_file_1}.gz"
