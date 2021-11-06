@@ -23,14 +23,15 @@ gzip_and_append_fastq()
 	time=$2
 	num_lines=$(wc -l $fq_path | awk '{print $1}')
 	num_reads=$((${num_lines} / 4))
-	if [[ $num_reads > 0 ]]; then
+
+	if [[ -s "${fq_path}" ]]; then
   	echo "[*] Compressing: ${fq_path}"
 		gzip $fq_path --force
 		gz_file="${fq_path}.gz"
 		echo "\"${time}\",\"${num_reads}\",\"${gz_file}\"" >> $INPUT_INDEX_PATH
-  else
-  	echo "Skipping ${fq_path}."
-  fi
+	else
+  	echo "[*] Skipping empty file ${fq_path}."
+	fi
 }
 
 # ================================= Main script ==================================
