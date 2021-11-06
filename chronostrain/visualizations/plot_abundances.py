@@ -170,7 +170,7 @@ def plot_posterior_abundances(
         plots_out_path: Path,
         draw_legend: bool,
         img_format: str,
-        truth_path: Path = None,
+        truth_path: Optional[Path] = None,
         title: str = None,
         font_size: int = 12,
         thickness: int = 1,

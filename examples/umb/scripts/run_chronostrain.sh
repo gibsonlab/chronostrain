@@ -9,7 +9,7 @@ SEED=31415
 echo "Running inference."
 
 cd $PROJECT_DIR/scripts
-python inference_with_variant_search.py \
+python inference_with_variants_simple.py \
 --reads_dir "${READS_DIR}/filtered" \
 --out_dir $CHRONOSTRAIN_OUTPUT_DIR \
 --quality_format "fastq" \

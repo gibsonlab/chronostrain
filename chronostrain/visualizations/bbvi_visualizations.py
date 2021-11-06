@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 import torch
@@ -81,7 +81,7 @@ def plot_bbvi_posterior(model: GenerativeModel,
                         plot_path: Path,
                         samples_path: Path,
                         plot_format: str,
-                        ground_truth_path: Path,
+                        ground_truth_path: Optional[Path] = None,
                         num_samples: int = 10000):
     logger.info("Generating plot of posterior.")
 
