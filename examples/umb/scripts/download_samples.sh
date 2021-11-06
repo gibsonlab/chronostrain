@@ -48,7 +48,10 @@ mkdir -p "${SAMPLES_DIR}/trimmomatic"
 
 # ================== Parse CSV file.
 {
+	# Skip header line.
 	read
+
+	# Read rest of csv file.
 	while IFS=, read -r sra_id umb_id sample_name date days experiment_type
 	do
 		if [[ "${experiment_type}" != "stool" || "${umb_id}" != "UMB24" ]]; then
@@ -76,6 +79,7 @@ mkdir -p "${SAMPLES_DIR}/trimmomatic"
 		fq_file_1="${SAMPLES_DIR}/${sra_id}_1.fastq"
 		fq_file_2="${SAMPLES_DIR}/${sra_id}_2.fastq"
 
+		# Target fastq files.
 		trimmed_paired_1="${SAMPLES_DIR}/trimmomatic/${sra_id}_1_paired.fastq"
 		trimmed_unpaired_1="${SAMPLES_DIR}/trimmomatic/${sra_id}_1_unpaired.fastq"
 		trimmed_paired_2="${SAMPLES_DIR}/trimmomatic/${sra_id}_2_paired.fastq"
@@ -92,6 +96,7 @@ mkdir -p "${SAMPLES_DIR}/trimmomatic"
 		SLIDINGWINDOW:100:0 \
 		MINLEN:35
 
+		# Add to timeseries input index.
 		gzip_and_append_fastq ${trimmed_paired_1} $days
 		gzip_and_append_fastq ${trimmed_unpaired_1} $days
 	done
