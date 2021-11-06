@@ -46,6 +46,7 @@ SRA_CSV_PATH="${BASE_DIR}/files/umb_samples.csv"
 mkdir -p ${SAMPLES_DIR}
 mkdir -p ${SRA_PREFETCH_DIR}
 mkdir -p "${SAMPLES_DIR}/trimmomatic"
+mkdir -p ${FASTERQ_TMP_DIR}
 
 # ================== Parse CSV file.
 {
@@ -74,6 +75,7 @@ mkdir -p "${SAMPLES_DIR}/trimmomatic"
 		--skip-technical \
 		--print-read-nr \
 		--force \
+		-t ${FASTERQ_TMP_DIR} \
 		"${SRA_PREFETCH_DIR}/${sra_id}/${sra_id}.sra"
 
 		# Obtained fastq files.

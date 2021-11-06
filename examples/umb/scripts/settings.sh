@@ -17,10 +17,8 @@ export INPUT_INDEX_PATH="${READS_DIR}/${INPUT_INDEX_FILENAME}"
 
 # sratools prefetch/sample output directories.
 export SRA_PREFETCH_DIR="${CHRONOSTRAIN_DATA_DIR}/umb/prefetch"
+export FASTERQ_TMP_DIR="${CHRONOSTRAIN_DATA_DIR}/umb/fasterq-tmp"
 export SAMPLES_DIR="${CHRONOSTRAIN_DATA_DIR}/umb/samples"
-
-# ========= Bioproject/ncbi targets.
-export BIOPROJECT="PRJNA400628"
 
 # ========= Kneaddata
 export KNEADDATA_DB_DIR="/data/cctm/chronostrain/kneaddata_db"
