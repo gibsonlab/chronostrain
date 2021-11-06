@@ -47,49 +47,52 @@ mkdir -p ${SRA_PREFETCH_DIR}
 mkdir -p "${SAMPLES_DIR}/trimmomatic"
 
 # ================== Parse CSV file.
-while IFS=, read -r sra_id umb_id sample_name date days experiment_type
-do
-	if [[ "${experiment_type}" != "stool" || "${umb_id}" != "UMB24" ]]; then
-  	echo "Skipping ${sample_name}."
-  	continue
-  fi
+{
+	read
+	while IFS=, read -r sra_id umb_id sample_name date days experiment_type
+	do
+		if [[ "${experiment_type}" != "stool" || "${umb_id}" != "UMB24" ]]; then
+			echo "Skipping ${sample_name}."
+			continue
+		fi
 
-	echo "-=-=-=-=-=-=-=-= Handling ${sra_id} (${sample_name}). =-=-=-=-=-=-=-=-"
+		echo "-=-=-=-=-=-=-=-= Handling ${sra_id} (${sample_name}). =-=-=-=-=-=-=-=-"
 
-	# Prefetch
-	echo "[*] Prefetching..."
-	prefetch --output-directory $SRA_PREFETCH_DIR --progress --verify yes $sra_id
+		# Prefetch
+		echo "[*] Prefetching..."
+		prefetch --output-directory $SRA_PREFETCH_DIR --progress --verify yes $sra_id
 
-	# Fasterq-dump
-	echo "[*] Invoking fasterq-dump..."
-	fasterq-dump \
-	--progress \
-	--outdir $SAMPLES_DIR \
-	--skip-technical \
-	--print-read-nr \
-	--force \
-	"${SRA_PREFETCH_DIR}/${sra_id}/${sra_id}.sra"
+		# Fasterq-dump
+		echo "[*] Invoking fasterq-dump..."
+		fasterq-dump \
+		--progress \
+		--outdir $SAMPLES_DIR \
+		--skip-technical \
+		--print-read-nr \
+		--force \
+		"${SRA_PREFETCH_DIR}/${sra_id}/${sra_id}.sra"
 
-	# Obtained fastq files.
-	fq_file_1="${SAMPLES_DIR}/${sra_id}_1.fastq"
-	fq_file_2="${SAMPLES_DIR}/${sra_id}_2.fastq"
+		# Obtained fastq files.
+		fq_file_1="${SAMPLES_DIR}/${sra_id}_1.fastq"
+		fq_file_2="${SAMPLES_DIR}/${sra_id}_2.fastq"
 
-	trimmed_paired_1="${SAMPLES_DIR}/trimmomatic/${sra_id}_1_paired.fastq"
-	trimmed_unpaired_1="${SAMPLES_DIR}/trimmomatic/${sra_id}_1_unpaired.fastq"
-	trimmed_paired_2="${SAMPLES_DIR}/trimmomatic/${sra_id}_2_paired.fastq"
-	trimmed_unpaired_2="${SAMPLES_DIR}/trimmomatic/${sra_id}_2_unpaired.fastq"
+		trimmed_paired_1="${SAMPLES_DIR}/trimmomatic/${sra_id}_1_paired.fastq"
+		trimmed_unpaired_1="${SAMPLES_DIR}/trimmomatic/${sra_id}_1_unpaired.fastq"
+		trimmed_paired_2="${SAMPLES_DIR}/trimmomatic/${sra_id}_2_paired.fastq"
+		trimmed_unpaired_2="${SAMPLES_DIR}/trimmomatic/${sra_id}_2_unpaired.fastq"
 
-	# Preprocess
-	echo "[*] Invoking trimmomatic..."
-	trimmomatic PE \
-	-threads 4 \
-	-phred33 \
-	${fq_file_1} ${fq_file_2} \
-	${trimmed_paired_1} ${trimmed_unpaired_1} \
-	${trimmed_paired_2} ${trimmed_unpaired_2} \
-	SLIDINGWINDOW:100:0 \
-	MINLEN:35
+		# Preprocess
+		echo "[*] Invoking trimmomatic..."
+		trimmomatic PE \
+		-threads 4 \
+		-phred33 \
+		${fq_file_1} ${fq_file_2} \
+		${trimmed_paired_1} ${trimmed_unpaired_1} \
+		${trimmed_paired_2} ${trimmed_unpaired_2} \
+		SLIDINGWINDOW:100:0 \
+		MINLEN:35
 
-	gzip_and_append_fastq ${trimmed_paired_1} $days
-	gzip_and_append_fastq ${trimmed_unpaired_1} $days
-done < ${SRA_CSV_PATH}
+		gzip_and_append_fastq ${trimmed_paired_1} $days
+		gzip_and_append_fastq ${trimmed_unpaired_1} $days
+	done
+} < ${SRA_CSV_PATH}
