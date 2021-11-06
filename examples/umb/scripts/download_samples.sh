@@ -91,5 +91,5 @@ do
 	MINLEN:35
 
 	gzip_and_append_fastq ${trimmed_paired_1} $days
-	gzip_and_append_fastq ${trimmeD_unpaired_1} $days
+	gzip_and_append_fastq ${trimmed_unpaired_1} $days
 done < ${SRA_CSV_PATH}
