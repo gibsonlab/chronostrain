@@ -44,6 +44,7 @@ SRA_CSV_PATH="${BASE_DIR}/files/umb_samples.csv"
 
 mkdir -p ${SAMPLES_DIR}
 mkdir -p ${SRA_PREFETCH_DIR}
+mkdir -p "${SAMPLES_DIR}/trimmomatic"
 
 # ================== Parse CSV file.
 while IFS=, read -r sra_id umb_id sample_name date days experiment_type
