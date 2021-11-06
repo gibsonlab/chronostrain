@@ -2,7 +2,8 @@
 set -e
 source settings.sh
 
-# REQUIRES: wget, sratools, kneaddata, gzip
+# ======================================== Functions ===============================
+# REQUIRES: sratools (prefetch + fasterq-dump), trimmomatic, gzip
 check_program()
 {
 	command -v ${1} >/dev/null 2>&1 || {
@@ -10,11 +11,10 @@ check_program()
 		exit 1;
 	}
 }
-check_program 'wget'
 check_program 'gzip'
-check_program 'kneaddata'
 check_program 'prefetch'
 check_program 'fasterq-dump'
+check_program 'trimmomatic'
 
 # Gzips the input fastq file, and appends the fastq-timepoint pair as an entry.
 gzip_and_append_fastq()
@@ -33,46 +33,27 @@ gzip_and_append_fastq()
   fi
 }
 
+# ================================= Main script ==================================
+
 # Clear index file.
 mkdir -p ${READS_DIR}
 touch $INPUT_INDEX_PATH
 > $INPUT_INDEX_PATH
 
-SRA_CSV_PATH="${SAMPLES_DIR}/SraRunInfo.csv"
-query="${BIOPROJECT}+AND+UMB24+AND+stool"
+SRA_CSV_PATH="${BASE_DIR}/files/umb_samples.csv"
 
 mkdir -p ${SAMPLES_DIR}
 mkdir -p ${SRA_PREFETCH_DIR}
 
-# Download seq repository.
-wget \
-"http://trace.ncbi.nlm.nih.gov/Traces/sra/sra.cgi?save=efetch&rettype=runinfo&db=sra&term=${query}" \
--O "${SRA_CSV_PATH}"
-
 # ================== Parse CSV file.
-sra_id_col='Run'
-lib_name_col='LibraryName'
-
-loc_col_a=$(head -1 ${SRA_CSV_PATH} | tr ',' '\n' | nl |grep -w "$sra_id_col" | tr -d " " | awk -F " " '{print $1}')
-loc_col_b=$(head -1 ${SRA_CSV_PATH} | tr ',' '\n' | nl |grep -w "$lib_name_col" | tr -d " " | awk -F " " '{print $1}')
-
-while IFS="," read -r sra_id lib_name
+while IFS=, read -r sra_id umb_id sample_name date days experiment_type
 do
-	if [ -z "${sra_id}" ] || [ -z "${lib_name}" ]; then
-    continue
-  fi
-
-  if [[ $lib_name =~ [a-zA-Z]+$ ]]; then
-  	echo "Skipping ${lib_name}."
+	if [[ "${experiment_type}" != "stool" || "${umb_id}" != "UMB24" ]]; then
+  	echo "Skipping ${sample_name}."
   	continue
   fi
 
-	echo "-=-=-=-=-=-=-= Handling ${sra_id} (${lib_name}). =-=-=-=-=-=-=-"
-
-  # Extract token from UMB(patient)_(token).xyz
-  suffix=${lib_name##*_}
-  month=${suffix%.*}
-  time=$((10#${month} * 30))  # 30 days per month is a crude estimate.
+	echo "-=-=-=-=-=-=-=-= Handling ${sra_id} (${sample_name}). =-=-=-=-=-=-=-=-"
 
 	# Prefetch
 	echo "[*] Prefetching..."
@@ -92,18 +73,22 @@ do
 	fq_file_1="${SAMPLES_DIR}/${sra_id}_1.fastq"
 	fq_file_2="${SAMPLES_DIR}/${sra_id}_2.fastq"
 
-	# Preprocess
-	echo "[*] Invoking kneaddata..."
-	kneaddata \
-	--input $fq_file_1 \
-	--input $fq_file_2 \
-	-db ${KNEADDATA_DB_DIR} \
-	--output ${SAMPLES_DIR}/kneaddata_output \
-	--trimmomatic $TRIMMOMATIC_DIR \
-	--trimmomatic-options "SLIDINGWINDOW:100:0 MINLEN:35" \
-	--sequencer-source NexteraPE \
-	--bypass-trf
+	trimmed_paired_1="${SAMPLES_DIR}/trimmomatic/${sra_id}_1_paired.fastq"
+	trimmed_unpaired_1="${SAMPLES_DIR}/trimmomatic/${sra_id}_1_unpaired.fastq"
+	trimmed_paired_2="${SAMPLES_DIR}/trimmomatic/${sra_id}_2_paired.fastq"
+	trimmed_unpaired_2="${SAMPLES_DIR}/trimmomatic/${sra_id}_2_unpaired.fastq"
 
-	gzip_and_append_fastq "${SAMPLES_DIR}/kneaddata_output/${sra_id}_1_kneaddata_paired_1.fastq"
-	gzip_and_append_fastq "${SAMPLES_DIR}/kneaddata_output/${sra_id}_1_kneaddata_unmatched_1.fastq"
-done < <(cut -d "," -f${loc_col_a},${loc_col_b} ${SRA_CSV_PATH} | tail -n +2)
+	# Preprocess
+	echo "[*] Invoking trimmomatic..."
+	trimmomatic PE \
+	-threads 4 \
+	-phred33 \
+	${fq_file_1} ${fq_file_2} \
+	${trimmed_paired_1} ${trimmed_unpaired_1} \
+	${trimmed_paired_2} ${trimmed_unpaired_2} \
+	SLIDINGWINDOW:100:0 \
+	MINLEN:35
+
+	gzip_and_append_fastq ${trimmed_paired_1} $days
+	gzip_and_append_fastq ${trimmeD_unpaired_1} $days
+done < ${SRA_CSV_PATH}
