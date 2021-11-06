@@ -30,7 +30,8 @@ gzip_and_append_fastq()
 		gz_file="${fq_path}.gz"
 		echo "\"${time}\",\"${num_reads}\",\"${gz_file}\"" >> $INPUT_INDEX_PATH
 	else
-  	echo "[*] Skipping empty file ${fq_path}."
+  	echo "[*] Cleaning up empty file ${fq_path}."
+  	rm ${fq_path}
 	fi
 }
 
