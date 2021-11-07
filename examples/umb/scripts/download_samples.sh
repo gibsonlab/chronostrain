@@ -98,7 +98,8 @@ mkdir -p ${FASTERQ_TMP_DIR}
 		${trimmed_paired_1} ${trimmed_unpaired_1} \
 		${trimmed_paired_2} ${trimmed_unpaired_2} \
 		SLIDINGWINDOW:100:0 \
-		MINLEN:35
+		MINLEN:35 \
+		ILLUMINACLIP:${NEXTERA_ADAPTER_PATH}:2:40:15
 
 		# Add to timeseries input index.
 		gzip_and_append_fastq ${trimmed_paired_1} $days
