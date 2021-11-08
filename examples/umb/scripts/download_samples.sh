@@ -4,13 +4,6 @@ source settings.sh
 
 # ======================================== Functions ===============================
 # REQUIRES: sratools (prefetch + fasterq-dump), trimmomatic, gzip
-check_program()
-{
-	command -v ${1} >/dev/null 2>&1 || {
-		echo >&2 "I require ${1} but it's not installed.  Aborting.";
-		exit 1;
-	}
-}
 check_program 'gzip'
 check_program 'prefetch'
 check_program 'fasterq-dump'
