@@ -9,13 +9,13 @@ check_program 'fastqc'
 
 # Clear index file.
 cd ${SAMPLES_DIR}
-mkdir fastqc
+mkdir -p fastqc
 
 for fqfile in ./*.fastq; do
 	basename=${fqfile%.fastq}
 	basename=${basename##*/}
 	outdir="fastqc/${basename}"
 	echo "-=-=-=-=-=-=-=-= Handling ${fqfile} =-=-=-=-=-=-=-=-"
-	mkdir ${outdir}
+	mkdir -p ${outdir}
 	fastqc ${fqfile} -o ${outdir} -f fastq
 done
