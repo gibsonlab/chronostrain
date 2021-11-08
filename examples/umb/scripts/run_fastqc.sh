@@ -15,5 +15,6 @@ for fqfile in ./*.fastq; do
 	basename=${fqfile%.fastq}
 	basename=${basename##*/}
 	outdir="fastqc/${basename}"
+	echo "-=-=-=-=-=-=-=-= Handling ${fqfile} =-=-=-=-=-=-=-=-"
 	fastqc ${fqfile} -o ${outdir} -f fastq
 done
