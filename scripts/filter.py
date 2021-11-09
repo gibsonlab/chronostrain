@@ -118,7 +118,7 @@ def trim_read_quality(read_quality):
     return read_quality[5:-10]
 
 
-def filter_on_read_quality(phred_quality: np.ndarray, error_threshold: float = 3):
+def filter_on_read_quality(phred_quality: np.ndarray, error_threshold: float = 10):
     num_expected_errors = np.sum(
         np.power(10, -0.1 * phred_quality)
     )
@@ -156,7 +156,9 @@ def filter_file(
             "MARKER_START",
             "MARKER_END",
             "REVCOMP",
-            "PASSED_FILTER"
+            "PASSED_FILTER",
+            "IS_EDGE_MAPPED",
+            "PCT_ID"
         ]
     )
 
@@ -197,7 +199,9 @@ def filter_file(
                     aln.marker_start,
                     aln.marker_end,
                     int(aln.reverse_complemented),
-                    str(int(passed_filter))
+                    str(int(passed_filter)),
+                    aln.is_edge_mapped,
+                    aln.percent_identity
                 ]
             )
 
