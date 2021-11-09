@@ -184,13 +184,6 @@ def filter_file(
                 and filter_on_read_quality(aln.read.quality)
             )
 
-            if aln.is_edge_mapped:
-                logger.debug("Skipping read {}, which was edge mapped. Alignment to {} had percent identity = {}.".format(
-                    aln.read.id,
-                    aln.marker.id,
-                    aln.percent_identity
-                ))
-
             # Write to metadata file.
             metadata_csv_writer.writerow(
                 [
@@ -199,8 +192,8 @@ def filter_file(
                     aln.marker_start,
                     aln.marker_end,
                     int(aln.reverse_complemented),
-                    str(int(passed_filter)),
-                    aln.is_edge_mapped,
+                    int(passed_filter),
+                    int(aln.is_edge_mapped),
                     aln.percent_identity
                 ]
             )
@@ -363,8 +356,8 @@ def parse_args():
                         default='input_files.csv',
                         help='<Optional> The CSV input file specifier inside reads_dir.')
     parser.add_argument('--pct_identity_threshold', required=False, type=float,
-                        default=0.7,
-                        help='<Optional> The percent identity threshold at which to filter reads. Default is 0.7.')
+                        default=0.4,
+                        help='<Optional> The percent identity threshold at which to filter reads. Default is 0.4.')
     parser.add_argument('--continue_from_idx', required=False, type=int,
                         default=0,
                         help='<Optional> For debugging purposes, assumes that the first N timepoints have already '
