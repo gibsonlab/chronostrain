@@ -8,7 +8,7 @@ logger = create_logger(__name__)
 
 class CommandLineException(BaseException):
     def __init__(self, cmd, exit_code):
-        super().__init__("`{}` encountered an error.".format(cmd))
+        super().__init__("`{}` encountered an error. (code: {})".format(cmd, exit_code))
         self.cmd = cmd
         self.exit_code = exit_code
 

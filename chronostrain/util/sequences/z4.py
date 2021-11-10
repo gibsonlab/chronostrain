@@ -34,12 +34,6 @@ def map_nucleotide_to_z4(nucleotide: str) -> int:
     return _acgt_to_z4[nucleotide]
 
 
-def reverse_complement_z4(z4seq: SeqType) -> SeqType:
-    comp = z4seq.copy()
-    comp[0 <= comp <= 3] = 3 - comp[0 <= comp <= 3]
-    return comp[::-1]
-
-
 def map_z4_to_nucleotide(z4: int) -> str:
     return _z4_to_acgt[z4]
 

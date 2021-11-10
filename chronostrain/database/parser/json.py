@@ -10,7 +10,7 @@ from Bio import SeqIO
 from chronostrain.config import cfg
 from chronostrain.model import Strain, Marker, MarkerMetadata, StrainMetadata
 from chronostrain.util.entrez import fetch_genbank
-from chronostrain.util.sequences import complement_seq, nucleotides_to_z4
+from chronostrain.util.sequences import *
 
 from .base import AbstractDatabaseParser, StrainDatabaseParseError
 
@@ -174,11 +174,15 @@ class NucleotideSubsequence:
         self.end_index = end_index
         self.complement = complement
 
-    def get_subsequence(self, nucleotides: str) -> str:
+    def get_subsequence(self, nucleotides: str) -> SeqType:
         # Note: The "complement" feature is not used; genbank annotation gives the resulting protein in terms
         # of the translation (on either forward or reverse strand), but we are modeling shotgun reads
         # (nucleotide substrings), not expression/protein levels.
-        return nucleotides[self.start_index:self.end_index]
+        seq = nucleotides_to_z4(nucleotides[self.start_index:self.end_index])
+        if self.complement:
+            return reverse_complement_seq(seq)
+        else:
+            return seq
 
     def __str__(self):
         return self.__repr__()
@@ -251,7 +255,7 @@ class SubsequenceLoader:
             marker = Marker(
                 name=subseq_obj.name,
                 id=subseq_obj.id,
-                seq=nucleotides_to_z4(subseq_obj.get_subsequence(self.get_full_genome())),
+                seq=subseq_obj.get_subsequence(self.get_full_genome()),
                 metadata=MarkerMetadata(
                     parent_accession=self.strain_accession,
                     file_path=marker_filepath
@@ -395,7 +399,13 @@ class SubsequenceLoader:
 
     def _regex_match_primers(self, forward: str, reverse: str) -> Union[None, Tuple[int, int]]:
         forward_primer_regex = self.parse_fasta_regex(forward)
-        reverse_primer_regex = complement_seq(self.parse_fasta_regex(reverse[::-1]), ignore_keyerror=True)
+        reverse_primer_regex = z4_to_nucleotides(
+            reverse_complement_seq(
+                nucleotides_to_z4(
+                    self.parse_fasta_regex(reverse)
+                )
+            )
+        )
         return self.find_primer_match(forward_primer_regex, reverse_primer_regex)
 
     @staticmethod

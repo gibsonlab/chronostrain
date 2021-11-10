@@ -356,8 +356,8 @@ def parse_args():
                         default='input_files.csv',
                         help='<Optional> The CSV input file specifier inside reads_dir.')
     parser.add_argument('--pct_identity_threshold', required=False, type=float,
-                        default=0.4,
-                        help='<Optional> The percent identity threshold at which to filter reads. Default is 0.4.')
+                        default=0.1,
+                        help='<Optional> The percent identity threshold at which to filter reads. Default: 0.1.')
     parser.add_argument('--continue_from_idx', required=False, type=int,
                         default=0,
                         help='<Optional> For debugging purposes, assumes that the first N timepoints have already '
