@@ -41,16 +41,19 @@ class Marker:
     metadata: Union[MarkerMetadata, None] = None
 
     def __repr__(self):
-        return "Marker[{}]({})".format(self.id, self.nucleotide_seq)
+        return "Marker[{}]".format(self.id)
 
     def __str__(self):
-        return "Marker[{}]({})".format(self.id, self.nucleotide_seq)
+        return "Marker[{}]".format(self.id)
 
     def __len__(self):
         return len(self.seq)
 
     def __hash__(self):
         return hash(self.id)
+
+    def __eq__(self, other):
+        return self.id == other.id
 
     @property
     def nucleotide_seq(self) -> str:

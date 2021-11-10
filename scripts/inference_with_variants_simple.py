@@ -1,9 +1,11 @@
 import argparse
 from pathlib import Path
 
+from Bio import SeqIO
+
 from chronostrain.config import create_logger, cfg
 from chronostrain.algs import GloppVariantSolver
-from chronostrain.model import FragmentSpace, Population
+from chronostrain.model import FragmentSpace, Population, StrainVariant
 import chronostrain.visualizations as viz
 
 from helpers import *
@@ -136,6 +138,23 @@ def main():
         plot_format=args.plot_format,
         num_samples=args.num_posterior_samples
     )
+
+    # ==== For each strain, output its marker gene sequence.
+    for idx, strain in enumerate(model.bacteria_pop.strains):
+        if not isinstance(strain, StrainVariant):
+            logger.info(f"Not outputting base strain `{strain.id}` to disk.")
+            continue
+        out_path = out_dir / f"{idx}_{strain.base_strain}_variant.fasta"
+        write_strain_to_disk(strain, out_path)
+
+
+def write_strain_to_disk(strain: StrainVariant, out_path: Path):
+    records = []
+    for marker in strain.markers:
+        records.append(marker.to_seqrecord(description=""))
+
+    with open(out_path, 'w') as out_file:
+        SeqIO.write(records, out_file, "fasta")
 
 
 if __name__ == "__main__":

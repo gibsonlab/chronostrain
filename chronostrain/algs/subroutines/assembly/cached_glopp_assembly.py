@@ -53,6 +53,10 @@ class CachedGloppVariantAssembly(object):
         self.bam_path = self.absolute_dir / "alignments.bam"
         self.vcf_path = self.absolute_dir / "variants.vcf"
 
+    @property
+    def num_times(self) -> int:
+        return len(self.reads)
+
     def count_variants(self) -> np.ndarray:
         """
         :return: An (N x 5) array of variant counts.
@@ -152,7 +156,7 @@ class CachedGloppVariantAssembly(object):
 
     def parse_marker_contigs(self,
                              glopp_phasing_path: Path,
-                             glopp_partition_path: Path) -> FloppMarkerAssembly:
+                             glopp_partition_path: Path,) -> FloppMarkerAssembly:
         """
         :param glopp_phasing_path: The glopp phasing output file to parse.
         :param glopp_partition_path: The glopp partition output file to parse.
@@ -165,7 +169,6 @@ class CachedGloppVariantAssembly(object):
 
         contig_positions_arr: List[np.ndarray] = []  # contig-indexed list of contig-specific positions.
         contig_assemblies: List[np.ndarray] = []  # contig-indexed list of assembled sequences.
-        contig_counts_arr: List[np.ndarray] = []  # contig-indexed list of read counts per variant.
         contig_read_counts_arr: List[np.ndarray] = []  # contig-indexed list of read counts per strand.
 
         parsed_ploidy: int = -1
@@ -209,18 +212,18 @@ class CachedGloppVariantAssembly(object):
             abs_pos_idx = -1
             for contig_idx, contig_pos in enumerate(contig_positions_arr):
                 contig_assembly = np.empty(shape=(len(contig_pos), parsed_ploidy), dtype=NucleotideDtype)
-                contig_counts = np.zeros(shape=(len(contig_pos), parsed_ploidy, len(self.reads)), dtype=int)
-                read_counts = np.zeros(shape=parsed_ploidy, dtype=int)
+                read_counts = np.zeros(shape=(parsed_ploidy, self.num_times), dtype=int)
                 for contig_pos_idx, pos in enumerate(contig_pos):
                     hap_line = next(phasing_file)
                     abs_pos_idx += 1
                     tokens = hap_line.strip().split("\t")
-                    for k in range(parsed_ploidy):
-                        contig_assembly[contig_pos_idx, k] = allele_parser(abs_pos_idx, int(tokens[k + 1]))
+                    for strand_idx in range(parsed_ploidy):
+                        contig_assembly[contig_pos_idx, strand_idx] = allele_parser(
+                            abs_pos_idx, int(tokens[strand_idx + 1])
+                        )
                 intermediate_line = next(phasing_file)
                 assert intermediate_line.startswith("--") or intermediate_line.startswith("**")
                 contig_assemblies.append(contig_assembly)
-                contig_counts_arr.append(contig_counts)
                 contig_read_counts_arr.append(read_counts)
 
         # Parse the partition file: get the per-timepoint, per-base read counts.
@@ -255,8 +258,8 @@ class CachedGloppVariantAssembly(object):
                     read_last_pos = all_positions[int(last_pos_tok) - 1]
 
                     # For each contig, determine whether it overlaps ("hits") the read.
-                    for contig_positions, contig_assembly, contig_counts, read_counts \
-                            in zip(contig_positions_arr, contig_assemblies, contig_counts_arr, contig_read_counts_arr):
+                    for contig_positions, contig_assembly, read_counts \
+                            in zip(contig_positions_arr, contig_assemblies, contig_read_counts_arr):
                         # "Hit" = there exists some position on the contig that is between the read's first/last pos.
                         read_variants = read_full_seq[contig_positions]
                         assembly_variants = contig_assembly[:, strand_idx]
@@ -268,24 +271,21 @@ class CachedGloppVariantAssembly(object):
 
                         # increment overall read count for the strand.
                         if len(hit_positions) > 0:
-                            read_counts[strand_idx] += 1
-
-                        # increment per-position count.
-                        contig_counts[hit_positions, strand_idx, t_idx] += 1
+                            read_counts[strand_idx, t_idx] += 1
         return FloppMarkerAssembly(
             self.alignment,
             [
-                FloppMarkerContig(marker,
-                                  c_idx,
-                                  contig_pos,
-                                  contig_assembly,
-                                  contig_counts,
-                                  read_counts)
-                for c_idx, (contig_pos, contig_assembly, contig_counts, read_counts) in enumerate(
+                FloppMarkerContig(
+                    marker=marker,
+                    contig_idx=c_idx,
+                    positions=contig_pos,
+                    assembly=contig_assembly,
+                    read_counts=read_counts
+                )
+                for c_idx, (contig_pos, contig_assembly, read_counts) in enumerate(
                     zip(
                         contig_positions_arr,
                         contig_assemblies,
-                        contig_counts_arr,
                         contig_read_counts_arr
                     )
                 )

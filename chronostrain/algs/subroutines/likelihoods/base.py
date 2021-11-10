@@ -5,7 +5,6 @@ import torch
 
 from chronostrain.model import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
-from chronostrain.util.sparse import SparseMatrix
 
 from chronostrain.config.logging import create_logger
 logger = create_logger(__name__)

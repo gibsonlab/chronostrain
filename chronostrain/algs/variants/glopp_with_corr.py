@@ -5,7 +5,7 @@
 """
 import itertools
 from collections import defaultdict
-from typing import List, Tuple, Dict, Iterator, Union, Iterable
+from typing import List, Tuple, Dict, Iterator, Union, Iterable, Optional
 
 import numpy as np
 
@@ -29,11 +29,18 @@ class GloppContigStrandSpecification(object):
         self.contig = contig
         self.strand_idx = strand_idx
 
+    def __str__(self):
+        return self.__repr__()
 
-def upper_triangular_lower_bounded(x: np.ndarray,
-                                   lower_bound: float,
-                                   k: int = 0
-                                   ) -> Tuple[np.ndarray, np.ndarray]:
+    def __repr__(self):
+        return f"[Marker {self.contig.marker.id}, Contig {self.contig.contig_idx}, Strand {self.strand_idx}]"
+
+
+def upper_triangular_bounded(x: np.ndarray,
+                             lower_bound: float,
+                             upper_bound: float,
+                             k: int = 0
+                             ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Computes the indices satisfying the condition x < upper_bound only on the upper triangular part of
     the provided array (with diagonal offset k).
@@ -43,7 +50,7 @@ def upper_triangular_lower_bounded(x: np.ndarray,
     """
     r, c = np.triu_indices_from(x, k=k)
     values = x[r, c]
-    valid_indices = np.where(values > lower_bound)
+    valid_indices = np.where((values < upper_bound) & (values > lower_bound))
     return r[valid_indices], c[valid_indices]
 
 
@@ -56,10 +63,11 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
                  bbvi_lr: int,
                  bbvi_num_samples: int,
                  quality_lower_bound: float,
-                 glasso_shrinkage: float = 0.8,
+                 glasso_shrinkage: float = 0.1,
                  glasso_standardize: bool = True,
                  glasso_alpha: float = 1e-3,
-                 seed_with_database: bool = False):
+                 seed_with_database: bool = False,
+                 num_strands: Optional[int] = None):
         """
         :param glasso_standardize: Indicates whether to standardize each feature across samples.
         :param glasso_alpha: The `alpha` regularization parameter in the glasso algorithm.
@@ -78,6 +86,7 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
         self.glasso_shrinkage = glasso_shrinkage
         self.glasso_standardize = glasso_standardize
         self.glasso_alpha = glasso_alpha
+        self.num_strands = num_strands
 
         self.reference_markers_to_assembly: Dict[Marker, FloppMarkerAssembly] = self.construct_marker_assemblies()
 
@@ -96,7 +105,7 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
         for marker_multi_align in self.multi_alignments:
             marker_assembly: FloppMarkerAssembly = CachedGloppVariantAssembly(
                 self.reads, marker_multi_align, quality_lower_bound=self.quality_lower_bound
-            ).run(num_variants=None)  # TODO
+            ).run(num_variants=self.num_strands)
 
             marker_assemblies[marker_assembly.marker] = marker_assembly
         return marker_assemblies
@@ -109,7 +118,7 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
     def propose_variants(self) -> Iterator[StrainVariant]:
         variants: List[FloppStrainVariant] = list(
             self.construct_variants_using_assembly(
-                precision_lower_bound=0.5
+                precision_upper_bound=-1
             )
         )
 
@@ -123,10 +132,13 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
 
         yield from variants
 
-    def construct_variants_using_assembly(self, precision_lower_bound: float) -> Iterator[FloppStrainVariant]:
+    def construct_variants_using_assembly(self, precision_upper_bound: float) -> Iterator[FloppStrainVariant]:
         precision_matrix = self.compute_precision_matrix()
-        rows, cols = upper_triangular_lower_bounded(
-            precision_matrix, lower_bound=precision_lower_bound
+
+        rows, cols = upper_triangular_bounded(
+            precision_matrix,
+            upper_bound=precision_upper_bound,
+            lower_bound=-np.inf
         )
 
         G = nx.Graph()
@@ -136,6 +148,7 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
             G.add_edge(v, w)
 
         for clique in nx.find_cliques(G):
+            print(clique)
             yield self.strain_variant_from_clique(
                 G,
                 clique,
@@ -145,8 +158,13 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
         # TODO 2: Edit sparse.py (sparse likelihood calculation) to take these variants into account.
 
     def compute_precision_matrix(self) -> np.ndarray:
+        # marker_contig_counts = np.stack([
+        #     contig_spec.contig.mean_counts[contig_spec.strand_idx]
+        #     for contig_spec in self.strand_specs
+        # ], axis=1)  # (T x M)
+
         marker_contig_counts = np.stack([
-            contig_spec.contig.mean_counts[contig_spec.strand_idx]
+            contig_spec.contig.read_counts[contig_spec.strand_idx]
             for contig_spec in self.strand_specs
         ], axis=1)  # (T x M)
 
@@ -264,9 +282,9 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
         variant_id = "{}:Strands({})".format(
             base_marker.id,
             "|".join(
-                "*" if isinstance(strand, str) else str(strand.strand_idx)
+                "*" if isinstance(strand, str) else f"{str(strand.strand_idx)}/{strand.contig.num_strands}"
                 for strand in strands
-            )
+            ),
         )
         logger.debug("Creating Marker Variant ({})".format(
             variant_id

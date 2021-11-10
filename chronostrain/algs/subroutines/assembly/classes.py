@@ -29,12 +29,6 @@ class FloppMarkerAssembly(object):
     def num_contigs(self) -> int:
         return len(self.contigs)
 
-    def mean_counts(self) -> np.ndarray:
-        return np.concatenate([
-            contig.mean_counts
-            for contig in self.contigs
-        ], axis=0)
-
     def get_contig_of(self, concatenated_strand_index: int) -> Tuple['FloppMarkerContig', int]:
         contig_idx = np.where(concatenated_strand_index < self.cumulative_strand_counts)[0][0]
         if contig_idx == 0:
@@ -64,15 +58,13 @@ class FloppMarkerContig(object):
                  contig_idx: int,
                  positions: np.ndarray,
                  assembly: np.ndarray,
-                 counts: np.ndarray,
-                 num_reads_per_strand: np.ndarray):
+                 read_counts: np.ndarray):
         """
         :param marker: The marker that this object is representing.
         :param positions: The list of integer-valued positions that the assembly matrix's index represents.
             (Should be sorted in increasing order.)
         :param assembly: An (N x k) array of resolved assembly for this contig.
-        :param counts: An (N x k x T) array of marginal counts the number of reads mapped to the k-th "haplotype"
-            at position N at time t.
+        :param read_counts: An (k x T) array of read counts per each strand, per timepoint.
         """
         self.marker = marker
         self.positions = positions
@@ -82,25 +74,20 @@ class FloppMarkerContig(object):
         if len(positions) != assembly.shape[0]:
             raise ValueError("The number of specified positions must match the length of `assembly`.")
 
-        if assembly.shape[0] != counts.shape[0] or assembly.shape[1] != counts.shape[1]:
-            raise ValueError("The shape of `assembly` must match the first two dims of `counts`.")
         self.assembly = assembly
-        self.counts = counts
-        self.mean_counts = np.mean(self.counts, axis=0)  # (k x T).
-        self.num_reads_per_strand = num_reads_per_strand
+        self.read_counts = read_counts
 
         # Trim zero count strands.
-        num_zero_count_strands = np.sum(self.num_reads_per_strand == 0)
+        num_reads_per_strand = np.sum(read_counts, axis=1)
+        num_zero_count_strands = np.sum(num_reads_per_strand == 0)
         if num_zero_count_strands > 0:
             logger.debug(
                 f"{marker.id}, Contig {contig_idx} - Trimming {num_zero_count_strands} strands with zero count."
             )
 
-            support_indices = np.where(self.num_reads_per_strand > 0)[0]
-            self.mean_counts = self.mean_counts[support_indices, :]
+            support_indices = np.where(num_reads_per_strand > 0)[0]
             self.assembly = self.assembly[:, support_indices]
-            self.counts = self.counts[:, support_indices, :]
-            self.num_reads_per_strand = self.num_reads_per_strand[support_indices]
+            self.read_counts = self.read_counts[support_indices, :]
 
     @property
     def leftmost_pos(self) -> int:
@@ -122,4 +109,4 @@ class FloppMarkerContig(object):
         return self.assembly[:, idx]
 
     def num_reads_of_strand(self, strand_idx: int) -> int:
-        return self.num_reads_per_strand[strand_idx]
+        return self.read_counts[strand_idx, :].sum()
