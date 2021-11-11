@@ -48,6 +48,7 @@ def art_illumina(reference_path: Path,
     if output_sam:
         cmd_args.append('-sam')
 
+    print("OUTPUT ALN: {}".format(output_aln))
     if not output_aln:
         cmd_args.append('-na')
 
