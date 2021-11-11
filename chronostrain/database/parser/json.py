@@ -436,22 +436,27 @@ class SubsequenceLoader:
 
 
 class JSONParser(AbstractDatabaseParser):
-    def __init__(self, entries_file: Path, marker_max_len: int, force_refresh: bool = False):
+    def __init__(self,
+                 entries_file: Path,
+                 marker_max_len: int,
+                 force_refresh: bool = False,
+                 load_full_genomes: bool = False):
         self.entries_file = entries_file
         self.marker_max_len = marker_max_len
         self.force_refresh = force_refresh
+        self.load_full_genomes = load_full_genomes
 
     def strains(self) -> Iterator[Strain]:
         logger.info("Loading from JSON marker database file {}.".format(self.entries_file))
         logger.debug("Data will be saved to/load from: {}".format(cfg.database_cfg.data_dir))
         for strain_entry in self.strain_entries():
-            genbank_filename = fetch_genbank(strain_entry.accession,
+            genbank_path = fetch_genbank(strain_entry.accession,
                                              base_dir=cfg.database_cfg.data_dir,
                                              force_download=self.force_refresh)
 
             sequence_loader = SubsequenceLoader(
                 strain_accession=strain_entry.accession,
-                genbank_filename=genbank_filename,
+                genbank_filename=genbank_path,
                 marker_entries=strain_entry.marker_entries,
                 marker_max_len=self.marker_max_len
             )
@@ -476,7 +481,7 @@ class JSONParser(AbstractDatabaseParser):
                     ncbi_accession=strain_entry.accession,
                     genus=strain_entry.genus,
                     species=strain_entry.species,
-                    file_path=genbank_filename
+                    genbank_path=genbank_path
                 )
             )
 

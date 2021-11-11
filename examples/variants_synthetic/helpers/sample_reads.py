@@ -7,12 +7,7 @@ import shutil
 from multiprocessing.dummy import Pool
 from typing import Tuple, Dict, List
 
-from Bio import SeqIO
-from Bio.SeqRecord import SeqRecord
-
-from chronostrain import cfg, logger
-from chronostrain.database import StrainDatabase
-from chronostrain.model import Strain
+from chronostrain import logger
 from chronostrain.util.external.art import art_illumina
 
 from random import seed, randint
@@ -20,24 +15,24 @@ import numpy as np
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Simulate reads from genomes, using ART.")
+    parser = argparse.ArgumentParser(description="Simulate reads from specified variant genomes, using ART.")
 
+    # ============== Required params
+    parser.add_argument('-f', '--fasta_dir', required=True, type=str,
+                        help='<Required> The directory which contains all of the variant genome FASTA files.')
+    parser.add_argument('-o', '--out_dir', required=True, type=str,
+                        help='<Required> The directory to which the reads should be output to.')
+    parser.add_argument('-a', '--abundance_path', dest='abundance_path', required=True, type=str,
+                        help='<Required> The path to the abundance CSV file.')
     parser.add_argument('-n', '--num_reads', dest='num_reads', required=True, type=int,
                         help='<Required> The number of reads to sample per time point..')
-    parser.add_argument('-l', '--read_len', dest='read_len', required=True, type=int,
-                        help='<Required> The length of each read.')
-    parser.add_argument('-o', '--out_dir', dest='out_dir', required=True, type=str,
-                        help='<Required> The directory to output the reads to. The sampler will automatically'
-                             'generate a series of fastq files, as well as an index file `input_files.csv`.')
     parser.add_argument('-p', '--profiles', dest='profiles', required=True, nargs=2,
                         help='<Required> A pair of read profiles for paired-end reads. '
                              'The first profile is for the forward strand and the second profile is for the reverse.')
-    parser.add_argument('-a', '--abundance_path', dest='abundance_path', required=True, type=str,
-                        help='<Required> The path to the abundance CSV file.')
+    parser.add_argument('-l', '--read_len', dest='read_len', required=True, type=int,
+                        help='<Required> The length of each read.')
 
-    parser.add_argument('-s', '--seed', dest='seed', required=False, type=int, default=random.randint(0, 100),
-                        help='<Optional> The random seed to use for the samplers. Each timepoint will use a unique '
-                             'seed, starting with the specified value and incremented by one at a time.')
+    # ============ Optional params
     parser.add_argument('-qs', '--qShift', dest='quality_shift', required=False,
                         type=int, default=None,
                         help='<Optional> The `qShift` argument to pass to art_illumina, which lowers quality scores '
@@ -48,6 +43,9 @@ def parse_args():
                         type=int, default=None,
                         help='<Optional> (Assuming paired-end reads) The `qShift2` argument to pass to art_illumina, '
                              'which lowers quality scores of each second (reverse half) read by the specified amount.')
+    parser.add_argument('-s', '--seed', dest='seed', required=False, type=int, default=random.randint(0, 100),
+                        help='<Optional> The random seed to use for the samplers. Each timepoint will use a unique '
+                             'seed, starting with the specified value and incremented by one at a time.')
     parser.add_argument('--num_cores', dest='num_cores', required=False, type=int, default=1,
                         help='<Optional> The number of cores to use. If greater than 1, will spawn child '
                              'processes to call art_illumina.')
@@ -84,7 +82,6 @@ def sample_read_counts(n_reads: int, rel_abund: Dict[str, float]) -> Dict[str, i
 
 def main():
     args = parse_args()
-    strain_db = cfg.database_cfg.get_database()
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -105,7 +102,7 @@ def main():
         sample_reads_from_rel_abundances(
             final_reads_path=out_path_t,
             abundances=read_counts_t,
-            strain_db=strain_db,
+            strain_paths=parse_strain_paths(Path(args.fasta_dir)),
             tmp_dir=tmpdir,
             profile_first=args.profiles[0],
             profile_second=args.profiles[1],
@@ -122,6 +119,15 @@ def main():
     index_path = out_dir / "input_files.csv"
     create_index_file(index_path, timepoint_indexed_files)
     logger.info("Wrote index file to {}.".format(index_path))
+
+
+def parse_strain_paths(fasta_dir: Path) -> Dict[str, Path]:
+    assert fasta_dir.is_dir()
+    return {
+        child.stem: child
+        for child in fasta_dir.iterdir()
+        if child.is_file() and child.suffix == ".fasta"
+    }
 
 
 def create_index_file(index_path: Path, read_paths: List[Tuple[float, Path]]):
@@ -153,23 +159,9 @@ def parse_abundance_profile(abundance_path: str) -> List[Tuple[float, Dict]]:
         return abundances
 
 
-def save_strain_genome(strain: Strain):
-    record = next(SeqIO.parse(strain.metadata.genbank_path, "genbank"))
-    fasta_path = strain.metadata.genbank_path.parent / f"{strain.id}_genome.fasta"
-
-    SeqIO.write([
-        SeqRecord(
-            record.seq,
-            id=strain.id,
-            description="Full_genome"
-        )
-    ], fasta_path, "fasta")
-    return fasta_path
-
-
 def sample_reads_from_rel_abundances(final_reads_path: Path,
                                      abundances: Dict[str, float],
-                                     strain_db: StrainDatabase,
+                                     strain_paths: Dict[str, Path],
                                      tmp_dir: Path,
                                      profile_first: Path,
                                      profile_second: Path,
@@ -185,7 +177,6 @@ def sample_reads_from_rel_abundances(final_reads_path: Path,
 
     :param final_reads_path:
     :param abundances:
-    :param strain_db:
     :param tmp_dir:
     :param profile_first:
     :param profile_second:
@@ -197,17 +188,22 @@ def sample_reads_from_rel_abundances(final_reads_path: Path,
     :param cleanup:
     :return:
     """
+    for strain_id, _ in abundances.items():
+        if not strain_id in strain_paths:
+            raise ValueError(
+                f"Abundances file requests reads for `{strain_id}`, but couldn't find corresponding fasta file."
+            )
+
     if n_cores == 1:
         strain_read_paths = []
-        for entry_index, (accession, read_count) in enumerate(abundances.items()):
-            strain = strain_db.get_strain(strain_id=accession)
-            fasta_path = save_strain_genome(strain)
+        for entry_index, (strain_id, read_count) in enumerate(abundances.items()):
+            fasta_path = strain_paths[strain_id]
 
             output_path = art_illumina(
                 reference_path=fasta_path,
                 num_reads=read_count,
                 output_dir=tmp_dir,
-                output_prefix="{}_".format(accession),
+                output_prefix="{}_".format(strain_id),
                 profile_first=profile_first,
                 profile_second=profile_second,
                 quality_shift=quality_shift,
@@ -219,15 +215,15 @@ def sample_reads_from_rel_abundances(final_reads_path: Path,
             strain_read_paths.append(output_path)
     elif n_cores > 1:
         configs = [(
-            strain_db.get_strain(accession).metadata.genbank_path,
+            strain_paths[strain_id],
             read_count,
             tmp_dir,
-            "{}_".format(accession),
+            "{}_".format(strain_id),
             profile_first,
             profile_second,
             read_len,
             seed.next_value()
-        ) for entry_index, (accession, read_count) in enumerate(abundances.items())]
+        ) for entry_index, (strain_id, read_count) in enumerate(abundances.items())]
 
         thread_pool = Pool(n_cores)
         strain_read_paths = thread_pool.starmap(art_illumina, configs)

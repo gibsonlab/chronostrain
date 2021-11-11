@@ -28,7 +28,7 @@ class MarkerMetadata:
 @dataclass
 class StrainMetadata:
     ncbi_accession: str
-    file_path: Path
+    genbank_path: Path
     genus: str
     species: str
 

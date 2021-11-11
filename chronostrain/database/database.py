@@ -123,18 +123,32 @@ class StrainDatabase(object):
 
 
 class JSONStrainDatabase(StrainDatabase):
-    def __init__(self, entries_file: Union[str, Path], marker_max_len: int, force_refresh: bool = False):
+    def __init__(self,
+                 entries_file: Union[str, Path],
+                 marker_max_len: int,
+                 force_refresh: bool = False,
+                 load_full_genomes: bool = False):
         if isinstance(entries_file, str):
             entries_file = Path(entries_file)
-        parser = JSONParser(entries_file, marker_max_len, force_refresh)
+        parser = JSONParser(entries_file,
+                            marker_max_len,
+                            force_refresh,
+                            load_full_genomes=load_full_genomes)
         backend = DictionaryBackend()
         super().__init__(parser, backend)
 
 
 class SimpleCSVStrainDatabase(StrainDatabase):
-    def __init__(self, entries_file: Union[str, Path], trim_debug: Optional[int] = None, force_refresh: bool = False):
+    def __init__(self,
+                 entries_file: Union[str, Path],
+                 trim_debug: Optional[int] = None,
+                 force_refresh: bool = False,
+                 load_full_genomes: bool = False):
         if isinstance(entries_file, str):
             entries_file = Path(entries_file)
-        parser = CSVParser(entries_file, force_refresh, trim_debug)
+        parser = CSVParser(entries_file,
+                           force_refresh,
+                           trim_debug,
+                           load_full_genomes=load_full_genomes)
         backend = DictionaryBackend()
         super().__init__(parser, backend)
