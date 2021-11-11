@@ -224,7 +224,9 @@ def sample_reads_from_rel_abundances(final_reads_path: Path,
             profile_first,
             profile_second,
             read_len,
-            seed.next_value()
+            seed.next_value(),
+            False,
+            False
         ) for entry_index, (strain_id, read_count) in enumerate(abundances.items())]
 
         thread_pool = Pool(n_cores)
