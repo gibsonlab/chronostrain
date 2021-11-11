@@ -48,6 +48,8 @@ def parse_args():
     parser.add_argument('--num_posterior_samples', required=False, type=int, default=5000,
                         help='<Optional> If using a variational method, specify the number of '
                              'samples to generate as output.')
+    parser.add_argument('--draw_training_history', action="store_true",
+                        help='If flag is set, then outputs an animation of the BBVI training history.')
     parser.add_argument('--save_fragment_probs', action="store_true",
                         help='If flag is set, then save posterior fragment probabilities for valid reads.')
     parser.add_argument('--plot_format', required=False, type=str, default="pdf")
@@ -126,8 +128,17 @@ def main():
         num_samples=args.num_samples,
         correlation_type='strain',
         save_elbo_history=False,
-        save_training_history=False
+        save_training_history=args.draw_training_history
     )
+
+    if args.draw_training_history:
+        viz.plot_training_animation(
+            model=model,
+            out_path=out_dir / "training.gif",
+            upper_quantiles=uppers,
+            lower_quantiles=lowers,
+            medians=medians
+        )
 
     # ==== Finally, plot the posterior.
     viz.plot_bbvi_posterior(
@@ -136,7 +147,10 @@ def main():
         plot_path=out_dir / "plot.{}".format(args.plot_format),
         samples_path=out_dir / "samples.pt",
         plot_format=args.plot_format,
-        num_samples=args.num_posterior_samples
+        num_samples=args.num_posterior_samples,
+        draw_legend=True,
+        width=16,
+        height=12
     )
 
     # ==== For each strain, output its marker gene sequence.

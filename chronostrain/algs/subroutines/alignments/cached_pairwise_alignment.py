@@ -8,14 +8,12 @@ from typing import Optional, Dict, List, Iterator, Tuple
 from chronostrain.model import Marker
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.util.cache import ComputationCache
-from chronostrain.util.external.bwa import bwa_mem, bwa_index
 from chronostrain.util.alignments.sam import SamFile
 from chronostrain.util.alignments.pairwise import *
 from chronostrain.database import StrainDatabase
 
 from chronostrain.algs.subroutines.cache import ReadsComputationCache
-from chronostrain.config import create_logger
-logger = create_logger(__name__)
+from chronostrain.config import cfg
 
 
 class CachedReadPairwiseAlignments(object):
@@ -35,7 +33,22 @@ class CachedReadPairwiseAlignments(object):
             self.cache = cache_override
         else:
             self.cache = ReadsComputationCache(reads)
-        bwa_index(self.marker_reference_path)
+
+        if cfg.external_tools_cfg.pairwise_align_cmd == "bwa":
+            self.aligner = BwaAligner(
+                reference_path=self.marker_reference_path,
+                min_seed_len=8,
+                num_threads=cfg.model_cfg.num_cores,
+                report_all_alignments=True
+            )
+        elif cfg.external_tools_cfg.pairwise_align_cmd == "bowtie2":
+            self.aligner = BowtieAligner(
+                reference_path=self.marker_reference_path,
+                index_basepath=self.marker_reference_path.parent,
+                index_basename="markers",
+                report_all_alignments=True,
+                num_threads=cfg.model_cfg.num_cores
+            )
 
     @staticmethod
     def get_path(reads_path: Path) -> Path:
@@ -89,12 +102,9 @@ class CachedReadPairwiseAlignments(object):
         # ====== function bindings to pass to ComputationCache.
         def perform_alignment():
             absolute_path.parent.mkdir(exist_ok=True, parents=True)
-            bwa_mem(
-                output_path=absolute_path,
-                reference_path=self.marker_reference_path,
-                read_path=reads_path,
-                min_seed_length=3,
-                report_all_alignments=True
+            self.aligner.align(
+                query_path=reads_path,
+                output_path=absolute_path
             )
             return SamFile(absolute_path, quality_format)
 

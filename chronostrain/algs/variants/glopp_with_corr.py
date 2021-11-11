@@ -33,7 +33,7 @@ class GloppContigStrandSpecification(object):
         return self.__repr__()
 
     def __repr__(self):
-        return f"[Marker {self.contig.marker.id}, Contig {self.contig.contig_idx}, Strand {self.strand_idx}]"
+        return f"<Marker {self.contig.marker.id}, Contig {self.contig.contig_idx}, Strand {self.strand_idx}>"
 
 
 def upper_triangular_bounded(x: np.ndarray,
@@ -66,6 +66,8 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
                  glasso_shrinkage: float = 0.1,
                  glasso_standardize: bool = True,
                  glasso_alpha: float = 1e-3,
+                 glasso_iterations: int = 3000,
+                 glasso_tol: float = 1e-2,
                  seed_with_database: bool = False,
                  num_strands: Optional[int] = None):
         """
@@ -86,6 +88,8 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
         self.glasso_shrinkage = glasso_shrinkage
         self.glasso_standardize = glasso_standardize
         self.glasso_alpha = glasso_alpha
+        self.glasso_iterations = glasso_iterations
+        self.glasso_tol = glasso_tol
         self.num_strands = num_strands
 
         self.reference_markers_to_assembly: Dict[Marker, FloppMarkerAssembly] = self.construct_marker_assemblies()
@@ -148,7 +152,11 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
             G.add_edge(v, w)
 
         for clique in nx.find_cliques(G):
-            print(clique)
+            logger.debug("Clique: [{}]".format(
+                ",".join(
+                    str(self.strand_specs[x]) for x in clique
+                )
+            ))
             yield self.strain_variant_from_clique(
                 G,
                 clique,
@@ -192,7 +200,12 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
         # Set shrinkage closer to 1 for poorly-conditioned data
         shrunk_cov = covariance.shrunk_covariance(emp_cov, shrinkage=self.glasso_shrinkage)
 
-        _, precision = covariance.graphical_lasso(shrunk_cov, self.glasso_alpha)
+        _, precision = covariance.graphical_lasso(
+            shrunk_cov,
+            self.glasso_alpha,
+            max_iter=self.glasso_iterations,
+            tol=self.glasso_tol
+        )
         logger.debug("Calculated graph-lasso covariance matrix for alpha={:.2e}".format(self.glasso_alpha))
         return precision
 

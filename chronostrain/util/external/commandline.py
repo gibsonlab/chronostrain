@@ -1,6 +1,6 @@
 from pathlib import Path
 import subprocess
-from typing import List
+from typing import List, Optional, Dict
 
 from chronostrain.config.logging import create_logger
 logger = create_logger(__name__)
@@ -17,6 +17,7 @@ def call_command(command: str,
                  args: List[str],
                  cwd: Path = None,
                  shell: bool = False,
+                 environment: Optional[Dict[str, str]] = None,
                  output_path: Path = None) -> int:
     """
     Executes the command (using the subprocess module).
@@ -25,6 +26,7 @@ def call_command(command: str,
     :param cwd: The `cwd param in subprocess. If not `None`, the function changes
     the working directory to cwd prior to execution.
     :param shell: Indicates whether or not to instantiate a shell from which to invoke the command (not recommended!)
+    :param environment: A key-value pair representing an environment with necessary variables set.
     :param output_path: A path to print the contents of STDOUT to. (If None, logs STDOUT instead.)
     :return: The exit code. (zero by default, the program's returncode if error.)
     """
@@ -35,6 +37,13 @@ def call_command(command: str,
         cwdstr="" if cwd is None else "[cwd={}] ".format(cwd),
         arguments=" ".join(args)
     ))
+
+    if environment is not None:
+        logger.debug("ENV: \n{}".format(
+            "\n".join(
+                f"{key}: {value}" for key, value in environment.items()
+            )
+        ))
 
     if output_path is not None:
         logger.debug("STDOUT redirect to {}.".format(output_path))
@@ -49,7 +58,8 @@ def call_command(command: str,
             stderr=subprocess.PIPE,
             stdout=output_file if output_file is not None else subprocess.PIPE,
             shell=shell,
-            cwd=None if cwd is None else str(cwd)
+            cwd=None if cwd is None else str(cwd),
+            env=environment
         )
     except FileNotFoundError as e:
         raise RuntimeError(f"Encountered file error running subprocess. Is `{command}` installed?") from e

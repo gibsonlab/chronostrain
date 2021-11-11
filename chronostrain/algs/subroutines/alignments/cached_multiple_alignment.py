@@ -61,9 +61,13 @@ class CachedReadMultipleAlignments(object):
                                   timeseries_pairwise_aligns: List[List[SequenceReadPairwiseAlignment]]
                                   ) -> multialign.MarkerMultipleFragmentAlignment:
         def read_gen():
+            seen_reads = set()
             for t_idx, alignments in enumerate(timeseries_pairwise_aligns):
                 for aln in alignments:
+                    if aln.read.id in seen_reads:
+                        continue
                     yield t_idx, aln.read, aln.reverse_complemented
+                    seen_reads.add(aln.read.id)
 
         # ====== function bindings to pass to ComputationCache.
         def perform_alignment(out_path: Path) -> multialign.MarkerMultipleFragmentAlignment:

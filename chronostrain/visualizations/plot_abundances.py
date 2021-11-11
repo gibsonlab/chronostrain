@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 import pandas as pd
 
+from chronostrain.model import StrainVariant
 from chronostrain.model.bacteria import Population
 from chronostrain.model.io import load_abundances
 from scipy.special import softmax
@@ -174,7 +175,10 @@ def plot_posterior_abundances(
         title: str = None,
         font_size: int = 12,
         thickness: int = 1,
-        dpi: int = 100):
+        dpi: int = 100,
+        width: int = 16,
+        height: int = 20
+):
     """
     :param times:
     :param posterior_samples: A (T x N x S) array of time-indexed samples of abundances.
@@ -191,7 +195,6 @@ def plot_posterior_abundances(
     """
 
     true_abundances = None
-    truth_strain_id_to_idx: Dict[str, int] = None
     if truth_path is not None:
         _, true_abundances, accessions = load_abundances(truth_path)
         truth_strain_id_to_idx = {
@@ -204,7 +207,7 @@ def plot_posterior_abundances(
     # Convert gaussians to rel abundances.
     abundance_samples = softmax(posterior_samples, axis=2)
 
-    fig, ax = plt.subplots(1, 1)
+    fig, ax = plt.subplots(1, 1, figsize=(width, height))
     legend_elements = []
     plt.rcParams.update({'font.size': font_size})
     ax.set_ylim(0, 1)
@@ -232,9 +235,14 @@ def plot_posterior_abundances(
         # This is (T x N), for the particular strain.
         traj_samples = abundance_samples[:, :, s_idx]
 
+        if isinstance(strain, StrainVariant):
+            label = f"{s_idx}_{strain.base_strain}_variant"
+        else:
+            label = strain.id
+
         render_posterior_abundances(
             times=times,
-            label=strain.id,
+            label=label,
             traj_samples=traj_samples,
             ax=ax,
             thickness=thickness,
@@ -254,7 +262,8 @@ def plot_posterior_abundances(
         )
 
     if draw_legend:
-        ax.legend(handles=legend_elements)
+        ax.legend(bbox_to_anchor=(1.05, 1.0), loc='lower center', handles=legend_elements)
+        fig.tight_layout()
     ax.set_title(title)
     fig.savefig(plots_out_path, bbox_inches='tight', format=img_format, dpi=dpi)
 

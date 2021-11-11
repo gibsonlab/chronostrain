@@ -82,7 +82,10 @@ def plot_bbvi_posterior(model: GenerativeModel,
                         samples_path: Path,
                         plot_format: str,
                         ground_truth_path: Optional[Path] = None,
-                        num_samples: int = 10000):
+                        draw_legend: bool = False,
+                        num_samples: int = 10000,
+                        width: int = 16,
+                        height: int = 20):
     logger.info("Generating plot of posterior.")
 
     # Generate and save posterior samples.
@@ -102,8 +105,10 @@ def plot_bbvi_posterior(model: GenerativeModel,
         title=title,
         plots_out_path=plot_path,
         truth_path=ground_truth_path,
-        draw_legend=False,
-        img_format=plot_format
+        draw_legend=draw_legend,
+        img_format=plot_format,
+        width=width,
+        height=height
     )
 
     logger.info("Posterior abundance plot saved to {}.".format(plot_path))
