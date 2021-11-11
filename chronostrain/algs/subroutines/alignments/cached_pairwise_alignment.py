@@ -49,6 +49,10 @@ class CachedReadPairwiseAlignments(object):
                 report_all_alignments=True,
                 num_threads=cfg.model_cfg.num_cores
             )
+        else:
+            raise NotImplementedError(
+                f"Alignment command `{cfg.external_tools_cfg.pairwise_align_cmd}` not currently supported."
+            )
 
     @staticmethod
     def get_path(reads_path: Path) -> Path:
