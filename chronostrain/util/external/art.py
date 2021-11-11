@@ -32,16 +32,18 @@ def art_illumina(reference_path: Path,
     :return: The filepath to the paired-end reads. TODO: Currently only returns the first read of the pair.
     """
 
-    cmd_args = ['--qprof1', str(profile_first),
-     '--qprof2', str(profile_second),
-     '-i', reference_path,
-     '-l', str(read_length),
-     '-c', str(num_reads),
-     '-p',
-     '-m', '200',
-     '-s', '10',
-     '-o', output_prefix,
-     '-rs', str(seed)]
+    cmd_args = [
+        '--qprof1', str(profile_first),
+        '--qprof2', str(profile_second),
+        '-i', reference_path,
+        '-l', str(read_length),
+        '-c', str(num_reads),
+        '-p',
+        '-m', '200',
+        '-s', '10',
+        '-o', output_prefix,
+        '-rs', str(seed)
+    ]
 
     if output_sam:
         cmd_args.append('-sam')
