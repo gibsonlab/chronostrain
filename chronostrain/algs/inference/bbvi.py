@@ -8,7 +8,8 @@
 """
 from typing import Iterator, Tuple, Optional, Callable, Dict, Union, List
 
-from torch.nn.functional import softplus
+from torch import Tensor
+from torch.nn import functional
 from torch.distributions import Normal
 
 from chronostrain.config import cfg
@@ -27,24 +28,26 @@ logger = create_logger(__name__)
 
 # ============== Posteriors
 
-class PositiveScaleLayer(torch.nn.Module):
+class LinearTrilGaussian(torch.nn.Linear):
+    def __init__(self, n_features: int, bias: bool, device=None, dtype=None):
+        super().__init__(
+            in_features=n_features,
+            out_features=n_features,
+            bias=bias,
+            device=device,
+            dtype=dtype
+        )
+        self.n_features = n_features
 
-    def __init__(self, size: torch.Size):
-        super().__init__()
-        self.scale = torch.nn.Parameter(torch.zeros(size))
+    @property
+    def cholesky_part(self) -> torch.Tensor:
+        x = torch.tril(self.weight, diagonal=-1)
+        x[range(self.n_features), range(self.n_features)] = torch.exp(torch.diag(self.weight))
+        # x[range(self.n_features), range(self.n_features)] = torch.diag(self.weight)
+        return x
 
-    def forward(self, input: torch.Tensor):
-        return softplus(self.scale) * input
-
-
-class BiasLayer(torch.nn.Module):
-
-    def __init__(self, size: torch.Size):
-        super().__init__()
-        self.bias = torch.nn.Parameter(torch.zeros(size))
-
-    def forward(self, input: torch.Tensor):
-        return input + self.bias
+    def forward(self, input: Tensor) -> Tensor:
+        return functional.linear(input, self.cholesky_part, self.bias)
 
 
 class GaussianPosteriorFullCorrelation(AbstractPosterior):
@@ -59,10 +62,11 @@ class GaussianPosteriorFullCorrelation(AbstractPosterior):
         self.model = model
 
         # ========== Reparametrization network (standard Gaussians -> nonstandard Gaussians)
-        self.reparam_network = torch.nn.Linear(
-            in_features=self.model.num_times() * self.model.num_strains(),
-            out_features=self.model.num_times() * self.model.num_strains()
-        ).to(cfg.torch_cfg.device)
+        self.reparam_network = LinearTrilGaussian(
+            n_features=self.model.num_times() * self.model.num_strains(),
+            bias=True,
+            device=cfg.torch_cfg.device
+        )
         torch.nn.init.eye_(self.reparam_network.weight)
         self.trainable_parameters = self.reparam_network.parameters()
         self.standard_normal = Normal(
@@ -108,9 +112,10 @@ class GaussianPosteriorFullCorrelation(AbstractPosterior):
             ).transpose(0, 1)
 
     def reparametrized_sample_log_likelihoods(self, samples):
+        w = self.reparam_network.cholesky_part
         return torch.distributions.MultivariateNormal(
             loc=self.reparam_network.bias,
-            covariance_matrix=self.reparam_network.weight.t().mm(self.reparam_network.weight)
+            covariance_matrix=w.mm(w.t())
         ).log_prob(samples)
 
     def log_likelihood(self, x: torch.Tensor) -> float:
@@ -135,11 +140,11 @@ class GaussianPosteriorStrainCorrelation(AbstractPosterior):
         self.reparam_networks = []
 
         for t_idx in range(self.model.num_times()):
-            linear_layer = torch.nn.Linear(
-                in_features=self.model.num_strains(),
-                out_features=self.model.num_strains(),
+            linear_layer = LinearTrilGaussian(
+                n_features=self.model.num_strains(),
                 bias=True,
-            ).to(cfg.torch_cfg.device)
+                device=cfg.torch_cfg.device
+            )
             torch.nn.init.eye_(linear_layer.weight)
             self.reparam_networks.append(linear_layer)
 
@@ -194,14 +199,14 @@ class GaussianPosteriorStrainCorrelation(AbstractPosterior):
             samples_t = samples[t]
             linear = self.reparam_networks[t]
             try:
+                w = linear.cholesky_part
                 log_likelihood_t = torch.distributions.MultivariateNormal(
                     loc=linear.bias,
-                    covariance_matrix=linear.weight.t().mm(linear.weight)
+                    covariance_matrix=w.mm(w.t())
                 ).log_prob(samples_t)
             except ValueError:
-                cov = linear.weight.t().mm(linear.weight).detach()
-                logger.debug("# strains = {}".format(self.model.num_strains()))
-                logger.error("Resulting covariance matrix: (t={}) {}, mean: {}".format(t, cov, linear.bias))
+                w = linear.cholesky_part
+                logger.error("Resulting covariance cholesky: (t={}) {}".format(t, w))
                 raise
             ans = ans + log_likelihood_t
         return ans
@@ -228,11 +233,11 @@ class GaussianPosteriorTimeCorrelation(AbstractPosterior):
         self.reparam_networks: Dict[int, torch.nn.Module] = dict()
 
         for s_idx in range(self.model.num_strains()):
-            linear_layer = torch.nn.Linear(
-                in_features=self.model.num_times(),
-                out_features=self.model.num_times(),
+            linear_layer = LinearTrilGaussian(
+                n_features=self.model.num_times(),
                 bias=True,
-            ).to(cfg.torch_cfg.device)
+                device=cfg.torch_cfg.device
+            )
             torch.nn.init.eye_(linear_layer.weight)
             self.reparam_networks[s_idx] = linear_layer
         self.trainable_parameters = []
@@ -285,9 +290,10 @@ class GaussianPosteriorTimeCorrelation(AbstractPosterior):
         for s in range(self.model.num_strains()):
             samples_s = samples[s]
             linear = self.reparam_networks[s]
+            w = linear.cholesky_part
             log_likelihood_s = torch.distributions.MultivariateNormal(
                 loc=linear.bias,
-                covariance_matrix=linear.weight.t().mm(linear.weight)
+                covariance_matrix=w.mm(w.t())
             ).log_prob(samples_s)
             ans = ans + log_likelihood_s
         return ans
