@@ -109,8 +109,10 @@ def bowtie2(
         effort_num_reseeds: int = 2,
         quality_format: str = 'phred33',
         report_all_alignments: bool = False,
+        report_k_alignments: Optional[int] = None,
         num_threads: int = 1,
         rng_seed: int = 0,
+        sam_suppress_noalign: bool = False,
         command_path: str = "bowtie2",
         local: bool = False
 ):
@@ -147,8 +149,16 @@ def bowtie2(
     else:
         raise RuntimeError("Unrecognized quality_format argument `{}`".format(quality_format))
 
+    if report_all_alignments and report_k_alignments is not None:
+        raise ValueError("Can't simultaneously use `report_all_alignments` and `report_k_alignments` settings.")
+
     if report_all_alignments:
         args.append('-a')
+    elif report_k_alignments is not None:
+        args += ['-k', report_k_alignments]
+
+    if sam_suppress_noalign:
+        args.append('--no-unal')
 
     if num_threads > 1:
         args += ['--threads', num_threads]

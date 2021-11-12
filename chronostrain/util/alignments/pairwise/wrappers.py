@@ -82,5 +82,6 @@ class BowtieAligner(AbstractPairwiseAligner):
             aln_n_ceil=bt2_func_linear(0, .1),
             score_min_fn=bt2_func_linear(0, -0.1),
             score_max_min_penalty=(1, 0),
-            local=False
+            local=False,
+            sam_suppress_noalign=True
         )
