@@ -369,7 +369,7 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
             logger.debug("Computing read likelihoods with parallel pool size = {}.".format(cfg.model_cfg.num_cores))
 
             return Parallel(n_jobs=cfg.model_cfg.num_cores)(
-                delayed(self.cache.call)(cache_kwargs_t)
+                delayed(self.cache.call)(**cache_kwargs_t)
                 for cache_kwargs_t in jobs
             )
         else:
