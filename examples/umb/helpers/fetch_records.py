@@ -26,15 +26,18 @@ def fetch_records(bioproject_id: str, tsv_path: str) -> pd.DataFrame:
 
 def main():
     bioproject = "PRJNA400628"
-    tsv_path = "/mnt/d/Projects/chronostrain/examples/umb/files/umb_samples_broad.tsv"
-    out_path = "/mnt/d/Projects/chronostrain/examples/umb/files/umb_samples.csv"
+    tsv_path = "F:/microbiome_tracking/examples/umb/files/umb_samples_broad.tsv"
+    out_path = "F:/microbiome_tracking/examples/umb/files/umb_samples.csv"
 
     from datetime import date
     all_records = fetch_records(bioproject, tsv_path)
     all_records['epoch'] = date(2015, 1, 1)
     all_records['epoch'] = pd.to_datetime(all_records['epoch'])
     all_records['days'] = (all_records['date'] - all_records['epoch']).dt.days
-    all_records[['Run', 'ID', 'SampleName', 'date', 'days', 'type']].to_csv(
+    all_records.loc[
+        (all_records['LibraryStrategy'] == 'WGS') & (all_records['type'] == 'stool'),
+        ['Run', 'ID', 'SampleName', 'date', 'days', 'type']
+    ].to_csv(
         out_path,
         sep=',',
         index=False
