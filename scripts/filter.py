@@ -74,7 +74,7 @@ def filter_file(
     reads_already_passed = set()
 
     for sam_file_path in sam_files:
-        logger.debug(f"Reading: {sam_file_path.name}")
+        logger.info(f"Reading: {sam_file_path.name}")
         for aln in parse_alignments(
                 SamFile(sam_file_path, quality_format), db
         ):
@@ -118,7 +118,7 @@ def filter_file(
                 )
                 record.letter_annotations["phred_quality"] = aln.read.quality
                 Bio.SeqIO.write(record, result_fq, "fastq")
-
+        logger.info(f"# passed reads: {len(reads_already_passed)}")
     result_metadata.close()
     result_fq.close()
 

@@ -38,13 +38,6 @@ def call_command(command: str,
         arguments=" ".join(args)
     ))
 
-    if environment is not None:
-        logger.debug("ENV: \n{}".format(
-            "\n".join(
-                f"{key}: {value}" for key, value in environment.items()
-            )
-        ))
-
     if output_path is not None:
         logger.debug("STDOUT redirect to {}.".format(output_path))
         output_file = open(output_path, 'w')
