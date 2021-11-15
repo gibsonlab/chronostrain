@@ -19,7 +19,7 @@ from chronostrain.model import GenerativeModel, Fragment
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.util.benchmarking import RuntimeEstimator
 from chronostrain.util.math import *
-from chronostrain.util.sparse import SparseMatrix
+from chronostrain.util.sparse import SparseMatrix, ColumnSectionedSparseMatrix
 from chronostrain.database import StrainDatabase
 
 from chronostrain.config.logging import create_logger
@@ -194,7 +194,7 @@ class GaussianPosteriorStrainCorrelation(AbstractPosterior):
     def reparametrized_sample_log_likelihoods(self, samples):
         # samples is (T x N x S)
         n_samples = samples.size()[1]
-        ans = torch.zeros(size=(n_samples,), requires_grad=True)
+        ans = torch.zeros(size=(n_samples,), requires_grad=True, device=cfg.torch_cfg.device)
         for t in range(self.model.num_times()):
             samples_t = samples[t]
             linear = self.reparam_networks[t]
@@ -204,10 +204,10 @@ class GaussianPosteriorStrainCorrelation(AbstractPosterior):
                     loc=linear.bias,
                     covariance_matrix=w.mm(w.t())
                 ).log_prob(samples_t)
-            except ValueError:
+            except ValueError as e:
                 w = linear.cholesky_part
                 logger.error("Resulting covariance cholesky: (t={}) {}".format(t, w))
-                raise
+                raise e
             ans = ans + log_likelihood_t
         return ans
 
@@ -364,9 +364,9 @@ class BBVISolver(AbstractModelSolver):
             raise ValueError("Unrecognized `correlation_type` argument {}.".format(correlation_type))
 
         # self.model.get_fragment_frequencies()
-        self._sparse_frag_freqs = []
+        self._sparse_frag_freqs: List[ColumnSectionedSparseMatrix] = []
         if cfg.model_cfg.use_sparse:
-            frag_freqs: SparseMatrix = self.model.fragment_frequencies  # F x S
+            frag_freqs: SparseMatrix = self.model.fragment_frequencies_sparse  # F x S
             for t_idx in range(model.num_times()):
 
                 frag_support = self.data_likelihoods.supported_frags[t_idx]
@@ -385,7 +385,9 @@ class BBVISolver(AbstractModelSolver):
                     dims=(sz_supp, sz_full)
                 )
 
-                self._sparse_frag_freqs.append(projector.sparse_mul(frag_freqs))
+                self._sparse_frag_freqs.append(
+                    ColumnSectionedSparseMatrix.from_sparse_matrix(projector.sparse_mul(frag_freqs))
+                )
 
             self.fragment_posterior = FragmentPosterior(
                 model=model,
@@ -396,7 +398,8 @@ class BBVISolver(AbstractModelSolver):
 
     def elbo_marginal_gaussian(self,
                                x_samples: torch.Tensor,
-                               posterior_gaussian_log_likelihoods: torch.Tensor) -> torch.Tensor:
+                               posterior_gaussian_log_likelihoods: torch.Tensor,
+                               eps_smoothing: float) -> torch.Tensor:
         """
         Computes the monte-carlo approximation to the ELBO objective, holding the read-to-fragment posteriors fixed.
 
@@ -417,16 +420,19 @@ class BBVISolver(AbstractModelSolver):
         :param x_samples: A (T x N x S) tensor, where T = # of timepoints, N = # of samples, S = # of strains.
         :param posterior_gaussian_log_likelihoods: A length-N (one-dimensional) tensor of the joint log-likelihood
             each (T x S) slice.
+        :param eps_smoothing: A small epsilon parameter to smooth out estimates (e.g. normalize eps + phi,
+            instead of phi which may contain columns of all zeros due to numerical precision.)
         :return: An estimate of the ELBO, using the provided samples via the above formula.
         """
         if cfg.model_cfg.use_sparse:
-            return self.elbo_marginal_gaussian_sparse(x_samples, posterior_gaussian_log_likelihoods)
+            return self.elbo_marginal_gaussian_sparse(x_samples, posterior_gaussian_log_likelihoods, eps_smoothing)
         else:
-            return self.elbo_marginal_gaussian_dense(x_samples, posterior_gaussian_log_likelihoods)
+            return self.elbo_marginal_gaussian_dense(x_samples, posterior_gaussian_log_likelihoods, eps_smoothing)
 
     def elbo_marginal_gaussian_dense(self,
                                      x_samples: torch.Tensor,
-                                     posterior_gaussian_log_likelihoods: torch.Tensor) -> torch.Tensor:
+                                     posterior_gaussian_log_likelihoods: torch.Tensor,
+                                     eps_smoothing: float) -> torch.Tensor:
         # ======== log P(Xi)
         model_gaussian_log_likelihoods = self.model.log_likelihood_x(X=x_samples)
 
@@ -442,14 +448,14 @@ class BBVISolver(AbstractModelSolver):
             Expectation is \sum_{read} \sum_{frag} phi[read,frag] * logP(frag|X).
             For a speedup, we switch order of summation: \sum_{frag} logP(frag|X) * (\sum_{read} phi[read,frag])
             """
-            model_frag_likelihoods_t = softmax(
-                x_samples[t_idx, :, :],  # (N x S)
-                dim=1
-            ).mm(
-                self.model.fragment_frequencies.t()  # (S x F)
-            ).log()  # (N x F)
+
+            model_frag_likelihoods_t = log_mm_exp(
+                torch.log(softmax(x_samples[t_idx], dim=1)),  # (N x S)
+                self.model.fragment_frequencies_dense.t()  # (S x F)
+            )  # (N x F)
+
             expectation_model_log_fragment_probs += model_frag_likelihoods_t.mv(
-                self.fragment_posterior.phi[t_idx].sum(dim=1)  # length F
+                normalize(self.fragment_posterior.phi[t_idx] + eps_smoothing, dim=0).sum(dim=1)  # length F
             )  # length N
 
         elbo_samples = (model_gaussian_log_likelihoods
@@ -459,13 +465,12 @@ class BBVISolver(AbstractModelSolver):
 
     def elbo_marginal_gaussian_sparse(self,
                                       x_samples: torch.Tensor,
-                                      posterior_gaussian_log_likelihoods: torch.Tensor
+                                      posterior_gaussian_log_likelihoods: torch.Tensor,
+                                      eps_smoothing: float
                                       ) -> torch.Tensor:
         """
-        Same as dense implementation, but computes the middle term E_{F ~ Qf}(log P(F|Xi)) using monte-carlo samples of F from phi.
-        :param x_samples:
-        :param posterior_gaussian_log_likelihoods:
-        :return:
+        Same as dense implementation, but computes the middle term E_{F ~ Qf}(log P(F|Xi)) using monte-carlo samples
+        of F from phi.
         """
         # ======== log P(Xi)
         model_gaussian_log_likelihoods = self.model.log_likelihood_x(X=x_samples)
@@ -479,14 +484,11 @@ class BBVISolver(AbstractModelSolver):
         )
         for t_idx in range(self.model.num_times()):
             softmax_x_t = torch.softmax(x_samples[t_idx, :, :], dim=1)  # (N x S)
-            phi_sum = self.fragment_posterior.phi[t_idx].sum(dim=1)  # (length F')
+            phi_sum = normalize(self.fragment_posterior.phi[t_idx].to_dense() + eps_smoothing, dim=0).sum(dim=1)  # (length F')
 
-            # These are all dense operations.
-            expectation_model_log_fragment_probs += torch.log(
-                # (F' x S) sparse matrix @ (S x N) dense, result is dense (F' x N)
-                self._sparse_frag_freqs[t_idx].dense_mul(
-                    softmax_x_t.t()
-                )
+            expectation_model_log_fragment_probs += log_spmm_exp(
+                self._sparse_frag_freqs[t_idx],
+                torch.log(softmax_x_t).t()
             ).t().mv(phi_sum)
 
         elbo_samples = (model_gaussian_log_likelihoods
@@ -494,39 +496,35 @@ class BBVISolver(AbstractModelSolver):
                         - posterior_gaussian_log_likelihoods)
         return elbo_samples.mean()
 
-    def update_phi(self, x_samples: torch.Tensor, eps_smoothing: float = 1e-30):
+    def update_phi(self, x_samples: torch.Tensor):
         if cfg.model_cfg.use_sparse:
-            return self.update_phi_sparse(x_samples, eps_smoothing)
+            return self.update_phi_sparse(x_samples)
         else:
-            return self.update_phi_dense(x_samples, eps_smoothing)
+            return self.update_phi_dense(x_samples)
 
-    def update_phi_dense(self, x_samples: torch.Tensor, eps_smoothing: float):
+    def update_phi_dense(self, x_samples: torch.Tensor):
         """
         This step represents the explicit solution of maximizing the ELBO of Q_phi (the mean-field portion of
         the read-to-fragment posteriors), given a particular solution of (samples from) Q_X.
         :param x_samples:
-        :param eps_smoothing: A small epsilon parameter to smooth out estimates (e.g. normalize eps + phi,
-            instead of phi which may contain columns of all zeros due to numerical precision.)
         :return:
         """
-        W = self.model.fragment_frequencies
+        W = self.model.fragment_frequencies_dense
         self.fragment_posterior.phi = []
 
         for t in range(self.model.num_times()):
             phi_t = self.data_likelihoods.matrices[t].exp() * torch.exp(
                 torch.mean(
-                    torch.log(W @ softmax(x_samples[t], dim=1).transpose(0, 1)),
+                    log_mm_exp(W, torch.log(softmax(x_samples[t], dim=1).t())),
                     dim=1
                 )
-            ).unsqueeze(1) + eps_smoothing
-            self.fragment_posterior.phi.append(normalize(phi_t, dim=0))
+            ).unsqueeze(1)
+            self.fragment_posterior.phi.append(phi_t)
 
-    def update_phi_sparse(self, x_samples: torch.Tensor, eps_smoothing: float):
+    def update_phi_sparse(self, x_samples: torch.Tensor):
         """
         Same as update_phi_dense, but accounts for the fact that the W and read_likelihoods[t] matrices are sparse.
         :param x_samples:
-        :param eps_smoothing: A small epsilon parameter to smooth out estimates (e.g. normalize eps + phi,
-            instead of phi which may contain columns of all zeros due to numerical precision.)
         :return:
         """
         self.fragment_posterior.phi = []
@@ -534,16 +532,16 @@ class BBVISolver(AbstractModelSolver):
         for t in range(self.model.num_times()):
             phi_t: SparseMatrix = self.data_likelihoods.matrices[t].exp().scale_row(
                 torch.exp(torch.mean(
-                    torch.log(
-                        # (F' x S) @ (S x N)
-                        self._sparse_frag_freqs[t].dense_mul(softmax(x_samples[t], dim=1).t())
+                    log_spmm_exp(
+                        self._sparse_frag_freqs[t],  # (F' x S)
+                        torch.log(softmax(x_samples[t], dim=1)).t()  # (S x N)
                     ),
                     dim=1
                 )),
                 dim=0
             )
 
-            self.fragment_posterior.phi.append(phi_t.add_constant(eps_smoothing).normalize(dim=0))
+            self.fragment_posterior.phi.append(phi_t)
 
     def solve(self,
               optim_class=torch.optim.Adam,
@@ -592,7 +590,7 @@ class BBVISolver(AbstractModelSolver):
             with torch.no_grad():
                 self.update_phi(x_samples.detach())
 
-            elbo = self.elbo_marginal_gaussian(x_samples, gaussian_log_likelihoods)
+            elbo = self.elbo_marginal_gaussian(x_samples, gaussian_log_likelihoods, eps_smoothing=1e-6)
 
             elbo_loss = -elbo  # Quantity to minimize. (want to maximize ELBO)
             elbo_loss.backward()

@@ -9,7 +9,7 @@ import numpy as np
 
 from chronostrain.model import Marker, SequenceRead
 from chronostrain.model.io import TimeSeriesReads
-from ...external import mafft_fragment
+from ...external import mafft_fragment, clustal_omega
 from ...sequences import *
 
 from chronostrain.config import create_logger
@@ -153,7 +153,7 @@ def parse(target_marker: Marker, reads: TimeSeriesReads, aln_path: Path) -> Mark
                          f"but instead found `{parsed_marker_id}` in alignment file.")
     marker_seq = nucleotides_to_z4(str(first_record.seq))
 
-    # Check for clipped reads (reads that map to the edges of the marker).
+    # The marker sequence's aligned region. Keep track of this to clip off the start/end edge effects.
     matched_indices = np.where(marker_seq != nucleotide_GAP_z4)[0]
     start_clip = matched_indices[0]
     end_clip = matched_indices[-1]
@@ -170,7 +170,7 @@ def parse(target_marker: Marker, reads: TimeSeriesReads, aln_path: Path) -> Mark
         # Get the read instance.
         read_obj = reads[t_idx].get_read(read_id)
 
-        # Check if alignment is clipped.
+        # Check if alignment is clipped off the edges of the marker.
         aln_seq = nucleotides_to_z4(str(record.seq))
         n_clipped_bases = np.sum(
             aln_seq[:start_clip] != nucleotide_GAP_z4
@@ -219,7 +219,8 @@ def parse(target_marker: Marker, reads: TimeSeriesReads, aln_path: Path) -> Mark
 def align(marker: Marker,
           read_descriptions: Iterator[Tuple[int, SequenceRead, bool]],
           intermediate_fasta_path: Path,
-          out_fasta_path: Path):
+          out_fasta_path: Path,
+          n_threads: int = 1):
     """
     Write these records to file (using a predetermined format), then perform multiple alignment.
     """
@@ -251,5 +252,6 @@ def align(marker: Marker,
         reference_fasta_path=marker.metadata.file_path,
         fragment_fasta_path=intermediate_fasta_path,
         output_path=out_fasta_path,
+        n_treads=n_threads,
         auto=True
     )

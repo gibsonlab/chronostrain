@@ -118,6 +118,14 @@ def main():
         disable_quality=not cfg.model_cfg.use_quality_scores
     )
 
+    # ==== For each strain, output its marker gene sequence.
+    for idx, strain in enumerate(model.bacteria_pop.strains):
+        if not isinstance(strain, StrainVariant):
+            logger.info(f"Not outputting base strain `{strain.id}` to disk.")
+            continue
+        out_path = out_dir / f"{idx}_{strain.base_strain}_variant.fasta"
+        write_strain_to_disk(strain, out_path)
+
     logger.info("Solving using Black-Box Variational Inference.")
     solver, posterior, elbo_history, (uppers, lowers, medians) = perform_bbvi(
         db=db,
@@ -128,7 +136,8 @@ def main():
         num_samples=args.num_samples,
         correlation_type='strain',
         save_elbo_history=False,
-        save_training_history=args.draw_training_history
+        save_training_history=args.draw_training_history,
+        print_debug_every=100
     )
 
     if args.draw_training_history:
@@ -153,14 +162,6 @@ def main():
         height=12
     )
 
-    # ==== For each strain, output its marker gene sequence.
-    for idx, strain in enumerate(model.bacteria_pop.strains):
-        if not isinstance(strain, StrainVariant):
-            logger.info(f"Not outputting base strain `{strain.id}` to disk.")
-            continue
-        out_path = out_dir / f"{idx}_{strain.base_strain}_variant.fasta"
-        write_strain_to_disk(strain, out_path)
-
 
 def write_strain_to_disk(strain: StrainVariant, out_path: Path):
     records = []
@@ -172,4 +173,8 @@ def write_strain_to_disk(strain: StrainVariant, out_path: Path):
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        logger.exception(e)
+        exit(1)

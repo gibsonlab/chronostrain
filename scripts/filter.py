@@ -47,6 +47,7 @@ def filter_file(
         result_metadata_path: Path,
         result_fq_path: Path,
         quality_format: str,
+        min_read_len: int,
         pct_identity_threshold: float
 ):
     """
@@ -66,6 +67,7 @@ def filter_file(
             "REVCOMP",
             "PASSED_FILTER",
             "IS_EDGE_MAPPED",
+            "LEN",
             "PCT_ID"
         ]
     )
@@ -88,6 +90,7 @@ def filter_file(
 
             passed_filter = (
                 not aln.is_edge_mapped
+                and len(aln.read) > min_read_len
                 and filter_on_match_identity(aln.percent_identity, identity_threshold=pct_identity_threshold)
                 and filter_on_read_quality(aln.read.quality)
             )
@@ -102,6 +105,7 @@ def filter_file(
                     int(aln.reverse_complemented),
                     int(passed_filter),
                     int(aln.is_edge_mapped),
+                    len(aln.read),
                     aln.percent_identity
                 ]
             )
@@ -133,6 +137,7 @@ class Filter:
                  output_dir: Path,
                  quality_format: str,
                  min_seed_length: int,
+                 min_read_len: int,
                  pct_identity_threshold: float,
                  continue_from_idx: int = 0,
                  num_threads: int = 1):
@@ -154,6 +159,7 @@ class Filter:
 
         self.output_dir = output_dir
         self.quality_format = quality_format
+        self.min_read_len = min_read_len
         self.pct_identity_threshold = pct_identity_threshold
         self.continue_from_idx = continue_from_idx
         self.num_threads = num_threads
@@ -216,6 +222,7 @@ class Filter:
                     result_metadata_path=result_metadata_path,
                     result_fq_path=result_fq_path,
                     quality_format=self.quality_format,
+                    min_read_len=self.min_read_len,
                     pct_identity_threshold=self.pct_identity_threshold
                 )
                 logger.info("Timepoint {t}, filtered reads file: {f}".format(
@@ -266,6 +273,10 @@ def parse_args():
     parser.add_argument('--input_file', required=False, type=str,
                         default='input_files.csv',
                         help='<Optional> The CSV input file specifier inside reads_dir.')
+    parser.add_argument('--min_read_len', required=False, type=int, default=35,
+                        help='<Optional> Filters out a read if its length was less than the specified value '
+                             '(helps reduce spurious alignments). Ideally, trimmomatic should have taken care '
+                             'of this step already!')
     parser.add_argument('--pct_identity_threshold', required=False, type=float,
                         default=0.1,
                         help='<Optional> The percent identity threshold at which to filter reads. Default: 0.1.')
@@ -300,6 +311,7 @@ def main():
         time_points=time_points,
         output_dir=Path(args.output_dir),
         quality_format=args.quality_format,
+        min_read_len=args.min_read_len,
         pct_identity_threshold=args.pct_identity_threshold,
         min_seed_length=args.min_seed_length,
         continue_from_idx=args.continue_from_idx,

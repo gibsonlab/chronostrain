@@ -1,16 +1,15 @@
-import torch
 from typing import List, Dict, Iterator, Tuple
 from collections import defaultdict
-import numpy as np
 
 from joblib import Parallel, delayed
 
 from chronostrain.database import StrainDatabase
 from chronostrain.model import Fragment, Marker, SequenceRead, AbstractMarkerVariant
 from chronostrain.util.alignments.multiple import MarkerMultipleFragmentAlignment
-from chronostrain.util.math import logmatmulexp
+from chronostrain.util.filesystem import convert_size
+from chronostrain.util.math import *
 from chronostrain.util.sequences import SeqType
-from chronostrain.util.sparse import SparseMatrix
+from chronostrain.util.sparse import SparseMatrix, ColumnSectionedSparseMatrix
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.config import cfg
 from chronostrain.model.generative import GenerativeModel
@@ -35,7 +34,7 @@ class SparseDataLikelihoods(DataLikelihoods):
         self.db = db
         super().__init__(model, data, read_likelihood_lower_bound=read_likelihood_lower_bound)
         self.supported_frags: List[torch.Tensor] = []
-        self.projectors: List[SparseMatrix] = []
+        self.projectors: List[ColumnSectionedSparseMatrix] = []
 
         # Delete empty rows (Fragments)
         for t_idx in range(self.model.num_times()):
@@ -44,13 +43,16 @@ class SparseDataLikelihoods(DataLikelihoods):
                 sorted=True, return_inverse=False, return_counts=False
             )
             _F = len(row_support)
+            logger.debug("(t = {}) # of supported rows: {} out of {} ({:.2e})".format(
+                t_idx, _F, F, _F / F
+            ))
 
             _support_indices = torch.tensor([
                 [i for i in range(len(row_support))],
                 [row_support[i] for i in range(_F)]
             ], dtype=torch.long, device=cfg.torch_cfg.device)
 
-            projector = SparseMatrix(
+            projector = ColumnSectionedSparseMatrix(
                 indices=_support_indices,
                 values=torch.ones(_support_indices.size()[1],
                                   device=cfg.torch_cfg.device,
@@ -58,9 +60,14 @@ class SparseDataLikelihoods(DataLikelihoods):
                 dims=(_F, F)
             )
 
-            self.matrices[t_idx] = projector.sparse_mul(self.matrices[t_idx])
+            self.matrices[t_idx] = ColumnSectionedSparseMatrix.from_sparse_matrix(
+                projector.sparse_mul(self.matrices[t_idx])
+            )  # list of (F' x R)
             self.projectors.append(projector)
             self.supported_frags.append(row_support)
+
+    def likelihood_matrix(self, t_idx: int) -> ColumnSectionedSparseMatrix:
+        return self.matrices[t_idx]
 
     def _likelihood_computer(self) -> AbstractLogLikelihoodComputer:
         return SparseLogLikelihoodComputer(self.model, self.data, self.db)
@@ -69,12 +76,15 @@ class SparseDataLikelihoods(DataLikelihoods):
         y = torch.softmax(X, dim=1)
         total_ll = 0.
         for t_idx in range(self.model.num_times()):
-            log_likelihood_t = logmatmulexp(
-                y[t_idx].log().view(1, -1),
-                logmatmulexp(
-                    self.model.fragment_frequencies.t().sparse_mul(self.projectors[t_idx].t()).log().to_dense(float("-inf")),
-                    self.matrices[t_idx].to_dense(float("-inf"))
-                )  # TODO: replace this with a direct logmatmulexp_sparse implementation.
+            log_likelihood_t = log_mm_exp(
+                y[t_idx].log().view(1, -1),  # (N x S)
+                log_spmm_exp(
+                    self.likelihood_matrix(t_idx).t(),  # (R x F')
+                    log_spspmm_exp(
+                        self.projectors[t_idx],  # (F' x F)
+                        self.model.fragment_frequencies_sparse  # (F x S)
+                    ),
+                ).t()  # after transpose: (S x R)
             )
 
             log_likelihood_t = log_likelihood_t.sum()
@@ -269,6 +279,9 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                         for subseq, insertions, deletions in variant.subseq_from_read(read):
                             frag = self.model.fragments.get_fragment(subseq)
                             ll = self.read_frag_ll(frag, read, insertions, deletions, reverse_complemented=revcomp)
+                            if ll < -100:
+                                logger.debug("Truncating frag {} -> marker {}: ll = {}".format(frag.index, variant.id, ll))
+                                continue
                             read_to_frag_likelihoods[read.id].append((frag, ll))
         return read_to_frag_likelihoods
 
@@ -342,12 +355,14 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
             _, counts_per_read = torch.unique(matrix.indices[1], sorted=False, return_inverse=False, return_counts=True)
             logger.debug(
                 "Read-likelihood matrix (size {r} x {c}) has {nz} nonzero entries. "
-                "(~{meanct:.2f} hits per read, density={dens:.1e})".format(
+                "(~{meanct:.2f} hits per read, density={dens:.1e}, physical({dev})={phys})".format(
                     r=matrix.size()[0],
                     c=matrix.size()[1],
                     nz=len(matrix.values),
                     meanct=counts_per_read.float().mean(),
-                    dens=matrix.density()
+                    dens=matrix.density(),
+                    dev=str(matrix.values.device),
+                    phys=convert_size(matrix.physical_size())
                 )
             )
 

@@ -9,6 +9,10 @@ import torch
 import torch_sparse
 
 
+def size_of_tensor(x: torch.Tensor):
+    return x.element_size() * x.nelement()
+
+
 class SparseMatrix(object):
     def __init__(self,
                  indices: torch.Tensor,
@@ -29,6 +33,9 @@ class SparseMatrix(object):
 
     def size(self) -> torch.Size:
         return torch.Size((self.rows, self.columns))
+
+    def physical_size(self) -> int:
+        return size_of_tensor(self.indices) + size_of_tensor(self.values)
 
     def get(self, r: int, c: int):
         matches = (self.indices[0, :] == r) and (self.indices[1, :] == c)
@@ -60,7 +67,16 @@ class SparseMatrix(object):
 
     def sparse_mul(self, x: 'SparseMatrix') -> 'SparseMatrix':
         if self.columns != x.rows:
-            raise RuntimeError(f"Matrices cannot be multiplied ({self.rows}x{self.columns}) and ({x.rows}x{x.columns})")
+            raise RuntimeError(f"Cannot multiply ({self.rows}x{self.columns}) and ({x.rows}x{x.columns}) matrices.")
+
+        if self.rows == 0 or self.columns == 0:
+            return SparseMatrix(
+                torch.tensor([[], []], device=self.values.device, dtype=torch.long),
+                torch.tensor([], device=self.values.device, dtype=self.values.dtype),
+                (self.rows, x.columns),
+                force_coalesce=False
+            )
+
         result_indices, result_values = torch_sparse.spspmm(
             self.indices, self.values, x.indices, x.values, self.rows, self.columns, x.columns
         )

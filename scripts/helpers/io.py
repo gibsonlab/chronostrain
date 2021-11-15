@@ -28,7 +28,10 @@ def parse_input_spec(input_spec_path: Path, quality_format: str) -> Tuple[List[T
             read_path = Path(row[2])
 
             if not read_path.exists():
-                raise FileNotFoundError(f"Specified input file `{str(read_path)}` does not exist.")
+                raise FileNotFoundError("The input specification `{}` pointed to `{}`, which does not exist.".format(
+                    str(input_spec_path),
+                    read_path
+                ))
 
             if time_point not in time_points_to_reads:
                 time_points_to_reads[time_point] = []

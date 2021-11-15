@@ -1,4 +1,4 @@
 from .mappings import *
 from .numpy_random import *
-from .matrices import *
+from .matrices import log_mm_exp, log_spmm_exp, log_spspmm_exp
 from . import distributions

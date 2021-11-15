@@ -7,7 +7,7 @@ from chronostrain.model import Fragment, SequenceRead
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.config import cfg
 from chronostrain.model.generative import GenerativeModel
-from chronostrain.util.math import logmatmulexp
+from chronostrain.util.math import log_mm_exp
 
 from .base import DataLikelihoods, AbstractLogLikelihoodComputer
 from ..cache import ReadsPopulationCache
@@ -26,11 +26,10 @@ class DenseDataLikelihoods(DataLikelihoods):
         total_ll = 0.
         for t in range(self.model.num_times()):
             # (T x S) * (S x F) * (F x N)
-            # total_ll += torch.log(y[t] @ (self.model.fragment_frequencies.t() @ self.matrices[t].exp())).sum()
-            total_ll += logmatmulexp(
+            total_ll += log_mm_exp(
                 y[t].log().view(1, -1),
-                logmatmulexp(
-                    self.model.fragment_frequencies.t().log(),
+                log_mm_exp(
+                    self.model.fragment_frequencies_dense.t(),
                     self.matrices[t]
                 )
             ).sum()

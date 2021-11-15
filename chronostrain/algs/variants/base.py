@@ -24,6 +24,11 @@ class FloppMarkerVariant(AbstractMarkerVariant):
         self.multi_align = aln
         self.num_supporting_reads = num_supporting_reads
 
+    def to_seqrecord(self, description: str = ""):
+        # from chronostrain.util.sequences import z4_to_nucleotides
+        # print(z4_to_nucleotides(self.seq_with_gaps))
+        return super().to_seqrecord(description=description)
+
     def get_aligned_reference_region(self, read: SequenceRead, reverse: bool) -> Tuple[SeqType, np.ndarray, np.ndarray]:
         """
         Returns the aligned fragment (with gaps removed), and a pair of boolean arrays (insertion, deletion).

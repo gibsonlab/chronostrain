@@ -14,7 +14,7 @@ from chronostrain.util.alignments.pairwise import SequenceReadPairwiseAlignment
 from chronostrain.util.cache import ComputationCache
 from .cached_pairwise_alignment import CachedReadPairwiseAlignments
 
-from chronostrain.config import create_logger
+from chronostrain.config import create_logger, cfg
 logger = create_logger(__name__)
 
 
@@ -77,7 +77,8 @@ class CachedReadMultipleAlignments(object):
                 marker=marker,
                 read_descriptions=read_gen(),
                 intermediate_fasta_path=base_dir / f"{marker.id}_reads.fasta",
-                out_fasta_path=out_path
+                out_fasta_path=out_path,
+                n_threads=cfg.model_cfg.num_cores
             )
             return multialign.parse(marker, self.reads, out_path)
 

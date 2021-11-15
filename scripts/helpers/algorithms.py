@@ -25,6 +25,7 @@ def perform_bbvi(
         correlation_type: str = "strain",
         save_elbo_history: bool = False,
         save_training_history: bool = False,
+        print_debug_every: int = 100
 ):
 
     # ==== Run the solver.
@@ -64,7 +65,7 @@ def perform_bbvi(
         optim_args={'lr': learning_rate, 'betas': (0.9, 0.999), 'eps': 1e-7, 'weight_decay': 0.},
         iters=iters,
         num_samples=num_samples,
-        print_debug_every=100,
+        print_debug_every=print_debug_every,
         callbacks=callbacks
     )
     end_time = time.time()

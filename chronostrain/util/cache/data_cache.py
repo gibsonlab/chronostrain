@@ -146,19 +146,19 @@ class ComputationCache(object):
                 self.cache_tag.encoding, cache_path
             ))
 
-            return load(cache_path)
+            data = load(cache_path)
         else:
             logger.debug("[Cache {}] Could not load cached file {}. Recomputing.".format(
                 self.cache_tag.encoding, cache_path
             ))
 
-        self.cache_tag.write_readable_attributes_to_disk(self.cache_dir / "attributes.txt")
-        data = fn(*call_args, **call_kwargs)
-        save(cache_path, data)
+            self.cache_tag.write_readable_attributes_to_disk(self.cache_dir / "attributes.txt")
+            data = fn(*call_args, **call_kwargs)
+            save(cache_path, data)
 
-        logger.debug("[Cache {}] Saved {}.".format(
-            self.cache_tag.encoding, cache_path
-        ))
+            logger.debug("[Cache {}] Saved {}.".format(
+                self.cache_tag.encoding, cache_path
+            ))
 
         if success_callback is not None:
             success_callback(data)
