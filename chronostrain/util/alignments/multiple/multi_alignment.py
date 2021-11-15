@@ -252,6 +252,6 @@ def align(marker: Marker,
         reference_fasta_path=marker.metadata.file_path,
         fragment_fasta_path=intermediate_fasta_path,
         output_path=out_fasta_path,
-        n_treads=n_threads,
+        n_threads=n_threads,
         auto=True
     )
