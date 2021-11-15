@@ -279,7 +279,7 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                         for subseq, insertions, deletions in variant.subseq_from_read(read):
                             frag = self.model.fragments.get_fragment(subseq)
                             ll = self.read_frag_ll(frag, read, insertions, deletions, reverse_complemented=revcomp)
-                            if ll < -100:
+                            if ll < -500:
                                 logger.debug("Truncating frag {} -> marker {}: ll = {}".format(frag.index, variant.id, ll))
                                 continue
                             read_to_frag_likelihoods[read.id].append((frag, ll))
