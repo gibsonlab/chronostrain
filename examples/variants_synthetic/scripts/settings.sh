@@ -1,6 +1,6 @@
 # Modify these before running.
-export PROJECT_DIR="/mnt/f/microbiome_tracking"
-export CHRONOSTRAIN_DATA_DIR="/mnt/f/microbiome_tracking/data/variants_synthetic/data"
+export PROJECT_DIR="/home/bromii/chronostrain"
+export CHRONOSTRAIN_DATA_DIR="/mnt/f/microbiome_tracking/data/variants_synthetic"
 export BASE_DIR="${PROJECT_DIR}/examples/variants_synthetic"
 export N_CORES=4
 
@@ -8,8 +8,8 @@ export N_CORES=4
 export SETTINGS_PATH="${BASE_DIR}/scripts/settings.sh"
 
 # Location for reads and outputs.
-export OUTPUT_DIR="/mnt/f/microbiome_tracking/data/variants_synthetic/output"
-export READS_DIR="/mnt/f/microbiome_tracking/data/variants_synthetic/reads"
+export OUTPUT_DIR="${CHRONOSTRAIN_DATA_DIR}/output"
+export READS_DIR="${CHRONOSTRAIN_DATA_DIR}/reads"
 export CHRONOSTRAIN_OUTPUT_DIR="${OUTPUT_DIR}/chronostrain"
 
 # The chronostrain input index.
@@ -21,12 +21,12 @@ export CHRONOSTRAIN_NUM_ITERS=2000
 export CHRONOSTRAIN_NUM_SAMPLES=150
 export CHRONOSTRAIN_LR=0.001
 export CHRONOSTRAIN_OUTPUT_FILENAME="abundances.out"
-export CHRONOSTRAIN_DB_DIR="/mnt/f/microbiome_tracking/data/variants_synthetic/database"
+export CHRONOSTRAIN_DB_DIR="${CHRONOSTRAIN_DATA_DIR}/database"
 
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)
 export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
 export CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"
-export LOGDIR="/mnt/f/microbiome_tracking/data/variants_synthetic/logs"
+export LOGDIR="${CHRONOSTRAIN_DATA_DIR}/logs"
 export TRUE_ABUNDANCE_PATH="${BASE_DIR}/files/true_abundances.csv"
 
 # ========= ART specification
