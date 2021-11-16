@@ -132,7 +132,10 @@ def sample_reads(
 def save_index_csv(time_series: TimeSeriesReads, out_dir: str, out_filename: str):
     with open(Path(out_dir) / out_filename, "w") as f:
         for time_slice in time_series:
-            print("\"{}\",\"{}\"".format(time_slice.time_point, time_slice.src), file=f)
+            print(
+                f'"{time_slice.time_point}","{len(time_slice)}","{time_slice.src}"',
+                file=f
+            )
 
 
 def main():
