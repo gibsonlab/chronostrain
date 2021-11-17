@@ -43,7 +43,7 @@ class SparseDataLikelihoods(DataLikelihoods):
                 sorted=True, return_inverse=False, return_counts=False
             )
             _F = len(row_support)
-            logger.debug("(t = {}) # of supported rows: {} out of {} ({:.2e})".format(
+            logger.debug("(t = {}) # of supported fragments: {} out of {} ({:.2e})".format(
                 t_idx, _F, F, _F / F
             ))
 
