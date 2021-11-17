@@ -54,6 +54,11 @@ def upper_triangular_bounded(x: np.ndarray,
     return r[valid_indices], c[valid_indices]
 
 
+def partial_corr_matrix(precision: np.ndarray):
+    diag = np.sqrt(np.diag(precision)).reshape(-1, 1)
+    return -precision / diag / diag.transpose()
+
+
 class GloppVariantSolver(AbstractVariantBBVISolver):
     def __init__(self,
                  db: StrainDatabase,
@@ -91,6 +96,7 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
         self.glasso_iterations = glasso_iterations
         self.glasso_tol = glasso_tol
         self.num_strands = num_strands
+        self.partial_corr_upper_bound = 0.5
 
         self.reference_markers_to_assembly: Dict[Marker, FloppMarkerAssembly] = self.construct_marker_assemblies()
 
@@ -122,7 +128,7 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
     def propose_variants(self) -> Iterator[StrainVariant]:
         variants: List[FloppStrainVariant] = list(
             self.construct_variants_using_assembly(
-                precision_upper_bound=-1
+                partial_corr_upper_bound=self.partial_corr_upper_bound
             )
         )
 
@@ -136,12 +142,14 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
 
         yield from variants
 
-    def construct_variants_using_assembly(self, precision_upper_bound: float) -> Iterator[FloppStrainVariant]:
+    def construct_variants_using_assembly(self, partial_corr_upper_bound: float) -> Iterator[FloppStrainVariant]:
         precision_matrix = self.compute_precision_matrix()
+        partial_corrs = partial_corr_matrix(precision_matrix)
 
         rows, cols = upper_triangular_bounded(
-            precision_matrix,
-            upper_bound=precision_upper_bound,
+            partial_corrs,
+            k=1,
+            upper_bound=partial_corr_upper_bound,
             lower_bound=-np.inf
         )
 
