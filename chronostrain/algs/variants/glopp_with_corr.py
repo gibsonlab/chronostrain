@@ -294,8 +294,8 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
         ])
         variant_id = "{}:Strands({})".format(
             base_marker.id,
-            "|".join(
-                "*" if isinstance(strand, str) else f"{str(strand.strand_idx)}/{strand.contig.num_strands}"
+            ".".join(
+                "*" if isinstance(strand, str) else str(strand.strand_idx)
                 for strand in strands
             ),
         )
