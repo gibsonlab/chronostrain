@@ -102,18 +102,21 @@ def parse_variant_desc(db: StrainDatabase, variant_desc: Dict) -> Tuple[str, str
 
 
 def apply_variations(genome: str,
-          insertions: List[Insertion],
-          deletions: List[Deletion],
-          substitutions: List[Substitution]) -> str:
+                     insertions: List[Insertion],
+                     deletions: List[Deletion],
+                     substitutions: List[Substitution]) -> str:
     seq = [x for x in genome]
     for insertion in insertions:
+        logger.info(f"Applying INSERTION of {insertion.seq.upper()} at {insertion.pos}")
         seq[insertion.pos - 1] = seq[insertion.pos - 1] + insertion.seq.upper()
 
     for deletion in deletions:
+        logger.info(f"Applying DELETION of {deletion.len} chars at {deletion.pos}")
         for pos in range(deletion.pos, deletion.pos + deletion.len):
             seq[pos - 1] = ""
 
     for substitution in substitutions:
+        logger.info(f"Applying SUBSTITUTION of {substitution.base.upper()} with {seq[substitution.pos - 1]} at {substitution.pos}")
         seq[substitution.pos - 1] = substitution.base.upper()
 
     return "".join(seq)
