@@ -210,10 +210,10 @@ def sample_reads_from_rel_abundances(final_reads_path: Path,
                 output_prefix="{}_".format(accession),
                 profile_first=profile_first,
                 profile_second=profile_second,
-                quality_shift=quality_shift,
-                quality_shift_2=quality_shift_2,
                 read_length=read_len,
-                seed=seed.next_value()
+                seed=seed.next_value(),
+                quality_shift=quality_shift,
+                quality_shift_2=quality_shift_2
             )
 
             strain_read_paths.append(output_path)
@@ -226,7 +226,13 @@ def sample_reads_from_rel_abundances(final_reads_path: Path,
             profile_first,
             profile_second,
             read_len,
-            seed.next_value()
+            seed.next_value(),
+            1000,
+            200,
+            False,
+            False,
+            quality_shift,
+            quality_shift_2
         ) for entry_index, (accession, read_count) in enumerate(abundances.items())]
 
         thread_pool = Pool(n_cores)
