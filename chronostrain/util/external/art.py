@@ -11,6 +11,8 @@ def art_illumina(reference_path: Path,
                  profile_second: Path,
                  read_length: int,
                  seed: int,
+                 paired_end_frag_mean_len: int = 1000,
+                 paired_end_frag_stdev_len: int = 200,
                  output_sam: bool = False,
                  output_aln: bool = True,
                  quality_shift: Optional[int] = None,
@@ -26,6 +28,8 @@ def art_illumina(reference_path: Path,
     :param profile_second:
     :param read_length:
     :param seed:
+    :param paired_end_frag_mean_len:
+    :param paired_end_frag_stdev_len:
     :param output_sam:
     :param quality_shift:
     :param quality_shift_2:
@@ -39,8 +43,8 @@ def art_illumina(reference_path: Path,
         '-l', str(read_length),
         '-c', str(num_reads),
         '-p',
-        '-m', '200',
-        '-s', '10',
+        '-m', paired_end_frag_mean_len,
+        '-s', paired_end_frag_stdev_len,
         '-o', output_prefix,
         '-rs', str(seed)
     ]
