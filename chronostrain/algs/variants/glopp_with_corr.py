@@ -55,6 +55,12 @@ def upper_triangular_bounded(x: np.ndarray,
 
 
 def partial_corr_matrix(precision: np.ndarray):
+    """
+    https://en.wikipedia.org/wiki/Partial_correlation#Using_matrix_inversion
+
+    :param precision:
+    :return:
+    """
     diag = np.sqrt(np.diag(precision)).reshape(-1, 1)
     return -precision / diag / diag.transpose()
 
