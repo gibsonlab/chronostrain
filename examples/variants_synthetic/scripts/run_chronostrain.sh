@@ -12,7 +12,7 @@ cd $PROJECT_DIR/scripts
 python inference_with_variants_simple.py \
 --reads_dir "${READS_DIR}/filtered" \
 --out_dir $CHRONOSTRAIN_OUTPUT_DIR \
---num_strands 2 \
+--num_strands 4 \
 --quality_format "fastq" \
 --input_file "filtered_${INPUT_INDEX_FILENAME}" \
 --seed $SEED \
