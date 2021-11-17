@@ -2,7 +2,7 @@
     {
         "source": "CP009273.1",
         "target": "CP009273.1_Substitution",
-        "insertions": [
+        "substitutions": [
             {"pos": 4533132, "seq": "g"},
             {"pos": 4533133, "seq": "g"},
             {"pos": 4533134, "seq": "c"},
