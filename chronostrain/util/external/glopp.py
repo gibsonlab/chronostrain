@@ -6,16 +6,19 @@ from .commandline import CommandLineException, call_command
 
 
 def run_glopp(
-        bam_path: Path,
+        sam_path: Path,
         vcf_path: Path,
         output_dir: Path,
         use_mec_score: bool = False,
-        ploidy: Optional[int] = None
+        ploidy: Optional[int] = None,
+        allele_error_rate: float = 0.05
 ):
     params = [
-        '-b', str(bam_path),
+        '-S',  # disable filtering
+        '-b', str(sam_path),
         '-c', str(vcf_path),
-        '-o', str(output_dir)
+        '-o', str(output_dir),
+        '-e', allele_error_rate
     ]
     if ploidy is not None:
         params += ['-p', str(ploidy)]

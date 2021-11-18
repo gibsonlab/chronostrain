@@ -77,8 +77,7 @@ class CachedReadMultipleAlignments(object):
                 marker=marker,
                 read_descriptions=read_gen(),
                 intermediate_fasta_path=base_dir / f"{marker.id}_reads.fasta",
-                out_fasta_path=out_path,
-                n_threads=cfg.model_cfg.num_cores
+                out_fasta_path=out_path
             )
             return multialign.parse(marker, self.reads, out_path)
 

@@ -6,6 +6,8 @@ simple command-line interfaces).
 
 from abc import abstractmethod
 from pathlib import Path
+from typing import Optional
+
 from chronostrain.util.external import *
 
 from chronostrain.config import create_logger
@@ -37,7 +39,10 @@ class BwaAligner(AbstractPairwiseAligner):
             read_path=query_path,
             min_seed_length=self.min_seed_len,
             num_threads=self.num_threads,
-            report_all_alignments=self.report_all_alignments
+            report_all_alignments=self.report_all_alignments,
+            match_score=1,
+            mismatch_penalty=1,
+            off_diag_dropoff=75,
         )
 
 
@@ -46,8 +51,8 @@ class BowtieAligner(AbstractPairwiseAligner):
                  reference_path: Path,
                  index_basepath: Path,
                  index_basename: str,
-                 num_report_alignments: int,
-                 num_threads: int):
+                 num_threads: int,
+                 num_report_alignments: Optional[int] = None):
         self.index_basepath = index_basepath
         self.index_basename = index_basename
         self.num_report_alignments = num_report_alignments
@@ -76,12 +81,14 @@ class BowtieAligner(AbstractPairwiseAligner):
             report_k_alignments=self.num_report_alignments,
             num_threads=self.num_threads,
             aln_seed_num_mismatches=1,
-            aln_seed_len=10,
+            aln_seed_len=6,
             aln_seed_interval_fn=bt2_func_constant(3),
             aln_gbar=1,
             aln_n_ceil=bt2_func_linear(0, .1),
+            score_mismatch_penalty=(1, 0),
             score_min_fn=bt2_func_linear(0, -0.1),
-            score_max_min_penalty=(1, 0),
+            score_read_gap_penalty=(5, 1),
+            score_ref_gap_penalty=(5, 1),
             local=False,
             sam_suppress_noalign=True
         )

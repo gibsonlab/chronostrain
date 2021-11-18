@@ -270,6 +270,8 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                         read_to_frag_likelihoods[read.id].append((frag, ll))
 
             # Next, take care of the variant markers (if applicable).
+            n_truncated = 0
+            ll_threshold = -500
             for variant in self.marker_variants_of(multi_align.marker):
                 for revcomp in [True, False]:
                     for read in multi_align.reads(revcomp):
@@ -279,10 +281,15 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                         for subseq, insertions, deletions in variant.subseq_from_read(read):
                             frag = self.model.fragments.get_fragment(subseq)
                             ll = self.read_frag_ll(frag, read, insertions, deletions, reverse_complemented=revcomp)
-                            if ll < -500:
-                                logger.debug("Truncating frag {} -> marker {}: ll = {}".format(frag.index, variant.id, ll))
+                            if ll < ll_threshold:
+                                n_truncated += 1
                                 continue
                             read_to_frag_likelihoods[read.id].append((frag, ll))
+
+            logger.debug("Truncated {} frag-marker pairs with likelihood threshold {}.".format(
+                n_truncated,
+                ll_threshold
+            ))
         return read_to_frag_likelihoods
 
     def create_sparse_matrix(self, t_idx: int) -> SparseMatrix:

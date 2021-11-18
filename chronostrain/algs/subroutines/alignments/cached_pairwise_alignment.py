@@ -46,7 +46,6 @@ class CachedReadPairwiseAlignments(object):
                 reference_path=self.marker_reference_path,
                 index_basepath=self.marker_reference_path.parent,
                 index_basename="markers",
-                num_report_alignments=db.num_markers(),
                 num_threads=cfg.model_cfg.num_cores
             )
         else:

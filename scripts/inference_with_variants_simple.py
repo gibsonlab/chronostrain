@@ -24,8 +24,8 @@ def parse_args():
                         help='<Required> The file path to save learned outputs to.')
 
     # Other required params
-    parser.add_argument('-n', '--num_strands', required=True, type=int,
-                        help='<Required> The number of strands to assemble for each marker.')
+    parser.add_argument('-n', '--num_strands', required=False, type=int,
+                        help='<Optional> The number of strands to assemble for each marker.')
 
     # Other Optional params
     parser.add_argument('-q', '--quality_format', required=False, type=str, default='fastq',
@@ -50,6 +50,8 @@ def parse_args():
                              'samples to generate as output.')
     parser.add_argument('--draw_training_history', action="store_true",
                         help='If flag is set, then outputs an animation of the BBVI training history.')
+    parser.add_argument('--plot_elbo', action="store_true",
+                        help='If flag is set, then outputs plots of the ELBO history (if using BBVI).')
     parser.add_argument('--save_fragment_probs', action="store_true",
                         help='If flag is set, then save posterior fragment probabilities for valid reads.')
     parser.add_argument('--plot_format', required=False, type=str, default="pdf")
@@ -93,7 +95,7 @@ def main():
         bbvi_iters=args.iters,
         bbvi_lr=args.learning_rate,
         bbvi_num_samples=args.num_samples,
-        quality_lower_bound=20,
+        quality_lower_bound=30,
         seed_with_database=False,
         num_strands=args.num_strands
     ).propose_variants())
@@ -135,7 +137,7 @@ def main():
         learning_rate=args.learning_rate,
         num_samples=args.num_samples,
         correlation_type='strain',
-        save_elbo_history=False,
+        save_elbo_history=args.plot_elbo,
         save_training_history=args.draw_training_history,
         print_debug_every=100
     )
@@ -147,6 +149,13 @@ def main():
             upper_quantiles=uppers,
             lower_quantiles=lowers,
             medians=medians
+        )
+
+    if args.plot_elbo:
+        viz.plot_elbo_history(
+            elbos=elbo_history,
+            out_path=out_dir / "elbo.{}".format(args.plot_format),
+            plot_format=args.plot_format
         )
 
     # ==== Finally, plot the posterior.

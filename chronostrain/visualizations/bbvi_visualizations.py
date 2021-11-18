@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import numpy as np
 import torch
@@ -15,7 +15,7 @@ from .plot_abundances import plot_posterior_abundances
 
 
 def plot_elbo_history(
-        elbos: List[float],
+        elbos: Union[List[float], np.ndarray],
         out_path: Path,
         plot_format: str):
     fig, ax = plt.subplots()

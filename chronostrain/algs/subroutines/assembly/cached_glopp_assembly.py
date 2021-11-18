@@ -12,7 +12,7 @@ from ..cache import ReadsComputationCache
 from .classes import FloppMarkerContig, FloppMarkerAssembly
 
 from chronostrain.config import create_logger
-from .preprocess import _z4_base_ordering, to_bam, to_vcf
+from .preprocess import _z4_base_ordering, to_sam, to_vcf
 from .constants import VCF_GAP_CHAR
 logger = create_logger(__name__)
 
@@ -50,7 +50,7 @@ class CachedGloppVariantAssembly(object):
         self.relative_dir = Path(f"glopp/{self.alignment.marker.id}")
         self.absolute_dir = self.cache.cache_dir / self.relative_dir
 
-        self.bam_path = self.absolute_dir / "alignments.bam"
+        self.sam_path = self.absolute_dir / "alignments.sam"
         self.vcf_path = self.absolute_dir / "variants.vcf"
 
     @property
@@ -91,9 +91,9 @@ class CachedGloppVariantAssembly(object):
         return counts
 
     def prepare_glopp_input(self) -> Tuple[Path, Path]:
-        bam_path = self.prepare_bam()
+        sam_path = self.prepare_bam()
         vcf_path = self.prepare_vcf()
-        return bam_path, vcf_path
+        return sam_path, vcf_path
 
     def run(self, num_variants: Optional[int] = None) -> FloppMarkerAssembly:
         if num_variants is None:
@@ -112,11 +112,12 @@ class CachedGloppVariantAssembly(object):
             # use_mec_score=True is better for learning metagenomic assemblies, since it
             # "removes" the assumption that the rel abundances are equal.
             run_glopp(
-                bam_path=self.bam_path,
+                sam_path=self.sam_path,
                 vcf_path=self.vcf_path,
                 output_dir=abs_output_dir,
                 ploidy=num_variants,
-                use_mec_score=True
+                use_mec_score=True,
+                allele_error_rate=0.0005
             )
 
             return self.parse_marker_contigs(phasing_abs_output_path, partition_abs_output_path)
@@ -139,7 +140,7 @@ class CachedGloppVariantAssembly(object):
                 if line.startswith("#"):
                     continue
 
-                tokens = line.split("\t")
+                tokens = line.strip().split("\t")
                 ref_allele = map_nucleotide_to_z4_with_special(tokens[3].strip())
                 variants = [map_nucleotide_to_z4_with_special(x) for x in tokens[4].strip().split(",")]
                 allele_to_nucleotide: Dict[int, int] = dict()
@@ -294,10 +295,10 @@ class CachedGloppVariantAssembly(object):
         )
 
     def prepare_bam(self):
-        self.bam_path.parent.mkdir(exist_ok=True, parents=True)
-        logger.debug(f"Creating BAM file {str(self.bam_path)}.")
-        to_bam(self.alignment, self.bam_path)
-        return self.bam_path
+        self.sam_path.parent.mkdir(exist_ok=True, parents=True)
+        logger.debug(f"Creating BAM file {str(self.sam_path)}.")
+        to_sam(self.alignment, self.sam_path)
+        return self.sam_path
 
     def prepare_vcf(self):
         self.vcf_path.parent.mkdir(exist_ok=True, parents=True)

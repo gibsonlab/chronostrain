@@ -1,6 +1,5 @@
 from pathlib import Path
-
-from Bio.Align.Applications import ClustalOmegaCommandline
+from typing import Optional
 
 from .commandline import CommandLineException, call_command
 
@@ -8,25 +7,41 @@ from .commandline import CommandLineException, call_command
 def clustal_omega(
         input_path: Path,
         output_path: Path,
-        force: bool = False,
+        profile1: Optional[Path] = None,
+        profile2: Optional[Path] = None,
+        force_overwrite: bool = False,
         verbose: bool = False,
         out_format: str = 'fasta',
-        auto: bool = False
+        auto: bool = False,
+        seqtype: str = 'DNA',
+        guidetree_out: Optional[Path] = None
 ):
-    cline = ClustalOmegaCommandline(
-        infile=input_path,
-        outfile=output_path,
-        force=force,
-        verbose=verbose,
-        outfmt=out_format,
-        auto=auto
-    )
+    params = [
+        '-i', input_path,
+        '-o', output_path,
+        f'--outfmt={out_format}',
+        '-t', seqtype
+    ]
 
-    tokens = str(cline).split()
+    if profile1 is not None:
+        params += ['--profile1', profile1]
+    if profile2 is not None:
+        params += ['--profile2', profile2]
+
+    if auto:
+        params.append('--auto')
+    if force_overwrite:
+        params.append('--force')
+    if verbose:
+        params.append('--verbose')
+
+    if guidetree_out is not None:
+        params.append(f'--guidetree-out={str(guidetree_out)}')
 
     exit_code = call_command(
-        'clustalo',
-        args=tokens[1:]
+        command='clustalo',
+        args=params,
+        output_path=output_path
     )
     if exit_code != 0:
-        raise CommandLineException(tokens[0], exit_code)
+        raise CommandLineException('clustalo', exit_code)

@@ -7,7 +7,6 @@ import numpy as np
 from chronostrain.model import SequenceRead
 from chronostrain.util.alignments.multiple import MarkerMultipleFragmentAlignment
 from chronostrain.util.alignments.sam import SamFlags
-from chronostrain.util.external import sam_to_bam
 from chronostrain.util.quality import phred_to_ascii
 from chronostrain.util.sequences import *
 from .constants import VCF_GAP_CHAR
@@ -20,12 +19,11 @@ _z4_base_ordering: SeqType = nucleotides_to_z4("ACGT-")
 _base_to_idx: Dict[NucleotideDtype, int] = {base: idx for idx, base in enumerate(_z4_base_ordering)}
 
 
-def to_bam(alignment: MarkerMultipleFragmentAlignment, out_path: Path):
+def to_sam(alignment: MarkerMultipleFragmentAlignment, out_path: Path):
     """
     Converts the alignment into a BAM file, but with a minor unconventional change: GAPs are converted into Ns so that
     we can properly call indel variants.
     """
-    sam_path = out_path.with_suffix(".sam")
     sam_version = "1.6"
     chronostrain_version = "empty"  # TODO insert explicit versioning.
 
@@ -76,7 +74,7 @@ def to_bam(alignment: MarkerMultipleFragmentAlignment, out_path: Path):
             phred_to_ascii(quality, "fastq")
         ])
 
-    with open(sam_path, "w") as f:
+    with open(out_path, "w") as f:
         tsv = csv.writer(f, delimiter='\t', quoting=csv.QUOTE_NONE)
         # ========== METADATA.
         tsv.writerow(["@HD", f"VN:{sam_version}", "SO:unsorted"])
@@ -98,10 +96,6 @@ def to_bam(alignment: MarkerMultipleFragmentAlignment, out_path: Path):
         for read_obj, time_idx, revcomp, start_idx, end_idx in entries:
             flags = [SamFlags.SeqReverseComplement] if revcomp else []
             write_read(read_obj, time_idx, start_idx, end_idx, revcomp, flags, tsv)
-
-    # now create the BAM file via compression.
-    logger.debug(f"Compression SAM ({str(sam_path.name)}) to BAM ({str(out_path.name)}).")
-    sam_to_bam(sam_path, out_path)
 
 
 def to_vcf(alignment: MarkerMultipleFragmentAlignment,

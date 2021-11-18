@@ -103,8 +103,11 @@ def bowtie2(
         aln_gbar: int = 4,
         aln_dpad: int = 15,
         aln_n_ceil: str = bt2_func_linear(0, 0.15),
+        score_match_bonus: Optional[int] = None,
         score_min_fn: str = bt2_func_linear(-0.6, -0.6),
-        score_max_min_penalty: Tuple[int, int] = (6, 2),
+        score_mismatch_penalty: Tuple[int, int] = (6, 2),
+        score_read_gap_penalty: Tuple[int, int] = (5, 3),
+        score_ref_gap_penalty: Tuple[int, int] = (5, 3),
         effort_seed_ext_failures: int = 15,
         effort_num_reseeds: int = 2,
         quality_format: str = 'phred33',
@@ -130,8 +133,13 @@ def bowtie2(
         '--dpad', aln_dpad,
         '--n-ceil', aln_n_ceil,
         '--score-min', score_min_fn,
-        '--mp', f"{score_max_min_penalty[0]},{score_max_min_penalty[1]}"
+        '--mp', f"{score_mismatch_penalty[0]},{score_mismatch_penalty[1]}",
+        '--rdg', f"{score_read_gap_penalty[0]},{score_read_gap_penalty[1]}",
+        '--rfg', f"{score_ref_gap_penalty[0]},{score_ref_gap_penalty[1]}"
     ]
+
+    if score_match_bonus is not None:
+        args += ['--ma', score_match_bonus]
 
     if local:
         args.append('--local')

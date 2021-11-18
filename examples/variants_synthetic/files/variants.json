@@ -14,7 +14,7 @@
         "source": "CP009273.1",
         "target": "CP009273.1_Insert",
         "insertions": [
-            {"pos": 4533032, "seq": "gattacaacaaatca"}
+            {"pos": 4533032, "seq": "gattacaacaaattt"}
         ]
     }
 ]

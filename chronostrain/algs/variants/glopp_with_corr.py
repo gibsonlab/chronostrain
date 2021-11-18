@@ -77,8 +77,8 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
                  glasso_shrinkage: float = 0.1,
                  glasso_standardize: bool = True,
                  glasso_alpha: float = 1e-3,
-                 glasso_iterations: int = 3000,
-                 glasso_tol: float = 1e-2,
+                 glasso_iterations: int = 5000,
+                 glasso_tol: float = 1e-3,
                  seed_with_database: bool = False,
                  num_strands: Optional[int] = None):
         """
@@ -102,7 +102,7 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
         self.glasso_iterations = glasso_iterations
         self.glasso_tol = glasso_tol
         self.num_strands = num_strands
-        self.partial_corr_upper_bound = 0.5
+        self.partial_corr_lower_bound = 0.5
 
         self.reference_markers_to_assembly: Dict[Marker, FloppMarkerAssembly] = self.construct_marker_assemblies()
 
@@ -134,7 +134,7 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
     def propose_variants(self) -> Iterator[StrainVariant]:
         variants: List[FloppStrainVariant] = list(
             self.construct_variants_using_assembly(
-                partial_corr_upper_bound=self.partial_corr_upper_bound
+                partial_corr_lower_bound=self.partial_corr_lower_bound
             )
         )
 
@@ -148,15 +148,15 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
 
         yield from variants
 
-    def construct_variants_using_assembly(self, partial_corr_upper_bound: float) -> Iterator[FloppStrainVariant]:
+    def construct_variants_using_assembly(self, partial_corr_lower_bound: float) -> Iterator[FloppStrainVariant]:
         precision_matrix = self.compute_precision_matrix()
         partial_corrs = partial_corr_matrix(precision_matrix)
 
         rows, cols = upper_triangular_bounded(
             partial_corrs,
             k=1,
-            upper_bound=partial_corr_upper_bound,
-            lower_bound=-np.inf
+            upper_bound=np.inf,
+            lower_bound=partial_corr_lower_bound
         )
 
         G = nx.Graph()

@@ -56,7 +56,7 @@ def perform_bbvi(
 
     if save_elbo_history:
         def elbo_callback(iter, x_samples, elbo):
-            elbo_history.append(elbo)
+            elbo_history.append(elbo.item())
         callbacks.append(elbo_callback)
 
     start_time = time.time()

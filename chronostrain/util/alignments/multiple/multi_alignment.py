@@ -9,7 +9,7 @@ import numpy as np
 
 from chronostrain.model import Marker, SequenceRead
 from chronostrain.model.io import TimeSeriesReads
-from ...external import mafft_fragment, clustal_omega
+from ...external import clustal_omega
 from ...sequences import *
 
 from chronostrain.config import create_logger
@@ -139,30 +139,30 @@ def parse(target_marker: Marker, reads: TimeSeriesReads, aln_path: Path) -> Mark
     reverse_seqs: List[SeqType] = []
     reverse_time_idxs: List[int] = []
 
-    # Parse from file.
-    records = iter(Bio.AlignIO.read(str(aln_path), 'fasta'))
+    # ============================ BEGIN HELPERS ============================
+    def parse_marker_record(marker_record: SeqRecord) -> Tuple[int, int, SeqType]:
+        parsed_marker_id = marker_record.id.split("|")[2]
+        if target_marker.id != parsed_marker_id:
+            raise ValueError(f"Expected marker `{target_marker.id}`, "
+                             f"but instead found `{parsed_marker_id}` in alignment file.")
+        aligned_marker_seq = nucleotides_to_z4(str(marker_record.seq))
 
-    # First entry should always be the marker.
-    first_record = next(records)
-    if first_record.id.startswith(f"{_READ_PREFIX}{_SEPARATOR}"):
-        raise ValueError(f"Expected Marker aligned sequence, but instead got read identifier {first_record.id}.")
+        # The marker sequence's aligned region. Keep track of this to clip off the start/end edge effects.
+        matched_indices = np.where(aligned_marker_seq != nucleotide_GAP_z4)[0]
+        start_clip = matched_indices[0]
+        end_clip = matched_indices[-1]
+        marker_seq = aligned_marker_seq[start_clip:end_clip + 1]
 
-    parsed_marker_id = first_record.id.split("|")[2]
-    if target_marker.id != parsed_marker_id:
-        raise ValueError(f"Expected marker `{target_marker.id}`, "
-                         f"but instead found `{parsed_marker_id}` in alignment file.")
-    marker_seq = nucleotides_to_z4(str(first_record.seq))
+        # The marker sequence's aligned region. Keep track of this to clip off the start/end edge effects.
+        matched_indices = np.where(marker_seq != nucleotide_GAP_z4)[0]
+        marker_start = matched_indices[0]
+        marker_end = matched_indices[-1]
+        aligned_marker_seq = aligned_marker_seq[start_clip:end_clip + 1]
+        return marker_start, marker_end, aligned_marker_seq
 
-    # The marker sequence's aligned region. Keep track of this to clip off the start/end edge effects.
-    matched_indices = np.where(marker_seq != nucleotide_GAP_z4)[0]
-    start_clip = matched_indices[0]
-    end_clip = matched_indices[-1]
-    marker_seq = marker_seq[start_clip:end_clip + 1]
-
-    # Parse the other entries.
-    for record in records:
+    def parse_read_record(read_record: SeqRecord, start_clip: int, end_clip: int):
         # Parse the tokens in the ID.
-        tokens = record.id.split(_SEPARATOR)
+        tokens = read_record.id.split(_SEPARATOR)
         t_idx = int(tokens[1])
         rev_comp = int(tokens[2]) == 1
         read_id = tokens[3]
@@ -171,7 +171,7 @@ def parse(target_marker: Marker, reads: TimeSeriesReads, aln_path: Path) -> Mark
         read_obj = reads[t_idx].get_read(read_id)
 
         # Check if alignment is clipped off the edges of the marker.
-        aln_seq = nucleotides_to_z4(str(record.seq))
+        aln_seq = nucleotides_to_z4(str(read_record.seq))
         n_clipped_bases = np.sum(
             aln_seq[:start_clip] != nucleotide_GAP_z4
         ) + np.sum(
@@ -180,9 +180,9 @@ def parse(target_marker: Marker, reads: TimeSeriesReads, aln_path: Path) -> Mark
         if n_clipped_bases > 0:
             logger.debug(f"Skipping alignment of read {read_id} in multiple alignment, "
                          f"due to {n_clipped_bases} clipped bases.")
-            continue
+            return
 
-        aln_seq = aln_seq[start_clip:end_clip+1]
+        aln_seq = aln_seq[start_clip:end_clip + 1]
 
         # Store the alignment into the proper category (whether or not the read was reverse complemented).
         if not rev_comp:
@@ -193,6 +193,24 @@ def parse(target_marker: Marker, reads: TimeSeriesReads, aln_path: Path) -> Mark
             reverse_reads.append(read_obj)
             reverse_seqs.append(aln_seq)
             reverse_time_idxs.append(t_idx)
+    # ============================ END HELPERS ============================
+    # Parse the marker entry first.
+    start_clip = None
+    end_clip = None
+    marker_seq = []
+    for record in Bio.AlignIO.read(str(aln_path), 'fasta'):
+        if not record.id.startswith(f"{_READ_PREFIX}{_SEPARATOR}"):
+            start_clip, end_clip, marker_seq = parse_marker_record(record)
+
+    if start_clip is None or end_clip is None:
+        raise RuntimeError("Couldn't find reference marker in multiple alignment output {}".format(
+            aln_path
+        ))
+
+    # Parse the other entries.
+    for record in Bio.AlignIO.read(str(aln_path), 'fasta'):
+        if record.id.startswith(f"{_READ_PREFIX}{_SEPARATOR}"):
+            parse_read_record(record, start_clip, end_clip)
 
     # Build the mappings.
     forward_read_index_map = {}
@@ -219,8 +237,7 @@ def parse(target_marker: Marker, reads: TimeSeriesReads, aln_path: Path) -> Mark
 def align(marker: Marker,
           read_descriptions: Iterator[Tuple[int, SequenceRead, bool]],
           intermediate_fasta_path: Path,
-          out_fasta_path: Path,
-          n_threads: int = 1):
+          out_fasta_path: Path):
     """
     Write these records to file (using a predetermined format), then perform multiple alignment.
     """
@@ -245,13 +262,18 @@ def align(marker: Marker,
         records.append(record)
     SeqIO.write(records, intermediate_fasta_path, "fasta")
 
-    logger.debug(f"Invoking `mafft --addfragments` on {len(records)} sequences.")
+    logger.debug(
+        f"Invoking `clustalo` on {len(records)} sequences, using {marker.metadata.file_path.name} as profile."
+    )
 
-    # Now invoke MAFFT aligner.
-    mafft_fragment(
-        reference_fasta_path=marker.metadata.file_path,
-        fragment_fasta_path=intermediate_fasta_path,
+    # Now invoke Clustal-Omega aligner.
+    clustal_omega(
+        input_path=intermediate_fasta_path,
         output_path=out_fasta_path,
-        n_threads=n_threads,
-        auto=True
+        force_overwrite=True,
+        verbose=False,
+        profile1=marker.metadata.file_path,
+        out_format='fasta',
+        seqtype='DNA',
+        guidetree_out=out_fasta_path.parent / "guidetree"
     )
