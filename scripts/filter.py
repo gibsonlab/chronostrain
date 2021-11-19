@@ -183,7 +183,6 @@ class Filter:
                 reference_path=self.reference_path,
                 index_basepath=self.reference_path.parent,
                 index_basename="markers",
-                num_report_alignments=self.db.num_markers(),
                 num_threads=cfg.model_cfg.num_cores
             )
         else:
