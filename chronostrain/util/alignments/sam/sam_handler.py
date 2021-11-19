@@ -176,7 +176,10 @@ class SamLine:
 
 def percent_identity_from_xm(match_tag: str, num_total_bases: int, num_aligned_bases: int):
     head = "XM:i:"
-    assert match_tag.startswith(head)
+    if not match_tag.startswith(head):
+        raise RuntimeError("Expected XM tag to start with `{}`, got `{}`.".format(
+            head, match_tag
+        ))
     num_mismatches = int(match_tag[len(head):])
     return (num_aligned_bases - num_mismatches) / num_total_bases
 
