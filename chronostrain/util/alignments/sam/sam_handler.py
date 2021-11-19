@@ -1,12 +1,11 @@
 import enum
-import re
 from pathlib import Path
 from typing import List, Iterator, Union, Optional
 
 import numpy as np
 
 from chronostrain.util.quality import ascii_to_phred
-from .cigar import CigarElement, parse_cigar
+from .cigar import CigarElement, parse_cigar, CigarOp
 from chronostrain.util.sequences import SeqType, nucleotides_to_z4
 
 from chronostrain.config import create_logger
@@ -115,19 +114,6 @@ class SamLine:
         readname = tokens[_SamTags.ReadName.value]
         map_flag = int(tokens[_SamTags.MapFlag.value])
         is_secondary_alignment = _check_bit_flag(map_flag, SamFlags.SecondaryAlignment.value)
-        optional_tags = {}
-        percent_identity: Union[float, None] = None
-        for optional_tag in tokens[11:]:
-            '''
-            The MD tag stores information about which bases match to the reference and is necessary
-            for determining percent identity
-            '''
-            # MD tag: shows percent identity
-            if optional_tag[:5] == 'MD:Z:':
-                optional_tags['MD'] = optional_tag[5:]
-                percent_identity = percent_identity_from_md_tag(optional_tags['MD'])
-            else:
-                pass
 
         if is_secondary_alignment:
             if prev_sam_line is None:
@@ -151,6 +137,25 @@ class SamLine:
             read_seq = nucleotides_to_z4(tokens[_SamTags.Read.value])
             read_phred = ascii_to_phred(tokens[_SamTags.Quality.value], quality_format)
 
+        cigar = parse_cigar(tokens[_SamTags.Cigar.value])
+
+        percent_identity: Union[float, None] = None
+        for optional_tag in tokens[11:]:
+            '''
+            The MD tag stores information about which bases match to the reference and is necessary
+            for determining percent identity
+            '''
+            # MD tag: shows percent identity
+            if optional_tag.startswith("XM:"):
+                num_aligned_bases = sum(
+                    cigar_el.num
+                    for cigar_el in cigar
+                    if cigar_el.op == CigarOp.ALIGN or cigar_el.op == CigarOp.MATCH or cigar_el.op == CigarOp.MISMATCH
+                )
+                percent_identity = percent_identity_from_xm(optional_tag, len(read_seq), num_aligned_bases)
+            else:
+                pass
+
         return SamLine(
             lineno=lineno,
             plaintext_line=plaintext_line,
@@ -161,7 +166,7 @@ class SamLine:
             is_reverse_complemented=_check_bit_flag(map_flag, SamFlags.SeqReverseComplement.value),
             contig_name=tokens[_SamTags.ContigName.value],
             contig_map_idx=int(tokens[_SamTags.MapPos.value]) - 1,
-            cigar=parse_cigar(tokens[_SamTags.Cigar.value]),
+            cigar=cigar,
             mate_pair=tokens[_SamTags.MatePair.value],
             mate_pos=tokens[_SamTags.MatePos.value],
             template_len=tokens[_SamTags.TemplateLen.value],
@@ -169,37 +174,11 @@ class SamLine:
         )
 
 
-def percent_identity_from_md_tag(tag: str):
-    """
-    Calculate the percent identity from a clipped MD tag. Three types of subsequences are read:
-    (1) Numbers represent the corresponding amount of sequential matches
-    (2) Letters represent a mismatch and two sequential mismatches are separated by a 0
-    (3) A ^ represents a deletion and will be followed by a sequence of consecutive letters
-        corresponding to the bases missing
-    Dividing (1) by (1)+(2)+(3) will give matches/clipped_length, or percent identity
-    """
-
-    '''
-    Splits on continuous number sequences.
-    '5A0C61^G' -> ['5', 'A', '0', 'C', '61', '^G']
-    Which would mean 5 correct bases, two incorrect (A and C, separated by conventional '0'), 
-    61 correct, then one deleted base. Sequential incorrect bases are always split by a 0.
-    '''
-    split_md = re.findall(r'\d+|\D+', tag)
-    total_clipped_length = 0
-    total_matches = 0
-    for sequence in split_md:
-        if sequence.isnumeric():  # (1)
-            total_clipped_length += int(sequence)
-            total_matches += int(sequence)
-        else:
-            if sequence[0] == '^':  # (3)
-                total_clipped_length += len(sequence) - 1
-            elif len(sequence) == 1:  # (2)
-                total_clipped_length += 1
-            else:
-                logger.warning("Unrecognized sequence in MD tag: " + sequence)
-    return total_matches / total_clipped_length
+def percent_identity_from_xm(match_tag: str, num_total_bases: int, num_aligned_bases: int):
+    head = "XM:i:"
+    assert match_tag.startswith(head)
+    num_mismatches = int(match_tag[len(head):])
+    return (num_aligned_bases - num_mismatches) / num_total_bases
 
 
 class SamFile:
