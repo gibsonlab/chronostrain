@@ -86,7 +86,9 @@ def main():
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    timepoint_indexed_files = []
+    time_points = []
+    n_reads = []
+    files = []
     seed = Seed(args.seed)
     for t, abundance_t in parse_abundance_profile(args.abundance_path):
         # Sample a random multinomial profile.
@@ -113,11 +115,13 @@ def main():
             n_cores=args.num_cores,
             cleanup=args.cleanup
         )
-        timepoint_indexed_files.append((t, out_path_t))
+        time_points.append(t)
+        n_reads.append(args.num_reads)
+        files.append(out_path_t)
     logger.info("Sampled reads to {}".format(args.out_dir))
 
     index_path = out_dir / "input_files.csv"
-    create_index_file(index_path, timepoint_indexed_files)
+    create_index_file(index_path, time_points, n_reads, files)
     logger.info("Wrote index file to {}.".format(index_path))
 
 
@@ -130,13 +134,10 @@ def parse_strain_paths(fasta_dir: Path) -> Dict[str, Path]:
     }
 
 
-def create_index_file(index_path: Path, read_paths: List[Tuple[float, Path]]):
+def create_index_file(index_path: Path, time_points: List[float], num_reads: List[int], read_paths: List[Path]):
     with open(index_path, 'w') as index_file:
-        for time_point, reads_path_t in read_paths:
-            print("\"{t}\",\"{file}\"".format(
-                t=time_point,
-                file=reads_path_t
-            ), file=index_file)
+        for time_point, n_reads, reads_path_t in zip(time_points, num_reads, read_paths):
+            print(f'"{time_point}","{n_reads}","{str(reads_path_t)}"', file=index_file)
 
 
 def parse_abundance_profile(abundance_path: str) -> List[Tuple[float, Dict]]:

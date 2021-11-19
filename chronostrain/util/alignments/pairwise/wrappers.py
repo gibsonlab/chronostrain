@@ -67,7 +67,9 @@ class BowtieAligner(AbstractPairwiseAligner):
             bowtie2_build(
                 refs_in=[reference_path],
                 index_basepath=self.index_basepath,
-                index_basename=self.index_basename
+                index_basename=self.index_basename,
+                quiet=True,
+                n_threads=num_threads
             )
             self.index_trace_path.touch(exist_ok=True)  # Create an empty file to indicate that this finished.
 
