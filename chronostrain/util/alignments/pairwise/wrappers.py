@@ -90,10 +90,10 @@ class BowtieAligner(AbstractPairwiseAligner):
             aln_seed_len=5,
             aln_seed_interval_fn=bt2_func_constant(3),
             aln_gbar=1,
-            aln_n_ceil=bt2_func_linear(0, .1),
-            score_mismatch_penalty=(1, 0),
-            score_min_fn=bt2_func_linear(0, -0.05),
-            score_read_gap_penalty=(5, 1),
-            score_ref_gap_penalty=(5, 1),
+            # aln_n_ceil=bt2_func_linear(0, .1),
+            # score_mismatch_penalty=(1, 0),
+            # score_min_fn=bt2_func_linear(0, -0.05),
+            # score_read_gap_penalty=(5, 1),
+            # score_ref_gap_penalty=(5, 1),
             sam_suppress_noalign=True
         )
