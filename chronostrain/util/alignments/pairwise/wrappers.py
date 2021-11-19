@@ -72,6 +72,10 @@ class BowtieAligner(AbstractPairwiseAligner):
                 n_threads=num_threads
             )
             self.index_trace_path.touch(exist_ok=True)  # Create an empty file to indicate that this finished.
+        else:
+            logger.debug("pre-built bowtie2 index found at {}".format(
+                str(self.index_trace_path)
+            ))
 
     def align(self, query_path: Path, output_path: Path):
         bowtie2(
