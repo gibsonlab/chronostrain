@@ -102,7 +102,7 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
         self.glasso_iterations = glasso_iterations
         self.glasso_tol = glasso_tol
         self.num_strands = num_strands
-        self.partial_corr_lower_bound = 0.5
+        self.partial_corr_lower_bound = -0.1
 
         self.reference_markers_to_assembly: Dict[Marker, FloppMarkerAssembly] = self.construct_marker_assemblies()
 

@@ -4,6 +4,7 @@ from typing import List, Optional, Union
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 
 from chronostrain import logger
 from chronostrain.algs import BBVISolver, AbstractPosterior
@@ -45,6 +46,13 @@ def plot_training_animation(
         ax.plot([], [], lw=2)[0]
         for _ in range(model.num_strains())
     ]
+
+    # Populate the legend.
+    ax.legend(bbox_to_anchor=(1.05, 1.0), loc='lower center', handles=[
+        Line2D([0], [0], color=line.get_color(), lw=2, label=strain.id)
+        for line, strain in zip(lines, model.bacteria_pop.strains)
+    ])
+
     fills = [
         ax.fill_between([], [], [], facecolor=lines[i].get_color())
         for i in range(model.num_strains())

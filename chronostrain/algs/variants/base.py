@@ -29,7 +29,7 @@ class FloppMarkerVariant(AbstractMarkerVariant):
         # print(z4_to_nucleotides(self.seq_with_gaps))
         return super().to_seqrecord(description=description)
 
-    def get_aligned_reference_region(self, read: SequenceRead, reverse: bool) -> Tuple[SeqType, np.ndarray, np.ndarray]:
+    def get_aligned_reference_region(self, read: SequenceRead, reverse: bool) -> Tuple[SeqType, np.ndarray, np.ndarray, int, int]:
         """
         Returns the aligned fragment (with gaps removed), and a pair of boolean arrays (insertion, deletion).
         The insertion array indicates which positions of the read (with gaps removed) are insertions,
@@ -51,15 +51,18 @@ class FloppMarkerVariant(AbstractMarkerVariant):
         # Get rid of indices corresponding to insertions.
         deletion_locs = deletion_locs[marker_section != nucleotide_GAP_z4]
 
-        return marker_section[marker_section != nucleotide_GAP_z4], insertion_locs, deletion_locs
+        start_clip, end_clip = self.multi_align.num_clipped_bases(read, reverse)
 
-    def subseq_from_read(self, read: SequenceRead) -> Iterator[Tuple[SeqType, np.ndarray, np.ndarray]]:
+        return marker_section[marker_section != nucleotide_GAP_z4], insertion_locs, deletion_locs, start_clip, end_clip
+
+    def subseq_from_read(self, read: SequenceRead) -> Iterator[Tuple[SeqType, np.ndarray, np.ndarray, int, int]]:
         # We already have the alignments from the read to the reference,
         #   so just get the corresponding fragment from this variant.
-        if self.multi_align.contains_read(read, True):
-            yield self.get_aligned_reference_region(read, True)
+
         if self.multi_align.contains_read(read, False):
             yield self.get_aligned_reference_region(read, False)
+        if self.multi_align.contains_read(read, True):
+            yield self.get_aligned_reference_region(read, True)
 
     def subseq_from_pairwise_aln(self, aln):
         raise NotImplementedError("Pairwise alignment to subsequence mapping not implemented, "

@@ -11,14 +11,18 @@ def run_glopp(
         output_dir: Path,
         use_mec_score: bool = False,
         ploidy: Optional[int] = None,
-        allele_error_rate: float = 0.05
+        allele_error_rate: float = 0.05,
+        beam_search_n: int = 5,
+        n_threads: int = 10
 ):
     params = [
         '-S',  # disable filtering
         '-b', str(sam_path),
         '-c', str(vcf_path),
         '-o', str(output_dir),
-        '-e', allele_error_rate
+        '-e', allele_error_rate,
+        '-t', n_threads,
+        '-n', beam_search_n
     ]
     if ploidy is not None:
         params += ['-p', str(ploidy)]

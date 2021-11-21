@@ -13,7 +13,8 @@ from chronostrain.database import StrainDatabase
 from chronostrain.model.io import TimeSliceReadSource
 from chronostrain.util.alignments.sam import SamFile
 from chronostrain.util.external.commandline import call_command
-from chronostrain.util.alignments.pairwise import parse_alignments, BwaAligner, BowtieAligner
+from chronostrain.util.alignments.pairwise import parse_alignments, BwaAligner, BowtieAligner, \
+    SequenceReadPairwiseAlignment
 
 from helpers import parse_input_spec
 
@@ -39,6 +40,27 @@ def filter_on_match_identity(percent_identity: float, identity_threshold=0.9):
     Currently a simple threshold on percent identity, likely should be adjusted to maximize downstream sensitivity?
     """
     return percent_identity > identity_threshold
+
+
+def filter_on_edge_clip(aln: SequenceReadPairwiseAlignment, clip_fraction: float=0.5):
+    if aln.is_edge_mapped:
+        # Fail if start and end are both soft clipped.
+        if (aln.soft_clip_start > 0 or aln.hard_clip_start > 0) and (aln.soft_clip_end > 0 or aln.hard_clip_end > 0):
+            return False
+
+        if aln.soft_clip_start > 0 or aln.hard_clip_start > 0:
+            return (
+                    (aln.soft_clip_start / len(aln.read)) < clip_fraction
+                    and (aln.hard_clip_start / len(aln.read)) < clip_fraction
+            )
+
+        if aln.soft_clip_end > 0 or aln.hard_clip_end > 0:
+            return (
+                    (aln.soft_clip_end / len(aln.read)) < clip_fraction
+                    and (aln.hard_clip_end / len(aln.read)) < clip_fraction
+            )
+    else:
+        return True
 
 
 def filter_file(
@@ -89,7 +111,7 @@ def filter_file(
                 raise ValueError(f"Unknown percent identity from alignment of read `{aln.read.id}`")
 
             passed_filter = (
-                not aln.is_edge_mapped
+                filter_on_edge_clip(aln)
                 and len(aln.read) > min_read_len
                 and filter_on_match_identity(aln.percent_identity, identity_threshold=pct_identity_threshold)
                 and filter_on_read_quality(aln.read.quality)

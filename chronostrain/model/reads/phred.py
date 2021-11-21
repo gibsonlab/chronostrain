@@ -39,21 +39,28 @@ class PhredErrorModel(AbstractErrorModel):
                                read: SequenceRead,
                                read_reverse_complemented: bool,
                                insertions: Optional[np.ndarray] = None,
-                               deletions: Optional[np.ndarray] = None) -> float:
+                               deletions: Optional[np.ndarray] = None,
+                               read_start_clip: int = 0,
+                               read_end_clip: int = 0) -> float:
         """
         Uses phred scores to compute Pr(Read | Fragment, Quality).
         """
         insertion_ll = np.sum(insertions) * self.insertion_error_ll
         deletion_ll = np.sum(deletions) * self.deletion_error_ll
 
-        # take care of insertions.
-        read_qual = read.quality[~insertions]
-        read_seq = read.seq[~insertions]
-        fragment_seq = fragment.seq[~deletions]
+        read_qual = read.quality
+        read_seq = read.seq
+        fragment_seq = fragment.seq
 
         if read_reverse_complemented:
             read_qual = read_qual[::-1]
             read_seq = reverse_complement_seq(read_seq)
+
+        # take care of insertions/deletions/clipping.
+        _slice = slice(read_start_clip, len(read_seq) - read_end_clip)
+        read_qual = read_qual[_slice][~insertions]
+        read_seq = read_seq[_slice][~insertions]
+        fragment_seq = fragment_seq[~deletions]
 
         error_log10_prob = -0.1 * read_qual
         matches: np.ndarray = (fragment_seq == read_seq) & (read_qual > 0)

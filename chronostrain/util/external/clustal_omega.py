@@ -5,8 +5,8 @@ from .commandline import CommandLineException, call_command
 
 
 def clustal_omega(
-        input_path: Path,
         output_path: Path,
+        input_path: Optional[Path] = None,
         profile1: Optional[Path] = None,
         profile2: Optional[Path] = None,
         force_overwrite: bool = False,
@@ -14,15 +14,17 @@ def clustal_omega(
         out_format: str = 'fasta',
         auto: bool = False,
         seqtype: str = 'DNA',
-        guidetree_out: Optional[Path] = None
+        guidetree_out: Optional[Path] = None,
+        silent: bool = False
 ):
     params = [
-        '-i', input_path,
         '-o', output_path,
         f'--outfmt={out_format}',
         '-t', seqtype
     ]
 
+    if input_path is not None:
+        params += ['-i', input_path]
     if profile1 is not None:
         params += ['--profile1', profile1]
     if profile2 is not None:
@@ -41,7 +43,8 @@ def clustal_omega(
     exit_code = call_command(
         command='clustalo',
         args=params,
-        output_path=output_path
+        output_path=output_path,
+        silent=silent
     )
     if exit_code != 0:
         raise CommandLineException('clustalo', exit_code)

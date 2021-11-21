@@ -14,6 +14,8 @@ def mafft_fragment(
         max_n_frac: float = 0.05,
         gap_open_penalty_group: float = 1.53,
         gap_offset_group: float = 0.0,
+        jtt_pam=20,
+        tm_pam=20,
         pairwise_seeds: Optional[List[Path]] = None,
 ):
     # Biopython's interface appears outdated (as of 10/23/2021). Use our own cline interface.
@@ -24,6 +26,8 @@ def mafft_fragment(
         '--maxambiguous', max_n_frac,
         '--op', gap_open_penalty_group,
         '--ep', gap_offset_group,
+        '--jtt', jtt_pam,
+        '--tm', tm_pam
     ]
     if auto:
         params.append('--auto')

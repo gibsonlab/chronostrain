@@ -138,7 +138,7 @@ def to_vcf(alignment: MarkerMultipleFragmentAlignment,
             variant_counts_i = variant_counts[idx]
 
             # Compute the supported variants, not equal to the reference base.
-            supported_variant_indices = set(np.where(variant_counts_i > 0)[0]).difference({ref_base_idx})
+            supported_variant_indices = set(np.where(variant_counts_i > 5)[0]).difference({ref_base_idx})
 
             # No reads map to this position. Nothing to do.
             if (

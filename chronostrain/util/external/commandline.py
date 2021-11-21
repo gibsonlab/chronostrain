@@ -18,7 +18,8 @@ def call_command(command: str,
                  cwd: Path = None,
                  shell: bool = False,
                  environment: Optional[Dict[str, str]] = None,
-                 output_path: Path = None) -> int:
+                 output_path: Path = None,
+                 silent: bool = False) -> int:
     """
     Executes the command (using the subprocess module).
     :param command: The binary to run.
@@ -32,14 +33,16 @@ def call_command(command: str,
     """
     args = [str(arg) for arg in args]
 
-    logger.debug("EXECUTE {cwdstr}{cmd} {arguments}".format(
-        cmd=command,
-        cwdstr="" if cwd is None else "[cwd={}] ".format(cwd),
-        arguments=" ".join(args)
-    ))
+    if not silent:
+        logger.debug("EXECUTE {cwdstr}{cmd} {arguments}".format(
+            cmd=command,
+            cwdstr="" if cwd is None else "[cwd={}] ".format(cwd),
+            arguments=" ".join(args)
+        ))
 
     if output_path is not None:
-        logger.debug("STDOUT redirect to {}.".format(output_path))
+        if not silent:
+            logger.debug("STDOUT redirect to {}.".format(output_path))
         output_file = open(output_path, 'w')
     else:
         output_file = None
@@ -63,9 +66,10 @@ def call_command(command: str,
     stdout_bytes = p.stdout
     stderr_bytes = p.stderr
 
-    if stdout_bytes is not None and len(stdout_bytes) > 0:
-        logger.debug("STDOUT: {}".format(stdout_bytes.decode("utf-8").strip()))
-    if stderr_bytes is not None and len(stderr_bytes) > 0:
-        logger.debug("STDERR: {}".format(stderr_bytes.decode("utf-8").strip()))
+    if not silent:
+        if stdout_bytes is not None and len(stdout_bytes) > 0:
+            logger.debug("STDOUT: {}".format(stdout_bytes.decode("utf-8").strip()))
+        if stderr_bytes is not None and len(stderr_bytes) > 0:
+            logger.debug("STDERR: {}".format(stderr_bytes.decode("utf-8").strip()))
 
     return p.returncode

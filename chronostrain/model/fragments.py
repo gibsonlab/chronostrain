@@ -86,7 +86,7 @@ class FragmentSpace:
         else:
             frag = self._create_frag(seq)
 
-        if metadata:
+        if metadata is not None:
             frag.add_metadata(metadata)
         return frag
 

@@ -1,1 +1,1 @@
-VCF_GAP_CHAR: str = "-"
+VCF_GAP_CHAR: str = "D"

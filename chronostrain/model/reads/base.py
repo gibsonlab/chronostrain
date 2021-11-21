@@ -76,7 +76,9 @@ class AbstractErrorModel(metaclass=ABCMeta):
                                read: SequenceRead,
                                read_reverse_complemented: bool,
                                insertions: Optional[np.ndarray] = None,
-                               deletions: Optional[np.ndarray] = None) -> float:
+                               deletions: Optional[np.ndarray] = None,
+                               read_start_clip: int = 0,
+                               read_end_clip: int = 0) -> float:
         """
         Compute the log probability of observing the read, conditional on the fragment.
         :param fragment: The source fragment (a String)
@@ -86,7 +88,11 @@ class AbstractErrorModel(metaclass=ABCMeta):
             The length of the array must match length of read. (extra characters not in fragment).
         :param deletions: A boolean array that indicates deleted nucleotides from the fragment
             The length of the array much match length of fragment. (characters missing in read from fragment).
+        :param read_start_clip: The number of bases to clip off the beginning of the read.
+        :param read_end_clip: The number of bases to clip off the end of the read.
         :return: the value P(read | fragment).
+
+        Note: If `reverse complement` is specified, this will apply first BEFORE applying insertions/deletions/clipping.
         """
         pass
 

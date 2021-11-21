@@ -97,7 +97,8 @@ def main():
         bbvi_num_samples=args.num_samples,
         quality_lower_bound=30,
         seed_with_database=False,
-        num_strands=args.num_strands
+        num_strands=args.num_strands,
+        glasso_standardize=True
     ).propose_variants())
 
     # Construct the fragment space.
@@ -107,10 +108,10 @@ def main():
         for marker_variant in strain_variant.variant_markers:
             for time_slice in reads:
                 for read in time_slice:
-                    for subseq, insertions, deletions in marker_variant.subseq_from_read(read):
+                    for subseq, _, _, _, _ in marker_variant.subseq_from_read(read):
                         fragments.add_seq(
                             subseq,
-                            metadata=f"Subseq_{marker_variant.id}"
+                            metadata=f"{read.id}->{marker_variant.id}"
                         )
 
     model = create_model(
