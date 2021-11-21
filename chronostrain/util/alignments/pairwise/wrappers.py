@@ -95,5 +95,6 @@ class BowtieAligner(AbstractPairwiseAligner):
             # score_min_fn=bt2_func_linear(0, -0.05),
             # score_read_gap_penalty=(5, 1),
             # score_ref_gap_penalty=(5, 1),
-            sam_suppress_noalign=True
+            sam_suppress_noalign=True,
+            local=True
         )

@@ -74,6 +74,7 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
                  bbvi_lr: int,
                  bbvi_num_samples: int,
                  quality_lower_bound: float,
+                 variant_count_lower_bound: int,
                  glasso_shrinkage: float = 0.1,
                  glasso_standardize: bool = True,
                  glasso_alpha: float = 1e-3,
@@ -95,6 +96,7 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
             seed_with_database=seed_with_database
         )
         self.quality_lower_bound = quality_lower_bound
+        self.variant_count_lower_bound = variant_count_lower_bound
         self.reference_markers = self.db.all_markers()
         self.glasso_shrinkage = glasso_shrinkage
         self.glasso_standardize = glasso_standardize
@@ -120,7 +122,10 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
         marker_assemblies = {}
         for marker_multi_align in self.multi_alignments:
             marker_assembly: FloppMarkerAssembly = CachedGloppVariantAssembly(
-                self.reads, marker_multi_align, quality_lower_bound=self.quality_lower_bound
+                self.reads,
+                marker_multi_align,
+                quality_lower_bound=self.quality_lower_bound,
+                variant_count_lower_bound=self.variant_count_lower_bound
             ).run(num_variants=self.num_strands)
 
             marker_assemblies[marker_assembly.marker] = marker_assembly

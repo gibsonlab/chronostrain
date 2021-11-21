@@ -29,6 +29,7 @@ class CachedGloppVariantAssembly(object):
                  reads: TimeSeriesReads,
                  alignment: MarkerMultipleFragmentAlignment,
                  quality_lower_bound: float = 20,
+                 variant_count_lower_bound: int = 5,
                  cache_override: Optional[ComputationCache] = None
                  ):
         """
@@ -46,6 +47,7 @@ class CachedGloppVariantAssembly(object):
 
         self.alignment: MarkerMultipleFragmentAlignment = alignment
         self.quality_lower_bound = quality_lower_bound
+        self.variant_count_lower_bound = variant_count_lower_bound
 
         self.relative_dir = Path(f"glopp/{self.alignment.marker.id}")
         self.absolute_dir = self.cache.cache_dir / self.relative_dir
@@ -303,5 +305,5 @@ class CachedGloppVariantAssembly(object):
     def prepare_vcf(self):
         self.vcf_path.parent.mkdir(exist_ok=True, parents=True)
         logger.debug(f"Creating VCF file {str(self.vcf_path)}.")
-        to_vcf(self.alignment, self.count_variants(), self.vcf_path)
+        to_vcf(self.alignment, self.count_variants(), self.vcf_path, self.variant_count_lower_bound)
         return self.vcf_path

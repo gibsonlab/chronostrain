@@ -96,6 +96,7 @@ def main():
         bbvi_lr=args.learning_rate,
         bbvi_num_samples=args.num_samples,
         quality_lower_bound=30,
+        variant_count_lower_bound=5,
         seed_with_database=False,
         num_strands=args.num_strands,
         glasso_standardize=True

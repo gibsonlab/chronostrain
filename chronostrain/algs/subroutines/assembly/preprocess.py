@@ -101,7 +101,8 @@ def to_sam(alignment: MarkerMultipleFragmentAlignment, out_path: Path):
 def to_vcf(alignment: MarkerMultipleFragmentAlignment,
            variant_counts: np.ndarray,
            out_path: Path,
-           ploidy: Optional[int] = None):
+           ploidy: Optional[int] = None,
+           variant_count_lower_bound: int = 5):
     """
     :param alignment: The multiple alignment instance to use.
     :param variant_counts: The (N x 5) matrix of variants, where each row stores the number of occurrences of each base,
@@ -138,7 +139,9 @@ def to_vcf(alignment: MarkerMultipleFragmentAlignment,
             variant_counts_i = variant_counts[idx]
 
             # Compute the supported variants, not equal to the reference base.
-            supported_variant_indices = set(np.where(variant_counts_i > 5)[0]).difference({ref_base_idx})
+            supported_variant_indices = set(
+                np.where(variant_counts_i > variant_count_lower_bound)[0]
+            ).difference({ref_base_idx})
 
             # No reads map to this position. Nothing to do.
             if (
