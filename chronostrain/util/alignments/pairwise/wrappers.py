@@ -92,7 +92,7 @@ class BowtieAligner(AbstractPairwiseAligner):
             aln_gbar=1,
             # aln_n_ceil=bt2_func_linear(0, .1),
             score_mismatch_penalty=(2, 0),
-            # score_min_fn=bt2_func_linear(0, -0.05),
+            score_min_fn=bt2_func_sqrt(1, 0.75),
             # score_read_gap_penalty=(5, 1),
             # score_ref_gap_penalty=(5, 1),
             sam_suppress_noalign=True,
