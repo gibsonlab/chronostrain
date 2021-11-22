@@ -76,18 +76,24 @@ class CachedGloppVariantAssembly(object):
             row = self.alignment.get_aligned_read_seq(read, True)
             first_idx, last_idx = self.alignment.aln_gapped_boundary_of_row(row_idx)
 
+            read_start_clip, read_end_clip = self.alignment.num_clipped_bases(read, True)
+            _slice = slice(read_start_clip, len(read) - read_end_clip)
+
             row = row[first_idx:last_idx + 1]
             qual = np.zeros(shape=row.shape, dtype=float)
-            qual[row != nucleotide_GAP_z4] = read.quality
+            qual[row != nucleotide_GAP_z4] = read.quality[_slice]
             add_to_tally(row, qual)
         for read in self.alignment.reads(reverse=False):
             row_idx = self.alignment.get_index_of(read, False)
             row = self.alignment.get_aligned_read_seq(read, False)
             first_idx, last_idx = self.alignment.aln_gapped_boundary_of_row(row_idx)
 
+            read_start_clip, read_end_clip = self.alignment.num_clipped_bases(read, False)
+            _slice = slice(read_start_clip, len(read) - read_end_clip)
+
             row = row[first_idx:last_idx + 1]
             qual = np.zeros(shape=row.shape, dtype=float)
-            qual[row != nucleotide_GAP_z4] = read.quality[::-1]
+            qual[row != nucleotide_GAP_z4] = read.quality[::-1][_slice]
             add_to_tally(row, qual)
 
         return counts
@@ -176,6 +182,8 @@ class CachedGloppVariantAssembly(object):
 
         parsed_ploidy: int = -1
         allele_parser = self.variant_allele_parser()
+
+        print(z4_to_nucleotides(self.alignment.aligned_marker_seq))
 
         # First pass through file: verify file format and grab all positions.
         with open(glopp_phasing_path, "r") as phasing_file:

@@ -37,7 +37,7 @@ class RowSectionedSparseMatrix(SparseMatrix):
                  force_coalesce: bool = True):
         super().__init__(indices, values, dims, force_coalesce=force_coalesce)
         self.locs_per_row: List[torch.Tensor] = [
-            torch.where(indices[1] == i)[0]
+            torch.where(indices[0] == i)[0]
             for i in range(self.rows)
         ]
 

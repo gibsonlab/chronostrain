@@ -5,7 +5,6 @@
 import sys
 from typing import List, Tuple
 
-from tqdm import tqdm
 import numpy as np
 from torch.distributions.multivariate_normal import MultivariateNormal
 from scipy.stats import poisson
@@ -352,7 +351,7 @@ class GenerativeModel:
         # For each time point, convert to fragment abundances and sample each read.
         time_slices = []
 
-        for t in tqdm(range(num_timepoints), file=sys.stdout):
+        for t in range(num_timepoints):
             read_depth = read_depths[t]
             strain_abundance = abundances[t]
             frag_abundance = self.strain_abundance_to_frag_abundance(strain_abundance.view(S, 1)).view(F)

@@ -28,7 +28,8 @@ class NoiselessErrorModel(AbstractErrorModel):
         else:
             read_seq = read.seq
 
-        read_seq = read_seq[read_start_clip:-read_end_clip]
+        _slice = slice(read_start_clip, len(read_seq) - read_end_clip)
+        read_seq = read_seq[_slice]
 
         if np.sum(fragment.seq != read_seq) == 0:
             return self.match_log_likelihood

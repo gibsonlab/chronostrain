@@ -40,8 +40,11 @@ def to_sam(alignment: MarkerMultipleFragmentAlignment, out_path: Path):
 
         # Mapping positions
         aln = alignment.get_alignment(read, reverse_complement, delete_double_gaps=False)
+        read_start_clip, read_end_clip = alignment.num_clipped_bases(read, reverse_complement)
+        _slice = slice(read_start_clip, len(read) - read_end_clip)
         query_map_len = map_last_idx - map_first_idx + 1
-        assert np.sum(aln[1] != nucleotide_GAP_z4) == len(read)
+
+        assert np.sum(aln[1] != nucleotide_GAP_z4) == len(read) - read_start_clip - read_end_clip
 
         # Mapping quality
         mapq: int = 255  # (not available)
@@ -53,7 +56,7 @@ def to_sam(alignment: MarkerMultipleFragmentAlignment, out_path: Path):
         query_seq = aln[1, map_first_idx:map_last_idx+1].copy()
         quality = np.zeros(shape=query_seq.shape, dtype=float)
         quality[query_seq == nucleotide_GAP_z4] = 0
-        quality[query_seq != nucleotide_GAP_z4] = read.quality
+        quality[query_seq != nucleotide_GAP_z4] = read.quality[_slice]
         # query_seq[query_seq == nucleotide_GAP_z4]
         query = "".join(
             map_z4_to_nucleotide(x) if x != nucleotide_GAP_z4 else VCF_GAP_CHAR

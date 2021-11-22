@@ -27,7 +27,8 @@ def mafft_fragment(
         '--op', gap_open_penalty_group,
         '--ep', gap_offset_group,
         '--jtt', jtt_pam,
-        '--tm', tm_pam
+        '--tm', tm_pam,
+        '--localpair'
     ]
     if auto:
         params.append('--auto')

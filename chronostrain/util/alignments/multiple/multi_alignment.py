@@ -248,6 +248,7 @@ def align(marker: Marker,
           out_fasta_path: Path,
           n_threads: int = 1):
     align_mafft(marker, read_descriptions, intermediate_fasta_path, out_fasta_path, n_threads)
+    # align_clustalo(marker, read_descriptions, intermediate_fasta_path, out_fasta_path)
 
 
 def align_mafft(marker: Marker,
@@ -288,10 +289,10 @@ def align_mafft(marker: Marker,
         output_path=out_fasta_path,
         n_threads=n_threads,
         auto=True,
-        gap_open_penalty_group=7,
-        gap_offset_group=0.123,
-        jtt_pam=200,
-        tm_pam=200
+        gap_open_penalty_group=1.53,
+        gap_offset_group=0.0,
+        jtt_pam=1,
+        tm_pam=1
     )
 
 

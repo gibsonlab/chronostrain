@@ -75,6 +75,9 @@ class AbstractVariantBBVISolver(object):
 
         for strain_variant in self.propose_variants():
             population = Population(best_strains + [strain_variant])
+            logger.debug("Included strains: {}".format(
+                population.strains
+            ))
 
             # Add all fragments implied by this new strain variant.
             for marker_variant in strain_variant.variant_markers:
@@ -183,6 +186,6 @@ class AbstractVariantBBVISolver(object):
             # Special case when there is only one strain in the population. (Nothing to do)
             solver = BBVISolver(model=model, data=self.reads, correlation_type="strain", db=self.db)
             data_ll = solver.data_likelihoods.conditional_likelihood(
-                torch.ones((model.num_times(), 1))
+                torch.ones((model.num_times(), 1), device=cfg.torch_cfg.device)
             )
             return model, solver, data_ll

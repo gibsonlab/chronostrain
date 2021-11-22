@@ -8,7 +8,6 @@ from chronostrain.model import Fragment, Marker, SequenceRead, AbstractMarkerVar
 from chronostrain.util.alignments.multiple import MarkerMultipleFragmentAlignment
 from chronostrain.util.filesystem import convert_size
 from chronostrain.util.math import *
-from chronostrain.util.sequences import SeqType
 from chronostrain.util.sparse import SparseMatrix, ColumnSectionedSparseMatrix
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.config import cfg
@@ -79,11 +78,11 @@ class SparseDataLikelihoods(DataLikelihoods):
             log_likelihood_t = log_mm_exp(
                 y[t_idx].log().view(1, -1),  # (N x S)
                 log_spmm_exp(
-                    self.likelihood_matrix(t_idx).t(),  # (R x F')
+                    ColumnSectionedSparseMatrix.from_sparse_matrix(self.likelihood_matrix(t_idx).t()),  # (R x F')
                     log_spspmm_exp(
                         self.projectors[t_idx],  # (F' x F)
                         self.model.fragment_frequencies_sparse  # (F x S)
-                    ),
+                    ),  # (F' x S)
                 ).t()  # after transpose: (S x R)
             )
 
@@ -303,25 +302,25 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                                 end_clip=end_clip
                             )
 
-                            if read.id in [
-                                "CP009273.1_Substitution-5613966/1",
-                                "CP009273.1_Substitution-5098026/1",
-                                "CP009273.1_Substitution-6033812/1",
-                                "CP009273.1_Substitution-4168022/1",
-                                "CP009273.1_Substitution-2451144/1",
-                                "CP009273.1_Substitution-522642/1",
-                                "CP009273.1_Substitution-10954102/1",
-                                "CP009273.1_Substitution-9536686/1",
-                            ]:
-                                print("(ll = {:.2f}) Read {} -> Frag {} (clip = {},{}) [{} -> {}]".format(
-                                    ll,
-                                    read.id,
-                                    frag.metadata,
-                                    start_clip,
-                                    end_clip,
-                                    read.nucleotide_content(),
-                                    frag.nucleotide_content()
-                                ))
+                            # if read.id in [
+                            #     "CP009273.1_Substitution-5613966/1",
+                            #     "CP009273.1_Substitution-5098026/1",
+                            #     "CP009273.1_Substitution-6033812/1",
+                            #     "CP009273.1_Substitution-4168022/1",
+                            #     "CP009273.1_Substitution-2451144/1",
+                            #     "CP009273.1_Substitution-522642/1",
+                            #     "CP009273.1_Substitution-10954102/1",
+                            #     "CP009273.1_Substitution-9536686/1",
+                            # ]:
+                            #     print("(ll = {:.2f}) Read {} -> Frag {} (clip = {},{}) [{} -> {}]".format(
+                            #         ll,
+                            #         read.id,
+                            #         frag.metadata,
+                            #         start_clip,
+                            #         end_clip,
+                            #         read.nucleotide_content(),
+                            #         frag.nucleotide_content()
+                            #     ))
 
                             if ll < ll_threshold:
                                 n_truncated += 1
