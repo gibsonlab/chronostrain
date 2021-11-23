@@ -17,9 +17,10 @@ class StrainDatabase(object):
     def __init__(self,
                  parser: AbstractDatabaseParser,
                  backend: AbstractStrainDatabaseBackend,
+                 multifasta_filename: str = 'all_markers.fasta',
                  force_refresh: bool = False):
         self.backend = backend
-        self.marker_multifasta_file = cfg.database_cfg.data_dir / 'all_markers.fasta'
+        self.marker_multifasta_file = cfg.database_cfg.data_dir / multifasta_filename
 
         for strain in parser.strains():
             backend.add_strain(strain)
@@ -136,7 +137,8 @@ class JSONStrainDatabase(StrainDatabase):
                  entries_file: Union[str, Path],
                  marker_max_len: int,
                  force_refresh: bool = False,
-                 load_full_genomes: bool = False):
+                 load_full_genomes: bool = False,
+                 multifasta_filename: str = 'all_markers.fasta'):
         if isinstance(entries_file, str):
             entries_file = Path(entries_file)
         parser = JSONParser(entries_file,
@@ -144,7 +146,7 @@ class JSONStrainDatabase(StrainDatabase):
                             force_refresh,
                             load_full_genomes=load_full_genomes)
         backend = PandasAssistedBackend()
-        super().__init__(parser, backend)
+        super().__init__(parser, backend, multifasta_filename=multifasta_filename)
 
 
 class SimpleCSVStrainDatabase(StrainDatabase):
@@ -152,7 +154,8 @@ class SimpleCSVStrainDatabase(StrainDatabase):
                  entries_file: Union[str, Path],
                  trim_debug: Optional[int] = None,
                  force_refresh: bool = False,
-                 load_full_genomes: bool = False):
+                 load_full_genomes: bool = False,
+                 multifasta_filename: str = 'all_markers.fasta'):
         if isinstance(entries_file, str):
             entries_file = Path(entries_file)
         parser = CSVParser(entries_file,
@@ -160,4 +163,4 @@ class SimpleCSVStrainDatabase(StrainDatabase):
                            trim_debug,
                            load_full_genomes=load_full_genomes)
         backend = DictionaryBackend()
-        super().__init__(parser, backend)
+        super().__init__(parser, backend, multifasta_filename=multifasta_filename)
