@@ -11,7 +11,7 @@ python $BASE_DIR/helpers/initialize_chronostrain.py
 echo "Creating variants from ${variants_json}."
 variants_json="${BASE_DIR}/files/variants.json"
 python ${BASE_DIR}/helpers/create_variants.py \
--v ${variants_json} \
+-i ${variants_json} \
 -o ${CHRONOSTRAIN_DB_DIR}
 
 
