@@ -28,13 +28,13 @@ class PandasAssistedBackend(AbstractStrainDatabaseBackend):
             self.strain_df.append({
                 'StrainId': strain.id,
                 'MarkerId': marker.id
-            })
+            }, ignore_index=True)
 
             self.marker_df.append({
                 'MarkerId': marker.id,
                 'MarkerName': marker.name,
                 'IsCanonical': marker.is_canonical
-            })
+            }, ignore_index=True)
 
     def get_strain(self, strain_id: str) -> Strain:
         try:
