@@ -33,7 +33,11 @@ class GloppContigStrandSpecification(object):
         return self.__repr__()
 
     def __repr__(self):
-        return f"<Marker {self.contig.marker.id}, Contig {self.contig.contig_idx}, Strand {self.strand_idx}>"
+        return "<" \
+               f"Marker {self.contig.canonical_marker.id}, " \
+               f"Contig {self.contig.contig_idx}, " \
+               f"Strand {self.strand_idx}" \
+               ">"
 
 
 def upper_triangular_bounded(x: np.ndarray,
@@ -97,7 +101,7 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
         )
         self.quality_lower_bound = quality_lower_bound
         self.variant_count_lower_bound = variant_count_lower_bound
-        self.reference_markers = self.db.all_markers()
+        self.reference_markers = self.db.all_canonical_markers()
         self.glasso_shrinkage = glasso_shrinkage
         self.glasso_standardize = glasso_standardize
         self.glasso_alpha = glasso_alpha
@@ -128,7 +132,7 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
                 variant_count_lower_bound=self.variant_count_lower_bound
             ).run(num_variants=self.num_strands)
 
-            marker_assemblies[marker_assembly.marker] = marker_assembly
+            marker_assemblies[marker_assembly.canonical_marker] = marker_assembly
         return marker_assemblies
 
     @property
@@ -179,7 +183,7 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
             yield self.strain_variant_from_clique(
                 G,
                 clique,
-                {assembly.marker: assembly for assembly in self.assemblies}
+                {assembly.canonical_marker: assembly for assembly in self.assemblies}
             )
 
         # TODO 2: Edit sparse.py (sparse likelihood calculation) to take these variants into account.
@@ -237,7 +241,7 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
         markers_to_subcliques: Dict[Marker, List[GloppContigStrandSpecification]] = defaultdict(list)
         for v in clique:
             node_data: GloppContigStrandSpecification = G.nodes[v]['strand']
-            markers_to_subcliques[node_data.contig.marker].append(node_data)
+            markers_to_subcliques[node_data.contig.canonical_marker].append(node_data)
 
         marker_variants: List[FloppMarkerVariant] = []
         for marker, subclique in markers_to_subcliques.items():
@@ -277,7 +281,7 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
             [] for _ in range(marker_assembly.num_contigs)
         ]
         for spec in clique:
-            assert spec.contig.marker.id == base_marker.id
+            assert spec.contig.canonical_marker.id == base_marker.id
             variants_by_contig[spec.contig.contig_idx].append(spec)
             if len(variants_by_contig[spec.contig.contig_idx]) > 1:
                 logger.warning(

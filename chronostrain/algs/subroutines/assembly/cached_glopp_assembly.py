@@ -49,7 +49,7 @@ class CachedGloppVariantAssembly(object):
         self.quality_lower_bound = quality_lower_bound
         self.variant_count_lower_bound = variant_count_lower_bound
 
-        self.relative_dir = Path(f"glopp/{self.alignment.marker.id}")
+        self.relative_dir = Path(f"glopp/{self.alignment.canonical_marker.id}")
         self.absolute_dir = self.cache.cache_dir / self.relative_dir
 
         self.sam_path = self.absolute_dir / "alignments.sam"
@@ -71,10 +71,9 @@ class CachedGloppVariantAssembly(object):
                 z4_base_locs = np.where((seq_aln_row == z4base) & (quality > self.quality_lower_bound))[0]
                 counts[first_idx + z4_base_locs, b_idx] += 1
 
-        for read in self.alignment.reads(reverse=True):
-            row_idx = self.alignment.get_index_of(read, True)
+        for read in self.alignment.reads(revcomp=True):
             row = self.alignment.get_aligned_read_seq(read, True)
-            first_idx, last_idx = self.alignment.aln_gapped_boundary_of_row(row_idx)
+            first_idx, last_idx = self.alignment.aln_gapped_boundary(read, True)
 
             read_start_clip, read_end_clip = self.alignment.num_clipped_bases(read, True)
             _slice = slice(read_start_clip, len(read) - read_end_clip)
@@ -83,10 +82,9 @@ class CachedGloppVariantAssembly(object):
             qual = np.zeros(shape=row.shape, dtype=float)
             qual[row != nucleotide_GAP_z4] = read.quality[_slice]
             add_to_tally(row, qual)
-        for read in self.alignment.reads(reverse=False):
-            row_idx = self.alignment.get_index_of(read, False)
+        for read in self.alignment.reads(revcomp=False):
             row = self.alignment.get_aligned_read_seq(read, False)
-            first_idx, last_idx = self.alignment.aln_gapped_boundary_of_row(row_idx)
+            first_idx, last_idx = self.alignment.aln_gapped_boundary(read, False)
 
             read_start_clip, read_end_clip = self.alignment.num_clipped_bases(read, False)
             _slice = slice(read_start_clip, len(read) - read_end_clip)
@@ -110,9 +108,9 @@ class CachedGloppVariantAssembly(object):
             subdir = f"output_ploidy_{num_variants}"
         rel_output_dir = self.relative_dir / subdir
         abs_output_dir = self.absolute_dir / subdir
-        phasing_rel_output_path = rel_output_dir / f"{self.alignment.marker.id}_phasing.txt"
-        phasing_abs_output_path = abs_output_dir / f"{self.alignment.marker.id}_phasing.txt"
-        partition_abs_output_path = abs_output_dir / f"{self.alignment.marker.id}_part.txt"
+        phasing_rel_output_path = rel_output_dir / f"{self.alignment.canonical_marker.name}_phasing.txt"
+        phasing_abs_output_path = abs_output_dir / f"{self.alignment.canonical_marker.name}_phasing.txt"
+        partition_abs_output_path = abs_output_dir / f"{self.alignment.canonical_marker.name}_part.txt"
 
         def _call():
             self.prepare_glopp_input()
@@ -173,7 +171,6 @@ class CachedGloppVariantAssembly(object):
         "haplotype" assembly of the c-th region.
         """
         logger.debug(f"Parsing Marker assembly from {str(glopp_phasing_path)}")
-        marker = self.alignment.marker
         all_positions: List[int] = []  # A list of the variant positions, parsed from the phasing file.
 
         contig_positions_arr: List[np.ndarray] = []  # contig-indexed list of contig-specific positions.
@@ -183,15 +180,13 @@ class CachedGloppVariantAssembly(object):
         parsed_ploidy: int = -1
         allele_parser = self.variant_allele_parser()
 
-        print(z4_to_nucleotides(self.alignment.aligned_marker_seq))
-
         # First pass through file: verify file format and grab all positions.
         with open(glopp_phasing_path, "r") as phasing_file:
             glopp_contig_name = next(phasing_file).strip()[2:-2]
-            if glopp_contig_name != marker.id:
+            if glopp_contig_name != self.alignment.canonical_marker.name:
                 raise ValueError(
                     "Glopp output contained a different contig ID ({}) than what was expected ({}).".format(
-                        glopp_contig_name, marker.id
+                        glopp_contig_name, self.alignment.canonical_marker.name
                     )
                 )
 
@@ -287,7 +282,7 @@ class CachedGloppVariantAssembly(object):
             self.alignment,
             [
                 FloppMarkerContig(
-                    marker=marker,
+                    canonical_marker=self.alignment.canonical_marker,
                     contig_idx=c_idx,
                     positions=contig_pos,
                     assembly=contig_assembly,
@@ -307,11 +302,17 @@ class CachedGloppVariantAssembly(object):
     def prepare_bam(self):
         self.sam_path.parent.mkdir(exist_ok=True, parents=True)
         logger.debug(f"Creating BAM file {str(self.sam_path)}.")
-        to_sam(self.alignment, self.sam_path)
+        to_sam(self.alignment.canonical_marker,
+               self.alignment,
+               self.sam_path)
         return self.sam_path
 
     def prepare_vcf(self):
         self.vcf_path.parent.mkdir(exist_ok=True, parents=True)
         logger.debug(f"Creating VCF file {str(self.vcf_path)}.")
-        to_vcf(self.alignment, self.count_variants(), self.vcf_path, self.variant_count_lower_bound)
+        to_vcf(self.alignment.canonical_marker,
+               self.alignment,
+               self.count_variants(),
+               self.vcf_path,
+               self.variant_count_lower_bound)
         return self.vcf_path

@@ -101,7 +101,7 @@ def convert_to_metaphlan_db(chronostrain_db, metaphlan_in_path: Path, metaphlan_
     marker_fasta_path = metaphlan_out_dir / "{}.fasta".format(basename)
     bowtie2_index_path = metaphlan_out_dir / "{}.bt2".format(basename)
 
-    marker_fasta_path.unlink(missing_ok=True)
+    marker_fasta_path.unlink()
     marker_fasta_path.touch()
 
     for s_idx, strain in enumerate(chronostrain_db.all_strains()):

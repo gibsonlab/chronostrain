@@ -25,8 +25,6 @@ class FloppMarkerVariant(AbstractMarkerVariant):
         self.num_supporting_reads = num_supporting_reads
 
     def to_seqrecord(self, description: str = ""):
-        # from chronostrain.util.sequences import z4_to_nucleotides
-        # print(z4_to_nucleotides(self.seq_with_gaps))
         return super().to_seqrecord(description=description)
 
     def get_aligned_reference_region(self, read: SequenceRead, reverse: bool) -> Tuple[SeqType, np.ndarray, np.ndarray, int, int]:
@@ -52,7 +50,6 @@ class FloppMarkerVariant(AbstractMarkerVariant):
         deletion_locs = deletion_locs[marker_section != nucleotide_GAP_z4]
 
         start_clip, end_clip = self.multi_align.num_clipped_bases(read, reverse)
-
         return marker_section[marker_section != nucleotide_GAP_z4], insertion_locs, deletion_locs, start_clip, end_clip
 
     def subseq_from_read(self, read: SequenceRead) -> Iterator[Tuple[SeqType, np.ndarray, np.ndarray, int, int]]:

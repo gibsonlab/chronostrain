@@ -590,7 +590,7 @@ class BBVISolver(AbstractModelSolver):
             with torch.no_grad():
                 self.update_phi(x_samples.detach())
 
-            elbo = self.elbo_marginal_gaussian(x_samples, gaussian_log_likelihoods, eps_smoothing=1e-6)
+            elbo = self.elbo_marginal_gaussian(x_samples, gaussian_log_likelihoods, eps_smoothing=1e-30)
 
             elbo_loss = -elbo  # Quantity to minimize. (want to maximize ELBO)
             elbo_loss.backward()

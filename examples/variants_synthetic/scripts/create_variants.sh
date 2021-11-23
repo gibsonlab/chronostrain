@@ -1,8 +1,9 @@
 set -e
 source settings.sh
+export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain_init.ini"
 
 echo "Initializing chronostrain files."
-export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain_init.ini"
+echo "Using INI config override: ${CHRONOSTRAIN_INI}"
 python $BASE_DIR/helpers/initialize_chronostrain.py
 
 echo "Creating variants from ${variants_json}."

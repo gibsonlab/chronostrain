@@ -25,12 +25,13 @@ class PandasAssistedBackend(AbstractStrainDatabaseBackend):
         self.strains[strain.id] = strain
         for marker in strain.markers:
             self.markers[marker.id] = marker
-            self.strain_df.append({
+
+            self.strain_df = self.strain_df.append({
                 'StrainId': strain.id,
                 'MarkerId': marker.id
             }, ignore_index=True)
 
-            self.marker_df.append({
+            self.marker_df = self.marker_df.append({
                 'MarkerId': marker.id,
                 'MarkerName': marker.name,
                 'IsCanonical': marker.is_canonical

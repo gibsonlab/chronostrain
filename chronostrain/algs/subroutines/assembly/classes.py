@@ -22,8 +22,8 @@ class FloppMarkerAssembly(object):
         self.cumulative_strand_counts = np.cumsum(strand_counts)
 
     @property
-    def marker(self) -> Marker:
-        return self.aln.marker
+    def canonical_marker(self) -> Marker:
+        return self.aln.canonical_marker
 
     @property
     def num_contigs(self) -> int:
@@ -38,7 +38,7 @@ class FloppMarkerAssembly(object):
         return self.contigs[contig_idx], relative_idx
 
     def contig_base_seq(self, contigs_strands: List[Union[int, None]]) -> Tuple[SeqType, int]:
-        seq = self.aln.aligned_marker_seq.copy()
+        seq = self.aln.get_aligned_marker_seq(self.canonical_marker).copy()
         read_count = 0
         for contig_idx, strand_idx in enumerate(contigs_strands):
             contig: FloppMarkerContig = self.contigs[contig_idx]
@@ -54,7 +54,7 @@ class FloppMarkerContig(object):
     A representaton of a particular length-N region of a marker, and the k-ploidy haplotype assembly of that region.
     """
     def __init__(self,
-                 marker: Marker,
+                 canonical_marker: Marker,
                  contig_idx: int,
                  positions: np.ndarray,
                  assembly: np.ndarray,
@@ -66,7 +66,7 @@ class FloppMarkerContig(object):
         :param assembly: An (N x k) array of resolved assembly for this contig.
         :param read_counts: An (k x T) array of read counts per each strand, per timepoint.
         """
-        self.marker = marker
+        self.canonical_marker = canonical_marker
         self.positions = positions
         self.contig_idx = contig_idx
 
@@ -82,7 +82,9 @@ class FloppMarkerContig(object):
         num_zero_count_strands = np.sum(num_reads_per_strand == 0)
         if num_zero_count_strands > 0:
             logger.debug(
-                f"{marker.id}, Contig {contig_idx} - Trimming {num_zero_count_strands} strands with zero count."
+                f"{canonical_marker.id}, "
+                f"Contig {contig_idx} - "
+                f"Trimming {num_zero_count_strands} strands with zero count."
             )
 
             support_indices = np.where(num_reads_per_strand > 0)[0]

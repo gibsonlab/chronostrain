@@ -80,19 +80,20 @@ def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase, pop: Pop
     multiple_alignments = CachedReadMultipleAlignments(reads, db)
     fragment_space = FragmentSpace()
     for multi_align in multiple_alignments.get_alignments():
-        if not pop.contains_marker(multi_align.marker):
-            continue
+        for marker in multi_align.markers():
+            if not pop.contains_marker(marker):
+                continue
 
-        for reverse in [False, True]:
-            for read in multi_align.reads(reverse=reverse):
-                subseq, insertions, deletions = multi_align.get_aligned_reference_region(
-                    read, reverse=reverse
-                )
+            for revcomp in [False, True]:
+                for read in multi_align.reads(revcomp=revcomp):
+                    subseq, insertions, deletions, start_clip, end_clip = multi_align.get_aligned_reference_region(
+                        marker, read, revcomp=revcomp
+                    )
 
-                fragment_space.add_seq(
-                    subseq,
-                    metadata=f"ClustalO({read.id}->{multi_align.marker.id})"
-                )
+                    fragment_space.add_seq(
+                        subseq,
+                        metadata=f"MultiAlign({read.id}->{marker.id})"
+                    )
     return fragment_space
 
 

@@ -7,8 +7,13 @@ from chronostrain.util.sequences import *
 
 
 class AbstractMarkerVariant(Marker):
-    def __init__(self, id: str, name: str, seq: SeqType, base_marker: Marker, metadata: MarkerMetadata):
-        super().__init__(id=id, name=name, seq=seq, metadata=metadata)
+    def __init__(self,
+                 id: str,
+                 name: str,
+                 seq: SeqType,
+                 base_marker: Marker,
+                 metadata: MarkerMetadata):
+        super().__init__(id=id, name=name, seq=seq, metadata=metadata, canonical=False)
         self.base_marker = base_marker
 
     @abstractmethod

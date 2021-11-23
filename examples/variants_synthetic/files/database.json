@@ -6,7 +6,8 @@
         "accession": "CP009273.1",
         "source": "genbank",
         "markers": [
-            {"type": "tag", "locus_tag": "BW25113_4314", "name": "fimA", "canonical": "true"}
+            {"type": "tag", "locus_tag": "BW25113_4314", "name": "fimA", "canonical": "true"},
+            {"type": "tag", "locus_tag": "BW25113_0530", "name": "fimA"}
         ]
     }
 ]

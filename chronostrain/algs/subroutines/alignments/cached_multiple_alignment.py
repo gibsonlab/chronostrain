@@ -41,6 +41,7 @@ class CachedReadMultipleAlignments(object):
             ]
             for marker in self.db.all_canonical_markers()
         }
+
         for t_idx, aln in cache_pairwise_align.get_alignments():
             timeseries_alns_by_marker_name[aln.marker.name][t_idx].append(aln)
         return timeseries_alns_by_marker_name
@@ -66,8 +67,6 @@ class CachedReadMultipleAlignments(object):
                                   marker_name: str,
                                   timeseries_pairwise_aligns: List[List[SequenceReadPairwiseAlignment]]
                                   ) -> multialign.MarkerMultipleFragmentAlignment:
-        canonical_marker = self.db.get_canonical_marker(marker_name)
-
         def read_gen():
             seen_reads = set()
             alignments_with_time: List[Tuple[SequenceReadPairwiseAlignment, int]] = []
@@ -94,7 +93,7 @@ class CachedReadMultipleAlignments(object):
                 out_fasta_path=out_path,
                 n_threads=cfg.model_cfg.num_cores
             )
-            return multialign.parse(marker_name, canonical_marker, self.reads, out_path)
+            return multialign.parse(self.db, marker_name, self.reads, out_path)
 
         # ====== Run the cached computation.
         cache_relative_path = Path("multiple_alignments") / f"{marker_name}_multi_align.fasta"
@@ -103,7 +102,7 @@ class CachedReadMultipleAlignments(object):
             relative_filepath=cache_relative_path,
             fn=perform_alignment,
             save=lambda path, obj: None,
-            load=lambda path: multialign.parse(marker_name, canonical_marker, self.reads, path),
+            load=lambda path: multialign.parse(self.db, marker_name, self.reads, path),
             call_kwargs={
                 "out_path": self.cache.cache_dir / cache_relative_path
             }

@@ -124,19 +124,20 @@ class AbstractVariantBBVISolver(object):
         # Create fragments using reference markers.
         logger.debug("Using fragment construction from alignments.")
         for multi_align in self.multi_alignments:
-            if not reference_pop.contains_marker(multi_align.marker):
-                continue
+            for marker in multi_align.markers():
+                if not reference_pop.contains_marker(marker):
+                    continue
 
-            for reverse in [False, True]:
-                for read in multi_align.reads(reverse=reverse):
-                    subseq, insertions, deletions = multi_align.get_aligned_reference_region(
-                        read, reverse=reverse
-                    )
+                for reverse in [False, True]:
+                    for read in multi_align.reads(revcomp=reverse):
+                        subseq, insertions, deletions, start_clip, end_clip = multi_align.get_aligned_reference_region(
+                            marker, read, revcomp=reverse
+                        )
 
-                    fragments.add_seq(
-                        subseq,
-                        metadata=f"ClustalO({read.id}->{multi_align.marker.id})"
-                    )
+                        fragments.add_seq(
+                            subseq,
+                            metadata=f"MultiAlign({read.id}->{marker.id})"
+                        )
         return reference_pop, fragments
 
     def run_bbvi(self,

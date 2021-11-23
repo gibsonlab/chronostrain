@@ -18,12 +18,13 @@ def mafft_global(
         '--nuc',
         '--quiet',
         '--globalpair',
-        '--maxiterate', max_iterates,
-        input_fasta_path,
+        '--maxiterate', max_iterates
     ]
     params += ['--thread', str(n_threads)]
     if auto:
         params.append('--auto')
+
+    params.append(input_fasta_path)
 
     exit_code = call_command(
         command='mafft',

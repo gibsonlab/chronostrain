@@ -90,7 +90,9 @@ class StrainDatabase(object):
         self.multifasta_file.resolve().parent.mkdir(exist_ok=True, parents=True)
 
         def _generate():
-            self.multifasta_file.unlink(missing_ok=True)
+            if self.multifasta_file.exists():
+                self.multifasta_file.unlink()
+
             with open(self.multifasta_file, "w"):
                 pass
             for strain in self.all_strains():

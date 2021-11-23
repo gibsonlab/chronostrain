@@ -2,7 +2,6 @@
  generative.py
  Contains classes for representing the generative model.
 """
-import sys
 from typing import List, Tuple
 
 import numpy as np
@@ -148,13 +147,13 @@ class GenerativeModel:
 
                 if total_hits > 0:
                     # TODO replace with arbitrary distribution, specified by user.
-                    length_ll = poisson.logpmf(len(fragment), self.mean_frag_length)
+                    # length_ll = poisson.logpmf(len(fragment), self.mean_frag_length)
 
                     strain_indices.append(strain_idx)
                     frag_indices.append(fragment.index)
                     matrix_values.append(
-                        length_ll
-                        + np.log(total_hits)
+                        # length_ll
+                        np.log(total_hits)
                         - np.log(self.bacteria_pop.strains[strain_idx].num_marker_frags(len(fragment)))
                     )
 

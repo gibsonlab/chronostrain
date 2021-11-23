@@ -114,7 +114,7 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         # ==== Marker variants present in population.
         self.variants_present: Dict[Marker, List[AbstractMarkerVariant]] = {
             marker: []
-            for marker in db.all_markers()
+            for marker in db.all_canonical_markers()
         }
 
         for marker in model.bacteria_pop.markers_iterator():
@@ -128,7 +128,9 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         # Note: this method used to have multiple implementations.
         # Now we provide a default one which uses multiple alignment.
         # See _compute_read_frag_alignments_pairwise for the defunct implementation.
+
         return self._compute_read_frag_alignments_multiple(t_idx)
+        # return self._compute_read_frag_alignments_pairwise(t_idx)
 
     def read_frag_ll(self,
                      frag: Fragment,
@@ -182,7 +184,7 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
     #                 continue
     #             # First, add the likelihood for the fragment for the aligned base marker.
     #             if self.model.bacteria_pop.contains_marker(base_marker):
-    #                 marker_frag_seq: SeqType = aln.marker_frag
+    #                 marker_frag_seq = aln.marker_frag
     #                 aln_insertion_locs = aln.read_insertion_locs()
     #                 if aln.reverse_complemented:
     #                     aln_insertion_locs = aln_insertion_locs[::-1]
@@ -254,19 +256,28 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         time_slice = self.reads[t_idx]
 
         for multi_align in self._multi_align_instances:
-            logger.debug(f"[{multi_align.marker.id}] Parsing alignment of reads "
+            # Next, take care of the variant markers (if applicable).
+            n_truncated = 0
+            ll_threshold = -500
+
+            logger.debug(f"[{multi_align.canonical_marker.name}] Parsing alignment of reads "
                          f"({len(multi_align.forward_read_index_map)} forward, "
                          f"{len(multi_align.reverse_read_index_map)} reverse) "
                          f"into likelihoods.")
             # First, take care of the base markers (if applicable).
-            if self.model.bacteria_pop.contains_marker(multi_align.marker):
-                for reverse in [False, True]:
-                    for read in multi_align.reads(reverse=reverse):
+            for marker in multi_align.markers():
+                if not self.model.bacteria_pop.contains_marker(marker):
+                    continue
+
+                for revcomp in [False, True]:
+                    for read in multi_align.reads(revcomp=revcomp):
                         if not time_slice.contains_read(read.id):
                             continue
 
-                        subseq, insertions, deletions = multi_align.get_aligned_reference_region(
-                            read, reverse=reverse
+                        subseq, insertions, deletions, start_clip, end_clip = multi_align.get_aligned_reference_region(
+                            marker,
+                            read,
+                            revcomp=revcomp
                         )
 
                         frag = self.model.fragments.get_fragment(subseq)
@@ -275,17 +286,18 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                             frag,
                             read,
                             insertions, deletions,
-                            reverse_complemented=reverse,
-                            start_clip=0,
-                            end_clip=0
+                            reverse_complemented=revcomp,
+                            start_clip=start_clip,
+                            end_clip=end_clip
                         )
+
+                        if ll < ll_threshold:
+                            n_truncated += 1
+                            continue
 
                         read_to_frag_likelihoods[read.id].append((frag, ll))
 
-            # Next, take care of the variant markers (if applicable).
-            n_truncated = 0
-            ll_threshold = -500
-            for variant in self.marker_variants_of(multi_align.marker):
+            for variant in self.marker_variants_of(multi_align.canonical_marker):
                 for revcomp in [True, False]:
                     for read in multi_align.reads(revcomp):
                         if not time_slice.contains_read(read.id):
@@ -301,26 +313,6 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                                 start_clip=start_clip,
                                 end_clip=end_clip
                             )
-
-                            # if read.id in [
-                            #     "CP009273.1_Substitution-5613966/1",
-                            #     "CP009273.1_Substitution-5098026/1",
-                            #     "CP009273.1_Substitution-6033812/1",
-                            #     "CP009273.1_Substitution-4168022/1",
-                            #     "CP009273.1_Substitution-2451144/1",
-                            #     "CP009273.1_Substitution-522642/1",
-                            #     "CP009273.1_Substitution-10954102/1",
-                            #     "CP009273.1_Substitution-9536686/1",
-                            # ]:
-                            #     print("(ll = {:.2f}) Read {} -> Frag {} (clip = {},{}) [{} -> {}]".format(
-                            #         ll,
-                            #         read.id,
-                            #         frag.metadata,
-                            #         start_clip,
-                            #         end_clip,
-                            #         read.nucleotide_content(),
-                            #         frag.nucleotide_content()
-                            #     ))
 
                             if ll < ll_threshold:
                                 n_truncated += 1

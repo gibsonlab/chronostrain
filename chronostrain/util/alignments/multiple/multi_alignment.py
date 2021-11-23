@@ -26,32 +26,48 @@ class MarkerMultipleFragmentAlignment(object):
     Encapsulates a multiple alignment of a marker sequence and short reads.
     """
     def __init__(self,
-                 marker: Marker,
-                 aligned_marker_seq: SeqType,
+                 marker_idxs: Dict[Marker, int],
+                 aligned_marker_seqs: SeqType,
                  read_multi_alignment: SeqType,
                  forward_read_index_map: Dict[SequenceRead, int],
                  reverse_read_index_map: Dict[SequenceRead, int],
                  start_clips: List[int],
                  end_clips: List[int],
-                 time_idxs: np.ndarray
+                 time_idxs: np.ndarray,
+                 file_path: Path
                  ):
-        if aligned_marker_seq.shape[0] != read_multi_alignment.shape[1]:
+        if aligned_marker_seqs.shape[1] != read_multi_alignment.shape[1]:
             raise ValueError("Read alignments must be of the same length as the marker alignment string.")
         if read_multi_alignment.shape[0] != len(forward_read_index_map) + len(reverse_read_index_map):
             raise ValueError("Each row of the read multiple alignment must be specified by a read id in either "
                              "the forward or reverse mappings.")
+        if aligned_marker_seqs.shape[0] != len(marker_idxs):
+            raise ValueError("Each row of the marker multiple alignment must be specified by a marker instance.")
 
-        self.marker = marker
-        self.aligned_marker_seq = aligned_marker_seq
+        self.marker_idxs = marker_idxs
+        self.aligned_marker_seqs = aligned_marker_seqs
         self.read_multi_alignment = read_multi_alignment
         self.time_idxs = time_idxs
         self.forward_read_index_map = forward_read_index_map
         self.reverse_read_index_map = reverse_read_index_map
         self.start_clips = start_clips
         self.end_clips = end_clips
+        self.file_path = file_path
+        self.canonical_marker = self.find_canonical_marker()
+
+    def markers(self) -> Iterator[Marker]:
+        yield from self.marker_idxs.keys()
+
+    def find_canonical_marker(self):
+        for marker in self.markers():
+            if marker.is_canonical:
+                return marker
+        raise RuntimeError("Couldn't find canonical marker in multiple alignment {}".format(
+            self.file_path
+        ))
 
     def num_bases(self) -> int:
-        return len(self.aligned_marker_seq)
+        return self.aligned_marker_seqs.shape[1]
 
     def contains_read(self, read: SequenceRead, revcomp: bool) -> bool:
         if revcomp:
@@ -59,24 +75,36 @@ class MarkerMultipleFragmentAlignment(object):
         else:
             return read in self.forward_read_index_map
 
-    def get_index_of(self, read: SequenceRead, revcomp: bool) -> int:
+    def get_index_of_read(self, read: SequenceRead, revcomp: bool) -> int:
         if revcomp:
             return self.reverse_read_index_map[read]
         else:
             return self.forward_read_index_map[read]
 
+    def get_index_of_marker(self, marker: Marker) -> int:
+        return self.marker_idxs[marker]
+
     def get_aligned_read_seq(self, read: SequenceRead, revcomp: bool) -> SeqType:
-        read_idx = self.get_index_of(read, revcomp)
+        read_idx = self.get_index_of_read(read, revcomp)
         return self.read_multi_alignment[read_idx, :]
 
-    def get_alignment(self, read: SequenceRead, revcomp: bool, delete_double_gaps: bool = True) -> SeqType:
+    def get_aligned_marker_seq(self, marker: Marker) -> SeqType:
+        marker_idx = self.get_index_of_marker(marker)
+        return self.aligned_marker_seqs[marker_idx]
+
+    def get_alignment(self,
+                      marker: Marker,
+                      read: SequenceRead,
+                      revcomp: bool,
+                      delete_double_gaps: bool = True) -> SeqType:
         read_seq = self.get_aligned_read_seq(read, revcomp)
+        marker_seq = self.get_aligned_marker_seq(marker)
 
         if delete_double_gaps:
-            return self.delete_double_gaps(self.aligned_marker_seq, read_seq)
+            return self.delete_double_gaps(marker_seq, read_seq)
         else:
             return np.stack([
-                self.aligned_marker_seq, read_seq
+                marker_seq, read_seq
             ], axis=0)
 
     def aln_gapped_boundary(self, read: SequenceRead, revcomp: bool) -> Tuple[int, int]:
@@ -89,37 +117,47 @@ class MarkerMultipleFragmentAlignment(object):
             r_idx = self.reverse_read_index_map[read]
         else:
             r_idx = self.forward_read_index_map[read]
-        return self.aln_gapped_boundary_of_row(r_idx)
 
-    def aln_gapped_boundary_of_row(self, row_idx: int) -> Tuple[int, int]:
-        aln_seq = self.read_multi_alignment[row_idx]
+        aln_seq = self.read_multi_alignment[r_idx]
         ungapped_indices = np.where(aln_seq != nucleotide_GAP_z4)[0]
         return ungapped_indices[0], ungapped_indices[-1]
 
-    def get_aligned_reference_region(self, read: SequenceRead, reverse: bool) -> Tuple[SeqType, np.ndarray, np.ndarray]:
+    @staticmethod
+    def get_boundary_of_aligned_seq(aln_seq: SeqType):
+        ungapped_indices = np.where(aln_seq != nucleotide_GAP_z4)[0]
+        return ungapped_indices[0],  ungapped_indices[-1]
+
+    def get_aligned_reference_region(self,
+                                     marker: Marker,
+                                     read: SequenceRead,
+                                     revcomp: bool) -> Tuple[SeqType, np.ndarray, np.ndarray, int, int]:
         """
         Returns the aligned fragment (with gaps removed), and a pair of boolean arrays (insertion, deletion).
         The insertion array indicates which positions of the read (with gaps removed) are insertions,
         and the deletion array indicates which positions of the fragment (with gaps removed) are deleted in the read.
         """
-        aln = self.get_alignment(read, reverse, delete_double_gaps=True)
-        first, last = self.aln_gapped_boundary(read, reverse)
 
-        align_section = aln[:, first:last+1]
-        marker_section = align_section[0]
+        aln = self.get_alignment(marker, read, revcomp, delete_double_gaps=True)
+        first, last = self.get_boundary_of_aligned_seq(aln[1])
+        aln = aln[:, first:last+1]
 
-        insertion_locs = np.equal(align_section[0], nucleotide_GAP_z4)
+        marker_section = aln[0]
+        read_section = aln[1]
+
+        insertion_locs = np.equal(marker_section, nucleotide_GAP_z4)
         # Get rid of indices corresponding to deletions.
-        insertion_locs = insertion_locs[align_section[1] != nucleotide_GAP_z4]
+        insertion_locs = insertion_locs[read_section != nucleotide_GAP_z4]
 
-        deletion_locs = np.equal(align_section[1], nucleotide_GAP_z4)
+        deletion_locs = np.equal(read_section, nucleotide_GAP_z4)
         # Get rid of indices corresponding to insertions.
-        deletion_locs = deletion_locs[align_section[0] != nucleotide_GAP_z4]
+        deletion_locs = deletion_locs[marker_section != nucleotide_GAP_z4]
 
-        return marker_section[marker_section != nucleotide_GAP_z4], insertion_locs, deletion_locs
+        start_clip, end_clip = self.num_clipped_bases(read, revcomp)
 
-    def reads(self, reverse: bool) -> Iterator[SequenceRead]:
-        if reverse:
+        return marker_section[marker_section != nucleotide_GAP_z4], insertion_locs, deletion_locs, start_clip, end_clip
+
+    def reads(self, revcomp: bool) -> Iterator[SequenceRead]:
+        if revcomp:
             yield from self.reverse_read_index_map.keys()
         else:
             yield from self.forward_read_index_map.keys()
@@ -142,7 +180,7 @@ class MarkerMultipleFragmentAlignment(object):
         return self.start_clips[r_idx], self.end_clips[r_idx]
 
 
-def parse(target_marker_name: str, canonical_marker: Marker, reads: TimeSeriesReads, aln_path: Path) -> MarkerMultipleFragmentAlignment:
+def parse(db: StrainDatabase, target_marker_name: str, reads: TimeSeriesReads, aln_path: Path) -> MarkerMultipleFragmentAlignment:
     forward_reads: List[SequenceRead] = []
     forward_seqs: List[SeqType] = []
     forward_time_idxs: List[int] = []
@@ -155,8 +193,12 @@ def parse(target_marker_name: str, canonical_marker: Marker, reads: TimeSeriesRe
     reverse_start_clips: List[int] = []
     reverse_end_clips: List[int] = []
 
+    marker_idxs: Dict[Marker, int] = {}
+    marker_seqs: List[SeqType] = []
+    marker_regions: List[Tuple[int, int]] = []
+
     # ============================ BEGIN HELPERS ============================
-    def parse_marker_record(marker_record: SeqRecord) -> Tuple[str, int, int, SeqType]:
+    def parse_marker_record(marker_record: SeqRecord):
         record_tokens = marker_record.id.split("|")
         parsed_marker_name = record_tokens[1]
         parsed_marker_id = record_tokens[2]
@@ -169,8 +211,10 @@ def parse(target_marker_name: str, canonical_marker: Marker, reads: TimeSeriesRe
         matched_indices = np.where(aligned_marker_seq != nucleotide_GAP_z4)[0]
         marker_start = matched_indices[0]
         marker_end = matched_indices[-1]
-        aligned_marker_seq = aligned_marker_seq[marker_start:marker_end + 1]
-        return parsed_marker_id, marker_start, marker_end, aligned_marker_seq
+
+        marker_seqs.append(aligned_marker_seq)
+        marker_regions.append((marker_start, marker_end))
+        marker_idxs[db.get_marker(parsed_marker_id)] = len(marker_seqs) - 1
 
     def parse_read_record(read_record: SeqRecord, start_clip: int, end_clip: int):
         # Parse the tokens in the ID.
@@ -205,25 +249,17 @@ def parse(target_marker_name: str, canonical_marker: Marker, reads: TimeSeriesRe
     # ============================ END HELPERS ============================
     # Parse the marker entry first.
 
-    marker_alns: Dict[str, Tuple[int, int, SeqType]] = {}
-
     for record in Bio.AlignIO.read(str(aln_path), 'fasta'):
         if not record.id.startswith(f"{_READ_PREFIX}{_SEPARATOR}"):
-            parsed_marker_id, start_clip, end_clip, marker_seq = parse_marker_record(record)
-            marker_alns[parsed_marker_id] = (start_clip, end_clip, marker_seq)
+            parse_marker_record(record)
 
-    if len(marker_alns) == 0:
+    if len(marker_idxs) == 0:
         raise RuntimeError("Couldn't find any reference marker in multiple alignment output {}".format(
             aln_path
         ))
-    if canonical_marker.id not in marker_alns:
-        raise RuntimeError("Couldn't find canonical marker `{}` in multiple alignment output {}".format(
-            canonical_marker.id, aln_path
-        ))
 
-    start_clip = min(entry[0] for entry in marker_alns.values())
-    end_clip = max(entry[1] for entry in marker_alns.values())
-    canonical_marker_seq = marker_alns[canonical_marker.id][2]
+    start_clip = min(entry[0] for entry in marker_regions)
+    end_clip = max(entry[1] for entry in marker_regions)
 
     # Parse the other entries.
     for record in Bio.AlignIO.read(str(aln_path), 'fasta'):
@@ -243,14 +279,18 @@ def parse(target_marker_name: str, canonical_marker: Marker, reads: TimeSeriesRe
         reverse_read_index_map[read] = idx + len(forward_reads)
 
     return MarkerMultipleFragmentAlignment(
-        marker=canonical_marker,
-        aligned_marker_seq=canonical_marker_seq,
+        marker_idxs=marker_idxs,
+        aligned_marker_seqs=np.stack(
+            [marker_seq[start_clip:end_clip + 1] for marker_seq in marker_seqs],
+            axis=0
+        ),
         read_multi_alignment=np.stack(forward_seqs + reverse_seqs, axis=0),
         start_clips=forward_start_clips + reverse_start_clips,
         end_clips=forward_end_clips + reverse_end_clips,
         forward_read_index_map=forward_read_index_map,
         reverse_read_index_map=reverse_read_index_map,
         time_idxs=np.array(forward_time_idxs + reverse_time_idxs, dtype=int),
+        file_path=aln_path
     )
 
 
@@ -269,7 +309,7 @@ def align(db: StrainDatabase,
 
 
 def create_marker_profile(profile_path: Path, markers: List[Marker], n_threads: int = 1):
-    marker_fasta_path = profile_path.with_stem(f"{profile_path.stem}_input")
+    marker_fasta_path = profile_path.parent / f"{profile_path.stem}_input.fasta"
 
     SeqIO.write(
         [marker.to_seqrecord() for marker in markers],
@@ -285,7 +325,7 @@ def create_marker_profile(profile_path: Path, markers: List[Marker], n_threads: 
         max_iterates=1000
     )
 
-    marker_fasta_path.unlink(missing_ok=False)
+    marker_fasta_path.unlink()
 
 
 def align_mafft(marker_profile_path: Path,
