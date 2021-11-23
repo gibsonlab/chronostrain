@@ -179,6 +179,9 @@ def sample_reads_from_rel_abundances(
                     f"Abundances file requests reads for `{strain_id}`, but couldn't find corresponding fasta file."
                 )
 
+    logger.info("READ LEN = {}".format(read_len))
+    logger.info("SEED: {}".format(seed))
+
     if n_cores == 1:
         index_entries = []
         for time_point, read_counts_t in zip(time_points, read_counts):
