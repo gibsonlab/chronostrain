@@ -4,6 +4,7 @@ import numpy as np
 from pathlib import Path
 from typing import List, Iterator, Tuple
 
+from Bio import SeqIO
 from Bio.Seq import Seq
 import Bio.SeqIO
 
@@ -274,6 +275,18 @@ def save_input_csv(time_points: List[float],
             ])
 
 
+def get_canonical_multifasta(db: StrainDatabase) -> Path:
+    out_path = db.multifasta_file.with_stem(f"{db.multifasta_file.stem}_canonical")
+
+    SeqIO.write(
+        [marker.to_seqrecord() for marker in db.all_canonical_markers()],
+        out_path,
+        "fasta"
+    )
+
+    return out_path
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Perform inference on time-series reads.")
 
@@ -307,6 +320,10 @@ def parse_args():
                              'been processed, and resumes the filtering at timepoint index N.')
     parser.add_argument('--num_threads', required=False, type=int, default=1,
                         help='<Optional> Specifies the number of threads. Is passed to underlying alignment tools.')
+    parser.add_argument('--canonical_only', action='store_true',
+                        help='If flag is enabled, then alignment filtering is only done with respect to canonical'
+                             'markers. (Useful for simulated data, where non-canonical markers might have been'
+                             'used to sample the reads, and one does not want to include the ground truth.)')
 
     return parser.parse_args()
 
@@ -322,11 +339,16 @@ def main():
         args.quality_format
     )
 
+    if args.canonical_only:
+        reference_path = get_canonical_multifasta(db)
+    else:
+        reference_path = db.multifasta_file
+
     # ============ Perform read filtering.
     logger.info("Performing filter on reads.")
     filt = Filter(
         db=db,
-        reference_file_path=db.multifasta_file,
+        reference_file_path=reference_path,
         read_sources=read_sources,
         read_depths=read_depths,
         time_points=time_points,

@@ -9,6 +9,7 @@ SEED=31415
 echo "Filtering reads."
 cd $PROJECT_DIR/scripts
 python filter.py \
+--canonical_only \
 -r "${READS_DIR}" \
 --input_file "${INPUT_INDEX_FILENAME}" \
 -o "${READS_DIR}/filtered" \
