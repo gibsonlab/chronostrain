@@ -7,9 +7,10 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 import numpy as np
 
+from chronostrain.database import StrainDatabase
 from chronostrain.model import Marker, SequenceRead
 from chronostrain.model.io import TimeSeriesReads
-from ...external import clustal_omega, mafft_fragment
+from ...external import clustal_omega, mafft_fragment, mafft_global
 from ...sequences import *
 
 from chronostrain.config import create_logger
@@ -141,7 +142,7 @@ class MarkerMultipleFragmentAlignment(object):
         return self.start_clips[r_idx], self.end_clips[r_idx]
 
 
-def parse(target_marker: Marker, reads: TimeSeriesReads, aln_path: Path) -> MarkerMultipleFragmentAlignment:
+def parse(target_marker_name: str, canonical_marker: Marker, reads: TimeSeriesReads, aln_path: Path) -> MarkerMultipleFragmentAlignment:
     forward_reads: List[SequenceRead] = []
     forward_seqs: List[SeqType] = []
     forward_time_idxs: List[int] = []
@@ -155,11 +156,13 @@ def parse(target_marker: Marker, reads: TimeSeriesReads, aln_path: Path) -> Mark
     reverse_end_clips: List[int] = []
 
     # ============================ BEGIN HELPERS ============================
-    def parse_marker_record(marker_record: SeqRecord) -> Tuple[int, int, SeqType]:
-        parsed_marker_id = marker_record.id.split("|")[2]
-        if target_marker.id != parsed_marker_id:
-            raise ValueError(f"Expected marker `{target_marker.id}`, "
-                             f"but instead found `{parsed_marker_id}` in alignment file.")
+    def parse_marker_record(marker_record: SeqRecord) -> Tuple[str, int, int, SeqType]:
+        record_tokens = marker_record.id.split("|")
+        parsed_marker_name = record_tokens[1]
+        parsed_marker_id = record_tokens[2]
+        if target_marker_name != parsed_marker_name:
+            raise ValueError(f"Expected marker `{target_marker_name}`, "
+                             f"but instead found `{parsed_marker_name}` in alignment file.")
         aligned_marker_seq = nucleotides_to_z4(str(marker_record.seq))
 
         # The marker sequence's aligned region. Keep track of this to clip off the start/end edge effects.
@@ -167,7 +170,7 @@ def parse(target_marker: Marker, reads: TimeSeriesReads, aln_path: Path) -> Mark
         marker_start = matched_indices[0]
         marker_end = matched_indices[-1]
         aligned_marker_seq = aligned_marker_seq[marker_start:marker_end + 1]
-        return marker_start, marker_end, aligned_marker_seq
+        return parsed_marker_id, marker_start, marker_end, aligned_marker_seq
 
     def parse_read_record(read_record: SeqRecord, start_clip: int, end_clip: int):
         # Parse the tokens in the ID.
@@ -201,17 +204,26 @@ def parse(target_marker: Marker, reads: TimeSeriesReads, aln_path: Path) -> Mark
             reverse_time_idxs.append(t_idx)
     # ============================ END HELPERS ============================
     # Parse the marker entry first.
-    start_clip = None
-    end_clip = None
-    marker_seq = []
+
+    marker_alns: Dict[str, Tuple[int, int, SeqType]] = {}
+
     for record in Bio.AlignIO.read(str(aln_path), 'fasta'):
         if not record.id.startswith(f"{_READ_PREFIX}{_SEPARATOR}"):
-            start_clip, end_clip, marker_seq = parse_marker_record(record)
+            parsed_marker_id, start_clip, end_clip, marker_seq = parse_marker_record(record)
+            marker_alns[parsed_marker_id] = (start_clip, end_clip, marker_seq)
 
-    if start_clip is None or end_clip is None:
-        raise RuntimeError("Couldn't find reference marker in multiple alignment output {}".format(
+    if len(marker_alns) == 0:
+        raise RuntimeError("Couldn't find any reference marker in multiple alignment output {}".format(
             aln_path
         ))
+    if canonical_marker.id not in marker_alns:
+        raise RuntimeError("Couldn't find canonical marker `{}` in multiple alignment output {}".format(
+            canonical_marker.id, aln_path
+        ))
+
+    start_clip = min(entry[0] for entry in marker_alns.values())
+    end_clip = max(entry[1] for entry in marker_alns.values())
+    canonical_marker_seq = marker_alns[canonical_marker.id][2]
 
     # Parse the other entries.
     for record in Bio.AlignIO.read(str(aln_path), 'fasta'):
@@ -231,8 +243,8 @@ def parse(target_marker: Marker, reads: TimeSeriesReads, aln_path: Path) -> Mark
         reverse_read_index_map[read] = idx + len(forward_reads)
 
     return MarkerMultipleFragmentAlignment(
-        marker=target_marker,
-        aligned_marker_seq=marker_seq,
+        marker=canonical_marker,
+        aligned_marker_seq=canonical_marker_seq,
         read_multi_alignment=np.stack(forward_seqs + reverse_seqs, axis=0),
         start_clips=forward_start_clips + reverse_start_clips,
         end_clips=forward_end_clips + reverse_end_clips,
@@ -242,16 +254,41 @@ def parse(target_marker: Marker, reads: TimeSeriesReads, aln_path: Path) -> Mark
     )
 
 
-def align(marker: Marker,
+def align(db: StrainDatabase,
+          marker_name: str,
           read_descriptions: Iterator[Tuple[int, SequenceRead, bool]],
           intermediate_fasta_path: Path,
           out_fasta_path: Path,
           n_threads: int = 1):
-    # align_mafft(marker, read_descriptions, intermediate_fasta_path, out_fasta_path, n_threads)
-    align_clustalo(marker, read_descriptions, intermediate_fasta_path, out_fasta_path, n_threads)
+    markers = db.get_markers_by_name(marker_name)
+    marker_profile_path = markers[0].metadata.file_path.parent / f"{marker_name}_profile.fasta"
+    create_marker_profile(marker_profile_path, markers)
+
+    align_mafft(marker_profile_path, read_descriptions, intermediate_fasta_path, out_fasta_path, n_threads)
+    # align_clustalo(marker, read_descriptions, intermediate_fasta_path, out_fasta_path, n_threads)
 
 
-def align_mafft(marker: Marker,
+def create_marker_profile(profile_path: Path, markers: List[Marker], n_threads: int = 1):
+    marker_fasta_path = profile_path.with_stem(f"{profile_path.stem}_input")
+
+    SeqIO.write(
+        [marker.to_seqrecord() for marker in markers],
+        marker_fasta_path,
+        "fasta"
+    )
+
+    mafft_global(
+        input_fasta_path=marker_fasta_path,
+        output_path=profile_path,
+        n_threads=n_threads,
+        auto=True,
+        max_iterates=1000
+    )
+
+    marker_fasta_path.unlink(missing_ok=False)
+
+
+def align_mafft(marker_profile_path: Path,
                 read_descriptions: Iterator[Tuple[int, SequenceRead, bool]],
                 intermediate_fasta_path: Path,
                 out_fasta_path: Path,
@@ -284,7 +321,7 @@ def align_mafft(marker: Marker,
 
     # Now invoke MAFFT aligner.
     mafft_fragment(
-        reference_fasta_path=marker.metadata.file_path,
+        reference_fasta_path=marker_profile_path,
         fragment_fasta_path=intermediate_fasta_path,
         output_path=out_fasta_path,
         n_threads=n_threads,
@@ -310,9 +347,9 @@ def align_clustalo(marker: Marker,
     records = []
     record_ids = []
 
-    record = marker.to_seqrecord()
-    records.append(record)
-    record_ids.append(record.id)
+    # record = marker.to_seqrecord()
+    # records.append(record)
+    # record_ids.append(record.id)
 
     for t_idx, read, should_reverse_comp in read_descriptions:
         if should_reverse_comp:
@@ -356,7 +393,8 @@ def align_clustalo(marker: Marker,
         out_format='fasta',
         seqtype='DNA',
         n_threads=n_threads,
-        guidetree_in=tree_path
+        guidetree_in=tree_path,
+        profile1=marker.metadata.file_path.parent / "profile.fasta"
     )
 
 

@@ -39,7 +39,8 @@ class CSVParser(AbstractDatabaseParser):
                         id="GENOME[{}]".format(accession),
                         seq=nucleotides_to_z4(genome[:self.trim_debug]),
                         metadata=MarkerMetadata(parent_accession=accession,
-                                                file_path=strain_fasta_path)
+                                                file_path=strain_fasta_path),
+                        canonical=True
                     )
                 ]
             else:
@@ -49,7 +50,8 @@ class CSVParser(AbstractDatabaseParser):
                         id="GENOME[{}]".format(accession),
                         seq=nucleotides_to_z4(genome),
                         metadata=MarkerMetadata(parent_accession=accession,
-                                                file_path=strain_fasta_path)
+                                                file_path=strain_fasta_path),
+                        canonical=True
                     )
                 ]  # Each genome's marker is its own genome.
             yield Strain(
@@ -59,7 +61,7 @@ class CSVParser(AbstractDatabaseParser):
                     ncbi_accession=accession,
                     genus="",
                     species=strain_name,
-                    genbank_path=strain_fasta_path
+                    source_path=strain_fasta_path
                 )
             )
 

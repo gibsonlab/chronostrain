@@ -35,7 +35,7 @@ def test_deserialization():
     assert marker_entry.parent == strain_entry
 
 
-def build_regex_test_case(forward_primer, reverse_primer, genome) -> SubsequenceLoader:
+def build_regex_test_case(forward_primer, reverse_primer, genome) -> GenbankLoader:
     json_dict = {
         "name": "test_name",
         "accession": "test_accession",
@@ -45,7 +45,7 @@ def build_regex_test_case(forward_primer, reverse_primer, genome) -> Subsequence
     }
     strain_entry = StrainEntry.deserialize(json_dict, 0)
 
-    seq_loader = SubsequenceLoader(
+    seq_loader = GenbankLoader(
         fasta_filename=Path("NONE"),
         genbank_filename=Path("NONE"),
         marker_entries=strain_entry.marker_entries,

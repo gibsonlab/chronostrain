@@ -97,6 +97,17 @@ class CachedReadPairwiseAlignments(object):
                     marker_to_reads[aln.marker][t_idx].append(aln)
         yield from marker_to_reads.items()
 
+    def get_alignments(self) -> Iterator[Tuple[int, SequenceReadPairwiseAlignment]]:
+        for t_idx, time_slice in enumerate(self.reads):
+            for reads_path in time_slice.src.paths:
+                sam_file = self._get_alignment(reads_path, time_slice.src.quality_format)
+                for aln in parse_alignments(
+                        sam_file,
+                        self.db,
+                        read_getter=lambda read_id: time_slice.get_read(read_id),
+                ):
+                    yield t_idx, aln
+
     def _get_alignment(self, reads_path: Path, quality_format: str) -> SamFile:
         # ====== Files relative to cache dir.
         cache_relative_path = Path("alignments") / self.get_path(reads_path)

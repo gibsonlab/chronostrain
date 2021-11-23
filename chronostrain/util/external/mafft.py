@@ -4,6 +4,37 @@ from typing import Optional, List
 from .commandline import CommandLineException, call_command
 
 
+def mafft_global(
+        input_fasta_path: Path,
+        output_path: Path,
+        n_threads: int = -1,
+        auto: bool = False,
+        max_iterates: int = 1000
+):
+    """
+    mafft --globalpair --maxiterate 1000 input [> output]
+    """
+    params = [
+        '--nuc',
+        '--quiet',
+        '--globalpair',
+        '--maxiterate', max_iterates,
+        input_fasta_path,
+    ]
+    params += ['--thread', str(n_threads)]
+    if auto:
+        params.append('--auto')
+
+    exit_code = call_command(
+        command='mafft',
+        args=params,
+        output_path=output_path
+    )
+
+    if exit_code != 0:
+        raise CommandLineException('mafft', exit_code)
+
+
 def mafft_fragment(
         reference_fasta_path: Path,
         fragment_fasta_path: Path,
@@ -27,8 +58,7 @@ def mafft_fragment(
         '--op', gap_open_penalty_group,
         '--ep', gap_offset_group,
         '--jtt', jtt_pam,
-        '--tm', tm_pam,
-        '--localpair'
+        '--tm', tm_pam
     ]
     if auto:
         params.append('--auto')

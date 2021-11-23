@@ -29,6 +29,7 @@ class StrainEntry:
     genus: str
     species: str
     accession: str
+    source: str
     marker_entries: List["MarkerEntry"]
     index: int
 
@@ -51,28 +52,34 @@ class StrainEntry:
         try:
             genus = json_dict["genus"]
         except KeyError:
-            raise StrainDatabaseParseError("Missing entry `genus` from json entry.")
+            raise StrainDatabaseParseError("Missing entry `genus` from json strain entry, index {}.".format(idx))
 
         try:
             species = json_dict["species"]
         except KeyError:
-            raise StrainDatabaseParseError("Missing entry `species` from json entry.")
+            raise StrainDatabaseParseError("Missing entry `species` from json strain entry, index {}.".format(idx))
 
         try:
             accession = json_dict["accession"]
         except KeyError:
-            raise StrainDatabaseParseError("Missing entry `accession` from json entry.")
+            raise StrainDatabaseParseError("Missing entry `accession` from json strain entry, index {}.".format(idx))
 
         try:
-            markers_arr = (json_dict["markers"])
+            markers_arr = json_dict["markers"]
         except KeyError:
-            raise StrainDatabaseParseError("Missing entry `markers` from json entry.")
+            raise StrainDatabaseParseError("Missing entry `markers` from json strain entry, index {}.".format(idx))
+
+        try:
+            source = json_dict['source']
+        except KeyError:
+            raise StrainDatabaseParseError("Missing entry `source` from json strain entry, index {}.".format(idx))
 
         marker_entries = []
         entry = StrainEntry(genus=genus,
                             species=species,
                             accession=accession,
                             marker_entries=marker_entries,
+                            source=source,
                             index=idx)
         for idx, marker_dict in enumerate(markers_arr):
             marker_entries.append(MarkerEntry.deserialize(marker_dict, idx, entry))
@@ -87,78 +94,176 @@ class MarkerEntry:
 
     @staticmethod
     def deserialize(entry_dict: dict, idx: int, parent: StrainEntry) -> "MarkerEntry":
+        if 'type' not in entry_dict:
+            raise StrainDatabaseParseError(
+                "Missing entry `type` from json marker entry of strain entry {}.".format(parent.accession)
+            )
+
         marker_type = entry_dict['type']
         if marker_type == 'tag':
             return TagMarkerEntry.deserialize(entry_dict, idx, parent)
         elif marker_type == 'primer':
             return PrimerMarkerEntry.deserialize(entry_dict, idx, parent)
+        elif marker_type == 'subseq':
+            return SubseqMarkerEntry.deserialize(entry_dict, idx, parent)
         else:
-            raise StrainDatabaseParseError("Unexpected type `{}` in marker entry {} of {}".format(marker_type, idx, parent))
+            raise StrainDatabaseParseError("Unexpected type `{}` in marker entry {} of {}".format(
+                marker_type, idx, parent
+            ))
 
 
 @dataclass
 class TagMarkerEntry(MarkerEntry):
     locus_tag: str
+    is_canonical: bool
 
     def __str__(self):
-        return "(Tag Marker Entry #{} of {}: {})".format(
+        return "(Tag Marker Entry #{} of {}: {}{})".format(
             self.index,
             self.parent.accession,
-            self.name
+            self.name,
+            " <Canonical>" if self.is_canonical else ""
         )
 
     def __repr__(self):
-        return "{}(parent={},idx={},locus_tag={})".format(
+        return "{}(parent={},idx={},locus_tag={},canonical={})".format(
             self.__class__.__name__,
             self.parent.accession,
             self.index,
-            self.locus_tag
+            self.locus_tag,
+            self.is_canonical
         )
 
     @staticmethod
     def deserialize(entry_dict: dict, idx: int, parent: StrainEntry) -> "TagMarkerEntry":
-        return TagMarkerEntry(name=entry_dict['name'],
-                              index=idx,
-                              locus_tag=entry_dict['locus_tag'],
-                              parent=parent)
+        if 'name' not in entry_dict:
+            raise StrainDatabaseParseError(
+                "Missing entry `name` from json marker entry of strain entry {}.".format(parent.accession)
+            )
+        if 'locus_tag' not in entry_dict:
+            raise StrainDatabaseParseError(
+                "Missing entry `locus_tag` from json marker entry of strain entry {}.".format(parent.accession)
+            )
+
+        return TagMarkerEntry(
+            name=entry_dict['name'],
+            index=idx,
+            locus_tag=entry_dict['locus_tag'],
+            parent=parent,
+            is_canonical=('canonical' in entry_dict) and (entry_dict['canonical'].strip().lower() == "true")
+        )
 
 
 @dataclass
 class PrimerMarkerEntry(MarkerEntry):
     forward: str
     reverse: str
+    is_canonical: bool
 
     def __str__(self):
-        return "(Primer Marker Entry #{} of {}: {}-{})".format(
+        return "(Primer Marker Entry #{} of {}: {}-{}{})".format(
             self.index,
             self.parent.accession,
             self.forward[:4] + "..." if len(self.forward) > 4 else self.forward,
             self.reverse[:4] + "..." if len(self.reverse) > 4 else self.reverse,
+            " <Canonical>" if self.is_canonical else ""
         )
 
     def __repr__(self):
-        return "{}(parent={},idx={},fwd={},rev={})".format(
+        return "{}(parent={},idx={},fwd={},rev={},Canonical={})".format(
             self.__class__.__name__,
             self.parent.accession,
             self.index,
             self.forward,
-            self.reverse
+            self.reverse,
+            self.is_canonical
         )
 
     def entry_id(self) -> str:
-        return "{}[{}]".format(
+        return "{}[Primer:{}]".format(
             self.parent.accession,
             '-'.join([self.forward, self.reverse])
         )
 
-
     @staticmethod
     def deserialize(entry_dict: dict, idx: int, parent: StrainEntry) -> "PrimerMarkerEntry":
-        return PrimerMarkerEntry(name=entry_dict['name'],
-                                 index=idx,
-                                 forward=entry_dict['forward'],
-                                 reverse=entry_dict['reverse'],
-                                 parent=parent)
+        if 'name' not in entry_dict:
+            raise StrainDatabaseParseError(
+                "Missing entry `name` from json marker entry of strain entry {}.".format(parent.accession)
+            )
+        if 'forward' not in entry_dict:
+            raise StrainDatabaseParseError(
+                "Missing entry `forward` from json marker entry of strain entry {}.".format(parent.accession)
+            )
+        if 'reverse' not in entry_dict:
+            raise StrainDatabaseParseError(
+                "Missing entry `reverse` from json marker entry of strain entry {}.".format(parent.accession)
+            )
+
+        return PrimerMarkerEntry(
+            name=entry_dict['name'],
+            index=idx,
+            forward=entry_dict['forward'],
+            reverse=entry_dict['reverse'],
+            parent=parent,
+            is_canonical=('canonical' in entry_dict) and (entry_dict['canonical'].strip().lower() == "true")
+        )
+
+
+@dataclass
+class SubseqMarkerEntry(MarkerEntry):
+    start_pos: int
+    end_pos: int
+    is_canonical: bool
+    id: str
+
+    def __str__(self):
+        return "(Subseq Marker Entry #{} of {}: {}-{}{})".format(
+            self.index,
+            self.parent.accession,
+            self.start_pos,
+            self.end_pos,
+            " <Canonical>" if self.is_canonical else ""
+        )
+
+    def __repr__(self):
+        return "{}(parent={},idx={},start={},end={},Canonical={})".format(
+            self.__class__.__name__,
+            self.parent.accession,
+            self.index,
+            self.start_pos,
+            self.end_pos,
+            self.is_canonical
+        )
+
+    @staticmethod
+    def deserialize(entry_dict: dict, idx: int, parent: StrainEntry) -> "SubseqMarkerEntry":
+        if 'name' not in entry_dict:
+            raise StrainDatabaseParseError(
+                "Missing entry `name` from json marker entry of strain entry {}.".format(parent.accession)
+            )
+        if 'start' not in entry_dict:
+            raise StrainDatabaseParseError(
+                "Missing entry `start` from json marker entry of strain entry {}.".format(parent.accession)
+            )
+        if 'end' not in entry_dict:
+            raise StrainDatabaseParseError(
+                "Missing entry `end` from json marker entry of strain entry {}.".format(parent.accession)
+            )
+        if 'id' not in entry_dict:
+            raise StrainDatabaseParseError(
+                "Missing entry `id` from json marker entry of strain entry {}.".format(parent.accession)
+            )
+
+        return SubseqMarkerEntry(
+            name=entry_dict['name'],
+            index=idx,
+            start_pos=entry_dict['start'],
+            end_pos=entry_dict['end'],
+            parent=parent,
+            is_canonical=('canonical' in entry_dict) and (entry_dict['canonical'].strip().lower() == "true"),
+            id=entry_dict['id']
+        )
 
 
 # =================================================================
@@ -167,12 +272,13 @@ class PrimerMarkerEntry(MarkerEntry):
 # =================================================================
 
 class NucleotideSubsequence:
-    def __init__(self, name: str, id: str, start_index: int, end_index: int, complement: bool):
+    def __init__(self, name: str, id: str, start_index: int, end_index: int, complement: bool, is_canonical: bool):
         self.name = name
         self.id = id
         self.start_index = start_index
         self.end_index = end_index
         self.complement = complement
+        self.is_canonical = is_canonical
 
     def get_subsequence(self, nucleotides: str) -> SeqType:
         # Note: The "complement" feature is not used; genbank annotation gives the resulting protein in terms
@@ -196,7 +302,50 @@ class NucleotideSubsequence:
         )
 
 
-class SubsequenceLoader:
+def save_marker_to_disk(marker: Marker, filepath: Path):
+    SeqIO.write([
+        marker.to_seqrecord(description="")
+    ], filepath, "fasta")
+
+
+def get_marker_filepath(config, strain_accession: str, marker_id: str) -> Path:
+    return (
+            Path(config.database_cfg.data_dir)
+            / "{acc}-{marker}.fasta".format(acc=strain_accession, marker=marker_id)
+    )
+
+
+class FastaLoader:
+    def __init__(self, strain_accession: str, strain_fasta_path: Path, marker_entries: List[MarkerEntry]):
+        self.strain_accession = strain_accession
+        self.strain_fasta_path = strain_fasta_path
+        self.marker_entries = marker_entries
+
+    def parse_markers(self) -> Iterator[Marker]:
+        seq = SeqIO.read(self.strain_fasta_path, "fasta").seq
+        for entry in self.marker_entries:
+            if not isinstance(entry, SubseqMarkerEntry):
+                raise StrainDatabaseParseError("Can't parse entry class {} in fasta strain record.".format(
+                    entry.__class__.__name__
+                ))
+
+            marker_filepath = get_marker_filepath(cfg, self.strain_accession, entry.id)
+            marker_seq = nucleotides_to_z4(str(seq[entry.start_pos - 1:entry.end_pos]))
+            marker = Marker(
+                name=entry.name,
+                id=entry.id,
+                seq=marker_seq,
+                canonical=entry.is_canonical,
+                metadata=MarkerMetadata(
+                    parent_accession=self.strain_accession,
+                    file_path=marker_filepath
+                )
+            )
+            save_marker_to_disk(marker, marker_filepath)
+            yield marker
+
+
+class GenbankLoader:
     """
     A class designed to extract specific marker subsequences from NCBI, by pulling substrings from NCBI's database.
     """
@@ -217,7 +366,9 @@ class SubsequenceLoader:
             elif isinstance(entry, PrimerMarkerEntry):
                 self.primer_entries.append(entry)
             else:
-                raise NotImplementedError("Entry class `{}` not implemented.".format(entry.__class__.__name__))
+                raise NotImplementedError(
+                    "Parsing entry class `{}` not implemented for genbank strains.".format(entry.__class__.__name__)
+                )
 
         self.full_genome = None  # Lazy loading in get_full_genome()
         self.marker_max_len = int(marker_max_len)
@@ -230,11 +381,7 @@ class SubsequenceLoader:
                 self.full_genome = self.full_genome[:trim_debug]
         return self.full_genome
 
-    def marker_filepath(self, marker_id: str) -> Path:
-        return (
-                Path(cfg.database_cfg.data_dir)
-                / "{acc}-{marker}.fasta".format(acc=self.strain_accession, marker=marker_id)
-        )
+
 
     def parse_markers(self, force_refresh: bool = False) -> Iterator[Marker]:
         """
@@ -251,17 +398,18 @@ class SubsequenceLoader:
                 yield marker
 
         for subseq_obj in itertools.chain(self.get_subsequences_from_tags(), self.get_subsequences_from_primers()):
-            marker_filepath = self.marker_filepath(subseq_obj.id)
+            marker_filepath = get_marker_filepath(cfg, self.strain_accession, subseq_obj.id)
             marker = Marker(
                 name=subseq_obj.name,
                 id=subseq_obj.id,
                 seq=subseq_obj.get_subsequence(self.get_full_genome()),
+                canonical=subseq_obj.is_canonical,
                 metadata=MarkerMetadata(
                     parent_accession=self.strain_accession,
                     file_path=marker_filepath
                 )
             )
-            self.save_marker_to_disk(marker, marker_filepath)
+            save_marker_to_disk(marker, marker_filepath)
             yield marker
 
     def load_entries_from_disk(self) -> Iterator[Marker]:
@@ -269,9 +417,10 @@ class SubsequenceLoader:
         for tag_entry in self.tag_entries:
             marker_name = tag_entry.name
             marker_id = tag_entry.locus_tag
-            marker_filepath = self.marker_filepath(marker_id)
+            marker_filepath = get_marker_filepath(cfg, self.strain_accession, marker_id)
+            is_canonical = tag_entry.is_canonical
             try:
-                yield self.load_marker_from_disk(marker_filepath, marker_name, marker_id)
+                yield self.load_marker_from_disk(marker_filepath, marker_name, marker_id, is_canonical)
             except FileNotFoundError:
                 tag_entries_missed.append(tag_entry)
             except StrainDatabaseParseError as e:
@@ -283,9 +432,10 @@ class SubsequenceLoader:
         for primer_entry in self.primer_entries:
             marker_name = primer_entry.name
             marker_id = primer_entry.entry_id()
-            marker_filepath = self.marker_filepath(marker_id)
+            marker_filepath = get_marker_filepath(cfg, self.strain_accession, marker_id)
+            is_canonical = primer_entry.is_canonical
             try:
-                yield self.load_marker_from_disk(marker_filepath, marker_name, marker_id)
+                yield self.load_marker_from_disk(marker_filepath, marker_name, marker_id, is_canonical)
             except FileNotFoundError:
                 primer_entries_missed.append(primer_entry)
             except StrainDatabaseParseError as e:
@@ -293,12 +443,7 @@ class SubsequenceLoader:
                 primer_entries_missed.append(primer_entry)
         self.primer_entries = primer_entries_missed
 
-    def save_marker_to_disk(self, marker: Marker, filepath: Path):
-        SeqIO.write([
-            marker.to_seqrecord(description="")
-        ], filepath, "fasta")
-
-    def load_marker_from_disk(self, filepath: Path, expected_marker_name: str, expected_marker_id: str) -> Marker:
+    def load_marker_from_disk(self, filepath: Path, expected_marker_name: str, expected_marker_id: str, is_canonical: bool) -> Marker:
         record = next(SeqIO.parse(filepath, "fasta"))
         accession_token, name_token, id_token = record.id.strip().split("|")
         if accession_token != self.strain_accession:
@@ -326,6 +471,7 @@ class SubsequenceLoader:
                 name=expected_marker_name,
                 id=expected_marker_id,
                 seq=nucleotides_to_z4(str(record.seq)),
+                canonical=is_canonical,
                 metadata=MarkerMetadata(
                     parent_accession=self.strain_accession,
                     file_path=filepath
@@ -360,7 +506,8 @@ class SubsequenceLoader:
                             id=tag_entry.locus_tag,
                             start_index=loc.start,
                             end_index=loc.end,
-                            complement=loc.strand == -1
+                            complement=loc.strand == -1,
+                            is_canonical=tag_entry.is_canonical
                         ))
 
         for tag, entry in tags_to_entries.items():
@@ -392,7 +539,8 @@ class SubsequenceLoader:
                     id=entry.entry_id(),
                     start_index=result[0],
                     end_index=result[1],
-                    complement=False
+                    complement=False,
+                    is_canonical=entry.is_canonical
                 ))
 
         return subsequences
@@ -450,21 +598,56 @@ class JSONParser(AbstractDatabaseParser):
         logger.info("Loading from JSON marker database file {}.".format(self.entries_file))
         logger.debug("Data will be saved to/load from: {}".format(cfg.database_cfg.data_dir))
         for strain_entry in self.strain_entries():
-            genbank_path = fetch_genbank(strain_entry.accession,
+            if strain_entry.source == "genbank":
+                genbank_path = fetch_genbank(strain_entry.accession,
                                              base_dir=cfg.database_cfg.data_dir,
                                              force_download=self.force_refresh)
 
-            sequence_loader = SubsequenceLoader(
-                strain_accession=strain_entry.accession,
-                genbank_filename=genbank_path,
-                marker_entries=strain_entry.marker_entries,
-                marker_max_len=self.marker_max_len
-            )
+                sequence_loader = GenbankLoader(
+                    strain_accession=strain_entry.accession,
+                    genbank_filename=genbank_path,
+                    marker_entries=strain_entry.marker_entries,
+                    marker_max_len=self.marker_max_len
+                )
 
-            strain_markers = [
-                marker for
-                marker in sequence_loader.parse_markers(force_refresh=self.force_refresh)
-            ]
+                strain_markers = list(sequence_loader.parse_markers(force_refresh=self.force_refresh))
+                yield Strain(
+                    id=strain_entry.accession,
+                    markers=strain_markers,
+                    metadata=StrainMetadata(
+                        ncbi_accession=strain_entry.accession,
+                        genus=strain_entry.genus,
+                        species=strain_entry.species,
+                        source_path=genbank_path
+                    )
+                )
+            elif strain_entry.source == "fasta":
+                fasta_path = cfg.database_cfg.data_dir / f"{strain_entry.accession}.fasta"
+                if not fasta_path.exists():
+                    raise RuntimeError("Database requested fasta file {}, which couldn't be found.".format(
+                        fasta_path
+                    ))
+
+                fasta_record = SeqIO.read(fasta_path, "fasta")
+                loader = FastaLoader(
+                    strain_accession=strain_entry.accession,
+                    strain_fasta_path=fasta_path,
+                    marker_entries=strain_entry.marker_entries
+                )
+
+                strain_markers = list(loader.parse_markers())
+                yield Strain(
+                    id=strain_entry.accession,
+                    markers=strain_markers,
+                    metadata=StrainMetadata(
+                        ncbi_accession=strain_entry.accession,
+                        genus=strain_entry.genus,
+                        species=strain_entry.species,
+                        source_path=fasta_path
+                    )
+                )
+            else:
+                raise StrainDatabaseParseError("Unsupported strain entry source `{}`".format(strain_entry.source))
 
             if len(strain_markers) == 0:
                 logger.warning("No markers parsed for entry {}.".format(strain_entry))
@@ -473,17 +656,6 @@ class JSONParser(AbstractDatabaseParser):
                     strain_entry.accession,
                     len(strain_markers)
                 ))
-
-            yield Strain(
-                id=strain_entry.accession,
-                markers=strain_markers,
-                metadata=StrainMetadata(
-                    ncbi_accession=strain_entry.accession,
-                    genus=strain_entry.genus,
-                    species=strain_entry.species,
-                    genbank_path=genbank_path
-                )
-            )
 
     def strain_entries(self) -> Iterator[StrainEntry]:
         """

@@ -6,19 +6,20 @@ from pathlib import Path
 from multiprocessing.dummy import Pool
 from typing import Tuple, Dict, List
 
-from chronostrain import logger
+from chronostrain.config import create_logger, cfg
+from chronostrain.database import StrainDatabase
 from chronostrain.util.external.art import art_illumina
 
 from random import seed, randint
 import numpy as np
+
+logger = create_logger("sample_reads")
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Simulate reads from specified variant genomes, using ART.")
 
     # ============== Required params
-    parser.add_argument('-f', '--fasta_dir', required=True, type=str,
-                        help='<Required> The directory which contains all of the variant genome FASTA files.')
     parser.add_argument('-o', '--out_dir', required=True, type=str,
                         help='<Required> The directory to which the reads should be output to.')
     parser.add_argument('-a', '--abundance_path', dest='abundance_path', required=True, type=str,
@@ -102,9 +103,9 @@ def main():
 
     # Invoke art sampler on each time point.
     sample_reads_from_rel_abundances(
+        db=cfg.database_cfg.get_database(),
         time_points=time_points,
         read_counts=read_counts,
-        strain_paths=parse_strain_paths(Path(args.fasta_dir)),
         out_dir=out_dir,
         profile_first=args.profiles[0],
         profile_second=args.profiles[1],
@@ -117,15 +118,6 @@ def main():
     )
 
     logger.info("Sampled reads to {}".format(args.out_dir))
-
-
-def parse_strain_paths(fasta_dir: Path) -> Dict[str, Path]:
-    assert fasta_dir.is_dir()
-    return {
-        child.stem: child
-        for child in fasta_dir.iterdir()
-        if child.is_file() and child.suffix == ".fasta"
-    }
 
 
 def create_index_file(index_path: Path, entries: List[Tuple[float, int, Path]]):
@@ -155,9 +147,9 @@ def parse_abundance_profile(abundance_path: str) -> List[Tuple[float, Dict]]:
 
 
 def sample_reads_from_rel_abundances(
+        db: StrainDatabase,
         time_points: List[float],
         read_counts: List[Dict[str, int]],
-        strain_paths: Dict[str, Path],
         out_dir: Path,
         profile_first: Path,
         profile_second: Path,
@@ -172,18 +164,11 @@ def sample_reads_from_rel_abundances(
     Loop over each timepoint, and invoke art_illumina on each item. Each instance outputs a separate fastq file,
     so concatenate them at the end.
     """
-    for strain_dict in read_counts:
-        for strain_id, _ in strain_dict.items():
-            if strain_id not in strain_paths:
-                raise ValueError(
-                    f"Abundances file requests reads for `{strain_id}`, but couldn't find corresponding fasta file."
-                )
-
     if n_cores == 1:
         index_entries = []
         for time_point, read_counts_t in zip(time_points, read_counts):
             for strain_id, n_reads in read_counts_t.items():
-                fasta_path = strain_paths[strain_id]
+                fasta_path = db.get_strain(strain_id).metadata.source_path
 
                 output_path = art_illumina(
                     reference_path=fasta_path,
@@ -208,7 +193,7 @@ def sample_reads_from_rel_abundances(
         configs = []
         for time_point, read_counts_t in zip(time_points, read_counts):
             for strain_id, n_reads in read_counts_t.items():
-                fasta_path = strain_paths[strain_id]
+                fasta_path = db.get_strain(strain_id).metadata.source_path
                 configs.append((
                     fasta_path,
                     n_reads,

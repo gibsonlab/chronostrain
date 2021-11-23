@@ -154,8 +154,8 @@ def parse_abundance_profile(abundance_path: str) -> List[Tuple[float, Dict]]:
 
 
 def save_strain_genome(strain: Strain):
-    record = next(SeqIO.parse(strain.metadata.genbank_path, "genbank"))
-    fasta_path = strain.metadata.genbank_path.parent / f"{strain.id}_genome.fasta"
+    record = next(SeqIO.parse(strain.metadata.source_path, "genbank"))
+    fasta_path = strain.metadata.source_path.parent / f"{strain.id}_genome.fasta"
 
     SeqIO.write([
         SeqRecord(
@@ -219,7 +219,7 @@ def sample_reads_from_rel_abundances(final_reads_path: Path,
             strain_read_paths.append(output_path)
     elif n_cores > 1:
         configs = [(
-            strain_db.get_strain(accession).metadata.genbank_path,
+            strain_db.get_strain(accession).metadata.source_path,
             read_count,
             tmp_dir,
             "{}_".format(accession),

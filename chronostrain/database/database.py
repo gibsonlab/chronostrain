@@ -6,7 +6,7 @@ from Bio import SeqIO
 
 from chronostrain.model import Strain, Marker
 from .parser import AbstractDatabaseParser, JSONParser, CSVParser
-from .backend import AbstractStrainDatabaseBackend, DictionaryBackend
+from .backend import AbstractStrainDatabaseBackend, DictionaryBackend, PandasAssistedBackend
 from .error import QueryNotFoundError
 from .. import cfg, create_logger
 
@@ -41,6 +41,9 @@ class StrainDatabase(object):
 
     def get_marker(self, marker_id: str) -> Marker:
         return self.backend.get_marker(marker_id)
+
+    def get_markers_by_name(self, marker_name: str) -> List[Marker]:
+        return self.backend.get_markers_by_name(marker_name)
 
     def num_strains(self) -> int:
         return self.backend.num_strains()
@@ -121,6 +124,12 @@ class StrainDatabase(object):
         with open(out_path, file_mode) as out_file:
             SeqIO.write(records, out_file, "fasta")
 
+    def get_canonical_marker(self, marker_name: str) -> Marker:
+        return self.backend.get_canonical_marker(marker_name)
+
+    def all_canonical_markers(self) -> List[Marker]:
+        return self.backend.all_canonical_markers()
+
 
 class JSONStrainDatabase(StrainDatabase):
     def __init__(self,
@@ -134,7 +143,7 @@ class JSONStrainDatabase(StrainDatabase):
                             marker_max_len,
                             force_refresh,
                             load_full_genomes=load_full_genomes)
-        backend = DictionaryBackend()
+        backend = PandasAssistedBackend()
         super().__init__(parser, backend)
 
 

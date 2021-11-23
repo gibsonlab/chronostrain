@@ -5,7 +5,7 @@
         "strain": "K-12",
         "accession": "CP009273.1",
         "markers": [
-            {"type":"tag", "locus_tag":"BW25113_4314", "name":"fimA"}
+            {"type":"tag", "locus_tag":"BW25113_4314", "name":"fimA", "canonical": "true"}
         ]
     }
 ]
