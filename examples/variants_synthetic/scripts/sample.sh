@@ -19,7 +19,6 @@ python ${BASE_DIR}/helpers/create_variants.py \
 echo "Sampling reads."
 export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
 python ${BASE_DIR}/helpers/sample_reads.py \
---fasta_dir ${CHRONOSTRAIN_DATA_DIR}/fasta \
 --out_dir ${READS_DIR} \
 --abundance_path ${TRUE_ABUNDANCE_PATH} \
 --num_reads 10000000 \
