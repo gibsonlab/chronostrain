@@ -80,7 +80,7 @@ def parse_variant_desc(db: StrainDatabase, variant_desc: Dict) -> Tuple[str, str
     strain_id = variant_desc['source']
     variant_id = variant_desc['target']
     strain = db.get_strain(strain_id)
-    genbank_path = strain.metadata.genbank_path
+    genbank_path = strain.metadata.source_path
 
     record = next(SeqIO.parse(genbank_path, "genbank"))
     genome = str(record.seq)
