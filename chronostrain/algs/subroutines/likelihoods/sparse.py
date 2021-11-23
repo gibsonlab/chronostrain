@@ -1,4 +1,4 @@
-from typing import List, Dict, Iterator, Tuple
+from typing import List, Dict, Iterator, Tuple, Set
 from collections import defaultdict
 
 from joblib import Parallel, delayed
@@ -71,7 +71,7 @@ class SparseDataLikelihoods(DataLikelihoods):
     def _likelihood_computer(self) -> AbstractLogLikelihoodComputer:
         return SparseLogLikelihoodComputer(self.model, self.data, self.db)
 
-    def conditional_likelihood(self, X: torch.Tensor) -> float:
+    def conditional_likelihood(self, X: torch.Tensor, inf_fill: float = -100000) -> float:
         y = torch.softmax(X, dim=1)
         total_ll = 0.
         for t_idx in range(self.model.num_times()):
@@ -86,6 +86,7 @@ class SparseDataLikelihoods(DataLikelihoods):
                 ).t()  # after transpose: (S x R)
             )
 
+            log_likelihood_t[torch.isinf(log_likelihood_t)] = inf_fill
             log_likelihood_t = log_likelihood_t.sum()
             total_ll += log_likelihood_t
         return total_ll
@@ -112,14 +113,14 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         self.cache = ReadsPopulationCache(reads, model.bacteria_pop)
 
         # ==== Marker variants present in population.
-        self.variants_present: Dict[Marker, List[AbstractMarkerVariant]] = {
-            marker: []
+        self.variants_present: Dict[Marker, Set[AbstractMarkerVariant]] = {
+            marker: set()
             for marker in db.all_canonical_markers()
         }
 
         for marker in model.bacteria_pop.markers_iterator():
             if isinstance(marker, AbstractMarkerVariant):
-                self.variants_present[marker.base_marker].append(marker)
+                self.variants_present[marker.base_marker].add(marker)
 
     def marker_variants_of(self, marker: Marker) -> Iterator[AbstractMarkerVariant]:
         yield from self.variants_present[marker]
@@ -254,12 +255,44 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
             self._multi_align_instances = list(self.multiple_alignments.get_alignments())
 
         time_slice = self.reads[t_idx]
+        included_frags = set()
+        ll_threshold = -500
 
+        """
+        Helper function (Given subseq/read pair (and other relevant information), compute likelihood and insert into matrix.
+        """
+        def add_subseq_likelihood(subseq, read, insertions, deletions, revcomp, start_clip: int, end_clip: int, debug: bool):
+            frag = self.model.fragments.get_fragment(subseq)
+            if frag in included_frags:
+                return
+            else:
+                included_frags.add(frag)
+
+            ll = self.read_frag_ll(
+                frag,
+                read,
+                insertions, deletions,
+                reverse_complemented=revcomp,
+                start_clip=start_clip,
+                end_clip=end_clip
+            )
+
+            if debug:
+                print("***************************************************")
+                print("READ: {}".format(read.nucleotide_content(reverse_complement=revcomp)))
+                print("INST: {}".format("".join(str(int(x)) for x in insertions)))
+                print("FRAG: {}".format(frag.nucleotide_content()))
+                print("DELT: {}".format("".join(str(int(x)) for x in deletions)))
+                print("LL = {}".format(ll))
+
+            if ll < ll_threshold:
+                return
+            read_to_frag_likelihoods[read.id].append((frag, ll))
+
+        """
+        Main loop
+        """
         for multi_align in self._multi_align_instances:
-            # Next, take care of the variant markers (if applicable).
-            n_truncated = 0
-            ll_threshold = -500
-
             logger.debug(f"[{multi_align.canonical_marker.name}] Parsing alignment of reads "
                          f"({len(multi_align.forward_read_index_map)} forward, "
                          f"{len(multi_align.reverse_read_index_map)} reverse) "
@@ -280,23 +313,9 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                             revcomp=revcomp
                         )
 
-                        frag = self.model.fragments.get_fragment(subseq)
+                        add_subseq_likelihood(subseq, read, insertions, deletions, revcomp, start_clip, end_clip, debug=False)
 
-                        ll = self.read_frag_ll(
-                            frag,
-                            read,
-                            insertions, deletions,
-                            reverse_complemented=revcomp,
-                            start_clip=start_clip,
-                            end_clip=end_clip
-                        )
-
-                        if ll < ll_threshold:
-                            n_truncated += 1
-                            continue
-
-                        read_to_frag_likelihoods[read.id].append((frag, ll))
-
+            # Next, take care of the variant markers (if applicable).
             for variant in self.marker_variants_of(multi_align.canonical_marker):
                 for revcomp in [True, False]:
                     for read in multi_align.reads(revcomp):
@@ -304,25 +323,8 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                             continue
 
                         for subseq, insertions, deletions, start_clip, end_clip in variant.subseq_from_read(read):
-                            frag = self.model.fragments.get_fragment(subseq)
-                            ll = self.read_frag_ll(
-                                frag,
-                                read,
-                                insertions, deletions,
-                                reverse_complemented=revcomp,
-                                start_clip=start_clip,
-                                end_clip=end_clip
-                            )
+                            add_subseq_likelihood(subseq, read, insertions, deletions, revcomp, start_clip, end_clip, debug=True)
 
-                            if ll < ll_threshold:
-                                n_truncated += 1
-                                continue
-                            read_to_frag_likelihoods[read.id].append((frag, ll))
-
-            logger.debug("Truncated {} frag-marker pairs with likelihood threshold {}.".format(
-                n_truncated,
-                ll_threshold
-            ))
         return read_to_frag_likelihoods
 
     def create_sparse_matrix(self, t_idx: int) -> SparseMatrix:

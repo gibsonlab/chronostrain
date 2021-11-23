@@ -78,7 +78,7 @@ def to_sam(canonical_marker: Marker, alignment: MarkerMultipleFragmentAlignment,
         ])
 
     with open(out_path, "w") as f:
-        tsv = csv.writer(f, delimiter='\t', quoting=csv.QUOTE_NONE)
+        tsv = csv.writer(f, delimiter='\t', quoting=csv.QUOTE_NONE, lineterminator='\n')
         # ========== METADATA.
         tsv.writerow(["@HD", f"VN:{sam_version}", "SO:unsorted"])
         tsv.writerow(["@SQ", f"SN:{canonical_marker.name}", f"LN:{len(canonical_marker.seq)}"])
@@ -121,7 +121,7 @@ def to_vcf(canonical_marker: Marker,
         return map_z4_to_nucleotide(base)
 
     with open(out_path, "w") as f:
-        tsv = csv.writer(f, quotechar='', delimiter='\t', quoting=csv.QUOTE_NONE)
+        tsv = csv.writer(f, quotechar='', delimiter='\t', quoting=csv.QUOTE_NONE, lineterminator='\n')
         # Header rows
         tsv.writerow(["##fileformat=VCFv4.2"])
         tsv.writerow([f"##contig=<ID={canonical_marker.name}>"])

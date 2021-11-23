@@ -166,7 +166,7 @@ def sample_reads_from_rel_abundances(
     """
     if n_cores == 1:
         index_entries = []
-        for time_point, read_counts_t in zip(time_points, read_counts):
+        for t_idx, (time_point, read_counts_t) in enumerate(zip(time_points, read_counts)):
             for strain_id, n_reads in read_counts_t.items():
                 fasta_path = db.get_strain(strain_id).metadata.source_path
 
@@ -174,7 +174,7 @@ def sample_reads_from_rel_abundances(
                     reference_path=fasta_path,
                     num_reads=n_reads,
                     output_dir=out_dir,
-                    output_prefix="{}_".format(strain_id),
+                    output_prefix="{}_{}_".format(t_idx, strain_id),
                     profile_first=profile_first,
                     profile_second=profile_second,
                     quality_shift=quality_shift,
@@ -191,14 +191,14 @@ def sample_reads_from_rel_abundances(
     elif n_cores > 1:
         partial_index_entries = []
         configs = []
-        for time_point, read_counts_t in zip(time_points, read_counts):
+        for t_idx, (time_point, read_counts_t) in enumerate(zip(time_points, read_counts)):
             for strain_id, n_reads in read_counts_t.items():
                 fasta_path = db.get_strain(strain_id).metadata.source_path
                 configs.append((
                     fasta_path,
                     n_reads,
                     out_dir,
-                    "{}_".format(strain_id),
+                    "{}_{}_".format(t_idx, strain_id),
                     profile_first,
                     profile_second,
                     read_len,
