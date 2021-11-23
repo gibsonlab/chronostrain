@@ -15,7 +15,9 @@ def clustal_omega(
         auto: bool = False,
         seqtype: str = 'DNA',
         guidetree_out: Optional[Path] = None,
-        silent: bool = False
+        guidetree_in: Optional[Path] = None,
+        silent: bool = False,
+        n_threads: int = 1
 ):
     params = [
         '-o', output_path,
@@ -40,10 +42,15 @@ def clustal_omega(
     if guidetree_out is not None:
         params.append(f'--guidetree-out={str(guidetree_out)}')
 
+    if guidetree_in is not None:
+        params.append(f'--guidetree-in={str(guidetree_in)}')
+
+    if n_threads > 1:
+        params.append(f'--threads={n_threads}')
+
     exit_code = call_command(
         command='clustalo',
         args=params,
-        output_path=output_path,
         silent=silent
     )
     if exit_code != 0:

@@ -247,8 +247,8 @@ def align(marker: Marker,
           intermediate_fasta_path: Path,
           out_fasta_path: Path,
           n_threads: int = 1):
-    align_mafft(marker, read_descriptions, intermediate_fasta_path, out_fasta_path, n_threads)
-    # align_clustalo(marker, read_descriptions, intermediate_fasta_path, out_fasta_path)
+    # align_mafft(marker, read_descriptions, intermediate_fasta_path, out_fasta_path, n_threads)
+    align_clustalo(marker, read_descriptions, intermediate_fasta_path, out_fasta_path, n_threads)
 
 
 def align_mafft(marker: Marker,
@@ -299,12 +299,21 @@ def align_mafft(marker: Marker,
 def align_clustalo(marker: Marker,
                    read_descriptions: Iterator[Tuple[int, SequenceRead, bool]],
                    intermediate_fasta_path: Path,
-                   out_fasta_path: Path):
+                   out_fasta_path: Path,
+                   n_threads: int = 1):
     """
     Write these records to file (using a predetermined format), then perform multiple alignment.
+
+    Experimental 11/22/2021: Forces progressive alignment in the order that the reads come in.
     """
     # First write to temporary file, with the reads reverse complemented if necessary.
     records = []
+    record_ids = []
+
+    record = marker.to_seqrecord()
+    records.append(record)
+    record_ids.append(record.id)
+
     for t_idx, read, should_reverse_comp in read_descriptions:
         if should_reverse_comp:
             read_seq = reverse_complement_seq(read.seq)
@@ -316,16 +325,26 @@ def align_clustalo(marker: Marker,
         else:
             revcomp_flag = 0
 
+        read_id = f"{_READ_PREFIX}{_SEPARATOR}{t_idx}{_SEPARATOR}{revcomp_flag}{_SEPARATOR}{read.id}"
+
         record = SeqRecord(
             Seq(z4_to_nucleotides(read_seq)),
-            id=f"{_READ_PREFIX}{_SEPARATOR}{t_idx}{_SEPARATOR}{revcomp_flag}{_SEPARATOR}{read.id}",
+            id=read_id,
             description=f"(Read, t: {t_idx}, reverse complement:{should_reverse_comp})"
         )
         records.append(record)
+        record_ids.append(read_id)
     SeqIO.write(records, intermediate_fasta_path, "fasta")
 
+    if len(record_ids) >= 2:
+        tree_path = intermediate_fasta_path.parent / "guide_tree"
+        create_tree_canonical(record_ids, tree_path)
+    else:
+        tree_path = None
+
     logger.debug(
-        f"Invoking `clustalo` on {len(records)} sequences, using {marker.metadata.file_path.name} as profile."
+        f"Invoking `clustalo` on {len(records)} sequences, "
+        f"using {marker.metadata.file_path.name} as profile. (May take a while)"
     )
 
     # Now invoke Clustal-Omega aligner.
@@ -334,8 +353,20 @@ def align_clustalo(marker: Marker,
         output_path=out_fasta_path,
         force_overwrite=True,
         verbose=False,
-        profile1=marker.metadata.file_path,
         out_format='fasta',
         seqtype='DNA',
-        guidetree_out=out_fasta_path.parent / "guidetree"
+        n_threads=n_threads,
+        guidetree_in=tree_path
     )
+
+
+def create_tree_canonical(ids: List[str], path: Path):
+    assert len(ids) >= 2
+    tree_str = f"(\n{ids[0]}\n,\n{ids[1]}\n)"
+
+    for x in ids[2:]:
+        tree_str = f"(\n{tree_str}\n,\n{x}\n)"
+
+    with open(path, "w") as f:
+        print(tree_str, file=f)
+        print(";", file=f)

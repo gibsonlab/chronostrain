@@ -62,12 +62,17 @@ class CachedReadMultipleAlignments(object):
                                   ) -> multialign.MarkerMultipleFragmentAlignment:
         def read_gen():
             seen_reads = set()
+            alignments_with_time: List[Tuple[SequenceReadPairwiseAlignment, int]] = []
             for t_idx, alignments in enumerate(timeseries_pairwise_aligns):
                 for aln in alignments:
                     if aln.read.id in seen_reads:
                         continue
-                    yield t_idx, aln.read, aln.reverse_complemented
+                    alignments_with_time.append((aln, t_idx))
                     seen_reads.add(aln.read.id)
+
+            alignments = sorted(alignments_with_time, key=lambda x: x[0].marker_start)
+            for aln, t_idx in alignments:
+                yield t_idx, aln.read, aln.reverse_complemented
 
         # ====== function bindings to pass to ComputationCache.
         def perform_alignment(out_path: Path) -> multialign.MarkerMultipleFragmentAlignment:

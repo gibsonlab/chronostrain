@@ -5,16 +5,19 @@
         "substitutions": [
             {"pos": 4533232, "base": "t"},
             {"pos": 4533233, "base": "t"},
-            {"pos": 4533234, "base": "c"},
-            {"pos": 4533235, "base": "c"},
-            {"pos": 4533236, "base": "a"}
+            {"pos": 4533234, "base": "t"},
+            {"pos": 4533235, "base": "t"},
+            {"pos": 4533236, "base": "t"},
+            {"pos": 4533236, "base": "t"},
+            {"pos": 4533236, "base": "t"},
+            {"pos": 4533236, "base": "t"}
         ]
     },
     {
         "source": "CP009273.1",
         "target": "CP009273.1_Insert",
         "insertions": [
-            {"pos": 4533132, "seq": "gattacaacaaattt"}
+            {"pos": 4533132, "seq": "tttaaacagattaca"}
         ]
     }
 ]
