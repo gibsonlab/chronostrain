@@ -3,7 +3,6 @@ import random
 import csv
 from pathlib import Path
 
-import shutil
 from multiprocessing.dummy import Pool
 from typing import Tuple, Dict, List
 
@@ -69,6 +68,7 @@ class Seed(object):
 
 def sample_read_counts(n_reads: int, rel_abund: Dict[str, float]) -> Dict[str, int]:
     """
+    :param n_reads:
     :param rel_abund: A dictionary mapping strain IDs to its relative abundance fraction.
     :return: A dictionary mapping strain IDS to read counts, sampled as a multinomial.
     """
@@ -87,42 +87,36 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
 
     time_points = []
-    n_reads = []
-    files = []
-    seed = Seed(args.seed)
+    read_counts = []
+
+    master_seed = Seed(args.seed)
     for t, abundance_t in parse_abundance_profile(args.abundance_path):
-        # Sample a random multinomial profile.
-        np.random.seed(seed.next_value())
-        read_counts_t = sample_read_counts(args.num_reads, abundance_t)
-
-        # Generate the read path.
-        out_path_t = out_dir / "reads_{t}.fastq".format(t=t)
-        tmpdir = out_dir / "tmp_{t}".format(t=t)
-        Path(tmpdir).mkdir(parents=True, exist_ok=True)
-
-        # Invoke art sampler on each time point.
-        sample_reads_from_rel_abundances(
-            final_reads_path=out_path_t,
-            abundances=read_counts_t,
-            strain_paths=parse_strain_paths(Path(args.fasta_dir)),
-            tmp_dir=tmpdir,
-            profile_first=args.profiles[0],
-            profile_second=args.profiles[1],
-            read_len=args.read_len,
-            quality_shift=args.quality_shift,
-            quality_shift_2=args.quality_shift_2,
-            seed=seed,
-            n_cores=args.num_cores,
-            cleanup=args.cleanup
-        )
         time_points.append(t)
-        n_reads.append(args.num_reads)
-        files.append(out_path_t)
-    logger.info("Sampled reads to {}".format(args.out_dir))
+
+        # Sample a random multinomial profile.
+        np.random.seed(master_seed.next_value())
+        read_counts_t = sample_read_counts(args.num_reads, abundance_t)
+        read_counts.append(read_counts_t)
 
     index_path = out_dir / "input_files.csv"
-    create_index_file(index_path, time_points, n_reads, files)
-    logger.info("Wrote index file to {}.".format(index_path))
+
+    # Invoke art sampler on each time point.
+    sample_reads_from_rel_abundances(
+        time_points=time_points,
+        read_counts=read_counts,
+        strain_paths=parse_strain_paths(Path(args.fasta_dir)),
+        out_dir=out_dir,
+        profile_first=args.profiles[0],
+        profile_second=args.profiles[1],
+        read_len=args.read_len,
+        quality_shift=args.quality_shift,
+        quality_shift_2=args.quality_shift_2,
+        seed=master_seed,
+        n_cores=args.num_cores,
+        index_path=index_path
+    )
+
+    logger.info("Sampled reads to {}".format(args.out_dir))
 
 
 def parse_strain_paths(fasta_dir: Path) -> Dict[str, Path]:
@@ -134,9 +128,9 @@ def parse_strain_paths(fasta_dir: Path) -> Dict[str, Path]:
     }
 
 
-def create_index_file(index_path: Path, time_points: List[float], num_reads: List[int], read_paths: List[Path]):
+def create_index_file(index_path: Path, entries: List[Tuple[float, int, Path]]):
     with open(index_path, 'w') as index_file:
-        for time_point, n_reads, reads_path_t in zip(time_points, num_reads, read_paths):
+        for time_point, n_reads, reads_path_t in entries:
             print(f'"{time_point}","{n_reads}","{str(reads_path_t)}"', file=index_file)
 
 
@@ -160,111 +154,91 @@ def parse_abundance_profile(abundance_path: str) -> List[Tuple[float, Dict]]:
         return abundances
 
 
-def sample_reads_from_rel_abundances(final_reads_path: Path,
-                                     abundances: Dict[str, float],
-                                     strain_paths: Dict[str, Path],
-                                     tmp_dir: Path,
-                                     profile_first: Path,
-                                     profile_second: Path,
-                                     read_len: int,
-                                     quality_shift: int,
-                                     quality_shift_2: int,
-                                     seed: Seed,
-                                     n_cores: int,
-                                     cleanup: bool):
+def sample_reads_from_rel_abundances(
+        time_points: List[float],
+        read_counts: List[Dict[str, int]],
+        strain_paths: Dict[str, Path],
+        out_dir: Path,
+        profile_first: Path,
+        profile_second: Path,
+        read_len: int,
+        quality_shift: int,
+        quality_shift_2: int,
+        seed: Seed,
+        n_cores: int,
+        index_path: Path
+):
     """
     Loop over each timepoint, and invoke art_illumina on each item. Each instance outputs a separate fastq file,
     so concatenate them at the end.
-
-    :param final_reads_path:
-    :param abundances:
-    :param tmp_dir:
-    :param profile_first:
-    :param profile_second:
-    :param read_len:
-    :param quality_shift:
-    :param quality_shift_2:
-    :param seed:
-    :param n_cores:
-    :param cleanup:
-    :return:
     """
-    for strain_id, _ in abundances.items():
-        if not strain_id in strain_paths:
-            raise ValueError(
-                f"Abundances file requests reads for `{strain_id}`, but couldn't find corresponding fasta file."
-            )
+    for strain_dict in read_counts:
+        for strain_id, _ in strain_dict.items():
+            if strain_id not in strain_paths:
+                raise ValueError(
+                    f"Abundances file requests reads for `{strain_id}`, but couldn't find corresponding fasta file."
+                )
 
     if n_cores == 1:
-        strain_read_paths = []
-        for entry_index, (strain_id, read_count) in enumerate(abundances.items()):
-            fasta_path = strain_paths[strain_id]
+        index_entries = []
+        for time_point, read_counts_t in zip(time_points, read_counts):
+            for strain_id, n_reads in read_counts_t.items():
+                fasta_path = strain_paths[strain_id]
 
-            output_path = art_illumina(
-                reference_path=fasta_path,
-                num_reads=read_count,
-                output_dir=tmp_dir,
-                output_prefix="{}_".format(strain_id),
-                profile_first=profile_first,
-                profile_second=profile_second,
-                quality_shift=quality_shift,
-                quality_shift_2=quality_shift_2,
-                read_length=read_len,
-                seed=seed.next_value(),
-                output_sam=False,
-                output_aln=False
-            )
+                output_path = art_illumina(
+                    reference_path=fasta_path,
+                    num_reads=n_reads,
+                    output_dir=out_dir,
+                    output_prefix="{}_".format(strain_id),
+                    profile_first=profile_first,
+                    profile_second=profile_second,
+                    quality_shift=quality_shift,
+                    quality_shift_2=quality_shift_2,
+                    read_length=read_len,
+                    seed=seed.next_value(),
+                    output_sam=False,
+                    output_aln=False
+                )
 
-            strain_read_paths.append(output_path)
+                index_entries.append(
+                    (time_point, n_reads, output_path)
+                )
     elif n_cores > 1:
-        configs = [(
-            strain_paths[strain_id],
-            read_count,
-            tmp_dir,
-            "{}_".format(strain_id),
-            profile_first,
-            profile_second,
-            read_len,
-            seed.next_value(),
-            1000,
-            200,
-            False,
-            False,
-            quality_shift,
-            quality_shift_2
-        ) for entry_index, (strain_id, read_count) in enumerate(abundances.items())]
+        partial_index_entries = []
+        configs = []
+        for time_point, read_counts_t in zip(time_points, read_counts):
+            for strain_id, n_reads in read_counts_t.items():
+                fasta_path = strain_paths[strain_id]
+                configs.append((
+                    fasta_path,
+                    n_reads,
+                    out_dir,
+                    "{}_".format(strain_id),
+                    profile_first,
+                    profile_second,
+                    quality_shift,
+                    quality_shift_2,
+                    read_len,
+                    seed.next_value(),
+                    False,
+                    False
+                ))
 
-        thread_pool = Pool(n_cores)
-        strain_read_paths = thread_pool.starmap(art_illumina, configs)
+                partial_index_entries.append(
+                    (time_point, n_reads)
+                )
+
+        with Pool(n_cores) as pool:
+            result_files = pool.starmap(art_illumina, configs)
+            index_entries = []
+            for (time_point, n_reads), result_file in zip(partial_index_entries, result_files):
+                index_entries.append(
+                    (time_point, n_reads, result_file)
+                )
     else:
         raise ValueError("# cores must be positive. Got: {}".format(n_cores))
 
-    # Concatenate all results into single file.
-    logger.debug("Concatenating {} read files to {}.".format(len(strain_read_paths), final_reads_path))
-    concatenate_files(strain_read_paths, final_reads_path)
-
-    if cleanup:
-        logger.debug("Cleaning up temp directory {}.".format(tmp_dir))
-        shutil.rmtree(tmp_dir)
-
-
-def concatenate_files(input_paths: List[Path], output_path: Path):
-    """
-    Concatenates the contents of each file in input_paths into output_path.
-    Identical to cat (*) > output_path in a for loop.
-    :param input_paths:
-    :param output_path:
-    :return:
-    """
-    with open(output_path, "w") as out_file:
-        for i, in_path in enumerate(input_paths):
-            logger.debug("File {} of {}. [{}]".format(
-                i+1,
-                len(input_paths),
-                in_path
-            ))
-            with open(in_path, "r") as in_file:
-                shutil.copyfileobj(in_file, out_file)
+    create_index_file(index_path, index_entries)
 
 
 if __name__ == "__main__":
