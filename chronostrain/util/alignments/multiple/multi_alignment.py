@@ -343,8 +343,8 @@ def align_clustalo(marker: Marker,
         tree_path = None
 
     logger.debug(
-        f"Invoking `clustalo` on {len(records)} sequences, "
-        f"using {marker.metadata.file_path.name} as profile. (May take a while)"
+        f"Invoking `clustalo` on {len(records)} sequences. "
+        f"Using {marker.metadata.file_path.name} as profile. (May take a while)"
     )
 
     # Now invoke Clustal-Omega aligner.
