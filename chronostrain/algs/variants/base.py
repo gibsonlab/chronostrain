@@ -52,14 +52,19 @@ class FloppMarkerVariant(AbstractMarkerVariant):
         start_clip, end_clip = self.multi_align.num_clipped_bases(read, reverse)
         return marker_section[marker_section != nucleotide_GAP_z4], insertion_locs, deletion_locs, start_clip, end_clip
 
-    def subseq_from_read(self, read: SequenceRead) -> Iterator[Tuple[SeqType, np.ndarray, np.ndarray, int, int]]:
+    def subseq_from_read(
+            self,
+            read: SequenceRead
+    ) -> Iterator[Tuple[SeqType, bool, np.ndarray, np.ndarray, int, int]]:
         # We already have the alignments from the read to the reference,
         #   so just get the corresponding fragment from this variant.
 
         if self.multi_align.contains_read(read, False):
-            yield self.get_aligned_reference_region(read, False)
+            frag, insertions, deletions, start_clip, end_clip = self.get_aligned_reference_region(read, False)
+            yield frag, False, insertions, deletions, start_clip, end_clip
         if self.multi_align.contains_read(read, True):
-            yield self.get_aligned_reference_region(read, True)
+            frag, insertions, deletions, start_clip, end_clip = self.get_aligned_reference_region(read, True)
+            yield frag, True, insertions, deletions, start_clip, end_clip
 
     def subseq_from_pairwise_aln(self, aln):
         raise NotImplementedError("Pairwise alignment to subsequence mapping not implemented, "

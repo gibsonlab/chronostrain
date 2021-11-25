@@ -17,15 +17,19 @@ class AbstractMarkerVariant(Marker):
         self.base_marker = base_marker
 
     @abstractmethod
-    def subseq_from_read(self, read: SequenceRead) -> Iterator[Tuple[SeqType, np.ndarray, np.ndarray, int, int]]:
+    def subseq_from_read(
+            self,
+            read: SequenceRead
+    ) -> Iterator[Tuple[SeqType, bool, np.ndarray, np.ndarray, int, int]]:
         """
         :param read:
         :return: A tuple of numpy arrays specifying:
             1) The fragment subsequence corresponding to this read which comes from the marker variant.
-            2) An "insertions" array of boolean values, specifying insertions INTO the marker.
-            3) A "deletions" array of boolean values, specifying deletions FROM the marker.
-            4) The number of bases to clip from the start.
-            5) The number of bases to clip from the end.
+            2) A boolean indicating whether or not to reverse complement.
+            3) An "insertions" array of boolean values, specifying insertions INTO the marker.
+            4) A "deletions" array of boolean values, specifying deletions FROM the marker.
+            5) The number of bases to clip from the start.
+            6) The number of bases to clip from the end.
         """
         pass
 

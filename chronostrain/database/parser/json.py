@@ -322,7 +322,6 @@ class FastaLoader:
         self.marker_entries = marker_entries
 
     def parse_markers(self) -> Iterator[Marker]:
-        seq = SeqIO.read(self.strain_fasta_path, "fasta").seq
         for entry in self.marker_entries:
             if not isinstance(entry, SubseqMarkerEntry):
                 raise StrainDatabaseParseError("Can't parse entry class {} in fasta strain record.".format(
@@ -330,18 +329,35 @@ class FastaLoader:
                 ))
 
             marker_filepath = get_marker_filepath(cfg, self.strain_accession, entry.id)
-            marker_seq = nucleotides_to_z4(str(seq[entry.start_pos - 1:entry.end_pos]))
-            marker = Marker(
-                name=entry.name,
-                id=entry.id,
-                seq=marker_seq,
-                canonical=entry.is_canonical,
-                metadata=MarkerMetadata(
-                    parent_accession=self.strain_accession,
-                    file_path=marker_filepath
+
+            if marker_filepath.exists:
+                marker_seq = nucleotides_to_z4(
+                    str(SeqIO.read(marker_filepath, "fasta").seq)
                 )
-            )
-            save_marker_to_disk(marker, marker_filepath)
+                marker = Marker(
+                    name=entry.name,
+                    id=entry.id,
+                    seq=marker_seq,
+                    canonical=entry.is_canonical,
+                    metadata=MarkerMetadata(
+                        parent_accession=self.strain_accession,
+                        file_path=marker_filepath
+                    )
+                )
+            else:
+                seq = SeqIO.read(self.strain_fasta_path, "fasta").seq
+                marker_seq = nucleotides_to_z4(str(seq[entry.start_pos - 1:entry.end_pos]))
+                marker = Marker(
+                    name=entry.name,
+                    id=entry.id,
+                    seq=marker_seq,
+                    canonical=entry.is_canonical,
+                    metadata=MarkerMetadata(
+                        parent_accession=self.strain_accession,
+                        file_path=marker_filepath
+                    )
+                )
+                save_marker_to_disk(marker, marker_filepath)
             yield marker
 
 
@@ -628,7 +644,6 @@ class JSONParser(AbstractDatabaseParser):
                         fasta_path
                     ))
 
-                fasta_record = SeqIO.read(fasta_path, "fasta")
                 loader = FastaLoader(
                     strain_accession=strain_entry.accession,
                     strain_fasta_path=fasta_path,

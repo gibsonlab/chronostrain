@@ -305,7 +305,7 @@ def align(db: StrainDatabase,
     create_marker_profile(marker_profile_path, markers)
 
     align_mafft(marker_profile_path, read_descriptions, intermediate_fasta_path, out_fasta_path, n_threads)
-    # align_clustalo(marker, read_descriptions, intermediate_fasta_path, out_fasta_path, n_threads)
+    # align_clustalo(marker_profile_path, read_descriptions, intermediate_fasta_path, out_fasta_path, n_threads)
 
 
 def create_marker_profile(profile_path: Path, markers: List[Marker], n_threads: int = 1):
@@ -366,14 +366,14 @@ def align_mafft(marker_profile_path: Path,
         output_path=out_fasta_path,
         n_threads=n_threads,
         auto=True,
-        gap_open_penalty_group=1.53,
+        quiet=True,
+        gap_open_penalty_group=3,
         gap_offset_group=0.0,
-        jtt_pam=1,
-        tm_pam=1
+        kimura=1
     )
 
 
-def align_clustalo(marker: Marker,
+def align_clustalo(marker_profile_path: Path,
                    read_descriptions: Iterator[Tuple[int, SequenceRead, bool]],
                    intermediate_fasta_path: Path,
                    out_fasta_path: Path,
@@ -421,7 +421,7 @@ def align_clustalo(marker: Marker,
 
     logger.debug(
         f"Invoking `clustalo` on {len(records)} sequences. "
-        f"Using {marker.metadata.file_path.name} as profile. (May take a while)"
+        f"Using {str(marker_profile_path)} as profile. (May take a while)"
     )
 
     # Now invoke Clustal-Omega aligner.
@@ -432,9 +432,9 @@ def align_clustalo(marker: Marker,
         verbose=False,
         out_format='fasta',
         seqtype='DNA',
-        n_threads=n_threads,
+        n_threads=6,
         guidetree_in=tree_path,
-        profile1=marker.metadata.file_path.parent / "profile.fasta"
+        profile1=marker_profile_path
     )
 
 

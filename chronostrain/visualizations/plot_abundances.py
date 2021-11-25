@@ -174,10 +174,10 @@ def plot_posterior_abundances(
         truth_path: Optional[Path] = None,
         title: str = None,
         font_size: int = 12,
-        thickness: int = 1,
+        thickness: int = 2,
         dpi: int = 100,
         width: int = 16,
-        height: int = 20
+        height: int = 10
 ):
     """
     :param times:
@@ -268,6 +268,13 @@ def plot_posterior_abundances(
     fig.savefig(plots_out_path, bbox_inches='tight', format=img_format, dpi=dpi)
 
 
+def parse_quantiles(traj_samples: np.ndarray, quantiles: np.ndarray):
+    return np.stack([
+        np.quantile(traj_samples, q=q, axis=1)
+        for q in quantiles
+    ], axis=0)
+
+
 def render_posterior_abundances(
         times: List[float],
         traj_samples: np.ndarray,
@@ -276,9 +283,13 @@ def render_posterior_abundances(
         thickness: float,
         legend_elements: List,
         color: Optional = None,
+        quantiles: Optional[np.ndarray] = None
 ):
-    upper_quantile = np.quantile(traj_samples, q=0.975, axis=1)
-    lower_quantile = np.quantile(traj_samples, q=0.025, axis=1)
+    if quantiles is None:
+        quantiles = np.linspace(0.025, 0.975, 50)  # DEFAULT
+    if quantiles[0] > 0.5 or quantiles[-1] < 0.5:
+        raise RuntimeError("Quantiles must lead with a value <= 0.5 and end with a value >= 0.5.")
+    quantile_values = parse_quantiles(traj_samples, quantiles)
     median = np.quantile(traj_samples, q=0.5, axis=1)
 
     # Plot the trajectory of medians.
@@ -289,7 +300,16 @@ def render_posterior_abundances(
         ax.plot(times, median, linestyle='--', marker='x', linewidth=thickness, color=color)
 
     # Fill between the quantiles.
-    ax.fill_between(times, lower_quantile, upper_quantile, alpha=0.2, color=color)
+    for q_idx, (q, q_val) in enumerate(zip(quantiles, quantile_values)):
+        if q < 0.5:
+            alpha = 0.8 * (1 - (abs(q - 0.5) / 0.5))
+            q_val_next = quantile_values[q_idx + 1]
+            ax.fill_between(times, q_val, q_val_next, alpha=alpha, color=color, linewidth=0)
+        if q > 0.5:
+            q_prev = quantiles[q_idx - 1]
+            q_val_prev = quantile_values[q_idx - 1]
+            alpha = 0.8 * (1 - (abs(q_prev - 0.5) / 0.5))
+            ax.fill_between(times, q_val_prev, q_val, alpha=alpha, color=color, linewidth=0)
 
     # Populate the legend.
     legend_elements.append(

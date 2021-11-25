@@ -103,13 +103,18 @@ def main():
     ).propose_variants())
 
     # Construct the fragment space.
+    logger.info("Compiling observed fragments.")
     fragments = FragmentSpace()
-    for strain_variant in variants:
+    for strain_idx, strain_variant in enumerate(variants):
+        logger.info("Processing strain {} of {}".format(
+            strain_idx + 1,
+            len(variants)
+        ))
         # Add all fragments implied by this new strain variant.
         for marker_variant in strain_variant.variant_markers:
-            for time_slice in reads:
+            for t_idx, time_slice in enumerate(reads):
                 for read in time_slice:
-                    for subseq, _, _, _, _ in marker_variant.subseq_from_read(read):
+                    for subseq, revcomp, insertions, deletions, start_clip, end_clip in marker_variant.subseq_from_read(read):
                         fragments.add_seq(
                             subseq,
                             metadata=f"{read.id}->{marker_variant.id}"
@@ -138,7 +143,7 @@ def main():
         iters=args.iters,
         learning_rate=args.learning_rate,
         num_samples=args.num_samples,
-        correlation_type='strain',
+        correlation_type='time',
         save_elbo_history=args.plot_elbo,
         save_training_history=args.draw_training_history,
         print_debug_every=100

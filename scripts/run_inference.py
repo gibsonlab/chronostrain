@@ -170,7 +170,7 @@ def main():
             iters=args.iters,
             learning_rate=args.learning_rate,
             num_samples=args.num_samples,
-            correlation_type='strain',
+            correlation_type='time',
             save_elbo_history=args.plot_elbo,
             save_training_history=args.draw_training_history
         )

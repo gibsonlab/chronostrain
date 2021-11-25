@@ -314,5 +314,6 @@ class CachedGloppVariantAssembly(object):
                self.alignment,
                self.count_variants(),
                self.vcf_path,
-               self.variant_count_lower_bound)
+               ploidy=None,
+               variant_count_lower_bound=self.variant_count_lower_bound)
         return self.vcf_path

@@ -45,7 +45,7 @@ class CachedReadPairwiseAlignments(object):
             self.aligner = BowtieAligner(
                 reference_path=self.marker_reference_path,
                 index_basepath=self.marker_reference_path.parent,
-                index_basename="markers",
+                index_basename=self.marker_reference_path.stem,
                 num_threads=cfg.model_cfg.num_cores
             )
         else:

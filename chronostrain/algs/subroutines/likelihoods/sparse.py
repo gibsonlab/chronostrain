@@ -255,18 +255,20 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
             self._multi_align_instances = list(self.multiple_alignments.get_alignments())
 
         time_slice = self.reads[t_idx]
-        included_frags = set()
+        included_pairs: Set[str] = set()
         ll_threshold = -500
 
         """
         Helper function (Given subseq/read pair (and other relevant information), compute likelihood and insert into matrix.
         """
-        def add_subseq_likelihood(subseq, read, insertions, deletions, revcomp, start_clip: int, end_clip: int, debug: bool):
+        def add_subseq_likelihood(subseq, read, insertions, deletions, revcomp, start_clip: int, end_clip: int):
             frag = self.model.fragments.get_fragment(subseq)
-            if frag in included_frags:
+
+            pair_identifier = f"{read.id}->{frag.index}"
+            if pair_identifier in included_pairs:
                 return
             else:
-                included_frags.add(frag)
+                included_pairs.add(pair_identifier)
 
             ll = self.read_frag_ll(
                 frag,
@@ -276,14 +278,6 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                 start_clip=start_clip,
                 end_clip=end_clip
             )
-
-            if debug:
-                print("***************************************************")
-                print("READ: {}".format(read.nucleotide_content(reverse_complement=revcomp)))
-                print("INST: {}".format("".join(str(int(x)) for x in insertions)))
-                print("FRAG: {}".format(frag.nucleotide_content()))
-                print("DELT: {}".format("".join(str(int(x)) for x in deletions)))
-                print("LL = {}".format(ll))
 
             if ll < ll_threshold:
                 return
@@ -313,17 +307,13 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                             revcomp=revcomp
                         )
 
-                        add_subseq_likelihood(subseq, read, insertions, deletions, revcomp, start_clip, end_clip, debug=False)
+                        add_subseq_likelihood(subseq, read, insertions, deletions, revcomp, start_clip, end_clip)
 
             # Next, take care of the variant markers (if applicable).
             for variant in self.marker_variants_of(multi_align.canonical_marker):
-                for revcomp in [True, False]:
-                    for read in multi_align.reads(revcomp):
-                        if not time_slice.contains_read(read.id):
-                            continue
-
-                        for subseq, insertions, deletions, start_clip, end_clip in variant.subseq_from_read(read):
-                            add_subseq_likelihood(subseq, read, insertions, deletions, revcomp, start_clip, end_clip, debug=True)
+                for read in time_slice:
+                    for subseq, revcomp, insertions, deletions, start_clip, end_clip in variant.subseq_from_read(read):
+                        add_subseq_likelihood(subseq, read, insertions, deletions, revcomp, start_clip, end_clip)
 
         return read_to_frag_likelihoods
 

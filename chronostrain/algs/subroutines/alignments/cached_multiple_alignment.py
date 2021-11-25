@@ -43,7 +43,11 @@ class CachedReadMultipleAlignments(object):
         }
 
         for t_idx, aln in cache_pairwise_align.get_alignments():
-            timeseries_alns_by_marker_name[aln.marker.name][t_idx].append(aln)
+            try:
+                timeseries_alns_by_marker_name[aln.marker.name][t_idx].append(aln)
+            except KeyError:
+                raise KeyError("Canonical marker of `{}` not found.".format(aln.marker.name)) from None
+
         return timeseries_alns_by_marker_name
 
     def get_alignments(self) -> Iterator[multialign.MarkerMultipleFragmentAlignment]:

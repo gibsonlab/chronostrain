@@ -90,6 +90,7 @@ class BowtieAligner(AbstractPairwiseAligner):
             aln_seed_len=5,
             aln_seed_interval_fn=bt2_func_constant(3),
             aln_gbar=1,
+            effort_seed_ext_failures=100,
             # aln_n_ceil=bt2_func_linear(0, .1),
             score_mismatch_penalty=(2, 0),
             # score_min_fn=bt2_func_linear(0, -0.05),

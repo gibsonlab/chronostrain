@@ -93,7 +93,8 @@ def plot_bbvi_posterior(model: GenerativeModel,
                         draw_legend: bool = False,
                         num_samples: int = 10000,
                         width: int = 16,
-                        height: int = 20):
+                        height: int = 10,
+                        title: str = "Posterior relative abundances"):
     logger.info("Generating plot of posterior.")
 
     # Generate and save posterior samples.
@@ -105,7 +106,6 @@ def plot_bbvi_posterior(model: GenerativeModel,
     ))
 
     # Plotting.
-    title = "Posterior relative abundances (Inferred variants)"
     plot_posterior_abundances(
         times=model.times,
         posterior_samples=samples.cpu().numpy(),

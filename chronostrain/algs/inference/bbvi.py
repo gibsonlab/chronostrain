@@ -368,22 +368,8 @@ class BBVISolver(AbstractModelSolver):
         if cfg.model_cfg.use_sparse:
             frag_freqs: SparseMatrix = self.model.fragment_frequencies_sparse  # F x S
             for t_idx in range(model.num_times()):
-
-                frag_support = self.data_likelihoods.supported_frags[t_idx]
-                sz_full = frag_freqs.size()[0]  # F
-                sz_supp = len(frag_support)  # F'
-
-                _support_indices = torch.tensor([
-                    [i for i in range(len(frag_support))],
-                    [frag_support[i] for i in range(sz_supp)]
-                ], dtype=torch.long, device=cfg.torch_cfg.device)
-
                 # Sparsity transformation (R^F -> R^{Support}), matrix size = (F' x F)
-                projector = SparseMatrix(
-                    indices=_support_indices,
-                    values=torch.ones(_support_indices.size()[1], device=cfg.torch_cfg.device),
-                    dims=(sz_supp, sz_full)
-                )
+                projector = self.data_likelihoods.projectors[t_idx]
 
                 self._sparse_frag_freqs.append(
                     ColumnSectionedSparseMatrix.from_sparse_matrix(projector.sparse_mul(frag_freqs))
@@ -490,6 +476,16 @@ class BBVISolver(AbstractModelSolver):
                 self._sparse_frag_freqs[t_idx],
                 torch.log(softmax_x_t).t()
             ).t().mv(phi_sum)
+
+            # projector = self.data_likelihoods.projectors[t_idx]
+            # read_likelihoods = log_spmm_exp(
+            #     ColumnSectionedSparseMatrix.from_sparse_matrix(self.data_likelihoods.likelihood_matrix(t_idx).t()),  # (R x F')
+            #     log_spspmm_exp(
+            #         projector,  # (F' x F)
+            #         self.model.fragment_frequencies_sparse  # (F x S)
+            #     ),  # (F' x S)
+            # ).t()  # after transpose: (S x R)
+            # print(torch.sum(read_likelihoods, dim=1))
 
         elbo_samples = (model_gaussian_log_likelihoods
                         + expectation_model_log_fragment_probs
