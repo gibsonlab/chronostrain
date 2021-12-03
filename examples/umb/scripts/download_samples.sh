@@ -52,7 +52,6 @@ mkdir -p ${FASTERQ_TMP_DIR}
 		echo "[*] Compressing..."
 		gzip $fq_file_1 --force &
 		gzip $fq_file_2 --force &
+		wait
 	done
 } < ${SRA_CSV_PATH}
-
-wait
