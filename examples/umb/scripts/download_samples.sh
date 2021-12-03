@@ -25,11 +25,9 @@ gzip_and_append_fastq()
 		gz_file="${fq_path}.gz"
 		echo "\"${time}\",\"${num_reads}\",\"${gz_file}\"" >> "${READS_DIR}/${umb_id}_${INPUT_INDEX_FILENAME}"
 	else
-  	echo "[*] Skipping empty file ${fq_path}."
+  	echo "[*] Cleaning up empty file ${fq_path}."
+  	rm ${fq_path}
 	fi
-
-	echo "[*] Cleaning up ${fq_path}."
-	rm ${fq_path}
 }
 
 # ================================= Main script ==================================
@@ -99,6 +97,12 @@ mkdir -p ${FASTERQ_TMP_DIR}
 		ILLUMINACLIP:${NEXTERA_ADAPTER_PATH}:2:40:15
 
 		# Add to timeseries input index.
+		echo "[*] Cleaning up ${fq_file_1}"
+		rm ${fq_file_1}
+
+		echo "[*] Cleaning up ${fq_file_2}"
+		rm ${fq_file_2}
+
 		gzip_and_append_fastq ${trimmed_paired_1} $days $umb_id
 		gzip_and_append_fastq ${trimmed_unpaired_1} $days $umb_id
 	done
