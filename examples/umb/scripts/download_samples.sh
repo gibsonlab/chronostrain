@@ -49,6 +49,7 @@ mkdir -p ${FASTERQ_TMP_DIR}
 		fq_file_1="${SAMPLES_DIR}/${sra_id}_1.fastq"
 		fq_file_2="${SAMPLES_DIR}/${sra_id}_2.fastq"
 
+		echo "[*] Compressing..."
 		gzip $fq_file_1 --force
 		gzip $fq_file_2 --force
 	done
