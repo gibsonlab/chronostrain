@@ -44,5 +44,12 @@ mkdir -p ${FASTERQ_TMP_DIR}
 		--force \
 		-t ${FASTERQ_TMP_DIR} \
 		"${SRA_PREFETCH_DIR}/${sra_id}/${sra_id}.sra"
+
+		# Obtained fastq files.
+		fq_file_1="${SAMPLES_DIR}/${sra_id}_1.fastq"
+		fq_file_2="${SAMPLES_DIR}/${sra_id}_2.fastq"
+
+		gzip $fq_file_1 --force
+		gzip $fq_file_2 --force
 	done
 } < ${SRA_CSV_PATH}

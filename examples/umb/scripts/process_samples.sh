@@ -57,8 +57,8 @@ mkdir -p "${SAMPLES_DIR}/trimmomatic"
 		echo "[*] -=-=-=-=-=-=-=-= Handling ${sra_id} (${sample_name}). =-=-=-=-=-=-=-=-"
 
 		# Obtained fastq files.
-		fq_file_1="${SAMPLES_DIR}/${sra_id}_1.fastq"
-		fq_file_2="${SAMPLES_DIR}/${sra_id}_2.fastq"
+		fq_file_1="${SAMPLES_DIR}/${sra_id}_1.fastq.gz"
+		fq_file_2="${SAMPLES_DIR}/${sra_id}_2.fastq.gz"
 
 		# Target fastq files.
 		trimmed_paired_1="${SAMPLES_DIR}/trimmomatic/${sra_id}_1_paired.fastq"
