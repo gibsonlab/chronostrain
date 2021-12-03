@@ -25,9 +25,11 @@ gzip_and_append_fastq()
 		gz_file="${fq_path}.gz"
 		echo "\"${time}\",\"${num_reads}\",\"${gz_file}\"" >> "${READS_DIR}/${umb_id}_${INPUT_INDEX_FILENAME}"
 	else
-  	echo "[*] Cleaning up empty file ${fq_path}."
-  	rm ${fq_path}
+  	echo "[*] Skipping empty file ${fq_path}."
 	fi
+
+	echo "[*] Cleaning up ${fq_path}."
+	rm ${fq_path}
 }
 
 # ================================= Main script ==================================
