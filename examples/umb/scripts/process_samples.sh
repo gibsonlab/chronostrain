@@ -8,7 +8,7 @@ check_program 'trimmomatic'
 check_program 'gzip'
 
 # Gzips the input fastq file, and appends the fastq-timepoint pair as an entry.
-gzip_and_append_fastq()
+append_fastq()
 {
 	fq_path=$1
 	time=$2
@@ -18,10 +18,7 @@ gzip_and_append_fastq()
 	num_reads=$((${num_lines} / 4))
 
 	if [[ -s "${fq_path}" ]]; then
-  	echo "[*] Compressing: ${fq_path}"
-		gzip $fq_path --force
-		gz_file="${fq_path}.gz"
-		echo "\"${time}\",\"${num_reads}\",\"${gz_file}\"" >> "${READS_DIR}/${umb_id}_${INPUT_INDEX_FILENAME}"
+		echo "\"${time}\",\"${num_reads}\",\"${fq_path}\"" >> "${READS_DIR}/${umb_id}_${INPUT_INDEX_FILENAME}"
 	else
   	echo "[*] Cleaning up empty file ${fq_path}."
   	rm ${fq_path}
@@ -61,10 +58,10 @@ mkdir -p "${SAMPLES_DIR}/trimmomatic"
 		fq_file_2="${SAMPLES_DIR}/${sra_id}_2.fastq.gz"
 
 		# Target fastq files.
-		trimmed_paired_1="${SAMPLES_DIR}/trimmomatic/${sra_id}_1_paired.fastq"
-		trimmed_unpaired_1="${SAMPLES_DIR}/trimmomatic/${sra_id}_1_unpaired.fastq"
-		trimmed_paired_2="${SAMPLES_DIR}/trimmomatic/${sra_id}_2_paired.fastq"
-		trimmed_unpaired_2="${SAMPLES_DIR}/trimmomatic/${sra_id}_2_unpaired.fastq"
+		trimmed_paired_1="${SAMPLES_DIR}/trimmomatic/${sra_id}_1_paired.fastq.gz"
+		trimmed_unpaired_1="${SAMPLES_DIR}/trimmomatic/${sra_id}_1_unpaired.fastq.gz"
+		trimmed_paired_2="${SAMPLES_DIR}/trimmomatic/${sra_id}_2_paired.fastq.gz"
+		trimmed_unpaired_2="${SAMPLES_DIR}/trimmomatic/${sra_id}_2_unpaired.fastq.gz"
 
 		# Preprocess
 		echo "[*] Invoking trimmomatic..."
@@ -81,12 +78,5 @@ mkdir -p "${SAMPLES_DIR}/trimmomatic"
 		# Add to timeseries input index.
 		gzip_and_append_fastq ${trimmed_paired_1} $days $umb_id
 		gzip_and_append_fastq ${trimmed_unpaired_1} $days $umb_id
-
-		# Clean up to save space.
-		echo "[*] Cleaning up ${fq_file_1}"
-		rm ${fq_file_1}
-
-		echo "[*] Cleaning up ${fq_file_2}"
-		rm ${fq_file_2}
 	done
 } < ${SRA_CSV_PATH}
