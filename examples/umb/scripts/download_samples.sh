@@ -14,6 +14,8 @@ gzip_and_append_fastq()
 {
 	fq_path=$1
 	time=$2
+	umb_id=$3
+
 	num_lines=$(wc -l $fq_path | awk '{print $1}')
 	num_reads=$((${num_lines} / 4))
 
@@ -21,7 +23,7 @@ gzip_and_append_fastq()
   	echo "[*] Compressing: ${fq_path}"
 		gzip $fq_path --force
 		gz_file="${fq_path}.gz"
-		echo "\"${time}\",\"${num_reads}\",\"${gz_file}\"" >> $INPUT_INDEX_PATH
+		echo "\"${time}\",\"${num_reads}\",\"${gz_file}\"" >> "${READS_DIR}/${umb_id}_${INPUT_INDEX_FILENAME}"
 	else
   	echo "[*] Cleaning up empty file ${fq_path}."
   	rm ${fq_path}
@@ -50,7 +52,7 @@ mkdir -p ${FASTERQ_TMP_DIR}
 	# Read rest of csv file.
 	while IFS=, read -r sra_id umb_id sample_name date days experiment_type
 	do
-		if [[ "${experiment_type}" != "stool" || "${umb_id}" != "UMB24" ]]; then
+		if [[ "${experiment_type}" != "stool" ]]; then
 			echo "Skipping ${sample_name}."
 			continue
 		fi
@@ -95,7 +97,7 @@ mkdir -p ${FASTERQ_TMP_DIR}
 		ILLUMINACLIP:${NEXTERA_ADAPTER_PATH}:2:40:15
 
 		# Add to timeseries input index.
-		gzip_and_append_fastq ${trimmed_paired_1} $days
-		gzip_and_append_fastq ${trimmed_unpaired_1} $days
+		gzip_and_append_fastq ${trimmed_paired_1} $days $umb_id
+		gzip_and_append_fastq ${trimmed_unpaired_1} $days $umb_id
 	done
 } < ${SRA_CSV_PATH}
