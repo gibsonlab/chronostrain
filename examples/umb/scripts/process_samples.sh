@@ -19,7 +19,7 @@ append_fastq()
 
 	if [[ -s "${fq_path}" ]]; then
 		echo "\"${time}\",\"${num_reads}\",\"${fq_path}\"" >> "${READS_DIR}/${umb_id}_${INPUT_INDEX_FILENAME}"
-	done
+	fi
 }
 
 # ================================= Main script ==================================
