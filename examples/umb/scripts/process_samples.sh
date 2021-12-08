@@ -19,18 +19,12 @@ append_fastq()
 
 	if [[ -s "${fq_path}" ]]; then
 		echo "\"${time}\",\"${num_reads}\",\"${fq_path}\"" >> "${READS_DIR}/${umb_id}_${INPUT_INDEX_FILENAME}"
-	else
-  	echo "[*] Cleaning up empty file ${fq_path}."
-  	rm ${fq_path}
-	fi
 }
 
 # ================================= Main script ==================================
 
 # Clear index file.
 mkdir -p ${READS_DIR}
-touch $INPUT_INDEX_PATH
-> $INPUT_INDEX_PATH
 
 SRA_CSV_PATH="${BASE_DIR}/files/umb_samples.csv"
 
@@ -63,6 +57,11 @@ mkdir -p "${SAMPLES_DIR}/trimmomatic"
 		trimmed_paired_2="${SAMPLES_DIR}/trimmomatic/${sra_id}_2_paired.fastq.gz"
 		trimmed_unpaired_2="${SAMPLES_DIR}/trimmomatic/${sra_id}_2_unpaired.fastq.gz"
 
+		if [ -f "${trimmed_paired_1}" ] && [ -f "${trimmed_unpaired_1}" ]; then
+			echo "Trimmomatic outputs ${trimmed_paired_1} and ${trimmed_unpaired_1} already found!"
+			continue
+		fi
+
 		# Preprocess
 		echo "[*] Invoking trimmomatic..."
 		trimmomatic PE \
@@ -76,7 +75,7 @@ mkdir -p "${SAMPLES_DIR}/trimmomatic"
 		ILLUMINACLIP:${NEXTERA_ADAPTER_PATH}:2:40:15
 
 		# Add to timeseries input index.
-		gzip_and_append_fastq ${trimmed_paired_1} $days $umb_id
-		gzip_and_append_fastq ${trimmed_unpaired_1} $days $umb_id
+		append_fastq ${trimmed_paired_1} $days $umb_id
+		append_fastq ${trimmed_unpaired_1} $days $umb_id
 	done
 } < ${SRA_CSV_PATH}
