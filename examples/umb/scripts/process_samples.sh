@@ -18,7 +18,10 @@ append_fastq()
 	num_reads=$((${num_lines} / 4))
 
 	if [[ -s "${fq_path}" ]]; then
+		echo "Adding record ${fq_path} to ${${READS_DIR}/${umb_id}_${INPUT_INDEX_FILENAME}}"
 		echo "\"${time}\",\"${num_reads}\",\"${fq_path}\"" >> "${READS_DIR}/${umb_id}_${INPUT_INDEX_FILENAME}"
+	else
+		echo "Skipping empty record ${fq_path}"
 	fi
 }
 
