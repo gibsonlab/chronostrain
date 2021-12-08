@@ -58,22 +58,23 @@ mkdir -p "${SAMPLES_DIR}/trimmomatic"
 		trimmed_paired_2="${SAMPLES_DIR}/trimmomatic/${sra_id}_2_paired.fastq.gz"
 		trimmed_unpaired_2="${SAMPLES_DIR}/trimmomatic/${sra_id}_2_unpaired.fastq.gz"
 
-		if [ -f "${trimmed_paired_1}" ] && [ -f "${trimmed_unpaired_1}" ]; then
+		if [ -f "${trimmed_paired_1}" ] && [ -f "${trimmed_unpaired_1}" ]
+		then
 			echo "Trimmomatic outputs ${trimmed_paired_1} and ${trimmed_unpaired_1} already found!"
 			continue
+		else
+			# Preprocess
+			echo "[*] Invoking trimmomatic..."
+			trimmomatic PE \
+			-threads 4 \
+			-phred33 \
+			${fq_file_1} ${fq_file_2} \
+			${trimmed_paired_1} ${trimmed_unpaired_1} \
+			${trimmed_paired_2} ${trimmed_unpaired_2} \
+			SLIDINGWINDOW:100:0 \
+			MINLEN:35 \
+			ILLUMINACLIP:${NEXTERA_ADAPTER_PATH}:2:40:15
 		fi
-
-		# Preprocess
-		echo "[*] Invoking trimmomatic..."
-		trimmomatic PE \
-		-threads 4 \
-		-phred33 \
-		${fq_file_1} ${fq_file_2} \
-		${trimmed_paired_1} ${trimmed_unpaired_1} \
-		${trimmed_paired_2} ${trimmed_unpaired_2} \
-		SLIDINGWINDOW:100:0 \
-		MINLEN:35 \
-		ILLUMINACLIP:${NEXTERA_ADAPTER_PATH}:2:40:15
 
 		# Add to timeseries input index.
 		append_fastq ${trimmed_paired_1} $days $umb_id
