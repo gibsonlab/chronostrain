@@ -10,18 +10,18 @@ check_program 'gzip'
 # Gzips the input fastq file, and appends the fastq-timepoint pair as an entry.
 append_fastq()
 {
-	fq_path=$1
+	gzip_fq_path=$1
 	time=$2
 	umb_id=$3
 
-	num_lines=$(wc -l $fq_path | awk '{print $1}')
+	num_lines=$(zcat $gzip_fq_path | wc -l | awk '{print $1}')
 	num_reads=$((${num_lines} / 4))
 
-	if [[ -s "${fq_path}" ]]; then
-		echo "Adding record ${fq_path} to ${${READS_DIR}/${umb_id}_${INPUT_INDEX_FILENAME}}"
-		echo "\"${time}\",\"${num_reads}\",\"${fq_path}\"" >> "${READS_DIR}/${umb_id}_${INPUT_INDEX_FILENAME}"
+	if [[ -s "${gzip_fq_path}" ]]; then
+		echo "Adding record ${gzip_fq_path} to ${${READS_DIR}/${umb_id}_${INPUT_INDEX_FILENAME}}"
+		echo "\"${time}\",\"${num_reads}\",\"${gzip_fq_path}\"" >> "${READS_DIR}/${umb_id}_${INPUT_INDEX_FILENAME}"
 	else
-		echo "Skipping empty record ${fq_path}"
+		echo "Skipping empty record ${gzip_fq_path}"
 	fi
 }
 
