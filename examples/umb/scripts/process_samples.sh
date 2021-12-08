@@ -64,7 +64,6 @@ mkdir -p "${SAMPLES_DIR}/trimmomatic"
 		if [ -f "${trimmed_paired_1}" ] && [ -f "${trimmed_unpaired_1}" ]
 		then
 			echo "Trimmomatic outputs ${trimmed_paired_1} and ${trimmed_unpaired_1} already found!"
-			continue
 		else
 			# Preprocess
 			echo "[*] Invoking trimmomatic..."
