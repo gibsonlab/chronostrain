@@ -18,7 +18,7 @@ append_fastq()
 	num_reads=$((${num_lines} / 4))
 
 	if [[ -s "${gzip_fq_path}" ]]; then
-		echo "Adding record ${gzip_fq_path} to ${${READS_DIR}/${umb_id}_${INPUT_INDEX_FILENAME}}"
+		echo "Adding record ${gzip_fq_path} to ${READS_DIR}/${umb_id}_${INPUT_INDEX_FILENAME}"
 		echo "\"${time}\",\"${num_reads}\",\"${gzip_fq_path}\"" >> "${READS_DIR}/${umb_id}_${INPUT_INDEX_FILENAME}"
 	else
 		echo "Skipping empty record ${gzip_fq_path}"
