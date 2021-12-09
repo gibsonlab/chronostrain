@@ -47,7 +47,7 @@ def parse_strainge_path(strainge_db_dir: Path, hdf5_path: Path) -> Tuple[str, st
     fa_filename = hdf5_path.with_suffix("").name
     fa_path = strainge_db_dir / fa_filename
 
-    suffix = 'fa.gz.hdf5'
+    suffix = '.fa.gz.hdf5'
     base_tokens = hdf5_path.name[:-len(suffix)].split("_")
     strain_name = "_".join(base_tokens[2:])
 
