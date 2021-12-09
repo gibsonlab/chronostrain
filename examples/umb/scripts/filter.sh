@@ -17,6 +17,7 @@ do
 	-r "${READS_DIR}" \
 	--input_file "${index_filename}" \
 	-o "${READS_DIR}/${umb_id}_filtered" \
-	--pct_identity_threshold 0.5 \
+	--pct_identity_threshold 0.85 \
 	--min_seed_length 10 \
 	--num_threads 4
+done
