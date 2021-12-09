@@ -62,10 +62,13 @@ def get_strain_accessions(strain_spec_path: Path, strainge_db_dir: Path) -> List
     strain_partial_entries = []
     with open(strain_spec_path, "r") as strain_file:
         for line in strain_file:
-            if len(line.strip()) == 0:
+            line = line.strip()
+            if len(line) == 0:
                 continue
+            print(f"Parsing strain information from {line}...")
 
-            strain_name, accession = parse_strainge_path(strainge_db_dir, Path(line.strip()))
+            strain_name, accession = parse_strainge_path(strainge_db_dir, Path(line))
+            print(f"Got strain: {strain_name}, accession: {accession}")
 
             strain_partial_entries.append({
                 'genus': 'Escherichia',
