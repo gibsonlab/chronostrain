@@ -46,7 +46,7 @@ class BwaAligner(AbstractPairwiseAligner):
         )
 
 
-logger.warn("Bowtie2 being initialized using default setting `phred33`. "
+logger.warn("If invoked, bowtie2 will initialize using default setting `phred33`. "
             "(TODO: implement a universal definition across Biopython and bowtie2.)")
 
 
