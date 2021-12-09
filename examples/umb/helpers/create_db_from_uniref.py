@@ -24,6 +24,8 @@ def parse_args():
                         help='<Required> The path to the CSV file of strain accessions.')
     parser.add_argument('-o', '--output_path', required=True, type=str,
                         help='<Required> The path to the target output chronostrain db json file.')
+    parser.add_argument('-sdb', '--strainge_db_dir', required=True, type=str,
+                        help='<Required> The strainGE database directory.')
     return parser.parse_args()
 
 
@@ -41,8 +43,10 @@ def get_gene_names(uniref_csv_path: Path) -> Set[str]:
     return gene_names
 
 
-def parse_strainge_path(hdf5_path: Path) -> Tuple[str, str]:
-    fa_path = hdf5_path.with_suffix("")
+def parse_strainge_path(strainge_db_dir: Path, hdf5_path: Path) -> Tuple[str, str]:
+    fa_filename = hdf5_path.with_suffix("").name
+    fa_path = strainge_db_dir / fa_filename
+
     suffix = 'fa.gz.hdf5'
     base_tokens = hdf5_path.name[:-len(suffix)].split("_")
     strain_name = "_".join(base_tokens[2:])
@@ -54,14 +58,14 @@ def parse_strainge_path(hdf5_path: Path) -> Tuple[str, str]:
     raise RuntimeError(f"Couldn't find a valid record in {str(fa_path)}.")
 
 
-def get_strain_accessions(strain_spec_path: Path) -> List[Dict[str, Any]]:
+def get_strain_accessions(strain_spec_path: Path, strainge_db_dir: Path) -> List[Dict[str, Any]]:
     strain_partial_entries = []
     with open(strain_spec_path, "r") as strain_file:
         for line in strain_file:
             if len(line.strip()) == 0:
                 continue
 
-            strain_name, accession = parse_strainge_path(Path(line.strip()))
+            strain_name, accession = parse_strainge_path(strainge_db_dir, Path(line.strip()))
 
             strain_partial_entries.append({
                 'genus': 'Escherichia',
@@ -126,9 +130,10 @@ def main():
     uniref_csv_path = Path(args.uniref_csv_path)
     strain_spec_path = Path(args.strain_spec_path)
     output_path = Path(args.output_path)
+    strainge_db_dir = Path(args.strainge_db_dir)
 
     gene_names = get_gene_names(uniref_csv_path)
-    partial_strains = get_strain_accessions(strain_spec_path)
+    partial_strains = get_strain_accessions(strain_spec_path, strainge_db_dir)
     create_chronostrain_db(gene_names, partial_strains, output_path)
 
 
