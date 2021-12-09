@@ -33,7 +33,11 @@ def get_gene_names(uniref_csv_path: Path) -> Set[str]:
     gene_names = set()
     with open(uniref_csv_path, "r") as f:
         reader = csv.reader(f, delimiter=',')
-        for row in reader:
+
+        for line_idx, row in enumerate(reader):
+            if line_idx == 0:
+                continue
+
             uniref_full, uniref_id, gene_name = row
             if len(gene_name.strip()) == 0:
                 print(f"No gene name found for Uniref entry {uniref_full}.")
