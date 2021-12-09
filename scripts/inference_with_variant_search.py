@@ -4,7 +4,7 @@ from pathlib import Path
 from Bio import SeqIO
 
 from chronostrain.config import create_logger, cfg
-from chronostrain.algs import GloppVariantSolver
+from chronostrain.algs import GloppVariantSolver, GloppExhaustiveVariantSolver
 from chronostrain.model import StrainVariant
 
 import chronostrain.visualizations as viz
@@ -95,7 +95,7 @@ def main():
     if not out_dir.is_dir():
         raise RuntimeError("Filesystem error: out_dir argument points to something other than a directory.")
 
-    population, bbvi_soln = GloppVariantSolver(
+    model = GloppExhaustiveVariantSolver(
         db=db,
         reads=reads,
         time_points=time_points,
@@ -103,25 +103,11 @@ def main():
         bbvi_lr=args.learning_rate,
         bbvi_num_samples=args.num_samples,
         quality_lower_bound=20,
-        seed_with_database=args.seed_with_database,
+        num_cores=cfg.model_cfg.num_cores,
+        # seed_with_database=args.seed_with_database,
         variant_count_lower_bound=5,
         num_strands=args.num_strands
     ).construct_variants()
-
-    model = bbvi_soln.model
-
-    solver, posterior, elbo_history, (uppers, lowers, medians) = perform_bbvi(
-        db=db,
-        model=model,
-        reads=reads,
-        iters=args.iters,
-        learning_rate=args.learning_rate,
-        num_samples=args.num_samples,
-        correlation_type='strain',
-        save_elbo_history=args.plot_elbo,
-        save_training_history=args.draw_training_history,
-        print_debug_every=100
-    )
 
     # ==== For each strain, output its marker gene sequence.
     for idx, strain in enumerate(model.bacteria_pop.strains):

@@ -55,6 +55,7 @@ def parse_args():
     parser.add_argument('--save_fragment_probs', action="store_true",
                         help='If flag is set, then save posterior fragment probabilities for valid reads.')
     parser.add_argument('--plot_format', required=False, type=str, default="pdf")
+    parser.add_argument('--true_abundances', required=False, type=str)
 
     return parser.parse_args()
 
@@ -100,7 +101,7 @@ def main():
         seed_with_database=False,
         num_strands=args.num_strands,
         glasso_standardize=True
-    ).propose_variants())
+    ).propose_variants([]))
 
     # Construct the fragment space.
     logger.info("Compiling observed fragments.")
@@ -173,6 +174,7 @@ def main():
         samples_path=out_dir / "samples.pt",
         plot_format=args.plot_format,
         num_samples=args.num_posterior_samples,
+        ground_truth_path=args.true_abundances,
         draw_legend=True,
         width=16,
         height=12
