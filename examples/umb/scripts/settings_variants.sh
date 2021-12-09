@@ -29,16 +29,12 @@ export CHRONOSTRAIN_NUM_ITERS=2000
 export CHRONOSTRAIN_NUM_SAMPLES=150
 export CHRONOSTRAIN_LR=0.001
 export CHRONOSTRAIN_OUTPUT_FILENAME="abundances.out"
-export CHRONOSTRAIN_ECOLI_DB_SPEC="${CHRONOSTRAIN_DATA_DIR}/umb/database_ecoli.json"
-export CHRONOSTRAIN_DB_DIR="${CHRONOSTRAIN_DATA_DIR}/umb/database_ecoli"
+export CHRONOSTRAIN_DB_DIR="${CHRONOSTRAIN_DATA_DIR}/umb/database"
 
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)
-export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain_ecoli_strains.ini"
+export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
 export CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"
 export LOGDIR="${CHRONOSTRAIN_DATA_DIR}/umb/logs"
-
-# ========= (Strainge-specific configuration.)
-export STRAINGE_STRAIN_LIST=/mnt/d/strainge/references_to_keep.txt
 
 # ========= Done.
 echo "======================================================="
