@@ -73,7 +73,7 @@ def get_strain_accessions(strain_spec_path: Path) -> List[Dict[str, Any]]:
     return strain_partial_entries
 
 
-def parse_records(gb_file: Path, genes_to_find: Set[str]) -> Iterator[str, str]:
+def parse_records(gb_file: Path, genes_to_find: Set[str]) -> Iterator[Tuple[str, str]]:
     for record in SeqIO.parse(gb_file, format="gb"):
         for feature in record.features:
             if feature.type == "gene":
