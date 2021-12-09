@@ -15,11 +15,11 @@ logger = create_logger(__name__)
 
 
 class AbstractModelSolver(metaclass=ABCMeta):
-    def __init__(self, model: GenerativeModel, data: TimeSeriesReads, db: StrainDatabase):
+    def __init__(self, model: GenerativeModel, data: TimeSeriesReads, db: StrainDatabase, num_cores: int = 1):
         self.model = model
         self.data = data
         if cfg.model_cfg.use_sparse:
-            self.data_likelihoods = SparseDataLikelihoods(model, data, db)
+            self.data_likelihoods = SparseDataLikelihoods(model, data, db, num_cores=num_cores)
         else:
             self.data_likelihoods = DenseDataLikelihoods(model, data)
 

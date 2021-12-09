@@ -46,6 +46,10 @@ class BwaAligner(AbstractPairwiseAligner):
         )
 
 
+logger.warn("Bowtie2 being initialized using default setting `phred33`. "
+            "(TODO: implement a universal definition across Biopython and bowtie2.)")
+
+
 class BowtieAligner(AbstractPairwiseAligner):
     def __init__(self,
                  reference_path: Path,
@@ -60,8 +64,6 @@ class BowtieAligner(AbstractPairwiseAligner):
         self.index_trace_path = self.index_basepath / f"{index_basename}.bt2trace"
 
         self.quality_format = 'phred33'
-        logger.warn("Bowtie2 being initialized using default setting `phred33`. "
-                    "(TODO: implement a universal definition across Biopython and bowtie2.)")
 
         if not self.index_trace_path.exists():  # only create if this hasn't been run yet.
             bowtie2_build(

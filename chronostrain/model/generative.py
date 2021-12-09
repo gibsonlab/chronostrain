@@ -427,9 +427,9 @@ class GenerativeModel:
         Assumes strain_abundance is an S x T tensor, so that the output is an F x T tensor.
         """
         if cfg.model_cfg.use_sparse:
-            return self.fragment_frequencies_sparse.dense_mul(strain_abundances)
+            return self.fragment_frequencies_sparse.exp().dense_mul(strain_abundances)
         else:
-            return self.fragment_frequencies_dense.mm(strain_abundances)
+            return self.fragment_frequencies_dense.exp().mm(strain_abundances)
 
     def sample_reads(
             self,

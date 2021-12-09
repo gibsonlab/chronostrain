@@ -62,7 +62,9 @@ class StrainDatabase(object):
                 strain_num_hits[strain.id] += 1
 
         if len(strain_num_hits) == 0:
-            raise QueryNotFoundError("No available strains with any of query markers.")
+            raise QueryNotFoundError("No available strains with any of query markers: [{}]".format(
+                ",".join(m.id for m in query_markers)
+            ))
 
         highest_n_hits = max(strain_num_hits.values())
         best_hits = []

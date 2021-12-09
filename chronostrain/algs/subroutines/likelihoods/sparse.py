@@ -28,9 +28,11 @@ class SparseDataLikelihoods(DataLikelihoods):
             model: GenerativeModel,
             data: TimeSeriesReads,
             db: StrainDatabase,
-            read_likelihood_lower_bound: float = 1e-30
+            read_likelihood_lower_bound: float = 1e-30,
+            num_cores: int = 1
     ):
         self.db = db
+        self.num_cores = num_cores
         super().__init__(model, data, read_likelihood_lower_bound=read_likelihood_lower_bound)
         self.supported_frags: List[torch.Tensor] = []
         self.projectors: List[ColumnSectionedSparseMatrix] = []
@@ -69,25 +71,29 @@ class SparseDataLikelihoods(DataLikelihoods):
         return self.matrices[t_idx]
 
     def _likelihood_computer(self) -> AbstractLogLikelihoodComputer:
-        return SparseLogLikelihoodComputer(self.model, self.data, self.db)
+        return SparseLogLikelihoodComputer(self.model, self.data, self.db, self.num_cores)
 
     def conditional_likelihood(self, X: torch.Tensor, inf_fill: float = -100000) -> float:
         y = torch.softmax(X, dim=1)
         total_ll = 0.
         for t_idx in range(self.model.num_times()):
-            log_likelihood_t = log_mm_exp(
-                y[t_idx].log().view(1, -1),  # (N x S)
-                log_spmm_exp(
-                    ColumnSectionedSparseMatrix.from_sparse_matrix(self.likelihood_matrix(t_idx).t()),  # (R x F')
-                    log_spspmm_exp(
-                        self.projectors[t_idx],  # (F' x F)
-                        self.model.fragment_frequencies_sparse  # (F x S)
-                    ),  # (F' x S)
-                ).t()  # after transpose: (S x R)
-            )
+            projector_t = self.projectors[t_idx]
+            if projector_t.rows == 0 and projector_t.columns > 0:
+                log_likelihood_t = -1e10 * len(self.data[t_idx])
+            else:
+                log_likelihood_t = log_mm_exp(
+                    y[t_idx].log().view(1, -1),  # (N x S)
+                    log_spmm_exp(
+                        ColumnSectionedSparseMatrix.from_sparse_matrix(self.likelihood_matrix(t_idx).t()),  # (R x F')
+                        log_spspmm_exp(
+                            projector_t,  # (F' x F)
+                            self.model.fragment_frequencies_sparse  # (F x S)
+                        ),  # (F' x S)
+                    ).t()  # after transpose: (S x R)
+                )
 
-            log_likelihood_t[torch.isinf(log_likelihood_t)] = inf_fill
-            log_likelihood_t = log_likelihood_t.sum()
+                log_likelihood_t[torch.isinf(log_likelihood_t)] = inf_fill
+                log_likelihood_t = log_likelihood_t.sum()
             total_ll += log_likelihood_t
         return total_ll
 
@@ -96,9 +102,11 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
     def __init__(self,
                  model: GenerativeModel,
                  reads: TimeSeriesReads,
-                 db: StrainDatabase):
+                 db: StrainDatabase,
+                 num_cores: int = 1):
         super().__init__(model, reads)
         self._bwa_index_finished = False
+        self.num_cores = num_cores
 
         # ==== Alignments of reads to the database reference markers.
         self.pairwise_reference_alignments = CachedReadPairwiseAlignments(reads, db)
@@ -252,7 +260,7 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
 
         logger.debug(f"(t = {t_idx}) Retrieving multiple alignments.")
         if self._multi_align_instances is None:
-            self._multi_align_instances = list(self.multiple_alignments.get_alignments())
+            self._multi_align_instances = list(self.multiple_alignments.get_alignments(num_cores=self.num_cores))
 
         time_slice = self.reads[t_idx]
         included_pairs: Set[str] = set()
@@ -411,11 +419,11 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
             for t_idx in range(self.model.num_times())
         ]
 
-        parallel = (cfg.model_cfg.num_cores > 1)
+        parallel = (self.num_cores > 1)
         if parallel:
-            logger.debug("Computing read likelihoods with parallel pool size = {}.".format(cfg.model_cfg.num_cores))
+            logger.debug("Computing read likelihoods with parallel pool size = {}.".format(self.num_cores))
 
-            return Parallel(n_jobs=cfg.model_cfg.num_cores)(
+            return Parallel(n_jobs=self.num_cores)(
                 delayed(self.cache.call)(**cache_kwargs_t)
                 for cache_kwargs_t in jobs
             )

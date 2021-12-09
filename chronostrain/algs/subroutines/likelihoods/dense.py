@@ -40,7 +40,8 @@ class DenseDataLikelihoods(DataLikelihoods):
 
 class DenseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
 
-    def __init__(self, model: GenerativeModel, reads: TimeSeriesReads):
+    def __init__(self, model: GenerativeModel, reads: TimeSeriesReads, num_cores: int = 1):
+        self.num_cores = num_cores
         super().__init__(model, reads)
 
     def compute_matrix_single_timepoint(self, t_idx: int) -> List[List[float]]:
@@ -88,11 +89,11 @@ class DenseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
             for t_idx in range(self.model.num_times())
         ]
 
-        parallel = (cfg.model_cfg.num_cores > 1)
+        parallel = (self.num_cores > 1)
         if parallel:
-            logger.debug("Computing read likelihoods with parallel pool size = {}.".format(cfg.model_cfg.num_cores))
+            logger.debug("Computing read likelihoods with parallel pool size = {}.".format(self.num_cores))
 
-            log_likelihoods_output = Parallel(n_jobs=cfg.model_cfg.num_cores)(
+            log_likelihoods_output = Parallel(n_jobs=self.num_cores)(
                 delayed(cache.call)(cache_kwargs)
                 for cache_kwargs in jobs
             )

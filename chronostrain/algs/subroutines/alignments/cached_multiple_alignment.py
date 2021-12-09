@@ -50,7 +50,7 @@ class CachedReadMultipleAlignments(object):
 
         return timeseries_alns_by_marker_name
 
-    def get_alignments(self) -> Iterator[multialign.MarkerMultipleFragmentAlignment]:
+    def get_alignments(self, num_cores: int = 1) -> Iterator[multialign.MarkerMultipleFragmentAlignment]:
         """
         Uses a pairwise alignment to initialize a multiple alignment.
 
@@ -65,11 +65,12 @@ class CachedReadMultipleAlignments(object):
                 m_idx + 1,
                 self.db.num_markers()
             ))
-            yield self._perform_cached_alignment(marker_name, timeseries_pairwise_alns)
+            yield self._perform_cached_alignment(marker_name, timeseries_pairwise_alns, num_cores=num_cores)
 
     def _perform_cached_alignment(self,
                                   marker_name: str,
-                                  timeseries_pairwise_aligns: List[List[SequenceReadPairwiseAlignment]]
+                                  timeseries_pairwise_aligns: List[List[SequenceReadPairwiseAlignment]],
+                                  num_cores: int = 1,
                                   ) -> multialign.MarkerMultipleFragmentAlignment:
         def read_gen():
             seen_reads = set()
@@ -95,7 +96,7 @@ class CachedReadMultipleAlignments(object):
                 read_descriptions=read_gen(),
                 intermediate_fasta_path=base_dir / f"{marker_name}_reads.fasta",
                 out_fasta_path=out_path,
-                n_threads=cfg.model_cfg.num_cores
+                n_threads=num_cores
             )
             return multialign.parse(self.db, marker_name, self.reads, out_path)
 

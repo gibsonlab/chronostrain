@@ -9,7 +9,8 @@ from typing import List, Tuple, Dict, Iterator, Union, Iterable, Optional
 
 import numpy as np
 
-from sklearn import covariance, preprocessing
+from sklearn import covariance, preprocessing, linear_model
+from sklearn.decomposition import NMF
 import networkx as nx
 
 from chronostrain.config import create_logger
@@ -96,8 +97,7 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
             time_points=time_points,
             bbvi_iters=bbvi_iters,
             bbvi_lr=bbvi_lr,
-            bbvi_num_samples=bbvi_num_samples,
-            seed_with_database=seed_with_database
+            bbvi_num_samples=bbvi_num_samples
         )
         self.quality_lower_bound = quality_lower_bound
         self.variant_count_lower_bound = variant_count_lower_bound
@@ -108,7 +108,8 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
         self.glasso_iterations = glasso_iterations
         self.glasso_tol = glasso_tol
         self.num_strands = num_strands
-        self.partial_corr_lower_bound = -0.1
+        # self.partial_corr_lower_bound = -0.1
+        self.nmf_lower_bound = 0.5
 
         self.reference_markers_to_assembly: Dict[Marker, FloppMarkerAssembly] = self.construct_marker_assemblies()
 
@@ -140,10 +141,11 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
         for marker in self.reference_markers:
             yield self.reference_markers_to_assembly[marker]
 
-    def propose_variants(self) -> Iterator[StrainVariant]:
+    def propose_variants(self, used_variants: List[StrainVariant]) -> Iterator[StrainVariant]:
         variants: List[FloppStrainVariant] = list(
             self.construct_variants_using_assembly(
-                partial_corr_lower_bound=self.partial_corr_lower_bound
+                # partial_corr_lower_bound=self.partial_corr_lower_bound
+                nmf_lower_bound=self.nmf_lower_bound
             )
         )
 
@@ -157,15 +159,48 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
 
         yield from variants
 
-    def construct_variants_using_assembly(self, partial_corr_lower_bound: float) -> Iterator[FloppStrainVariant]:
+    def construct_variants_using_assembly(self, nmf_lower_bound: float) -> Iterator[FloppStrainVariant]:
+        """New implementation: Use NMF to separate the source strain abundances."""
+        # marker_contig_counts = np.stack([
+        #     contig_spec.contig.read_counts[contig_spec.strand_idx]
+        #     for contig_spec in self.strand_specs
+        # ], axis=1).sum(axis=0).reshape(-1, 1)  # (M x 1)
+        #
+        # _t, _m = marker_contig_counts.shape
+        # # (by default, S = M)
+        #
+        # """NMF: decompose (M x 1) = (M x S) x (S x 1)"""
+        # H = NMF(
+        #     n_components=len(self.strand_specs),
+        #     l1_ratio=0.0,
+        #     random_state=0,
+        #     max_iter=50000,
+        #     alpha_W=0.1,
+        #     # alpha_H=0.1
+        # ).fit_transform(
+        #     X=marker_contig_counts
+        # )
+        #
+        # #  H is an (M x S) matrix.
+        # for s in range(_m):
+        #     strand_group = np.where(H[:, s] > nmf_lower_bound)[0]
+        #     if len(strand_group) == 0:
+        #         continue
+        #
+        #     yield self.strain_variant_from_grouping(
+        #         strand_group,
+        #         {assembly.canonical_marker: assembly for assembly in self.assemblies}
+        #     )
+
+
+        # OLD implementation: use glasso-estimated precision matrices.
         precision_matrix = self.compute_precision_matrix()
         partial_corrs = partial_corr_matrix(precision_matrix)
-
         rows, cols = upper_triangular_bounded(
             partial_corrs,
             k=1,
             upper_bound=np.inf,
-            lower_bound=partial_corr_lower_bound
+            lower_bound=0
         )
 
         G = nx.Graph()
@@ -186,7 +221,72 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
                 {assembly.canonical_marker: assembly for assembly in self.assemblies}
             )
 
-        # TODO 2: Edit sparse.py (sparse likelihood calculation) to take these variants into account.
+        # # OLD implementation v2: use linear regression to uncover linear dependencies.
+        # precision_matrix = self.compute_precision_matrix()
+        # partial_corrs = partial_corr_matrix(precision_matrix)
+        # rows, cols = upper_triangular_bounded(
+        #     partial_corrs,
+        #     k=1,
+        #     upper_bound=np.inf,
+        #     lower_bound=partial_corr_lower_bound
+        # )
+        #
+        # G = nx.Graph()
+        # for k in range(precision_matrix.shape[0]):
+        #     G.add_node(k, strand=self.strand_specs[k])
+        # for v, w in zip(rows, cols):
+        #     G.add_edge(v, w)
+        #
+        # for clique in nx.find_cliques(G):
+        #     logger.debug("Clique: [{}]".format(
+        #         ",".join(
+        #             str(self.strand_specs[x]) for x in clique
+        #         )
+        #     ))
+        #     yield self.strain_variant_from_clique(
+        #         G,
+        #         clique,
+        #         {assembly.canonical_marker: assembly for assembly in self.assemblies}
+        #     )
+
+
+    def strain_variant_from_grouping(self,
+                                     strand_grouping: List[int],
+                                     marker_to_assembly: Dict[Marker, FloppMarkerAssembly]
+                                     ) -> FloppStrainVariant:
+        # Group together the nodes by their corresponding marker.
+        markers_to_subcliques: Dict[Marker, List[GloppContigStrandSpecification]] = defaultdict(list)
+        for k in strand_grouping:
+            strand: GloppContigStrandSpecification = self.strand_specs[k]
+            markers_to_subcliques[strand.contig.canonical_marker].append(strand)
+
+        marker_variants: List[FloppMarkerVariant] = []
+        for marker, subclique in markers_to_subcliques.items():
+            marker_variants += list(
+                self.marker_variants_from_clique(marker, marker_to_assembly[marker], subclique)
+            )
+
+        # Determine the base strain using the best-matching marker.
+        base_strain = self.db.best_matching_strain([
+            marker_variant.base_marker for marker_variant in marker_variants
+        ])
+
+        variant_id = "{}<{}>".format(
+            base_strain.id,
+            ",".join(
+                variant.id for variant in marker_variants
+            )
+        )
+
+        logger.debug("Creating Strain Variant ({})".format(
+            variant_id
+        ))
+
+        return FloppStrainVariant(
+            base_strain=base_strain,
+            id=variant_id,
+            variant_markers=marker_variants
+        )
 
     def compute_precision_matrix(self) -> np.ndarray:
         # marker_contig_counts = np.stack([
@@ -286,7 +386,7 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
             if len(variants_by_contig[spec.contig.contig_idx]) > 1:
                 logger.warning(
                     f"Corr grouping has multiple strands for contig {spec.contig.contig_idx} of {base_marker.id}. "
-                    "Default behavior is to use combinatorial product."
+                    "Default behavior is to use combinatorial combinations."
                 )
 
         """
@@ -330,5 +430,6 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
             base_marker=base_marker,
             seq_with_gaps=seq_with_gaps,
             aln=marker_assembly.aln,
-            num_supporting_reads=read_count
+            num_supporting_reads=read_count,
+            contig_strands=[None if isinstance(strand, str) else strand.strand_idx for strand in strands]
         )

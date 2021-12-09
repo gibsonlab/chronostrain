@@ -349,8 +349,9 @@ class BBVISolver(AbstractModelSolver):
                  model: GenerativeModel,
                  data: TimeSeriesReads,
                  db: StrainDatabase,
+                 num_cores: int = 1,
                  correlation_type: str = "time"):
-        super().__init__(model, data, db)
+        super().__init__(model, data, db, num_cores=num_cores)
         self.correlation_type = correlation_type
         if correlation_type == "time":
             self.gaussian_posterior = GaussianPosteriorTimeCorrelation(model=model)
@@ -600,7 +601,7 @@ class BBVISolver(AbstractModelSolver):
             time_est.increment(secs_elapsed)
 
             if k % print_debug_every == 0:
-                logger.debug(
+                logger.info(
                     "Iteration {iter} | time left: {t:.2f} min. | Last ELBO = {elbo:.2f}".format(
                         iter=k,
                         t=time_est.time_left() / 60000,
@@ -622,7 +623,7 @@ class BBVISolver(AbstractModelSolver):
         ))
 
         if cfg.torch_cfg.device == torch.device("cuda"):
-            logger.debug(
+            logger.info(
                 "BBVI CUDA memory -- [MaxAlloc: {} MiB]".format(
                     torch.cuda.max_memory_allocated(cfg.torch_cfg.device) / 1048576
                 )

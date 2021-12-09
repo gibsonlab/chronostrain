@@ -24,9 +24,11 @@ class CachedReadPairwiseAlignments(object):
     def __init__(self,
                  reads: TimeSeriesReads,
                  db: StrainDatabase,
+                 num_cores: int = 1,
                  cache_override: Optional[ComputationCache] = None):
         self.reads = reads
         self.db = db
+        self.num_cores = num_cores
         self.marker_reference_path = db.multifasta_file
 
         if cache_override is not None:
@@ -38,7 +40,7 @@ class CachedReadPairwiseAlignments(object):
             self.aligner = BwaAligner(
                 reference_path=self.marker_reference_path,
                 min_seed_len=8,
-                num_threads=cfg.model_cfg.num_cores,
+                num_threads=self.num_cores,
                 report_all_alignments=True
             )
         elif cfg.external_tools_cfg.pairwise_align_cmd == "bowtie2":
@@ -46,7 +48,7 @@ class CachedReadPairwiseAlignments(object):
                 reference_path=self.marker_reference_path,
                 index_basepath=self.marker_reference_path.parent,
                 index_basename=self.marker_reference_path.stem,
-                num_threads=cfg.model_cfg.num_cores
+                num_threads=self.num_cores
             )
         else:
             raise NotImplementedError(

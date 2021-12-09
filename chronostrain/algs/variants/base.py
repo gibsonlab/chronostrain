@@ -12,7 +12,8 @@ class FloppMarkerVariant(AbstractMarkerVariant):
                  base_marker: Marker,
                  seq_with_gaps: SeqType,
                  aln: MarkerMultipleFragmentAlignment,
-                 num_supporting_reads: int):
+                 num_supporting_reads: int,
+                 contig_strands: List[int]):
         super().__init__(
             id=id,
             name=base_marker.name,
@@ -23,6 +24,7 @@ class FloppMarkerVariant(AbstractMarkerVariant):
         self.seq_with_gaps = seq_with_gaps
         self.multi_align = aln
         self.num_supporting_reads = num_supporting_reads
+        self.contig_strands = contig_strands
 
     def to_seqrecord(self, description: str = ""):
         return super().to_seqrecord(description=description)
@@ -86,3 +88,8 @@ class FloppStrainVariant(StrainVariant):
             marker.num_supporting_reads
             for marker in variant_markers
         )
+
+    @property
+    def flopp_variant_markers(self) -> List[FloppMarkerVariant]:
+        # noinspection PyTypeChecker
+        return self.variant_markers

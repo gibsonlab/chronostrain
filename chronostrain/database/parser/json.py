@@ -397,8 +397,6 @@ class GenbankLoader:
                 self.full_genome = self.full_genome[:trim_debug]
         return self.full_genome
 
-
-
     def parse_markers(self, force_refresh: bool = False) -> Iterator[Marker]:
         """
         Markers are expected to be a list of JSON objects of one of the following formats:
