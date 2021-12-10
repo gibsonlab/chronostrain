@@ -15,7 +15,7 @@ from typing import List, Set, Iterator, Dict, Any, Tuple
 from chronostrain.util.filesystem import convert_size
 from chronostrain.util.io import read_seq_file
 from chronostrain import cfg, create_logger
-logger = create_logger("create_db_from_uniref")
+logger = create_logger("chronostrain.create_db_from_uniref")
 
 
 def parse_args():
