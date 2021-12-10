@@ -155,7 +155,7 @@ def create_chronostrain_db(reference_genes: Dict[str, Path], partial_strains: Li
             evalue_max=1e-3,
             out_path=blast_result_path,
             num_threads=cfg.model_cfg.num_cores,
-            out_fmt="6 sacc sstart send sstrand evalue bitscore pident gaps",
+            out_fmt="6 sacc sstart send qstart qend sstrand evalue bitscore pident gaps",
             max_target_seqs=10 * len(partial_strains)  # A generous value, 10 hits per genome
         )
 
@@ -185,6 +185,8 @@ class BlastHit(object):
     subj_accession: str
     subj_start: int
     subj_end: int
+    query_start: int
+    query_end: int
     subj_is_reversed: bool
     evalue: float
     bitscore: float
@@ -198,7 +200,7 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
         blast_result_reader = csv.reader(f, delimiter='\t')
         for row_idx, row in enumerate(blast_result_reader):
 
-            subj_acc, subj_start, subj_end, sstrand, evalue, bitscore, pident, gaps = row
+            subj_acc, subj_start, subj_end, qstart, qend, sstrand, evalue, bitscore, pident, gaps = row
 
             if sstrand == "plus":
                 subj_is_reversed = False
@@ -212,6 +214,8 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
                     subj_acc,
                     int(subj_start),
                     int(subj_end),
+                    int(qstart),
+                    int(qend),
                     subj_is_reversed,
                     float(evalue),
                     float(bitscore),
