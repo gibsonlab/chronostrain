@@ -166,9 +166,9 @@ def create_chronostrain_db(reference_genes: Dict[str, Path], partial_strains: Li
                     {
                         'name': gene_name,
                         'type': 'subseq',
-                        'start_pos': blast_hit.subj_start,
-                        'end_pos': blast_hit.subj_end,
-                        'revcomp': blast_hit.subj_is_reversed,
+                        'start': blast_hit.subj_start,
+                        'end': blast_hit.subj_end,
+                        'strand': blast_hit.strand,
                         'canonical': not gene_already_found
                     }
                 )
@@ -187,7 +187,7 @@ class BlastHit(object):
     subj_end: int
     query_start: int
     query_end: int
-    subj_is_reversed: bool
+    strand: str
     evalue: float
     bitscore: float
     pct_identity: float
@@ -203,9 +203,9 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
             subj_acc, subj_start, subj_end, qstart, qend, sstrand, evalue, bitscore, pident, gaps = row
 
             if sstrand == "plus":
-                subj_is_reversed = False
+                subj_strand = '+'
             elif sstrand == "minus":
-                subj_is_reversed = True
+                subj_strand = '-'
             else:
                 raise RuntimeError(f"Unexpected `sstrand` token `{sstrand}`")
 
@@ -216,7 +216,7 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
                     int(subj_end),
                     int(qstart),
                     int(qend),
-                    subj_is_reversed,
+                    subj_strand,
                     float(evalue),
                     float(bitscore),
                     float(pident),
