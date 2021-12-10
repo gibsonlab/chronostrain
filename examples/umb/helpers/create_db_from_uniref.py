@@ -162,8 +162,10 @@ def create_chronostrain_db(reference_genes: Dict[str, Path], partial_strains: Li
         locations = parse_blast_hits(blast_result_path)
         for strain_entry in partial_strains:
             for blast_hit in locations[strain_entry['accession']]:
+                gene_id = f"{gene_name}_BLAST_IDX_{blast_hit.line_idx}"
                 strain_entry['markers'].append(
                     {
+                        'id': gene_id,
                         'name': gene_name,
                         'type': 'subseq',
                         'start': blast_hit.subj_start,
@@ -182,6 +184,7 @@ def create_chronostrain_db(reference_genes: Dict[str, Path], partial_strains: Li
 
 @dataclass
 class BlastHit(object):
+    line_idx: int
     subj_accession: str
     subj_start: int
     subj_end: int
@@ -215,6 +218,7 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
 
             accession_to_positions[subj_acc].append(
                 BlastHit(
+                    row_idx,
                     subj_acc,
                     start_pos,
                     end_pos,
