@@ -147,7 +147,7 @@ def create_chronostrain_db(reference_genes: Dict[str, Path], partial_strains: Li
     for gene_name, ref_gene_path in reference_genes.items():
         gene_already_found = False
         logger.info(f"Running blastn on {gene_name}")
-        blast_result_path = blast_result_dir / f"{gene_name}.csv"
+        blast_result_path = blast_result_dir / f"{gene_name}.tsv"
         blastn(
             db_name=blast_db_name,
             db_dir=blast_db_dir,
