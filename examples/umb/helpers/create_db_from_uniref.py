@@ -187,7 +187,7 @@ def download_reference(accession: str, gene_names: Set[str]) -> Dict[str, Path]:
             gene_paths[found_gene] = gene_out_path
 
     if len(genes_to_find) > 0:
-        raise RuntimeError("Couldn't find genes {}. Pick a different reference genome?".format(
+        print("Couldn't find genes {}.".format(
             ",".join(genes_to_find))
         )
 
