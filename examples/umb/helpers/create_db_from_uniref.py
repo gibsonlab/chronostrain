@@ -118,6 +118,7 @@ def create_chronostrain_db(reference_genes: Dict[str, Path], partial_strains: Li
     ))
 
     # Initialize BLAST database.
+    blast_db_dir.mkdir(parents=True, exist_ok=True)
     with open(blast_fasta_path, "w") as blast_fasta_file:
         for strain in partial_strains:
             marker_entries = []
@@ -126,11 +127,13 @@ def create_chronostrain_db(reference_genes: Dict[str, Path], partial_strains: Li
             genome_record = next(SeqIO.parse(assembly_fasta_path, "fasta"))
             SeqIO.write(genome_record, blast_fasta_file, "fasta")
 
-    # Run BLAST to find marker genes.
     make_blast_db(
         blast_fasta_path, blast_db_dir, blast_db_name,
         is_nucleotide=True, title=blast_db_title, parse_seqids=True
     )
+
+    # Run BLAST to find marker genes.
+    blast_result_dir.mkdir(parents=True, exist_ok=True)
     for gene_name, ref_gene_path in reference_genes.items():
         print(f"Running blastn on {gene_name}")
         blast_result_path = blast_result_dir / "gene_name.csv"
