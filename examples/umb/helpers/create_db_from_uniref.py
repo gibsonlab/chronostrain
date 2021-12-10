@@ -3,17 +3,19 @@ from pathlib import Path
 import csv
 import json
 
-from Bio import SeqIO
+from Bio import SeqIO, Entrez
 from Bio.SeqFeature import FeatureLocation
 from Bio.SeqRecord import SeqRecord
 
-from chronostrain import cfg
-from chronostrain.util.entrez import fetch_genbank, fetch_fasta
+from chronostrain.util.entrez import fetch_genbank
 from chronostrain.util.external import blastn, make_blast_db
 
 from typing import List, Set, Iterator, Dict, Any, Tuple
 
+from chronostrain.util.filesystem import convert_size
 from chronostrain.util.io import read_seq_file
+from chronostrain import cfg, create_logger
+logger = create_logger("create_db_from_uniref")
 
 
 def parse_args():
@@ -112,20 +114,25 @@ def create_chronostrain_db(reference_genes: Dict[str, Path], partial_strains: Li
     blast_db_title = "\"Escherichia coli (metaphlan markers, strainGE strains)\""
     blast_fasta_path = blast_db_dir / "genomes.fasta"
     blast_result_dir = output_path.parent / "blast_results"
-    print("BLAST\n\tdatabase location: {}, \n\tresults directory: {}".format(
+    print("BLAST\n\tdatabase location: {}\n\tresults directory: {}".format(
         str(blast_db_dir),
         str(blast_result_dir)
     ))
 
     # Initialize BLAST database.
     blast_db_dir.mkdir(parents=True, exist_ok=True)
-    with open(blast_fasta_path, "w") as blast_fasta_file:
-        for strain in partial_strains:
-            marker_entries = []
-            assembly_fasta_path = fetch_fasta(strain['accession'], data_dir)
+    target_accessions = [strain['accession'] for strain in partial_strains]
+    print("Downloading target accession FASTA via Entrez...")
+    net_handle = Entrez.efetch(
+        db='nucleotide', id=target_accessions, rettype='fasta', retmode='text'
+    )
 
-            genome_record = next(SeqIO.parse(assembly_fasta_path, "fasta"))
-            SeqIO.write(genome_record, blast_fasta_file, "fasta")
+    with open(blast_fasta_path, "w") as blast_fasta_file:
+        blast_fasta_file.write(net_handle.read())
+
+    logger.info("download completed. ({sz})".format(
+        sz=convert_size(blast_fasta_path.stat().st_size)
+    ))
 
     make_blast_db(
         blast_fasta_path, blast_db_dir, blast_db_name,
