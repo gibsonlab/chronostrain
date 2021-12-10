@@ -160,7 +160,16 @@ def create_chronostrain_db(reference_genes: Dict[str, Path], partial_strains: Li
         )
 
         locations = parse_blast_hits(blast_result_path)
+        print("Found keys: {}".format(
+            '\n\t'.join(locations.keys())
+        ))
+
         for strain_entry in partial_strains:
+            print("Adding entry to accession {}".format(strain_entry['accession']))
+            print("# entries: {}".format(
+                len(locations[strain_entry['accession']])
+            ))
+
             for blast_hit in locations[strain_entry['accession']]:
                 strain_entry['markers'].append(
                     {
