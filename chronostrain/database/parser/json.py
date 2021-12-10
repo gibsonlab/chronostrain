@@ -328,6 +328,8 @@ def save_marker_to_disk(marker: Marker, filepath: Path):
 def get_marker_filepath(config, strain_accession: str, marker_id: str) -> Path:
     return (
             Path(config.database_cfg.data_dir)
+            / "markers"
+            / f"{strain_accession}"
             / "{acc}-{marker}.fasta".format(acc=strain_accession, marker=marker_id)
     )
 
@@ -347,7 +349,7 @@ class FastaLoader:
 
             marker_filepath = get_marker_filepath(cfg, self.strain_accession, entry.id)
 
-            if marker_filepath.exists:
+            if marker_filepath.exists():
                 marker_seq = nucleotides_to_z4(
                     str(SeqIO.read(marker_filepath, "fasta").seq)
                 )
