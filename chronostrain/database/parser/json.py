@@ -376,6 +376,9 @@ class GenbankLoader:
 
         self.tag_entries: List[TagMarkerEntry] = []
         self.primer_entries: List[PrimerMarkerEntry] = []
+
+        # TODO implement subseq entries!
+
         for entry in marker_entries:
             if isinstance(entry, TagMarkerEntry):
                 self.tag_entries.append(entry)

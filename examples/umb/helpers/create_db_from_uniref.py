@@ -4,8 +4,12 @@ import csv
 import json
 
 from Bio import SeqIO
+from Bio.SeqFeature import FeatureLocation
+from Bio.SeqRecord import SeqRecord
+
 from chronostrain import cfg
 from chronostrain.util.entrez import fetch_genbank
+from chronostrain.util.external import blastn, make_blast_db
 
 from typing import List, Set, Iterator, Dict, Any, Tuple
 
@@ -26,6 +30,8 @@ def parse_args():
                         help='<Required> The path to the target output chronostrain db json file.')
     parser.add_argument('-sdb', '--strainge_db_dir', required=True, type=str,
                         help='<Required> The strainGE database directory.')
+    parser.add_argument('-ref', '--reference_accession', required=True, type=str,
+                        help='<Required> The accession of the genome from which to extract reference gene sequences.')
     return parser.parse_args()
 
 
@@ -84,7 +90,7 @@ def get_strain_accessions(strain_spec_path: Path, strainge_db_dir: Path) -> List
     return strain_partial_entries
 
 
-def parse_records(gb_file: Path, genes_to_find: Set[str]) -> Iterator[Tuple[str, str]]:
+def parse_records(gb_file: Path, genes_to_find: Set[str]) -> Iterator[Tuple[str, str, FeatureLocation]]:
     for record in SeqIO.parse(gb_file, format="gb"):
         for feature in record.features:
             if feature.type == "gene":
@@ -94,42 +100,99 @@ def parse_records(gb_file: Path, genes_to_find: Set[str]) -> Iterator[Tuple[str,
                 if gene_name not in genes_to_find:
                     continue
 
-                yield gene_name, locus_tag
+                yield gene_name, locus_tag, feature.location
 
 
-def create_chronostrain_db(gene_names: Set[str], partial_strains: List[Dict[str, Any]], output_path: Path):
+def create_chronostrain_db(reference_genes: Dict[str, Path], partial_strains: List[Dict[str, Any]], output_path: Path):
     data_dir: Path = cfg.database_cfg.data_dir
     genes_already_found: Set[str] = set()
 
-    for strain in partial_strains:
-        marker_entries = []
-        gb_file = fetch_genbank(strain['accession'], data_dir)
-        genes_to_find = set(gene_names)
+    blast_db_dir = output_path.parent / "blast"
+    blast_db_name = "Esch_coli"
+    blast_db_title = "\"Escherichia coli (metaphlan markers, strainGE strains)\""
+    blast_fasta_path = blast_db_dir / "genomes.fasta"
+    blast_result_dir = output_path.parent / "blast_results"
+    print("BLAST\n\tdatabase location: {}, \n\tresults directory: {}".format(
+        str(blast_db_dir),
+        str(blast_result_dir)
+    ))
 
-        for found_gene, locus_tag in parse_records(gb_file, gene_names):
-            print(f"Found gene {found_gene} for accession {strain['accession']}")
+    # Initialize BLAST database.
+    with open(blast_fasta_path, "w") as blast_fasta_file:
+        for strain in partial_strains:
+            marker_entries = []
+            gb_file = fetch_genbank(strain['accession'], data_dir)
 
-            if found_gene in genes_already_found:
-                is_canonical = False
-            else:
-                is_canonical = True
-                genes_already_found.add(found_gene)
+            genome_record = next(SeqIO.parse(gb_file, "genbank"))
+            SeqIO.write(genome_record, blast_fasta_file, "fasta")
 
-            genes_to_find.remove(found_gene)
-            marker_entries.append({
-                'type': 'tag',
-                'locus_tag': locus_tag,
-                'name': found_gene,
-                'canonical': is_canonical
-            })
+    # Run BLAST to find marker genes.
+    make_blast_db(
+        blast_fasta_path, blast_db_dir, blast_db_name,
+        is_nucleotide=True, title=blast_db_title, parse_seqids=True
+    )
+    for gene_name, ref_gene_path in reference_genes.items():
+        print(f"Running blastn on {gene_name}")
+        blast_result_path = blast_result_dir / "gene_name.csv"
+        blastn(
+            db_name=blast_db_name,
+            db_dir=blast_db_dir,
+            query_fasta=ref_gene_path,
+            evalue_max=1e-30,
+            out_path=blast_result_path,
+            num_threads=cfg.model_cfg.num_cores
+        )
 
-        print("Couldn't find genes {}".format(",".join(genes_to_find)))
-        strain['markers'] = marker_entries
+        parse_top_blast_hit(blast_result_path)
 
     with open(output_path, 'w') as outfile:
         json.dump(partial_strains, outfile, indent=4)
 
     print(f"Wrote output to {str(output_path)}.")
+
+
+def parse_top_blast_hit(blast_result_path: Path):
+    with open(blast_result_path, "r") as f:
+        blast_result_reader = csv.reader(f)
+        raise NotImplementedError("TODO")
+
+
+def download_reference(accession: str, gene_names: Set[str]) -> Dict[str, Path]:
+    print(f"Downloading reference accession {accession}")
+    data_dir: Path = cfg.database_cfg.data_dir
+    gb_file = fetch_genbank(accession, data_dir)
+
+    genes_already_found: Set[str] = set()
+    genes_to_find = set(gene_names)
+
+    chromosome_seq = str(next(SeqIO.parse(gb_file, "gb")).seq)
+    gene_paths: Dict[str, Path] = {}
+
+    for found_gene, locus_tag, location in parse_records(gb_file, gene_names):
+        print(f"Found gene {found_gene} for REF accession {accession}")
+
+        if found_gene in genes_already_found:
+            print(f"WARNING: multiple copies of {found_gene} found in {accession}. Skipping second instance.")
+        else:
+            genes_already_found.add(found_gene)
+            genes_to_find.remove(found_gene)
+
+            gene_out_path = data_dir / "REF_{accession}_{found_gene}.fasta"
+            gene_seq = location.extract(chromosome_seq)
+            SeqIO.write(
+                SeqRecord(gene_seq, id=f"REF_GENE_{found_gene}", description=f"{accession}_{str(location)}"),
+                gene_out_path,
+                "fasta"
+            )
+            gene_paths[found_gene] = gene_out_path
+
+    if len(genes_to_find) > 0:
+        raise RuntimeError("Couldn't find genes {}. Pick a different reference genome?".format(
+            ",".join(genes_to_find))
+        )
+
+    print(f"Finished parsing reference accession {accession}.")
+    return gene_paths
 
 
 def main():
@@ -138,10 +201,12 @@ def main():
     strain_spec_path = Path(args.strain_spec_path)
     output_path = Path(args.output_path)
     strainge_db_dir = Path(args.strainge_db_dir)
+    reference_accession = args.reference_accession
 
     gene_names = get_gene_names(uniref_csv_path)
+    reference_genes = download_reference(reference_accession, gene_names)
     partial_strains = get_strain_accessions(strain_spec_path, strainge_db_dir)
-    create_chronostrain_db(gene_names, partial_strains, output_path)
+    create_chronostrain_db(reference_genes, partial_strains, output_path)
 
 
 if __name__ == "__main__":
