@@ -286,8 +286,8 @@ def main():
     gene_names = get_gene_names(uniref_csv_path)
     reference_genes = download_reference(reference_accession, gene_names)
     partial_strains = get_strain_accessions(strain_spec_path, strainge_db_dir)
-    print_summary(partial_strains, gene_names)
     create_chronostrain_db(reference_genes, partial_strains, output_path)
+    print_summary(partial_strains, gene_names)
 
 
 if __name__ == "__main__":
