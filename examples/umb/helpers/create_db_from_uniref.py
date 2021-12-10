@@ -5,11 +5,11 @@ from pathlib import Path
 import csv
 import json
 
-from Bio import SeqIO, Entrez
+from Bio import SeqIO
 from Bio.SeqFeature import FeatureLocation
 from Bio.SeqRecord import SeqRecord
 
-from chronostrain.util.entrez import fetch_genbank
+from chronostrain.util.entrez import fetch_genbank, fetch_fasta
 from chronostrain.util.external import blastn, make_blast_db
 
 from typing import List, Set, Iterator, Dict, Any, Tuple
@@ -124,18 +124,17 @@ def create_chronostrain_db(reference_genes: Dict[str, Path], partial_strains: Li
 
     # Initialize BLAST database.
     blast_db_dir.mkdir(parents=True, exist_ok=True)
-    target_accessions = [strain['accession'] for strain in partial_strains]
-    logger.info("Downloading target accession FASTA via Entrez...")
-    net_handle = Entrez.efetch(
-        db='nucleotide', id=target_accessions, rettype='fasta', retmode='text'
-    )
+    strain_fasta_files = []
+    for strain in partial_strains:
+        accession = strain['accession']
+        fasta_path = fetch_fasta(accession, data_dir, force_download=True)
+        strain_fasta_files.append(fasta_path)
 
-    with open(blast_fasta_path, "w") as blast_fasta_file:
-        blast_fasta_file.write(net_handle.read())
-
-    logger.info("download completed. ({sz})".format(
-        sz=convert_size(blast_fasta_path.stat().st_size)
-    ))
+    with open(blast_fasta_path, 'w') as genome_fasta_file:
+        for fpath in strain_fasta_files:
+            with open(fpath, 'r') as in_file:
+                for line in in_file:
+                    genome_fasta_file.write(line)
 
     make_blast_db(
         blast_fasta_path, blast_db_dir, blast_db_name,
