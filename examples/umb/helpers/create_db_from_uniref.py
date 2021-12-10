@@ -8,7 +8,7 @@ from Bio.SeqFeature import FeatureLocation
 from Bio.SeqRecord import SeqRecord
 
 from chronostrain import cfg
-from chronostrain.util.entrez import fetch_genbank
+from chronostrain.util.entrez import fetch_genbank, fetch_fasta
 from chronostrain.util.external import blastn, make_blast_db
 
 from typing import List, Set, Iterator, Dict, Any, Tuple
@@ -121,9 +121,9 @@ def create_chronostrain_db(reference_genes: Dict[str, Path], partial_strains: Li
     with open(blast_fasta_path, "w") as blast_fasta_file:
         for strain in partial_strains:
             marker_entries = []
-            gb_file = fetch_genbank(strain['accession'], data_dir)
+            assembly_fasta_path = fetch_fasta(strain['accession'], data_dir)
 
-            genome_record = next(SeqIO.parse(gb_file, "genbank"))
+            genome_record = next(SeqIO.parse(assembly_fasta_path, "fasta"))
             SeqIO.write(genome_record, blast_fasta_file, "fasta")
 
     # Run BLAST to find marker genes.
