@@ -127,7 +127,7 @@ def create_chronostrain_db(reference_genes: Dict[str, Path], partial_strains: Li
     strain_fasta_files = []
     for strain in partial_strains:
         accession = strain['accession']
-        fasta_path = fetch_fasta(accession, data_dir, force_download=True)
+        fasta_path = fetch_fasta(accession, data_dir)
         strain_fasta_files.append(fasta_path)
 
     with open(blast_fasta_path, 'w') as genome_fasta_file:
