@@ -165,7 +165,7 @@ def create_chronostrain_db(reference_genes: Dict[str, Path], partial_strains: Li
                 strain_entry['markers'].append(
                     {
                         'name': gene_name,
-                        'type': 'location',
+                        'type': 'subseq',
                         'start_pos': blast_hit.subj_start,
                         'end_pos': blast_hit.subj_end,
                         'revcomp': blast_hit.subj_is_reversed,
