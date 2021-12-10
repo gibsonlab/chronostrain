@@ -165,7 +165,7 @@ def download_reference(accession: str, gene_names: Set[str]) -> Dict[str, Path]:
     genes_already_found: Set[str] = set()
     genes_to_find = set(gene_names)
 
-    chromosome_seq = str(next(SeqIO.parse(gb_file, "gb")).seq)
+    chromosome_seq = next(SeqIO.parse(gb_file, "gb")).seq
     gene_paths: Dict[str, Path] = {}
 
     for found_gene, locus_tag, location in parse_records(gb_file, gene_names):
@@ -179,9 +179,6 @@ def download_reference(accession: str, gene_names: Set[str]) -> Dict[str, Path]:
 
             gene_out_path = data_dir / "REF_{accession}_{found_gene}.fasta"
             gene_seq = location.extract(chromosome_seq)
-            print(f"Target location: {str(location)}")
-            print(f"Target seq: {str(gene_seq)}")
-
             SeqIO.write(
                 SeqRecord(gene_seq, id=f"REF_GENE_{found_gene}", description=f"{accession}_{str(location)}"),
                 gene_out_path,
