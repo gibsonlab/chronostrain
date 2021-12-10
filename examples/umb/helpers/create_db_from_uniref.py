@@ -155,7 +155,7 @@ def create_chronostrain_db(reference_genes: Dict[str, Path], partial_strains: Li
             evalue_max=1e-3,
             out_path=blast_result_path,
             num_threads=cfg.model_cfg.num_cores,
-            out_fmt="6 saccver sstart send qstart qend sstrand evalue bitscore pident gaps",
+            out_fmt="6 saccver sstart send qstart qend sstrand evalue bitscore pident gaps qcovhsp",
             max_target_seqs=10 * len(partial_strains)  # A generous value, 10 hits per genome
         )
 
@@ -195,6 +195,7 @@ class BlastHit(object):
     bitscore: float
     pct_identity: float
     num_gaps: int
+    query_coverage_per_hsp: float
 
 
 def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
@@ -203,7 +204,7 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
         blast_result_reader = csv.reader(f, delimiter='\t')
         for row_idx, row in enumerate(blast_result_reader):
 
-            subj_acc, subj_start, subj_end, qstart, qend, sstrand, evalue, bitscore, pident, gaps = row
+            subj_acc, subj_start, subj_end, qstart, qend, sstrand, evalue, bitscore, pident, gaps, qcovhsp = row
 
             if sstrand == "plus":
                 subj_strand = '+'
@@ -228,7 +229,8 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
                     float(evalue),
                     float(bitscore),
                     float(pident),
-                    int(gaps)
+                    int(gaps),
+                    float(qcovhsp)
                 )
             )
     return accession_to_positions
