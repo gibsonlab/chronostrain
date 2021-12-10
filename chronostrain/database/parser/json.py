@@ -320,6 +320,7 @@ class NucleotideSubsequence:
 
 
 def save_marker_to_disk(marker: Marker, filepath: Path):
+    filepath.parent.mkdir(exist_ok=True, parents=True)
     SeqIO.write([
         marker.to_seqrecord(description="")
     ], filepath, "fasta")
