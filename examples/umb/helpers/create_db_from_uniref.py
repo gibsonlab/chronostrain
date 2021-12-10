@@ -177,7 +177,7 @@ def download_reference(accession: str, gene_names: Set[str]) -> Dict[str, Path]:
             genes_already_found.add(found_gene)
             genes_to_find.remove(found_gene)
 
-            gene_out_path = data_dir / "REF_{accession}_{found_gene}.fasta"
+            gene_out_path = data_dir / f"REF_{accession}_{found_gene}.fasta"
             gene_seq = location.extract(chromosome_seq)
             SeqIO.write(
                 SeqRecord(gene_seq, id=f"REF_GENE_{found_gene}", description=f"{accession}_{str(location)}"),
