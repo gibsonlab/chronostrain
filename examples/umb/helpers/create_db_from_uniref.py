@@ -144,12 +144,12 @@ def create_chronostrain_db(reference_genes: Dict[str, Path], partial_strains: Li
     blast_result_dir.mkdir(parents=True, exist_ok=True)
     for gene_name, ref_gene_path in reference_genes.items():
         logger.info(f"Running blastn on {gene_name}")
-        blast_result_path = blast_result_dir / "gene_name.csv"
+        blast_result_path = blast_result_dir / f"{gene_name}.csv"
         blastn(
             db_name=blast_db_name,
             db_dir=blast_db_dir,
             query_fasta=ref_gene_path,
-            evalue_max=1e-30,
+            evalue_max=1e-3,
             out_path=blast_result_path,
             num_threads=cfg.model_cfg.num_cores
         )
