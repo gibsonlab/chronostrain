@@ -155,7 +155,7 @@ def create_chronostrain_db(reference_genes: Dict[str, Path], partial_strains: Li
             evalue_max=1e-3,
             out_path=blast_result_path,
             num_threads=cfg.model_cfg.num_cores,
-            out_fmt="\"6 sacc sstart send sstrand evalue bitscore pident gaps\"",
+            out_fmt="6 sacc sstart send sstrand evalue bitscore pident gaps",
             max_target_seqs=10 * len(partial_strains)  # A generous value, 10 hits per genome
         )
 
