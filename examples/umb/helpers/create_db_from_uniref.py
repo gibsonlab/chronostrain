@@ -204,16 +204,20 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
 
             if sstrand == "plus":
                 subj_strand = '+'
+                start_pos = int(subj_start)
+                end_pos = int(subj_end)
             elif sstrand == "minus":
                 subj_strand = '-'
+                start_pos = int(subj_end)
+                end_pos = int(subj_start)
             else:
                 raise RuntimeError(f"Unexpected `sstrand` token `{sstrand}`")
 
             accession_to_positions[subj_acc].append(
                 BlastHit(
                     subj_acc,
-                    int(subj_start),
-                    int(subj_end),
+                    start_pos,
+                    end_pos,
                     int(qstart),
                     int(qend),
                     subj_strand,
