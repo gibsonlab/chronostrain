@@ -89,6 +89,7 @@ def get_strain_accessions(strain_spec_path: Path, strainge_db_dir: Path) -> List
                 'accession': accession,
                 'source': 'genbank'
             })
+    logger.info(f"Parsed {len(strain_partial_entries)} records.")
     return strain_partial_entries
 
 
