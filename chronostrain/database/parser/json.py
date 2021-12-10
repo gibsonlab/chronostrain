@@ -151,7 +151,7 @@ class TagMarkerEntry(MarkerEntry):
             index=idx,
             locus_tag=entry_dict['locus_tag'],
             parent=parent,
-            is_canonical=('canonical' in entry_dict) and (entry_dict['canonical'].strip().lower() == "true")
+            is_canonical=('canonical' in entry_dict) and (str(entry_dict['canonical']).strip().lower() == "true"),
         )
 
 
@@ -207,7 +207,7 @@ class PrimerMarkerEntry(MarkerEntry):
             forward=entry_dict['forward'],
             reverse=entry_dict['reverse'],
             parent=parent,
-            is_canonical=('canonical' in entry_dict) and (entry_dict['canonical'].strip().lower() == "true")
+            is_canonical=('canonical' in entry_dict) and (str(entry_dict['canonical']).strip().lower() == "true"),
         )
 
 
@@ -278,7 +278,7 @@ class SubseqMarkerEntry(MarkerEntry):
             end_pos=entry_dict['end'],
             is_negative_strand=is_negative_strand,
             parent=parent,
-            is_canonical=('canonical' in entry_dict) and (entry_dict['canonical'].strip().lower() == "true"),
+            is_canonical=('canonical' in entry_dict) and (str(entry_dict['canonical']).strip().lower() == "true"),
             id=entry_dict['id']
         )
 
