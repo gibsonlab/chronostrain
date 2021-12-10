@@ -1,5 +1,7 @@
 import os
 
+from typing import Union
+
 from .commandline import *
 
 
@@ -36,10 +38,11 @@ def blastn(
         query_fasta: Path,
         evalue_max: float,
         out_path: Path,
-        out_fmt: int = 7,  # 7: CSV
+        out_fmt: Union[str, int] = 6,  # 6: TSV without comments
         max_target_seqs: Optional[int] = None,
         max_hsps: Optional[int] = None,
-        num_threads: int = 1
+        num_threads: int = 1,
+        strand: str = 'both'
 ):
     params = [
         '-db', db_name,
@@ -47,7 +50,8 @@ def blastn(
         '-query', query_fasta,
         '-evalue', evalue_max,
         '-outfmt', out_fmt,
-        '-out', out_path
+        '-out', out_path,
+        '-strand', strand
     ]
 
     if max_target_seqs is not None:

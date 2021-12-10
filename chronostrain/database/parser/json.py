@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Iterator, List, Union, Tuple
 
 from Bio import SeqIO
+from chronostrain.util.entrez import fetch_fasta
 
 from chronostrain.config import cfg
 from chronostrain.model import Strain, Marker, MarkerMetadata, StrainMetadata
@@ -215,6 +216,7 @@ class SubseqMarkerEntry(MarkerEntry):
     start_pos: int
     end_pos: int
     is_canonical: bool
+    is_negative_strand: bool
     id: str
 
     def __str__(self):
@@ -240,19 +242,33 @@ class SubseqMarkerEntry(MarkerEntry):
     def deserialize(entry_dict: dict, idx: int, parent: StrainEntry) -> "SubseqMarkerEntry":
         if 'name' not in entry_dict:
             raise StrainDatabaseParseError(
-                "Missing entry `name` from json marker entry of strain entry {}.".format(parent.accession)
+                f"Missing entry `name` from json marker entry of strain entry {parent.accession}."
             )
         if 'start' not in entry_dict:
             raise StrainDatabaseParseError(
-                "Missing entry `start` from json marker entry of strain entry {}.".format(parent.accession)
+                f"Missing entry `start` from json marker entry of strain entry {parent.accession}."
             )
         if 'end' not in entry_dict:
             raise StrainDatabaseParseError(
-                "Missing entry `end` from json marker entry of strain entry {}.".format(parent.accession)
+                f"Missing entry `end` from json marker entry of strain entry {parent.accession}."
+            )
+        if 'strand' not in entry_dict:
+            raise StrainDatabaseParseError(
+                f"Missing entry `strand` from json marker entry of strain entry {parent.accession}."
             )
         if 'id' not in entry_dict:
             raise StrainDatabaseParseError(
-                "Missing entry `id` from json marker entry of strain entry {}.".format(parent.accession)
+                f"Missing entry `id` from json marker entry of strain entry {parent.accession}."
+            )
+
+        strand_str = entry_dict['strand']
+        if strand_str == '+':
+            is_negative_strand = False
+        elif strand_str == '-':
+            is_negative_strand = True
+        else:
+            raise ValueError(
+                f"Unrecognizable value `{strand_str}` of entry `strand` in {parent.accession}."
             )
 
         return SubseqMarkerEntry(
@@ -260,6 +276,7 @@ class SubseqMarkerEntry(MarkerEntry):
             index=idx,
             start_pos=entry_dict['start'],
             end_pos=entry_dict['end'],
+            is_negative_strand=is_negative_strand,
             parent=parent,
             is_canonical=('canonical' in entry_dict) and (entry_dict['canonical'].strip().lower() == "true"),
             id=entry_dict['id']
@@ -347,6 +364,8 @@ class FastaLoader:
             else:
                 seq = SeqIO.read(self.strain_fasta_path, "fasta").seq
                 marker_seq = nucleotides_to_z4(str(seq[entry.start_pos - 1:entry.end_pos]))
+                if not entry.is_negative_strand:
+                    marker_seq = reverse_complement_seq(marker_seq)
                 marker = Marker(
                     name=entry.name,
                     id=entry.id,
@@ -639,11 +658,9 @@ class JSONParser(AbstractDatabaseParser):
                     )
                 )
             elif strain_entry.source == "fasta":
-                fasta_path = cfg.database_cfg.data_dir / f"{strain_entry.accession}.fasta"
-                if not fasta_path.exists():
-                    raise RuntimeError("Database requested fasta file {}, which couldn't be found.".format(
-                        fasta_path
-                    ))
+                fasta_path = fetch_fasta(strain_entry.accession,
+                                         base_dir=cfg.database_cfg.data_dir,
+                                         force_download=self.force_refresh)
 
                 loader = FastaLoader(
                     strain_accession=strain_entry.accession,

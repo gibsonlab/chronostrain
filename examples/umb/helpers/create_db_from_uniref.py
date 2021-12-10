@@ -1,4 +1,6 @@
 import argparse
+from collections import defaultdict
+from dataclasses import dataclass
 from pathlib import Path
 import csv
 import json
@@ -87,7 +89,8 @@ def get_strain_accessions(strain_spec_path: Path, strainge_db_dir: Path) -> List
                 'species': 'coli',
                 'strain': strain_name,
                 'accession': accession,
-                'source': 'genbank'
+                'source': 'fasta',
+                'markers': []
             })
     logger.info(f"Parsed {len(strain_partial_entries)} records.")
     return strain_partial_entries
@@ -108,7 +111,6 @@ def parse_records(gb_file: Path, genes_to_find: Set[str]) -> Iterator[Tuple[str,
 
 def create_chronostrain_db(reference_genes: Dict[str, Path], partial_strains: List[Dict[str, Any]], output_path: Path):
     data_dir: Path = cfg.database_cfg.data_dir
-    genes_already_found: Set[str] = set()
 
     blast_db_dir = output_path.parent / "blast"
     blast_db_name = "Esch_coli"
@@ -143,6 +145,7 @@ def create_chronostrain_db(reference_genes: Dict[str, Path], partial_strains: Li
     # Run BLAST to find marker genes.
     blast_result_dir.mkdir(parents=True, exist_ok=True)
     for gene_name, ref_gene_path in reference_genes.items():
+        gene_already_found = False
         logger.info(f"Running blastn on {gene_name}")
         blast_result_path = blast_result_dir / f"{gene_name}.csv"
         blastn(
@@ -151,10 +154,24 @@ def create_chronostrain_db(reference_genes: Dict[str, Path], partial_strains: Li
             query_fasta=ref_gene_path,
             evalue_max=1e-3,
             out_path=blast_result_path,
-            num_threads=cfg.model_cfg.num_cores
+            num_threads=cfg.model_cfg.num_cores,
+            out_fmt="6 sacc sstart send sstrand evalue bitscore pident gaps"
         )
 
-        parse_top_blast_hit(blast_result_path)
+        locations = parse_blast_hits(blast_result_path)
+        for strain_entry in partial_strains:
+            for blast_hit in locations[strain_entry['accession']]:
+                strain_entry['markers'].append(
+                    {
+                        'name': gene_name,
+                        'type': 'location',
+                        'start_pos': blast_hit.subj_start,
+                        'end_pos': blast_hit.subj_end,
+                        'revcomp': blast_hit.subj_is_reversed,
+                        'canonical': not gene_already_found
+                    }
+                )
+                gene_already_found = True
 
     with open(output_path, 'w') as outfile:
         json.dump(partial_strains, outfile, indent=4)
@@ -162,10 +179,46 @@ def create_chronostrain_db(reference_genes: Dict[str, Path], partial_strains: Li
     logger.info(f"Wrote output to {str(output_path)}.")
 
 
-def parse_top_blast_hit(blast_result_path: Path):
+@dataclass
+class BlastHit(object):
+    subj_accession: str
+    subj_start: int
+    subj_end: int
+    subj_is_reversed: bool
+    evalue: float
+    bitscore: int
+    pct_identity: float
+    num_gaps: int
+
+
+def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
+    accession_to_positions: Dict[str, List[BlastHit]] = defaultdict(list)
     with open(blast_result_path, "r") as f:
-        blast_result_reader = csv.reader(f)
-        raise NotImplementedError("TODO")
+        blast_result_reader = csv.reader(f, delimiter='\t')
+        for row_idx, row in enumerate(blast_result_reader):
+
+            subj_acc, subj_start, subj_end, sstrand, evalue, bitscore, pident, gaps = row
+
+            if sstrand == "plus":
+                subj_is_reversed = False
+            elif sstrand == "minus":
+                subj_is_reversed = True
+            else:
+                raise RuntimeError(f"Unexpected `sstrand` token `{sstrand}`")
+
+            accession_to_positions[subj_acc].append(
+                BlastHit(
+                    subj_acc,
+                    int(subj_start),
+                    int(subj_end),
+                    subj_is_reversed,
+                    float(evalue),
+                    int(bitscore),
+                    float(pident),
+                    int(gaps)
+                )
+            )
+    return accession_to_positions
 
 
 def download_reference(accession: str, gene_names: Set[str]) -> Dict[str, Path]:
@@ -206,6 +259,22 @@ def download_reference(accession: str, gene_names: Set[str]) -> Dict[str, Path]:
     return gene_paths
 
 
+def print_summary(strain_entries: List[Dict[str, Any]], genes: Set[str]):
+    for strain_entry in strain_entries:
+        accession = strain_entry['accession']
+        found_genes = set()
+        for marker_entry in strain_entry['markers']:
+            found_genes.add(marker_entry['name'])
+
+        genes_not_found = genes.difference(found_genes)
+        if len(genes_not_found) > 0:
+            logger.info("Accession {}, {} genes not found: [{}]".format(
+                accession,
+                len(genes_not_found),
+                ', '.join(genes_not_found)
+            ))
+
+
 def main():
     args = parse_args()
     uniref_csv_path = Path(args.uniref_csv_path)
@@ -217,6 +286,7 @@ def main():
     gene_names = get_gene_names(uniref_csv_path)
     reference_genes = download_reference(reference_accession, gene_names)
     partial_strains = get_strain_accessions(strain_spec_path, strainge_db_dir)
+    print_summary(partial_strains, gene_names)
     create_chronostrain_db(reference_genes, partial_strains, output_path)
 
 
