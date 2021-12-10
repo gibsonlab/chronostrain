@@ -130,6 +130,7 @@ def create_chronostrain_db(reference_genes: Dict[str, Path], partial_strains: Li
         fasta_path = fetch_fasta(accession, data_dir)
         strain_fasta_files.append(fasta_path)
 
+    logger.info('Concatenating {} files.'.format(len(strain_fasta_files)))
     with open(blast_fasta_path, 'w') as genome_fasta_file:
         for fpath in strain_fasta_files:
             with open(fpath, 'r') as in_file:
@@ -185,7 +186,7 @@ class BlastHit(object):
     subj_end: int
     subj_is_reversed: bool
     evalue: float
-    bitscore: int
+    bitscore: float
     pct_identity: float
     num_gaps: int
 
@@ -212,7 +213,7 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
                     int(subj_end),
                     subj_is_reversed,
                     float(evalue),
-                    int(bitscore),
+                    float(bitscore),
                     float(pident),
                     int(gaps)
                 )
