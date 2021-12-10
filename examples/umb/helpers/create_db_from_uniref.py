@@ -48,7 +48,7 @@ def get_gene_names(uniref_csv_path: Path) -> Set[str]:
 
             uniref_full, uniref_id, gene_name = row
             if len(gene_name.strip()) == 0:
-                print(f"No gene name found for Uniref entry {uniref_full}.")
+                logger.info(f"No gene name found for Uniref entry {uniref_full}.")
                 continue
 
             gene_names.add(gene_name)
@@ -77,10 +77,10 @@ def get_strain_accessions(strain_spec_path: Path, strainge_db_dir: Path) -> List
             line = line.strip()
             if len(line) == 0:
                 continue
-            print(f"Parsing strain information from {line}...")
+            logger.info(f"Parsing strain information from {line}...")
 
             strain_name, accession = parse_strainge_path(strainge_db_dir, Path(line))
-            print(f"Got strain: {strain_name}, accession: {accession}")
+            logger.info(f"Got strain: {strain_name}, accession: {accession}")
 
             strain_partial_entries.append({
                 'genus': 'Escherichia',
@@ -114,7 +114,7 @@ def create_chronostrain_db(reference_genes: Dict[str, Path], partial_strains: Li
     blast_db_title = "\"Escherichia coli (metaphlan markers, strainGE strains)\""
     blast_fasta_path = blast_db_dir / "genomes.fasta"
     blast_result_dir = output_path.parent / "blast_results"
-    print("BLAST\n\tdatabase location: {}\n\tresults directory: {}".format(
+    logger.info("BLAST\n\tdatabase location: {}\n\tresults directory: {}".format(
         str(blast_db_dir),
         str(blast_result_dir)
     ))
@@ -122,7 +122,7 @@ def create_chronostrain_db(reference_genes: Dict[str, Path], partial_strains: Li
     # Initialize BLAST database.
     blast_db_dir.mkdir(parents=True, exist_ok=True)
     target_accessions = [strain['accession'] for strain in partial_strains]
-    print("Downloading target accession FASTA via Entrez...")
+    logger.info("Downloading target accession FASTA via Entrez...")
     net_handle = Entrez.efetch(
         db='nucleotide', id=target_accessions, rettype='fasta', retmode='text'
     )
@@ -142,7 +142,7 @@ def create_chronostrain_db(reference_genes: Dict[str, Path], partial_strains: Li
     # Run BLAST to find marker genes.
     blast_result_dir.mkdir(parents=True, exist_ok=True)
     for gene_name, ref_gene_path in reference_genes.items():
-        print(f"Running blastn on {gene_name}")
+        logger.info(f"Running blastn on {gene_name}")
         blast_result_path = blast_result_dir / "gene_name.csv"
         blastn(
             db_name=blast_db_name,
@@ -158,7 +158,7 @@ def create_chronostrain_db(reference_genes: Dict[str, Path], partial_strains: Li
     with open(output_path, 'w') as outfile:
         json.dump(partial_strains, outfile, indent=4)
 
-    print(f"Wrote output to {str(output_path)}.")
+    logger.info(f"Wrote output to {str(output_path)}.")
 
 
 def parse_top_blast_hit(blast_result_path: Path):
@@ -168,7 +168,7 @@ def parse_top_blast_hit(blast_result_path: Path):
 
 
 def download_reference(accession: str, gene_names: Set[str]) -> Dict[str, Path]:
-    print(f"Downloading reference accession {accession}")
+    logger.info(f"Downloading reference accession {accession}")
     data_dir: Path = cfg.database_cfg.data_dir
     gb_file = fetch_genbank(accession, data_dir)
 
@@ -179,10 +179,10 @@ def download_reference(accession: str, gene_names: Set[str]) -> Dict[str, Path]:
     gene_paths: Dict[str, Path] = {}
 
     for found_gene, locus_tag, location in parse_records(gb_file, gene_names):
-        print(f"Found gene {found_gene} for REF accession {accession}")
+        logger.info(f"Found gene {found_gene} for REF accession {accession}")
 
         if found_gene in genes_already_found:
-            print(f"WARNING: multiple copies of {found_gene} found in {accession}. Skipping second instance.")
+            logger.warning(f"Multiple copies of {found_gene} found in {accession}. Skipping second instance.")
         else:
             genes_already_found.add(found_gene)
             genes_to_find.remove(found_gene)
@@ -197,11 +197,11 @@ def download_reference(accession: str, gene_names: Set[str]) -> Dict[str, Path]:
             gene_paths[found_gene] = gene_out_path
 
     if len(genes_to_find) > 0:
-        print("Couldn't find genes {}.".format(
+        logger.info("Couldn't find genes {}.".format(
             ",".join(genes_to_find))
         )
 
-    print(f"Finished parsing reference accession {accession}.")
+    logger.info(f"Finished parsing reference accession {accession}.")
     return gene_paths
 
 
