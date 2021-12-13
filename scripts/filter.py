@@ -381,7 +381,7 @@ def main():
         min_seed_length=args.min_seed_length,
         continue_from_idx=args.continue_from_idx,
         num_threads=args.num_threads,
-        error_threshold=args.error_threshold
+        error_threshold=args.phred_error_threshold
     )
     filt.apply_filter(f"filtered_{args.input_file}")
     logger.info("Finished filtering.")
