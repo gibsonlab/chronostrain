@@ -28,19 +28,34 @@ def file_base_name(file_path: Path) -> str:
     return file_path.with_suffix('').name
 
 
-def filter_on_read_quality(phred_quality: np.ndarray, error_threshold: float = 10):
-    num_expected_errors = np.sum(
-        np.power(10, -0.1 * phred_quality)
+def num_expected_errors(aln: SequenceReadPairwiseAlignment):
+    return np.sum(
+        np.power(10, -0.1 * aln.read.quality)
     )
-    return num_expected_errors < error_threshold
 
 
-def filter_on_match_identity(percent_identity: float, identity_threshold=0.9):
+def clip_between(x: float, lower: float, upper: float) -> float:
+    return max(min(x, upper), lower)
+
+
+def filter_on_match_identity(aln: SequenceReadPairwiseAlignment, identity_threshold=0.9):
     """
     Applies a filtering criteria for reads that continue in the pipeline.
     Currently a simple threshold on percent identity, likely should be adjusted to maximize downstream sensitivity?
     """
-    return percent_identity > identity_threshold
+    if aln.num_aligned_bases is None:
+        raise ValueError(f"Unknown num_aligned_bases from alignment of read `{aln.read.id}`")
+    if aln.num_mismatches is None:
+        raise ValueError(f"Unknown num_mismatches from alignment of read `{aln.read.id}`")
+
+    n_expected_errors = num_expected_errors(aln)
+    adjusted_pct_identity = clip_between(
+        1.0 - ((aln.num_mismatches - n_expected_errors) / (aln.num_aligned_bases - n_expected_errors)),
+        lower=0.0,
+        upper=1.0,
+    )
+
+    return adjusted_pct_identity > identity_threshold
 
 
 def filter_on_edge_clip(aln: SequenceReadPairwiseAlignment, clip_fraction: float=0.5):
@@ -71,7 +86,8 @@ def filter_file(
         result_fq_path: Path,
         quality_format: str,
         min_read_len: int,
-        pct_identity_threshold: float
+        pct_identity_threshold: float,
+        error_threshold: float
 ):
     """
     Parses a sam file and filters reads using the above criteria.
@@ -108,14 +124,13 @@ def filter_file(
                 continue
 
             # Pass filter if quality is high enough, and entire read is mapped.
-            if aln.percent_identity is None:
-                raise ValueError(f"Unknown percent identity from alignment of read `{aln.read.id}`")
 
             passed_filter = (
-                filter_on_edge_clip(aln)
-                and len(aln.read) > min_read_len
-                and filter_on_match_identity(aln.percent_identity, identity_threshold=pct_identity_threshold)
-                and filter_on_read_quality(aln.read.quality)
+                # filter_on_edge_clip(aln)
+                # and len(aln.read) > min_read_len
+                len(aln.read) > min_read_len
+                and filter_on_match_identity(aln, identity_threshold=pct_identity_threshold)
+                and num_expected_errors(aln) > error_threshold
             )
 
             # Write to metadata file.
@@ -162,6 +177,7 @@ class Filter:
                  min_seed_length: int,
                  min_read_len: int,
                  pct_identity_threshold: float,
+                 error_threshold: float,
                  continue_from_idx: int = 0,
                  num_threads: int = 1):
         logger.debug("Reference path: {}".format(reference_file_path))
@@ -186,6 +202,7 @@ class Filter:
         self.pct_identity_threshold = pct_identity_threshold
         self.continue_from_idx = continue_from_idx
         self.num_threads = num_threads
+        self.error_threshold = error_threshold
 
     def time_point_specs(self) -> Iterator[Tuple[TimeSliceReadSource, int, float]]:
         yield from zip(self.read_sources, self.read_depths, self.time_points)
@@ -245,7 +262,8 @@ class Filter:
                     result_fq_path=result_fq_path,
                     quality_format=self.quality_format,
                     min_read_len=self.min_read_len,
-                    pct_identity_threshold=self.pct_identity_threshold
+                    pct_identity_threshold=self.pct_identity_threshold,
+                    error_threshold=self.error_threshold
                 )
                 logger.info("Timepoint {t}, filtered reads file: {f}".format(
                     t=time_point, f=result_fq_path
@@ -314,6 +332,10 @@ def parse_args():
     parser.add_argument('--pct_identity_threshold', required=False, type=float,
                         default=0.1,
                         help='<Optional> The percent identity threshold at which to filter reads. Default: 0.1.')
+    parser.add_argument('--phred_error_threshold', required=False, type=float,
+                        default=10.0,
+                        help='<Optional> The maximum number of expected errors tolerated in order to pass filter.'
+                             'Default: 10.0')
     parser.add_argument('--continue_from_idx', required=False, type=int,
                         default=0,
                         help='<Optional> For debugging purposes, assumes that the first N timepoints have already '
@@ -358,7 +380,8 @@ def main():
         pct_identity_threshold=args.pct_identity_threshold,
         min_seed_length=args.min_seed_length,
         continue_from_idx=args.continue_from_idx,
-        num_threads=args.num_threads
+        num_threads=args.num_threads,
+        error_threshold=args.error_threshold
     )
     filt.apply_filter(f"filtered_{args.input_file}")
     logger.info("Finished filtering.")

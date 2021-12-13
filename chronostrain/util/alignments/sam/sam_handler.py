@@ -65,7 +65,8 @@ class SamLine:
                  mate_pair: str,
                  mate_pos: str,
                  template_len: str,
-                 percent_identity: Optional[float],
+                 num_aligned_bases: Optional[int],
+                 num_mismatches: Optional[int]
                  ):
         """
         Parse the line using the provided reference.
@@ -89,7 +90,9 @@ class SamLine:
         self.mate_pair = mate_pair
         self.mate_pos = mate_pos
         self.template_len = template_len
-        self.percent_identity = percent_identity
+
+        self.num_aligned_bases = num_aligned_bases
+        self.num_mismatches = num_mismatches
 
     @property
     def read_len(self) -> int:
@@ -139,7 +142,8 @@ class SamLine:
 
         cigar = parse_cigar(tokens[_SamTags.Cigar.value])
 
-        percent_identity: Union[float, None] = None
+        num_aligned_bases: Union[float, None] = None
+        num_mismatches: Union[float, None] = None
         for optional_tag in tokens[11:]:
             '''
             The MD tag stores information about which bases match to the reference and is necessary
@@ -152,7 +156,7 @@ class SamLine:
                     for cigar_el in cigar
                     if cigar_el.op == CigarOp.ALIGN or cigar_el.op == CigarOp.MATCH or cigar_el.op == CigarOp.MISMATCH
                 )
-                percent_identity = percent_identity_from_xm(optional_tag, len(read_seq), num_aligned_bases)
+                num_mismatches = num_mismatches_from_xm(optional_tag)
             else:
                 pass
 
@@ -170,18 +174,19 @@ class SamLine:
             mate_pair=tokens[_SamTags.MatePair.value],
             mate_pos=tokens[_SamTags.MatePos.value],
             template_len=tokens[_SamTags.TemplateLen.value],
-            percent_identity=percent_identity
+            num_aligned_bases=num_aligned_bases,
+            num_mismatches=num_mismatches
         )
 
 
-def percent_identity_from_xm(match_tag: str, num_total_bases: int, num_aligned_bases: int):
+def num_mismatches_from_xm(match_tag: str):
     head = "XM:i:"
     if not match_tag.startswith(head):
         raise RuntimeError("Expected XM tag to start with `{}`, got `{}`.".format(
             head, match_tag
         ))
     num_mismatches = int(match_tag[len(head):])
-    return (num_aligned_bases - num_mismatches) / num_total_bases
+    return num_mismatches
 
 
 class SamFile:
