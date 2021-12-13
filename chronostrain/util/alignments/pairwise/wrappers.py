@@ -80,6 +80,10 @@ class BowtieAligner(AbstractPairwiseAligner):
             ))
 
     def align(self, query_path: Path, output_path: Path):
+        # return self.align_end_to_end(query_path, output_path)
+        return self.align_local(query_path, output_path)
+
+    def align_end_to_end(self, query_path: Path, output_path: Path):
         bowtie2(
             index_basepath=self.index_basepath,
             index_basename=self.index_basename,
@@ -99,5 +103,26 @@ class BowtieAligner(AbstractPairwiseAligner):
             # score_read_gap_penalty=(5, 1),
             # score_ref_gap_penalty=(5, 1),
             sam_suppress_noalign=True,
-            local=True
+        )
+
+    def align_local(self, query_path: Path, output_path: Path):
+        # This implements the --very-sensitive-local setting with more extensive seeding.
+        #-D 20 -R 3 -N 0 -L 20 -i S,1,0.50
+        bowtie2(
+            index_basepath=self.index_basepath,
+            index_basename=self.index_basename,
+            unpaired_reads=query_path,
+            out_path=output_path,
+            quality_format=self.quality_format,
+            report_k_alignments=self.num_report_alignments,
+            num_threads=self.num_threads,
+            aln_seed_num_mismatches=0,
+            aln_seed_len=5,  # -L 5
+            aln_seed_interval_fn=bt2_func_constant(3),
+            aln_gbar=1,
+            effort_seed_ext_failures=30,  # -D 30
+            effort_num_reseeds=3,  # -R 3
+            local=True,
+            score_min_fn=bt2_func_log(20, 8.0),  # 20 + 8.0 * ln(L), default
+            sam_suppress_noalign=True,
         )
