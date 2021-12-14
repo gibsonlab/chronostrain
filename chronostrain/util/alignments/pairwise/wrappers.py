@@ -117,8 +117,8 @@ class BowtieAligner(AbstractPairwiseAligner):
             report_k_alignments=self.num_report_alignments,
             num_threads=self.num_threads,
             aln_seed_num_mismatches=0,
-            aln_seed_len=5,  # -L 5
-            aln_seed_interval_fn=bt2_func_constant(3),
+            aln_seed_len=20,  # -L 20
+            aln_seed_interval_fn=bt2_func_constant(7),
             aln_gbar=1,
             effort_seed_ext_failures=30,  # -D 30
             effort_num_reseeds=3,  # -R 3

@@ -58,7 +58,7 @@ def filter_on_match_identity(aln: SequenceReadPairwiseAlignment, identity_thresh
     return adjusted_pct_identity > identity_threshold
 
 
-def filter_on_edge_clip(aln: SequenceReadPairwiseAlignment, clip_fraction: float=0.5):
+def filter_on_edge_clip(aln: SequenceReadPairwiseAlignment, clip_fraction: float = 0.5):
     if aln.is_edge_mapped:
         # Fail if start and end are both soft clipped.
         if (aln.soft_clip_start > 0 or aln.hard_clip_start > 0) and (aln.soft_clip_end > 0 or aln.hard_clip_end > 0):
@@ -126,9 +126,8 @@ def filter_file(
             # Pass filter if quality is high enough, and entire read is mapped.
 
             passed_filter = (
-                # filter_on_edge_clip(aln)
-                # and len(aln.read) > min_read_len
-                len(aln.read) > min_read_len
+                filter_on_edge_clip(aln, clip_fraction=0.25)
+                and len(aln.read) > min_read_len
                 and filter_on_match_identity(aln, identity_threshold=pct_identity_threshold)
                 and num_expected_errors(aln) > error_threshold
             )
