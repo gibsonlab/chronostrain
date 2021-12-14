@@ -103,11 +103,11 @@ def filter_file(
             "MARKER",
             "MARKER_START",
             "MARKER_END",
-            "REVCOMP",
             "PASSED_FILTER",
+            "REVCOMP",
             "IS_EDGE_MAPPED",
-            "LEN",
-            "PCT_ID"
+            "READ_LEN",
+            "N_MISMATCHES"
         ]
     )
 
@@ -139,11 +139,11 @@ def filter_file(
                     aln.marker.id,
                     aln.marker_start,
                     aln.marker_end,
-                    int(aln.reverse_complemented),
                     int(passed_filter),
+                    int(aln.reverse_complemented),
                     int(aln.is_edge_mapped),
                     len(aln.read),
-                    aln.percent_identity
+                    aln.num_mismatches
                 ]
             )
 
