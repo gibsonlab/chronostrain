@@ -8,12 +8,11 @@ SEED=31415
 # =========== Run chronostrain. ==================
 echo "Running inference."
 
-cd $PROJECT_DIR/scripts
-
 for umb_id in UMB05 UMB08 UMB11 UMB12 UMB15 UMB18 UMB20 UMB23 UMB24
 do
 	index_filename="${umb_id}_${INPUT_INDEX_FILENAME}"
 
+	cd $PROJECT_DIR/scripts
 	python run_inference.py \
 	--reads_dir "${READS_DIR}/${umb_id}_filtered" \
 	--out_dir $CHRONOSTRAIN_OUTPUT_DIR/${umb_id} \
