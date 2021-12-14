@@ -38,7 +38,7 @@ def clip_between(x: float, lower: float, upper: float) -> float:
     return max(min(x, upper), lower)
 
 
-def filter_on_match_identity(aln: SequenceReadPairwiseAlignment, identity_threshold=0.9):
+def adjusted_match_identity(aln: SequenceReadPairwiseAlignment, identity_threshold=0.9):
     """
     Applies a filtering criteria for reads that continue in the pipeline.
     Currently a simple threshold on percent identity, likely should be adjusted to maximize downstream sensitivity?
@@ -55,7 +55,7 @@ def filter_on_match_identity(aln: SequenceReadPairwiseAlignment, identity_thresh
         upper=1.0,
     )
 
-    return adjusted_pct_identity > identity_threshold
+    return adjusted_pct_identity
 
 
 def filter_on_edge_clip(aln: SequenceReadPairwiseAlignment, clip_fraction: float = 0.5):
@@ -107,7 +107,8 @@ def filter_file(
             "REVCOMP",
             "IS_EDGE_MAPPED",
             "READ_LEN",
-            "N_MISMATCHES"
+            "N_MISMATCHES",
+            "PCT_ID_ADJ"
         ]
     )
 
@@ -124,11 +125,12 @@ def filter_file(
                 continue
 
             # Pass filter if quality is high enough, and entire read is mapped.
+            percent_identity_adjusted = adjusted_match_identity(aln)
 
             passed_filter = (
                 filter_on_edge_clip(aln, clip_fraction=0.25)
                 and len(aln.read) > min_read_len
-                and filter_on_match_identity(aln, identity_threshold=pct_identity_threshold)
+                and percent_identity_adjusted > pct_identity_threshold
                 and num_expected_errors(aln) > error_threshold
             )
 
@@ -143,7 +145,8 @@ def filter_file(
                     int(aln.reverse_complemented),
                     int(aln.is_edge_mapped),
                     len(aln.read),
-                    aln.num_mismatches
+                    aln.num_mismatches,
+                    percent_identity_adjusted
                 ]
             )
 
