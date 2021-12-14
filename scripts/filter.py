@@ -164,7 +164,7 @@ def filter_file(
                 )
                 record.letter_annotations["phred_quality"] = aln.read.quality
                 Bio.SeqIO.write(record, result_fq, "fastq")
-        logger.info(f"# passed reads: {len(reads_already_passed)}")
+    logger.info(f"# passed reads: {len(reads_already_passed)}")
     result_metadata.close()
     result_fq.close()
 
