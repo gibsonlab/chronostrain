@@ -301,7 +301,7 @@ def align(db: StrainDatabase,
           out_fasta_path: Path,
           n_threads: int = 1):
     markers = db.get_markers_by_name(marker_name)
-    marker_profile_path = markers[0].metadata.file_path.parent / f"{marker_name}_profile.fasta"
+    marker_profile_path = intermediate_fasta_path.parent / f"{marker_name}_profile.fasta"
     create_marker_profile(marker_profile_path, markers)
 
     align_mafft(marker_profile_path, read_descriptions, intermediate_fasta_path, out_fasta_path, n_threads)
