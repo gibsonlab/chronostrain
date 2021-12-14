@@ -22,6 +22,7 @@ do
 	--iters $CHRONOSTRAIN_NUM_ITERS \
 	--num_samples $CHRONOSTRAIN_NUM_SAMPLES \
 	--learning_rate $CHRONOSTRAIN_LR \
-	--plot_format "pdf"
+	--plot_format "pdf" \
+	--method "bbvi"
 done
 # ================================================
