@@ -72,11 +72,7 @@ def parse_args():
 
 
 def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase, pop: Population) -> FragmentSpace:
-    """
-    Performs a pairwise alignment (each read to the reference marker), and then extracts all of the exactly aligned
-    fragments, ignoring indels.
-    """
-    logger.debug("Using fragment construction from alignments.")
+    logger.debug("Using fragment construction from multiple alignments.")
     multiple_alignments = CachedReadMultipleAlignments(reads, db)
     fragment_space = FragmentSpace()
     for multi_align in multiple_alignments.get_alignments():
