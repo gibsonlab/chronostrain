@@ -12,7 +12,7 @@ from chronostrain.database import StrainDatabase
 from chronostrain.model import Population, construct_fragment_space_uniform_length, FragmentSpace
 from chronostrain.model.io import TimeSeriesReads
 
-from scripts.helpers import *
+from helpers import *
 
 
 def parse_args():
