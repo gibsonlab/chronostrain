@@ -10,7 +10,7 @@ echo "Running inference."
 
 for umb_id in UMB05 UMB08 UMB11 UMB12 UMB15 UMB18 UMB20 UMB23 UMB24
 do
-	index_filename="${umb_id}_${INPUT_INDEX_FILENAME}"
+	index_filename="filtered_${umb_id}_${INPUT_INDEX_FILENAME}"
 
 	cd $PROJECT_DIR/scripts
 	python run_inference.py \
