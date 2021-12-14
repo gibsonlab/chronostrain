@@ -125,13 +125,15 @@ def filter_file(
                 continue
 
             # Pass filter if quality is high enough, and entire read is mapped.
+            filter_edge_clip = filter_on_edge_clip(aln, clip_fraction=0.25)
             percent_identity_adjusted = adjusted_match_identity(aln)
 
+
             passed_filter = (
-                filter_on_edge_clip(aln, clip_fraction=0.25)
+                filter_edge_clip
                 and len(aln.read) > min_read_len
                 and percent_identity_adjusted > pct_identity_threshold
-                and num_expected_errors(aln) > error_threshold
+                and num_expected_errors(aln) < error_threshold
             )
 
             # Write to metadata file.
