@@ -180,7 +180,11 @@ class MarkerMultipleFragmentAlignment(object):
         return self.start_clips[r_idx], self.end_clips[r_idx]
 
 
-def parse(db: StrainDatabase, target_marker_name: str, reads: TimeSeriesReads, aln_path: Path) -> MarkerMultipleFragmentAlignment:
+def parse(db: StrainDatabase,
+          target_marker_name: str,
+          reads: TimeSeriesReads,
+          aln_path: Path
+          ) -> MarkerMultipleFragmentAlignment:
     forward_reads: List[SequenceRead] = []
     forward_seqs: List[SeqType] = []
     forward_time_idxs: List[int] = []
@@ -249,6 +253,7 @@ def parse(db: StrainDatabase, target_marker_name: str, reads: TimeSeriesReads, a
     # ============================ END HELPERS ============================
     # Parse the marker entry first.
 
+    logger.debug(f"Parsing multiple alignment from {aln_path}")
     for record in Bio.AlignIO.read(str(aln_path), 'fasta'):
         if not record.id.startswith(f"{_READ_PREFIX}{_SEPARATOR}"):
             parse_marker_record(record)
