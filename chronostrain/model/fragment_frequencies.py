@@ -85,7 +85,8 @@ class FragmentFrequencyComputer(object):
         bwa_fastmap(
             output_path=output_path,
             reference_path=self.all_markers_path,
-            query_path=fragments_path
+            query_path=fragments_path,
+            max_interval_size=1000
         )
 
     @staticmethod

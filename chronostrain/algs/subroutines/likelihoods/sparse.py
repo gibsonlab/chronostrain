@@ -296,7 +296,7 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         Main loop
         """
         for multi_align in self._multi_align_instances:
-            logger.debug(f"[{multi_align.canonical_marker.name}] Parsing alignment of reads "
+            logger.debug(f"[{multi_align.canonical_marker.name}] Processing alignment of reads "
                          f"({len(multi_align.forward_read_index_map)} forward, "
                          f"{len(multi_align.reverse_read_index_map)} reverse) "
                          f"into likelihoods.")
