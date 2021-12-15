@@ -1,5 +1,7 @@
+from pathlib import Path
 from typing import Tuple, List
 
+import numpy as np
 import torch
 from .sparse_tensor import SparseMatrix
 
@@ -43,3 +45,32 @@ class RowSectionedSparseMatrix(SparseMatrix):
 
     def get_slice(self, row: int) -> torch.Tensor:
         return self.locs_per_row[row]
+
+    def save(self, out_path: Path):
+        np.savez(
+            out_path,
+            sparse_indices=self.indices.cpu().numpy(),
+            sparse_values=self.values.cpu().numpy(),
+            matrix_shape=np.array([
+                self.rows,
+                self.columns
+            ])
+        )
+
+    @staticmethod
+    def load(in_path: Path, device, dtype):
+        data = np.load(str(in_path))
+        size = data["matrix_shape"]
+        return RowSectionedSparseMatrix(
+            indices=torch.tensor(
+                data['sparse_indices'],
+                device=device,
+                dtype=torch.long
+            ),
+            values=torch.tensor(
+                data['sparse_values'],
+                device=device,
+                dtype=dtype
+            ),
+            dims=(size[0], size[1])
+        )

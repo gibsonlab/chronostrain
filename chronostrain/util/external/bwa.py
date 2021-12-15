@@ -1,14 +1,10 @@
 from .commandline import *
 
 
-def bwa_index(reference_path: Path, bwa_path="bwa", algorithm: str = "is"):
+def bwa_index(reference_path: Path, algorithm: str = "is"):
     exit_code = call_command(
-        bwa_path,
-        [
-            'index',
-            '-a', algorithm,
-            reference_path
-        ]
+        'bwa',
+        ['index', '-a', algorithm, reference_path]
     )
     if exit_code != 0:
         raise CommandLineException("bwa index", exit_code)
@@ -25,8 +21,7 @@ def bwa_mem(output_path: Path,
             mismatch_penalty: int = 4,
             gap_open_penalty: int = 6,
             gap_extend_penalty: int = 1,
-            clip_penalty: int = 5,
-            bwa_path="bwa"):
+            clip_penalty: int = 5):
     params = [
         'mem',
         '-o', output_path,
@@ -44,8 +39,20 @@ def bwa_mem(output_path: Path,
     if report_all_alignments:
         params.insert(5, '-a')
     exit_code = call_command(
-        command=bwa_path,
+        command='bwa',
         args=params
     )
     if exit_code != 0:
         raise CommandLineException("bwa mem", exit_code)
+
+
+def bwa_fastmap(output_path: Path,
+                reference_path: Path,
+                query_path: Path):
+    exit_code = call_command(
+        command='bwa',
+        args=['fastmap', reference_path, query_path],
+        output_path=output_path
+    )
+    if exit_code != 0:
+        raise CommandLineException("bwa fastmap", exit_code)

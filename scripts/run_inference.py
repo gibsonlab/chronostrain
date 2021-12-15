@@ -121,7 +121,8 @@ def main():
         population=population,
         fragments=fragments,
         time_points=time_points,
-        disable_quality=not cfg.model_cfg.use_quality_scores
+        disable_quality=not cfg.model_cfg.use_quality_scores,
+        db=db
     )
 
     """

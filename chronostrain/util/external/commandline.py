@@ -1,6 +1,6 @@
 from pathlib import Path
 import subprocess
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 
 from chronostrain.config.logging import create_logger
 logger = create_logger(__name__)
@@ -14,7 +14,7 @@ class CommandLineException(BaseException):
 
 
 def call_command(command: str,
-                 args: List[str],
+                 args: List[Any],
                  cwd: Path = None,
                  shell: bool = False,
                  environment: Optional[Dict[str, str]] = None,

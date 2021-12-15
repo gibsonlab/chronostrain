@@ -2,6 +2,7 @@ from typing import List
 import torch
 
 from chronostrain import cfg, logger
+from chronostrain.database import StrainDatabase
 from chronostrain.model import Population, NoiselessErrorModel, PhredErrorModel, GenerativeModel, FragmentSpace
 
 
@@ -12,14 +13,16 @@ def initialize_seed(seed: int):
 def create_model(population: Population,
                  fragments: FragmentSpace,
                  time_points: List[float],
-                 disable_quality: bool) -> GenerativeModel:
+                 disable_quality: bool,
+                 db: StrainDatabase) -> GenerativeModel:
     """
     Simple wrapper for creating a generative model.
-    @param population: The bacteria population.
-    @param fragments: The collection of fragments coming from the population.
-    @param time_points: List of time points for which samples are taken from.
-    @param disable_quality: A flag to indicate whether or not to use NoiselessErrorModel.
-    @return A Generative model object.
+    :param population: The bacteria population.
+    :param fragments: The collection of fragments coming from the population.
+    :param time_points: List of time points for which samples are taken from.
+    :param disable_quality: A flag to indicate whether or not to use NoiselessErrorModel.
+    :param db: A Strain database instance.
+    :return A Generative model object.
     """
     mu = torch.zeros(population.num_strains(), device=cfg.torch_cfg.device)
 
@@ -42,7 +45,8 @@ def create_model(population: Population,
         tau_scale=cfg.model_cfg.sics_scale,
         read_error_model=error_model,
         fragments=fragments,
-        mean_frag_length=cfg.model_cfg.mean_read_length
+        mean_frag_length=cfg.model_cfg.mean_read_length,
+        all_markers_fasta=db.multifasta_file
     )
 
     return model

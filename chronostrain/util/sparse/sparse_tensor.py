@@ -4,7 +4,10 @@ A sparse 2-d matrix in COO format. Uses torch_sparse as a backend.
 Note: since torch_sparse largely already uses C-compiled computations or JIT whenever possible, calls using
 torch_sparse need not be optimized. For custom model-specific operations, we use @torch.jit ourselves.
 """
+from pathlib import Path
 from typing import Tuple, List, Union
+
+import numpy as np
 import torch
 import torch_sparse
 
@@ -236,9 +239,40 @@ class SparseMatrix(object):
         indices = self.indices[:, mask]
         values = self.values[mask]
 
-        # Shifting remaining entries down
+        print("[WARNING] TODO: SparseMatrix's implementation of `slice_columns` needs to be verified.")
+        # check that this is correct.
         range_mask = torch.sum(torch.arange(self.columns, device=self.indices.device) == cols_to_keep, dim=0).bool()
+
         adj = torch.cumsum(~range_mask, 0)
         indices[1, :] = indices[1, :] - torch.index_select(adj, 0, indices[1, :])
 
         return SparseMatrix(indices, values, (self.rows, cols_to_keep.size(-2)), force_coalesce=False)
+
+    def save(self, out_path: Path):
+        np.savez(
+            out_path,
+            sparse_indices=self.indices.cpu().numpy(),
+            sparse_values=self.values.cpu().numpy(),
+            matrix_shape=np.array([
+                self.rows,
+                self.columns
+            ])
+        )
+
+    @staticmethod
+    def load(in_path: Path, device, dtype):
+        data = np.load(str(in_path))
+        size = data["matrix_shape"]
+        return SparseMatrix(
+            indices=torch.tensor(
+                data['sparse_indices'],
+                device=device,
+                dtype=torch.long
+            ),
+            values=torch.tensor(
+                data['sparse_values'],
+                device=device,
+                dtype=dtype
+            ),
+            dims=(size[0], size[1])
+        )

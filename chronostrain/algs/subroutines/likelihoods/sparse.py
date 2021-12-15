@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import List, Dict, Iterator, Tuple, Set
 from collections import defaultdict
 
@@ -363,33 +364,11 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         logger.debug("Computing read-fragment likelihoods...")
 
         # Save each sparse tensor as a tuple of indices/values/shape into a compressed numpy file (.npz).
-        def save_(path, sparse_matrix: SparseMatrix):
-            np.savez(
-                path,
-                sparse_indices=sparse_matrix.indices.cpu().numpy(),
-                sparse_values=sparse_matrix.values.cpu().numpy(),
-                matrix_shape=np.array([
-                    sparse_matrix.rows,
-                    sparse_matrix.columns
-                ])
-            )
+        def save_(path: Path, sparse_matrix: SparseMatrix):
+            sparse_matrix.save(path)
 
-        def load_(path) -> SparseMatrix:
-            data = np.load(path)
-            size = data["matrix_shape"]
-            return SparseMatrix(
-                indices=torch.tensor(
-                    data['sparse_indices'],
-                    device=cfg.torch_cfg.device,
-                    dtype=torch.long
-                ),
-                values=torch.tensor(
-                    data['sparse_values'],
-                    device=cfg.torch_cfg.device,
-                    dtype=cfg.torch_cfg.default_dtype
-                ),
-                dims=(size[0], size[1])
-            )
+        def load_(path: Path) -> SparseMatrix:
+            return SparseMatrix.load(path, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype)
 
         def callback_(matrix: SparseMatrix):
             _, counts_per_read = torch.unique(matrix.indices[1], sorted=False, return_inverse=False, return_counts=True)

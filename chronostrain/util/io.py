@@ -1,6 +1,6 @@
 import bz2
 import gzip
-from collections import Iterator
+from typing import Iterator
 from pathlib import Path
 from contextlib import contextmanager
 

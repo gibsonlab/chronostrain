@@ -4,6 +4,9 @@
 import numpy as np
 from typing import Dict, List, Iterable
 
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+
 from chronostrain.util.sequences import z4_to_nucleotides, SeqType
 
 
@@ -33,6 +36,13 @@ class Fragment:
 
     def nucleotide_content(self) -> str:
         return z4_to_nucleotides(self.seq)
+
+    def to_seqrecord(self, description: str = "") -> SeqRecord:
+        return SeqRecord(
+            Seq(self.nucleotide_content()),
+            id="FRAGMENT_{}".format(self.index),
+            description=description
+        )
 
     def __str__(self):
         acgt_seq = self.nucleotide_content()
@@ -133,6 +143,9 @@ class FragmentSpace:
 
     def __str__(self):
         return ",".join(str(frag) for frag in self.frag_list)
+
+    def __repr__(self):
+        return ",".join(repr(frag) for frag in self.frag_list)
 
     def __iter__(self):
         return self.frag_list.__iter__()
