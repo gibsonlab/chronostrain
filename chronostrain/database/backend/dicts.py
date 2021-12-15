@@ -78,3 +78,6 @@ class DictionaryBackend(AbstractStrainDatabaseBackend):
                 ans.append(marker)
 
         return ans
+
+    def num_canonical_markers(self) -> int:
+        return len(self.all_canonical_markers())

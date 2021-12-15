@@ -82,3 +82,6 @@ class AbstractStrainDatabaseBackend(object):
 
     def all_canonical_markers(self) -> List[Marker]:
         pass
+
+    def num_canonical_markers(self) -> int:
+        pass

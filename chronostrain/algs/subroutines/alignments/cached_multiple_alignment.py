@@ -59,11 +59,12 @@ class CachedReadMultipleAlignments(object):
         For each marker, a multiple alignment is performed with the collection reads that
         map to it.
         """
-        for m_idx, (marker_name, timeseries_pairwise_alns) in enumerate(self.pairwise_seed().items()):
+        pairwise = self.pairwise_seed()
+        for m_idx, (marker_name, timeseries_pairwise_alns) in enumerate(pairwise.items()):
             logger.debug("Computing multiple alignment for marker `{}`... ({} of {})".format(
                 marker_name,
                 m_idx + 1,
-                self.db.num_markers()
+                len(pairwise)
             ))
             yield self._perform_cached_alignment(marker_name, timeseries_pairwise_alns, num_cores=num_cores)
 

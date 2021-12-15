@@ -105,3 +105,9 @@ class PandasAssistedBackend(AbstractStrainDatabaseBackend):
             self.markers[marker_id]
             for idx, marker_id in hits.items()
         ]
+
+    def num_canonical_markers(self) -> int:
+        return self.marker_df.loc[
+            (self.marker_df['IsCanonical']),
+            "MarkerId"
+        ].shape[0]

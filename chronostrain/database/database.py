@@ -135,6 +135,9 @@ class StrainDatabase(object):
     def all_canonical_markers(self) -> List[Marker]:
         return self.backend.all_canonical_markers()
 
+    def num_canonical_markers(self) -> int:
+        return self.backend.num_canonical_markers()
+
 
 class JSONStrainDatabase(StrainDatabase):
     def __init__(self,
