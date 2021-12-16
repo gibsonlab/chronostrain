@@ -61,7 +61,7 @@ class CachedReadMultipleAlignments(object):
         """
         pairwise = self.pairwise_seed()
         for m_idx, (marker_name, timeseries_pairwise_alns) in enumerate(pairwise.items()):
-            logger.debug("Computing multiple alignment for marker `{}`... ({} of {})".format(
+            logger.debug("Retrieving multiple alignment for marker `{}`... ({} of {})".format(
                 marker_name,
                 m_idx + 1,
                 len(pairwise)

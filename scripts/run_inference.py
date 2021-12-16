@@ -76,6 +76,8 @@ def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase, pop: Pop
     multiple_alignments = CachedReadMultipleAlignments(reads, db)
     fragment_space = FragmentSpace()
     for multi_align in multiple_alignments.get_alignments(num_cores=cfg.model_cfg.num_cores):
+        logger.debug(f"Constructing fragments for marker `{multi_align.canonical_marker.name}`.")
+
         for marker in multi_align.markers():
             if not pop.contains_marker(marker):
                 continue
@@ -88,7 +90,7 @@ def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase, pop: Pop
 
                     if len(subseq) == 0:
                         raise RuntimeError("Found subsequence of length 0. (Marker = {}, read = {})".format(
-                            marker.name,
+                            marker.id,
                             read.id
                         ))
 
