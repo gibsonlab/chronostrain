@@ -317,10 +317,6 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                         )
 
                         if len(subseq) == 0:
-                            logger.debug("Skipping length zero subsequence. (Marker = {}, read = {})".format(
-                                marker.id,
-                                read.id
-                            ))
                             continue
 
                         add_subseq_likelihood(subseq, read, insertions, deletions, revcomp, start_clip, end_clip)
