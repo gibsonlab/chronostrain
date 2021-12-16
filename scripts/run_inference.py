@@ -95,13 +95,6 @@ def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase, pop: Pop
                         subseq,
                         metadata=f"MultiAlign({read.id}->{marker.id})"
                     )
-
-                    if frag.index == 9672:
-                        logger.debug("DEBUG fragment {}: (Marker = {}, read = {})".format(
-                            frag.index,
-                            marker.id,
-                            read.id
-                        ))
     return fragment_space
 
 

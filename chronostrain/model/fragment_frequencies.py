@@ -86,6 +86,7 @@ class FragmentFrequencyComputer(object):
             output_path=output_path,
             reference_path=self.all_markers_path,
             query_path=fragments_path,
+            min_smem_len=fragments.min_frag_len,
             max_interval_size=1000
         )
 

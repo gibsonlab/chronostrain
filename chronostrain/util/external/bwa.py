@@ -49,6 +49,7 @@ def bwa_mem(output_path: Path,
 def bwa_fastmap(output_path: Path,
                 reference_path: Path,
                 query_path: Path,
+                min_smem_len: int = 17,
                 max_interval_size: int = 20):
     exit_code = call_command(
         command='bwa',

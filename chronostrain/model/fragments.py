@@ -67,6 +67,7 @@ class FragmentSpace:
         self.fragment_instances_counter = 0
         self.seq_to_frag: Dict[str, Fragment] = dict()
         self.frag_list: List[Fragment] = list()
+        self.min_frag_len = 0
 
     def contains_seq(self, seq: SeqType) -> bool:
         return self.seq_to_key(seq) in self.seq_to_frag
@@ -80,6 +81,10 @@ class FragmentSpace:
         self.seq_to_frag[self.seq_to_key(seq)] = frag
         self.frag_list.append(frag)
         self.fragment_instances_counter += 1
+
+        if len(self) == 0 or self.min_frag_len < len(seq):
+            self.min_frag_len = len(seq)
+
         return frag
 
     def add_seq(self, seq: SeqType, metadata: str = None) -> Fragment:
