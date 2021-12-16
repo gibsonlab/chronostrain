@@ -7,6 +7,7 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 import numpy as np
 
+from chronostrain.util.numpy_helpers import first_nonoccurrence_of, last_nonoccurrence_of
 from chronostrain.database import StrainDatabase
 from chronostrain.model import Marker, SequenceRead
 from chronostrain.model.io import TimeSeriesReads
@@ -119,13 +120,14 @@ class MarkerMultipleFragmentAlignment(object):
             r_idx = self.forward_read_index_map[read]
 
         aln_seq = self.read_multi_alignment[r_idx]
-        ungapped_indices = np.where(aln_seq != nucleotide_GAP_z4)[0]
-        return ungapped_indices[0], ungapped_indices[-1]
+        return self.get_boundary_of_aligned_seq(aln_seq)
 
     @staticmethod
     def get_boundary_of_aligned_seq(aln_seq: SeqType):
-        ungapped_indices = np.where(aln_seq != nucleotide_GAP_z4)[0]
-        return ungapped_indices[0],  ungapped_indices[-1]
+        return (
+            first_nonoccurrence_of(aln_seq, nucleotide_GAP_z4),
+            last_nonoccurrence_of(aln_seq, nucleotide_GAP_z4)
+        )
 
     def get_aligned_reference_region(self,
                                      marker: Marker,
@@ -212,9 +214,8 @@ def parse(db: StrainDatabase,
         aligned_marker_seq = nucleotides_to_z4(str(marker_record.seq))
 
         # The marker sequence's aligned region. Keep track of this to clip off the start/end edge effects.
-        matched_indices = np.where(aligned_marker_seq != nucleotide_GAP_z4)[0]
-        marker_start = matched_indices[0]
-        marker_end = matched_indices[-1]
+        marker_start = first_nonoccurrence_of(aligned_marker_seq, nucleotide_GAP_z4)
+        marker_end = last_nonoccurrence_of(aligned_marker_seq, nucleotide_GAP_z4)
 
         marker_seqs.append(aligned_marker_seq)
         marker_regions.append((marker_start, marker_end))

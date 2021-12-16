@@ -7,7 +7,7 @@ from typing import Optional
 import numpy as np
 from chronostrain.model import Fragment
 from chronostrain.model.reads.base import SequenceRead, AbstractErrorModel, AbstractQScoreDistribution
-from chronostrain.util.math.numpy_random import choice_vectorized
+from chronostrain.util.numpy_helpers import choice_vectorized
 import chronostrain.util.sequences as cseq
 
 
