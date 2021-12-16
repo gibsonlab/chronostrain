@@ -89,10 +89,11 @@ def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase, pop: Pop
                     )
 
                     if len(subseq) == 0:
-                        raise RuntimeError("Found subsequence of length 0. (Marker = {}, read = {})".format(
+                        logger.debug("Skipping length zero subsequence. (Marker = {}, read = {})".format(
                             marker.id,
                             read.id
                         ))
+                        continue
 
                     fragment_space.add_seq(
                         subseq,
