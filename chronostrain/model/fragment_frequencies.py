@@ -151,6 +151,10 @@ class FragmentFrequencyComputer(object):
                         exact_match_found = True
                         strain_counts = Counter()
                         for marker_hit_token in match_tokens[4:]:
+                            if marker_hit_token == "*":
+                                raise ValueError("Output of bwa fastmap didn't report output. "
+                                                 "Try raising the value of the -w option.")
+
                             marker_desc, pos = marker_hit_token.split(':')
                             strain_id, gene_name, gene_id = marker_desc.split('|')
                             strain_idx = strain_indices[strain_id]

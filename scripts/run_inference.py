@@ -86,6 +86,12 @@ def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase, pop: Pop
                         marker, read, revcomp=revcomp
                     )
 
+                    if len(subseq) == 0:
+                        raise RuntimeError("Found subsequence of length 0. (Marker = {}, read = {})".format(
+                            marker.name,
+                            read.id
+                        ))
+
                     fragment_space.add_seq(
                         subseq,
                         metadata=f"MultiAlign({read.id}->{marker.id})"
