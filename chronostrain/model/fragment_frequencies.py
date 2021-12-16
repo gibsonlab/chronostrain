@@ -162,8 +162,9 @@ class FragmentFrequencyComputer(object):
                             strain_counts[strain_idx] += 1
                         hits_dict[fragment] = strain_counts
                 if not exact_match_found:
-                    raise ValueError(
+                    logger.warning(
                         f"No exact matches found for fragment {fragment.index} [{fragment.nucleotide_content()}]."
+                        f"Validate the output of bwa fastmap!"
                     )
 
         return hits_dict
