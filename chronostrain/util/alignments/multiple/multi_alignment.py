@@ -214,8 +214,7 @@ def parse(db: StrainDatabase,
         aligned_marker_seq = nucleotides_to_z4(str(marker_record.seq))
 
         # The marker sequence's aligned region. Keep track of this to clip off the start/end edge effects.
-        marker_start = first_nonoccurrence_of(aligned_marker_seq, nucleotide_GAP_z4)
-        marker_end = last_nonoccurrence_of(aligned_marker_seq, nucleotide_GAP_z4)
+        marker_start, marker_end = MarkerMultipleFragmentAlignment.get_boundary_of_aligned_seq(aligned_marker_seq)
 
         marker_seqs.append(aligned_marker_seq)
         marker_regions.append((marker_start, marker_end))

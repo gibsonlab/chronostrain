@@ -2,6 +2,8 @@
     numpy_helpers.py
     Contains efficient helper functions for useful operations.
 """
+from typing import Union
+
 from numba import njit
 import numpy as np
 
@@ -43,26 +45,25 @@ def first_occurrence_of(array, item):
 
 
 @njit
-def first_nonoccurrence_of(array, item):
+def first_nonoccurrence_of(array: np.ndarray, item: Union[float, int]) -> int:
     """
-    Return the index of the first NON-occurrence of `item` in `array`. If no instance is found, return None.
+    Return the index of the first NON-occurrence of `item` in `array`. If no instance is found, raise an error.
     :param array:
     :param item:
     :return:
     """
-    for idx, val in np.ndenumerate(array):
+    for idx, val in enumerate(array):
         if val != item:
             return idx
+    raise RuntimeError()
 
 
 @njit
-def last_nonoccurrence_of(array, item):
+def last_nonoccurrence_of(array: np.ndarray, item: Union[float, int]) -> int:
     """
-    Return the index of the last NON-occurrence of `item` in `array`. If no instance is found, return None.
+    Return the index of the last NON-occurrence of `item` in `array`. If no instance is found, raise an error.
     :param array:
     :param item:
     :return:
     """
-    reverse_ans = first_nonoccurrence_of(array[::-1], item)
-    if reverse_ans is not None:
-        return len(array) - 1 - reverse_ans
+    return len(array) - 1 - first_nonoccurrence_of(np.flip(array), item)

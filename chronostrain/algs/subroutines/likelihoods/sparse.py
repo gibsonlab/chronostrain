@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import List, Dict, Iterator, Tuple, Set
 from collections import defaultdict
+import numpy as np
 
 from joblib import Parallel, delayed
 
