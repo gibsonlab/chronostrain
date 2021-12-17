@@ -22,12 +22,12 @@ class ColumnSectionedSparseMatrix(SparseMatrix):
         return self.locs_per_column[col]
 
     @staticmethod
-    def from_sparse_matrix(x: SparseMatrix):
+    def from_sparse_matrix(x: SparseMatrix) -> 'ColumnSectionedSparseMatrix':
         return ColumnSectionedSparseMatrix(
             x.indices,
             x.values,
             (x.rows, x.columns),
-            False
+            True
         )
 
 
@@ -55,6 +55,15 @@ class RowSectionedSparseMatrix(SparseMatrix):
                 self.rows,
                 self.columns
             ])
+        )
+
+    @staticmethod
+    def from_sparse_matrix(x: SparseMatrix) -> 'RowSectionedSparseMatrix':
+        return RowSectionedSparseMatrix(
+            x.indices,
+            x.values,
+            (x.rows, x.columns),
+            True
         )
 
     @staticmethod

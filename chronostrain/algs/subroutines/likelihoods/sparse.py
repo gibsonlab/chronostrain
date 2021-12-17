@@ -55,7 +55,7 @@ class SparseDataLikelihoods(DataLikelihoods):
                 [row_support[i] for i in range(_F)]
             ], dtype=torch.long, device=cfg.torch_cfg.device)
 
-            projector = ColumnSectionedSparseMatrix(
+            projector = SparseMatrix(
                 indices=_support_indices,
                 values=torch.ones(_support_indices.size()[1],
                                   device=cfg.torch_cfg.device,
@@ -365,6 +365,10 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         )
 
     def compute_likelihood_tensors(self) -> List[SparseMatrix]:
+        """
+        Invokes create_sparse_matrix by passing it through the cache.
+        :return:
+        """
         logger.debug("Computing read-fragment likelihoods...")
 
         # Save each sparse tensor as a tuple of indices/values/shape into a compressed numpy file (.npz).

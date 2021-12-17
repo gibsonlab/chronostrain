@@ -61,7 +61,7 @@ def log_spmm_exp_helper(x_indices: torch.Tensor,
                         x_locs_per_col: List[torch.Tensor],
                         y: torch.Tensor) -> torch.Tensor:
     """
-    The jit-compiled version of log_spmm_exp.
+    The jit-compiled version of log_spmm_exp which uses torch.logsumexp.
     """
     assert x_cols == y.shape[0]
 
@@ -78,9 +78,6 @@ def log_spmm_exp_helper(x_indices: torch.Tensor,
 def log_spmm_exp(x: ColumnSectionedSparseMatrix, y: torch.Tensor) -> torch.Tensor:
     """
     Computes log(exp(X) @ exp(Y)) in a numerically stable, where log/exp are entrywise operations.
-    Unlike log_mm_exp, X is given as a sparse matrix (empty entries are assumed to be -inf).
-    This implementation uses the identity (A + B)C = AC + BC, and uses a col-partitioning recursive strategy
-    of depth log(n) to maintain O(mp) memory usage, where X is (m x n) and Y is (n x p).
     """
     return log_spmm_exp_helper(
         x.indices, x.values, x.rows, x.columns, x.locs_per_column, y

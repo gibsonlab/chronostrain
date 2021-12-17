@@ -19,7 +19,7 @@ from chronostrain.model import GenerativeModel, Fragment
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.util.benchmarking import RuntimeEstimator
 from chronostrain.util.math import *
-from chronostrain.util.sparse import SparseMatrix, ColumnSectionedSparseMatrix
+from chronostrain.util.sparse import SparseMatrix, ColumnSectionedSparseMatrix, RowSectionedSparseMatrix
 from chronostrain.database import StrainDatabase
 
 from chronostrain.config.logging import create_logger
@@ -310,7 +310,7 @@ class FragmentPosterior(object):
         self.model = model
 
         # length-T list of (F x N_t) tensors.
-        self.phi: List[torch.Tensor] = []
+        self.phi: List[Union[torch.Tensor, SparseMatrix]] = []
         self.frag_index_map = frag_index_map  # A mapping from internal frag indices to FragmentSpace indexing.
 
     def top_fragments(self, time_idx, read_idx, top=5) -> Iterator[Tuple[Fragment, float]]:
@@ -365,7 +365,7 @@ class BBVISolver(AbstractModelSolver):
             raise ValueError("Unrecognized `correlation_type` argument {}.".format(correlation_type))
 
         # self.model.get_fragment_frequencies()
-        self._sparse_frag_freqs: List[ColumnSectionedSparseMatrix] = []
+        self._sparse_frag_freqs: List[RowSectionedSparseMatrix] = []  # time-indexed list of (F' x S) matrices.
         if cfg.model_cfg.use_sparse:
             frag_freqs: SparseMatrix = self.model.fragment_frequencies_sparse  # F x S
             for t_idx in range(model.num_times()):
@@ -373,7 +373,7 @@ class BBVISolver(AbstractModelSolver):
                 projector = self.data_likelihoods.projectors[t_idx]
 
                 self._sparse_frag_freqs.append(
-                    ColumnSectionedSparseMatrix.from_sparse_matrix(projector.sparse_mul(frag_freqs))
+                    RowSectionedSparseMatrix.from_sparse_matrix(projector.sparse_mul(frag_freqs))
                 )
 
             self.fragment_posterior = FragmentPosterior(
@@ -459,39 +459,39 @@ class BBVISolver(AbstractModelSolver):
         Same as dense implementation, but computes the middle term E_{F ~ Qf}(log P(F|Xi)) using monte-carlo samples
         of F from phi.
         """
+        elbo_sum = posterior_gaussian_log_likelihoods.sum()
+
         # ======== log P(Xi)
-        model_gaussian_log_likelihoods = self.model.log_likelihood_x(X=x_samples)
+        model_gaussian_log_likelihoods = self.model.log_likelihood_x(X=x_samples).sum()
+        elbo_sum += model_gaussian_log_likelihoods.sum()
 
         # ======== E_{F ~ Qf}(log P(F|Xi))
         n_samples = x_samples.size()[1]
-        expectation_model_log_fragment_probs = torch.zeros(
-            size=(n_samples,),
-            dtype=cfg.torch_cfg.default_dtype,
-            device=cfg.torch_cfg.device
-        )
         for t_idx in range(self.model.num_times()):
-            softmax_x_t = torch.softmax(x_samples[t_idx, :, :], dim=1)  # (N x S)
-            phi_sum = normalize(self.fragment_posterior.phi[t_idx].to_dense() + eps_smoothing, dim=0).sum(dim=1)  # (length F')
+            # softmax_x_t = torch.softmax(x_samples[t_idx, :, :], dim=1)  # (N x S)
 
-            expectation_model_log_fragment_probs += log_spmm_exp(
+            phi_t: RowSectionedSparseMatrix = self.fragment_posterior.phi[t_idx]
+            elbo_sum = total_expectation_frag_ll(
+                phi_t,
                 self._sparse_frag_freqs[t_idx],
-                torch.log(softmax_x_t).t()
-            ).t().mv(phi_sum)
+                torch.log(torch.softmax(x_samples[t_idx, :, :], dim=1)),
+                cumulative_answer=elbo_sum
+            )  # This function automatically returns elbo_sum + (partial answer), due to the limitation with jit.
+            # print(elbo_sum)
 
-            # projector = self.data_likelihoods.projectors[t_idx]
-            # read_likelihoods = log_spmm_exp(
-            #     ColumnSectionedSparseMatrix.from_sparse_matrix(self.data_likelihoods.likelihood_matrix(t_idx).t()),  # (R x F')
-            #     log_spspmm_exp(
-            #         projector,  # (F' x F)
-            #         self.model.fragment_frequencies_sparse  # (F x S)
-            #     ),  # (F' x S)
-            # ).t()  # after transpose: (S x R)
-            # print(torch.sum(read_likelihoods, dim=1))
+            # softmax_x_t = torch.softmax(x_samples[t_idx, :, :], dim=1)  # (N x S)
+            # phi_sum = normalize(self.fragment_posterior.phi[t_idx].to_dense() + eps_smoothing, dim=0).sum(dim=1)  # (length F')
+            #
+            # # This computes E_phi[ log(F|X) ].
+            # expectation_model_log_fragment_probs += log_spmm_exp(
+            #     self._sparse_frag_freqs[t_idx],  # (F x S)
+            #     torch.log(softmax_x_t).t()  # (S x N)
+            # ).t().mv(phi_sum)  # (N x F) @ (F)
 
-        elbo_samples = (model_gaussian_log_likelihoods
-                        + expectation_model_log_fragment_probs
-                        - posterior_gaussian_log_likelihoods)
-        return elbo_samples.mean()
+        # elbo_sum = (model_gaussian_log_likelihoods
+        #             + expectation_model_log_fragment_probs
+        #             - posterior_gaussian_log_likelihoods.sum())
+        return elbo_sum * (1 / n_samples)
 
     def update_phi(self, x_samples: torch.Tensor):
         if cfg.model_cfg.use_sparse:
@@ -527,18 +527,31 @@ class BBVISolver(AbstractModelSolver):
         self.fragment_posterior.phi = []
 
         for t in range(self.model.num_times()):
-            phi_t: SparseMatrix = self.data_likelihoods.matrices[t].exp().scale_row(
-                torch.exp(torch.mean(
-                    log_spmm_exp(
-                        self._sparse_frag_freqs[t],  # (F' x S)
-                        torch.log(softmax(x_samples[t], dim=1)).t()  # (S x N)
-                    ),
-                    dim=1
-                )),
-                dim=0
+            phi_t = construct_phi(
+                self._sparse_frag_freqs[t],
+                self.data_likelihoods.matrices[t],
+                torch.log(softmax(x_samples[t], dim=1))
             )
-
             self.fragment_posterior.phi.append(phi_t)
+
+            # print(phi_t.to_dense())
+
+            # phi_t: SparseMatrix = self.data_likelihoods.matrices[t].exp().scale_row(
+            #     torch.exp(
+            #         torch.mean(
+            #             log_spmm_exp(
+            #                 self._sparse_frag_freqs[t],  # (F' x S)
+            #                 torch.log(softmax(x_samples[t], dim=1)).t()  # (S x N)
+            #             ),  # Result is #(F' x N)
+            #             dim=1
+            #         )
+            #     ),
+            #     dim=0
+            # )
+            # self.fragment_posterior.phi.append(phi_t)
+
+
+
 
     def solve(self,
               optim_class=torch.optim.Adam,
@@ -632,3 +645,223 @@ class BBVISolver(AbstractModelSolver):
             logger.debug(
                 "BBVI CPU memory usage -- [Not implemented]"
             )
+
+
+# ======================= Torch JIT helpers
+@torch.jit.script
+def ll_conditional_frag_given_xt(
+        n_strains: int,
+        ff_indices: torch.Tensor,
+        ff_values: torch.Tensor,
+        frag_locs: torch.Tensor,
+        log_x_t: torch.Tensor,
+        empty_ll_values: float
+) -> torch.Tensor:
+    """
+    Computes [log P(F=f | X_t)], for a particular choice of f (specified by frag_locs from a RowSectionedSparseMatrix).
+    """
+    supported_strains = ff_indices[1, frag_locs]
+
+    ff_buffer = torch.full(
+        [n_strains],
+        empty_ll_values,
+        dtype=torch.float,
+        device=ff_values.device
+    )
+    ff_buffer[supported_strains] = ff_values[frag_locs]
+
+    return torch.logsumexp(
+        log_x_t + ff_buffer.unsqueeze(0),
+        dim=1
+    )  # (length N)
+
+
+def total_expectation_frag_ll(phi_t: RowSectionedSparseMatrix,
+                              frag_freqs: RowSectionedSparseMatrix,
+                              log_x_t: torch.Tensor,
+                              cumulative_answer: torch.Tensor,
+                              empty_ll_values: float = -1e7) -> torch.Tensor:
+    """
+    :param phi_t: An (F x R) sparse matrix, representing the approximate (log-) posterior.
+    :param frag_freqs: An (F x S) sparse matrix.
+    :param log_x_t: An (N x S) dense tensor.
+    :return: A length-N tensor representing a vector of E_(f ~ phi_t)[ log P(F=f | X_i^t) ], for each i-th sample X_i.
+    """
+    return total_expectation_frag_ll_helper(
+        phi_t.rows,
+        phi_t.values,
+        phi_t.locs_per_row,
+        frag_freqs.indices,
+        frag_freqs.values,
+        frag_freqs.locs_per_row,
+        log_x_t,
+        cumulative_answer,
+        empty_ll_values
+    )
+
+
+@torch.jit.script
+def total_expectation_frag_ll_helper(
+        n_fragments: int,
+        phi_values: torch.Tensor,
+        phi_locs_per_row: List[torch.Tensor],
+        ff_indices: torch.Tensor,
+        ff_values: torch.Tensor,
+        ff_locs_per_row: List[torch.Tensor],
+        log_x_t: torch.Tensor,
+        cumulative_answer: torch.Tensor,
+        empty_ll_values: float
+) -> torch.Tensor:
+    n_strains = log_x_t.size(1)
+
+    for f in torch.arange(0, n_fragments, 1):
+        """
+        Let X_n(t) represent the n-th sample.
+        This part represents the calculation (for a particular timepoint t)
+            Σ_{n} Σ_{r} E_{f ~ φ(r)} [log P(F_r = f | X_n(t))]
+            = Σ_{n} Σ_{r} Σ_{f} [φ_{f,r} * ll_factor(t, f, n)]
+            = Σ_{f} Σ_{n} Σ_{r} [φ_{f,r} * ll_factor(t, f, n)]
+            = Σ_{f} Σ_{n} ll_factor(t, f, n) * [Σ_{r} φ_{f,r}]
+            = Σ_{f} {[Σ_{n} ll_factor(t, f, n)] * [Σ_{r} φ_{f,r}]}
+            
+        Recall that phi here is a LOG likelihood value.
+        """
+        ll_factor_total = ll_conditional_frag_given_xt(
+            n_strains, ff_indices, ff_values, ff_locs_per_row[f], log_x_t, empty_ll_values
+        ).sum()  # length N
+
+        phi_total = phi_values[phi_locs_per_row[f]].exp().sum()  # length = R' = (# of supported reads of frag f)
+        cumulative_answer += ll_factor_total * phi_total
+    return cumulative_answer
+
+
+@torch.jit.script
+def construct_phi_jit_helper(
+        n_fragments: int,
+        n_reads: int,
+        ff_indices: torch.Tensor,
+        ff_values: torch.Tensor,
+        ff_locs_per_row: List[torch.Tensor],
+        data_ll_indices: torch.Tensor,
+        data_ll_values: torch.Tensor,
+        data_ll_locs_per_col: List[torch.Tensor],
+        log_x_t: torch.Tensor,
+        empty_ll_values: float
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """
+    Jit-accelerated implementation of the following idea:
+
+    Let data_likelihoods_t be M.
+
+    For each supported frag f:
+        β[f] = E[P(F=f | X_t)] = mean(γ_1, ..., γ_N), where γ_n = logsumexp(W[f, :] + X[:, n])
+        (note: β is pre-computed beforehand for each f.)
+
+        For each read r:
+        For each supported frag f of r (with respect to M):
+            φ[f, r] = M[f, r] * β[f]
+    """
+    n_strains = log_x_t.size(1)
+    device = log_x_t.device
+    frag_expected_ll = torch.empty([n_fragments], dtype=torch.float, device=device)
+
+    for f in torch.arange(0, n_fragments, 1):
+        ll_factor = ll_conditional_frag_given_xt(
+            n_strains, ff_indices, ff_values, ff_locs_per_row[f], log_x_t, empty_ll_values
+        )
+        frag_expected_ll[f] = ll_factor.mean()
+
+    arr_indices = []
+    arr_values = []
+    for r in torch.arange(0, n_reads, 1):
+        support_locs = data_ll_locs_per_col[r]
+        target_frags = data_ll_indices[0][support_locs]
+
+        target_values = frag_expected_ll[target_frags] + data_ll_values[support_locs]
+
+        # represents log(ε_{r,f} * exp(E_X[log P(F=f | X)])) = log(ε_{r,f}) + E_X[log P(F=f | X)]
+        # target_values = frag_expected_ll[support_locs] + data_ll_values[support_locs]
+        arr_indices.append(
+            torch.stack([
+                target_frags,
+                torch.full([target_frags.size(0)], r, device=device, dtype=target_frags.dtype)
+            ])
+        )
+        arr_values.append(target_values)
+
+    return (
+        torch.concat(arr_indices, dim=1),
+        torch.concat(arr_values)
+    )
+
+
+def construct_phi(frag_freqs: RowSectionedSparseMatrix,
+                  data_ll_t: ColumnSectionedSparseMatrix,
+                  log_x_t: torch.Tensor,
+                  empty_ll_values: float = -1e7) -> RowSectionedSparseMatrix:
+    """
+    :param frag_freqs: An (F x S) row-sectioned sparse matrix.
+    :param data_ll_t: An (F x R) column-sectioned sparse matrix.
+    :param log_x_t: An (N x S) dense tensor.
+    :param empty_ll_values: A default value to fill in for empty entries in the log-likelihood frag frequency matrix.
+    :return: A row-sectioned (F x R) sparse matrix representing the (log-) fragment posterior phi_t
+    """
+
+    indices, values = construct_phi_jit_helper(
+        data_ll_t.rows,
+        data_ll_t.columns,
+        frag_freqs.indices,
+        frag_freqs.values,
+        frag_freqs.locs_per_row,
+        data_ll_t.indices,
+        data_ll_t.values,
+        data_ll_t.locs_per_column,
+        log_x_t,
+        empty_ll_values
+    )
+
+    # print("********************************")
+    # print(values)
+    # print(indices)
+    # print("ROWS: ", data_ll_t.rows)
+    # print("COLS: ", data_ll_t.columns)
+
+    # Normalize each column.
+    phi_unnormalized = ColumnSectionedSparseMatrix(
+        indices=indices,
+        values=values,
+        dims=(data_ll_t.rows, data_ll_t.columns),
+        force_coalesce=False
+    )
+    normalized_values = normalize_columns(
+        x_values=phi_unnormalized.values,
+        x_locs_per_col=phi_unnormalized.locs_per_column,
+        n_columns=phi_unnormalized.columns
+    )
+
+    return RowSectionedSparseMatrix(
+        indices=indices,
+        values=normalized_values,
+        dims=(data_ll_t.rows, data_ll_t.columns),
+        force_coalesce=False
+    )
+
+
+@torch.jit.script
+def normalize_columns(
+        x_values: torch.Tensor,
+        x_locs_per_col: List[torch.Tensor],
+        n_columns: int
+) -> torch.Tensor:
+    """
+    :return: The column-normalized version of x_values.
+    """
+    normalized_x_values = torch.empty(
+        x_values.size(),
+        device=x_values.device,
+        dtype=x_values.dtype
+    )
+    for c in torch.arange(0, n_columns, 1):
+        support_locs = x_locs_per_col[c]
+        normalized_x_values[support_locs] = x_values[support_locs] - torch.logsumexp(x_values[support_locs], dim=0)
+    return normalized_x_values
