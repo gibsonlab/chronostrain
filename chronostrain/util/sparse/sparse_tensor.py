@@ -66,13 +66,20 @@ class SparseMatrix(object):
         else:
             return float("inf")
 
+    @property
+    def shape(self) -> Tuple[int, int]:
+        return (self.rows, self.columns)
+
     def min(self, groupby_dim: int) -> torch.Tensor:
-        return torch_scatter.scatter(
+        ans = torch.empty(self.shape[groupby_dim], device=self.values.device, dtype=self.values.dtype)
+        torch_scatter.scatter(
             self.values,
             self.indices[groupby_dim],
             dim=-1,
-            reduce='min'
+            reduce='min',
+            out=ans
         )
+        return ans
 
     def dense_mul(self, x: torch.Tensor) -> torch.Tensor:
         return torch_sparse.spmm(self.indices, self.values, self.rows, self.columns, x)

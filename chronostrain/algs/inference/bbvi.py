@@ -343,7 +343,9 @@ class FragmentPosterior(object):
     def renormalize(self, t_idx: int):
         phi_t = self.phi[t_idx]  # (F x R)
 
+        # invoke torch-scatter to compute columnwise mins.
         scale_values = phi_t.min(groupby_dim=1)
+
         col_logsumexp = scale_values + SparseMatrix(
             indices=phi_t.indices,
             values=phi_t.values - scale_values[phi_t.indices[1]],
