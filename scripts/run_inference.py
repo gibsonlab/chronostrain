@@ -74,7 +74,7 @@ def parse_args():
 
 
 def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase, pop: Population) -> FragmentSpace:
-    logger.debug("Using fragment construction from multiple alignments.")
+    logger.info("Constructing fragments from multiple alignments.")
     multiple_alignments = CachedReadMultipleAlignments(reads, db)
     fragment_space = FragmentSpace()
     for multi_align in multiple_alignments.get_alignments(num_cores=cfg.model_cfg.num_cores):
