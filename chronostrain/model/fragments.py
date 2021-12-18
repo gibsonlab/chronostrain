@@ -29,7 +29,7 @@ class Fragment:
                    and np.sum(self.seq != other.seq) == 0
 
     def add_metadata(self, metadata: str):
-        if self.metadata:
+        if self.metadata is None:
             self.metadata = [metadata]
         else:
             self.metadata.append(metadata)
