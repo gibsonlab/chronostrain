@@ -625,6 +625,7 @@ class BBVISolver(AbstractModelSolver):
             _t = RuntimeEstimator(total_iters=iters, horizon=1)
             _t.stopwatch_click()
 
+            logger.debug("Sampling.")
             x_samples, gaussian_log_likelihoods = self.gaussian_posterior.reparametrized_sample(
                 num_samples=num_samples,
                 output_log_likelihoods=True,
@@ -632,11 +633,15 @@ class BBVISolver(AbstractModelSolver):
             )  # (T x N x S)
 
             optimizer.zero_grad()
+            logger.debug("Computing phi.")
             with torch.no_grad():
                 self.update_phi(x_samples.detach())
 
+            logger.debug("Computing ELBO.")
             elbo = self.elbo_marginal_gaussian(x_samples, gaussian_log_likelihoods, eps_smoothing=1e-30)
             elbo_loss = -elbo  # Quantity to minimize. (want to maximize ELBO)
+
+            logger.debug("Computing gradients and optimizing.")
             elbo_loss.backward()
             optimizer.step()
 
