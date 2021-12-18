@@ -51,6 +51,8 @@ def parse_args():
     parser.add_argument('--num_samples', required=False, type=int, default=100,
                         help='<Optional> The number of samples to use for monte-carlo estimation '
                              '(for Variational solution).')
+    parser.add_argument('--frag_chunk_size', required=False, type=int, default=100,
+                        help='<Optional> The size of matrices to divide into chunks across fragments. (Default: 100)')
     parser.add_argument('-lr', '--learning_rate', required=False, type=float, default=1e-5,
                         help='<Optional> The learning rate to use for the optimizer, if using EM or VI. Default: 1e-5.')
     parser.add_argument('--abundances_file', required=False, default='abundances.out',
@@ -174,7 +176,8 @@ def main():
             num_samples=args.num_samples,
             correlation_type='time',
             save_elbo_history=args.plot_elbo,
-            save_training_history=args.draw_training_history
+            save_training_history=args.draw_training_history,
+            frag_chunk_sz=args.frag_chunk_size
         )
 
         if args.plot_elbo:

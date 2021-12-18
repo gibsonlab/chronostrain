@@ -365,7 +365,7 @@ class BBVISolver(AbstractModelSolver):
                  model: GenerativeModel,
                  data: TimeSeriesReads,
                  db: StrainDatabase,
-                 frag_chunk_size: int = 5000,
+                 frag_chunk_size: int = 100,
                  num_cores: int = 1,
                  correlation_type: str = "time"):
         super().__init__(model, data, db, frag_chunk_size=frag_chunk_size, num_cores=num_cores)
