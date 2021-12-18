@@ -11,11 +11,11 @@ from chronostrain.util.sequences import z4_to_nucleotides, SeqType
 
 
 class Fragment:
-    def __init__(self, seq: SeqType, index: int, metadata: str):
+    def __init__(self, seq: SeqType, index: int, metadata: List[str] = None):
         self.seq: SeqType = seq
         self.seq_len = len(seq)
         self.index: int = index
-        self.metadata: str = metadata
+        self.metadata: List[str] = metadata
 
     def __hash__(self):
         return self.index
@@ -28,11 +28,11 @@ class Fragment:
                    and len(self.seq) == len(other.seq) \
                    and np.sum(self.seq != other.seq) == 0
 
-    def add_metadata(self, metadata):
+    def add_metadata(self, metadata: str):
         if self.metadata:
-            self.metadata = self.metadata + "|" + metadata
+            self.metadata = [metadata]
         else:
-            self.metadata = metadata
+            self.metadata.append(metadata)
 
     def nucleotide_content(self) -> str:
         return z4_to_nucleotides(self.seq)
@@ -48,7 +48,7 @@ class Fragment:
         acgt_seq = self.nucleotide_content()
         return "Fragment({}:{}:{})".format(
             self.index,
-            self.metadata if self.metadata else "",
+            '|'.join(self.metadata) if self.metadata else "",
             acgt_seq[:5] + "..." if len(acgt_seq) > 5 else acgt_seq
         )
 
@@ -77,7 +77,7 @@ class FragmentSpace:
         return str(seq)
 
     def _create_frag(self, seq: SeqType):
-        frag = Fragment(seq=seq, index=self.fragment_instances_counter, metadata="")
+        frag = Fragment(seq=seq, index=self.fragment_instances_counter)
         self.seq_to_frag[self.seq_to_key(seq)] = frag
         self.frag_list.append(frag)
         self.fragment_instances_counter += 1

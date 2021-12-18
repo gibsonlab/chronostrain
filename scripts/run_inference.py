@@ -93,8 +93,7 @@ def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase, pop: Pop
 
                     fragment_space.add_seq(
                         subseq,
-                        metadata=None
-                        # metadata=f"MultiAlign({read.id}->{marker.id})"
+                        metadata=f"({read.id}->{marker.id})"
                     )
     return fragment_space
 

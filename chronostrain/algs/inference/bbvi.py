@@ -379,20 +379,17 @@ class BBVISolver(AbstractModelSolver):
         else:
             raise ValueError("Unrecognized `correlation_type` argument {}.".format(correlation_type))
 
-        self._sparse_frag_freqs: List[ColumnSectionedSparseMatrix] = []  # time-indexed list of (F' x S) matrices.
         self._sparse_frag_freq_chunks: List[List[ColumnSectionedSparseMatrix]] = [
             [] for _ in range(model.num_times())
         ]
 
+        logger.debug("Initializing BBVI data structures.")
         if cfg.model_cfg.use_sparse:
             frag_freqs: SparseMatrix = self.model.fragment_frequencies_sparse  # F x S
             for t_idx in range(model.num_times()):
                 # Sparsity transformation (R^F -> R^{Support}), matrix size = (F' x F)
                 projector = self.data_likelihoods.projectors[t_idx]
 
-                self._sparse_frag_freqs.append(
-                    ColumnSectionedSparseMatrix.from_sparse_matrix(projector.sparse_mul(frag_freqs))
-                )
                 for sparse_chunk in RowSectionedSparseMatrix.from_sparse_matrix(
                         projector.sparse_mul(frag_freqs)
                 ).divide_into_chunks(chunk_size=frag_chunk_size):
