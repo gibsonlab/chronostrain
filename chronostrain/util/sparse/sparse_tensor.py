@@ -9,6 +9,7 @@ from typing import Tuple, List, Union
 
 import numpy as np
 import torch
+import torch_scatter
 import torch_sparse
 
 
@@ -64,6 +65,14 @@ class SparseMatrix(object):
             return self.nnz / (self.rows * self.columns)
         else:
             return float("inf")
+
+    def min(self, groupby_dim: int) -> torch.Tensor:
+        return torch_scatter.scatter(
+            self.values,
+            self.indices[groupby_dim],
+            dim=-1,
+            reduce='min'
+        )
 
     def dense_mul(self, x: torch.Tensor) -> torch.Tensor:
         return torch_sparse.spmm(self.indices, self.values, self.rows, self.columns, x)
@@ -123,11 +132,20 @@ class SparseMatrix(object):
             self.values = self.values + x
             return self
         else:
-            return SparseMatrix(self.indices, self.values + x, (self.columns, self.rows), force_coalesce=False)
+            return SparseMatrix(
+                self.indices,
+                self.values + x,
+                (self.rows, self.columns),
+                force_coalesce=False
+            )
 
     def t(self) -> 'SparseMatrix':
-        result_indices, result_values = torch_sparse.transpose(self.indices, self.values, self.rows, self.columns)
-        return SparseMatrix(result_indices, result_values, (self.columns, self.rows), force_coalesce=False)
+        return SparseMatrix(
+            torch.stack([self.indices[1], self.indices[0]]),
+            self.values,
+            (self.columns, self.rows),
+            force_coalesce=False
+        )
 
     def to_dense(self, zero_fill=0.) -> torch.Tensor:
         if zero_fill == 0.:

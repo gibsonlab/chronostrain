@@ -10,7 +10,7 @@ from chronostrain.model import Fragment, Marker, SequenceRead, AbstractMarkerVar
 from chronostrain.util.alignments.multiple import MarkerMultipleFragmentAlignment
 from chronostrain.util.filesystem import convert_size
 from chronostrain.util.math import *
-from chronostrain.util.sparse import SparseMatrix, ColumnSectionedSparseMatrix
+from chronostrain.util.sparse import SparseMatrix, ColumnSectionedSparseMatrix, RowSectionedSparseMatrix
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.config import cfg
 from chronostrain.model.generative import GenerativeModel
@@ -30,6 +30,7 @@ class SparseDataLikelihoods(DataLikelihoods):
             model: GenerativeModel,
             data: TimeSeriesReads,
             db: StrainDatabase,
+            frag_chunk_size: int = 5000,
             read_likelihood_lower_bound: float = 1e-30,
             num_cores: int = 1
     ):
@@ -38,6 +39,7 @@ class SparseDataLikelihoods(DataLikelihoods):
         super().__init__(model, data, read_likelihood_lower_bound=read_likelihood_lower_bound)
         self.supported_frags: List[torch.Tensor] = []
         self.projectors: List[ColumnSectionedSparseMatrix] = []
+        self.matrix_chunks: List[List[RowSectionedSparseMatrix]] = []
 
         # Delete empty rows (Fragments)
         for t_idx in range(self.model.num_times()):
@@ -55,7 +57,7 @@ class SparseDataLikelihoods(DataLikelihoods):
                 [row_support[i] for i in range(_F)]
             ], dtype=torch.long, device=cfg.torch_cfg.device)
 
-            projector = SparseMatrix(
+            projector = ColumnSectionedSparseMatrix(
                 indices=_support_indices,
                 values=torch.ones(_support_indices.size()[1],
                                   device=cfg.torch_cfg.device,
@@ -63,14 +65,11 @@ class SparseDataLikelihoods(DataLikelihoods):
                 dims=(_F, F)
             )
 
-            self.matrices[t_idx] = ColumnSectionedSparseMatrix.from_sparse_matrix(
-                projector.sparse_mul(self.matrices[t_idx])
-            )  # list of (F' x R)
+            reduced_matrix_t = RowSectionedSparseMatrix.from_sparse_matrix(projector.sparse_mul(self.matrices[t_idx]))
+            self.matrices[t_idx] = reduced_matrix_t
+            self.matrix_chunks.append(list(reduced_matrix_t.divide_into_chunks(chunk_size=frag_chunk_size)))
             self.projectors.append(projector)
             self.supported_frags.append(row_support)
-
-    def likelihood_matrix(self, t_idx: int) -> ColumnSectionedSparseMatrix:
-        return self.matrices[t_idx]
 
     def _likelihood_computer(self) -> AbstractLogLikelihoodComputer:
         return SparseLogLikelihoodComputer(self.model, self.data, self.db, self.num_cores)
@@ -86,7 +85,7 @@ class SparseDataLikelihoods(DataLikelihoods):
                 log_likelihood_t = log_mm_exp(
                     y[t_idx].log().view(1, -1),  # (N x S)
                     log_spmm_exp(
-                        ColumnSectionedSparseMatrix.from_sparse_matrix(self.likelihood_matrix(t_idx).t()),  # (R x F')
+                        ColumnSectionedSparseMatrix.from_sparse_matrix(self.matrices[t_idx].t()),  # (R x F')
                         log_spspmm_exp(
                             projector_t,  # (F' x F)
                             self.model.fragment_frequencies_sparse  # (F x S)

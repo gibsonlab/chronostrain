@@ -10,6 +10,65 @@ def outer_sum(x: torch.Tensor, y: torch.Tensor, target_idx: int) -> torch.Tensor
 
 
 @torch.jit.script
+def log_rowscale_exp_helper(x_values: torch.Tensor,
+                            x_locs_per_row: List[torch.Tensor],
+                            y: torch.Tensor,
+                            buffer: torch.Tensor):
+    for row_idx in torch.arange(0, len(x_locs_per_row), 1):
+        target_locs = x_locs_per_row[row_idx]
+        buffer[target_locs] = x_values[target_locs] + y[row_idx]
+
+
+def log_rowscale_exp(x: RowSectionedSparseMatrix, y: torch.Tensor) -> RowSectionedSparseMatrix:
+    """
+    Scales each row of exp(x) by exp(y), assuming that empty entries of x are -inf. Outputs the logarithm,
+    as in logsumexp.
+
+    :param x: The sparse matrix of logarithm values.
+    :param y: A 1-d tensor of the logarithm of scaling factors.
+    """
+    value_buffer = torch.empty(x.values.size(), dtype=x.values.dtype, device=x.values.device)
+    log_rowscale_exp_helper(
+        x.values,
+        x.locs_per_row,
+        y,
+        value_buffer
+    )
+    return RowSectionedSparseMatrix(
+        indices=x.indices,
+        values=value_buffer,
+        dims=(x.rows, x.columns),
+        force_coalesce=False,
+        _explicit_locs_per_row=x.locs_per_row
+    )
+
+
+@torch.jit.script
+def logsumexp_sparse_helper(
+        x_values: torch.Tensor,
+        x_rows: int,
+        x_locs_per_row: List[torch.Tensor],
+        buffer: torch.Tensor
+):
+    for r in torch.arange(0, x_rows, 1):
+        buffer[r] = torch.logsumexp(x_values[x_locs_per_row[r]], dim=0).item()
+
+
+def logsumexp_row_sparse(x: RowSectionedSparseMatrix) -> torch.Tensor:
+    # preallocation to speed up cuda
+    buffer = torch.empty(x.rows, device=x.values.device, dtype=x.values.dtype)
+
+    logsumexp_sparse_helper(
+        x.values,
+        x.rows,
+        x.locs_per_row,
+        buffer
+    )
+
+    return buffer
+
+
+@torch.jit.script
 def log_mm_exp(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     """
     Computes log(exp(X) @ exp(Y)) in a numerically stable, where log/exp are entrywise operations.
