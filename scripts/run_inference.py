@@ -177,7 +177,8 @@ def main():
             correlation_type='time',
             save_elbo_history=args.plot_elbo,
             save_training_history=args.draw_training_history,
-            frag_chunk_sz=args.frag_chunk_size
+            frag_chunk_sz=args.frag_chunk_size,
+            print_debug_every=1
         )
 
         if args.plot_elbo:
