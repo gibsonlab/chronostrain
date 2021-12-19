@@ -93,12 +93,12 @@ def log_mm_exp(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
 
 
 @torch.jit.script
-def sp_outer_sum(x_indices: torch.Tensor,
-                 x_values: torch.Tensor,
-                 x_rows: int,
-                 x_locs_per_col: List[torch.Tensor],
-                 y: torch.Tensor,
-                 target_idx: int) -> torch.Tensor:
+def spdense_outer_sum(x_indices: torch.Tensor,
+                      x_values: torch.Tensor,
+                      x_rows: int,
+                      x_locs_per_col: List[torch.Tensor],
+                      y: torch.Tensor,
+                      target_idx: int) -> torch.Tensor:
     nz_targets = x_locs_per_col[target_idx]  # Extract the location of the nonzero elements from x.
     target_rows = x_indices[0, nz_targets]  # Get the relevant row indices.
 
@@ -113,20 +113,20 @@ def sp_outer_sum(x_indices: torch.Tensor,
 
 
 @torch.jit.script
-def log_spmm_exp_helper(x_indices: torch.Tensor,
-                        x_values: torch.Tensor,
-                        x_rows: int,
-                        x_cols: int,
-                        x_locs_per_col: List[torch.Tensor],
-                        y: torch.Tensor) -> torch.Tensor:
+def log_mm_exp_spdense_helper(x_indices: torch.Tensor,
+                              x_values: torch.Tensor,
+                              x_rows: int,
+                              x_cols: int,
+                              x_locs_per_col: List[torch.Tensor],
+                              y: torch.Tensor) -> torch.Tensor:
     """
     The jit-compiled version of log_spmm_exp which uses torch.logsumexp.
     """
     assert x_cols == y.shape[0]
 
-    ans = sp_outer_sum(x_indices, x_values, x_rows, x_locs_per_col, y, 0)
+    ans = spdense_outer_sum(x_indices, x_values, x_rows, x_locs_per_col, y, 0)
     for target_idx in range(1, x_cols):
-        next_sum = sp_outer_sum(x_indices, x_values, x_rows, x_locs_per_col, y, target_idx)
+        next_sum = spdense_outer_sum(x_indices, x_values, x_rows, x_locs_per_col, y, target_idx)
         ans = torch.logsumexp(
             torch.stack([ans, next_sum], dim=0),
             dim=0
@@ -134,12 +134,71 @@ def log_spmm_exp_helper(x_indices: torch.Tensor,
     return ans
 
 
-def log_spmm_exp(x: ColumnSectionedSparseMatrix, y: torch.Tensor) -> torch.Tensor:
+def log_mm_exp_spdense(x: ColumnSectionedSparseMatrix, y: torch.Tensor) -> torch.Tensor:
     """
     Computes log(exp(X) @ exp(Y)) in a numerically stable, where log/exp are entrywise operations.
     """
-    return log_spmm_exp_helper(
+    return log_mm_exp_spdense_helper(
         x.indices, x.values, x.rows, x.columns, x.locs_per_column, y
+    )
+
+
+@torch.jit.script
+def densesp_outer_sum(x: torch.Tensor,
+                 y_indices: torch.Tensor,
+                 y_values: torch.Tensor,
+                 y_cols: int,
+                 y_locs_per_row: List[torch.Tensor],
+                 target_idx: int) -> torch.Tensor:
+    """
+    Given a target index k, computes the k-th summand of the dot product <u,v> = \SUM_k u_k v_k,
+    for each row u of x, and each column v of y.
+
+    Note that k here specifies a column of x, and a row of y, hence y is required to be the specification of a
+    row-sliceable matrix.
+    """
+    nz_targets = y_locs_per_row[target_idx]  # Extract the location of the nonzero elements from x.
+    target_cols = y_indices[0, nz_targets]  # Get the relevant column indices.
+
+    z = -float('inf') * torch.ones(
+        x.shape[0], y_cols,
+        device=y_values.device,
+        dtype=y_values.dtype
+    )
+
+    z[:, target_cols] = x[:, target_idx].view(-1, 1) + y_values[nz_targets].view(1, -1)
+    return z
+
+
+@torch.jit.script
+def log_mm_exp_densesp_helper(x: torch.Tensor,
+                        y_indices: torch.Tensor,
+                        y_values: torch.Tensor,
+                        y_rows: int,
+                        y_cols: int,
+                        y_locs_per_row: List[torch.Tensor]) -> torch.Tensor:
+    """
+    The jit-compiled version of log_spmm_exp which uses torch.logsumexp.
+    """
+    assert x.shape[1] == y_rows
+
+    ans = densesp_outer_sum(x, y_indices, y_values, y_cols, y_locs_per_row, 0)
+    # ans = sp_outer_sum(x_indices, x_values, x_rows, x_locs_per_col, y, 0)
+    for target_idx in range(1, y_rows):
+        next_sum = densesp_outer_sum(x, y_indices, y_values, y_cols, y_locs_per_row, target_idx)
+        ans = torch.logsumexp(
+            torch.stack([ans, next_sum], dim=0),
+            dim=0
+        )
+    return ans
+
+
+def log_mm_exp_densesp(x: torch.Tensor, y: RowSectionedSparseMatrix) -> torch.Tensor:
+    """
+    Computes log(exp(X) @ exp(Y)) in a numerically stable, where log/exp are entrywise operations.
+    """
+    return log_mm_exp_densesp_helper(
+        x, y.indices, y.values, y.rows, y.columns, y.locs_per_row
     )
 
 

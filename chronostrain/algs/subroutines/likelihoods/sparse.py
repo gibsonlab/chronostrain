@@ -14,6 +14,7 @@ from chronostrain.util.sparse import SparseMatrix, ColumnSectionedSparseMatrix, 
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.config import cfg
 from chronostrain.model.generative import GenerativeModel
+from chronostrain.util.sparse.sliceable import BBVIOptimizedSparseMatrix
 
 from .base import DataLikelihoods, AbstractLogLikelihoodComputer
 from ..alignments import CachedReadMultipleAlignments, CachedReadPairwiseAlignments
@@ -39,7 +40,6 @@ class SparseDataLikelihoods(DataLikelihoods):
         super().__init__(model, data, read_likelihood_lower_bound=read_likelihood_lower_bound)
         self.supported_frags: List[torch.Tensor] = []
         self.projectors: List[ColumnSectionedSparseMatrix] = []
-        self.matrix_chunks: List[List[RowSectionedSparseMatrix]] = []
 
         # Delete empty rows (Fragments)
         for t_idx in range(self.model.num_times()):
@@ -65,11 +65,15 @@ class SparseDataLikelihoods(DataLikelihoods):
                 dims=(_F, F)
             )
 
-            reduced_matrix_t = RowSectionedSparseMatrix.from_sparse_matrix(projector.sparse_mul(self.matrices[t_idx]))
-            self.matrices[t_idx] = reduced_matrix_t
-            self.matrix_chunks.append(list(reduced_matrix_t.divide_into_chunks(chunk_size=frag_chunk_size)))
+            self.matrices[t_idx] = BBVIOptimizedSparseMatrix.optimize_from_sparse_matrix(
+                projector.sparse_mul(self.matrices[t_idx]),
+                row_chunk_size=frag_chunk_size
+            )
             self.projectors.append(projector)
             self.supported_frags.append(row_support)
+
+    def sparse_matrices(self) -> Iterator[BBVIOptimizedSparseMatrix]:
+        yield from self.matrices
 
     def _likelihood_computer(self) -> AbstractLogLikelihoodComputer:
         return SparseLogLikelihoodComputer(self.model, self.data, self.db, self.num_cores)
@@ -82,19 +86,20 @@ class SparseDataLikelihoods(DataLikelihoods):
             if projector_t.rows == 0 and projector_t.columns > 0:
                 log_likelihood_t = -1e10 * len(self.data[t_idx])
             else:
-                log_likelihood_t = log_mm_exp(
-                    y[t_idx].log().view(1, -1),  # (N x S)
-                    log_spmm_exp(
-                        ColumnSectionedSparseMatrix.from_sparse_matrix(self.matrices[t_idx].t()),  # (R x F')
-                        log_spspmm_exp(
-                            projector_t,  # (F' x F)
-                            self.model.fragment_frequencies_sparse  # (F x S)
-                        ),  # (F' x S)
-                    ).t()  # after transpose: (S x R)
-                )
-
-                log_likelihood_t[torch.isinf(log_likelihood_t)] = inf_fill
-                log_likelihood_t = log_likelihood_t.sum()
+                raise NotImplementedError("TODO fix with new implementation of log_spmm_exp.")
+                # log_likelihood_t = log_mm_exp(
+                #     y[t_idx].log().view(1, -1),  # (N x S)
+                #     log_spmm_exp(
+                #         ColumnSectionedSparseMatrix.from_sparse_matrix(self.matrices[t_idx].t()),  # (R x F')
+                #         log_spspmm_exp(
+                #             projector_t,  # (F' x F)
+                #             self.model.fragment_frequencies_sparse  # (F x S)
+                #         ),  # (F' x S)
+                #     ).t()  # after transpose: (S x R)
+                # )
+                #
+                # log_likelihood_t[torch.isinf(log_likelihood_t)] = inf_fill
+                # log_likelihood_t = log_likelihood_t.sum()
             total_ll += log_likelihood_t
         return total_ll
 
