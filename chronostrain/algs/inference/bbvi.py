@@ -616,24 +616,28 @@ class BBVISolver(AbstractModelSolver):
             _t = RuntimeEstimator(total_iters=iters, horizon=1)
             _t.stopwatch_click()
 
-            x_samples, gaussian_log_likelihoods = self.gaussian_posterior.reparametrized_sample(
-                num_samples=num_samples,
-                output_log_likelihoods=True,
-                detach_grad=False
-            )  # (T x N x S)
+            try:
+                x_samples, gaussian_log_likelihoods = self.gaussian_posterior.reparametrized_sample(
+                    num_samples=num_samples,
+                    output_log_likelihoods=True,
+                    detach_grad=False
+                )  # (T x N x S)
 
-            optimizer.zero_grad()
-            with torch.no_grad():
-                self.update_phi(x_samples.detach())
+                optimizer.zero_grad()
+                with torch.no_grad():
+                    self.update_phi(x_samples.detach())
 
-            elbo_value = 0.0
-            for elbo_chunk in self.elbo_marginal_gaussian(x_samples, gaussian_log_likelihoods):
-                elbo_loss_chunk = -elbo_chunk
-                elbo_loss_chunk.backward(retain_graph=True)
-                optimizer.step()
+                elbo_value = 0.0
+                for elbo_chunk in self.elbo_marginal_gaussian(x_samples, gaussian_log_likelihoods):
+                    elbo_loss_chunk = -elbo_chunk
+                    elbo_loss_chunk.backward(retain_graph=True)
+                    optimizer.step()
 
-                # Save float value for callbacks.
-                elbo_value += elbo_chunk.item()
+                    # Save float value for callbacks.
+                    elbo_value += elbo_chunk.item()
+            except ValueError:
+                logger.error(f"Encountered ValueError while performing BBVI optimization at iteration {k}.")
+                raise
 
             if callbacks is not None:
                 for callback in callbacks:
