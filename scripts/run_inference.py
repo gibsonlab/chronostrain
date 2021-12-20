@@ -69,6 +69,7 @@ def parse_args():
     parser.add_argument('--save_fragment_probs', action="store_true",
                         help='If flag is set, then save posterior fragment probabilities for valid reads.')
     parser.add_argument('--plot_format', required=False, type=str, default="pdf")
+    parser.add_argument('--print_debug_every', required=False, type=int, default=50)
 
     return parser.parse_args()
 
@@ -178,7 +179,7 @@ def main():
             save_elbo_history=args.plot_elbo,
             save_training_history=args.draw_training_history,
             frag_chunk_sz=args.frag_chunk_size,
-            print_debug_every=1
+            print_debug_every=args.print_debug_every
         )
 
         if args.plot_elbo:

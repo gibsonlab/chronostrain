@@ -138,6 +138,7 @@ def log_mm_exp_spdense(x: ColumnSectionedSparseMatrix, y: torch.Tensor) -> torch
     """
     Computes log(exp(X) @ exp(Y)) in a numerically stable, where log/exp are entrywise operations.
     """
+    # TODO: optimize this slightly to boost BBVI cuda performance.
     return log_mm_exp_spdense_helper(
         x.indices, x.values, x.rows, x.columns, x.locs_per_column, y
     )

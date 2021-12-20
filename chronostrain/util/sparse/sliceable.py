@@ -156,9 +156,10 @@ class BBVIOptimizedSparseMatrix(RowSectionedSparseMatrix):
         num_occurrences = torch.tensor([
             sorted_indices[1].eq(i).sum()
             for i in range(dims[1])
-        ])
+        ], device=self.indices.device, dtype=self.indices.dtype)
+
         self.col_indptrs = torch.concat([
-            torch.zeros(1, dtype=num_occurrences.dtype, device=num_occurrences.device),
+            torch.zeros(1, dtype=self.indices.dtype, device=self.indices.device),
             torch.cumsum(num_occurrences, dim=0)
         ])
 
