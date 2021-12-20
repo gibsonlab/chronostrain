@@ -6,7 +6,7 @@
   This is an implementation of BBVI for the posterior q(X_1) q(X_2 | X_1) ...
   (Note: doesn't work as well as BBVI for mean-field assumption.)
 """
-from typing import Iterator, Tuple, Optional, Callable, Dict, Union, List
+from typing import Iterator, Tuple, Optional, Callable, Union, List
 
 from torch import Tensor
 from torch.nn import functional
@@ -19,7 +19,7 @@ from chronostrain.model import GenerativeModel, Fragment
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.util.benchmarking import RuntimeEstimator
 from chronostrain.util.math import *
-from chronostrain.util.sparse import SparseMatrix, ColumnSectionedSparseMatrix, RowSectionedSparseMatrix
+from chronostrain.util.sparse import SparseMatrix, RowSectionedSparseMatrix
 from chronostrain.database import StrainDatabase
 
 from chronostrain.config.logging import create_logger
@@ -27,6 +27,54 @@ from ..subroutines.likelihoods import SparseDataLikelihoods
 from ...util.sparse.sliceable import BBVIOptimizedSparseMatrix
 
 logger = create_logger(__name__)
+
+
+class LogMMExpDenseSPModel(torch.nn.Module):
+    """
+    Represents a Module which represents
+        f_A(X) = log_matmul_exp(X, A)
+    where A is a (D x E) SparseMatrix, and X is an (N x D) matrix.
+    """
+    def __init__(self, sparse_right_matrix: SparseMatrix):
+        super().__init__()
+        self.A_indices: torch.Tensor = sparse_right_matrix.indices
+        self.A_values: torch.Tensor = sparse_right_matrix.values
+        self.A_rows: int = int(sparse_right_matrix.rows)
+        self.A_columns: int = int(sparse_right_matrix.columns)
+
+        self.nz_targets: List[torch.Tensor] = []
+        self.target_cols: List[torch.Tensor] = []
+        for target_idx in range(self.A_rows):
+            nz_targets_k = torch.where(sparse_right_matrix.indices[0] == target_idx)[0]
+
+            self.nz_targets.append(nz_targets_k)
+            self.target_cols.append(self.A_indices[1, nz_targets_k])
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        result: torch.Tensor = torch.full(
+            fill_value=-float('inf'),
+            size=[x.shape[0], self.A_columns],
+            device=self.A_values.device,
+            dtype=self.A_values.dtype
+        )
+
+        for target_idx in range(self.A_rows):
+            """
+            Given a target index k, compute the k-th summand of the dot product <u,v> = \SUM_k u_k v_k,
+            for each row u of x, and each column v of y.
+
+            Note that k here specifies a column of x, and a row of y.
+            """
+            nz_targets: torch.Tensor = self.nz_targets[target_idx]
+            target_cols: torch.Tensor = self.target_cols[target_idx]
+
+            next_sum: torch.Tensor = x[:, target_idx].view(-1, 1) + self.A_values[nz_targets].view(1, -1)
+            result[:, target_cols] = torch.logsumexp(
+                torch.stack([result[:, target_cols], next_sum], dim=0),
+                dim=0
+            )
+
+        return result
 
 
 class LinearTrilGaussian(torch.nn.Linear):
@@ -307,8 +355,6 @@ class GaussianPosteriorTimeCorrelation(AbstractPosterior):
 
 
 class FragmentPosterior(object):
-    # TODO: split into sparse and dense implementations, or drop dense support altogether.
-
     def __init__(self,
                  model: GenerativeModel,
                  sparse_data_likelihoods: SparseDataLikelihoods,
@@ -390,7 +436,11 @@ class BBVISolver(AbstractModelSolver):
             raise ValueError("Unrecognized `correlation_type` argument {}.".format(correlation_type))
 
         self.frag_chunk_size = frag_chunk_size
-        self._sparse_frag_freq_chunks: List[List[ColumnSectionedSparseMatrix]] = [
+        # self._sparse_frag_freq_chunks: List[List[ColumnSectionedSparseMatrix]] = [
+        #     [] for _ in range(model.num_times())
+        # ]
+
+        self.log_mm_exp_models: List[List[LogMMExpDenseSPModel]] = [
             [] for _ in range(model.num_times())
         ]
 
@@ -403,16 +453,23 @@ class BBVISolver(AbstractModelSolver):
             # Sparsity transformation (R^F -> R^{Support}), matrix size = (F' x F)
             projector = self.data_likelihoods.projectors[t_idx]
 
+            n_chunks = 0
             for sparse_chunk in BBVIOptimizedSparseMatrix.optimize_from_sparse_matrix(
                     projector.sparse_mul(frag_freqs),
                     row_chunk_size=self.frag_chunk_size
             ).chunks:
-                self._sparse_frag_freq_chunks[t_idx].append(
-                    ColumnSectionedSparseMatrix.from_sparse_matrix(sparse_chunk)
+                # self._sparse_frag_freq_chunks[t_idx].append(
+                #     ColumnSectionedSparseMatrix.from_sparse_matrix(sparse_chunk)
+                # )
+
+                self.log_mm_exp_models[t_idx].append(
+                    LogMMExpDenseSPModel(sparse_chunk.t())
                 )
+                n_chunks += 1
 
             logger.debug(f"Divided {projector.rows} x {frag_freqs.columns} sparse matrix "
-                         f"into {len(self._sparse_frag_freq_chunks[t_idx])} chunks.")
+                         f"into {n_chunks} chunks.")
+
         self.fragment_posterior = FragmentPosterior(
             model=model,
             sparse_data_likelihoods=self.data_likelihoods,
@@ -468,14 +525,16 @@ class BBVISolver(AbstractModelSolver):
                     self.fragment_posterior.phi[t_idx].chunks
             ):
                 yield self.elbo_chunk_helper(
+                    t_idx,
+                    chunk_idx,
                     log_softmax_x_t,
-                    self._sparse_frag_freq_chunks[t_idx][chunk_idx],
                     phi_chunk
                 ).sum() * (1 / n_samples)
 
     def elbo_chunk_helper(self,
+                          t_idx: int,
+                          chunk_idx: int,
                           log_softmax_x_t: torch.Tensor,
-                          chunk_frag_freqs: ColumnSectionedSparseMatrix,
                           phi_chunk: RowSectionedSparseMatrix) -> torch.Tensor:
         """
         This computes the following partial ELBO quantity:
@@ -486,12 +545,17 @@ class BBVISolver(AbstractModelSolver):
 
         Assumes phi is already normalized, and that it represents the LOG posterior values.
         """
+        # return torch.dot(
+        #     phi_chunk.exp().sum(dim=1),  # length (CHUNK_SZ)
+        #     log_mm_exp_spdense(
+        #         chunk_frag_freqs,  # (CHUNK_SZ x S)
+        #         log_softmax_x_t.t()  # (S x N)
+        #     ).sum(dim=1)  # SUM(CHUNK_SZ x N) -> CHUNK_SZ
+        # )
+
         return torch.dot(
             phi_chunk.exp().sum(dim=1),  # length (CHUNK_SZ)
-            log_mm_exp_spdense(
-                chunk_frag_freqs,  # (CHUNK_SZ x S)
-                log_softmax_x_t.t()  # (S x N)
-            ).sum(dim=1)  # SUM(CHUNK_SZ x N) -> CHUNK_SZ
+            self.log_mm_exp_models[t_idx][chunk_idx].forward(log_softmax_x_t).sum(dim=0)
         )
 
     def update_phi(self, x_samples: torch.Tensor):
@@ -503,14 +567,21 @@ class BBVISolver(AbstractModelSolver):
         """
         for t in range(self.model.num_times()):
             log_softmax_xt = torch.log(softmax(x_samples[t], dim=1))  # (N x S)
-            for chunk_idx, frag_freq_chunk in enumerate(self._sparse_frag_freq_chunks[t]):
+            # for chunk_idx, frag_freq_chunk in enumerate(self._sparse_frag_freq_chunks[t]):
+            #     # The monte carlo approximation
+            #     mc_expectation_ll = torch.mean(
+            #         log_mm_exp_spdense(
+            #             self._sparse_frag_freq_chunks[t][chunk_idx],  # (CHUNK_SZ x S)
+            #             log_softmax_xt.t()  # (S x N)
+            #         ),
+            #         dim=1
+            #     )  # Output: length CHUNK_SZ
+
+            for chunk_idx, logmmexp_model in enumerate(self.log_mm_exp_models[t]):
                 # The monte carlo approximation
                 mc_expectation_ll = torch.mean(
-                    log_mm_exp_spdense(
-                        self._sparse_frag_freq_chunks[t][chunk_idx],  # (CHUNK_SZ x S)
-                        log_softmax_xt.t()  # (S x N)
-                    ),
-                    dim=1
+                    logmmexp_model.forward(log_softmax_xt),
+                    dim=0
                 )  # Output: length CHUNK_SZ
 
                 # for chunk_idx, data_ll_chunk in enumerate(self.data_likelihoods.matrices[t].chunks):

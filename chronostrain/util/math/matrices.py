@@ -1,7 +1,7 @@
 from typing import List
 
 import torch
-from chronostrain.util.sparse import ColumnSectionedSparseMatrix, RowSectionedSparseMatrix
+from chronostrain.util.sparse import ColumnSectionedSparseMatrix, RowSectionedSparseMatrix, SparseMatrix
 
 
 @torch.jit.script
@@ -146,11 +146,11 @@ def log_mm_exp_spdense(x: ColumnSectionedSparseMatrix, y: torch.Tensor) -> torch
 
 @torch.jit.script
 def densesp_outer_sum(x: torch.Tensor,
-                 y_indices: torch.Tensor,
-                 y_values: torch.Tensor,
-                 y_cols: int,
-                 y_locs_per_row: List[torch.Tensor],
-                 target_idx: int) -> torch.Tensor:
+                      y_indices: torch.Tensor,
+                      y_values: torch.Tensor,
+                      y_cols: int,
+                      y_locs_per_row: List[torch.Tensor],
+                      target_idx: int) -> torch.Tensor:
     """
     Given a target index k, computes the k-th summand of the dot product <u,v> = \SUM_k u_k v_k,
     for each row u of x, and each column v of y.

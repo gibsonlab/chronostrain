@@ -95,7 +95,7 @@ class MarkerMultipleFragmentAlignment(object):
                     if len(subseq) < min_subseq_length:
                         continue
 
-                    yield marker, subseq, read, insertions, deletions, start_clip, end_clip, revcomp
+                    yield marker, read, subseq, insertions, deletions, start_clip, end_clip, revcomp
 
     def num_bases(self) -> int:
         return self.aligned_marker_seqs.shape[1]

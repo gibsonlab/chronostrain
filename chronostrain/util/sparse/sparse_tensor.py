@@ -22,8 +22,8 @@ class SparseMatrix(object):
                  values: torch.Tensor,
                  dims: Tuple[int, int],
                  force_coalesce: bool = True):
-        self.rows: int = dims[0]
-        self.columns: int = dims[1]
+        self.rows: int = int(dims[0])
+        self.columns: int = int(dims[1])
 
         if force_coalesce:
             ind, val = torch_sparse.coalesce(indices, values, dims[0], dims[1])
@@ -67,7 +67,7 @@ class SparseMatrix(object):
 
     @property
     def shape(self) -> Tuple[int, int]:
-        return (self.rows, self.columns)
+        return self.rows, self.columns
 
     def dense_mul(self, x: torch.Tensor) -> torch.Tensor:
         return torch_sparse.spmm(self.indices, self.values, self.rows, self.columns, x)
