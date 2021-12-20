@@ -305,26 +305,10 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                          f"({len(multi_align.forward_read_index_map)} forward, "
                          f"{len(multi_align.reverse_read_index_map)} reverse) "
                          f"into likelihoods.")
-            # First, take care of the base markers (if applicable).
-            for marker in multi_align.markers():
-                if not self.model.bacteria_pop.contains_marker(marker):
-                    continue
 
-                for revcomp in [False, True]:
-                    for read in multi_align.reads(revcomp=revcomp):
-                        if not time_slice.contains_read(read.id):
-                            continue
-
-                        subseq, insertions, deletions, start_clip, end_clip = multi_align.get_aligned_reference_region(
-                            marker,
-                            read,
-                            revcomp=revcomp
-                        )
-
-                        if len(subseq) == 0:
-                            continue
-
-                        add_subseq_likelihood(subseq, read, insertions, deletions, revcomp, start_clip, end_clip)
+            for frag_entry in multi_align.all_mapped_fragments(target_time_idx=t_idx):
+                marker, read, subseq, insertions, deletions, start_clip, end_clip, revcomp = frag_entry
+                add_subseq_likelihood(subseq, read, insertions, deletions, revcomp, start_clip, end_clip)
 
             # Next, take care of the variant markers (if applicable).
             for variant in self.marker_variants_of(multi_align.canonical_marker):

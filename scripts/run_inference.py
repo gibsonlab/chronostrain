@@ -74,30 +74,20 @@ def parse_args():
     return parser.parse_args()
 
 
-def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase, pop: Population) -> FragmentSpace:
+def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase) -> FragmentSpace:
     logger.info("Constructing fragments from multiple alignments.")
     multiple_alignments = CachedReadMultipleAlignments(reads, db)
     fragment_space = FragmentSpace()
     for multi_align in multiple_alignments.get_alignments(num_cores=cfg.model_cfg.num_cores):
         logger.debug(f"Constructing fragments for marker `{multi_align.canonical_marker.name}`.")
 
-        for marker in multi_align.markers():
-            if not pop.contains_marker(marker):
-                continue
+        for frag_entry in multi_align.all_mapped_fragments():
+            marker, read, subseq, insertions, deletions, start_clip, end_clip, revcomp = frag_entry
 
-            for revcomp in [False, True]:
-                for read in multi_align.reads(revcomp=revcomp):
-                    subseq, insertions, deletions, start_clip, end_clip = multi_align.get_aligned_reference_region(
-                        marker, read, revcomp=revcomp
-                    )
-
-                    if len(subseq) == 0:
-                        continue
-
-                    fragment_space.add_seq(
-                        subseq,
-                        metadata=f"({read.id}->{marker.id})"
-                    )
+            fragment_space.add_seq(
+                subseq,
+                metadata=f"({read.id}->{marker.id})"
+            )
     return fragment_space
 
 
