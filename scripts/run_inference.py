@@ -110,7 +110,7 @@ def main():
     # ==== Load Population instance from database info
     population = Population(strains=db.all_strains(), extra_strain=cfg.model_cfg.extra_strain)
     if cfg.model_cfg.use_sparse:
-        fragments = aligned_exact_fragments(reads, db, population)
+        fragments = aligned_exact_fragments(reads, db)
     else:
         fragments = construct_fragment_space_uniform_length(args.read_length, population)
 
