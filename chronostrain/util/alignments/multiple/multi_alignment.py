@@ -179,7 +179,7 @@ class MarkerMultipleFragmentAlignment(object):
             r_idx = self.reverse_read_index_map[read]
         else:
             r_idx = self.forward_read_index_map[read]
-        return self.start_clips[r_idx], self.enzd_clips[r_idx]
+        return self.start_clips[r_idx], self.end_clips[r_idx]
 
 
 def parse(db: StrainDatabase,
