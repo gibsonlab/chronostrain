@@ -73,9 +73,6 @@ class DenseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         return np.log(np.exp(forward_ll - log2) + np.exp(reverse_ll - log2))
 
     def compute_likelihood_tensors(self) -> List[torch.Tensor]:
-        # TODO: explicitly define save() and load() here to write directly to torch tensor files.
-        #  (Right now, the behavior is to compute List[List[float]] and save/load from pickle.)
-
         logger.debug("Computing read-fragment likelihoods...")
         cache = ReadsPopulationCache(self.reads, self.model.bacteria_pop)
 

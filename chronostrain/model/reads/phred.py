@@ -66,8 +66,6 @@ class PhredErrorModel(AbstractErrorModel):
         matches: np.ndarray = (fragment_seq == read_seq) & (read_qual > 0)
         mismatches: np.ndarray = (fragment_seq != read_seq) & (read_seq != nucleotide_N_z4)
 
-        # TODO: N's might need to be included and handled differently.
-
         """
         Phred model: Pr(measured base = 'A', true base = 'G' | q) = ( 1/3 * 10^{-q/10} )
         """

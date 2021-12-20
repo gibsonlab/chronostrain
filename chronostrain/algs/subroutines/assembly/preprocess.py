@@ -25,7 +25,7 @@ def to_sam(canonical_marker: Marker, alignment: MarkerMultipleFragmentAlignment,
     we can properly call indel variants.
     """
     sam_version = "1.6"
-    chronostrain_version = "empty"  # TODO insert explicit versioning.
+    chronostrain_version = "empty"
 
     def write_read(read: SequenceRead,
                    t_idx: int,

@@ -82,7 +82,7 @@ class FragmentSpace:
         self.frag_list.append(frag)
         self.fragment_instances_counter += 1
 
-        if len(self) == 0 or self.min_frag_len < len(seq):
+        if len(self) == 0 or self.min_frag_len > len(seq):
             self.min_frag_len = len(seq)
 
         return frag

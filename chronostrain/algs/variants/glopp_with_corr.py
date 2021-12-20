@@ -300,8 +300,9 @@ class GloppVariantSolver(AbstractVariantBBVISolver):
         ], axis=1)  # (T x M)
 
         # For now, just work with counts, assuming constant read depth (otherwise, might get spurious correlations).
-        # TODO: Normalize by read depths. However, note that dividing by read depths makes this ill-conditioned.
+        # NOTE: this doesn't normalize by read depths. However, note that dividing by read depths makes this ill-conditioned.
         #  Instead, divide by (relative read depth), e.g. the ratio read_depth_t / read_depth_1
+
         # marker_contig_counts = marker_contig_counts / np.array([
         #     time_slice.read_depth
         #     for time_slice in reads
