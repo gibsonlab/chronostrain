@@ -111,8 +111,8 @@ class MarkerMultipleFragmentAlignment(object):
     def aln_gapped_boundary(self, read: SequenceRead, revcomp: bool) -> Tuple[int, int]:
         """
         Find the first and last ungapped positions.
-        :return: A tuple (i, j) such that aln_seq[i] != GAP and aln_seq[j] != GAP, and all elements to the left of i, and
-        to the right of j, are GAPs.
+        :return: A tuple (i, j) such that aln_seq[i] != GAP and aln_seq[j] != GAP, and all elements to the left of i,
+            and to the right of j, are GAPs.
         """
         if revcomp:
             r_idx = self.reverse_read_index_map[read]
@@ -179,7 +179,7 @@ class MarkerMultipleFragmentAlignment(object):
             r_idx = self.reverse_read_index_map[read]
         else:
             r_idx = self.forward_read_index_map[read]
-        return self.start_clips[r_idx], self.end_clips[r_idx]
+        return self.start_clips[r_idx], self.enzd_clips[r_idx]
 
 
 def parse(db: StrainDatabase,
@@ -232,12 +232,12 @@ def parse(db: StrainDatabase,
 
         # Check if alignment is clipped off the edges of the marker.
         aln_seq = nucleotides_to_z4(str(read_record.seq))
-        n_start_clip = np.sum(aln_seq[:start_clip] != nucleotide_GAP_z4)
-        n_end_clip = np.sum(aln_seq[end_clip + 1:] != nucleotide_GAP_z4)
+        n_start_clip = np.sum(aln_seq[:start_clip] != nucleotide_GAP_z4).item()
+        n_end_clip = np.sum(aln_seq[end_clip + 1:] != nucleotide_GAP_z4).item()
 
         aln_seq = aln_seq[start_clip:end_clip + 1]
 
-        # Store the alignment into the proper category (whether or not the read was reverse complemented).
+        # Store the alignment into the proper category (whether the read was reverse complemented).
         if not rev_comp:
             forward_reads.append(read_obj)
             forward_seqs.append(aln_seq)
@@ -381,8 +381,7 @@ def align_mafft(marker_profile_path: Path,
 def align_clustalo(marker_profile_path: Path,
                    read_descriptions: Iterator[Tuple[int, SequenceRead, bool]],
                    intermediate_fasta_path: Path,
-                   out_fasta_path: Path,
-                   n_threads: int = 1):
+                   out_fasta_path: Path):
     """
     Write these records to file (using a predetermined format), then perform multiple alignment.
 
