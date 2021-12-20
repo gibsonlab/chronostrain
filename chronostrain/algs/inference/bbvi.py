@@ -436,10 +436,6 @@ class BBVISolver(AbstractModelSolver):
             raise ValueError("Unrecognized `correlation_type` argument {}.".format(correlation_type))
 
         self.frag_chunk_size = frag_chunk_size
-        # self._sparse_frag_freq_chunks: List[List[ColumnSectionedSparseMatrix]] = [
-        #     [] for _ in range(model.num_times())
-        # ]
-
         self.log_mm_exp_models: List[List[LogMMExpDenseSPModel]] = [
             [] for _ in range(model.num_times())
         ]
@@ -458,10 +454,6 @@ class BBVISolver(AbstractModelSolver):
                     projector.sparse_mul(frag_freqs),
                     row_chunk_size=self.frag_chunk_size
             ).chunks:
-                # self._sparse_frag_freq_chunks[t_idx].append(
-                #     ColumnSectionedSparseMatrix.from_sparse_matrix(sparse_chunk)
-                # )
-
                 self.log_mm_exp_models[t_idx].append(
                     LogMMExpDenseSPModel(sparse_chunk.t())
                 )
@@ -545,14 +537,6 @@ class BBVISolver(AbstractModelSolver):
 
         Assumes phi is already normalized, and that it represents the LOG posterior values.
         """
-        # return torch.dot(
-        #     phi_chunk.exp().sum(dim=1),  # length (CHUNK_SZ)
-        #     log_mm_exp_spdense(
-        #         chunk_frag_freqs,  # (CHUNK_SZ x S)
-        #         log_softmax_x_t.t()  # (S x N)
-        #     ).sum(dim=1)  # SUM(CHUNK_SZ x N) -> CHUNK_SZ
-        # )
-
         return torch.dot(
             phi_chunk.exp().sum(dim=1),  # length (CHUNK_SZ)
             self.log_mm_exp_models[t_idx][chunk_idx].forward(log_softmax_x_t).sum(dim=0)
@@ -566,17 +550,7 @@ class BBVISolver(AbstractModelSolver):
         :return:
         """
         for t in range(self.model.num_times()):
-            log_softmax_xt = torch.log(softmax(x_samples[t], dim=1))  # (N x S)
-            # for chunk_idx, frag_freq_chunk in enumerate(self._sparse_frag_freq_chunks[t]):
-            #     # The monte carlo approximation
-            #     mc_expectation_ll = torch.mean(
-            #         log_mm_exp_spdense(
-            #             self._sparse_frag_freq_chunks[t][chunk_idx],  # (CHUNK_SZ x S)
-            #             log_softmax_xt.t()  # (S x N)
-            #         ),
-            #         dim=1
-            #     )  # Output: length CHUNK_SZ
-
+            log_softmax_xt = torch.log(softmax(x_samples[t], dim=1))  # (N x S)=
             for chunk_idx, logmmexp_model in enumerate(self.log_mm_exp_models[t]):
                 # The monte carlo approximation
                 mc_expectation_ll = torch.mean(

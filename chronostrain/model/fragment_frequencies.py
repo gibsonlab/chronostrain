@@ -13,7 +13,7 @@ from chronostrain.util.cache import ComputationCache, CacheTag
 from chronostrain.util.external import bwa_index, bwa_fastmap
 
 from chronostrain.config import create_logger, cfg
-from chronostrain.util.sparse import RowSectionedSparseMatrix
+from chronostrain.util.sparse import RowSectionedSparseMatrix, SparseMatrix
 
 logger = create_logger(__name__)
 
@@ -210,8 +210,8 @@ class SparseFragmentFrequencyComputer(FragmentFrequencyComputer):
         matrix.save(out_path)
 
     def load_matrix(self, matrix_path: Path) -> RowSectionedSparseMatrix:
-        return RowSectionedSparseMatrix.load(
+        return RowSectionedSparseMatrix.from_sparse_matrix(SparseMatrix.load(
             matrix_path,
             device=cfg.torch_cfg.device,
             dtype=cfg.torch_cfg.default_dtype
-        )
+        ))
