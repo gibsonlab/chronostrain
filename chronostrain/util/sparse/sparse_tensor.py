@@ -4,9 +4,16 @@ A sparse 2-d matrix in COO format. Uses torch_sparse as a backend.
 Note: since torch_sparse largely already uses C-compiled computations or JIT whenever possible, calls using
 torch_sparse need not be optimized. For custom model-specific operations, we use @torch.jit ourselves.
 """
+from pathlib import Path
 from typing import Tuple, List, Union
+
+import numpy as np
 import torch
 import torch_sparse
+
+
+def size_of_tensor(x: torch.Tensor):
+    return x.element_size() * x.nelement()
 
 
 class SparseMatrix(object):
@@ -15,8 +22,8 @@ class SparseMatrix(object):
                  values: torch.Tensor,
                  dims: Tuple[int, int],
                  force_coalesce: bool = True):
-        self.rows: int = dims[0]
-        self.columns: int = dims[1]
+        self.rows: int = int(dims[0])
+        self.columns: int = int(dims[1])
 
         if force_coalesce:
             ind, val = torch_sparse.coalesce(indices, values, dims[0], dims[1])
@@ -29,6 +36,9 @@ class SparseMatrix(object):
 
     def size(self) -> torch.Size:
         return torch.Size((self.rows, self.columns))
+
+    def physical_size(self) -> int:
+        return size_of_tensor(self.indices) + size_of_tensor(self.values)
 
     def get(self, r: int, c: int):
         matches = (self.indices[0, :] == r) and (self.indices[1, :] == c)
@@ -55,12 +65,25 @@ class SparseMatrix(object):
         else:
             return float("inf")
 
+    @property
+    def shape(self) -> Tuple[int, int]:
+        return self.rows, self.columns
+
     def dense_mul(self, x: torch.Tensor) -> torch.Tensor:
         return torch_sparse.spmm(self.indices, self.values, self.rows, self.columns, x)
 
     def sparse_mul(self, x: 'SparseMatrix') -> 'SparseMatrix':
         if self.columns != x.rows:
-            raise RuntimeError(f"Matrices cannot be multiplied ({self.rows}x{self.columns}) and ({x.rows}x{x.columns})")
+            raise RuntimeError(f"Cannot multiply ({self.rows}x{self.columns}) and ({x.rows}x{x.columns}) matrices.")
+
+        if self.rows == 0 or self.columns == 0:
+            return SparseMatrix(
+                torch.tensor([[], []], device=self.values.device, dtype=torch.long),
+                torch.tensor([], device=self.values.device, dtype=self.values.dtype),
+                (self.rows, x.columns),
+                force_coalesce=False
+            )
+
         result_indices, result_values = torch_sparse.spspmm(
             self.indices, self.values, x.indices, x.values, self.rows, self.columns, x.columns
         )
@@ -104,11 +127,20 @@ class SparseMatrix(object):
             self.values = self.values + x
             return self
         else:
-            return SparseMatrix(self.indices, self.values + x, (self.columns, self.rows), force_coalesce=False)
+            return SparseMatrix(
+                self.indices,
+                self.values + x,
+                (self.rows, self.columns),
+                force_coalesce=False
+            )
 
     def t(self) -> 'SparseMatrix':
-        result_indices, result_values = torch_sparse.transpose(self.indices, self.values, self.rows, self.columns)
-        return SparseMatrix(result_indices, result_values, (self.columns, self.rows), force_coalesce=False)
+        return SparseMatrix(
+            torch.stack([self.indices[1], self.indices[0]]),
+            self.values,
+            (self.columns, self.rows),
+            force_coalesce=False
+        )
 
     def to_dense(self, zero_fill=0.) -> torch.Tensor:
         if zero_fill == 0.:
@@ -157,7 +189,7 @@ class SparseMatrix(object):
                 dtype=self.values.dtype,
                 device=self.values.device
             )
-        x = torch.sparse_coo_tensor(self.indices, self.values, (self.rows, self.columns)).coalesce()
+        x = torch.sparse_coo_tensor(self.indices, self.values, (self.rows, self.columns))
         return torch.sparse.sum(x, dim=dim).to_dense()
 
     def normalize(self, dim: int) -> 'SparseMatrix':
@@ -220,9 +252,40 @@ class SparseMatrix(object):
         indices = self.indices[:, mask]
         values = self.values[mask]
 
-        # Shifting remaining entries down
+        print("[WARNING] TODO: SparseMatrix's implementation of `slice_columns` needs to be verified.")
+        # check that this is correct.
         range_mask = torch.sum(torch.arange(self.columns, device=self.indices.device) == cols_to_keep, dim=0).bool()
+
         adj = torch.cumsum(~range_mask, 0)
         indices[1, :] = indices[1, :] - torch.index_select(adj, 0, indices[1, :])
 
         return SparseMatrix(indices, values, (self.rows, cols_to_keep.size(-2)), force_coalesce=False)
+
+    def save(self, out_path: Path):
+        np.savez(
+            out_path,
+            sparse_indices=self.indices.cpu().numpy(),
+            sparse_values=self.values.cpu().numpy(),
+            matrix_shape=np.array([
+                self.rows,
+                self.columns
+            ])
+        )
+
+    @staticmethod
+    def load(in_path: Path, device, dtype):
+        data = np.load(str(in_path))
+        size = data["matrix_shape"]
+        return SparseMatrix(
+            indices=torch.tensor(
+                data['sparse_indices'],
+                device=device,
+                dtype=torch.long
+            ),
+            values=torch.tensor(
+                data['sparse_values'],
+                device=device,
+                dtype=dtype
+            ),
+            dims=(size[0], size[1])
+        )

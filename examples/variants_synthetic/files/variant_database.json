@@ -1,0 +1,33 @@
+[
+    {
+        "genus": "Escherichia",
+        "species": "coli",
+        "strain": "K-12",
+        "accession": "CP009273.1",
+        "source": "genbank",
+        "markers": [
+            {"type": "tag", "locus_tag": "BW25113_4314", "name": "fimA", "canonical": "true"},
+            {"type": "tag", "locus_tag": "BW25113_0530", "name": "fimA"}
+        ]
+    },
+    {
+        "genus": "Escherichia",
+        "species": "coli",
+        "strain": "K-12_Insert",
+        "accession": "CP009273.1_Insert",
+        "source": "fasta",
+        "markers": [
+            {"type": "subseq", "start": 4532932, "end": 4533495, "id": "BW25113_4314_Insert", "name": "fimA"}
+        ]
+    },
+    {
+        "genus": "Escherichia",
+        "species": "coli",
+        "strain": "K-12_Substitution",
+        "accession": "CP009273.1_Substitution",
+        "source": "fasta",
+        "markers": [
+            {"type": "subseq", "start": 4532932, "end": 4533480, "id": "BW25113_4314_Substitution", "name": "fimA"}
+        ]
+    }
+]

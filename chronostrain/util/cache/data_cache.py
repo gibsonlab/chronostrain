@@ -6,6 +6,7 @@
     A general-purpose utility to encapsulate functions meant for intermediate computation.
     Generates a cache key to avoid re-computation in future runs.
 """
+import time
 from pathlib import Path
 from typing import Callable, Optional, List, Dict, Any, Union
 import pickle
@@ -40,18 +41,28 @@ class CacheTag(object):
         return cfg.model_cfg.cache_dir / self.encoding
 
     def generate_encoding(self) -> str:
+        start_time = time.time()
+
         processed_dict = dict()
         for key, value in self.attr_dict.items():
-            processed_dict[key] = self.process_item(value)
-        return hashlib.md5(repr(processed_dict).encode('utf-8')).hexdigest()
+            processed_dict[key] = self.encode_item(value)
 
-    def process_item(self, item) -> str:
+        encoding = hashlib.md5(repr(processed_dict).encode('utf-8')).hexdigest()
+
+        end_time = time.time()
+        logger.debug("Encoding took {:.2f} s.".format(
+            (end_time - start_time)
+        ))
+
+        return encoding
+
+    def encode_item(self, item) -> str:
         if isinstance(item, dict):
             logger.warning("CacheTag might not properly handle dictionary attributes.")
             return str(item)
         elif isinstance(item, list):
             return "[{}]".format(",".join(
-                self.process_item(entry) for entry in item
+                self.encode_item(entry) for entry in item
             ))
         elif isinstance(item, Path):
             return md5_checksum(item)
@@ -146,19 +157,19 @@ class ComputationCache(object):
                 self.cache_tag.encoding, cache_path
             ))
 
-            return load(cache_path)
+            data = load(cache_path)
         else:
             logger.debug("[Cache {}] Could not load cached file {}. Recomputing.".format(
                 self.cache_tag.encoding, cache_path
             ))
 
-        self.cache_tag.write_readable_attributes_to_disk(self.cache_dir / "attributes.txt")
-        data = fn(*call_args, **call_kwargs)
-        save(cache_path, data)
+            self.cache_tag.write_readable_attributes_to_disk(self.cache_dir / "attributes.txt")
+            data = fn(*call_args, **call_kwargs)
+            save(cache_path, data)
 
-        logger.debug("[Cache {}] Saved {}.".format(
-            self.cache_tag.encoding, cache_path
-        ))
+            logger.debug("[Cache {}] Saved {}.".format(
+                self.cache_tag.encoding, cache_path
+            ))
 
         if success_callback is not None:
             success_callback(data)

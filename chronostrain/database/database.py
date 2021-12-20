@@ -6,7 +6,7 @@ from Bio import SeqIO
 
 from chronostrain.model import Strain, Marker
 from .parser import AbstractDatabaseParser, JSONParser, CSVParser
-from .backend import AbstractStrainDatabaseBackend, DictionaryBackend
+from .backend import AbstractStrainDatabaseBackend, DictionaryBackend, PandasAssistedBackend
 from .error import QueryNotFoundError
 from .. import cfg, create_logger
 
@@ -17,13 +17,14 @@ class StrainDatabase(object):
     def __init__(self,
                  parser: AbstractDatabaseParser,
                  backend: AbstractStrainDatabaseBackend,
+                 multifasta_filename: str = 'all_markers.fasta',
                  force_refresh: bool = False):
         self.backend = backend
-        self.marker_multifasta_file = cfg.database_cfg.data_dir / 'all_markers.fasta'
+        self.marker_multifasta_file = cfg.database_cfg.data_dir / multifasta_filename
 
+        logger.debug("Initializing db backend `{}`".format(self.backend.__class__.__name__))
         for strain in parser.strains():
             backend.add_strain(strain)
-            logger.debug(f"Added strain entry {strain.id} to database.")
 
         self._save_markers_to_multifasta(force_refresh=force_refresh)
 
@@ -42,6 +43,9 @@ class StrainDatabase(object):
     def get_marker(self, marker_id: str) -> Marker:
         return self.backend.get_marker(marker_id)
 
+    def get_markers_by_name(self, marker_name: str) -> List[Marker]:
+        return self.backend.get_markers_by_name(marker_name)
+
     def num_strains(self) -> int:
         return self.backend.num_strains()
 
@@ -58,7 +62,9 @@ class StrainDatabase(object):
                 strain_num_hits[strain.id] += 1
 
         if len(strain_num_hits) == 0:
-            raise QueryNotFoundError("No available strains with any of query markers.")
+            raise QueryNotFoundError("No available strains with any of query markers: [{}]".format(
+                ",".join(m.id for m in query_markers)
+            ))
 
         highest_n_hits = max(strain_num_hits.values())
         best_hits = []
@@ -86,7 +92,9 @@ class StrainDatabase(object):
         self.multifasta_file.resolve().parent.mkdir(exist_ok=True, parents=True)
 
         def _generate():
-            self.multifasta_file.unlink(missing_ok=True)
+            if self.multifasta_file.exists():
+                self.multifasta_file.unlink()
+
             with open(self.multifasta_file, "w"):
                 pass
             for strain in self.all_strains():
@@ -121,20 +129,45 @@ class StrainDatabase(object):
         with open(out_path, file_mode) as out_file:
             SeqIO.write(records, out_file, "fasta")
 
+    def get_canonical_marker(self, marker_name: str) -> Marker:
+        return self.backend.get_canonical_marker(marker_name)
+
+    def all_canonical_markers(self) -> List[Marker]:
+        return self.backend.all_canonical_markers()
+
+    def num_canonical_markers(self) -> int:
+        return self.backend.num_canonical_markers()
+
 
 class JSONStrainDatabase(StrainDatabase):
-    def __init__(self, entries_file: Union[str, Path], marker_max_len: int, force_refresh: bool = False):
+    def __init__(self,
+                 entries_file: Union[str, Path],
+                 marker_max_len: int,
+                 force_refresh: bool = False,
+                 load_full_genomes: bool = False,
+                 multifasta_filename: str = 'all_markers.fasta'):
         if isinstance(entries_file, str):
             entries_file = Path(entries_file)
-        parser = JSONParser(entries_file, marker_max_len, force_refresh)
-        backend = DictionaryBackend()
-        super().__init__(parser, backend)
+        parser = JSONParser(entries_file,
+                            marker_max_len,
+                            force_refresh,
+                            load_full_genomes=load_full_genomes)
+        backend = PandasAssistedBackend()
+        super().__init__(parser, backend, multifasta_filename=multifasta_filename)
 
 
 class SimpleCSVStrainDatabase(StrainDatabase):
-    def __init__(self, entries_file: Union[str, Path], trim_debug: Optional[int] = None, force_refresh: bool = False):
+    def __init__(self,
+                 entries_file: Union[str, Path],
+                 trim_debug: Optional[int] = None,
+                 force_refresh: bool = False,
+                 load_full_genomes: bool = False,
+                 multifasta_filename: str = 'all_markers.fasta'):
         if isinstance(entries_file, str):
             entries_file = Path(entries_file)
-        parser = CSVParser(entries_file, force_refresh, trim_debug)
+        parser = CSVParser(entries_file,
+                           force_refresh,
+                           trim_debug,
+                           load_full_genomes=load_full_genomes)
         backend = DictionaryBackend()
-        super().__init__(parser, backend)
+        super().__init__(parser, backend, multifasta_filename=multifasta_filename)

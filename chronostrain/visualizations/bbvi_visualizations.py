@@ -1,9 +1,10 @@
 from pathlib import Path
-from typing import List
+from typing import List, Optional, Union
 
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 
 from chronostrain import logger
 from chronostrain.algs import BBVISolver, AbstractPosterior
@@ -15,7 +16,7 @@ from .plot_abundances import plot_posterior_abundances
 
 
 def plot_elbo_history(
-        elbos: List[float],
+        elbos: Union[List[float], np.ndarray],
         out_path: Path,
         plot_format: str):
     fig, ax = plt.subplots()
@@ -45,6 +46,13 @@ def plot_training_animation(
         ax.plot([], [], lw=2)[0]
         for _ in range(model.num_strains())
     ]
+
+    # Populate the legend.
+    ax.legend(bbox_to_anchor=(1.05, 1.0), loc='lower center', handles=[
+        Line2D([0], [0], color=line.get_color(), lw=2, label=strain.id)
+        for line, strain in zip(lines, model.bacteria_pop.strains)
+    ])
+
     fills = [
         ax.fill_between([], [], [], facecolor=lines[i].get_color())
         for i in range(model.num_strains())
@@ -81,8 +89,12 @@ def plot_bbvi_posterior(model: GenerativeModel,
                         plot_path: Path,
                         samples_path: Path,
                         plot_format: str,
-                        ground_truth_path: Path,
-                        num_samples: int = 10000):
+                        ground_truth_path: Optional[Path] = None,
+                        draw_legend: bool = False,
+                        num_samples: int = 10000,
+                        width: int = 16,
+                        height: int = 10,
+                        title: str = "Posterior relative abundances"):
     logger.info("Generating plot of posterior.")
 
     # Generate and save posterior samples.
@@ -94,7 +106,6 @@ def plot_bbvi_posterior(model: GenerativeModel,
     ))
 
     # Plotting.
-    title = "Posterior relative abundances (Inferred variants)"
     plot_posterior_abundances(
         times=model.times,
         posterior_samples=samples.cpu().numpy(),
@@ -102,8 +113,10 @@ def plot_bbvi_posterior(model: GenerativeModel,
         title=title,
         plots_out_path=plot_path,
         truth_path=ground_truth_path,
-        draw_legend=False,
-        img_format=plot_format
+        draw_legend=draw_legend,
+        img_format=plot_format,
+        width=width,
+        height=height
     )
 
     logger.info("Posterior abundance plot saved to {}.".format(plot_path))

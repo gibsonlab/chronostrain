@@ -4,15 +4,18 @@
 import numpy as np
 from typing import Dict, List, Iterable
 
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+
 from chronostrain.util.sequences import z4_to_nucleotides, SeqType
 
 
 class Fragment:
-    def __init__(self, seq: SeqType, index: int, metadata: str):
+    def __init__(self, seq: SeqType, index: int, metadata: List[str] = None):
         self.seq: SeqType = seq
         self.seq_len = len(seq)
         self.index: int = index
-        self.metadata: str = metadata
+        self.metadata: List[str] = metadata
 
     def __hash__(self):
         return self.index
@@ -25,20 +28,27 @@ class Fragment:
                    and len(self.seq) == len(other.seq) \
                    and np.sum(self.seq != other.seq) == 0
 
-    def add_metadata(self, metadata):
-        if self.metadata:
-            self.metadata = self.metadata + "|" + metadata
+    def add_metadata(self, metadata: str):
+        if self.metadata is None:
+            self.metadata = [metadata]
         else:
-            self.metadata = metadata
+            self.metadata.append(metadata)
 
     def nucleotide_content(self) -> str:
         return z4_to_nucleotides(self.seq)
+
+    def to_seqrecord(self, description: str = "") -> SeqRecord:
+        return SeqRecord(
+            Seq(self.nucleotide_content()),
+            id="FRAGMENT_{}".format(self.index),
+            description=description
+        )
 
     def __str__(self):
         acgt_seq = self.nucleotide_content()
         return "Fragment({}:{}:{})".format(
             self.index,
-            self.metadata if self.metadata else "",
+            '|'.join(self.metadata) if self.metadata else "",
             acgt_seq[:5] + "..." if len(acgt_seq) > 5 else acgt_seq
         )
 
@@ -57,6 +67,7 @@ class FragmentSpace:
         self.fragment_instances_counter = 0
         self.seq_to_frag: Dict[str, Fragment] = dict()
         self.frag_list: List[Fragment] = list()
+        self.min_frag_len = 0
 
     def contains_seq(self, seq: SeqType) -> bool:
         return self.seq_to_key(seq) in self.seq_to_frag
@@ -66,10 +77,14 @@ class FragmentSpace:
         return str(seq)
 
     def _create_frag(self, seq: SeqType):
-        frag = Fragment(seq=seq, index=self.fragment_instances_counter, metadata="")
+        frag = Fragment(seq=seq, index=self.fragment_instances_counter)
         self.seq_to_frag[self.seq_to_key(seq)] = frag
         self.frag_list.append(frag)
         self.fragment_instances_counter += 1
+
+        if len(self) == 0 or self.min_frag_len > len(seq):
+            self.min_frag_len = len(seq)
+
         return frag
 
     def add_seq(self, seq: SeqType, metadata: str = None) -> Fragment:
@@ -86,7 +101,7 @@ class FragmentSpace:
         else:
             frag = self._create_frag(seq)
 
-        if metadata:
+        if metadata is not None:
             frag.add_metadata(metadata)
         return frag
 
@@ -133,6 +148,9 @@ class FragmentSpace:
 
     def __str__(self):
         return ",".join(str(frag) for frag in self.frag_list)
+
+    def __repr__(self):
+        return ",".join(repr(frag) for frag in self.frag_list)
 
     def __iter__(self):
         return self.frag_list.__iter__()

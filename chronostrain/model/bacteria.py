@@ -28,7 +28,7 @@ class MarkerMetadata:
 @dataclass
 class StrainMetadata:
     ncbi_accession: str
-    file_path: Path
+    source_path: Path
     genus: str
     species: str
 
@@ -38,13 +38,14 @@ class Marker:
     id: str  # A unique identifier.
     name: str  # A human-readable name.
     seq: SeqType
+    canonical: bool
     metadata: Union[MarkerMetadata, None] = None
 
     def __repr__(self):
-        return "Marker[{}]({})".format(self.id, self.nucleotide_seq)
+        return "Marker[{}]".format(self.id)
 
     def __str__(self):
-        return "Marker[{}]({})".format(self.id, self.nucleotide_seq)
+        return "Marker[{}]".format(self.id)
 
     def __len__(self):
         return len(self.seq)
@@ -52,12 +53,19 @@ class Marker:
     def __hash__(self):
         return hash(self.id)
 
+    def __eq__(self, other):
+        return self.id == other.id
+
     @property
     def nucleotide_seq(self) -> str:
         """
         The ACGT nucleotide sequence of this marker.
         """
         return z4_to_nucleotides(self.seq)
+
+    @property
+    def is_canonical(self) -> bool:
+        return self.canonical
 
     def to_seqrecord(self, description: str = "") -> SeqRecord:
         return SeqRecord(

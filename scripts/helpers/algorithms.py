@@ -22,13 +22,16 @@ def perform_bbvi(
         iters: int,
         learning_rate: float,
         num_samples: int,
+        frag_chunk_sz: int = 100,
         correlation_type: str = "strain",
         save_elbo_history: bool = False,
         save_training_history: bool = False,
+        print_debug_every: int = 100
 ):
 
     # ==== Run the solver.
-    solver = BBVISolver(model=model, data=reads, correlation_type=correlation_type, db=db)
+    solver = BBVISolver(model=model, data=reads, correlation_type=correlation_type, db=db,
+                        frag_chunk_size=frag_chunk_sz)
 
     callbacks = []
     uppers = [[] for _ in range(model.num_strains())]
@@ -64,7 +67,7 @@ def perform_bbvi(
         optim_args={'lr': learning_rate, 'betas': (0.9, 0.999), 'eps': 1e-7, 'weight_decay': 0.},
         iters=iters,
         num_samples=num_samples,
-        print_debug_every=100,
+        print_debug_every=print_debug_every,
         callbacks=callbacks
     )
     end_time = time.time()

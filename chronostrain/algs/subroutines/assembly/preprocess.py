@@ -4,10 +4,9 @@ from typing import List, Dict, Optional
 
 import numpy as np
 
-from chronostrain.model import SequenceRead
+from chronostrain.model import SequenceRead, Marker
 from chronostrain.util.alignments.multiple import MarkerMultipleFragmentAlignment
 from chronostrain.util.alignments.sam import SamFlags
-from chronostrain.util.external import sam_to_bam
 from chronostrain.util.quality import phred_to_ascii
 from chronostrain.util.sequences import *
 from .constants import VCF_GAP_CHAR
@@ -20,14 +19,13 @@ _z4_base_ordering: SeqType = nucleotides_to_z4("ACGT-")
 _base_to_idx: Dict[NucleotideDtype, int] = {base: idx for idx, base in enumerate(_z4_base_ordering)}
 
 
-def to_bam(alignment: MarkerMultipleFragmentAlignment, out_path: Path):
+def to_sam(canonical_marker: Marker, alignment: MarkerMultipleFragmentAlignment, out_path: Path):
     """
     Converts the alignment into a BAM file, but with a minor unconventional change: GAPs are converted into Ns so that
     we can properly call indel variants.
     """
-    sam_path = out_path.with_suffix(".sam")
     sam_version = "1.6"
-    chronostrain_version = "empty"  # TODO insert explicit versioning.
+    chronostrain_version = "empty"
 
     def write_read(read: SequenceRead,
                    t_idx: int,
@@ -41,9 +39,12 @@ def to_bam(alignment: MarkerMultipleFragmentAlignment, out_path: Path):
             read_flag = read_flag | flag.value
 
         # Mapping positions
-        aln = alignment.get_alignment(read, reverse_complement, delete_double_gaps=False)
+        aln = alignment.get_alignment(canonical_marker, read, reverse_complement, delete_double_gaps=False)
+        read_start_clip, read_end_clip = alignment.num_clipped_bases(read, reverse_complement)
+        _slice = slice(read_start_clip, len(read) - read_end_clip)
         query_map_len = map_last_idx - map_first_idx + 1
-        assert np.sum(aln[1] != nucleotide_GAP_z4) == len(read)
+
+        assert np.sum(aln[1] != nucleotide_GAP_z4) == len(read) - read_start_clip - read_end_clip
 
         # Mapping quality
         mapq: int = 255  # (not available)
@@ -55,7 +56,7 @@ def to_bam(alignment: MarkerMultipleFragmentAlignment, out_path: Path):
         query_seq = aln[1, map_first_idx:map_last_idx+1].copy()
         quality = np.zeros(shape=query_seq.shape, dtype=float)
         quality[query_seq == nucleotide_GAP_z4] = 0
-        quality[query_seq != nucleotide_GAP_z4] = read.quality
+        quality[query_seq != nucleotide_GAP_z4] = read.quality[_slice]
         # query_seq[query_seq == nucleotide_GAP_z4]
         query = "".join(
             map_z4_to_nucleotide(x) if x != nucleotide_GAP_z4 else VCF_GAP_CHAR
@@ -65,7 +66,7 @@ def to_bam(alignment: MarkerMultipleFragmentAlignment, out_path: Path):
         w.writerow([
             f"T{t_idx};R{int(reverse_complement)};{read.id}",
             read_flag,
-            alignment.marker.id,
+            canonical_marker.name,
             str(map_first_idx + 1),  # 1-indexed mapping position
             str(mapq),
             f"{query_map_len}M",
@@ -76,13 +77,13 @@ def to_bam(alignment: MarkerMultipleFragmentAlignment, out_path: Path):
             phred_to_ascii(quality, "fastq")
         ])
 
-    with open(sam_path, "w") as f:
-        tsv = csv.writer(f, delimiter='\t', quoting=csv.QUOTE_NONE)
+    with open(out_path, "w") as f:
+        tsv = csv.writer(f, delimiter='\t', quoting=csv.QUOTE_NONE, lineterminator='\n')
         # ========== METADATA.
         tsv.writerow(["@HD", f"VN:{sam_version}", "SO:unsorted"])
-        tsv.writerow(["@SQ", f"SN:{alignment.marker.id}", f"LN:{len(alignment.marker.seq)}"])
+        tsv.writerow(["@SQ", f"SN:{canonical_marker.name}", f"LN:{len(canonical_marker.seq)}"])
         tsv.writerow(["@PG", "ID:chronostr", f"VN:{chronostrain_version}", "PN:chronostrain", "CL:empty"])
-        tsv.writerow(["@CO", f"Chronostrain BAM from multiple alignment (marker: {alignment.marker.id})"])
+        tsv.writerow(["@CO", f"Chronostrain BAM from multiple alignment (marker: {canonical_marker.name})"])
 
         # ========== SEQUENCE ALIGNMENTS.
         entries = [
@@ -99,15 +100,13 @@ def to_bam(alignment: MarkerMultipleFragmentAlignment, out_path: Path):
             flags = [SamFlags.SeqReverseComplement] if revcomp else []
             write_read(read_obj, time_idx, start_idx, end_idx, revcomp, flags, tsv)
 
-    # now create the BAM file via compression.
-    logger.debug(f"Compression SAM ({str(sam_path.name)}) to BAM ({str(out_path.name)}).")
-    sam_to_bam(sam_path, out_path)
 
-
-def to_vcf(alignment: MarkerMultipleFragmentAlignment,
+def to_vcf(canonical_marker: Marker,
+           alignment: MarkerMultipleFragmentAlignment,
            variant_counts: np.ndarray,
            out_path: Path,
-           ploidy: Optional[int] = None):
+           ploidy: Optional[int] = None,
+           variant_count_lower_bound: int = 5):
     """
     :param alignment: The multiple alignment instance to use.
     :param variant_counts: The (N x 5) matrix of variants, where each row stores the number of occurrences of each base,
@@ -122,10 +121,10 @@ def to_vcf(alignment: MarkerMultipleFragmentAlignment,
         return map_z4_to_nucleotide(base)
 
     with open(out_path, "w") as f:
-        tsv = csv.writer(f, quotechar='', delimiter='\t', quoting=csv.QUOTE_NONE)
+        tsv = csv.writer(f, quotechar='', delimiter='\t', quoting=csv.QUOTE_NONE, lineterminator='\n')
         # Header rows
         tsv.writerow(["##fileformat=VCFv4.2"])
-        tsv.writerow([f"##contig=<ID={alignment.marker.id}>"])
+        tsv.writerow([f"##contig=<ID={canonical_marker.name}>"])
         # tsv.writerow(["##INFO=<ID=NS,Number=1,Type=Integer,Description=\"Number of samples with Data\">"])
         tsv.writerow(["##INFO=<ID=AN,Number=1,Type=Integer,Description=\"Total number of variants identified\">"])
         tsv.writerow(["##INFO=<ID=AC,Number=A,Type=Integer,Description=\"Read count for each ALT variant\">"])
@@ -139,12 +138,14 @@ def to_vcf(alignment: MarkerMultipleFragmentAlignment,
         idx_gap = _base_to_idx[nucleotide_GAP_z4]
 
         for idx in range(alignment.num_bases()):
-            ref_base_z4 = alignment.aligned_marker_seq[idx]
+            ref_base_z4 = alignment.get_aligned_marker_seq(canonical_marker)[idx]
             ref_base_idx = _base_to_idx[ref_base_z4]
             variant_counts_i = variant_counts[idx]
 
             # Compute the supported variants, not equal to the reference base.
-            supported_variant_indices = set(np.where(variant_counts_i > 0)[0]).difference({ref_base_idx})
+            supported_variant_indices = set(
+                np.where(variant_counts_i > variant_count_lower_bound)[0]
+            ).difference({ref_base_idx})
 
             # No reads map to this position. Nothing to do.
             if (
@@ -167,7 +168,7 @@ def to_vcf(alignment: MarkerMultipleFragmentAlignment,
 
             # Write the row to file.
             tsv.writerow([
-                alignment.marker.id,  # chrom
+                canonical_marker.name,  # chrom
                 idx + 1,  # pos
                 ".",  # id
                 map_z4_to_nucleotide(ref_base_z4) if ref_base_z4 != nucleotide_GAP_z4 else VCF_GAP_CHAR,  # ref

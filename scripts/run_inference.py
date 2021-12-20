@@ -12,7 +12,7 @@ from chronostrain.database import StrainDatabase
 from chronostrain.model import Population, construct_fragment_space_uniform_length, FragmentSpace
 from chronostrain.model.io import TimeSeriesReads
 
-from scripts.helpers import *
+from helpers import *
 
 
 def parse_args():
@@ -51,6 +51,8 @@ def parse_args():
     parser.add_argument('--num_samples', required=False, type=int, default=100,
                         help='<Optional> The number of samples to use for monte-carlo estimation '
                              '(for Variational solution).')
+    parser.add_argument('--frag_chunk_size', required=False, type=int, default=100,
+                        help='<Optional> The size of matrices to divide into chunks across fragments. (Default: 100)')
     parser.add_argument('-lr', '--learning_rate', required=False, type=float, default=1e-5,
                         help='<Optional> The learning rate to use for the optimizer, if using EM or VI. Default: 1e-5.')
     parser.add_argument('--abundances_file', required=False, default='abundances.out',
@@ -67,32 +69,25 @@ def parse_args():
     parser.add_argument('--save_fragment_probs', action="store_true",
                         help='If flag is set, then save posterior fragment probabilities for valid reads.')
     parser.add_argument('--plot_format', required=False, type=str, default="pdf")
+    parser.add_argument('--print_debug_every', required=False, type=int, default=50)
 
     return parser.parse_args()
 
 
-def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase, pop: Population) -> FragmentSpace:
-    """
-    Performs a pairwise alignment (each read to the reference marker), and then extracts all of the exactly aligned
-    fragments, ignoring indels.
-    """
-    logger.debug("Using fragment construction from alignments.")
+def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase) -> FragmentSpace:
+    logger.info("Constructing fragments from multiple alignments.")
     multiple_alignments = CachedReadMultipleAlignments(reads, db)
     fragment_space = FragmentSpace()
-    for multi_align in multiple_alignments.get_alignments():
-        if not pop.contains_marker(multi_align.marker):
-            continue
+    for multi_align in multiple_alignments.get_alignments(num_cores=cfg.model_cfg.num_cores):
+        logger.debug(f"Constructing fragments for marker `{multi_align.canonical_marker.name}`.")
 
-        for reverse in [False, True]:
-            for read in multi_align.reads(reverse=reverse):
-                subseq, insertions, deletions = multi_align.get_aligned_reference_region(
-                    read, reverse=reverse
-                )
+        for frag_entry in multi_align.all_mapped_fragments():
+            marker, read, subseq, insertions, deletions, start_clip, end_clip, revcomp = frag_entry
 
-                fragment_space.add_seq(
-                    subseq,
-                    metadata=f"ClustalO({read.id}->{multi_align.marker.id})"
-                )
+            fragment_space.add_seq(
+                subseq,
+                metadata=f"({read.id}->{marker.id})"
+            )
     return fragment_space
 
 
@@ -115,7 +110,7 @@ def main():
     # ==== Load Population instance from database info
     population = Population(strains=db.all_strains(), extra_strain=cfg.model_cfg.extra_strain)
     if cfg.model_cfg.use_sparse:
-        fragments = aligned_exact_fragments(reads, db, population)
+        fragments = aligned_exact_fragments(reads, db)
     else:
         fragments = construct_fragment_space_uniform_length(args.read_length, population)
 
@@ -124,7 +119,8 @@ def main():
         population=population,
         fragments=fragments,
         time_points=time_points,
-        disable_quality=not cfg.model_cfg.use_quality_scores
+        disable_quality=not cfg.model_cfg.use_quality_scores,
+        db=db
     )
 
     """
@@ -169,9 +165,11 @@ def main():
             iters=args.iters,
             learning_rate=args.learning_rate,
             num_samples=args.num_samples,
-            correlation_type='strain',
+            correlation_type='time',
             save_elbo_history=args.plot_elbo,
-            save_training_history=args.draw_training_history
+            save_training_history=args.draw_training_history,
+            frag_chunk_sz=args.frag_chunk_size,
+            print_debug_every=args.print_debug_every
         )
 
         if args.plot_elbo:

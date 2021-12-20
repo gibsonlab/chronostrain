@@ -2,21 +2,19 @@
  generative.py
  Contains classes for representing the generative model.
 """
-import sys
+from pathlib import Path
 from typing import List, Tuple
 
-from tqdm import tqdm
 from torch.distributions.multivariate_normal import MultivariateNormal
-from scipy.stats import poisson
-
-from pydivsufsort import WonderString
+from scipy.stats import rv_discrete, poisson
 
 from chronostrain.model.bacteria import Population
 from chronostrain.model.fragments import FragmentSpace
 from chronostrain.model.reads import AbstractErrorModel, SequenceRead
 from chronostrain.model.io import TimeSeriesReads, TimeSliceReads
 from chronostrain.util.math.distributions import *
-from chronostrain.util.sparse import SparseMatrix
+from chronostrain.util.sparse import RowSectionedSparseMatrix
+from .fragment_frequencies import SparseFragmentFrequencyComputer
 
 from chronostrain.config.logging import create_logger
 logger = create_logger(__name__)
@@ -34,7 +32,8 @@ class GenerativeModel:
                  bacteria_pop: Population,
                  fragments: FragmentSpace,
                  mean_frag_length: float,
-                 read_error_model: AbstractErrorModel):
+                 read_error_model: AbstractErrorModel,
+                 all_markers_fasta: Path):
         """
         :param times: A list of time points.
         :param mu: The prior mean E[X_1] of the first time point.
@@ -56,8 +55,11 @@ class GenerativeModel:
         self.error_model: AbstractErrorModel = read_error_model
         self.bacteria_pop: Population = bacteria_pop
         self.fragments: FragmentSpace = fragments
-        self.mean_frag_length: float = mean_frag_length
-        self._frag_freqs = None
+        self.frag_length_distribution: rv_discrete = poisson(mean_frag_length)
+
+        self.all_markers_fasta = all_markers_fasta
+        self._frag_freqs_sparse = None
+        self._frag_freqs_dense = None
 
     def num_times(self) -> int:
         return len(self.times)
@@ -69,82 +71,27 @@ class GenerativeModel:
         return self.fragments.size()
 
     @property
-    def fragment_frequencies(self) -> Union[torch.Tensor, SparseMatrix]:
+    def fragment_frequencies_sparse(self) -> RowSectionedSparseMatrix:
         """
-        Outputs the (F x S) matrix representing the strain-specific fragment frequencies.
+        Outputs the (F x S) matrix representing the strain-specific fragment (LOG-)frequencies.
         Is a wrapper for Population.construct_strain_fragment_frequencies().
         (Corresponds to the matrix "W" in writeup.)
         """
-        if self._frag_freqs is None:
-            self._frag_freqs = self.construct_strain_fragment_frequencies()
+        if self._frag_freqs_sparse is None:
+            self._frag_freqs_sparse = SparseFragmentFrequencyComputer(
+                all_markers_path=self.all_markers_fasta,
+                length_rv=self.frag_length_distribution
+            ).get_frequencies(self.fragments, self.bacteria_pop)
+        return self._frag_freqs_sparse
 
-        return self._frag_freqs
-
-    def construct_strain_fragment_frequencies(self) -> Union[torch.Tensor, SparseMatrix]:
+    @property
+    def fragment_frequencies_dense(self) -> torch.Tensor:
         """
-        Get fragment counts per strain. The output represents the 'W' matrix in the notes, using a fixed fragment
-        length. The row-f, column-s entry is Pr(Fragment = f | Strain = s), modeled as independently selecting a
-        Poisson-distributed length L and a uniform start position, which determines a particular length-L window.
-
-        :return: An (F x S) matrix, where each column is a strain-specific frequency vector of fragments.
+        Outputs the (F x S) matrix representing the strain-specific fragment (LOG-)frequencies.
+        Is a wrapper for Population.construct_strain_fragment_frequencies().
+        (Corresponds to the matrix "W" in writeup.)
         """
-        if cfg.model_cfg.use_sparse:
-            frag_freqs = self.construct_strain_fragment_frequencies_sparse()
-        else:
-            frag_freqs = self.construct_strain_fragment_frequencies_dense()
-        logger.debug(f"Finished constructing fragment frequencies for {len(self.fragments)} fragments.")
-        return frag_freqs
-
-    def construct_strain_fragment_frequencies_dense(self) -> torch.Tensor:
-        """For each strain, fill out the column."""
-        logger.debug(f"Constructing dense fragment frequencies for {len(self.fragments)} fragments.")
-
-        frag_freqs = torch.zeros(self.fragments.size(), self.num_strains(), device=cfg.torch_cfg.device)
-        for strain_idx, strain in self.bacteria_pop.strains:
-            strain = self.bacteria_pop.strains[strain_idx]
-            for marker in strain.markers:
-                sa = WonderString(marker.seq)
-                for fragment in self.fragments:
-                    n_occurrences = sa.search(fragment.seq)
-
-                    # TODO replace with arbitrary distribution, specified by user.
-                    length_likelihood = poisson.pmf(len(fragment), self.mean_frag_length)
-
-                    frag_freqs[fragment.index, strain_idx] += (
-                            length_likelihood * n_occurrences / strain.num_marker_frags(len(fragment))
-                    )
-        return frag_freqs
-
-    def construct_strain_fragment_frequencies_sparse(self) -> SparseMatrix:
-        # TODO: Use a cached computation for this part.
-        """For each strain, fill out the column."""
-        logger.debug(f"Constructing sparse fragment frequencies for {len(self.fragments)} fragments.")
-
-        strain_indices = []
-        frag_indices = []
-        matrix_values = []
-        for strain_idx, strain in enumerate(self.bacteria_pop.strains):
-            strain = self.bacteria_pop.strains[strain_idx]
-            for marker in strain.markers:
-                sa = WonderString("".join(str(i) for i in marker.seq))
-                for fragment in self.fragments:
-                    n_hits, suffix_position = sa.search("".join(str(i) for i in fragment.seq))
-                    if n_hits == 0:
-                        continue
-
-                    # TODO replace with arbitrary distribution, specified by user.
-                    length_likelihood = poisson.pmf(len(fragment), self.mean_frag_length)
-
-                    strain_indices.append(strain_idx)
-                    frag_indices.append(fragment.index)
-                    matrix_values.append(length_likelihood * n_hits / strain.num_marker_frags(len(fragment)))
-
-        return SparseMatrix(
-            indices=torch.tensor([frag_indices, strain_indices], device=cfg.torch_cfg.device, dtype=torch.long),
-            values=torch.tensor(matrix_values, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype),
-            dims=(self.num_fragments(), self.num_strains()),
-            force_coalesce=True
-        )
+        raise NotImplementedError("TODO implement `DenseFragmentFrequencyComputer` class.")
 
     def log_likelihood_x(self, X: torch.Tensor) -> torch.Tensor:
         """
@@ -332,7 +279,7 @@ class GenerativeModel:
         # For each time point, convert to fragment abundances and sample each read.
         time_slices = []
 
-        for t in tqdm(range(num_timepoints), file=sys.stdout):
+        for t in range(num_timepoints):
             read_depth = read_depths[t]
             strain_abundance = abundances[t]
             frag_abundance = self.strain_abundance_to_frag_abundance(strain_abundance.view(S, 1)).view(F)
@@ -408,10 +355,10 @@ class GenerativeModel:
         Convert strain abundance to fragment abundance, via the matrix multiplication F = WZ.
         Assumes strain_abundance is an S x T tensor, so that the output is an F x T tensor.
         """
-        if isinstance(self.fragment_frequencies, SparseMatrix):
-            return self.fragment_frequencies.dense_mul(strain_abundances)
+        if cfg.model_cfg.use_sparse:
+            return self.fragment_frequencies_sparse.exp().dense_mul(strain_abundances)
         else:
-            return self.fragment_frequencies.mm(strain_abundances)
+            return self.fragment_frequencies_dense.exp().mm(strain_abundances)
 
     def sample_reads(
             self,
@@ -428,15 +375,9 @@ class GenerativeModel:
         i and the quality score at location i in the generated quality score vector for the
         selected fragment.
 
-        @param - frag_abundances -
-                a tensor of floats representing a probability distribution over the fragments
-
-        @param - num_samples -
-                the number of samples to be taken.
-
-        @return - generated_noisy_fragments
-                a list of strings representing a noisy reads of the set of input fragments
-
+        :param - frag_abundances: a tensor of floats representing a probability distribution over the fragments
+        :param - num_samples: the number of samples to be taken.
+        :return: a list of strings representing a noisy reads of the set of input fragments
         """
 
         frag_indexed_samples = torch.multinomial(

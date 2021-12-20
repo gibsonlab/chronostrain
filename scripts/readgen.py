@@ -7,8 +7,12 @@ import shutil
 from multiprocessing.dummy import Pool
 from typing import Tuple, Dict, List
 
+from Bio import SeqIO
+from Bio.SeqRecord import SeqRecord
+
 from chronostrain import cfg, logger
-from chronostrain.database import AbstractStrainDatabase
+from chronostrain.database import StrainDatabase
+from chronostrain.model import Strain
 from chronostrain.util.external.art import art_illumina
 
 from random import seed, randint
@@ -149,9 +153,23 @@ def parse_abundance_profile(abundance_path: str) -> List[Tuple[float, Dict]]:
         return abundances
 
 
+def save_strain_genome(strain: Strain):
+    record = next(SeqIO.parse(strain.metadata.source_path, "genbank"))
+    fasta_path = strain.metadata.source_path.parent / f"{strain.id}_genome.fasta"
+
+    SeqIO.write([
+        SeqRecord(
+            record.seq,
+            id=strain.id,
+            description="Full_genome"
+        )
+    ], fasta_path, "fasta")
+    return fasta_path
+
+
 def sample_reads_from_rel_abundances(final_reads_path: Path,
                                      abundances: Dict[str, float],
-                                     strain_db: AbstractStrainDatabase,
+                                     strain_db: StrainDatabase,
                                      tmp_dir: Path,
                                      profile_first: Path,
                                      profile_second: Path,
@@ -167,7 +185,6 @@ def sample_reads_from_rel_abundances(final_reads_path: Path,
 
     :param final_reads_path:
     :param abundances:
-    :param num_reads:
     :param strain_db:
     :param tmp_dir:
     :param profile_first:
@@ -184,31 +201,38 @@ def sample_reads_from_rel_abundances(final_reads_path: Path,
         strain_read_paths = []
         for entry_index, (accession, read_count) in enumerate(abundances.items()):
             strain = strain_db.get_strain(strain_id=accession)
+            fasta_path = save_strain_genome(strain)
 
             output_path = art_illumina(
-                reference_path=strain.metadata.file_path,
+                reference_path=fasta_path,
                 num_reads=read_count,
                 output_dir=tmp_dir,
                 output_prefix="{}_".format(accession),
                 profile_first=profile_first,
                 profile_second=profile_second,
-                quality_shift=quality_shift,
-                quality_shift_2=quality_shift_2,
                 read_length=read_len,
-                seed=seed.next_value()
+                seed=seed.next_value(),
+                quality_shift=quality_shift,
+                quality_shift_2=quality_shift_2
             )
 
             strain_read_paths.append(output_path)
     elif n_cores > 1:
         configs = [(
-            strain_db.get_strain(accession).metadata.file_path,
+            strain_db.get_strain(accession).metadata.source_path,
             read_count,
             tmp_dir,
             "{}_".format(accession),
             profile_first,
             profile_second,
             read_len,
-            seed.next_value()
+            seed.next_value(),
+            1000,
+            200,
+            False,
+            False,
+            quality_shift,
+            quality_shift_2
         ) for entry_index, (accession, read_count) in enumerate(abundances.items())]
 
         thread_pool = Pool(n_cores)

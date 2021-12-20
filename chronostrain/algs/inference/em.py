@@ -161,7 +161,7 @@ class EMSolver(AbstractModelSolver):
                 sigmoid_jacobian = torch.diag(sigmoid) - torch.ger(sigmoid, sigmoid)  # symmetric matrix.
 
                 x_gradient[t] = x_gradient[t] + sigmoid_jacobian.mv(
-                    self.model.fragment_frequencies.t().dense_mul(Q.view(F, 1)).view(S)
+                    self.model.fragment_frequencies_sparse.t().dense_mul(Q.view(F, 1)).view(S)
                 )
             else:
                 Z_t = self.model.strain_abundance_to_frag_abundance(y[t].view(S, 1))
@@ -171,7 +171,7 @@ class EMSolver(AbstractModelSolver):
                 sigmoid = y[t]
                 sigmoid_jacobian = torch.diag(sigmoid) - torch.ger(sigmoid, sigmoid)  # symmetric matrix.
                 x_gradient[t] = x_gradient[t] + sigmoid_jacobian.mv(
-                    self.model.fragment_frequencies.t().mv(Q)
+                    self.model.fragment_frequencies_dense.t().mv(Q)
                 )
 
         # ==== Gradient clipping.

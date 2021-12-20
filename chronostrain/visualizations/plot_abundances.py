@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 import pandas as pd
 
+from chronostrain.model import StrainVariant
 from chronostrain.model.bacteria import Population
 from chronostrain.model.io import load_abundances
 from scipy.special import softmax
@@ -170,11 +171,14 @@ def plot_posterior_abundances(
         plots_out_path: Path,
         draw_legend: bool,
         img_format: str,
-        truth_path: Path = None,
+        truth_path: Optional[Path] = None,
         title: str = None,
         font_size: int = 12,
-        thickness: int = 1,
-        dpi: int = 100):
+        thickness: int = 2,
+        dpi: int = 100,
+        width: int = 16,
+        height: int = 10
+):
     """
     :param times:
     :param posterior_samples: A (T x N x S) array of time-indexed samples of abundances.
@@ -191,7 +195,6 @@ def plot_posterior_abundances(
     """
 
     true_abundances = None
-    truth_strain_id_to_idx: Dict[str, int] = None
     if truth_path is not None:
         _, true_abundances, accessions = load_abundances(truth_path)
         truth_strain_id_to_idx = {
@@ -204,7 +207,7 @@ def plot_posterior_abundances(
     # Convert gaussians to rel abundances.
     abundance_samples = softmax(posterior_samples, axis=2)
 
-    fig, ax = plt.subplots(1, 1)
+    fig, ax = plt.subplots(1, 1, figsize=(width, height))
     legend_elements = []
     plt.rcParams.update({'font.size': font_size})
     ax.set_ylim(0, 1)
@@ -232,9 +235,14 @@ def plot_posterior_abundances(
         # This is (T x N), for the particular strain.
         traj_samples = abundance_samples[:, :, s_idx]
 
+        if isinstance(strain, StrainVariant):
+            label = f"{s_idx}_{strain.base_strain}_variant"
+        else:
+            label = strain.id
+
         render_posterior_abundances(
             times=times,
-            label=strain.id,
+            label=label,
             traj_samples=traj_samples,
             ax=ax,
             thickness=thickness,
@@ -254,9 +262,17 @@ def plot_posterior_abundances(
         )
 
     if draw_legend:
-        ax.legend(handles=legend_elements)
+        ax.legend(bbox_to_anchor=(1.05, 1.0), loc='lower center', handles=legend_elements)
+        fig.tight_layout()
     ax.set_title(title)
     fig.savefig(plots_out_path, bbox_inches='tight', format=img_format, dpi=dpi)
+
+
+def parse_quantiles(traj_samples: np.ndarray, quantiles: np.ndarray):
+    return np.stack([
+        np.quantile(traj_samples, q=q, axis=1)
+        for q in quantiles
+    ], axis=0)
 
 
 def render_posterior_abundances(
@@ -267,9 +283,13 @@ def render_posterior_abundances(
         thickness: float,
         legend_elements: List,
         color: Optional = None,
+        quantiles: Optional[np.ndarray] = None
 ):
-    upper_quantile = np.quantile(traj_samples, q=0.975, axis=1)
-    lower_quantile = np.quantile(traj_samples, q=0.025, axis=1)
+    if quantiles is None:
+        quantiles = np.linspace(0.025, 0.975, 50)  # DEFAULT
+    if quantiles[0] > 0.5 or quantiles[-1] < 0.5:
+        raise RuntimeError("Quantiles must lead with a value <= 0.5 and end with a value >= 0.5.")
+    quantile_values = parse_quantiles(traj_samples, quantiles)
     median = np.quantile(traj_samples, q=0.5, axis=1)
 
     # Plot the trajectory of medians.
@@ -280,7 +300,16 @@ def render_posterior_abundances(
         ax.plot(times, median, linestyle='--', marker='x', linewidth=thickness, color=color)
 
     # Fill between the quantiles.
-    ax.fill_between(times, lower_quantile, upper_quantile, alpha=0.2, color=color)
+    for q_idx, (q, q_val) in enumerate(zip(quantiles, quantile_values)):
+        if q < 0.5:
+            alpha = 0.8 * (1 - (abs(q - 0.5) / 0.5))
+            q_val_next = quantile_values[q_idx + 1]
+            ax.fill_between(times, q_val, q_val_next, alpha=alpha, color=color, linewidth=0)
+        if q > 0.5:
+            q_prev = quantiles[q_idx - 1]
+            q_val_prev = quantile_values[q_idx - 1]
+            alpha = 0.8 * (1 - (abs(q_prev - 0.5) / 0.5))
+            ax.fill_between(times, q_val_prev, q_val, alpha=alpha, color=color, linewidth=0)
 
     # Populate the legend.
     legend_elements.append(

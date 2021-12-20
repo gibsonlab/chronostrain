@@ -17,7 +17,9 @@ class NoiselessErrorModel(AbstractErrorModel):
                                read: SequenceRead,
                                read_reverse_complemented: bool,
                                insertions: Optional[np.ndarray] = None,
-                               deletions: Optional[np.ndarray] = None) -> float:
+                               deletions: Optional[np.ndarray] = None,
+                               read_start_clip: int = 0,
+                               read_end_clip: int = 0) -> float:
         if np.sum(insertions) > 0 or np.sum(deletions) > 0:
             return self.mismatch_log_likelihood
 
@@ -25,6 +27,9 @@ class NoiselessErrorModel(AbstractErrorModel):
             read_seq = reverse_complement_seq(read.seq)
         else:
             read_seq = read.seq
+
+        _slice = slice(read_start_clip, len(read_seq) - read_end_clip)
+        read_seq = read_seq[_slice]
 
         if np.sum(fragment.seq != read_seq) == 0:
             return self.match_log_likelihood

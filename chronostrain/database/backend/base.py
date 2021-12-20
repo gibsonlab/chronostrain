@@ -67,3 +67,21 @@ class AbstractStrainDatabaseBackend(object):
         Retrieve all strains that contains this marker.
         """
         pass
+
+    def get_markers_by_name(self, marker_name: str) -> List[Marker]:
+        """
+        Retrieve all strains with name matching the query.
+        """
+        pass
+
+    def get_canonical_marker(self, marker_name: str) -> Marker:
+        """
+        Retrieve the canonical version of the specified marker.
+        """
+        pass
+
+    def all_canonical_markers(self) -> List[Marker]:
+        pass
+
+    def num_canonical_markers(self) -> int:
+        pass

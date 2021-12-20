@@ -15,14 +15,27 @@ class PandasAssistedBackend(AbstractStrainDatabaseBackend):
             'MarkerId': pd.Series(dtype='str')
         })
 
+        self.marker_df = pd.DataFrame({
+            'MarkerId': pd.Series(dtype='str'),
+            'MarkerName': pd.Series(dtype='str'),
+            'IsCanonical': pd.Series(dtype='bool')
+        })
+
     def add_strain(self, strain: Strain):
         self.strains[strain.id] = strain
         for marker in strain.markers:
             self.markers[marker.id] = marker
-            self.strain_df.append({
+
+            self.strain_df = self.strain_df.append({
                 'StrainId': strain.id,
                 'MarkerId': marker.id
-            })
+            }, ignore_index=True)
+
+            self.marker_df = self.marker_df.append({
+                'MarkerId': marker.id,
+                'MarkerName': marker.name,
+                'IsCanonical': marker.is_canonical
+            }, ignore_index=True)
 
     def get_strain(self, strain_id: str) -> Strain:
         try:
@@ -60,3 +73,41 @@ class PandasAssistedBackend(AbstractStrainDatabaseBackend):
             self.strains[strain_id]
             for idx, strain_id in hits.items()
         ]
+
+    def get_markers_by_name(self, marker_name: str) -> List[Marker]:
+        hits = self.marker_df.loc[
+            self.marker_df['MarkerName'] == marker_name,
+            "MarkerId"
+        ]
+        return [
+            self.markers[marker_id]
+            for idx, marker_id in hits.items()
+        ]
+
+    def get_canonical_marker(self, marker_name: str) -> Marker:
+        hits = self.marker_df.loc[
+            (self.marker_df['MarkerName'] == marker_name) & (self.marker_df['IsCanonical']),
+            "MarkerId"
+        ]
+
+        if hits.shape[0] == 0:
+            raise RuntimeError("No canonical markers found with name `{}`.".format(marker_name))
+
+        for idx, marker_id in hits.items():
+            return self.get_marker(marker_id)
+
+    def all_canonical_markers(self) -> List[Marker]:
+        hits = self.marker_df.loc[
+            (self.marker_df['IsCanonical']),
+            "MarkerId"
+        ]
+        return [
+            self.markers[marker_id]
+            for idx, marker_id in hits.items()
+        ]
+
+    def num_canonical_markers(self) -> int:
+        return self.marker_df.loc[
+            (self.marker_df['IsCanonical']),
+            "MarkerId"
+        ].shape[0]

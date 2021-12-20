@@ -28,7 +28,8 @@ class SequenceReadPairwiseAlignment(object):
                  hard_clip_end: float,
                  soft_clip_start: float,
                  soft_clip_end: float,
-                 percent_identity: Optional[float],
+                 num_aligned_bases: Optional[int],
+                 num_mismatches: Optional[int],
                  reverse_complemented: bool):
         """
         :param read: The SequenceRead instance.
@@ -65,7 +66,8 @@ class SequenceReadPairwiseAlignment(object):
         self.soft_clip_start = soft_clip_start  # the number of bases at the right end (5') that got soft clipped.
         self.soft_clip_end = soft_clip_end  # the number of bases at the right end (3') that got soft clipped.
 
-        self.percent_identity: Union[None, float] = percent_identity
+        self.num_aligned_bases: Union[None, int] = num_aligned_bases
+        self.num_mismatches: Union[None, int] = num_mismatches
 
         # Indicates whether the read has been reverse complemented.
         self.reverse_complemented: bool = reverse_complemented
@@ -200,13 +202,13 @@ def parse_line_into_alignment(sam_path: Path,
             current_marker_idx += cigar_el.num
         elif cigar_el.op == CigarOp.SKIPREF:
             raise ValueError(
-                f"Line {samline.lineno}, Cigar `{samline.cigar_str}`: Reference skip is only expected for "
+                f"Line {samline.lineno}, Cigar `{samline.cigar}`: Reference skip is only expected for "
                 "mRNA-to-genome alignment. Check the alignment tool used."
             )
         else:
             raise RuntimeError(
                 f"Cannot handle Cigar op `{cigar_el.op.name}` in the middle of the aligned query. "
-                f"(Line {samline.lineno}, Cigar {samline.cigar_str})"
+                f"(Line {samline.lineno}, Cigar {samline.cigar})"
             )
 
     read_end = current_read_idx - 1
@@ -238,7 +240,8 @@ def parse_line_into_alignment(sam_path: Path,
         hard_clip_end,
         soft_clip_start,
         soft_clip_end,
-        samline.percent_identity,
+        samline.num_aligned_bases,
+        samline.num_mismatches,
         samline.is_reverse_complemented
     )
 

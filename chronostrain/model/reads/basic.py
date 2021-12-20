@@ -7,7 +7,7 @@ from typing import Optional
 import numpy as np
 from chronostrain.model import Fragment
 from chronostrain.model.reads.base import SequenceRead, AbstractErrorModel, AbstractQScoreDistribution
-from chronostrain.util.math.numpy_random import choice_vectorized
+from chronostrain.util.numpy_helpers import choice_vectorized
 import chronostrain.util.sequences as cseq
 
 
@@ -182,23 +182,25 @@ class BasicErrorModel(AbstractErrorModel):
                                read: SequenceRead,
                                read_reverse_complemented: bool,
                                insertions: Optional[np.ndarray] = None,
-                               deletions: Optional[np.ndarray] = None) -> float:
-        """
-        Computes the log likelihood of reading 'fragment' as 'read'
-        :param: read - a SequenceRead instance.
-        :param: fragment
-        """
+                               deletions: Optional[np.ndarray] = None,
+                               read_start_clip: int = 0,
+                               read_end_clip: int = 0) -> float:
         insertion_ll = np.sum(insertions) * self.insertion_error_ll
         deletion_ll = np.sum(deletions) * self.deletion_error_ll
 
-        # take care of insertions.
-        read_qual = read.quality[~insertions]
-        read_seq = read.seq[~insertions]
-        fragment_seq = fragment.seq[~deletions]
+        read_qual = read.quality
+        read_seq = read.seq
+        fragment_seq = fragment.seq
 
         if read_reverse_complemented:
             read_qual = read_qual[::-1]
             read_seq = cseq.reverse_complement_seq(read_seq)
+
+        # take care of insertions/deletions/clipping.
+        _slice = slice(read_start_clip, len(read_seq) - read_end_clip)
+        read_qual = read_qual[_slice][~insertions]
+        read_seq = read_seq[_slice][~insertions]
+        fragment_seq = fragment_seq[~deletions]
 
         return insertion_ll + deletion_ll + np.log(
             BasicErrorModel.Q_SCORE_BASE_CHANGE_MATRICES[read_qual, fragment_seq, read_seq]

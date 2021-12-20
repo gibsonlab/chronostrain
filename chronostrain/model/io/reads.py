@@ -1,8 +1,7 @@
 from pathlib import Path
-from typing import List, Optional, Union, Iterable, Iterator, Dict
+from typing import List, Optional, Union, Iterator, Dict
 import numpy as np
 
-import gzip
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
@@ -12,6 +11,8 @@ from chronostrain.model.reads import SequenceRead
 from chronostrain.util.filesystem import convert_size
 
 from chronostrain.config.logging import create_logger
+from chronostrain.util.io import read_seq_file
+
 logger = create_logger(__name__)
 
 
@@ -73,17 +74,6 @@ class TimeSliceReads(object):
         return file_size
 
     @staticmethod
-    def read_fastq(fastq_path: Path, quality_format: str) -> Iterator[SeqRecord]:
-        for record in SeqIO.parse(fastq_path, quality_format):
-            yield record
-
-    @staticmethod
-    def read_gzipped_fastq(gz_path: Path, quality_format: str) -> Iterator[SeqRecord]:
-        with gzip.open(str(gz_path), "rt") as handle:
-            for record in SeqIO.parse(handle, quality_format):
-                yield record
-
-    @staticmethod
     def load(src: TimeSliceReadSource, read_depth: int, time_point: float) -> "TimeSliceReads":
         """
         Creates an instance of TimeSliceReads() from the specified file path.
@@ -96,12 +86,7 @@ class TimeSliceReads(object):
         reads = []
         quality_format = src.quality_format
         for file_path in src.paths:
-            if file_path.suffix == '.gz':
-                read_fn = TimeSliceReads.read_gzipped_fastq
-            else:
-                read_fn = TimeSliceReads.read_fastq
-
-            for record in read_fn(file_path, quality_format):
+            for record in read_seq_file(file_path, quality_format):
                 if (quality_format == "fastq") \
                         or (quality_format == "fastq-sanger") \
                         or (quality_format == "fastq-illumina"):

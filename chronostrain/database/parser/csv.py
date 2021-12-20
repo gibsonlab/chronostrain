@@ -19,11 +19,13 @@ class CSVParser(AbstractDatabaseParser):
     def __init__(self,
                  entries_file: Path,
                  force_refresh: bool = False,
-                 trim_debug: Optional[int] = None
+                 trim_debug: Optional[int] = None,
+                 load_full_genomes: bool = False
                  ):
         self.entries_file = entries_file
         self.force_refresh = force_refresh
         self.trim_debug = trim_debug
+        self.load_full_genomes = load_full_genomes
 
     def strains(self) -> Iterator[Strain]:
         logger.info("Loading from CSV marker database file {}.".format(self.entries_file))
@@ -37,7 +39,8 @@ class CSVParser(AbstractDatabaseParser):
                         id="GENOME[{}]".format(accession),
                         seq=nucleotides_to_z4(genome[:self.trim_debug]),
                         metadata=MarkerMetadata(parent_accession=accession,
-                                                file_path=strain_fasta_path)
+                                                file_path=strain_fasta_path),
+                        canonical=True
                     )
                 ]
             else:
@@ -47,7 +50,8 @@ class CSVParser(AbstractDatabaseParser):
                         id="GENOME[{}]".format(accession),
                         seq=nucleotides_to_z4(genome),
                         metadata=MarkerMetadata(parent_accession=accession,
-                                                file_path=strain_fasta_path)
+                                                file_path=strain_fasta_path),
+                        canonical=True
                     )
                 ]  # Each genome's marker is its own genome.
             yield Strain(
@@ -57,7 +61,7 @@ class CSVParser(AbstractDatabaseParser):
                     ncbi_accession=accession,
                     genus="",
                     species=strain_name,
-                    file_path=strain_fasta_path
+                    source_path=strain_fasta_path
                 )
             )
 

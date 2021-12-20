@@ -4,19 +4,18 @@ import numpy as np
 from pathlib import Path
 from typing import List, Iterator, Tuple
 
+from Bio import SeqIO
 from Bio.Seq import Seq
 import Bio.SeqIO
 
 from chronostrain import logger, cfg
-from multiprocessing import cpu_count
 
 from chronostrain.database import StrainDatabase
 from chronostrain.model.io import TimeSliceReadSource
 from chronostrain.util.alignments.sam import SamFile
-from chronostrain.util.external import bwa
-from chronostrain.util.external import CommandLineException
 from chronostrain.util.external.commandline import call_command
-from chronostrain.util.alignments.pairwise import parse_alignments
+from chronostrain.util.alignments.pairwise import parse_alignments, BwaAligner, BowtieAligner, \
+    SequenceReadPairwiseAlignment
 
 from helpers import parse_input_spec
 
@@ -29,108 +28,55 @@ def file_base_name(file_path: Path) -> str:
     return file_path.with_suffix('').name
 
 
-def call_cora(read_length: int,
-              reference_paths: List[Path],
-              hom_table_dir: Path,
-              read_path: Path,
-              output_paths: List[Path],
-              cora_path="cora"):
-    """
-    Slightly obfuscated, not updated for multifasta input
-    """
-    threads_available = cpu_count()
-    read_path_dir = read_path.parent
-    cora_read_file_path = read_path_dir / "coraReadFileList"
-
-    for reference_path, output_path in zip(reference_paths, output_paths):
-        ref_base = file_base_name(reference_path)
-        hom_exact_path = hom_table_dir / "{}.exact".format(ref_base)
-        hom_inexact_path = hom_table_dir / "{}.inexact".format(ref_base)
-
-        # ============= Step 1: faiGenerate
-        exit_code = call_command(cora_path, ['faiGenerate', reference_path])
-        if exit_code != 0:
-            raise CommandLineException("cora faiGenerate", exit_code)
-
-        # ============= Step 2: coraIndex
-        exit_code = call_command(cora_path, ['coraIndex',
-                                             '-K', '50',
-                                             '-p', '10',
-                                             '-t', str(threads_available),
-                                             reference_path,
-                                             hom_exact_path,
-                                             hom_inexact_path])
-        if exit_code == 8:
-            logger.debug("HomTable files already exist (Exit code 8). Skipping this step.")
-        elif exit_code != 0:
-            raise CommandLineException("cora coraIndex", exit_code)
-
-        # ============= Step 3: mapperIndex
-        exit_code = call_command(cora_path, ['mapperIndex',
-                                             '--Map', 'BWA',
-                                             '--Exec', 'bwa',
-                                             reference_path])
-        if exit_code != 0:
-            raise CommandLineException("cora mapperIndex", exit_code)
-
-        # ============= Step 4: readFileGen
-        exit_code = call_command(cora_path, ['readFileGen', cora_read_file_path,
-                                             '-S',
-                                             read_path])
-        if exit_code != 0:
-            raise CommandLineException("cora readFilegen", exit_code)
-
-        # ============= Step 5: search
-        exit_code = call_command(cora_path, ['search',
-                                             '-C', '1111',
-                                             '--Mode', 'BEST',
-                                             '--Map', 'BWA',
-                                             '--Exec', 'bwa',
-                                             '-R', 'SINGLE',
-                                             '-O', output_path,
-                                             '-L', str(read_length),
-                                             cora_read_file_path,
-                                             reference_path,
-                                             hom_exact_path,
-                                             hom_inexact_path])
-        if exit_code != 0:
-            raise CommandLineException("cora search", exit_code)
-
-    reconstruct_md_tags(output_paths, reference_paths)
-
-
-def reconstruct_md_tags(cora_output_paths: List[Path], reference_paths: List[Path]):
-    """
-    Uses samtool's mdfill to reconstruct the MD (mismatch and deletion) tag and overwrites the SAM file with the output.
-    The original file is preserved, the tag is inserted in each line
-    """
-    for cora_output_path, reference_path in zip(cora_output_paths, reference_paths):
-        exit_code = call_command('samtools', ['fillmd', '-S', cora_output_path, reference_path],
-                                 output_path=cora_output_path)
-        if exit_code != 0:
-            raise CommandLineException("samtools fillmd", exit_code)
-
-
-def trim_read_quality(read_quality):
-    """
-    TODO: This trim is for HiSeq150, avg phred score of 30. Add setup in config, possibly by reading quality profile
-    """
-    return read_quality[5:-10]
-
-
-def filter_on_read_quality(phred_quality: np.ndarray, error_threshold: float = 3):
-    num_expected_errors = np.sum(
-        np.power(10, -0.1 * phred_quality)
+def num_expected_errors(aln: SequenceReadPairwiseAlignment):
+    return np.sum(
+        np.power(10, -0.1 * aln.read.quality)
     )
-    return num_expected_errors < error_threshold
 
 
-def filter_on_match_identity(percent_identity: float, identity_threshold=0.9):
+def clip_between(x: float, lower: float, upper: float) -> float:
+    return max(min(x, upper), lower)
+
+
+def adjusted_match_identity(aln: SequenceReadPairwiseAlignment, identity_threshold=0.9):
     """
     Applies a filtering criteria for reads that continue in the pipeline.
     Currently a simple threshold on percent identity, likely should be adjusted to maximize downstream sensitivity?
     """
-    return percent_identity > identity_threshold
+    if aln.num_aligned_bases is None:
+        raise ValueError(f"Unknown num_aligned_bases from alignment of read `{aln.read.id}`")
+    if aln.num_mismatches is None:
+        raise ValueError(f"Unknown num_mismatches from alignment of read `{aln.read.id}`")
+
+    n_expected_errors = num_expected_errors(aln)
+    adjusted_pct_identity = clip_between(
+        1.0 - ((aln.num_mismatches - n_expected_errors) / (aln.num_aligned_bases - n_expected_errors)),
+        lower=0.0,
+        upper=1.0,
+    )
+
+    return adjusted_pct_identity
+
+
+def filter_on_edge_clip(aln: SequenceReadPairwiseAlignment, clip_fraction: float = 0.5):
+    if aln.is_edge_mapped:
+        # Fail if start and end are both soft clipped.
+        if (aln.soft_clip_start > 0 or aln.hard_clip_start > 0) and (aln.soft_clip_end > 0 or aln.hard_clip_end > 0):
+            return False
+
+        if aln.soft_clip_start > 0 or aln.hard_clip_start > 0:
+            return (
+                    (aln.soft_clip_start / len(aln.read)) < clip_fraction
+                    and (aln.hard_clip_start / len(aln.read)) < clip_fraction
+            )
+
+        if aln.soft_clip_end > 0 or aln.hard_clip_end > 0:
+            return (
+                    (aln.soft_clip_end / len(aln.read)) < clip_fraction
+                    and (aln.hard_clip_end / len(aln.read)) < clip_fraction
+            )
+    else:
+        return True
 
 
 def filter_file(
@@ -139,7 +85,9 @@ def filter_file(
         result_metadata_path: Path,
         result_fq_path: Path,
         quality_format: str,
-        pct_identity_threshold: float
+        min_read_len: int,
+        pct_identity_threshold: float,
+        error_threshold: float
 ):
     """
     Parses a sam file and filters reads using the above criteria.
@@ -155,8 +103,12 @@ def filter_file(
             "MARKER",
             "MARKER_START",
             "MARKER_END",
+            "PASSED_FILTER",
             "REVCOMP",
-            "PASSED_FILTER"
+            "IS_EDGE_MAPPED",
+            "READ_LEN",
+            "N_MISMATCHES",
+            "PCT_ID_ADJ"
         ]
     )
 
@@ -164,7 +116,7 @@ def filter_file(
     reads_already_passed = set()
 
     for sam_file_path in sam_files:
-        logger.debug(f"Reading: {sam_file_path.name}")
+        logger.info(f"Reading: {sam_file_path.name}")
         for aln in parse_alignments(
                 SamFile(sam_file_path, quality_format), db
         ):
@@ -173,21 +125,16 @@ def filter_file(
                 continue
 
             # Pass filter if quality is high enough, and entire read is mapped.
-            if aln.percent_identity is None:
-                raise ValueError(f"Unknown percent identity from alignment of read `{aln.read.id}`")
+            filter_edge_clip = filter_on_edge_clip(aln, clip_fraction=0.25)
+            percent_identity_adjusted = adjusted_match_identity(aln)
+
 
             passed_filter = (
-                not aln.is_edge_mapped
-                and filter_on_match_identity(aln.percent_identity, identity_threshold=pct_identity_threshold)
-                and filter_on_read_quality(aln.read.quality)
+                filter_edge_clip
+                and len(aln.read) > min_read_len
+                and percent_identity_adjusted > pct_identity_threshold
+                and num_expected_errors(aln) < error_threshold
             )
-
-            if aln.is_edge_mapped:
-                logger.debug("Skipping read {}, which was edge mapped. Alignment to {} had percent identity = {}.".format(
-                    aln.read.id,
-                    aln.marker.id,
-                    aln.percent_identity
-                ))
 
             # Write to metadata file.
             metadata_csv_writer.writerow(
@@ -196,8 +143,12 @@ def filter_file(
                     aln.marker.id,
                     aln.marker_start,
                     aln.marker_end,
+                    int(passed_filter),
                     int(aln.reverse_complemented),
-                    str(int(passed_filter))
+                    int(aln.is_edge_mapped),
+                    len(aln.read),
+                    aln.num_mismatches,
+                    percent_identity_adjusted
                 ]
             )
 
@@ -213,7 +164,7 @@ def filter_file(
                 )
                 record.letter_annotations["phred_quality"] = aln.read.quality
                 Bio.SeqIO.write(record, result_fq, "fastq")
-
+    logger.info(f"# passed reads: {len(reads_already_passed)}")
     result_metadata.close()
     result_fq.close()
 
@@ -225,11 +176,12 @@ class Filter:
                  read_sources: List[TimeSliceReadSource],
                  read_depths: List[int],
                  time_points: List[float],
-                 align_cmd: str,
                  output_dir: Path,
                  quality_format: str,
                  min_seed_length: int,
+                 min_read_len: int,
                  pct_identity_threshold: float,
+                 error_threshold: float,
                  continue_from_idx: int = 0,
                  num_threads: int = 1):
         logger.debug("Reference path: {}".format(reference_file_path))
@@ -248,12 +200,13 @@ class Filter:
         self.time_points = time_points
         self.min_seed_length = min_seed_length
 
-        self.align_cmd = align_cmd
         self.output_dir = output_dir
         self.quality_format = quality_format
+        self.min_read_len = min_read_len
         self.pct_identity_threshold = pct_identity_threshold
         self.continue_from_idx = continue_from_idx
         self.num_threads = num_threads
+        self.error_threshold = error_threshold
 
     def time_point_specs(self) -> Iterator[Tuple[TimeSliceReadSource, int, float]]:
         yield from zip(self.read_sources, self.read_depths, self.time_points)
@@ -262,15 +215,26 @@ class Filter:
         """
         :return: A list of paths to the resulting filtered read files.
         """
-        if self.align_cmd == 'bwa':
-            self.apply_bwa_filter(destination_csv)
+        if cfg.external_tools_cfg.pairwise_align_cmd == "bwa":
+            aligner = BwaAligner(
+                reference_path=self.reference_path,
+                min_seed_len=8,
+                num_threads=cfg.model_cfg.num_cores,
+                report_all_alignments=True
+            )
+        elif cfg.external_tools_cfg.pairwise_align_cmd == "bowtie2":
+            aligner = BowtieAligner(
+                reference_path=self.reference_path,
+                index_basepath=self.reference_path.parent,
+                index_basename="markers",
+                num_threads=cfg.model_cfg.num_cores
+            )
         else:
-            raise NotImplementedError("Alignment command `{}` not currently supported.".format(self.align_cmd))
+            raise NotImplementedError(
+                f"Alignment command `{cfg.external_tools_cfg.pairwise_align_cmd}` not currently supported."
+            )
 
-    def apply_bwa_filter(self, destination_csv: str):
-        bwa.bwa_index(reference_path=self.reference_path)
         self.output_dir.mkdir(parents=True, exist_ok=True)
-
         resulting_files: List[Path] = []
         for t_idx, (src, read_depth, time_point) in enumerate(self.time_point_specs()):
             result_metadata_path = self.output_dir / 'metadata_{}.tsv'.format(time_point)
@@ -287,14 +251,7 @@ class Filter:
                         file_base_name(read_path)
                     )
 
-                    bwa.bwa_mem(
-                        output_path=sam_path,
-                        reference_path=self.reference_path,
-                        read_path=read_path,
-                        min_seed_length=self.min_seed_length,
-                        num_threads=self.num_threads,
-                        report_all_alignments=True  # Just to make sure, report all possible alignments (multi-mapped reads)
-                    )
+                    aligner.align(query_path=read_path, output_path=sam_path)
                     sam_paths_t.append(sam_path)
 
                 logger.debug("(t = {}) Reading SAM files {}".format(
@@ -308,7 +265,9 @@ class Filter:
                     result_metadata_path=result_metadata_path,
                     result_fq_path=result_fq_path,
                     quality_format=self.quality_format,
-                    pct_identity_threshold=self.pct_identity_threshold
+                    min_read_len=self.min_read_len,
+                    pct_identity_threshold=self.pct_identity_threshold,
+                    error_threshold=self.error_threshold
                 )
                 logger.info("Timepoint {t}, filtered reads file: {f}".format(
                     t=time_point, f=result_fq_path
@@ -338,6 +297,18 @@ def save_input_csv(time_points: List[float],
             ])
 
 
+def get_canonical_multifasta(db: StrainDatabase) -> Path:
+    out_path = db.multifasta_file.with_stem(f"{db.multifasta_file.stem}_canonical")
+
+    SeqIO.write(
+        [marker.to_seqrecord() for marker in db.all_canonical_markers()],
+        out_path,
+        "fasta"
+    )
+
+    return out_path
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Perform inference on time-series reads.")
 
@@ -358,15 +329,27 @@ def parse_args():
     parser.add_argument('--input_file', required=False, type=str,
                         default='input_files.csv',
                         help='<Optional> The CSV input file specifier inside reads_dir.')
+    parser.add_argument('--min_read_len', required=False, type=int, default=35,
+                        help='<Optional> Filters out a read if its length was less than the specified value '
+                             '(helps reduce spurious alignments). Ideally, trimmomatic should have taken care '
+                             'of this step already!')
     parser.add_argument('--pct_identity_threshold', required=False, type=float,
-                        default=0.7,
-                        help='<Optional> The percent identity threshold at which to filter reads. Default is 0.7.')
+                        default=0.1,
+                        help='<Optional> The percent identity threshold at which to filter reads. Default: 0.1.')
+    parser.add_argument('--phred_error_threshold', required=False, type=float,
+                        default=10.0,
+                        help='<Optional> The maximum number of expected errors tolerated in order to pass filter.'
+                             'Default: 10.0')
     parser.add_argument('--continue_from_idx', required=False, type=int,
                         default=0,
                         help='<Optional> For debugging purposes, assumes that the first N timepoints have already '
                              'been processed, and resumes the filtering at timepoint index N.')
     parser.add_argument('--num_threads', required=False, type=int, default=1,
                         help='<Optional> Specifies the number of threads. Is passed to underlying alignment tools.')
+    parser.add_argument('--canonical_only', action='store_true',
+                        help='If flag is enabled, then alignment filtering is only done with respect to canonical'
+                             'markers. (Useful for simulated data, where non-canonical markers might have been'
+                             'used to sample the reads, and one does not want to include the ground truth.)')
 
     return parser.parse_args()
 
@@ -382,21 +365,27 @@ def main():
         args.quality_format
     )
 
+    if args.canonical_only:
+        reference_path = get_canonical_multifasta(db)
+    else:
+        reference_path = db.multifasta_file
+
     # ============ Perform read filtering.
     logger.info("Performing filter on reads.")
     filt = Filter(
         db=db,
-        reference_file_path=db.multifasta_file,
+        reference_file_path=reference_path,
         read_sources=read_sources,
         read_depths=read_depths,
         time_points=time_points,
-        align_cmd=cfg.external_tools_cfg.pairwise_align_cmd,
         output_dir=Path(args.output_dir),
         quality_format=args.quality_format,
+        min_read_len=args.min_read_len,
         pct_identity_threshold=args.pct_identity_threshold,
         min_seed_length=args.min_seed_length,
         continue_from_idx=args.continue_from_idx,
-        num_threads=args.num_threads
+        num_threads=args.num_threads,
+        error_threshold=args.phred_error_threshold
     )
     filt.apply_filter(f"filtered_{args.input_file}")
     logger.info("Finished filtering.")

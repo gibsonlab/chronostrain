@@ -7,7 +7,7 @@ from chronostrain.model import Fragment, SequenceRead
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.config import cfg
 from chronostrain.model.generative import GenerativeModel
-from chronostrain.util.math import logmatmulexp
+from chronostrain.util.math import log_mm_exp
 
 from .base import DataLikelihoods, AbstractLogLikelihoodComputer
 from ..cache import ReadsPopulationCache
@@ -20,26 +20,28 @@ class DenseDataLikelihoods(DataLikelihoods):
     def _likelihood_computer(self) -> AbstractLogLikelihoodComputer:
         return DenseLogLikelihoodComputer(self.model, self.data)
 
-    def conditional_likelihood(self, X: torch.Tensor) -> float:
+    def conditional_likelihood(self, X: torch.Tensor, inf_fill: float = -100000) -> float:
         y = torch.softmax(X, dim=1)
         # Calculation is sigma(X) @ W @ E.
         total_ll = 0.
         for t in range(self.model.num_times()):
-            # (T x S) * (S x F) * (F x N)
-            # total_ll += torch.log(y[t] @ (self.model.fragment_frequencies.t() @ self.matrices[t].exp())).sum()
-            total_ll += logmatmulexp(
+            # (1 x S) * (S x F) * (F x N) = (1 x N)
+            read_likelihoods = log_mm_exp(
                 y[t].log().view(1, -1),
-                logmatmulexp(
-                    self.model.fragment_frequencies.t().log(),
+                log_mm_exp(
+                    self.model.fragment_frequencies_dense.t(),
                     self.matrices[t]
                 )
-            ).sum()
+            )
+            read_likelihoods[torch.isinf(read_likelihoods)] = -inf_fill
+            total_ll += read_likelihoods.sum()
         return total_ll
 
 
 class DenseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
 
-    def __init__(self, model: GenerativeModel, reads: TimeSeriesReads):
+    def __init__(self, model: GenerativeModel, reads: TimeSeriesReads, num_cores: int = 1):
+        self.num_cores = num_cores
         super().__init__(model, reads)
 
     def compute_matrix_single_timepoint(self, t_idx: int) -> List[List[float]]:
@@ -71,9 +73,6 @@ class DenseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         return np.log(np.exp(forward_ll - log2) + np.exp(reverse_ll - log2))
 
     def compute_likelihood_tensors(self) -> List[torch.Tensor]:
-        # TODO: explicitly define save() and load() here to write directly to torch tensor files.
-        #  (Right now, the behavior is to compute List[List[float]] and save/load from pickle.)
-
         logger.debug("Computing read-fragment likelihoods...")
         cache = ReadsPopulationCache(self.reads, self.model.bacteria_pop)
 
@@ -87,11 +86,11 @@ class DenseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
             for t_idx in range(self.model.num_times())
         ]
 
-        parallel = (cfg.model_cfg.num_cores > 1)
+        parallel = (self.num_cores > 1)
         if parallel:
-            logger.debug("Computing read likelihoods with parallel pool size = {}.".format(cfg.model_cfg.num_cores))
+            logger.debug("Computing read likelihoods with parallel pool size = {}.".format(self.num_cores))
 
-            log_likelihoods_output = Parallel(n_jobs=cfg.model_cfg.num_cores)(
+            log_likelihoods_output = Parallel(n_jobs=self.num_cores)(
                 delayed(cache.call)(cache_kwargs)
                 for cache_kwargs in jobs
             )

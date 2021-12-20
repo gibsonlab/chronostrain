@@ -17,24 +17,26 @@ def parse_reads(input_spec_path: Path, quality_format: str):
 
 def parse_input_spec(input_spec_path: Path, quality_format: str) -> Tuple[List[TimeSliceReadSource], List[int], List[float]]:
     time_points_to_reads: Dict[float, List[Tuple[int, Path]]] = {}
+    if not input_spec_path.exists():
+        raise FileNotFoundError(f"Missing required file `{str(input_spec_path)}`")
 
-    try:
-        with open(input_spec_path, "r") as f:
-            input_specs = csv.reader(f, delimiter=',', quotechar='"')
-            for row in input_specs:
-                time_point = float(row[0])
-                num_reads = int(row[1])
-                read_path = Path(row[2])
+    with open(input_spec_path, "r") as f:
+        input_specs = csv.reader(f, delimiter=',', quotechar='"')
+        for row in input_specs:
+            time_point = float(row[0])
+            num_reads = int(row[1])
+            read_path = Path(row[2])
 
-                if not read_path.exists():
-                    raise FileNotFoundError(f"Specified input file `{str(read_path)}` does not exist.")
+            if not read_path.exists():
+                raise FileNotFoundError("The input specification `{}` pointed to `{}`, which does not exist.".format(
+                    str(input_spec_path),
+                    read_path
+                ))
 
-                if time_point not in time_points_to_reads:
-                    time_points_to_reads[time_point] = []
+            if time_point not in time_points_to_reads:
+                time_points_to_reads[time_point] = []
 
-                time_points_to_reads[time_point].append((num_reads, read_path))
-    except FileNotFoundError:
-        raise FileNotFoundError(f"Missing required file `{str(input_spec_path)}`") from None
+            time_points_to_reads[time_point].append((num_reads, read_path))
 
     time_points = sorted(time_points_to_reads.keys(), reverse=False)
     read_depths = [

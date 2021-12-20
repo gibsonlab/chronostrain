@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import List
 
 from chronostrain.model import Marker, Strain
@@ -11,6 +12,7 @@ class DictionaryBackend(AbstractStrainDatabaseBackend):
         self.strains = {}
         self.markers = {}
         self.markers_to_strains = {}
+        self.markers_by_name = defaultdict(list)
 
     def add_strain(self, strain: Strain):
         self.strains[strain.id] = strain
@@ -19,6 +21,7 @@ class DictionaryBackend(AbstractStrainDatabaseBackend):
             if not (marker.id in self.markers_to_strains):
                 self.markers_to_strains[marker.id] = []
             self.markers_to_strains[marker.id].append(strain)
+            self.markers_by_name[marker.name].append(marker)
 
     def get_strain(self, strain_id: str) -> Strain:
         try:
@@ -52,3 +55,29 @@ class DictionaryBackend(AbstractStrainDatabaseBackend):
             return self.markers_to_strains[marker.id]
         except KeyError:
             return []
+
+    def get_markers_by_name(self, marker_name: str) -> List[Marker]:
+        try:
+            return self.markers_by_name[marker_name]
+        except KeyError:
+            return []
+
+    def get_canonical_marker(self, marker_name: str) -> Marker:
+        markers = self.get_markers_by_name(marker_name)
+
+        for marker in markers:
+            if marker.is_canonical:
+                return marker
+
+        raise RuntimeError("No canonical markers found with name `{}`.".format(marker_name))
+
+    def all_canonical_markers(self) -> List[Marker]:
+        ans = []
+        for marker in self.all_markers():
+            if marker.is_canonical:
+                ans.append(marker)
+
+        return ans
+
+    def num_canonical_markers(self) -> int:
+        return len(self.all_canonical_markers())
