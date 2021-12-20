@@ -1,5 +1,5 @@
 # Modify these before running.
-export PROJECT_DIR="/home/bromii/chronostrain"
+export PROJECT_DIR="/mnt/f/microbiome_tracking"
 export CHRONOSTRAIN_DATA_DIR="/mnt/f/microbiome_tracking/data/variants_synthetic"
 export BASE_DIR="${PROJECT_DIR}/examples/variants_synthetic"
 export N_CORES=4
