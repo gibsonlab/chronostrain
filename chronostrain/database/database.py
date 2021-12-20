@@ -1,3 +1,4 @@
+import time
 from collections import defaultdict
 from pathlib import Path
 from typing import List, Union, Optional
@@ -23,8 +24,14 @@ class StrainDatabase(object):
         self.marker_multifasta_file = cfg.database_cfg.data_dir / multifasta_filename
 
         logger.debug("Initializing db backend `{}`".format(self.backend.__class__.__name__))
+
+        start = time.time()
         for strain in parser.strains():
             backend.add_strain(strain)
+        logger.info("Loaded {} strains in {:.1f} minutes.".format(
+            self.backend.num_strains(),
+            (time.time() - start) / 60.0
+        ))
 
         self._save_markers_to_multifasta(force_refresh=force_refresh)
 

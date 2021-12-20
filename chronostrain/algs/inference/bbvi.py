@@ -6,7 +6,7 @@
   This is an implementation of BBVI for the posterior q(X_1) q(X_2 | X_1) ...
   (Note: doesn't work as well as BBVI for mean-field assumption.)
 """
-from typing import Iterator, Tuple, Optional, Callable, Union, List
+from typing import Iterator, Tuple, Optional, Callable, Union, List, Dict
 
 from torch import Tensor
 from torch.nn import functional
@@ -162,10 +162,14 @@ class GaussianPosteriorFullCorrelation(AbstractPosterior):
 
     def reparametrized_sample_log_likelihoods(self, samples):
         w = self.reparam_network.cholesky_part
-        return torch.distributions.MultivariateNormal(
-            loc=self.reparam_network.bias,
-            covariance_matrix=w.mm(w.t())
-        ).log_prob(samples)
+        try:
+            return torch.distributions.MultivariateNormal(
+                loc=self.reparam_network.bias,
+                scale_tril=w
+            ).log_prob(samples)
+        except ValueError:
+            logger.error(f"Problem while computing log MV log-likelihood.")
+            raise
 
     def log_likelihood(self, x: torch.Tensor) -> float:
         if len(x.size()) == 2:
@@ -251,12 +255,11 @@ class GaussianPosteriorStrainCorrelation(AbstractPosterior):
                 w = linear.cholesky_part
                 log_likelihood_t = torch.distributions.MultivariateNormal(
                     loc=linear.bias,
-                    covariance_matrix=w.mm(w.t())
+                    scale_tril=w
                 ).log_prob(samples_t)
-            except ValueError as e:
-                w = linear.cholesky_part
-                logger.error("Resulting covariance cholesky: (t={}) {}".format(t, w))
-                raise e
+            except ValueError:
+                logger.error(f"Problem while computing log MV log-likelihood of time index {t}.")
+                raise
             ans = ans + log_likelihood_t
         return ans
 
@@ -340,10 +343,14 @@ class GaussianPosteriorTimeCorrelation(AbstractPosterior):
             samples_s = samples[s]
             linear = self.reparam_networks[s]
             w = linear.cholesky_part
-            log_likelihood_s = torch.distributions.MultivariateNormal(
-                loc=linear.bias,
-                covariance_matrix=w.mm(w.t())
-            ).log_prob(samples_s)
+            try:
+                log_likelihood_s = torch.distributions.MultivariateNormal(
+                    loc=linear.bias,
+                    scale_tril=w
+                ).log_prob(samples_s)
+            except ValueError:
+                logger.error(f"Problem while computing log MV log-likelihood of strain index {s}.")
+                raise
             ans = ans + log_likelihood_s
         return ans
 

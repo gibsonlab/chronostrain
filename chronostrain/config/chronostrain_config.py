@@ -184,8 +184,9 @@ class ChronostrainConfig(AbstractConfig):
 def _config_load(ini_path: str) -> ChronostrainConfig:
     if not Path(ini_path).exists():
         raise FileNotFoundError(
-            "No configuration INI file found. Create a `chronostrain.ini` file, or set the `{}` environment "
+            "Config INI path `{}` invalid. Create a `chronostrain.ini` file, or set the `{}` environment "
             "variable to point to the right configuration.".format(
+                str(ini_path),
                 __env_key__
             )
         )
