@@ -5,7 +5,8 @@
 import argparse
 from pathlib import Path
 
-from chronostrain import cfg, logger
+from chronostrain.algs.subroutines.cache import ReadsComputationCache
+from chronostrain import cfg, create_logger
 import chronostrain.visualizations as viz
 from chronostrain.algs.subroutines.alignments import CachedReadMultipleAlignments
 from chronostrain.database import StrainDatabase
@@ -13,6 +14,7 @@ from chronostrain.model import Population, construct_fragment_space_uniform_leng
 from chronostrain.model.io import TimeSeriesReads
 
 from helpers import *
+logger = create_logger("chronostrain.run_inference")
 
 
 def parse_args():
@@ -74,6 +76,15 @@ def parse_args():
     return parser.parse_args()
 
 
+def load_fragments(reads: TimeSeriesReads, db: StrainDatabase) -> FragmentSpace:
+    cache = ReadsComputationCache(reads)
+    return cache.call(
+        relative_filepath="inference_fragments.pkl",
+        fn=aligned_exact_fragments,
+        call_args=[reads, db]
+    )
+
+
 def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase) -> FragmentSpace:
     logger.info("Constructing fragments from multiple alignments.")
     multiple_alignments = CachedReadMultipleAlignments(reads, db)
@@ -110,7 +121,7 @@ def main():
     # ==== Load Population instance from database info
     population = Population(strains=db.all_strains(), extra_strain=cfg.model_cfg.extra_strain)
     if cfg.model_cfg.use_sparse:
-        fragments = aligned_exact_fragments(reads, db)
+        fragments = load_fragments(reads, db)
     else:
         fragments = construct_fragment_space_uniform_length(args.read_length, population)
 

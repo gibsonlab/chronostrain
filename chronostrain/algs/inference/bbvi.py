@@ -2,9 +2,6 @@
   bbvi.py (pytorch implementation)
   Black-box Variational Inference
   Author: Younhun Kim
-
-  This is an implementation of BBVI for the posterior q(X_1) q(X_2 | X_1) ...
-  (Note: doesn't work as well as BBVI for mean-field assumption.)
 """
 from typing import Iterator, Tuple, Optional, Callable, Union, List, Dict
 
@@ -44,6 +41,7 @@ class LogMMExpDenseSPModel(torch.nn.Module):
 
         self.nz_targets: List[torch.Tensor] = []
         self.target_cols: List[torch.Tensor] = []
+
         for target_idx in range(self.A_rows):
             nz_targets_k = torch.where(sparse_right_matrix.indices[0] == target_idx)[0]
 
@@ -60,7 +58,7 @@ class LogMMExpDenseSPModel(torch.nn.Module):
 
         for target_idx in range(self.A_rows):
             """
-            Given a target index k, compute the k-th summand of the dot product <u,v> = \SUM_k u_k v_k,
+            Given a target index k, compute the k-th summand of the dot product <u,v> = SUM_k u_k v_k,
             for each row u of x, and each column v of y.
 
             Note that k here specifies a column of x, and a row of y.
@@ -95,8 +93,8 @@ class LinearTrilGaussian(torch.nn.Linear):
         # x[range(self.n_features), range(self.n_features)] = torch.diag(self.weight)
         return x
 
-    def forward(self, input: Tensor) -> Tensor:
-        return functional.linear(input, self.cholesky_part, self.bias)
+    def forward(self, x: Tensor) -> Tensor:
+        return functional.linear(x, self.cholesky_part, self.bias)
 
 
 class GaussianPosteriorFullCorrelation(AbstractPosterior):
@@ -145,7 +143,7 @@ class GaussianPosteriorFullCorrelation(AbstractPosterior):
         When computing log-likelihood p(x; a,b), it is important to keep a,b differentiable. e.g.
         output logp = f(a+bz; a, b) where f is the gaussian density N(a,b).
         """
-        reparametrized_samples = self.reparam_network(std_gaussian_samples)
+        reparametrized_samples = self.reparam_network.forward(std_gaussian_samples)
 
         if detach_grad:
             reparametrized_samples = reparametrized_samples.detach()
@@ -192,7 +190,7 @@ class GaussianPosteriorStrainCorrelation(AbstractPosterior):
         # ========== Reparametrization network (standard Gaussians -> nonstandard Gaussians)
         self.reparam_networks = []
 
-        for t_idx in range(self.model.num_times()):
+        for _ in range(self.model.num_times()):
             linear_layer = LinearTrilGaussian(
                 n_features=self.model.num_strains(),
                 bias=True,
@@ -364,9 +362,11 @@ class GaussianPosteriorTimeCorrelation(AbstractPosterior):
 class FragmentPosterior(object):
     def __init__(self,
                  model: GenerativeModel,
+                 reads: TimeSeriesReads,
                  sparse_data_likelihoods: SparseDataLikelihoods,
                  frag_index_map: Optional[Callable] = None):
         self.model = model
+        self.reads = reads
 
         # length-T list of (F x N_t) tensors.
         self.phi: List[BBVIOptimizedSparseMatrix] = [
@@ -405,7 +405,7 @@ class FragmentPosterior(object):
         phi_t = self.phi[t_idx]  # (F x R)
 
         # invoke torch-scatter to compute columnwise mins.
-        scale_values = phi_t.columnwise_min()
+        scale_values = phi_t.columnwise_max()
 
         col_logsumexp = scale_values + SparseMatrix(
             indices=phi_t.indices,
@@ -461,16 +461,17 @@ class BBVISolver(AbstractModelSolver):
                     projector.sparse_mul(frag_freqs),
                     row_chunk_size=self.frag_chunk_size
             ).chunks:
+                n_chunks += 1
                 self.log_mm_exp_models[t_idx].append(
                     LogMMExpDenseSPModel(sparse_chunk.t())
                 )
-                n_chunks += 1
 
             logger.debug(f"Divided {projector.rows} x {frag_freqs.columns} sparse matrix "
                          f"into {n_chunks} chunks.")
 
         self.fragment_posterior = FragmentPosterior(
             model=model,
+            reads=data,
             sparse_data_likelihoods=self.data_likelihoods,
             frag_index_map=lambda fidx, tidx: self.data_likelihoods.supported_frags[tidx][fidx].item()
         )
@@ -523,12 +524,23 @@ class BBVISolver(AbstractModelSolver):
             for chunk_idx, phi_chunk in enumerate(
                     self.fragment_posterior.phi[t_idx].chunks
             ):
-                yield self.elbo_chunk_helper(
+                e = self.elbo_chunk_helper(
                     t_idx,
                     chunk_idx,
                     log_softmax_x_t,
                     phi_chunk
                 ).sum() * (1 / n_samples)
+
+                if torch.isinf(e) or torch.isnan(e):
+                    logger.debug("About to throw exception.")
+
+                    # These should contain no infs/nans.
+                    logger.debug("Phi chunk sum: {}".format(
+                        str(phi_chunk.exp().sum(dim=1))
+                    ))
+
+                    raise ValueError(f"Invalid ELBO value {e.item()} found for t_idx: {t_idx}, chunk_idx: {chunk_idx}")
+                yield e
 
     def elbo_chunk_helper(self,
                           t_idx: int,
