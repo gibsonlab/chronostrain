@@ -13,7 +13,7 @@ class ColumnSectionedSparseMatrix(SparseMatrix):
                  indices: torch.Tensor,
                  values: torch.Tensor,
                  dims: Tuple[int, int],
-                 force_coalesce: bool = True,
+                 force_coalesce: bool = False,
                  _explicit_locs_per_col: List[torch.Tensor] = None):
         super().__init__(indices, values, dims, force_coalesce=force_coalesce)
         if _explicit_locs_per_col is None:
@@ -202,4 +202,4 @@ class BBVIOptimizedSparseMatrix(RowSectionedSparseMatrix):
         for chunk_row, chunk_row_locs in enumerate(chunk.locs_per_row):
             self.values[self.locs_per_row[chunk_row + chunk_start_idx]] = chunk.values[chunk_row_locs]
 
-        self.chunks[chunk_idx] = chunk
+        self.chunks[chunk_idx].values = chunk.values

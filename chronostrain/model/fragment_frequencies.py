@@ -215,7 +215,7 @@ class SparseFragmentFrequencyComputer(FragmentFrequencyComputer):
             indices=torch.tensor([frag_indices, strain_indices], device=cfg.torch_cfg.device, dtype=torch.long),
             values=torch.tensor(matrix_values, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype),
             dims=(len(fragments), population.num_strains()),
-            force_coalesce=True
+            force_coalesce=False
         )
 
     def save_matrix(self, matrix: RowSectionedSparseMatrix, out_path: Path):

@@ -48,7 +48,7 @@ class LogMMExpDenseSPModel(torch.nn.Module):
             self.nz_targets.append(nz_targets_k)
             self.target_cols.append(self.A_indices[1, nz_targets_k])
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, print_debug: bool = False) -> torch.Tensor:
         result: torch.Tensor = torch.full(
             fill_value=-float('inf'),
             size=[x.shape[0], self.A_columns],
@@ -71,6 +71,11 @@ class LogMMExpDenseSPModel(torch.nn.Module):
                 torch.stack([result[:, target_cols], next_sum], dim=0),
                 dim=0
             )
+
+            if print_debug:  # TODO DEBUG
+                print("x_col: {}".format(
+                    x[:, target_idx]
+                ))
 
         return result
 
@@ -289,6 +294,7 @@ class GaussianPosteriorTimeCorrelation(AbstractPosterior):
                 device=cfg.torch_cfg.device
             )
             torch.nn.init.eye_(linear_layer.weight)
+            torch.nn.init.constant_(linear_layer.bias, 0)
             self.reparam_networks[s_idx] = linear_layer
         self.trainable_parameters = []
         for network in self.reparam_networks.values():
@@ -416,6 +422,29 @@ class FragmentPosterior(object):
 
         phi_t.update_values(phi_t.values - col_logsumexp[phi_t.indices[1]])
 
+        #  TODO DEBUG
+        # if torch.isnan(
+        #         phi_t.exp().sum(dim=1)
+        # ).sum() > 0:
+        #     phi_t.values = old_values
+        #     print("Found NANs in Phi, timepoint = {}".format(t_idx))
+        #     print("scale_values: {}".format(scale_values))
+        #     print("col_logsumexp: {}".format(col_logsumexp))
+        #
+        #     offending_col = torch.where(torch.isinf(col_logsumexp))[0][0]
+        #     print(f"Offending column = {offending_col}")
+        #     print(f"column {offending_col} entries:")
+        #     for loc in torch.where(phi_t.indices[1] == offending_col)[0]:
+        #         row = phi_t.indices[0, loc]
+        #         col = offending_col
+        #         val = phi_t.values[loc]
+        #         print(f"\tPhi_{t_idx}[{row}, {col}] = {val}")
+        #
+        #     from pathlib import Path
+        #     phi_t.save(Path("bad_phi_t.npz"))
+        #
+        #     exit(1)
+
 
 class BBVISolver(AbstractModelSolver):
     """
@@ -520,14 +549,15 @@ class BBVISolver(AbstractModelSolver):
         # ======== E_{F ~ Qf}(log P(F|Xi))
         for t_idx in range(self.model.num_times()):
             # =========== NEW IMPLEMENTATION: chunks
-            log_softmax_x_t = torch.softmax(x_samples[t_idx, :, :], dim=1).log()  # (N x S)
+            log_softmax_xt = x_samples[t_idx] - torch.logsumexp(x_samples[t_idx], dim=1, keepdim=True)
+
             for chunk_idx, phi_chunk in enumerate(
                     self.fragment_posterior.phi[t_idx].chunks
             ):
                 e = self.elbo_chunk_helper(
                     t_idx,
                     chunk_idx,
-                    log_softmax_x_t,
+                    log_softmax_xt,
                     phi_chunk
                 ).sum() * (1 / n_samples)
 
@@ -561,21 +591,36 @@ class BBVISolver(AbstractModelSolver):
             self.log_mm_exp_models[t_idx][chunk_idx].forward(log_softmax_x_t).sum(dim=0)
         )
 
-    def update_phi(self, x_samples: torch.Tensor):
+    def update_phi(self, x_samples: torch.Tensor, print_debug: bool = False):
         """
         This step represents the explicit solution of maximizing the ELBO of Q_phi (the mean-field portion of
         the read-to-fragment posteriors), given a particular solution of (samples from) Q_X.
         :param x_samples:
         :return:
         """
+        if print_debug:  # TODO DEBUG
+            print("x_sample")
+            print(x_samples[0])
+            torch.save(x_samples[0], "x_sample_0.trch")
+            print("with softmax:")
+            print(torch.softmax(x_samples[0], dim=1))
+            print("after log:")
+            print(torch.softmax(x_samples[0], dim=1).log())
+
         for t in range(self.model.num_times()):
-            log_softmax_xt = torch.log(softmax(x_samples[t], dim=1))  # (N x S)=
+            log_softmax_xt = x_samples[t] - torch.logsumexp(x_samples[t], dim=1, keepdim=True)
+
             for chunk_idx, logmmexp_model in enumerate(self.log_mm_exp_models[t]):
                 # The monte carlo approximation
                 mc_expectation_ll = torch.mean(
-                    logmmexp_model.forward(log_softmax_xt),
+                    logmmexp_model.forward(log_softmax_xt, print_debug=(print_debug and t == 0)),
                     dim=0
                 )  # Output: length CHUNK_SZ
+
+                if print_debug:  # TODO DEBUG
+                    print(f"t = {t}, Chunk = {chunk_idx}")
+                    print(log_softmax_xt)
+                    print("\tmc_expectation_ll: {}".format(mc_expectation_ll))
 
                 # for chunk_idx, data_ll_chunk in enumerate(self.data_likelihoods.matrices[t].chunks):
                 data_ll_chunk = self.data_likelihoods.matrices[t].chunks[chunk_idx]
@@ -586,6 +631,11 @@ class BBVISolver(AbstractModelSolver):
                     force_coalesce=False,
                     _explicit_locs_per_row=data_ll_chunk.locs_per_row
                 )
+
+                if print_debug:  # TODO DEBUG
+                    print("chunk values: {}".format(phi_t_chunk.values))
+                    exit(1)
+
                 self.fragment_posterior.phi[t].collect_chunk(chunk_idx, phi_t_chunk)
 
             self.fragment_posterior.renormalize(t)
@@ -637,7 +687,7 @@ class BBVISolver(AbstractModelSolver):
 
                 optimizer.zero_grad()
                 with torch.no_grad():
-                    self.update_phi(x_samples.detach())
+                    self.update_phi(x_samples.detach(), print_debug=False)
 
                 elbo_value = 0.0
                 for elbo_chunk in self.elbo_marginal_gaussian(x_samples, gaussian_log_likelihoods):
