@@ -214,7 +214,8 @@ def main():
             samples_path=out_dir / "samples.pt",
             plot_format=args.plot_format,
             ground_truth_path=true_abundance_path,
-            num_samples=args.num_posterior_samples
+            num_samples=args.num_posterior_samples,
+            draw_legend=True
         )
     else:
         raise ValueError("{} is not an implemented method.".format(args.method))
