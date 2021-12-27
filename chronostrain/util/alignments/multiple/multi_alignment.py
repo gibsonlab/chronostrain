@@ -1,4 +1,5 @@
 from pathlib import Path
+import shutil
 from typing import Dict, Tuple, Iterator, List, Optional
 
 import Bio.AlignIO
@@ -388,6 +389,7 @@ def align_mafft(marker_profile_path: Path,
     """
     # First write to temporary file, with the reads reverse complemented if necessary.
     records = []
+
     for t_idx, read, should_reverse_comp in read_descriptions:
         if should_reverse_comp:
             read_seq = reverse_complement_seq(read.seq)
@@ -406,21 +408,31 @@ def align_mafft(marker_profile_path: Path,
         )
         records.append(record)
     SeqIO.write(records, intermediate_fasta_path, "fasta")
+    num_reads = len(records)
+    del records
 
-    logger.debug(f"Invoking `mafft --addfragments` on {len(records)} sequences.")
+    if num_reads > 0:
+        logger.debug(f"Invoking `mafft --addfragments` on {num_reads} sequences.")
 
-    # Now invoke MAFFT aligner.
-    mafft_fragment(
-        reference_fasta_path=marker_profile_path,
-        fragment_fasta_path=intermediate_fasta_path,
-        output_path=out_fasta_path,
-        n_threads=n_threads,
-        auto=True,
-        quiet=True,
-        gap_open_penalty_group=3,
-        gap_offset_group=0.0,
-        kimura=1
-    )
+        # Now invoke MAFFT aligner.
+        mafft_fragment(
+            reference_fasta_path=marker_profile_path,
+            fragment_fasta_path=intermediate_fasta_path,
+            output_path=out_fasta_path,
+            n_threads=n_threads,
+            auto=True,
+            quiet=True,
+            gap_open_penalty_group=3,
+            gap_offset_group=0.0,
+            kimura=1
+        )
+    else:
+        logger.debug(f"No fragment sequences to invoke MAFFT --addfragments on.")
+
+        shutil.copy(
+            str(marker_profile_path),
+            str(out_fasta_path)
+        )
 
 
 def align_clustalo(marker_profile_path: Path,
