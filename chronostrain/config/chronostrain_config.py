@@ -12,7 +12,7 @@ from .logging import create_logger
 logger = create_logger(__name__)
 
 
-class ConfigurationParseError(BaseException):
+class ConfigurationParseError(Exception):
     pass
 
 

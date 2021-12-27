@@ -10,5 +10,5 @@ class AbstractDatabaseParser(object):
         pass
 
 
-class StrainDatabaseParseError(BaseException):
+class StrainDatabaseParseError(Exception):
     pass

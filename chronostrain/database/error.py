@@ -1,2 +1,2 @@
-class QueryNotFoundError(BaseException):
+class QueryNotFoundError(Exception):
     pass
