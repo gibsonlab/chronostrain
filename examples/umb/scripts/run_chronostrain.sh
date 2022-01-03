@@ -14,10 +14,9 @@ do
 
 	cd $PROJECT_DIR/scripts
 	python run_inference.py \
-	--reads_dir "${READS_DIR}/${umb_id}_filtered" \
+	--reads_input "${READS_DIR}/${umb_id}_filtered/${index_filename}" \
 	--out_dir $CHRONOSTRAIN_OUTPUT_DIR/${umb_id} \
 	--quality_format "fastq" \
-	--input_file "${index_filename}" \
 	--seed $SEED \
 	--iters $CHRONOSTRAIN_NUM_ITERS \
 	--num_samples $CHRONOSTRAIN_NUM_SAMPLES \

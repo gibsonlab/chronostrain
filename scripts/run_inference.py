@@ -21,8 +21,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Perform inference on time-series reads.")
 
     # Input specification.
-    parser.add_argument('-r', '--reads_dir', required=True, type=str,
-                        help='<Required> Directory containing read files. The directory requires a `input_files.csv` '
+    parser.add_argument('-r', '--reads_input', required=True, type=str,
+                        help='<Required> Path to the reads input CSV file. The directory requires a `input_files.csv` '
                              'which contains information about the input reads and corresponding time points.')
     parser.add_argument('-m', '--method',
                         choices=['em', 'bbvi', 'bbvi_reparametrization'],
@@ -31,9 +31,6 @@ def parse_args():
     parser.add_argument('-l', '--read_length', required=False, type=int,
                         help='<Situationally Required> Specify the length of each read. Required if configuration'
                              'is set to use dense computation, which assumes uniform read lengths.')
-    parser.add_argument('--input_file', required=False, type=str,
-                        default='input_files.csv',
-                        help='<Optional> The CSV input file specifier inside reads_dir.')
 
     # Output specification.
     parser.add_argument('-o', '--out_dir', required=True, type=str,
@@ -113,7 +110,7 @@ def main():
     # ==== Parse input reads.
     logger.info("Loading time-series read files.")
     reads = parse_reads(
-        Path(args.reads_dir) / args.input_file,
+        Path(args.reads_input),
         quality_format=args.quality_format
     )
     time_points = [time_slice.time_point for time_slice in reads]
@@ -208,7 +205,8 @@ def main():
 
         # ==== Finally, plot the posterior.
         viz.plot_bbvi_posterior(
-            model=model,
+            times=model.times,
+            population=model.bacteria_pop,
             posterior=posterior,
             plot_path=out_dir / "plot.{}".format(args.plot_format),
             samples_path=out_dir / "samples.pt",

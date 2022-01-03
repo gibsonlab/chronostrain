@@ -26,6 +26,11 @@ from ...util.sparse.sliceable import BBVIOptimizedSparseMatrix
 logger = create_logger(__name__)
 
 
+def log_softmax(x_samples: torch.Tensor, t: int) -> torch.Tensor:
+    # x_samples: (T x N x S) tensor.
+    return x_samples[t] - torch.logsumexp(x_samples[t], dim=1, keepdim=True)
+
+
 class LogMMExpDenseSPModel(torch.nn.Module):
     """
     Represents a Module which represents
@@ -48,7 +53,7 @@ class LogMMExpDenseSPModel(torch.nn.Module):
             self.nz_targets.append(nz_targets_k)
             self.target_cols.append(self.A_indices[1, nz_targets_k])
 
-    def forward(self, x: torch.Tensor, print_debug: bool = False) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         result: torch.Tensor = torch.full(
             fill_value=-float('inf'),
             size=[x.shape[0], self.A_columns],
@@ -71,11 +76,6 @@ class LogMMExpDenseSPModel(torch.nn.Module):
                 torch.stack([result[:, target_cols], next_sum], dim=0),
                 dim=0
             )
-
-            if print_debug:  # TODO DEBUG
-                print("x_col: {}".format(
-                    x[:, target_idx]
-                ))
 
         return result
 
@@ -549,7 +549,7 @@ class BBVISolver(AbstractModelSolver):
         # ======== E_{F ~ Qf}(log P(F|Xi))
         for t_idx in range(self.model.num_times()):
             # =========== NEW IMPLEMENTATION: chunks
-            log_softmax_xt = x_samples[t_idx] - torch.logsumexp(x_samples[t_idx], dim=1, keepdim=True)
+            log_softmax_xt = log_softmax(x_samples, t=t_idx)
 
             for chunk_idx, phi_chunk in enumerate(
                     self.fragment_posterior.phi[t_idx].chunks
@@ -591,36 +591,23 @@ class BBVISolver(AbstractModelSolver):
             self.log_mm_exp_models[t_idx][chunk_idx].forward(log_softmax_x_t).sum(dim=0)
         )
 
-    def update_phi(self, x_samples: torch.Tensor, print_debug: bool = False):
+    def update_phi(self, x_samples: torch.Tensor):
         """
         This step represents the explicit solution of maximizing the ELBO of Q_phi (the mean-field portion of
         the read-to-fragment posteriors), given a particular solution of (samples from) Q_X.
         :param x_samples:
         :return:
         """
-        if print_debug:  # TODO DEBUG
-            print("x_sample")
-            print(x_samples[0])
-            torch.save(x_samples[0], "x_sample_0.trch")
-            print("with softmax:")
-            print(torch.softmax(x_samples[0], dim=1))
-            print("after log:")
-            print(torch.softmax(x_samples[0], dim=1).log())
 
         for t in range(self.model.num_times()):
-            log_softmax_xt = x_samples[t] - torch.logsumexp(x_samples[t], dim=1, keepdim=True)
+            log_softmax_xt = log_softmax(x_samples, t=t)
 
             for chunk_idx, logmmexp_model in enumerate(self.log_mm_exp_models[t]):
                 # The monte carlo approximation
                 mc_expectation_ll = torch.mean(
-                    logmmexp_model.forward(log_softmax_xt, print_debug=(print_debug and t == 0)),
+                    logmmexp_model.forward(log_softmax_xt),
                     dim=0
                 )  # Output: length CHUNK_SZ
-
-                if print_debug:  # TODO DEBUG
-                    print(f"t = {t}, Chunk = {chunk_idx}")
-                    print(log_softmax_xt)
-                    print("\tmc_expectation_ll: {}".format(mc_expectation_ll))
 
                 # for chunk_idx, data_ll_chunk in enumerate(self.data_likelihoods.matrices[t].chunks):
                 data_ll_chunk = self.data_likelihoods.matrices[t].chunks[chunk_idx]
@@ -631,10 +618,6 @@ class BBVISolver(AbstractModelSolver):
                     force_coalesce=False,
                     _explicit_locs_per_row=data_ll_chunk.locs_per_row
                 )
-
-                if print_debug:  # TODO DEBUG
-                    print("chunk values: {}".format(phi_t_chunk.values))
-                    exit(1)
 
                 self.fragment_posterior.phi[t].collect_chunk(chunk_idx, phi_t_chunk)
 
@@ -687,7 +670,7 @@ class BBVISolver(AbstractModelSolver):
 
                 optimizer.zero_grad()
                 with torch.no_grad():
-                    self.update_phi(x_samples.detach(), print_debug=False)
+                    self.update_phi(x_samples.detach())
 
                 elbo_value = 0.0
                 for elbo_chunk in self.elbo_marginal_gaussian(x_samples, gaussian_log_likelihoods):

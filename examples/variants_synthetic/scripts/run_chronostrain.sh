@@ -10,11 +10,10 @@ echo "Running inference."
 
 cd $PROJECT_DIR/scripts
 python inference_with_variants_simple.py \
---reads_dir "${READS_DIR}/filtered" \
+--reads_input "${READS_DIR}/filtered/filtered_${INPUT_INDEX_FILENAME}" \
 --out_dir $CHRONOSTRAIN_OUTPUT_DIR \
 --num_strands 3 \
 --quality_format "fastq" \
---input_file "filtered_${INPUT_INDEX_FILENAME}" \
 --seed $SEED \
 --iters $CHRONOSTRAIN_NUM_ITERS \
 --num_samples $CHRONOSTRAIN_NUM_SAMPLES \
