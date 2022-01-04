@@ -21,6 +21,6 @@ do
 	--width 8 \
 	--height 6 \
 	--dpi 30 \
-	--strain_trunc_level 1e-4
+	--strain_trunc_level 5e-3
 done
 # ================================================
