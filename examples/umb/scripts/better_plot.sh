@@ -6,10 +6,10 @@ export CHRONOSTRAIN_LOG_FILEPATH="${LOGDIR}/better_plot.log"
 SEED=31415
 
 # =========== Run chronostrain. ==================
-echo "Drawping plots."
 
 for umb_id in UMB05 UMB08 UMB11 UMB12 UMB15 UMB18 UMB20 UMB23 UMB24
 do
+	echo "Drawing plots for ${umb_id}."
 	cd $PROJECT_DIR/scripts
 	python plot_bbvi_samples.py \
 	--reads_input "${READS_DIR}/${umb_id}_filtered/${index_filename}" \
