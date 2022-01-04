@@ -1,10 +1,12 @@
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Optional
 
+import matplotlib.pyplot as plt
+import matplotlib.cm as mplcm
+import matplotlib.colors as colors
+from matplotlib.lines import Line2D
 import numpy as np
 import seaborn as sns
-import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
 import pandas as pd
 
 from chronostrain.model import StrainVariant
@@ -174,6 +176,7 @@ def plot_posterior_abundances(
         strain_trunc_level: float = 0.0,
         truth_path: Optional[Path] = None,
         title: str = None,
+        cmap=plt.get_cmap('gist_rainbow'),
         font_size: int = 12,
         thickness: int = 2,
         dpi: int = 100,
@@ -194,7 +197,6 @@ def plot_posterior_abundances(
     :param dpi:
     :return:
     """
-
     true_abundances = None
     if truth_path is not None:
         _, true_abundances, accessions = load_abundances(truth_path)
@@ -225,12 +227,13 @@ def plot_posterior_abundances(
         color = render_single_abundance_trajectory(
             times=times,
             abundances=true_trajectory,
-            label=truth_strain_id,
             ax=ax,
-            thickness=thickness,
-            legend_elements=legend_elements
+            thickness=thickness
         )
         ground_truth_colors[truth_strain_id] = color
+
+    # but setting the number of colors explicitly allows it to use them all
+    sns.set_palette(cmap, n_colors=population.num_strains())
 
     for s_idx, strain in enumerate(population.strains):
         # This is (T x N), for the particular strain.
@@ -250,17 +253,6 @@ def plot_posterior_abundances(
             thickness=thickness,
             legend_elements=legend_elements,
             color=ground_truth_colors.get(strain.id, None)
-        )
-
-    for garbage_s_idx, garbage_strain in enumerate(population.garbage_strains):
-        traj_samples = abundance_samples[:, :, garbage_s_idx + len(population.strains)]
-        render_posterior_abundances(
-            times=times,
-            label=garbage_strain.id,
-            traj_samples=traj_samples,
-            ax=ax,
-            thickness=thickness,
-            legend_elements=legend_elements
         )
 
     if draw_legend:
@@ -330,10 +322,8 @@ def render_posterior_abundances(
 def render_single_abundance_trajectory(
         times: List[float],
         abundances: np.ndarray,
-        label: str,
         ax,
         thickness: float,
-        legend_elements: List,
         color: Optional = None
 ):
     if color is None:
