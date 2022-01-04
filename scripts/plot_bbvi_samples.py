@@ -36,9 +36,9 @@ def parse_args():
                         help='<Optional> If flag is set, renders the legend.')
     parser.add_argument('--plot_format', required=False, type=str,
                         default='PDF')
-    parser.add_argument('-w', '--width', required=False, type=int,
+    parser.add_argument('--width', required=False, type=int,
                         default=8)
-    parser.add_argument('-h', '--height', required=False, type=int,
+    parser.add_argument('--height', required=False, type=int,
                         default=6)
     parser.add_argument('--dpi', required=False, type=int,
                         default=30)
