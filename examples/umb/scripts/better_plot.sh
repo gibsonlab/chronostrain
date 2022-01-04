@@ -10,6 +10,8 @@ SEED=31415
 for umb_id in UMB05 UMB08 UMB11 UMB12 UMB15 UMB18 UMB20 UMB23 UMB24
 do
 	echo "Drawing plots for ${umb_id}."
+
+	index_filename="filtered_${umb_id}_${INPUT_INDEX_FILENAME}"
 	cd $PROJECT_DIR/scripts
 	python plot_bbvi_samples.py \
 	--reads_input "${READS_DIR}/${umb_id}_filtered/${index_filename}" \
