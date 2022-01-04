@@ -176,7 +176,7 @@ def plot_posterior_abundances(
         strain_trunc_level: float = 0.0,
         truth_path: Optional[Path] = None,
         title: str = None,
-        cmap=plt.get_cmap('gist_rainbow'),
+        cmap=sns.blend_palette(["firebrick", "palegreen"], 8),
         font_size: int = 12,
         thickness: int = 2,
         dpi: int = 100,

@@ -9,6 +9,7 @@ from typing import List
 
 import torch
 
+import seaborn as sns
 from chronostrain import cfg, create_logger
 import chronostrain.visualizations as viz
 from chronostrain.model import Population
@@ -101,7 +102,8 @@ def main():
         img_format=args.plot_format,
         width=args.width,
         height=args.height,
-        dpi=args.dpi
+        dpi=args.dpi,
+        cmap=sns.blend_palette(["firebrick", "palegreen", "darkmagenta"], population.num_strains())
     )
 
 
