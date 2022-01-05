@@ -216,6 +216,7 @@ class SubseqMarkerEntry(MarkerEntry):
     start_pos: int
     end_pos: int
     is_canonical: bool
+    is_negative_strand: bool
     id: str
 
     def __str__(self):
@@ -260,11 +261,22 @@ class SubseqMarkerEntry(MarkerEntry):
                 f"Missing entry `id` from json marker entry of strain entry {parent.accession}."
             )
 
+        strand_str = entry_dict['strand']
+        if strand_str == '+':
+            is_negative_strand = False
+        elif strand_str == '-':
+            is_negative_strand = True
+        else:
+            raise ValueError(
+                f"Unrecognizable value `{strand_str}` of entry `strand` in {parent.accession}."
+            )
+
         return SubseqMarkerEntry(
             name=entry_dict['name'],
             index=idx,
             start_pos=entry_dict['start'],
             end_pos=entry_dict['end'],
+            is_negative_strand=is_negative_strand,
             parent=parent,
             is_canonical=('canonical' in entry_dict) and (str(entry_dict['canonical']).strip().lower() == "true"),
             id=entry_dict['id']
@@ -355,6 +367,8 @@ class FastaLoader:
             else:
                 seq = SeqIO.read(self.strain_fasta_path, "fasta").seq
                 marker_seq = nucleotides_to_z4(str(seq[entry.start_pos - 1:entry.end_pos]))
+                if not entry.is_negative_strand:
+                    marker_seq = reverse_complement_seq(marker_seq)
                 marker = Marker(
                     name=entry.name,
                     id=entry.id,

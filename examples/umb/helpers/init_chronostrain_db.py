@@ -27,6 +27,9 @@ from chronostrain import cfg, create_logger
 logger = create_logger("chronostrain.create_db_from_uniref")
 
 
+READ_LEN = 150
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Create chronostrain database file from specified gene_info_uniref marker CSV."
@@ -187,6 +190,7 @@ def create_chronostrain_db(gene_paths: Dict[str, Path], partial_strains: List[Di
                         'type': 'subseq',
                         'start': blast_hit.subj_start,
                         'end': blast_hit.subj_end,
+                        'strand': blast_hit.strand,
                         'canonical': not gene_already_found
                     }
                 )
@@ -206,13 +210,13 @@ class BlastHit(object):
     subj_end: int
     query_start: int
     query_end: int
+    strand: str
     evalue: float
     bitscore: float
     pct_identity: float
     num_gaps: int
     query_coverage_per_hsp: float
 
-READ_LEN = 150
 
 def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
     accession_to_positions: Dict[str, List[BlastHit]] = defaultdict(list)
@@ -222,25 +226,37 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
 
             subj_acc, subj_start, subj_end, qstart, qend, evalue, bitscore, pident, gaps, qcovhsp = row
 
-            start_pos = int(subj_start)
-            end_pos = int(subj_end)
+            subj_start = int(subj_start)
+            subj_end = int(subj_end)
 
-            if end_pos - start_pos + 1 > READ_LEN:
-                accession_to_positions[subj_acc].append(
-                    BlastHit(
-                        row_idx,
-                        subj_acc,
-                        start_pos,
-                        end_pos,
-                        int(qstart),
-                        int(qend),
-                        float(evalue),
-                        float(bitscore),
-                        float(pident),
-                        int(gaps),
-                        float(qcovhsp)
-                    )
+            if end_pos - start_pos + 1 < READ_LEN:
+                continue
+
+            if start_pos < end_pos:
+                start_pos = subj_start
+                end_pos = subj_end
+                strand = '+'
+            else:
+                start_pos = subj_end
+                end_pos = subj_start
+                strand = '-'
+
+            accession_to_positions[subj_acc].append(
+                BlastHit(
+                    row_idx,
+                    subj_acc,
+                    start_pos,
+                    end_pos,
+                    int(qstart),
+                    int(qend),
+                    strand,
+                    float(evalue),
+                    float(bitscore),
+                    float(pident),
+                    int(gaps),
+                    float(qcovhsp)
                 )
+            )
     return accession_to_positions
 
 
