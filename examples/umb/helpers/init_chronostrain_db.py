@@ -229,9 +229,6 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
             subj_start = int(subj_start)
             subj_end = int(subj_end)
 
-            if end_pos - start_pos + 1 < READ_LEN:
-                continue
-
             if start_pos < end_pos:
                 start_pos = subj_start
                 end_pos = subj_end
@@ -240,6 +237,9 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
                 start_pos = subj_end
                 end_pos = subj_start
                 strand = '-'
+
+            if end_pos - start_pos + 1 < READ_LEN:
+                continue
 
             accession_to_positions[subj_acc].append(
                 BlastHit(
