@@ -172,7 +172,7 @@ def create_chronostrain_db(gene_paths: Dict[str, Path], partial_strains: List[Di
             evalue_max=1e-3,
             out_path=blast_result_path,
             num_threads=cfg.model_cfg.num_cores,
-            out_fmt="6 saccver sstart send qstart qend sstrand evalue bitscore pident gaps qcovhsp",
+            out_fmt="6 saccver sstart send qstart qend evalue bitscore pident gaps qcovhsp",
             max_target_seqs=10 * len(partial_strains)  # A generous value, 10 hits per genome
         )
 
@@ -187,7 +187,6 @@ def create_chronostrain_db(gene_paths: Dict[str, Path], partial_strains: List[Di
                         'type': 'subseq',
                         'start': blast_hit.subj_start,
                         'end': blast_hit.subj_end,
-                        'strand': blast_hit.strand,
                         'canonical': not gene_already_found
                     }
                 )
@@ -207,7 +206,6 @@ class BlastHit(object):
     subj_end: int
     query_start: int
     query_end: int
-    strand: str
     evalue: float
     bitscore: float
     pct_identity: float
@@ -223,16 +221,8 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
 
             subj_acc, subj_start, subj_end, qstart, qend, sstrand, evalue, bitscore, pident, gaps, qcovhsp = row
 
-            if sstrand == "plus":
-                subj_strand = '+'
-                start_pos = int(subj_start)
-                end_pos = int(subj_end)
-            elif sstrand == "minus":
-                subj_strand = '-'
-                start_pos = int(subj_end)
-                end_pos = int(subj_start)
-            else:
-                raise RuntimeError(f"Unexpected `sstrand` token `{sstrand}`")
+            start_pos = int(subj_start)
+            end_pos = int(subj_end)
 
             accession_to_positions[subj_acc].append(
                 BlastHit(
@@ -242,7 +232,6 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
                     end_pos,
                     int(qstart),
                     int(qend),
-                    subj_strand,
                     float(evalue),
                     float(bitscore),
                     float(pident),
