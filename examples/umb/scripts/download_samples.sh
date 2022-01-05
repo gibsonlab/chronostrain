@@ -29,9 +29,9 @@ mkdir -p ${FASTERQ_TMP_DIR}
 		fi
 
 		# Target fastq files.
-		fq_file_1="${SAMPLES_DIR}/${sra_id}_1.fastq"
-		fq_file_2="${SAMPLES_DIR}/${sra_id}_2.fastq"
-		if [[ -f $fq_file_1 && -f $fq_file_2 ]]; then
+		gz_file_1="${SAMPLES_DIR}/${sra_id}_1.fastq.gz"
+		gz_file_2="${SAMPLES_DIR}/${sra_id}_2.fastq.gz"
+		if [[ -f $gz_file_1 && -f $gz_file_2 ]]; then
 			echo "[*] Target files for ${sra_id} already exist."
 			continue
 		fi
@@ -54,6 +54,8 @@ mkdir -p ${FASTERQ_TMP_DIR}
 		"${SRA_PREFETCH_DIR}/${sra_id}/${sra_id}.sra"
 
 		echo "[*] Compressing..."
+		fq_file_1="${SAMPLES_DIR}/${sra_id}_1.fastq.gz"
+		fq_file_2="${SAMPLES_DIR}/${sra_id}_2.fastq.gz"
 		gzip $fq_file_1 --force &
 		gzip $fq_file_2 --force &
 		wait
