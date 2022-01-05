@@ -94,6 +94,9 @@ class Strain:
             self.id
         )
 
+    def __hash__(self):
+        return hash(self.id)
+
     def num_marker_frags(self, frag_len: int) -> int:
         return sum(
             len(marker) - frag_len + 1 for marker in self.markers
