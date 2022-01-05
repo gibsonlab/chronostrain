@@ -28,7 +28,8 @@ def parse_args():
     parser.add_argument('-u', '--uniref_csv_path', required=True, type=str,
                         help='<Required> The path to the CSV input file.')
     parser.add_argument('-s', '--strain_spec_path', required=True, type=str,
-                        help='<Required> The path to the CSV file of strain accessions.')
+                        help='<Required> The path listing strain genome files '
+                             '(references_to_keep.txt from StrainGE tutorial).')
     parser.add_argument('-o', '--output_path', required=True, type=str,
                         help='<Required> The path to the target output chronostrain db json file.')
     parser.add_argument('-sdb', '--strainge_db_dir', required=True, type=str,
@@ -56,17 +57,19 @@ def get_gene_names(uniref_csv_path: Path) -> Set[str]:
     return gene_names
 
 
-def parse_strainge_path(strainge_db_dir: Path, hdf5_path: Path) -> Tuple[str, str]:
+def parse_strainge_path(strainge_db_dir: Path, hdf5_path: Path) -> Tuple[str, str, str, str]:
     fa_filename = hdf5_path.with_suffix("").name
     fa_path = strainge_db_dir / fa_filename
 
-    suffix = '.fa.gz.hdf5'
-    base_tokens = hdf5_path.name[:-len(suffix)].split("_")
+    full_suffix = '.fa.gz.hdf5'
+    base_tokens = hdf5_path.name[:-len(full_suffix)].split("_")
     strain_name = "_".join(base_tokens[2:])
+    genus_name = base_tokens[0]
+    species_name = base_tokens[1]
 
     for record in read_seq_file(fa_path, "fasta"):
         accession = record.id.strip().split(" ")[0]
-        return strain_name, accession
+        return genus_name, species_name, strain_name, accession
 
     raise RuntimeError(f"Couldn't find a valid record in {str(fa_path)}.")
 
@@ -80,12 +83,12 @@ def get_strain_accessions(strain_spec_path: Path, strainge_db_dir: Path) -> List
                 continue
             logger.info(f"Parsing strain information from {line}...")
 
-            strain_name, accession = parse_strainge_path(strainge_db_dir, Path(line))
+            genus, species, strain_name, accession = parse_strainge_path(strainge_db_dir, Path(line))
             logger.info(f"Got strain: {strain_name}, accession: {accession}")
 
             strain_partial_entries.append({
-                'genus': 'Escherichia',
-                'species': 'coli',
+                'genus': genus,
+                'species': species,
                 'strain': strain_name,
                 'accession': accession,
                 'source': 'fasta',
