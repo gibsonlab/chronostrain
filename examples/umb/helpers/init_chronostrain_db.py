@@ -59,7 +59,8 @@ def get_marker_genes(metaphlan_pkl_path: Path) -> Dict[str, Path]:
 
     gene_paths: Dict[str, Path] = {}
 
-    for metaphlan_marker_id in metaphlan_markers(db, 'g__Escherichia'):
+    # for metaphlan_marker_id in metaphlan_markers(db, 'g__Escherichia'):
+    for metaphlan_marker_id in metaphlan_markers(db, 's__Escherichia_coli'):
         tokens = metaphlan_marker_id.split('__')
         uniprot_id = tokens[1]
 
