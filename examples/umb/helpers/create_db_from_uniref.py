@@ -115,8 +115,8 @@ def create_chronostrain_db(reference_genes: Dict[str, Path], partial_strains: Li
     data_dir: Path = cfg.database_cfg.data_dir
 
     blast_db_dir = output_path.parent / "blast"
-    blast_db_name = "Esch_coli"
-    blast_db_title = "\"Escherichia coli (metaphlan markers, strainGE strains)\""
+    blast_db_name = "strainge_db"
+    blast_db_title = "\"Escherichia (metaphlan markers, strainGE strains)\""
     blast_fasta_path = blast_db_dir / "genomes.fasta"
     blast_result_dir = output_path.parent / "blast_results"
     logger.info("BLAST\n\tdatabase location: {}\n\tresults directory: {}".format(
