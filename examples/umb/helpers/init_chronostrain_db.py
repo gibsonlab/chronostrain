@@ -70,6 +70,8 @@ def get_marker_genes(metaphlan_pkl_path: Path) -> Dict[str, Path]:
                 f"No result found for UniProt query `{uniprot_id}`, derived from metaphlan ID `{metaphlan_marker_id}`."
             )
             continue
+        else:
+            print(f"Found {len(res)} hits for UniProt query `{uniprot_id}`.")
 
         gene_name = res[uniprot_id]['Entry name']
         amino_fasta = u.retrieve("P64549", "fasta")
