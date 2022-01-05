@@ -1,14 +1,20 @@
 # Modify these before running.
-export PROJECT_DIR="/PHShome/yk847/chronostrain"
-export CHRONOSTRAIN_DATA_DIR="/data/cctm/chronostrain"
+export PROJECT_DIR="/mnt/f/microbiome_tracking"
+export CHRONOSTRAIN_DATA_DIR="/mnt/f/microbiome_tracking/data/umb"
 export BASE_DIR="${PROJECT_DIR}/examples/umb"
 
 # ======== Location of this file.
 export SETTINGS_PATH="${BASE_DIR}/scripts/settings.sh"
 
+# ========= (Strainge-specific configuration.)
+export STRAINGE_STRAIN_LIST=/mnt/d/strainge/references_to_keep.txt
+
+# ========= (Metaphlan-specific configuration.)
+export METAPHLAN_PKL_PATH=/mnt/d/metaphlan/mpa_v30_CHOCOPhlAn_201901.pkl
+
 # Location for reads and outputs.
-export OUTPUT_DIR="${CHRONOSTRAIN_DATA_DIR}/umb/output"
-export READS_DIR="${CHRONOSTRAIN_DATA_DIR}/umb/reads"
+export OUTPUT_DIR="${CHRONOSTRAIN_DATA_DIR}/output"
+export READS_DIR="${CHRONOSTRAIN_DATA_DIR}/reads"
 export CHRONOSTRAIN_OUTPUT_DIR="${OUTPUT_DIR}/chronostrain"
 
 # The chronostrain input index.
@@ -16,9 +22,9 @@ export INPUT_INDEX_FILENAME="inputs.csv"
 export INPUT_INDEX_PATH="${READS_DIR}/${INPUT_INDEX_FILENAME}"
 
 # sratools prefetch/sample output directories.
-export SRA_PREFETCH_DIR="${CHRONOSTRAIN_DATA_DIR}/umb/prefetch"
-export FASTERQ_TMP_DIR="${CHRONOSTRAIN_DATA_DIR}/umb/fasterq-tmp"
-export SAMPLES_DIR="${CHRONOSTRAIN_DATA_DIR}/umb/samples"
+export SRA_PREFETCH_DIR="${CHRONOSTRAIN_DATA_DIR}/prefetch"
+export FASTERQ_TMP_DIR="${CHRONOSTRAIN_DATA_DIR}/fasterq-tmp"
+export SAMPLES_DIR="${CHRONOSTRAIN_DATA_DIR}/samples"
 
 # ========= Kneaddata
 export NEXTERA_ADAPTER_PATH="/PHShome/yk847/.conda/envs/chronostrain/share/trimmomatic/adapters/NexteraPE-PE.fa"
@@ -35,10 +41,7 @@ export CHRONOSTRAIN_DB_DIR="${CHRONOSTRAIN_DATA_DIR}/database_ecoli"
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)
 export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain_ecoli_strains.ini"
 export CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"
-export LOGDIR="${CHRONOSTRAIN_DATA_DIR}/umb/logs"
-
-# ========= (Strainge-specific configuration.)
-export STRAINGE_STRAIN_LIST=/mnt/d/strainge/references_to_keep.txt
+export LOGDIR="${CHRONOSTRAIN_DATA_DIR}/logs"
 
 # ========= Done.
 echo "======================================================="
