@@ -212,6 +212,7 @@ class BlastHit(object):
     num_gaps: int
     query_coverage_per_hsp: float
 
+READ_LEN = 150
 
 def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
     accession_to_positions: Dict[str, List[BlastHit]] = defaultdict(list)
@@ -224,21 +225,22 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
             start_pos = int(subj_start)
             end_pos = int(subj_end)
 
-            accession_to_positions[subj_acc].append(
-                BlastHit(
-                    row_idx,
-                    subj_acc,
-                    start_pos,
-                    end_pos,
-                    int(qstart),
-                    int(qend),
-                    float(evalue),
-                    float(bitscore),
-                    float(pident),
-                    int(gaps),
-                    float(qcovhsp)
+            if end_pos - start_pos + 1 > READ_LEN:
+                accession_to_positions[subj_acc].append(
+                    BlastHit(
+                        row_idx,
+                        subj_acc,
+                        start_pos,
+                        end_pos,
+                        int(qstart),
+                        int(qend),
+                        float(evalue),
+                        float(bitscore),
+                        float(pident),
+                        int(gaps),
+                        float(qcovhsp)
+                    )
                 )
-            )
     return accession_to_positions
 
 
