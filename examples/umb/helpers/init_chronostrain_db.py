@@ -220,7 +220,7 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
         blast_result_reader = csv.reader(f, delimiter='\t')
         for row_idx, row in enumerate(blast_result_reader):
 
-            subj_acc, subj_start, subj_end, qstart, qend, sstrand, evalue, bitscore, pident, gaps, qcovhsp = row
+            subj_acc, subj_start, subj_end, qstart, qend, evalue, bitscore, pident, gaps, qcovhsp = row
 
             start_pos = int(subj_start)
             end_pos = int(subj_end)
