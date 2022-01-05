@@ -1,18 +1,26 @@
+"""
+Script which creates a chronostrain db of all UNIREF-specified marker genes.
+Works in 3 steps:
+    1) For each marker gene name, extract its annotation from reference K-12 genome.
+    2) Run BLAST to find all matching hits (even partial hits) of marker gene sequence to each strain assembly
+        (with blastn configured to allow, on average, up to 10 hits per genome).
+    3) Convert BLAST results into chronostrain JSON database specification.
+"""
 import argparse
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 import csv
 import json
+import pickle
+import bz2
 
-from Bio import SeqIO
-from Bio.SeqFeature import FeatureLocation
-from Bio.SeqRecord import SeqRecord
+from bioservices import UniProt
 
-from chronostrain.util.entrez import fetch_genbank, fetch_fasta
-from chronostrain.util.external import blastn, make_blast_db
+from chronostrain.util.entrez import fetch_fasta
+from chronostrain.util.external import tblastn, make_blast_db
 
-from typing import List, Set, Iterator, Dict, Any, Tuple
+from typing import List, Set, Dict, Any, Tuple
 
 from chronostrain.util.io import read_seq_file
 from chronostrain import cfg, create_logger
@@ -25,8 +33,8 @@ def parse_args():
     )
 
     # Input specification.
-    parser.add_argument('-u', '--uniref_csv_path', required=True, type=str,
-                        help='<Required> The path to the CSV input file.')
+    parser.add_argument('-m', '--metaphlan_pkl_path', required=True, type=str,
+                        help='<Required> The path to the metaphlan pickle database file.')
     parser.add_argument('-s', '--strain_spec_path', required=True, type=str,
                         help='<Required> The path listing strain genome files '
                              '(references_to_keep.txt from StrainGE tutorial).')
@@ -34,27 +42,44 @@ def parse_args():
                         help='<Required> The path to the target output chronostrain db json file.')
     parser.add_argument('-sdb', '--strainge_db_dir', required=True, type=str,
                         help='<Required> The strainGE database directory.')
-    parser.add_argument('-ref', '--reference_accession', required=True, type=str,
-                        help='<Required> The accession of the genome from which to extract reference gene sequences.')
     return parser.parse_args()
 
 
-def get_gene_names(uniref_csv_path: Path) -> Set[str]:
-    gene_names = set()
-    with open(uniref_csv_path, "r") as f:
-        reader = csv.reader(f, delimiter=',')
+def metaphlan_markers(metaphlan_db: Dict, metaphlan_clade: str):
+    for marker_key, marker_entry in metaphlan_db['markers'].items():
+        if metaphlan_clade in marker_entry['taxon']:
+            yield marker_key
 
-        for line_idx, row in enumerate(reader):
-            if line_idx == 0:
-                continue
 
-            uniref_full, uniref_id, gene_name = row
-            if len(gene_name.strip()) == 0:
-                logger.info(f"No gene name found for Uniref entry {uniref_full}.")
-                continue
+def get_marker_genes(metaphlan_pkl_path: Path) -> Dict[str, Path]:
+    db = pickle.load(bz2.open(metaphlan_pkl_path, 'r'))
+    data_dir: Path = cfg.database_cfg.data_dir
 
-            gene_names.add(gene_name)
-    return gene_names
+    u = UniProt()
+
+    gene_paths: Dict[str, Path] = {}
+
+    for metaphlan_marker_id in metaphlan_markers(db, 'g__Escherichia'):
+        tokens = metaphlan_marker_id.split('__')
+        uniprot_id = tokens[1]
+
+        res = u.quick_search(uniprot_id)
+
+        if uniprot_id not in res:
+            print(
+                f"No result found for UniProt query `{uniprot_id}`, derived from metaphlan ID `{metaphlan_marker_id}`."
+            )
+            continue
+
+        gene_name = res[uniprot_id]['Entry name']
+        amino_fasta = u.retrieve("P64549", "fasta")
+
+        gene_out_path = data_dir / f"{gene_name}.fasta"
+        with open(gene_out_path, "w") as f:
+            print(amino_fasta, file=f)
+
+        gene_paths[gene_name] = gene_out_path
+    return gene_paths
 
 
 def parse_strainge_path(strainge_db_dir: Path, hdf5_path: Path) -> Tuple[str, str, str, str]:
@@ -98,20 +123,7 @@ def get_strain_accessions(strain_spec_path: Path, strainge_db_dir: Path) -> List
     return strain_partial_entries
 
 
-def parse_records(gb_file: Path, genes_to_find: Set[str]) -> Iterator[Tuple[str, str, FeatureLocation]]:
-    for record in SeqIO.parse(gb_file, format="gb"):
-        for feature in record.features:
-            if feature.type == "gene":
-                gene_name = feature.qualifiers['gene'][0]
-                locus_tag = feature.qualifiers['locus_tag'][0]
-
-                if gene_name not in genes_to_find:
-                    continue
-
-                yield gene_name, locus_tag, feature.location
-
-
-def create_chronostrain_db(reference_genes: Dict[str, Path], partial_strains: List[Dict[str, Any]], output_path: Path):
+def create_chronostrain_db(gene_paths: Dict[str, Path], partial_strains: List[Dict[str, Any]], output_path: Path):
     data_dir: Path = cfg.database_cfg.data_dir
 
     blast_db_dir = output_path.parent / "blast"
@@ -146,11 +158,11 @@ def create_chronostrain_db(reference_genes: Dict[str, Path], partial_strains: Li
 
     # Run BLAST to find marker genes.
     blast_result_dir.mkdir(parents=True, exist_ok=True)
-    for gene_name, ref_gene_path in reference_genes.items():
+    for gene_name, ref_gene_path in gene_paths.items():
         gene_already_found = False
         logger.info(f"Running blastn on {gene_name}")
         blast_result_path = blast_result_dir / f"{gene_name}.tsv"
-        blastn(
+        tblastn(
             db_name=blast_db_name,
             db_dir=blast_db_dir,
             query_fasta=ref_gene_path,
@@ -164,7 +176,7 @@ def create_chronostrain_db(reference_genes: Dict[str, Path], partial_strains: Li
         locations = parse_blast_hits(blast_result_path)
         for strain_entry in partial_strains:
             for blast_hit in locations[strain_entry['accession']]:
-                gene_id = f"{gene_name}_BLAST_IDX_{blast_hit.line_idx}"
+                gene_id = f"{gene_name}_BLASTIDX_{blast_hit.line_idx}"
                 strain_entry['markers'].append(
                     {
                         'id': gene_id,
@@ -238,52 +250,72 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
     return accession_to_positions
 
 
-def download_reference(accession: str, gene_names: Set[str]) -> Dict[str, Path]:
-    logger.info(f"Downloading reference accession {accession}")
-    data_dir: Path = cfg.database_cfg.data_dir
-    gb_file = fetch_genbank(accession, data_dir)
+# def parse_records(gb_file: Path,
+#                   gene_clusters: Dict[str, List[str]]) -> Iterator[Tuple[str, str, str, FeatureLocation]]:
+#     gene_to_cluster = {
+#         gene: cluster
+#         for cluster, genes in gene_clusters.items()
+#         for gene in genes
+#     }
+#
+#     for record in SeqIO.parse(gb_file, format="gb"):
+#         for feature in record.features:
+#             if feature.type == "gene":
+#                 gene_name = feature.qualifiers['gene'][0]
+#                 locus_tag = feature.qualifiers['locus_tag'][0]
+#
+#                 if gene_name not in gene_to_cluster:
+#                     continue
+#
+#                 yield gene_to_cluster[gene_name], gene_name, locus_tag, feature.location
+#
+#
+# def download_reference(accession: str, gene_clusters: Dict[str, List[str]]) -> Dict[str, Path]:
+#     logger.info(f"Downloading reference accession {accession}")
+#     data_dir: Path = cfg.database_cfg.data_dir
+#     gb_file = fetch_genbank(accession, data_dir)
+#
+#     clusters_already_found: Set[str] = set()
+#     clusters_to_find = set(gene_clusters.keys())
+#
+#     chromosome_seq = next(SeqIO.parse(gb_file, "gb")).seq
+#     gene_paths: Dict[str, Path] = {}
+#
+#     for found_gene_cluster, found_gene_name, locus_tag, location in parse_records(gb_file, gene_clusters):
+#         logger.info(f"Found gene {found_gene_cluster} for REF accession {accession} (name={found_gene_name})")
+#
+#         if found_gene_cluster in clusters_already_found:
+#             logger.warning(f"Multiple copies of {found_gene_cluster} found in {accession}. Skipping second instance.")
+#         else:
+#             clusters_already_found.add(found_gene_cluster)
+#             clusters_to_find.remove(found_gene_cluster)
+#
+#             gene_out_path = data_dir / f"REF_{accession}_{found_gene_cluster}.fasta"
+#             gene_seq = location.extract(chromosome_seq)
+#             SeqIO.write(
+#                 SeqRecord(gene_seq, id=f"REF_GENE_{found_gene_cluster}", description=f"{accession}_{str(location)}"),
+#                 gene_out_path,
+#                 "fasta"
+#             )
+#             gene_paths[found_gene_cluster] = gene_out_path
+#
+#     if len(clusters_to_find) > 0:
+#         logger.info("Couldn't find genes {}.".format(
+#             ",".join(clusters_to_find))
+#         )
+#
+#     logger.info(f"Finished parsing reference accession {accession}.")
+#     return gene_paths
 
-    genes_already_found: Set[str] = set()
-    genes_to_find = set(gene_names)
 
-    chromosome_seq = next(SeqIO.parse(gb_file, "gb")).seq
-    gene_paths: Dict[str, Path] = {}
-
-    for found_gene, locus_tag, location in parse_records(gb_file, gene_names):
-        logger.info(f"Found gene {found_gene} for REF accession {accession}")
-
-        if found_gene in genes_already_found:
-            logger.warning(f"Multiple copies of {found_gene} found in {accession}. Skipping second instance.")
-        else:
-            genes_already_found.add(found_gene)
-            genes_to_find.remove(found_gene)
-
-            gene_out_path = data_dir / f"REF_{accession}_{found_gene}.fasta"
-            gene_seq = location.extract(chromosome_seq)
-            SeqIO.write(
-                SeqRecord(gene_seq, id=f"REF_GENE_{found_gene}", description=f"{accession}_{str(location)}"),
-                gene_out_path,
-                "fasta"
-            )
-            gene_paths[found_gene] = gene_out_path
-
-    if len(genes_to_find) > 0:
-        logger.info("Couldn't find genes {}.".format(
-            ",".join(genes_to_find))
-        )
-
-    logger.info(f"Finished parsing reference accession {accession}.")
-    return gene_paths
-
-
-def print_summary(strain_entries: List[Dict[str, Any]], genes: Set[str]):
+def print_summary(strain_entries: List[Dict[str, Any]], gene_paths: Dict[str, Path]):
     for strain_entry in strain_entries:
         accession = strain_entry['accession']
-        found_genes = set()
+        found_genes: Set[str] = set()
         for marker_entry in strain_entry['markers']:
             found_genes.add(marker_entry['name'])
 
-        genes_not_found = genes.difference(found_genes)
+        genes_not_found = set(gene_paths.keys()).difference(found_genes)
         if len(genes_not_found) > 0:
             logger.info("Accession {}, {} genes not found: [{}]".format(
                 accession,
@@ -294,17 +326,15 @@ def print_summary(strain_entries: List[Dict[str, Any]], genes: Set[str]):
 
 def main():
     args = parse_args()
-    uniref_csv_path = Path(args.uniref_csv_path)
+    metaphlan_pkl_path = Path(args.metaphlan_pkl_path)
     strain_spec_path = Path(args.strain_spec_path)
     output_path = Path(args.output_path)
     strainge_db_dir = Path(args.strainge_db_dir)
-    reference_accession = args.reference_accession
 
-    gene_names = get_gene_names(uniref_csv_path)
-    reference_genes = download_reference(reference_accession, gene_names)
+    gene_paths = get_marker_genes(metaphlan_pkl_path)
     partial_strains = get_strain_accessions(strain_spec_path, strainge_db_dir)
-    create_chronostrain_db(reference_genes, partial_strains, output_path)
-    print_summary(partial_strains, gene_names)
+    create_chronostrain_db(gene_paths, partial_strains, output_path)
+    print_summary(partial_strains, gene_paths)
 
 
 if __name__ == "__main__":
