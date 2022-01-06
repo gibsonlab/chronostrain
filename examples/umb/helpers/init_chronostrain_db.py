@@ -229,7 +229,7 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
             subj_start = int(subj_start)
             subj_end = int(subj_end)
 
-            if start_pos < end_pos:
+            if subj_start < subj_end:
                 start_pos = subj_start
                 end_pos = subj_end
                 strand = '+'
