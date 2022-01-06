@@ -197,8 +197,14 @@ def create_chronostrain_db(gene_paths: Dict[str, Path], partial_strains: List[Di
                 )
                 gene_already_found = True
 
+    strain_entries = [
+        strain_entry
+        for strain_entry in partial_strains
+        if len(strain_entry['markers']) > 0
+    ]
+
     with open(output_path, 'w') as outfile:
-        json.dump(partial_strains, outfile, indent=4)
+        json.dump(strain_entries, outfile, indent=4)
 
     logger.info(f"Wrote output to {str(output_path)}.")
 
