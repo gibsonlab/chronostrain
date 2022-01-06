@@ -78,7 +78,7 @@ def get_marker_genes(metaphlan_pkl_path: Path) -> Dict[str, Path]:
             print(f"Found {len(res)} hits for UniProt query `{uniprot_id}`.")
 
         gene_name = res[uniprot_id]['Entry name']
-        amino_fasta = u.retrieve("P64549", "fasta")
+        amino_fasta = u.retrieve(uniprot_id, "fasta")
 
         gene_out_path = data_dir / f"{gene_name}.fasta"
         with open(gene_out_path, "w") as f:
@@ -166,7 +166,7 @@ def create_chronostrain_db(gene_paths: Dict[str, Path], partial_strains: List[Di
     blast_result_dir.mkdir(parents=True, exist_ok=True)
     for gene_name, ref_gene_path in gene_paths.items():
         gene_already_found = False
-        logger.info(f"Running blastn on {gene_name}")
+        logger.info(f"Running blastn on {gene_name}.")
         blast_result_path = blast_result_dir / f"{gene_name}.tsv"
         tblastn(
             db_name=blast_db_name,
@@ -179,6 +179,7 @@ def create_chronostrain_db(gene_paths: Dict[str, Path], partial_strains: List[Di
             max_target_seqs=10 * len(partial_strains)  # A generous value, 10 hits per genome
         )
 
+        print(f"Parsing BLAST hits for gene `{gene_name}`.")
         locations = parse_blast_hits(blast_result_path)
         for strain_entry in partial_strains:
             for blast_hit in locations[strain_entry['accession']]:
