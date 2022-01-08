@@ -79,12 +79,12 @@ def get_marker_genes(metaphlan_pkl_path: Path) -> Iterator[Tuple[str, List[str]]
         res = u.quick_search(uniprot_id)
 
         if uniprot_id not in res:
-            print(
+            logger.debug(
                 f"No result found for UniProt query `{uniprot_id}`, derived from metaphlan ID `{metaphlan_marker_id}`."
             )
             continue
         else:
-            print(f"Found {len(res)} hits for UniProt query `{uniprot_id}`.")
+            logger.debug(f"Found {len(res)} hits for UniProt query `{uniprot_id}`.")
 
         gene_name = res[uniprot_id]['Entry name']
         cluster = res[uniprot_id]['Gene names'].split()
