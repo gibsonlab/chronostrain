@@ -21,7 +21,7 @@ from Bio.SeqRecord import SeqRecord
 from bioservices import UniProt
 
 from chronostrain.util.entrez import fetch_fasta, fetch_genbank
-from chronostrain.util.external import tblastn, make_blast_db
+from chronostrain.util.external import tblastn, make_blast_db, blastn
 
 from typing import List, Set, Dict, Any, Tuple, Iterator
 
@@ -171,7 +171,7 @@ def create_chronostrain_db(gene_paths: Dict[str, Path], partial_strains: List[Di
         gene_already_found = False
         logger.info(f"Running blastn on {gene_name}.")
         blast_result_path = blast_result_dir / f"{gene_name}.tsv"
-        tblastn(
+        blastn(
             db_name=blast_db_name,
             db_dir=blast_db_dir,
             query_fasta=ref_gene_path,
@@ -179,7 +179,8 @@ def create_chronostrain_db(gene_paths: Dict[str, Path], partial_strains: List[Di
             out_path=blast_result_path,
             num_threads=cfg.model_cfg.num_cores,
             out_fmt="6 saccver sstart send qstart qend evalue bitscore pident gaps qcovhsp",
-            max_target_seqs=10 * len(partial_strains)  # A generous value, 10 hits per genome
+            max_target_seqs=10 * len(partial_strains),  # A generous value, 10 hits per genome
+            strand="both"
         )
 
         print(f"Parsing BLAST hits for gene `{gene_name}`.")
