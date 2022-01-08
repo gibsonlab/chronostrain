@@ -288,7 +288,6 @@ def download_reference(accession: str, metaphlan_pkl_path: Path) -> Dict[str, Pa
     gene_paths: Dict[str, Path] = {}
 
     for gb_gene_name, locus_tag, location in parse_genbank_genes(gb_file):
-        print(gb_gene_name)
         if gb_gene_name.lower() not in genes_to_clusters:
             continue
         if genes_to_clusters[gb_gene_name.lower()] not in clusters_to_find:
