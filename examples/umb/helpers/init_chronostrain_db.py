@@ -282,18 +282,18 @@ def download_reference(accession: str, metaphlan_pkl_path: Path) -> Dict[str, Pa
     for cluster, cluster_genes in get_marker_genes(metaphlan_pkl_path):
         clusters_to_find.add(cluster)
         for gene in cluster_genes:
-            genes_to_clusters[gene] = cluster
+            genes_to_clusters[gene.lower()] = cluster
 
     chromosome_seq = next(SeqIO.parse(gb_file, "gb")).seq
     gene_paths: Dict[str, Path] = {}
 
     for gb_gene_name, locus_tag, location in parse_genbank_genes(gb_file):
-        if gb_gene_name not in genes_to_clusters:
+        if gb_gene_name.lower() not in genes_to_clusters:
             continue
-        if genes_to_clusters[gb_gene_name] not in clusters_to_find:
+        if genes_to_clusters[gb_gene_name.lower()] not in clusters_to_find:
             continue
 
-        found_cluster = genes_to_clusters[gb_gene_name]
+        found_cluster = genes_to_clusters[gb_gene_name.lower()]
         logger.info(f"Found uniref cluster {found_cluster} for accession {accession} (name={gb_gene_name})")
 
         if found_cluster in clusters_already_found:
