@@ -169,6 +169,12 @@ class ExternalToolsConfig(AbstractConfig):
         self.glopp_path = self.get_str("GLOPP")
 
 
+class EntrezConfig(AbstractConfig):
+    def __init__(self, cfg: dict):
+        super().__init__("Entrez", cfg)
+        self.email = self.get_str("EMAIL")
+
+
 class ChronostrainConfig(AbstractConfig):
     def __init__(self, cfg: dict):
         super().__init__("ChronoStrain", cfg)
@@ -179,6 +185,7 @@ class ChronostrainConfig(AbstractConfig):
         self.model_cfg: ModelConfig = ModelConfig(self.get_item("Model"))
         self.torch_cfg: TorchConfig = TorchConfig(self.get_item("PyTorch"))
         self.external_tools_cfg: ExternalToolsConfig = ExternalToolsConfig(self.get_item("ExternalTools"))
+        self.entrez_cfg: EntrezConfig = EntrezConfig(self.get_item("Entrez"))
 
 
 def _config_load(ini_path: str) -> ChronostrainConfig:

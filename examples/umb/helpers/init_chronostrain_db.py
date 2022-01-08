@@ -344,7 +344,7 @@ def main():
     output_path = Path(args.output_path)
     strainge_db_dir = Path(args.strainge_db_dir)
 
-    gene_paths = download_reference("NC_000913.3", metaphlan_pkl_path)
+    gene_paths = download_reference("U00096.3", metaphlan_pkl_path)
     partial_strains = get_strain_accessions(strain_spec_path, strainge_db_dir)
     create_chronostrain_db(gene_paths, partial_strains, output_path)
     print_summary(partial_strains, gene_paths)
