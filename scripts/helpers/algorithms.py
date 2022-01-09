@@ -1,6 +1,6 @@
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Callable
 
 import numpy as np
 import torch
@@ -19,14 +19,15 @@ def perform_bbvi(
         db: StrainDatabase,
         model: GenerativeModel,
         reads: TimeSeriesReads,
+        num_epochs: int,
+        lr_lambda: Callable[[int], int],
         iters: int,
         learning_rate: float,
         num_samples: int,
         frag_chunk_sz: int = 100,
         correlation_type: str = "strain",
         save_elbo_history: bool = False,
-        save_training_history: bool = False,
-        print_debug_every: int = 100
+        save_training_history: bool = False
 ):
 
     # ==== Run the solver.
@@ -40,10 +41,8 @@ def perform_bbvi(
     elbo_history = []
 
     if save_training_history:
-        def anim_callback(iter, x_samples, elbo):
+        def anim_callback(epoch, x_samples, elbo):
             # Plot BBVI posterior.
-            if iter % 20 != 0:
-                return
             abund_samples = softmax(x_samples, dim=2).cpu().detach().numpy()
             for s_idx in range(model.num_strains()):
                 traj_samples = abund_samples[:, :, s_idx]  # (T x N)
@@ -57,17 +56,30 @@ def perform_bbvi(
         callbacks.append(anim_callback)
 
     if save_elbo_history:
-        def elbo_callback(iter, x_samples, elbo):
+        def elbo_callback(epoch, x_samples, elbo):
             elbo_history.append(elbo)
         callbacks.append(elbo_callback)
 
+    optimizer = torch.optim.Adam(
+        lr=learning_rate,
+        betas=(0.9, 0.009),
+        eps=1e-7,
+        weight_decay=0.0,
+        params=solver.trainable_params
+    )
+
+    lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
+        optimizer,
+        lr_lambda=lr_lambda
+    )
+
     start_time = time.time()
     solver.solve(
-        optim_class=torch.optim.Adam,
-        optim_args={'lr': learning_rate, 'betas': (0.9, 0.999), 'eps': 1e-7, 'weight_decay': 0.},
+        optimizer=optimizer,
+        lr_scheduler=lr_scheduler,
         iters=iters,
+        num_epochs=num_epochs,
         num_samples=num_samples,
-        print_debug_every=print_debug_every,
         callbacks=callbacks
     )
     end_time = time.time()

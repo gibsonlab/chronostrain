@@ -5,8 +5,9 @@
 """
 from typing import Iterator, Tuple, Optional, Callable, Union, List, Dict
 
+import torch.optim
 from torch import Tensor
-from torch.nn import functional
+from torch.nn import functional, Parameter
 from torch.distributions import Normal
 
 from chronostrain.config import cfg
@@ -623,94 +624,78 @@ class BBVISolver(AbstractModelSolver):
 
             self.fragment_posterior.renormalize(t)
 
+    @property
+    def trainable_params(self) -> List[Parameter]:
+        return list(self.gaussian_posterior.trainable_parameters)
+
     def solve(self,
-              optim_class=torch.optim.Adam,
-              optim_args=None,
+              optimizer: torch.optim.Optimizer,
+              lr_scheduler,
+              num_epochs=1,
               iters=4000,
               num_samples=8000,
-              print_debug_every=1,
-              thresh_elbo=0.0,
               callbacks: Optional[List[Callable]] = None):
-        if optim_args is None:
-            optim_args = {'lr': 1e-3, 'betas': (0.9, 0.999), 'eps': 1e-8, 'weight_decay': 0.}
-
-        optimizer = optim_class(
-            self.gaussian_posterior.trainable_parameters,
-            **optim_args
-        )
-
         logger.debug(
             "BBVI algorithm started. "
-            "(Correlation={corr}, Gradient method, Target iterations={it}, lr={lr}, n_samples={n_samples})".format(
+            "(Correlation={corr}, {ep} epochs x {it} iterations, lr={lr}, N={n_samples})".format(
                 corr=self.correlation_type,
                 it=iters,
-                lr=optim_args["lr"],
+                ep=num_epochs,
+                lr=optimizer.param_groups[-1]['lr'],
                 n_samples=num_samples
             )
         )
 
-        time_est = RuntimeEstimator(total_iters=iters, horizon=print_debug_every)
-        last_elbo = float("-inf")
-        elbo_diff = float("inf")
-        k = 0
+        time_est = RuntimeEstimator(total_iters=iters, horizon=10)
+        x_samples = None
+        elbo_value = 0.0
 
-        while k < iters:
-            k += 1
+        for epoch in range(1, num_epochs + 1, 1):
             time_est.stopwatch_click()
+            for it in range(1, iters + 1, 1):
+                try:
+                    x_samples, gaussian_log_likelihoods = self.gaussian_posterior.reparametrized_sample(
+                        num_samples=num_samples,
+                        output_log_likelihoods=True,
+                        detach_grad=False
+                    )  # (T x N x S)
 
-            _t = RuntimeEstimator(total_iters=iters, horizon=1)
-            _t.stopwatch_click()
+                    optimizer.zero_grad()
+                    with torch.no_grad():
+                        self.update_phi(x_samples.detach())
 
-            try:
-                x_samples, gaussian_log_likelihoods = self.gaussian_posterior.reparametrized_sample(
-                    num_samples=num_samples,
-                    output_log_likelihoods=True,
-                    detach_grad=False
-                )  # (T x N x S)
+                    elbo_value = 0.0
+                    for elbo_chunk in self.elbo_marginal_gaussian(x_samples, gaussian_log_likelihoods):
+                        elbo_loss_chunk = -elbo_chunk
+                        elbo_loss_chunk.backward(retain_graph=True)
+                        optimizer.step()
 
-                optimizer.zero_grad()
-                with torch.no_grad():
-                    self.update_phi(x_samples.detach())
+                        # Save float value for callbacks.
+                        elbo_value += elbo_chunk.item()
+                except ValueError:
+                    logger.error(f"Encountered ValueError while performing BBVI optimization at iteration {it}.")
+                    raise
 
-                elbo_value = 0.0
-                for elbo_chunk in self.elbo_marginal_gaussian(x_samples, gaussian_log_likelihoods):
-                    elbo_loss_chunk = -elbo_chunk
-                    elbo_loss_chunk.backward(retain_graph=True)
-                    optimizer.step()
-
-                    # Save float value for callbacks.
-                    elbo_value += elbo_chunk.item()
-            except ValueError:
-                logger.error(f"Encountered ValueError while performing BBVI optimization at iteration {k}.")
-                raise
+            # ===========  End of epoch
+            lr_scheduler.step()
 
             if callbacks is not None:
                 for callback in callbacks:
-                    callback(k, x_samples, elbo_value)
+                    callback(epoch, x_samples, elbo_value)
 
             secs_elapsed = time_est.stopwatch_click()
             time_est.increment(secs_elapsed)
 
-            if k % print_debug_every == 0:
-                logger.info(
-                    "Iteration {iter} | time left: {t:.2f} min. | Last ELBO = {elbo:.2f}".format(
-                        iter=k,
-                        t=time_est.time_left() / 60000,
-                        elbo=elbo_value
-                    )
+            logger.info(
+                "Epoch {epoch} | time left: {t:.2f} min. | Last ELBO = {elbo:.2f}".format(
+                    epoch=epoch,
+                    t=time_est.time_left() / 60000,
+                    elbo=elbo_value
                 )
+            )
 
-            elbo_diff = elbo_value - last_elbo
-            if abs(elbo_diff) < thresh_elbo * abs(last_elbo):
-                logger.info("Convergence criteria |ELBO_diff| < {} * |last_ELBO| met; terminating early.".format(
-                    thresh_elbo
-                ))
-                break
-            last_elbo = elbo_value
-        logger.info("Finished {k} iterations. | ELBO diff = {diff}".format(
-            k=k,
-            diff=elbo_diff
-        ))
+        # ========== End of optimization
+        logger.info("Finished.")
 
         if cfg.torch_cfg.device == torch.device("cuda"):
             logger.info(

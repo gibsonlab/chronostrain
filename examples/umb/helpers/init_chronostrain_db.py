@@ -183,7 +183,7 @@ def create_chronostrain_db(gene_paths: Dict[str, Path], partial_strains: List[Di
             strand="both"
         )
 
-        print(f"Parsing BLAST hits for gene `{gene_name}`.")
+        logger.debug(f"Parsing BLAST hits for gene `{gene_name}`.")
         locations = parse_blast_hits(blast_result_path)
         for strain_entry in partial_strains:
             for blast_hit in locations[strain_entry['accession']]:

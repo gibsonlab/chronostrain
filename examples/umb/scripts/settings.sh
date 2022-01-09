@@ -31,9 +31,12 @@ export NEXTERA_ADAPTER_PATH="/PHShome/yk847/.conda/envs/chronostrain/share/trimm
 export TRIMMOMATIC_DIR="/PHShome/yk847/.conda/envs/chronostrain/share/trimmomatic-0.39-2"
 
 # ========= Chronostrain settings
-export CHRONOSTRAIN_NUM_ITERS=2000
+export CHRONOSTRAIN_NUM_ITERS=50
 export CHRONOSTRAIN_NUM_SAMPLES=150
-export CHRONOSTRAIN_LR=0.001
+export CHRONOSTRAIN_FRAG_CHUNK_SZ=500
+export CHRONOSTRAIN_NUM_EPOCHS=10
+export CHRONOSTRAIN_DECAY_LR=0.6
+export CHRONOSTRAIN_LR=0.01
 export CHRONOSTRAIN_OUTPUT_FILENAME="abundances.out"
 export CHRONOSTRAIN_ECOLI_DB_SPEC="${CHRONOSTRAIN_DATA_DIR}/database_ecoli.json"
 export CHRONOSTRAIN_DB_DIR="${CHRONOSTRAIN_DATA_DIR}/database_ecoli"
