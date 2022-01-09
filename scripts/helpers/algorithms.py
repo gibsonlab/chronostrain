@@ -62,7 +62,7 @@ def perform_bbvi(
 
     optimizer = torch.optim.Adam(
         lr=learning_rate,
-        betas=(0.9, 0.009),
+        betas=(0.9, 0.999),
         eps=1e-7,
         weight_decay=0.0,
         params=solver.trainable_params

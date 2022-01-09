@@ -646,7 +646,7 @@ class BBVISolver(AbstractModelSolver):
             )
         )
 
-        time_est = RuntimeEstimator(total_iters=iters, horizon=10)
+        time_est = RuntimeEstimator(total_iters=num_epochs, horizon=10)
         x_samples = None
         elbo_value = 0.0
 
@@ -677,8 +677,6 @@ class BBVISolver(AbstractModelSolver):
                     raise
 
             # ===========  End of epoch
-            lr_scheduler.step()
-
             if callbacks is not None:
                 for callback in callbacks:
                     callback(epoch, x_samples, elbo_value)
@@ -687,12 +685,15 @@ class BBVISolver(AbstractModelSolver):
             time_est.increment(secs_elapsed)
 
             logger.info(
-                "Epoch {epoch} | time left: {t:.2f} min. | Last ELBO = {elbo:.2f}".format(
+                "Epoch {epoch} | time left: {t:.2f} min. | Last ELBO = {elbo:.2f} | LR = {lr}".format(
                     epoch=epoch,
                     t=time_est.time_left() / 60000,
-                    elbo=elbo_value
+                    elbo=elbo_value,
+                    lr=optimizer.param_groups[-1]['lr']
                 )
             )
+
+            lr_scheduler.step()
 
         # ========== End of optimization
         logger.info("Finished.")
