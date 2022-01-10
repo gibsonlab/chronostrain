@@ -105,7 +105,7 @@ def main():
 
     # ==== Parse input reads.
     logger.info("Loading time-series read files.")
-    reads = parse_reads(
+    reads = TimeSeriesReads.load_from_csv(
         Path(args.reads_input),
         quality_format=args.quality_format
     )
