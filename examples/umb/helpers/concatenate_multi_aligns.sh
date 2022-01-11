@@ -5,5 +5,4 @@ export CHRONOSTRAIN_LOG_FILEPATH="${LOGDIR}/concatenate_multi_aligns.log"
 
 
 python concatenate_multi_aligns.py \
--w ${CHRONOSTRAIN_DB_DIR}/phylogeny/tmp \
--o ${CHRONOSTRAIN_DB_DIR}/phylogeny/concatenation.fasta \
+-o ${CHRONOSTRAIN_DB_DIR}/phylogeny/concatenation.fasta
