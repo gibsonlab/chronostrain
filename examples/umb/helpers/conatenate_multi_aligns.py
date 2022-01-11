@@ -20,8 +20,6 @@ def parse_args():
     # Input specification.
     parser.add_argument('-o', '--output_path', required=True, type=str,
                         help='<Required> The target output path to write the resulting tree to (in newick format).')
-    parser.add_argument('-w', '--work_dir', required=True, type=str,
-                        help='<Required> The directory to place intermediate alignments to.')
     return parser.parse_args()
 
 
@@ -62,13 +60,13 @@ def get_all_alignments(db: StrainDatabase, work_dir: Path) -> Dict[str, Dict[str
     return all_alignments
 
 
-def get_concatenated_alignments(db: StrainDatabase, work_dir: Path) -> Path:
+def get_concatenated_alignments(db: StrainDatabase, out_path: Path):
     """
     Generates a single FASTA file containing the concatenation of the multiple alignments of each marker gene.
     If a gene is missing from a strain, gaps are appended instead.
     If multiple hits are found, then the first available one is used (found in the same order as BLAST hits).
     """
-    all_marker_alignments = get_all_alignments(db, work_dir)
+    all_marker_alignments = get_all_alignments(db, out_path.parent)
 
     records: List[SeqRecord] = []
     for strain in db.all_strains():
@@ -104,11 +102,9 @@ def get_concatenated_alignments(db: StrainDatabase, work_dir: Path) -> Path:
             )
         )
 
-        output_path = work_dir / "concatenation.fasta"
         SeqIO.write(
-            records, output_path, "fasta"
+            records, out_path, "fasta"
         )
-        return output_path
 
 
 def main():
@@ -117,12 +113,8 @@ def main():
     out_path = Path(args.output_path)
     out_path.parent.mkdir(exist_ok=True, parents=True)
 
-    work_dir = Path(args.work_dir)
-    work_dir.mkdir(exist_ok=True, parents=True)
-
     db = cfg.database_cfg.get_database()
-    concat_path = get_concatenated_alignments(db, work_dir)
-    print(f"Resulting concatenation output to {concat_path}.")
+    get_concatenated_alignments(db, out_path)
 
 
 if __name__ == "__main__":
