@@ -79,6 +79,7 @@ def get_concatenated_alignments(db: StrainDatabase, out_path: Path):
             if marker.name not in strain_marker_map:
                 strain_marker_map[marker.name] = marker
 
+        gene_ids = []
         for gene_name in gene_names:
             record_map = all_marker_alignments[gene_name]
 
@@ -88,17 +89,19 @@ def get_concatenated_alignments(db: StrainDatabase, out_path: Path):
                 seqs_to_concat.append(
                     "".join('-' for _ in range(aln_len))
                 )
+                gene_ids.append("-")
             else:
                 target_marker = strain_marker_map[gene_name]
                 record = record_map[target_marker.id]
                 seqs_to_concat.append(
                     str(record.seq)
                 )
+                gene_ids.append(target_marker.id)
         records.append(
             SeqRecord(
                 Seq("".join(seqs_to_concat)),
                 id=strain.id,
-                description=""
+                description="|".join(gene_ids)
             )
         )
 
