@@ -1,6 +1,6 @@
 from pathlib import Path
 from dataclasses import dataclass
-from typing import List, Union, Iterator
+from typing import List, Union, Iterator, Tuple
 
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
@@ -73,6 +73,11 @@ class Marker:
             id="{}|{}|{}".format(self.metadata.parent_accession, self.name, self.id),
             description=description
         )
+
+    @staticmethod
+    def parse_seqrecord_id(record_id: str) -> Tuple[str, str, str]:
+        parent_accession, name, marker_id = record_id.split("|")
+        return parent_accession, name, marker_id
 
 
 @dataclass

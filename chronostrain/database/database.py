@@ -1,7 +1,7 @@
 import time
 from collections import defaultdict
 from pathlib import Path
-from typing import List, Union, Optional
+from typing import List, Union, Optional, Set
 
 from Bio import SeqIO
 
@@ -46,6 +46,12 @@ class StrainDatabase(object):
 
     def all_markers(self) -> List[Marker]:
         return self.backend.all_markers()
+
+    def all_marker_names(self) -> Set[str]:
+        name_set = set()
+        for marker in self.all_markers():
+            name_set.add(marker.name)
+        return name_set
 
     def get_marker(self, marker_id: str) -> Marker:
         return self.backend.get_marker(marker_id)
