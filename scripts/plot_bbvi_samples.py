@@ -82,7 +82,7 @@ def main():
     db = cfg.database_cfg.get_database()
 
     time_points = parse_inputs(Path(args.reads_input))
-    population = Population(strains=db.all_strains(), extra_strain=cfg.model_cfg.extra_strain)
+    population = Population(strains=db.all_strains())
 
     samples = torch.load(args.samples_path)
 

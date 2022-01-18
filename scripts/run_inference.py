@@ -118,7 +118,7 @@ def main():
     time_points = [time_slice.time_point for time_slice in reads]
 
     # ==== Load Population instance from database info
-    population = Population(strains=db.all_strains(), extra_strain=cfg.model_cfg.extra_strain)
+    population = Population(strains=db.all_strains())
     if cfg.model_cfg.use_sparse:
         fragments = load_fragments(reads, db)
     else:

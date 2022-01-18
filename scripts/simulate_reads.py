@@ -159,9 +159,9 @@ def main():
 
     # ========== Create Population instance.
     if accessions:
-        population = Population(database.get_strains(accessions), extra_strain=cfg.model_cfg.extra_strain)
+        population = Population(database.get_strains(accessions))
     else:
-        population = Population(database.all_strains(), extra_strain=cfg.model_cfg.extra_strain)
+        population = Population(database.all_strains())
 
     fragments = construct_fragment_space_uniform_length(args.read_length, population)
 

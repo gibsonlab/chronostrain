@@ -83,6 +83,7 @@ class Marker:
 @dataclass
 class Strain:
     id: str  # Typically, ID is the accession number.
+    name: str
     markers: List[Marker]
     metadata: Union[StrainMetadata, None] = None
 
@@ -109,7 +110,7 @@ class Strain:
 
 
 class Population:
-    def __init__(self, strains: List[Strain], extra_strain: bool = False):
+    def __init__(self, strains: List[Strain]):
         """
         :param strains: a list of Strain instances.
         """
@@ -123,15 +124,6 @@ class Population:
             for strain in strains
             for marker in strain.markers
         }
-
-        if extra_strain:
-            self.garbage_strains = [Strain(
-                    id="UNKNOWN",
-                    markers=[],
-                    metadata=None
-            )]
-        else:
-            self.garbage_strains = []
 
     def __hash__(self):
         """
@@ -150,14 +142,8 @@ class Population:
             ",".join(strain.__str__() for strain in self.strains)
         )
 
-    def num_known_strains(self) -> int:
-        return len(self.strains)
-
-    def num_unknown_strains(self) -> int:
-        return len(self.garbage_strains)
-
     def num_strains(self) -> int:
-        return self.num_known_strains() + self.num_unknown_strains()
+        return len(self.strains)
 
     def markers_iterator(self) -> Iterator[Marker]:
         for strain in self.strains:

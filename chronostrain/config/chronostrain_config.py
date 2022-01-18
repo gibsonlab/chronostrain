@@ -106,7 +106,6 @@ class ModelConfig(AbstractConfig):
         self.sics_dof: float = self.get_float("SICS_DOF")
         self.sics_scale: float = self.get_float("SICS_SCALE")
         self.use_sparse: bool = self.get_bool("SPARSE_MATRICES")
-        self.extra_strain: bool = self.get_bool("EXTRA_STRAIN")
         self.mean_read_length: float = self.get_float("MEAN_READ_LEN")
         self.insertion_error_log10: float = self.get_float("INSERTION_ERROR_LN")
         self.deletion_error_log10: float = self.get_float("DELETION_ERROR_LN")
