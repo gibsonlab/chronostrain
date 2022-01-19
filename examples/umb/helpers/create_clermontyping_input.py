@@ -35,7 +35,7 @@ def main():
     output_path.parent.mkdir(exist_ok=True, parents=True)
     with open(output_path, 'w') as f:
         for gz_path in gz_paths:
-            print("gunzip -c {} > {}".format(gz_path, gz_path.with_suffix("")))
+            print("gunzip -c {} > {}".format(gz_path, gz_path.with_suffix("")), file=f)
 
         print(
             script.format(
