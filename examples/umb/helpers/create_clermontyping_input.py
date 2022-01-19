@@ -25,20 +25,26 @@ def parse_args():
 def main():
     args = parse_args()
     straingst_db_path = Path(args.strainge_db_dir)
-    fasta_paths = straingst_db_path.glob("*.fa.gz")
+
+    gz_paths = straingst_db_path.glob("*.fa.gz")
+    fasta_paths = [gz_path.with_suffix("") for gz_path in gz_paths]
 
     script = "bash {clermon_script_path} --fasta {fasta_path} --name {analysis_name}"
-
-    script = script.format(
-        clermon_script_path=args.clermon_script_path,
-        fasta_path='@'.join(str(p) for p in fasta_paths),
-        analysis_name=args.analysis_name
-    )
 
     output_path = Path(args.output_path)
     output_path.parent.mkdir(exist_ok=True, parents=True)
     with open(output_path, 'w') as f:
-        print(script, file=f)
+        for gz_path in gz_paths:
+            print("gunzip -c {} > {}".format(gz_path, gz_path.with_suffix("")))
+
+        print(
+            script.format(
+                clermon_script_path=args.clermon_script_path,
+                fasta_path='@'.join(str(p) for p in fasta_paths),
+                analysis_name=args.analysis_name
+            ),
+            file=f
+        )
 
     print(f"Wrote script wrapper to {args.output_path}")
 
