@@ -26,8 +26,10 @@ def main():
     args = parse_args()
     straingst_db_path = Path(args.strainge_db_dir)
 
-    gz_paths = straingst_db_path.glob("*.fa.gz")
+    gz_paths = list(straingst_db_path.glob("*.fa.gz"))
     fasta_paths = [gz_path.with_suffix("") for gz_path in gz_paths]
+
+    print("Found {} target sequence files.".format(len(gz_paths)))
 
     script = "bash {clermon_script_path} --fasta {fasta_path} --name {analysis_name}"
 
