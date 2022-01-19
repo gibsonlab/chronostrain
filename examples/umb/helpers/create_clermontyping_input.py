@@ -1,8 +1,6 @@
 import argparse
 from pathlib import Path
 
-from chronostrain import cfg
-
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -10,6 +8,9 @@ def parse_args():
     )
 
     # Input specification.
+    parser.add_argument('-i', '--strainge_db_dir', required=True, type=str,
+                        help='<Required> The path to the strainge database directory containing strain-named fasta '
+                             'files (usually together with .hdf5 k-mer files).')
     parser.add_argument('-c', '--clermon_script_path', required=True, type=str,
                         help='<Required> The path to clermonTyping.sh')
     parser.add_argument('-o', '--output_path', required=True, type=str,
@@ -23,11 +24,8 @@ def parse_args():
 
 def main():
     args = parse_args()
-
-    fasta_paths = []
-    db = cfg.database_cfg.get_database()
-    for strain in db.all_strains():
-        fasta_paths.append(strain.metadata.source_path)
+    straingst_db_path = Path(args.strainge_db_dir)
+    fasta_paths = straingst_db_path.glob("*.fa.gz")
 
     script = "bash {clermon_script_path} --fasta {fasta_path} --name {analysis_name}"
 
