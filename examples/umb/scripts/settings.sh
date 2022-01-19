@@ -8,6 +8,7 @@ export SETTINGS_PATH="${BASE_DIR}/scripts/settings.sh"
 
 # ========= (Strainge-specific configuration.)
 export STRAINGE_STRAIN_LIST=/mnt/d/strainge/references_to_keep.txt
+export STRAINGE_DB_DIR=/mnt/d/strainge/strainge_db
 
 # ========= (Metaphlan-specific configuration.)
 export METAPHLAN_PKL_PATH=/mnt/d/metaphlan/mpa_v30_CHOCOPhlAn_201901.pkl
