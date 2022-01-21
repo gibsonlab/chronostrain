@@ -32,6 +32,19 @@ def log_softmax(x_samples: torch.Tensor, t: int) -> torch.Tensor:
     return x_samples[t] - torch.logsumexp(x_samples[t], dim=1, keepdim=True)
 
 
+def init_diag(x: torch.Tensor, scale: float):
+    """
+    A reimplementation of torch.nn.init.eye_, so that the diagonal is an arbitrary value.
+    :param x:
+    :param scale:
+    :return:
+    """
+    with torch.no_grad():
+        torch.eye(*x.shape, out=x, requires_grad=x.requires_grad)
+        torch.mul(x, scale, out=x)
+    return x
+
+
 class LogMMExpDenseSPModel(torch.nn.Module):
     """
     Represents a Module which represents

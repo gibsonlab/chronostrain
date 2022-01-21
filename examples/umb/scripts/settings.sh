@@ -15,6 +15,7 @@ export METAPHLAN_PKL_PATH=/mnt/d/metaphlan/mpa_v30_CHOCOPhlAn_201901.pkl
 
 # Location for reads and outputs.
 export OUTPUT_DIR="${CHRONOSTRAIN_DATA_DIR}/output"
+export PHYLOGENY_OUTPUT_DIR="${OUTPUT_DIR}/phylogeny"
 export READS_DIR="${CHRONOSTRAIN_DATA_DIR}/reads"
 export CHRONOSTRAIN_OUTPUT_DIR="${OUTPUT_DIR}/chronostrain"
 
