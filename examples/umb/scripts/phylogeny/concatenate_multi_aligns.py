@@ -101,7 +101,7 @@ def get_concatenated_alignments(db: StrainDatabase, out_path: Path):
             SeqRecord(
                 Seq("".join(seqs_to_concat)),
                 id=strain.id,
-                description="|".join(gene_ids)
+                description=f"{strain.name}:" + "|".join(gene_ids)
             )
         )
 
