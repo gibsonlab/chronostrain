@@ -29,7 +29,7 @@ def create_clade_annotation(target_path: Path,
         print("TREE_COLORS", file=f)
         print("SEPARATOR COMMA", file=f)
         print("DATA", file=f)
-        print("#NODE_ID,TYPE,COLOR,LABEL_OR_STYLE,SIZE_FACTOR")
+        print("#NODE_ID,TYPE,COLOR,LABEL_OR_STYLE,SIZE_FACTOR", file=f)
         for strain in strains:
             clade = strain_clades[strain.id]
             color = clade_hex_colors[clade]
