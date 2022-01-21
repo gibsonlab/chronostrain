@@ -33,7 +33,7 @@ def create_clade_annotation(target_path: Path,
         for strain in strains:
             clade = strain_clades[strain.id]
             color = clade_hex_colors[clade]
-            print(f"{strain.id},range,{color},{clade}")
+            print(f"{strain.id},range,{color},{clade}", file=f)
 
 
 def create_label_annotation(target_path: Path, strains: List[Strain]):
