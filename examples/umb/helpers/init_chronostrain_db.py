@@ -76,7 +76,7 @@ def perform_indexing(refseq_dir: Path) -> pd.DataFrame:
 
                 strain_name = strain_dir.name
                 target_files = list(strain_dir.glob("*_genomic.fna.gz"))
-                print(f"{genus}/{species}/{strain_name} -> {','.join(str(target_files))}")
+                print(f"{genus}/{species}/{strain_name} -> {','.join(str(f) for f in target_files)}")
                 if len(target_files) > 1:
                     raise RuntimeError(f"Found multiple genomic.fna.gz files.")
                 elif len(target_files) == 0:
