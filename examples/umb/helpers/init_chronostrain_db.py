@@ -85,6 +85,12 @@ def perform_indexing(refseq_dir: Path) -> pd.DataFrame:
                         continue
 
                     for accession, chrom_path in extract_chromosomes(fpath):
+                        logger.debug("Found accession {} ({} {}, Strain `{}`)".format(
+                            accession,
+                            genus,
+                            species,
+                            strain_name
+                        ))
                         df_entries.append({
                             "Genus": genus,
                             "Species": species,
@@ -99,7 +105,6 @@ def extract_chromosomes(path: Path) -> Iterator[Tuple[str, Path]]:
     for record in read_seq_file(path, file_format='fasta'):
         desc = record.description
         accession = record.id.split(' ')[0]
-        logger.debug("Accession: {}".format(accession))
 
         if "plasmid" in desc or len(record.seq) < 5e6:
             continue
