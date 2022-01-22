@@ -70,6 +70,8 @@ def perform_indexing(refseq_dir: Path) -> pd.DataFrame:
                 continue
 
             species = species_dir.name
+            logger.info(f"Searching through {genus} {species}...")
+
             for strain_dir in species_dir.iterdir():
                 if not strain_dir.is_dir():
                     continue
@@ -114,23 +116,6 @@ def extract_chromosomes(path: Path) -> Iterator[Tuple[str, Path]]:
             SeqIO.write([record], chrom_path, "fasta")
 
             yield accession, chrom_path
-
-
-def init_from_strainge(strainge_db_dir: Path, hdf5_path: Path) -> Tuple[str, str, str, str]:
-    fa_filename = hdf5_path.with_suffix("").name
-    fa_path = strainge_db_dir / fa_filename
-
-    full_suffix = '.fa.gz.hdf5'
-    base_tokens = hdf5_path.name[:-len(full_suffix)].split("_")
-    strain_name = "_".join(base_tokens[2:])
-    genus_name = base_tokens[0]
-    species_name = base_tokens[1]
-
-    for record in read_seq_file(fa_path, "fasta"):
-        accession = record.id.strip().split(" ")[0]
-        return genus_name, species_name, strain_name, accession
-
-    raise RuntimeError(f"Couldn't find a valid record in {str(fa_path)}.")
 
 
 # ============= Rest of initialization (Run BLAST)
@@ -416,15 +401,18 @@ def main():
     seq_dir = Path(args.refseq_dir)
 
     # ================= Indexing of refseqs
+    logger.info(f"Indexing refseqs located in {seq_dir}")
     seq_index = perform_indexing(seq_dir)
     index_path = seq_dir / "index.tsv"
     seq_index.to_csv(index_path, sep='\t')
     logger.info(f"Wrote index to {str(index_path)}.")
 
     # ================= Pull out reference genes
+    logger.info(f"Retrieving reference genes from {args.reference_accession}")
     ref_gene_paths = download_reference(args.reference_accession, metaphlan_pkl_path)
 
     # ================= Compile into JSON.
+    logger.info("Creating JSON entries.")
     object_entries = create_chronostrain_db(ref_gene_paths, seq_index, output_path)
 
     print_summary(object_entries, ref_gene_paths)
