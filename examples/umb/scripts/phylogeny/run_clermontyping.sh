@@ -8,7 +8,7 @@ echo "Using ClermonTyping script at: ${CLERMONTYPING_SCRIPT}"
 echo "If ClermonTyping script does not exist, install it and/or change the path in this script (run_clermontyping.sh)."
 
 python ${BASE_DIR}/scripts/phylogeny/create_clermontyping_input.py \
--i ${STRAINGE_DB_DIR} \
+-i ${NCBI_REFSEQ_DIR} \
 -c ${CLERMONTYPING_SCRIPT} \
 -o ${PHYLOGENY_OUTPUT_DIR}/ClermonTyping/clermontyping.sh \
 

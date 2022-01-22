@@ -6,9 +6,9 @@ export BASE_DIR="${PROJECT_DIR}/examples/umb"
 # ======== Location of this file.
 export SETTINGS_PATH="${BASE_DIR}/scripts/settings.sh"
 
-# ========= (Strainge-specific configuration.)
-export STRAINGE_STRAIN_LIST=/mnt/d/strainge/references_to_keep.txt
-export STRAINGE_DB_DIR=/mnt/d/strainge/strainge_db
+# ========= NCBI RefSeqs
+export NCBI_REFSEQ_DIR="${CHRONOSTRAIN_DATA_DIR}/ref_genomes"
+export REFSEQ_ALIGN_PATH="${CHRONOSTRAIN_DATA_DIR}/strain_alignments/concatenation.fasta"
 
 # ========= (Metaphlan-specific configuration.)
 export METAPHLAN_PKL_PATH=/mnt/d/metaphlan/mpa_v30_CHOCOPhlAn_201901.pkl
@@ -40,7 +40,10 @@ export CHRONOSTRAIN_NUM_EPOCHS=10
 export CHRONOSTRAIN_DECAY_LR=0.6
 export CHRONOSTRAIN_LR=0.01
 export CHRONOSTRAIN_OUTPUT_FILENAME="abundances.out"
-export CHRONOSTRAIN_ECOLI_DB_SPEC="${CHRONOSTRAIN_DATA_DIR}/database_ecoli.json"
+
+export CHRONOSTRAIN_ECOLI_DB_JSON="${CHRONOSTRAIN_DATA_DIR}/database_ecoli_all.json"
+export CHRONOSTRAIN_ECOLI_DB_JSON_PRUNED="${CHRONOSTRAIN_DATA_DIR}/database_ecoli_pruned.json"
+export CHRONOSTRAIN_ECOLI_DB_SPEC="${CHRONOSTRAIN_ECOLI_DB_JSON_PRUNED}"
 export CHRONOSTRAIN_DB_DIR="${CHRONOSTRAIN_DATA_DIR}/database_ecoli"
 
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)

@@ -8,9 +8,9 @@ def parse_args():
     )
 
     # Input specification.
-    parser.add_argument('-i', '--strainge_db_dir', required=True, type=str,
-                        help='<Required> The path to the strainge database directory containing strain-named fasta '
-                             'files (usually together with .hdf5 k-mer files).')
+    # TODO: use the newly created refseq index TSV file.
+    parser.add_argument('-i', '--refseq_dir', required=True, type=str,
+                        help='<Required> The path to the refseq database directory containing strain-named fasta files.')
     parser.add_argument('-c', '--clermon_script_path', required=True, type=str,
                         help='<Required> The path to clermonTyping.sh')
     parser.add_argument('-o', '--output_path', required=True, type=str,
@@ -24,9 +24,9 @@ def parse_args():
 
 def main():
     args = parse_args()
-    straingst_db_path = Path(args.strainge_db_dir)
+    refseq_dir = Path(args.refseq_dir)
 
-    gz_paths = list(straingst_db_path.glob("*.fa.gz"))
+    gz_paths = list(refseq_dir.glob("*.fa.gz"))
     fasta_paths = [gz_path.with_suffix("") for gz_path in gz_paths]
 
     print("Found {} target sequence files.".format(len(gz_paths)))

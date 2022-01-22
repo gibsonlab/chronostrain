@@ -1,25 +1,32 @@
 import argparse
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Any, Set
+import json
 
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
+import numpy as np
 from chronostrain import cfg
-from chronostrain.database import StrainDatabase
+from chronostrain.util.sequences import nucleotides_to_z4
+from chronostrain.database import JSONStrainDatabase, StrainDatabase
 from chronostrain.model import Marker
 from chronostrain.util.external import mafft_global
 
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Concatenate multiple alignments of all marker genes found in database."
+        description="Cluster strains by similarity (in hamming distance of concatenated marker alignments)"
     )
 
     # Input specification.
-    parser.add_argument('-o', '--output_path', required=True, type=str,
-                        help='<Required> The target output path to write the resulting tree to (in newick format).')
+    parser.add_argument('--input_json', required=True, type=str,
+                        help='<Required> The input database JSON file.')
+    parser.add_argument('--output_json', required=True, type=str,
+                        help='<Required> The output database JSON file.')
+    parser.add_argument('--alignments_path', required=True, type=str,
+                        help='<Required> The path to the concatenated alignments.')
     return parser.parse_args()
 
 
@@ -48,6 +55,7 @@ def multi_align_markers(output_path: Path, markers: List[Marker], n_threads: int
 
 
 def get_all_alignments(db: StrainDatabase, work_dir: Path) -> Dict[str, Dict[str, SeqRecord]]:
+    work_dir.mkdir(exist_ok=True, parents=True)
     all_alignments = {}
     for gene_name in db.all_marker_names():
         alignment_records = multi_align_markers(
@@ -66,7 +74,7 @@ def get_concatenated_alignments(db: StrainDatabase, out_path: Path):
     If a gene is missing from a strain, gaps are appended instead.
     If multiple hits are found, then the first available one is used (found in the same order as BLAST hits).
     """
-    all_marker_alignments = get_all_alignments(db, out_path.parent)
+    all_marker_alignments = get_all_alignments(db, out_path.parent / "marker_genes")
 
     records: List[SeqRecord] = []
     for strain in db.all_strains():
@@ -110,14 +118,69 @@ def get_concatenated_alignments(db: StrainDatabase, out_path: Path):
         )
 
 
+def prune_db(input_json_path: Path, output_json_path: Path, alignments_path: Path):
+    # parse json entries.
+    entries: Dict[str, Dict[str, Any]] = {}
+    with open(input_json_path, "r") as f:
+        start_entries = json.load(f)
+        for entry in start_entries:
+            accession = entry['accession']
+            entries[accession] = entry
+
+    # Read the alignments.
+    alignments: Dict[str, np.ndarray] = {}
+    for record in SeqIO.parse(alignments_path, "fasta"):
+        accession = record.id
+        alignments[accession] = nucleotides_to_z4(str(record.seq))
+
+    # Cluster if hamming dist = 0.
+    accessions_to_cluster: Set[str] = set(entries.keys())
+    clusters: List[List[str]] = []
+    while len(accessions_to_cluster) > 0:
+        cluster_rep_acc = next(iter(accessions_to_cluster))
+        cluster: List[str] = []
+
+        for other_acc in accessions_to_cluster:
+            # Note: this explicitly includes cluster_rep_acc itself.
+            hamming = np.sum(alignments[cluster_rep_acc] != alignments[other_acc])
+            if hamming == 0:
+                cluster.append(other_acc)
+
+        accessions_to_cluster = accessions_to_cluster.difference(cluster)
+        entries[cluster_rep_acc]['cluster'] = [
+            "{}({})".format(
+                entries[other_acc]['accession'], entries[other_acc]['strain']
+            )
+            for other_acc in cluster
+        ]
+        clusters.append(cluster)
+
+    # Create the clustered json.
+    result_entries = [
+        entries[cluster[0]]
+        for cluster in clusters
+    ]
+
+    with open(output_json_path, 'w') as outfile:
+        json.dump(result_entries, outfile, indent=4)
+
+
 def main():
     args = parse_args()
 
-    out_path = Path(args.output_path)
-    out_path.parent.mkdir(exist_ok=True, parents=True)
+    input_json_path = Path(args.input_json)
+    output_json_path = Path(args.output_json)
 
-    db = cfg.database_cfg.get_database()
-    get_concatenated_alignments(db, out_path)
+    input_db = JSONStrainDatabase(
+        entries_file=input_json_path,
+        marker_max_len=cfg.database_cfg.db_kwargs['marker_max_len'],
+        force_refresh=True,
+        load_full_genomes=False
+    )
+
+    alignments_path = Path(args.alignments_out_path)
+    get_concatenated_alignments(input_db, alignments_path)
+    prune_db(input_json_path, output_json_path, alignments_path)
 
 
 if __name__ == "__main__":
