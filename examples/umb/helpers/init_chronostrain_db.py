@@ -76,10 +76,11 @@ def perform_indexing(refseq_dir: Path) -> pd.DataFrame:
 
                 strain_name = strain_dir.name
                 target_files = list(strain_dir.glob("*_genomic.fna.gz"))
+                print(f"{genus}/{species}/{strain_name} -> {','.join(str(target_files))}")
                 if len(target_files) > 1:
-                    raise RuntimeError(f"Found multiple genomic.fna.gz files for {genus}/{species}/{strain_name}.")
+                    raise RuntimeError(f"Found multiple genomic.fna.gz files.")
                 elif len(target_files) == 0:
-                    raise RuntimeError(f"No genomic.fna.gz files for {genus}/{species}/{strain_name}.")
+                    raise RuntimeError(f"No genomic.fna.gz files.")
 
                 for accession, chrom_path in extract_chromosomes(target_files[0]):
                     df_entries.append({
