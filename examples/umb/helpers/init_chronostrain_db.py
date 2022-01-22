@@ -70,7 +70,7 @@ def perform_indexing(refseq_dir: Path) -> pd.DataFrame:
                 continue
 
             species = species_dir.name
-            for strain_dir in genus_dir.iterdir():
+            for strain_dir in species_dir.iterdir():
                 if not strain_dir.is_dir():
                     continue
 
