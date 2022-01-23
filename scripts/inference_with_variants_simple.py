@@ -168,7 +168,8 @@ def main():
 
     # ==== Finally, plot the posterior.
     viz.plot_bbvi_posterior(
-        model=model,
+        times=model.times,
+        population=model.bacteria_pop,
         posterior=posterior,
         plot_path=out_dir / "plot.{}".format(args.plot_format),
         samples_path=out_dir / "samples.pt",

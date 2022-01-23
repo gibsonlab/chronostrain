@@ -8,7 +8,7 @@ from matplotlib.lines import Line2D
 
 from chronostrain import logger
 from chronostrain.algs import BBVISolver, AbstractPosterior
-from chronostrain.model import GenerativeModel
+from chronostrain.model import GenerativeModel, Population
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.util import filesystem
 
@@ -84,7 +84,8 @@ def plot_training_animation(
     logger.info("Saved BBVI training history to {}.".format(out_path))
 
 
-def plot_bbvi_posterior(model: GenerativeModel,
+def plot_bbvi_posterior(times: List[float],
+                        population: Population,
                         posterior: AbstractPosterior,
                         plot_path: Path,
                         samples_path: Path,
@@ -107,9 +108,9 @@ def plot_bbvi_posterior(model: GenerativeModel,
 
     # Plotting.
     plot_posterior_abundances(
-        times=model.times,
+        times=times,
         posterior_samples=samples.cpu().numpy(),
-        population=model.bacteria_pop,
+        population=population,
         title=title,
         plots_out_path=plot_path,
         truth_path=ground_truth_path,

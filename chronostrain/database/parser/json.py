@@ -30,6 +30,7 @@ class StrainEntry:
     genus: str
     species: str
     accession: str
+    strain_name: str
     source: str
     marker_entries: List["MarkerEntry"]
     index: int
@@ -66,6 +67,11 @@ class StrainEntry:
             raise StrainDatabaseParseError("Missing entry `accession` from json strain entry, index {}.".format(idx))
 
         try:
+            strain_name = json_dict["strain"]
+        except KeyError:
+            raise StrainDatabaseParseError("Missing entry `name` from json strain entry, index {}.".format(idx))
+
+        try:
             markers_arr = json_dict["markers"]
         except KeyError:
             raise StrainDatabaseParseError("Missing entry `markers` from json strain entry, index {}.".format(idx))
@@ -79,6 +85,7 @@ class StrainEntry:
         entry = StrainEntry(genus=genus,
                             species=species,
                             accession=accession,
+                            strain_name=strain_name,
                             marker_entries=marker_entries,
                             source=source,
                             index=idx)
@@ -650,6 +657,7 @@ class JSONParser(AbstractDatabaseParser):
                 strain_markers = list(sequence_loader.parse_markers(force_refresh=self.force_refresh))
                 yield Strain(
                     id=strain_entry.accession,
+                    name=strain_entry.strain_name,
                     markers=strain_markers,
                     metadata=StrainMetadata(
                         ncbi_accession=strain_entry.accession,
@@ -672,6 +680,7 @@ class JSONParser(AbstractDatabaseParser):
                 strain_markers = list(loader.parse_markers())
                 yield Strain(
                     id=strain_entry.accession,
+                    name=strain_entry.strain_name,
                     markers=strain_markers,
                     metadata=StrainMetadata(
                         ncbi_accession=strain_entry.accession,

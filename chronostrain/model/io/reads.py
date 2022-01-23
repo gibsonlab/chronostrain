@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Optional, Union, Iterator, Dict
+from typing import List, Optional, Union, Iterator, Dict, Tuple
 import numpy as np
 
 from Bio import SeqIO
@@ -151,7 +151,7 @@ class TimeSeriesReads(object):
     @staticmethod
     def load(time_points: List[float],
              read_depths: List[int],
-             sources: List[TimeSliceReadSource]):
+             sources: List[TimeSliceReadSource]) -> 'TimeSeriesReads':
         if len(time_points) != len(sources):
             raise ValueError("Number of time points ({}) do not match number of read sources. ({})".format(
                 len(time_points), len(sources)
@@ -161,6 +161,49 @@ class TimeSeriesReads(object):
             TimeSliceReads.load(src, read_depth_t, t)
             for src, read_depth_t, t in zip(sources, read_depths, time_points)
         ])
+
+    @staticmethod
+    def load_from_csv(csv_path: Path, quality_format: str) -> 'TimeSeriesReads':
+        import csv
+        time_points_to_reads: Dict[float, List[Tuple[int, Path]]] = {}
+        if not csv_path.exists():
+            raise FileNotFoundError(f"Missing required file `{str(csv_path)}`")
+
+        with open(csv_path, "r") as f:
+            input_specs = csv.reader(f, delimiter=',', quotechar='"')
+            for row in input_specs:
+                time_point = float(row[0])
+                num_reads = int(row[1])
+                read_path = Path(row[2])
+
+                if not read_path.exists():
+                    raise FileNotFoundError(
+                        "The input specification `{}` pointed to `{}`, which does not exist.".format(
+                            str(csv_path),
+                            read_path
+                        ))
+
+                if time_point not in time_points_to_reads:
+                    time_points_to_reads[time_point] = []
+
+                time_points_to_reads[time_point].append((num_reads, read_path))
+
+        time_points = sorted(time_points_to_reads.keys(), reverse=False)
+        read_depths = [
+            sum([
+                n_reads for n_reads, _ in time_points_to_reads[t]
+            ])
+            for t in time_points
+        ]
+
+        time_slice_sources = [
+            TimeSliceReadSource([
+                read_path for _, read_path in time_points_to_reads[t]
+            ], quality_format)
+            for t in time_points
+        ]
+
+        return TimeSeriesReads.load(time_points, read_depths, time_slice_sources)
 
     def __iter__(self) -> Iterator[TimeSliceReads]:
         for time_slice in self.time_slices:

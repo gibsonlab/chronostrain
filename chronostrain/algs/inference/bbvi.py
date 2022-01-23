@@ -2,14 +2,12 @@
   bbvi.py (pytorch implementation)
   Black-box Variational Inference
   Author: Younhun Kim
-
-  This is an implementation of BBVI for the posterior q(X_1) q(X_2 | X_1) ...
-  (Note: doesn't work as well as BBVI for mean-field assumption.)
 """
-from typing import Iterator, Tuple, Optional, Callable, Union, List
+from typing import Iterator, Tuple, Optional, Callable, Union, List, Dict
 
+import torch.optim
 from torch import Tensor
-from torch.nn import functional
+from torch.nn import functional, Parameter
 from torch.distributions import Normal
 
 from chronostrain.config import cfg
@@ -29,6 +27,24 @@ from ...util.sparse.sliceable import BBVIOptimizedSparseMatrix
 logger = create_logger(__name__)
 
 
+def log_softmax(x_samples: torch.Tensor, t: int) -> torch.Tensor:
+    # x_samples: (T x N x S) tensor.
+    return x_samples[t] - torch.logsumexp(x_samples[t], dim=1, keepdim=True)
+
+
+def init_diag(x: torch.Tensor, scale: float):
+    """
+    A reimplementation of torch.nn.init.eye_, so that the diagonal is an arbitrary value.
+    :param x:
+    :param scale:
+    :return:
+    """
+    with torch.no_grad():
+        torch.eye(*x.shape, out=x, requires_grad=x.requires_grad)
+        torch.mul(x, scale, out=x)
+    return x
+
+
 class LogMMExpDenseSPModel(torch.nn.Module):
     """
     Represents a Module which represents
@@ -44,6 +60,7 @@ class LogMMExpDenseSPModel(torch.nn.Module):
 
         self.nz_targets: List[torch.Tensor] = []
         self.target_cols: List[torch.Tensor] = []
+
         for target_idx in range(self.A_rows):
             nz_targets_k = torch.where(sparse_right_matrix.indices[0] == target_idx)[0]
 
@@ -60,7 +77,7 @@ class LogMMExpDenseSPModel(torch.nn.Module):
 
         for target_idx in range(self.A_rows):
             """
-            Given a target index k, compute the k-th summand of the dot product <u,v> = \SUM_k u_k v_k,
+            Given a target index k, compute the k-th summand of the dot product <u,v> = SUM_k u_k v_k,
             for each row u of x, and each column v of y.
 
             Note that k here specifies a column of x, and a row of y.
@@ -95,8 +112,8 @@ class LinearTrilGaussian(torch.nn.Linear):
         # x[range(self.n_features), range(self.n_features)] = torch.diag(self.weight)
         return x
 
-    def forward(self, input: Tensor) -> Tensor:
-        return functional.linear(input, self.cholesky_part, self.bias)
+    def forward(self, x: Tensor) -> Tensor:
+        return functional.linear(x, self.cholesky_part, self.bias)
 
 
 class GaussianPosteriorFullCorrelation(AbstractPosterior):
@@ -145,7 +162,7 @@ class GaussianPosteriorFullCorrelation(AbstractPosterior):
         When computing log-likelihood p(x; a,b), it is important to keep a,b differentiable. e.g.
         output logp = f(a+bz; a, b) where f is the gaussian density N(a,b).
         """
-        reparametrized_samples = self.reparam_network(std_gaussian_samples)
+        reparametrized_samples = self.reparam_network.forward(std_gaussian_samples)
 
         if detach_grad:
             reparametrized_samples = reparametrized_samples.detach()
@@ -162,10 +179,14 @@ class GaussianPosteriorFullCorrelation(AbstractPosterior):
 
     def reparametrized_sample_log_likelihoods(self, samples):
         w = self.reparam_network.cholesky_part
-        return torch.distributions.MultivariateNormal(
-            loc=self.reparam_network.bias,
-            covariance_matrix=w.mm(w.t())
-        ).log_prob(samples)
+        try:
+            return torch.distributions.MultivariateNormal(
+                loc=self.reparam_network.bias,
+                scale_tril=w
+            ).log_prob(samples)
+        except ValueError:
+            logger.error(f"Problem while computing log MV log-likelihood.")
+            raise
 
     def log_likelihood(self, x: torch.Tensor) -> float:
         if len(x.size()) == 2:
@@ -188,7 +209,7 @@ class GaussianPosteriorStrainCorrelation(AbstractPosterior):
         # ========== Reparametrization network (standard Gaussians -> nonstandard Gaussians)
         self.reparam_networks = []
 
-        for t_idx in range(self.model.num_times()):
+        for _ in range(self.model.num_times()):
             linear_layer = LinearTrilGaussian(
                 n_features=self.model.num_strains(),
                 bias=True,
@@ -251,12 +272,11 @@ class GaussianPosteriorStrainCorrelation(AbstractPosterior):
                 w = linear.cholesky_part
                 log_likelihood_t = torch.distributions.MultivariateNormal(
                     loc=linear.bias,
-                    covariance_matrix=w.mm(w.t())
+                    scale_tril=w
                 ).log_prob(samples_t)
-            except ValueError as e:
-                w = linear.cholesky_part
-                logger.error("Resulting covariance cholesky: (t={}) {}".format(t, w))
-                raise e
+            except ValueError:
+                logger.error(f"Problem while computing log MV log-likelihood of time index {t}.")
+                raise
             ans = ans + log_likelihood_t
         return ans
 
@@ -288,6 +308,7 @@ class GaussianPosteriorTimeCorrelation(AbstractPosterior):
                 device=cfg.torch_cfg.device
             )
             torch.nn.init.eye_(linear_layer.weight)
+            torch.nn.init.constant_(linear_layer.bias, 0)
             self.reparam_networks[s_idx] = linear_layer
         self.trainable_parameters = []
         for network in self.reparam_networks.values():
@@ -340,10 +361,14 @@ class GaussianPosteriorTimeCorrelation(AbstractPosterior):
             samples_s = samples[s]
             linear = self.reparam_networks[s]
             w = linear.cholesky_part
-            log_likelihood_s = torch.distributions.MultivariateNormal(
-                loc=linear.bias,
-                covariance_matrix=w.mm(w.t())
-            ).log_prob(samples_s)
+            try:
+                log_likelihood_s = torch.distributions.MultivariateNormal(
+                    loc=linear.bias,
+                    scale_tril=w
+                ).log_prob(samples_s)
+            except ValueError:
+                logger.error(f"Problem while computing log MV log-likelihood of strain index {s}.")
+                raise
             ans = ans + log_likelihood_s
         return ans
 
@@ -357,9 +382,11 @@ class GaussianPosteriorTimeCorrelation(AbstractPosterior):
 class FragmentPosterior(object):
     def __init__(self,
                  model: GenerativeModel,
+                 reads: TimeSeriesReads,
                  sparse_data_likelihoods: SparseDataLikelihoods,
                  frag_index_map: Optional[Callable] = None):
         self.model = model
+        self.reads = reads
 
         # length-T list of (F x N_t) tensors.
         self.phi: List[BBVIOptimizedSparseMatrix] = [
@@ -398,7 +425,7 @@ class FragmentPosterior(object):
         phi_t = self.phi[t_idx]  # (F x R)
 
         # invoke torch-scatter to compute columnwise mins.
-        scale_values = phi_t.columnwise_min()
+        scale_values = phi_t.columnwise_max()
 
         col_logsumexp = scale_values + SparseMatrix(
             indices=phi_t.indices,
@@ -408,6 +435,29 @@ class FragmentPosterior(object):
         ).exp().sum(dim=0).log()
 
         phi_t.update_values(phi_t.values - col_logsumexp[phi_t.indices[1]])
+
+        #  TODO DEBUG
+        # if torch.isnan(
+        #         phi_t.exp().sum(dim=1)
+        # ).sum() > 0:
+        #     phi_t.values = old_values
+        #     print("Found NANs in Phi, timepoint = {}".format(t_idx))
+        #     print("scale_values: {}".format(scale_values))
+        #     print("col_logsumexp: {}".format(col_logsumexp))
+        #
+        #     offending_col = torch.where(torch.isinf(col_logsumexp))[0][0]
+        #     print(f"Offending column = {offending_col}")
+        #     print(f"column {offending_col} entries:")
+        #     for loc in torch.where(phi_t.indices[1] == offending_col)[0]:
+        #         row = phi_t.indices[0, loc]
+        #         col = offending_col
+        #         val = phi_t.values[loc]
+        #         print(f"\tPhi_{t_idx}[{row}, {col}] = {val}")
+        #
+        #     from pathlib import Path
+        #     phi_t.save(Path("bad_phi_t.npz"))
+        #
+        #     exit(1)
 
 
 class BBVISolver(AbstractModelSolver):
@@ -454,16 +504,17 @@ class BBVISolver(AbstractModelSolver):
                     projector.sparse_mul(frag_freqs),
                     row_chunk_size=self.frag_chunk_size
             ).chunks:
+                n_chunks += 1
                 self.log_mm_exp_models[t_idx].append(
                     LogMMExpDenseSPModel(sparse_chunk.t())
                 )
-                n_chunks += 1
 
             logger.debug(f"Divided {projector.rows} x {frag_freqs.columns} sparse matrix "
                          f"into {n_chunks} chunks.")
 
         self.fragment_posterior = FragmentPosterior(
             model=model,
+            reads=data,
             sparse_data_likelihoods=self.data_likelihoods,
             frag_index_map=lambda fidx, tidx: self.data_likelihoods.supported_frags[tidx][fidx].item()
         )
@@ -512,16 +563,28 @@ class BBVISolver(AbstractModelSolver):
         # ======== E_{F ~ Qf}(log P(F|Xi))
         for t_idx in range(self.model.num_times()):
             # =========== NEW IMPLEMENTATION: chunks
-            log_softmax_x_t = torch.softmax(x_samples[t_idx, :, :], dim=1).log()  # (N x S)
+            log_softmax_xt = log_softmax(x_samples, t=t_idx)
+
             for chunk_idx, phi_chunk in enumerate(
                     self.fragment_posterior.phi[t_idx].chunks
             ):
-                yield self.elbo_chunk_helper(
+                e = self.elbo_chunk_helper(
                     t_idx,
                     chunk_idx,
-                    log_softmax_x_t,
+                    log_softmax_xt,
                     phi_chunk
                 ).sum() * (1 / n_samples)
+
+                if torch.isinf(e) or torch.isnan(e):
+                    logger.debug("About to throw exception.")
+
+                    # These should contain no infs/nans.
+                    logger.debug("Phi chunk sum: {}".format(
+                        str(phi_chunk.exp().sum(dim=1))
+                    ))
+
+                    raise ValueError(f"Invalid ELBO value {e.item()} found for t_idx: {t_idx}, chunk_idx: {chunk_idx}")
+                yield e
 
     def elbo_chunk_helper(self,
                           t_idx: int,
@@ -549,8 +612,10 @@ class BBVISolver(AbstractModelSolver):
         :param x_samples:
         :return:
         """
+
         for t in range(self.model.num_times()):
-            log_softmax_xt = torch.log(softmax(x_samples[t], dim=1))  # (N x S)=
+            log_softmax_xt = log_softmax(x_samples, t=t)
+
             for chunk_idx, logmmexp_model in enumerate(self.log_mm_exp_models[t]):
                 # The monte carlo approximation
                 mc_expectation_ll = torch.mean(
@@ -567,94 +632,84 @@ class BBVISolver(AbstractModelSolver):
                     force_coalesce=False,
                     _explicit_locs_per_row=data_ll_chunk.locs_per_row
                 )
+
                 self.fragment_posterior.phi[t].collect_chunk(chunk_idx, phi_t_chunk)
 
             self.fragment_posterior.renormalize(t)
 
+    @property
+    def trainable_params(self) -> List[Parameter]:
+        return list(self.gaussian_posterior.trainable_parameters)
+
     def solve(self,
-              optim_class=torch.optim.Adam,
-              optim_args=None,
+              optimizer: torch.optim.Optimizer,
+              lr_scheduler,
+              num_epochs=1,
               iters=4000,
               num_samples=8000,
-              print_debug_every=1,
-              thresh_elbo=0.0,
               callbacks: Optional[List[Callable]] = None):
-        if optim_args is None:
-            optim_args = {'lr': 1e-3, 'betas': (0.9, 0.999), 'eps': 1e-8, 'weight_decay': 0.}
-
-        optimizer = optim_class(
-            self.gaussian_posterior.trainable_parameters,
-            **optim_args
-        )
-
         logger.debug(
             "BBVI algorithm started. "
-            "(Correlation={corr}, Gradient method, Target iterations={it}, lr={lr}, n_samples={n_samples})".format(
+            "(Correlation={corr}, {ep} epochs x {it} iterations, lr={lr}, N={n_samples})".format(
                 corr=self.correlation_type,
                 it=iters,
-                lr=optim_args["lr"],
+                ep=num_epochs,
+                lr=optimizer.param_groups[-1]['lr'],
                 n_samples=num_samples
             )
         )
 
-        time_est = RuntimeEstimator(total_iters=iters, horizon=print_debug_every)
-        last_elbo = float("-inf")
-        elbo_diff = float("inf")
-        k = 0
+        time_est = RuntimeEstimator(total_iters=num_epochs, horizon=10)
+        x_samples = None
+        elbo_value = 0.0
 
-        while k < iters:
-            k += 1
+        for epoch in range(1, num_epochs + 1, 1):
             time_est.stopwatch_click()
+            for it in range(1, iters + 1, 1):
+                try:
+                    x_samples, gaussian_log_likelihoods = self.gaussian_posterior.reparametrized_sample(
+                        num_samples=num_samples,
+                        output_log_likelihoods=True,
+                        detach_grad=False
+                    )  # (T x N x S)
 
-            _t = RuntimeEstimator(total_iters=iters, horizon=1)
-            _t.stopwatch_click()
+                    optimizer.zero_grad()
+                    with torch.no_grad():
+                        self.update_phi(x_samples.detach())
 
-            x_samples, gaussian_log_likelihoods = self.gaussian_posterior.reparametrized_sample(
-                num_samples=num_samples,
-                output_log_likelihoods=True,
-                detach_grad=False
-            )  # (T x N x S)
+                    elbo_value = 0.0
+                    for elbo_chunk in self.elbo_marginal_gaussian(x_samples, gaussian_log_likelihoods):
+                        elbo_loss_chunk = -elbo_chunk
+                        elbo_loss_chunk.backward(retain_graph=True)
+                        optimizer.step()
 
-            optimizer.zero_grad()
-            with torch.no_grad():
-                self.update_phi(x_samples.detach())
+                        # Save float value for callbacks.
+                        elbo_value += elbo_chunk.item()
+                except ValueError:
+                    logger.error(f"Encountered ValueError while performing BBVI optimization at iteration {it}.")
+                    raise
 
-            elbo_value = 0.0
-            for elbo_chunk in self.elbo_marginal_gaussian(x_samples, gaussian_log_likelihoods):
-                elbo_loss_chunk = -elbo_chunk
-                elbo_loss_chunk.backward(retain_graph=True)
-                optimizer.step()
-
-                # Save float value for callbacks.
-                elbo_value += elbo_chunk.item()
-
+            # ===========  End of epoch
             if callbacks is not None:
                 for callback in callbacks:
-                    callback(k, x_samples, elbo_value)
+                    callback(epoch, x_samples, elbo_value)
 
             secs_elapsed = time_est.stopwatch_click()
             time_est.increment(secs_elapsed)
 
-            if k % print_debug_every == 0:
-                logger.info(
-                    "Iteration {iter} | time left: {t:.2f} min. | Last ELBO = {elbo:.2f}".format(
-                        iter=k,
-                        t=time_est.time_left() / 60000,
-                        elbo=elbo_value
-                    )
+            logger.info(
+                "Epoch {epoch} | time left: {t:.2f} min. | Last ELBO = {elbo:.2f} | LR = {lr}".format(
+                    epoch=epoch,
+                    t=time_est.time_left() / 60000,
+                    elbo=elbo_value,
+                    lr=optimizer.param_groups[-1]['lr']
                 )
+            )
 
-            elbo_diff = elbo_value - last_elbo
-            if abs(elbo_diff) < thresh_elbo * abs(last_elbo):
-                logger.info("Convergence criteria |ELBO_diff| < {} * |last_ELBO| met; terminating early.".format(
-                    thresh_elbo
-                ))
-                break
-            last_elbo = elbo_value
-        logger.info("Finished {k} iterations. | ELBO diff = {diff}".format(
-            k=k,
-            diff=elbo_diff
-        ))
+            lr_scheduler.step()
+
+        # ========== End of optimization
+        logger.info("Finished.")
 
         if cfg.torch_cfg.device == torch.device("cuda"):
             logger.info(

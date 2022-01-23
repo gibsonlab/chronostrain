@@ -3,7 +3,7 @@ from pathlib import Path
 from Bio import Entrez
 
 from chronostrain.util.filesystem import convert_size
-from chronostrain.config.logging import create_logger
+from chronostrain.config import cfg, create_logger
 logger = create_logger(__name__)
 
 
@@ -45,7 +45,7 @@ def fetch_entrez(entrez_db: str,
                  file_path: Path,
                  retmode: str = "text",
                  force_download: bool = False):
-    Entrez.email = "younhun@mit.edu"
+    Entrez.email = cfg.entrez_cfg.email
     if not force_download and file_path.exists() and file_path.stat().st_size > 0:
         logger.debug("[{}] File found: {}".format(
             accession[0] if isinstance(accession, list) else accession,

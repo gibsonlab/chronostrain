@@ -21,10 +21,18 @@ mkdir -p ${FASTERQ_TMP_DIR}
 	read
 
 	# Read rest of csv file.
-	while IFS=, read -r sra_id umb_id sample_name date days experiment_type
+	while IFS=, read -r sra_id umb_id sample_name date days experiment_type model library_strategy
 	do
 		if [[ "${experiment_type}" != "stool" ]]; then
 			echo "Skipping ${sample_name}."
+			continue
+		fi
+
+		# Target fastq files.
+		gz_file_1="${SAMPLES_DIR}/${sra_id}_1.fastq.gz"
+		gz_file_2="${SAMPLES_DIR}/${sra_id}_2.fastq.gz"
+		if [[ -f $gz_file_1 && -f $gz_file_2 ]]; then
+			echo "[*] Target files for ${sra_id} already exist."
 			continue
 		fi
 
@@ -45,11 +53,9 @@ mkdir -p ${FASTERQ_TMP_DIR}
 		-t ${FASTERQ_TMP_DIR} \
 		"${SRA_PREFETCH_DIR}/${sra_id}/${sra_id}.sra"
 
-		# Obtained fastq files.
+		echo "[*] Compressing..."
 		fq_file_1="${SAMPLES_DIR}/${sra_id}_1.fastq"
 		fq_file_2="${SAMPLES_DIR}/${sra_id}_2.fastq"
-
-		echo "[*] Compressing..."
 		gzip $fq_file_1 --force &
 		gzip $fq_file_2 --force &
 		wait

@@ -280,5 +280,5 @@ class ExhaustiveVariantBBVISolver(AbstractVariantBBVISolver, ABC):
             return best_variant, best_data_ll
 
 
-class NoVariantFoundException(BaseException):
+class NoVariantFoundException(Exception):
     pass

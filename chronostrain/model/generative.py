@@ -65,7 +65,7 @@ class GenerativeModel:
         return len(self.times)
 
     def num_strains(self) -> int:
-        return self.bacteria_pop.num_known_strains() + self.bacteria_pop.num_unknown_strains()
+        return self.bacteria_pop.num_strains()
 
     def num_fragments(self) -> int:
         return self.fragments.size()
@@ -396,7 +396,9 @@ class GenerativeModel:
             frag_samples.append(self.error_model.sample_noisy_read(
                 read_id="SimRead_{}".format(i),
                 fragment=frag,
-                metadata=(metadata + "|" + frag.metadata)
+                metadata="{}|{}".format(
+                    metadata, "|".join(frag.metadata)
+                )
             ))
 
         return frag_samples

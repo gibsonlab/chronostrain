@@ -42,7 +42,7 @@ mkdir -p "${SAMPLES_DIR}/trimmomatic"
 	read
 
 	# Read rest of csv file.
-	while IFS=, read -r sra_id umb_id sample_name date days experiment_type
+	while IFS=, read -r sra_id umb_id sample_name date days experiment_type model library_strategy
 	do
 		if [[ "${experiment_type}" != "stool" ]]; then
 			echo "Skipping ${sample_name}."

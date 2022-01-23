@@ -12,7 +12,7 @@ from .logging import create_logger
 logger = create_logger(__name__)
 
 
-class ConfigurationParseError(BaseException):
+class ConfigurationParseError(Exception):
     pass
 
 
@@ -106,7 +106,6 @@ class ModelConfig(AbstractConfig):
         self.sics_dof: float = self.get_float("SICS_DOF")
         self.sics_scale: float = self.get_float("SICS_SCALE")
         self.use_sparse: bool = self.get_bool("SPARSE_MATRICES")
-        self.extra_strain: bool = self.get_bool("EXTRA_STRAIN")
         self.mean_read_length: float = self.get_float("MEAN_READ_LEN")
         self.insertion_error_log10: float = self.get_float("INSERTION_ERROR_LN")
         self.deletion_error_log10: float = self.get_float("DELETION_ERROR_LN")
@@ -169,6 +168,12 @@ class ExternalToolsConfig(AbstractConfig):
         self.glopp_path = self.get_str("GLOPP")
 
 
+class EntrezConfig(AbstractConfig):
+    def __init__(self, cfg: dict):
+        super().__init__("Entrez", cfg)
+        self.email = self.get_str("EMAIL")
+
+
 class ChronostrainConfig(AbstractConfig):
     def __init__(self, cfg: dict):
         super().__init__("ChronoStrain", cfg)
@@ -179,13 +184,15 @@ class ChronostrainConfig(AbstractConfig):
         self.model_cfg: ModelConfig = ModelConfig(self.get_item("Model"))
         self.torch_cfg: TorchConfig = TorchConfig(self.get_item("PyTorch"))
         self.external_tools_cfg: ExternalToolsConfig = ExternalToolsConfig(self.get_item("ExternalTools"))
+        self.entrez_cfg: EntrezConfig = EntrezConfig(self.get_item("Entrez"))
 
 
 def _config_load(ini_path: str) -> ChronostrainConfig:
     if not Path(ini_path).exists():
         raise FileNotFoundError(
-            "No configuration INI file found. Create a `chronostrain.ini` file, or set the `{}` environment "
+            "Config INI path `{}` invalid. Create a `chronostrain.ini` file, or set the `{}` environment "
             "variable to point to the right configuration.".format(
+                str(ini_path),
                 __env_key__
             )
         )

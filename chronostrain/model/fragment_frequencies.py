@@ -27,6 +27,10 @@ class FragmentFrequencyComputer(object):
                         fragments: FragmentSpace,
                         population: Population
                         ) -> Union[RowSectionedSparseMatrix, torch.Tensor]:
+        logger.debug("Loading fragment frequencies of {} fragments on {} strains.".format(
+            len(fragments),
+            population.num_strains()
+        ))
         cache = ComputationCache(
             CacheTag(
                 markers=self.all_markers_path,
@@ -37,12 +41,20 @@ class FragmentFrequencyComputer(object):
         bwa_output_path = cache.cache_dir / self.relative_matrix_path().with_name('bwa_fastmap.output')
 
         # ====== Run the cached computation.
-        return cache.call(
+        matrix = cache.call(
             relative_filepath=self.relative_matrix_path(),
             fn=lambda: self.compute_frequencies(fragments, population, bwa_output_path),
             save=lambda path, obj: self.save_matrix(obj, path),
             load=lambda path: self.load_matrix(path)
         )
+
+        # Validate the matrix.
+        if isinstance(matrix, RowSectionedSparseMatrix):
+            for frag_idx, frag_locs in enumerate(matrix.locs_per_row):
+                if len(frag_locs) == 0:
+                    logger.warning(f"Fragment IDX={frag_idx} contains no hits across strains. ELBO might return -inf.")
+
+        return matrix
 
     @abstractmethod
     def relative_matrix_path(self) -> Path:
@@ -203,7 +215,7 @@ class SparseFragmentFrequencyComputer(FragmentFrequencyComputer):
             indices=torch.tensor([frag_indices, strain_indices], device=cfg.torch_cfg.device, dtype=torch.long),
             values=torch.tensor(matrix_values, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype),
             dims=(len(fragments), population.num_strains()),
-            force_coalesce=True
+            force_coalesce=False
         )
 
     def save_matrix(self, matrix: RowSectionedSparseMatrix, out_path: Path):

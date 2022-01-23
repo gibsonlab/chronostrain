@@ -36,9 +36,8 @@ def main():
     all_records['days'] = (all_records['date'] - all_records['epoch']).dt.days
     all_records.loc[
         (all_records['LibraryStrategy'] == 'WGS')
-        & (all_records['type'] == 'stool')
-        & (all_records['Model'] == 'HiSeq X Ten'),
-        ['Run', 'ID', 'SampleName', 'date', 'days', 'type']
+        & (all_records['type'] == 'stool'),
+        ['Run', 'ID', 'SampleName', 'date', 'days', 'type', 'Model', 'LibraryStrategy']
     ].to_csv(
         out_path,
         sep=',',

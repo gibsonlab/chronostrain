@@ -349,7 +349,8 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                 device=cfg.torch_cfg.device,
                 dtype=cfg.torch_cfg.default_dtype
             ),
-            dims=(self.model.fragments.size(), len(self.reads[t_idx]))
+            dims=(self.model.fragments.size(), len(self.reads[t_idx])),
+            force_coalesce=True
         )
 
     def compute_likelihood_tensors(self) -> List[SparseMatrix]:

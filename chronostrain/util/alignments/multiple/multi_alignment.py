@@ -1,4 +1,5 @@
 from pathlib import Path
+import shutil
 from typing import Dict, Tuple, Iterator, List, Optional
 
 import Bio.AlignIO
@@ -328,20 +329,36 @@ def parse(db: StrainDatabase,
             raise RuntimeError(f"Found repeat entry for reverse-mapped read {read.id}.")
         reverse_read_index_map[read] = idx + len(forward_reads)
 
-    return MarkerMultipleFragmentAlignment(
-        marker_idxs=marker_idxs,
-        aligned_marker_seqs=np.stack(
-            [marker_seq[start_clip:end_clip + 1] for marker_seq in marker_seqs],
-            axis=0
-        ),
-        read_multi_alignment=np.stack(forward_seqs + reverse_seqs, axis=0),
-        start_clips=forward_start_clips + reverse_start_clips,
-        end_clips=forward_end_clips + reverse_end_clips,
-        forward_read_index_map=forward_read_index_map,
-        reverse_read_index_map=reverse_read_index_map,
-        time_idxs=np.array(forward_time_idxs + reverse_time_idxs, dtype=int),
-        file_path=aln_path
-    )
+    if len(forward_seqs) + len(reverse_seqs) > 0:
+        return MarkerMultipleFragmentAlignment(
+            marker_idxs=marker_idxs,
+            aligned_marker_seqs=np.stack(
+                [marker_seq[start_clip:end_clip + 1] for marker_seq in marker_seqs],
+                axis=0
+            ),
+            read_multi_alignment=np.stack(forward_seqs + reverse_seqs, axis=0),
+            start_clips=forward_start_clips + reverse_start_clips,
+            end_clips=forward_end_clips + reverse_end_clips,
+            forward_read_index_map=forward_read_index_map,
+            reverse_read_index_map=reverse_read_index_map,
+            time_idxs=np.array(forward_time_idxs + reverse_time_idxs, dtype=int),
+            file_path=aln_path
+        )
+    else:
+        return MarkerMultipleFragmentAlignment(
+            marker_idxs=marker_idxs,
+            aligned_marker_seqs=np.stack(
+                [marker_seq[start_clip:end_clip + 1] for marker_seq in marker_seqs],
+                axis=0
+            ),
+            read_multi_alignment=np.empty(shape=(0, end_clip - start_clip + 1), dtype=NucleotideDtype),
+            start_clips=forward_start_clips + reverse_start_clips,
+            end_clips=forward_end_clips + reverse_end_clips,
+            forward_read_index_map=forward_read_index_map,
+            reverse_read_index_map=reverse_read_index_map,
+            time_idxs=np.array(forward_time_idxs + reverse_time_idxs, dtype=int),
+            file_path=aln_path
+        )
 
 
 def align(db: StrainDatabase,
@@ -388,6 +405,7 @@ def align_mafft(marker_profile_path: Path,
     """
     # First write to temporary file, with the reads reverse complemented if necessary.
     records = []
+
     for t_idx, read, should_reverse_comp in read_descriptions:
         if should_reverse_comp:
             read_seq = reverse_complement_seq(read.seq)
@@ -406,21 +424,31 @@ def align_mafft(marker_profile_path: Path,
         )
         records.append(record)
     SeqIO.write(records, intermediate_fasta_path, "fasta")
+    num_reads = len(records)
+    del records
 
-    logger.debug(f"Invoking `mafft --addfragments` on {len(records)} sequences.")
+    if num_reads > 0:
+        logger.debug(f"Invoking `mafft --addfragments` on {num_reads} sequences.")
 
-    # Now invoke MAFFT aligner.
-    mafft_fragment(
-        reference_fasta_path=marker_profile_path,
-        fragment_fasta_path=intermediate_fasta_path,
-        output_path=out_fasta_path,
-        n_threads=n_threads,
-        auto=True,
-        quiet=True,
-        gap_open_penalty_group=3,
-        gap_offset_group=0.0,
-        kimura=1
-    )
+        # Now invoke MAFFT aligner.
+        mafft_fragment(
+            reference_fasta_path=marker_profile_path,
+            fragment_fasta_path=intermediate_fasta_path,
+            output_path=out_fasta_path,
+            n_threads=n_threads,
+            auto=True,
+            quiet=True,
+            gap_open_penalty_group=3,
+            gap_offset_group=0.0,
+            kimura=1
+        )
+    else:
+        logger.debug(f"No fragment sequences to invoke MAFFT --addfragments on.")
+
+        shutil.copy(
+            str(marker_profile_path),
+            str(out_fasta_path)
+        )
 
 
 def align_clustalo(marker_profile_path: Path,

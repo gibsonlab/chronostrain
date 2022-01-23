@@ -56,6 +56,7 @@ class CSVParser(AbstractDatabaseParser):
                 ]  # Each genome's marker is its own genome.
             yield Strain(
                 id=accession,
+                name=accession,
                 markers=markers,
                 metadata=StrainMetadata(
                     ncbi_accession=accession,

@@ -21,7 +21,7 @@ class SparseMatrix(object):
                  indices: torch.Tensor,
                  values: torch.Tensor,
                  dims: Tuple[int, int],
-                 force_coalesce: bool = True):
+                 force_coalesce: bool = False):
         self.rows: int = int(dims[0])
         self.columns: int = int(dims[1])
 
@@ -119,7 +119,7 @@ class SparseMatrix(object):
             indices=torch.cat([self.indices, y.indices], dim=-1),
             values=torch.cat([self.values, y.values], dim=-1),
             dims=(self.rows, self.columns),
-            force_coalesce=True
+            force_coalesce=False
         )
 
     def add_constant(self, x: Union[int, float], inplace: bool = True) -> 'SparseMatrix':

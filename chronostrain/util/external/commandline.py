@@ -6,7 +6,7 @@ from chronostrain.config.logging import create_logger
 logger = create_logger(__name__)
 
 
-class CommandLineException(BaseException):
+class CommandLineException(Exception):
     def __init__(self, cmd, exit_code):
         super().__init__("`{}` encountered an error. (code: {})".format(cmd, exit_code))
         self.cmd = cmd

@@ -72,3 +72,43 @@ def blastn(
     )
     if exit_code != 0:
         raise CommandLineException('blastn', exit_code)
+
+
+def tblastn(
+        db_name: str,
+        db_dir: Path,
+        query_fasta: Path,
+        evalue_max: float,
+        out_path: Path,
+        out_fmt: Union[str, int] = 6,  # 6: TSV without comments
+        max_target_seqs: Optional[int] = None,
+        max_hsps: Optional[int] = None,
+        num_threads: int = 1,
+        query_coverage_hsp_percentage: Optional[float] = None
+):
+    params = [
+        '-db', db_name,
+        '-num_threads', num_threads,
+        '-query', query_fasta,
+        '-evalue', evalue_max,
+        '-outfmt', out_fmt,
+        '-out', out_path
+    ]
+
+    if max_target_seqs is not None:
+        params += ['-max_target_seqs', max_target_seqs]
+    if max_hsps is not None:
+        params += ['-max_hsps', max_hsps]
+    if query_coverage_hsp_percentage is not None:
+        params += ['-qcov_hsp_perc', query_coverage_hsp_percentage]
+
+    env = os.environ.copy()
+    env['BLASTDB'] = str(db_dir)
+
+    exit_code = call_command(
+        command='tblastn',
+        args=params,
+        environment=env
+    )
+    if exit_code != 0:
+        raise CommandLineException('tblastn', exit_code)
