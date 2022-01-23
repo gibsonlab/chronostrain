@@ -164,6 +164,9 @@ def prune_db(strains: List[Strain], input_json_path: Path, output_json_path: Pat
     with open(output_json_path, 'w') as outfile:
         json.dump(result_entries, outfile, indent=4)
 
+    print("Before clustering: {} strains".format(len(entries)))
+    print("After clustering: {} strains".format(len(result_entries)))
+
 
 def main():
     args = parse_args()
