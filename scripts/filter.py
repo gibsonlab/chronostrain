@@ -411,6 +411,9 @@ def main():
         reference_path = db.multifasta_file
 
     # ============ Perform read filtering.
+    target_file = f"filtered_{Path(args.reads_input).name}"
+    logger.info(f"Target index file: {target_file}")
+
     logger.info("Performing filter on reads.")
     filt = Filter(
         db=db,
@@ -428,7 +431,6 @@ def main():
         error_threshold=args.phred_error_threshold
     )
 
-    target_file = f"filtered_{Path(args.reads_input).name}"
     filt.apply_filter(target_file)
     logger.info("Finished filtering.")
 
