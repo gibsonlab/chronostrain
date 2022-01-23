@@ -8,7 +8,8 @@ from Bio import SeqIO
 from Bio.Seq import Seq
 import Bio.SeqIO
 
-from chronostrain import logger, cfg
+from chronostrain import create_logger, cfg
+logger = create_logger("chronostrain.filter")
 
 from chronostrain.database import StrainDatabase
 from chronostrain.model.io import TimeSliceReadSource
