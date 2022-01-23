@@ -111,7 +111,7 @@ def extract_chromosomes(path: Path) -> Iterator[Tuple[str, Path]]:
         if "plasmid" in desc or len(record.seq) < 500000:
             continue
         else:
-            prefix = path.parent / f"{accession}.fasta"
+            prefix = path.parent / f"{accession}"
             chrom_path = path.parent / f"{prefix}.chrom.fna.gz"
             SeqIO.write([record], chrom_path, "fasta")
 
