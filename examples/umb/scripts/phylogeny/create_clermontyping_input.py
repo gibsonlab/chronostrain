@@ -23,7 +23,7 @@ def parse_args():
 
 
 def bash_escape(x: str) -> str:
-    return x.replace('(', '\\(').replace(')', '\\)')
+    return x.replace('(', '\\(').replace(')', '\\)').replace('\'', '\\\'')
 
 
 def main():
