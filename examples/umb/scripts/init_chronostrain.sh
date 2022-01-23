@@ -11,6 +11,7 @@ python ${BASE_DIR}/helpers/init_chronostrain_db.py \
 -r /mnt/d/ref_genomes
 
 echo "[*] Pruning database by hamming similarity."
+MULTIFASTA_FILE="all_strain_markers.fasta"
 python ${BASE_DIR}/helpers/prune_chronostrain_db.py \
 --input_json ${CHRONOSTRAIN_ECOLI_DB_JSON} \
 --output_json ${CHRONOSTRAIN_ECOLI_DB_JSON_PRUNED} \
