@@ -11,7 +11,7 @@ import Bio.SeqIO
 from chronostrain import logger, cfg
 
 from chronostrain.database import StrainDatabase
-from chronostrain.model.io import TimeSliceReadSource, TimeSeriesReads
+from chronostrain.model.io import TimeSliceReadSource
 from chronostrain.util.alignments.sam import SamFile
 from chronostrain.util.external.commandline import call_command
 from chronostrain.util.alignments.pairwise import parse_alignments, BwaAligner, BowtieAligner, \
@@ -170,7 +170,9 @@ class Filter:
     def __init__(self,
                  db: StrainDatabase,
                  reference_file_path: Path,
-                 reads: TimeSeriesReads,
+                 read_sources: List[TimeSliceReadSource],
+                 read_depths: List[int],
+                 time_points: List[float],
                  output_dir: Path,
                  quality_format: str,
                  min_seed_length: int,
@@ -190,9 +192,9 @@ class Filter:
         else:
             self.reference_path = reference_file_path
 
-        self.read_sources = [time_slice.src for time_slice in reads]
-        self.read_depths = [time_slice.read_depth for time_slice in reads]
-        self.time_points = [time_slice.time_point for time_slice in reads]
+        self.read_sources = read_sources
+        self.read_depths = read_depths
+        self.time_points = time_points
         self.min_seed_length = min_seed_length
 
         self.output_dir = output_dir
@@ -346,13 +348,59 @@ def parse_args():
     return parser.parse_args()
 
 
+def load_from_csv(csv_path: Path, quality_format: str) -> 'TimeSeriesReads':
+    import csv
+    time_points_to_reads: Dict[float, List[Tuple[int, Path]]] = {}
+    if not csv_path.exists():
+        raise FileNotFoundError(f"Missing required file `{str(csv_path)}`")
+
+    logger.debug("Parsing time-series reads from {}".format(csv_path))
+    with open(csv_path, "r") as f:
+        input_specs = csv.reader(f, delimiter=',', quotechar='"')
+        for row in input_specs:
+            time_point = float(row[0])
+            num_reads = int(row[1])
+            read_path = Path(row[2])
+
+            if not read_path.exists():
+                raise FileNotFoundError(
+                    "The input specification `{}` pointed to `{}`, which does not exist.".format(
+                        str(csv_path),
+                        read_path
+                    ))
+
+            if time_point not in time_points_to_reads:
+                time_points_to_reads[time_point] = []
+
+            time_points_to_reads[time_point].append((num_reads, read_path))
+
+    time_points = sorted(time_points_to_reads.keys(), reverse=False)
+    logger.info("Found timepoints: {}".format(time_points))
+
+    read_depths = [
+        sum([
+            n_reads for n_reads, _ in time_points_to_reads[t]
+        ])
+        for t in time_points
+    ]
+
+    time_slice_sources = [
+        TimeSliceReadSource([
+            read_path for _, read_path in time_points_to_reads[t]
+        ], quality_format)
+        for t in time_points
+    ]
+
+    return time_slice_sources, read_depths, time_points
+
+
 def main():
     logger.info("Filtering script active.")
     args = parse_args()
     db = cfg.database_cfg.get_database()
 
     # =========== Parse reads.
-    reads = TimeSeriesReads.load_from_csv(
+    read_sources, read_depths, time_points = load_from_csv(
         Path(args.reads_input),
         quality_format=args.quality_format
     )
@@ -367,7 +415,9 @@ def main():
     filt = Filter(
         db=db,
         reference_file_path=reference_path,
-        reads=reads,
+        read_sources=read_sources,
+        read_depths=read_depths,
+        time_points=time_points,
         output_dir=Path(args.output_dir),
         quality_format=args.quality_format,
         min_read_len=args.min_read_len,
