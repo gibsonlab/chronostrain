@@ -17,6 +17,7 @@ from .base import AbstractDatabaseParser, StrainDatabaseParseError
 
 
 from chronostrain.config.logging import create_logger
+
 logger = create_logger(__name__)
 
 
@@ -677,7 +678,13 @@ class JSONParser(AbstractDatabaseParser):
                     marker_entries=strain_entry.marker_entries
                 )
 
-                strain_markers = list(loader.parse_markers())
+                try:
+                    strain_markers = list(loader.parse_markers())
+                except UnknownNucleotideError as e:
+                    logger.warning(f"Skipping strain entry {strain_entry.accession}, "
+                                   f"due to unknown nucleotide {e.nucleotide} (possible IUPAC code) in {fasta_path}.")
+                    continue
+
                 yield Strain(
                     id=strain_entry.accession,
                     name=strain_entry.strain_name,
