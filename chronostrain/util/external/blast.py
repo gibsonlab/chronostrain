@@ -6,15 +6,22 @@ from .commandline import *
 
 
 def make_blast_db(
-        input_fasta: Path,
+        input_fasta: Union[Path, List[Path]],
         db_dir: Path,
         db_name: str,
         is_nucleotide: bool,
         title: str,
         parse_seqids: bool
 ):
+    if isinstance(input_fasta, Path):
+        input_str = str(input_fasta)
+    else:
+        input_str = "'{}'".format(
+            ' '.join(f'"{file_path}"' for file_path in input_fasta)
+        )
+
     params = [
-        '-in', input_fasta,
+        '-in', input_str,
         '-out', db_name,
         '-dbtype',
         'nucl' if is_nucleotide else 'prot',
