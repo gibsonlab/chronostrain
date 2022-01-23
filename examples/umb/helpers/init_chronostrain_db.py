@@ -133,8 +133,8 @@ def create_chronostrain_db(
 
     # ======== BLAST configuration
     blast_db_dir = output_path.parent / "blast"
-    blast_db_name = "strainge_db"
-    blast_db_title = "\"Escherichia (metaphlan markers, strainGE strains)\""
+    blast_db_name = "db_esch"
+    blast_db_title = "\"Escherichia (metaphlan markers, NCBI complete)\""
     blast_fasta_path = blast_db_dir / "genomes.fasta"
     blast_result_dir = output_path.parent / "blast_results"
     logger.info("BLAST\n\tdatabase location: {}\n\tresults directory: {}".format(
@@ -163,10 +163,19 @@ def create_chronostrain_db(
         symlink_path.symlink_to(fasta_path)
         logger.info(f"Symlink {symlink_path} -> {fasta_path}")
 
+    logger.info('Concatenating {} files.'.format(len(strain_fasta_files)))
+    with open(blast_fasta_path, 'w') as genome_fasta_file:
+        for fpath in strain_fasta_files:
+            with open(fpath, 'r') as in_file:
+                for line in in_file:
+                    genome_fasta_file.write(line)
+
     make_blast_db(
-        strain_fasta_files, blast_db_dir, blast_db_name,
+        blast_fasta_path, blast_db_dir, blast_db_name,
         is_nucleotide=True, title=blast_db_title, parse_seqids=True
     )
+
+    Path(blast_fasta_path).unlink()  # clean up large fasta file.
 
     # Run BLAST to find marker genes.
     blast_result_dir.mkdir(parents=True, exist_ok=True)
