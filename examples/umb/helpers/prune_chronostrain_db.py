@@ -11,7 +11,7 @@ import numpy as np
 from chronostrain import cfg
 from chronostrain.util.sequences import nucleotides_to_z4
 from chronostrain.database import JSONStrainDatabase, StrainDatabase
-from chronostrain.model import Marker
+from chronostrain.model import Marker, Strain
 from chronostrain.util.external import mafft_global
 
 
@@ -118,7 +118,7 @@ def get_concatenated_alignments(db: StrainDatabase, out_path: Path):
         )
 
 
-def prune_db(input_json_path: Path, output_json_path: Path, alignments_path: Path):
+def prune_db(strains: List[Strain], input_json_path: Path, output_json_path: Path, alignments_path: Path):
     # parse json entries.
     entries: Dict[str, Dict[str, Any]] = {}
     with open(input_json_path, "r") as f:
@@ -134,7 +134,7 @@ def prune_db(input_json_path: Path, output_json_path: Path, alignments_path: Pat
         alignments[accession] = nucleotides_to_z4(str(record.seq))
 
     # Cluster if hamming dist = 0.
-    accessions_to_cluster: Set[str] = set(entries.keys())
+    accessions_to_cluster: Set[str] = set(strain.id for strain in strains)
     clusters: List[List[str]] = []
     while len(accessions_to_cluster) > 0:
         cluster_rep_acc = next(iter(accessions_to_cluster))
@@ -180,7 +180,7 @@ def main():
 
     alignments_path = Path(args.alignments_out_path)
     get_concatenated_alignments(input_db, alignments_path)
-    prune_db(input_json_path, output_json_path, alignments_path)
+    prune_db(input_db.all_strains(), input_json_path, output_json_path, alignments_path)
 
 
 if __name__ == "__main__":
