@@ -174,7 +174,7 @@ def main():
     input_db = JSONStrainDatabase(
         entries_file=input_json_path,
         marker_max_len=cfg.database_cfg.db_kwargs['marker_max_len'],
-        force_refresh=True,
+        force_refresh=False,
         load_full_genomes=False
     )
 
