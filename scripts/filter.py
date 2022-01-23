@@ -427,7 +427,9 @@ def main():
         num_threads=args.num_threads,
         error_threshold=args.phred_error_threshold
     )
-    filt.apply_filter(f"filtered_{args.reads_input}")
+
+    target_file = f"filtered_{Path(args.reads_input).name}"
+    filt.apply_filter(target_file)
     logger.info("Finished filtering.")
 
 
