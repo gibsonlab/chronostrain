@@ -2,6 +2,8 @@ import argparse
 from pathlib import Path
 import pandas as pd
 
+from chronostrain import cfg
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -30,8 +32,8 @@ def main():
     args = parse_args()
     script = "bash {clermon_script_path} --fasta {fasta_path} --name {analysis_name}"
 
-    df = pd.read_csv(args.refseq_index, sep='\t')
-    fasta_paths = df['SeqPath'].tolist()
+    db = cfg.database_cfg.get_database()
+    fasta_paths = [strain.metadata.source_path for strain in db.all_strains()]
 
     output_path = Path(args.output_path)
     output_path.parent.mkdir(exist_ok=True, parents=True)
