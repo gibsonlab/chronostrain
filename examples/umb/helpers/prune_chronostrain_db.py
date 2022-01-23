@@ -178,7 +178,7 @@ def main():
         load_full_genomes=False
     )
 
-    alignments_path = Path(args.alignments_out_path)
+    alignments_path = Path(args.alignments_path)
     get_concatenated_alignments(input_db, alignments_path)
     prune_db(input_db.all_strains(), input_json_path, output_json_path, alignments_path)
 
