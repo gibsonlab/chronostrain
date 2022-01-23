@@ -22,6 +22,10 @@ def parse_args():
     return parser.parse_args()
 
 
+def bash_escape(x: str) -> str:
+    return x.replace('(', '\\(').replace(')', '\\)')
+
+
 def main():
     args = parse_args()
     script = "bash {clermon_script_path} --fasta {fasta_path} --name {analysis_name}"
@@ -35,7 +39,7 @@ def main():
         print(
             script.format(
                 clermon_script_path=args.clermon_script_path,
-                fasta_path='@'.join(str(p) for p in fasta_paths),
+                fasta_path='@'.join(bash_escape(str(p)) for p in fasta_paths),
                 analysis_name=args.analysis_name
             ),
             file=f
