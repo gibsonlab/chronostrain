@@ -11,13 +11,11 @@ import Bio.SeqIO
 from chronostrain import logger, cfg
 
 from chronostrain.database import StrainDatabase
-from chronostrain.model.io import TimeSliceReadSource
+from chronostrain.model.io import TimeSliceReadSource, TimeSeriesReads
 from chronostrain.util.alignments.sam import SamFile
 from chronostrain.util.external.commandline import call_command
 from chronostrain.util.alignments.pairwise import parse_alignments, BwaAligner, BowtieAligner, \
     SequenceReadPairwiseAlignment
-
-from helpers import parse_input_spec
 
 
 def file_base_name(file_path: Path) -> str:
@@ -38,7 +36,7 @@ def clip_between(x: float, lower: float, upper: float) -> float:
     return max(min(x, upper), lower)
 
 
-def adjusted_match_identity(aln: SequenceReadPairwiseAlignment, identity_threshold=0.9):
+def adjusted_match_identity(aln: SequenceReadPairwiseAlignment):
     """
     Applies a filtering criteria for reads that continue in the pipeline.
     Currently a simple threshold on percent identity, likely should be adjusted to maximize downstream sensitivity?
@@ -128,7 +126,6 @@ def filter_file(
             filter_edge_clip = filter_on_edge_clip(aln, clip_fraction=0.25)
             percent_identity_adjusted = adjusted_match_identity(aln)
 
-
             passed_filter = (
                 filter_edge_clip
                 and len(aln.read) > min_read_len
@@ -173,9 +170,7 @@ class Filter:
     def __init__(self,
                  db: StrainDatabase,
                  reference_file_path: Path,
-                 read_sources: List[TimeSliceReadSource],
-                 read_depths: List[int],
-                 time_points: List[float],
+                 reads: TimeSeriesReads,
                  output_dir: Path,
                  quality_format: str,
                  min_seed_length: int,
@@ -195,9 +190,9 @@ class Filter:
         else:
             self.reference_path = reference_file_path
 
-        self.read_sources = read_sources
-        self.read_depths = read_depths
-        self.time_points = time_points
+        self.read_sources = [time_slice.src for time_slice in reads]
+        self.read_depths = [time_slice.read_depth for time_slice in reads]
+        self.time_points = [time_slice.time_point for time_slice in reads]
         self.min_seed_length = min_seed_length
 
         self.output_dir = output_dir
@@ -313,8 +308,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Perform inference on time-series reads.")
 
     # Input specification.
-    parser.add_argument('-r', '--reads_dir', required=True, type=str,
-                        help='<Required> Directory containing read files. The directory requires a `input_files.csv` '
+    parser.add_argument('-r', '--reads_input', required=True, type=str,
+                        help='<Required> Path to the reads input CSV file. The directory requires a `input_files.csv` '
                              'which contains information about the input reads and corresponding time points.')
     parser.add_argument('-o', '--out_dir', required=True, type=str,
                         dest="output_dir",
@@ -326,9 +321,6 @@ def parse_args():
     parser.add_argument('-m', '--min_seed_length', required=True, type=int,
                         help='<Required> The minimal seed length to pass to bwa-mem.')
 
-    parser.add_argument('--input_file', required=False, type=str,
-                        default='input_files.csv',
-                        help='<Optional> The CSV input file specifier inside reads_dir.')
     parser.add_argument('--min_read_len', required=False, type=int, default=35,
                         help='<Optional> Filters out a read if its length was less than the specified value '
                              '(helps reduce spurious alignments). Ideally, trimmomatic should have taken care '
@@ -360,9 +352,9 @@ def main():
     db = cfg.database_cfg.get_database()
 
     # =========== Parse reads.
-    read_sources, read_depths, time_points = parse_input_spec(
-        Path(args.reads_dir) / args.input_file,
-        args.quality_format
+    reads = TimeSeriesReads.load_from_csv(
+        Path(args.reads_input),
+        quality_format=args.quality_format
     )
 
     if args.canonical_only:
@@ -375,9 +367,7 @@ def main():
     filt = Filter(
         db=db,
         reference_file_path=reference_path,
-        read_sources=read_sources,
-        read_depths=read_depths,
-        time_points=time_points,
+        reads=reads,
         output_dir=Path(args.output_dir),
         quality_format=args.quality_format,
         min_read_len=args.min_read_len,
