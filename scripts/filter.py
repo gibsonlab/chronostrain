@@ -2,7 +2,7 @@ import argparse
 import csv
 import numpy as np
 from pathlib import Path
-from typing import List, Iterator, Tuple
+from typing import List, Iterator, Tuple, Dict
 
 from Bio import SeqIO
 from Bio.Seq import Seq
@@ -427,7 +427,7 @@ def main():
         num_threads=args.num_threads,
         error_threshold=args.phred_error_threshold
     )
-    filt.apply_filter(f"filtered_{args.input_file}")
+    filt.apply_filter(f"filtered_{args.reads_input}")
     logger.info("Finished filtering.")
 
 
