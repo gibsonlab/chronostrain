@@ -108,7 +108,7 @@ def extract_chromosomes(path: Path) -> Iterator[Tuple[str, Path]]:
         desc = record.description
         accession = record.id.split(' ')[0]
 
-        if "plasmid" in desc or len(record.seq) < 5e6:
+        if "plasmid" in desc or len(record.seq) < 500000:
             continue
         else:
             prefix = path.parent / f"{accession}.fasta"
@@ -147,7 +147,7 @@ def create_chronostrain_db(
     blast_db_dir.mkdir(parents=True, exist_ok=True)
     strain_fasta_files = []
     strain_entries = []
-    for row in seq_index.iterrows():
+    for idx, row in seq_index.iterrows():
         accession = row['Accession']
         fasta_path = row['SeqPath']
         strain_fasta_files.append(fasta_path)
