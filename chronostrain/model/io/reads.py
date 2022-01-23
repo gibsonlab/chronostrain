@@ -169,6 +169,7 @@ class TimeSeriesReads(object):
         if not csv_path.exists():
             raise FileNotFoundError(f"Missing required file `{str(csv_path)}`")
 
+        logger.debug("Parsing time-series reads from {}".format(csv_path))
         with open(csv_path, "r") as f:
             input_specs = csv.reader(f, delimiter=',', quotechar='"')
             for row in input_specs:
