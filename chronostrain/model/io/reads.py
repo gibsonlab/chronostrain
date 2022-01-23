@@ -189,6 +189,8 @@ class TimeSeriesReads(object):
                 time_points_to_reads[time_point].append((num_reads, read_path))
 
         time_points = sorted(time_points_to_reads.keys(), reverse=False)
+        logger.info("Found timepoints: {}".format(time_points))
+
         read_depths = [
             sum([
                 n_reads for n_reads, _ in time_points_to_reads[t]
