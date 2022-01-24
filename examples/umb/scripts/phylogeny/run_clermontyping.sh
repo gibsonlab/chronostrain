@@ -12,4 +12,5 @@ python ${BASE_DIR}/scripts/phylogeny/create_clermontyping_input.py \
 -c ${CLERMONTYPING_SCRIPT} \
 -o ${PHYLOGENY_OUTPUT_DIR}/ClermonTyping/clermontyping.sh \
 
-bash ${PHYLOGENY_OUTPUT_DIR}/ClermonTyping/clermontyping.sh
+cd ${PHYLOGENY_OUTPUT_DIR}/ClermonTyping
+bash clermontyping.sh
