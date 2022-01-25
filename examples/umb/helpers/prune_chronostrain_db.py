@@ -8,7 +8,7 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
 import numpy as np
-from chronostrain import cfg
+from chronostrain.config import cfg, create_logger
 from chronostrain.util.sequences import nucleotides_to_z4
 from chronostrain.database import JSONStrainDatabase, StrainDatabase
 from chronostrain.model import Marker, Strain
@@ -17,6 +17,8 @@ from chronostrain.util.external import mafft_global
 from sklearn.cluster import AgglomerativeClustering
 import itertools
 import math
+
+logger = create_logger("chronostrain.prune_db")
 
 
 def parse_args():
@@ -123,6 +125,7 @@ def get_concatenated_alignments(db: StrainDatabase, out_path: Path):
 
 
 def prune_db(strains: List[Strain], input_json_path: Path, output_json_path: Path, alignments_path: Path):
+    print("Preprocessing for pruning.")
     # parse json entries.
     entries: Dict[str, Dict[str, Any]] = {}
     with open(input_json_path, "r") as f:
@@ -139,16 +142,19 @@ def prune_db(strains: List[Strain], input_json_path: Path, output_json_path: Pat
         alignments[accession] = nucleotides_to_z4(str(record.seq))
         align_len = len(record.seq)
 
+    logger.info("Computing distances.")
     distances = np.zeros(shape=(len(strains), len(strains)), dtype=int)
     for (i1, strain1), (i2, strain2) in itertools.combinations(enumerate(strains), r=2):
         hamming_dist = np.sum(alignments[strain1.id] != alignments[strain2.id])
         distances[i1, i2] = hamming_dist
         distances[i2, i1] = hamming_dist
 
+    logger.info("Computing clusters.")
     clustering = AgglomerativeClustering(
         affinity='precomputed',
         linkage='average',
-        distance_threshold=math.ceil(0.0001 * align_len)
+        distance_threshold=math.ceil(0.0001 * align_len),
+        n_clusters=None
     ).fit(distances)
 
     n_clusters, cluster_labels = clustering.n_clusters_, clustering.labels_
