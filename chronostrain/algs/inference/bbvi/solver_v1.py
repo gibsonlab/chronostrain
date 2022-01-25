@@ -12,7 +12,7 @@ from chronostrain.util.sparse.sliceable import BBVIOptimizedSparseMatrix
 from .. import AbstractModelSolver
 from .base import AbstractBBVI
 from .posteriors import *
-from .util import log_softmax, LogMMExpDenseSPModel
+from .util import log_softmax, LogMMExpDenseSPModel, LogMMExpDenseSPModel_Async
 
 logger = create_logger(__name__)
 
@@ -29,6 +29,7 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
                  frag_chunk_size: int = 100,
                  num_cores: int = 1,
                  correlation_type: str = "time"):
+        logger.info("Initializing V1 solver (Marginalized posterior X)")
         AbstractModelSolver.__init__(
             self,
             model,
@@ -55,8 +56,8 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
         )
 
         self.frag_chunk_size = frag_chunk_size
-        self.frag_freq_logmmexp: List[List[LogMMExpDenseSPModel]] = [[] for _ in range(model.num_times())]
-        self.data_ll_logmmexp: List[List[LogMMExpDenseSPModel]] = [[] for _ in range(model.num_times())]
+        self.frag_freq_logmmexp: List[List[LogMMExpDenseSPModel_Async]] = [[] for _ in range(model.num_times())]
+        self.data_ll_logmmexp: List[List[LogMMExpDenseSPModel_Async]] = [[] for _ in range(model.num_times())]
 
         logger.debug("Initializing BBVI data structures.")
         if not cfg.model_cfg.use_sparse:
@@ -73,14 +74,15 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
                     row_chunk_size=self.frag_chunk_size
             ).chunks:
                 n_chunks += 1
-                self.frag_freq_logmmexp[t_idx].append(LogMMExpDenseSPModel(sparse_chunk.t()))
+                self.frag_freq_logmmexp[t_idx].append(LogMMExpDenseSPModel_Async(sparse_chunk.t()))
 
             logger.debug(f"Divided {projector.rows} x {frag_freqs.columns} sparse matrix "
                          f"into {n_chunks} chunks.")
 
             # Prepare data likelihood chunks.
             self.data_ll_logmmexp[t_idx] = [
-                LogMMExpDenseSPModel(chunk)
+                # Trace via JIT for a speedup (we will re-use these many times.)
+                LogMMExpDenseSPModel_Async(chunk)
                 for chunk in self.data_likelihoods.matrices[t_idx].chunks
             ]
 

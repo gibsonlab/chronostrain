@@ -2,6 +2,7 @@ from typing import List
 
 import torch
 from chronostrain.util.sparse import SparseMatrix, RowSectionedSparseMatrix
+from torch_scatter import scatter
 
 
 def log_softmax(x_samples: torch.Tensor, t: int) -> torch.Tensor:
@@ -58,3 +59,57 @@ class LogMMExpDenseSPModel(torch.nn.Module):
             )
 
         return result
+
+
+from chronostrain.util.sparse.sliceable import BBVIOptimizedSparseMatrix
+import torch_scatter
+
+class LogMMExpDenseSPModel_Async(torch.nn.Module):
+    """
+    Represents a Module which represents
+        f_A(X) = log_matmul_exp(X, A)
+    where A is a (D x E) SparseMatrix, and X is an (N x D) matrix.
+    """
+    def __init__(self, sparse_right_matrix: SparseMatrix):
+        super().__init__()
+        self.A = BBVIOptimizedSparseMatrix.optimize_from_sparse_matrix(
+            sparse_right_matrix,
+            row_chunk_size=2
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        expansion = self.A.values.unsqueeze(0) + x[:, self.A.indices[0]]
+        maximums = torch_scatter.segment_csr(
+            src=expansion,
+            indptr=self.A.col_indptrs.expand(x.shape[0], -1),
+            reduce='max'
+        )
+
+        sumexp_offset = torch_scatter.segment_csr(
+            src=torch.exp(expansion - maximums[:, self.A.indices[1]]),
+            indptr=self.A.col_indptrs.expand(x.shape[0], -1),
+            reduce='sum'
+        )
+        return maximums + sumexp_offset.log()
+
+
+if __name__ == "__main__":
+    A = SparseMatrix(
+        indices=torch.tensor([
+            [0, 0, 1, 1],
+            [0, 1, 0, 1]
+        ], dtype=torch.long),
+        values=torch.tensor([1, 2, 3, 4], dtype=torch.float),
+        dims=(2, 2)
+    )
+
+    B = torch.tensor([[3, 4], [0.5, 1]], dtype=torch.float)
+
+    print(A.to_dense())
+    m = LogMMExpDenseSPModel_Async(sparse_right_matrix=A.log().add_constant(-100, inplace=True))
+
+    print("TEST ANSWER")
+    print(m.forward(B.log() - 100))
+
+    print("TRUE ANSWER")
+    print(torch.log(B @ A.to_dense()) - 200)

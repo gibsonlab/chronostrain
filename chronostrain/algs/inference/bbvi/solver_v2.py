@@ -88,6 +88,7 @@ class BBVISolverV2(AbstractModelSolver, AbstractBBVI):
                  frag_chunk_size: int = 100,
                  num_cores: int = 1,
                  correlation_type: str = "time"):
+        logger.info("Initializing V2 solver (Mean field posterior X,F)")
         AbstractModelSolver.__init__(
             self,
             model,
@@ -132,6 +133,7 @@ class BBVISolverV2(AbstractModelSolver, AbstractBBVI):
                     projector.sparse_mul(frag_freqs),
                     row_chunk_size=self.frag_chunk_size
             ).chunks:
+                # sparse_chunk: (CHUNK_SZ x S)
                 n_chunks += 1
                 self.log_mm_exp_models[t_idx].append(
                     LogMMExpDenseSPModel(sparse_chunk.t())

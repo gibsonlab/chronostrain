@@ -31,7 +31,7 @@ def perform_bbvi(
 ):
 
     # ==== Run the solver.
-    solver = BBVISolverV2(
+    solver = BBVISolverV1(
         model=model,
         data=reads,
         correlation_type=correlation_type,
