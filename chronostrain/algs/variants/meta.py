@@ -9,7 +9,7 @@ from chronostrain.database import StrainDatabase
 from chronostrain.model import Population, GenerativeModel, FragmentSpace, PhredErrorModel
 from chronostrain.model.io import TimeSeriesReads
 from .base import StrainVariant
-from ..inference import BBVISolver
+from ..inference import BBVISolverV2
 from ..subroutines.alignments import CachedReadMultipleAlignments
 
 from chronostrain.config import create_logger, cfg
@@ -154,7 +154,7 @@ class AbstractVariantBBVISolver(object):
         model = self.create_model(variants)
 
         if model.num_strains() > 1:
-            solver = BBVISolver(model=model,
+            solver = BBVISolverV2(model=model,
                                 data=self.reads,
                                 correlation_type="strain",
                                 db=self.db,
@@ -181,7 +181,7 @@ class AbstractVariantBBVISolver(object):
             data_ll = (data_conditional_ll + prior_ll - posterior_ll_est).item()
         else:
             # Special case when there is only one strain in the population. (Nothing to do)
-            solver = BBVISolver(model=model, data=self.reads, correlation_type="strain", db=self.db)
+            solver = BBVISolverV2(model=model, data=self.reads, correlation_type="strain", db=self.db)
             data_ll = solver.data_likelihoods.conditional_likelihood(
                 torch.ones((model.num_times(), 1), device=cfg.torch_cfg.device)
             ).item()
