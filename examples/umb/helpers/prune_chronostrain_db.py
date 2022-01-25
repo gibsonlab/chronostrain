@@ -153,7 +153,7 @@ def prune_db(strains: List[Strain], input_json_path: Path, output_json_path: Pat
     clustering = AgglomerativeClustering(
         affinity='precomputed',
         linkage='average',
-        distance_threshold=math.ceil(0.0001 * align_len),
+        distance_threshold=math.ceil(0.001 * align_len),
         n_clusters=None
     ).fit(distances)
 
