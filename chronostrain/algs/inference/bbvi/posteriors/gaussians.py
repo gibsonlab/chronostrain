@@ -32,7 +32,7 @@ class GaussianPosteriorFullCorrelation(AbstractReparametrizedPosterior):
             device=cfg.torch_cfg.device
         )
         # torch.nn.init.eye_(self.reparam_network.weight)
-        init_diag(self.reparam_network.weight, scale=5.0)
+        init_diag(self.reparam_network.weight, scale=1.0)
         self.parameters = self.reparam_network.parameters()
         self.standard_normal = Normal(
             loc=torch.tensor(0.0, device=cfg.torch_cfg.device),
@@ -98,7 +98,7 @@ class GaussianPosteriorStrainCorrelation(AbstractReparametrizedPosterior):
                 bias=True,
                 device=cfg.torch_cfg.device
             )
-            init_diag(linear_layer.weight, scale=5.0)
+            init_diag(linear_layer.weight, scale=1.0)
             torch.nn.init.constant_(linear_layer.bias, 0)
             self.reparam_networks.append(linear_layer)
 
@@ -189,7 +189,7 @@ class GaussianPosteriorTimeCorrelation(AbstractReparametrizedPosterior):
                 bias=True,
                 device=cfg.torch_cfg.device
             )
-            init_diag(linear_layer.weight, scale=5.0)
+            init_diag(linear_layer.weight, scale=1.0)
             torch.nn.init.constant_(linear_layer.bias, 0)
             self.reparam_networks[s_idx] = linear_layer
         self.parameters = []
