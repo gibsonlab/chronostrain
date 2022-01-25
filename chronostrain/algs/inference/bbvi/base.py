@@ -35,6 +35,7 @@ class AbstractBBVI(ABC):
 
         patience_buffer = CyclicBuffer(capacity=patience_horizon)
         prev_epoch_elbo = -float("inf")
+        logger.info("Starting ELBO optimization.")
         for epoch in range(1, num_epochs + 1, 1):
             epoch_elbo = 0.0
             time_est.stopwatch_click()
