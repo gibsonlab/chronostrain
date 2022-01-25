@@ -50,12 +50,8 @@ def load_clade_assignments(phylogroup_path: Path) -> Dict[str, str]:
     with open(phylogroup_path, 'r') as f:
         for line in f:
             tokens = line.strip().split('\t')
-            fasta_input = tokens[0]
+            accession = Path(tokens[0]).with_suffix('').name
             phylogroup = tokens[4]
-
-            with open(f"/mnt/d/strainge/strainge_db/{fasta_input}", "r") as fasta_file:
-                line = fasta_file.readline()
-                accession = line.split()[0][1:]
             strain_to_phylogroup[accession] = phylogroup
     return strain_to_phylogroup
 
