@@ -1,6 +1,6 @@
 import argparse
 from pathlib import Path
-from typing import List, Dict, Any, Set
+from typing import List, Dict, Any
 import json
 
 from Bio import SeqIO
@@ -13,6 +13,10 @@ from chronostrain.util.sequences import nucleotides_to_z4
 from chronostrain.database import JSONStrainDatabase, StrainDatabase
 from chronostrain.model import Marker, Strain
 from chronostrain.util.external import mafft_global
+
+from sklearn.cluster import AgglomerativeClustering
+import itertools
+import math
 
 
 def parse_args():
@@ -129,31 +133,51 @@ def prune_db(strains: List[Strain], input_json_path: Path, output_json_path: Pat
 
     # Read the alignments.
     alignments: Dict[str, np.ndarray] = {}
+    align_len = 0
     for record in SeqIO.parse(alignments_path, "fasta"):
         accession = record.id
         alignments[accession] = nucleotides_to_z4(str(record.seq))
+        align_len = len(record.seq)
 
-    # Cluster if hamming dist = 0.
-    accessions_to_cluster: Set[str] = set(strain.id for strain in strains)
-    clusters: List[List[str]] = []
-    while len(accessions_to_cluster) > 0:
-        cluster_rep_acc = next(iter(accessions_to_cluster))
-        cluster: List[str] = []
+    distances = np.zeros(shape=(len(strains), len(strains)), dtype=int)
+    for (i1, strain1), (i2, strain2) in itertools.combinations(enumerate(strains), r=2):
+        hamming_dist = np.sum(alignments[strain1.id] != alignments[strain2.id])
+        distances[i1, i2] = hamming_dist
+        distances[i2, i1] = hamming_dist
 
-        for other_acc in accessions_to_cluster:
-            # Note: this explicitly includes cluster_rep_acc itself.
-            hamming = np.sum(alignments[cluster_rep_acc] != alignments[other_acc])
-            if hamming == 0:
-                cluster.append(other_acc)
+    clustering = AgglomerativeClustering(
+        affinity='precomputed',
+        linkage='average',
+        distance_threshold=math.ceil(0.0001 * align_len)
+    ).fit(distances)
 
-        accessions_to_cluster = accessions_to_cluster.difference(cluster)
-        entries[cluster_rep_acc]['cluster'] = [
-            "{}({})".format(
-                entries[other_acc]['accession'], entries[other_acc]['strain']
-            )
-            for other_acc in cluster
-        ]
-        clusters.append(cluster)
+    n_clusters, cluster_labels = clustering.n_clusters_, clustering.labels_
+    clusters: List[List[str]] = [
+        [strains[s_idx].id for s_idx in np.where(cluster_labels == c)[0]]
+        for c in range(n_clusters)
+    ]
+
+    # # Cluster if hamming dist = 0.
+    # accessions_to_cluster: Set[str] = set(strain.id for strain in strains)
+    # clusters: List[List[str]] = []
+    # while len(accessions_to_cluster) > 0:
+    #     cluster_rep_acc = next(iter(accessions_to_cluster))
+    #     cluster: List[str] = []
+    #
+    #     for other_acc in accessions_to_cluster:
+    #         # Note: this explicitly includes cluster_rep_acc itself.
+    #         hamming = np.sum(alignments[cluster_rep_acc] != alignments[other_acc])
+    #         if hamming == 0:
+    #             cluster.append(other_acc)
+    #
+    #     accessions_to_cluster = accessions_to_cluster.difference(cluster)
+    #     entries[cluster_rep_acc]['cluster'] = [
+    #         "{}({})".format(
+    #             entries[other_acc]['accession'], entries[other_acc]['strain']
+    #         )
+    #         for other_acc in cluster
+    #     ]
+    #     clusters.append(cluster)
 
     # Create the clustered json.
     result_entries = [
