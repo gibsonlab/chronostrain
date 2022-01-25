@@ -6,7 +6,7 @@ from torch.nn import Parameter
 
 from chronostrain import create_logger
 from chronostrain.algs.inference.bbvi.posteriors.base import AbstractReparametrizedPosterior
-from chronostrain.util.benchmarking import RuntimeEstimator
+from chronostrain.util.benchmarking import RuntimeEstimator, CyclicBuffer
 
 logger = create_logger(__name__)
 
@@ -26,12 +26,17 @@ class AbstractBBVI(ABC):
                  num_epochs=1,
                  iters=4000,
                  num_samples=8000,
+                 patience_ratio=0.5,
+                 patience_horizon=10,
                  callbacks: Optional[List[Callable[[int, torch.Tensor, float], None]]] = None):
         time_est = RuntimeEstimator(total_iters=num_epochs, horizon=10)
         reparam_samples = None
         elbo_value = 0.0
 
+        patience_buffer = CyclicBuffer(capacity=patience_horizon)
+        prev_epoch_elbo = -float("inf")
         for epoch in range(1, num_epochs + 1, 1):
+            epoch_elbo = 0.0
             time_est.stopwatch_click()
             for it in range(1, iters + 1, 1):
                 reparam_samples = self.posterior.reparametrized_sample(
@@ -40,8 +45,10 @@ class AbstractBBVI(ABC):
                 reparam_lls = self.posterior.reparametrized_sample_log_likelihoods(reparam_samples)
 
                 elbo_value = self.optimize_step(reparam_samples, reparam_lls, optimizer)
+                epoch_elbo += elbo_value
 
             # ===========  End of epoch
+            epoch_elbo /= iters
             if callbacks is not None:
                 for callback in callbacks:
                     callback(epoch, reparam_samples, elbo_value)
@@ -50,15 +57,25 @@ class AbstractBBVI(ABC):
             time_est.increment(secs_elapsed)
 
             logger.info(
-                "Epoch {epoch} | time left: {t:.2f} min. | Last ELBO = {elbo:.2f} | LR = {lr}".format(
+                "Epoch {epoch} | time left: {t:.2f} min. | Average ELBO = {elbo:.2f} | LR = {lr}".format(
                     epoch=epoch,
                     t=time_est.time_left() / 60000,
-                    elbo=elbo_value,
+                    elbo=epoch_elbo,
                     lr=optimizer.param_groups[-1]['lr']
                 )
             )
 
-            lr_scheduler.step()
+            patience_buffer.push(int(epoch_elbo > prev_epoch_elbo))
+            """
+            Early stopping criteria: Keep going as long as we improve at least <patience_ratio> fraction of the past 
+            <patience_horizon> epochs.
+            """
+            if patience_buffer.mean() < patience_ratio:
+                logger.info("Stopping criteria met after {} epochs.".format(epoch))
+                break
+            else:
+                prev_epoch_elbo = epoch_elbo
+                lr_scheduler.step()
 
         # ========== End of optimization
         logger.info("Finished.")

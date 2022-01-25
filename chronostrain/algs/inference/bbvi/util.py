@@ -26,8 +26,10 @@ class LogMMExpDenseSPModel(torch.nn.Module):
         self.target_cols: List[torch.Tensor] = []
 
         for target_row in range(self.A_rows):
-            nz_targets_k = torch.where(sparse_right_matrix.indices[0] == target_row)[0]
-
+            if isinstance(sparse_right_matrix, RowSectionedSparseMatrix):
+                nz_targets_k = sparse_right_matrix.locs_per_row[target_row]
+            else:
+                nz_targets_k = torch.where(sparse_right_matrix.indices[0] == target_row)[0]
             self.nz_targets.append(nz_targets_k)
             self.target_cols.append(self.A_indices[1, nz_targets_k])
 
