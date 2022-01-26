@@ -163,33 +163,15 @@ def prune_db(strains: List[Strain], input_json_path: Path, output_json_path: Pat
         for c in range(n_clusters)
     ]
 
-    # # Cluster if hamming dist = 0.
-    # accessions_to_cluster: Set[str] = set(strain.id for strain in strains)
-    # clusters: List[List[str]] = []
-    # while len(accessions_to_cluster) > 0:
-    #     cluster_rep_acc = next(iter(accessions_to_cluster))
-    #     cluster: List[str] = []
-    #
-    #     for other_acc in accessions_to_cluster:
-    #         # Note: this explicitly includes cluster_rep_acc itself.
-    #         hamming = np.sum(alignments[cluster_rep_acc] != alignments[other_acc])
-    #         if hamming == 0:
-    #             cluster.append(other_acc)
-    #
-    #     accessions_to_cluster = accessions_to_cluster.difference(cluster)
-    #     entries[cluster_rep_acc]['cluster'] = [
-    #         "{}({})".format(
-    #             entries[other_acc]['accession'], entries[other_acc]['strain']
-    #         )
-    #         for other_acc in cluster
-    #     ]
-    #     clusters.append(cluster)
-
     # Create the clustered json.
-    result_entries = [
-        entries[cluster[0]]
-        for cluster in clusters
-    ]
+    result_entries = []
+    for cluster in clusters:
+        cluster_entry = entries[cluster[0]]
+        cluster_entry['cluster'] = [
+            "{}({})".format(acc, entries[acc]['strain'])
+            for acc in cluster
+        ]
+        result_entries.append(cluster_entry)
 
     with open(output_json_path, 'w') as outfile:
         json.dump(result_entries, outfile, indent=4)
