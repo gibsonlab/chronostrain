@@ -43,4 +43,10 @@ UMB23	nitrofurantoin macro 50 mg	nitrofurantoin	nitrofuran	2016-06-03	not provid
 UMB24	not provided			2017-01-04	7		2016-12-28	267.0
 UMB25	UTI (name of antibiotic not provided			2016-04-06		3	2016-03-16	-55.0
 UMB26	amoxicillin	amoxicillin	beta_lactam	2017-01-16	17		2016-12-30	243.0
-UMB27	arithromyci
+UMB27	arithromycin for strep throat	azithromycin	macrolide	2016-07-25		1	2016-07-18	85.0
+UMB28	IV drip during labor (name of antibiotic not provided)			2016-04-25		7	2016-03-07	-48.0
+UMB29	zithromycin pak	azithromycin	macrolide	2016-12-06	3		2016-12-03	222.0
+UMB30	UTI (name of antibiotic not provided)			2016-05-19		8	2016-03-24	-74.0
+UMB30	nitrofurantoin, ciprofloxacin	ciprofloxacin	fluoroquinolone	2016-06-06		2	2016-05-23	-14.0
+UMB30	nitrofurantoin, ciprofloxacin	nitrofurantoin	nitrofuran	2016-06-06		2	2016-05-23	-14.0
+UMB31	azoithromycin	azithromycin	macrolide	2016-07-13		3	2016-06-22	31.0
