@@ -1,0 +1,52 @@
+patient	raw_abx	clean_abx	abx_class	date	days_before	weeks_before	date_ended
+2	azithromycin	azithromycin	macrolide	10/6/15	n/a	2	9/22/15
+2	doxycycline	doxycycline	tetracycline	3/9/16	currently taking - started 03/10/2016	n/a	3/9/16
+2	doxycycline	doxycycline	tetracycline	4/5/16	n/a	2	3/22/16
+3	amoxicillin clavulanate	augmentin	beta_lactam	11/4/15	n/a	2	10/21/15
+5	ciproxin	ciproxin	fluoroquinolone	10/1/15	n/a	3	9/10/15
+5	ciprofloxacin	ciprofloxacin	fluoroquinolone	4/4/16	15	n/a	3/20/16
+5	sulfamethoxazole-tmp	bactrim	sulfonamide	8/2/16	1	n/a	8/1/16
+8	ciprofloxacin	ciprofloxacin	fluoroquinolone	11/3/15	n/a	2	10/20/15
+8	cipro	ciprofloxacin	fluoroquinolone	12/21/15	4	n/a	12/17/15
+8	ciprofloxacin	ciprofloxacin	fluoroquinolone	9/11/16	5	n/a	9/6/16
+11	sulfa	sulfamethoxazole	sulfonamide	3/7/16	15	n/a	2/21/16
+12	macrobid 100 mg	nitrofurantoin	nitrofuran	11/17/15	n/a	10	9/8/15
+12	macrobid  once	nitrofurantoin	nitrofuran	1/5/16	not answered	not answered	1/5/16
+12	macrobid 100 mg	nitrofurantoin	nitrofuran	7/13/16	5	n/a	7/8/16
+12	macrobid 100 mg x 1	nitrofurantoin	nitrofuran	8/9/16	n/a	2	7/26/16
+12	macrobid 	nitrofurantoin	nitrofuran	9/13/16	1	n/a	9/12/16
+13	med not indicated - taken for sinus infection	n/a	n/a	10/19/16	n/a	3	9/28/16
+15	sulfamethoxazole	sulfamethoxazole	sulfonamide	11/23/15	n/a	6	10/12/15
+15	ciprofloxacin 500mg bid for 1 week	ciprofloxacin	fluoroquinolone	1/5/16	n/a	1	12/29/15
+18	macrobid	nitrofurantoin	nitrofuran	2/10/16	n/a	6	12/30/15
+18	macrobid	nitrofurantoin	nitrofuran	2/23/16	n/a	1	2/16/16
+18	not indicated	n/a	n/a	4/5/16	n/a	1	3/29/16
+18	amoxicillin	amoxicillin	beta_lactam	10/5/16	4	n/a	10/1/16
+18	amoxicillin	amoxicillin	beta_lactam	11/16/16	2	n/a	11/14/16
+18	macrobid	nitrofurantoin	nitrofuran	12/19/16	n/a	2	12/5/16
+19	z pack	azithromycin	macrolide	4/3/16	n/a	3	3/13/16
+20	cephalexin	cephalexin	beta_lactam	2/11/16	n/a	7	12/24/15
+20	ciprofloxacin	ciprofloxacin	fluoroquinolone	5/2/16	n/a	1	4/25/16
+20	macrobid	nitrofurantoin	nitrofuran	7/13/16	n/a	1.5	7/2/16
+20	nitrofurantoin	nitrofurantoin	nitrofuran	12/5/16	n/a	1	11/28/16
+20	cephalexen	cephalexin	beta_lactam	1/10/17	n/a	3	12/20/16
+21	amoxicillin clavulanate	augmentin	beta_lactam	2/15/16	n/a	3	1/25/16
+22	tonsillitis (name of antibiotic not indicated)	n/a	n/a	2/17/16	n/a	10	12/9/15
+22	cefuroxime axetil for tonsillitis	ceftin	beta_lactam	3/6/16	0	n/a	3/6/16
+22	infected cuticle (name of antibiotic not provided)	n/a	n/a	5/3/16	n/a	1.5	4/22/16
+22	cephalexin 500 mg tid	cephalexin	beta_lactam	10/2/16	4	n/a	9/28/16
+22	macrophage	n/a	n/a	2/7/17	0 (1 dose started on 2/6/17)	n/a	2/7/17
+23	headache (name of antibiotic not provided)	n/a	n/a	3/15/16	5	n/a	3/10/16
+23	azithromycin (subject states 'still taking them')	azithromycin	macrolide	4/6/16	n/a	n/a	4/6/16
+23	ciprofloxacin 500 mg	ciprofloxacin	fluoroquinolone	4/26/16	0	n/a	4/26/16
+23	nitrofurantoin macro 50 mg	nitrofurantoin	nitrofuran	6/3/16	not provided	not provided	6/3/16
+24	not provided	n/a	n/a	1/4/17	7	n/a	12/28/16
+25	UTI (name of antibiotic not provided	n/a	n/a	4/6/16	n/a	3	3/16/16
+26	amoxicillin	amoxicillin	beta_lactam	1/16/17	17	n/a	12/30/16
+27	arithromycin for strep throat	azithromycin	macrolide	7/25/16	n/a	1	7/18/16
+28	IV drip during labor (name of antibiotic not provided)	n/a	n/a	4/25/16	n/a	7	3/7/16
+29	zithromycin pak	azithromycin	macrolide	12/6/16	3	n/a	12/3/16
+30	UTI (name of antibiotic not provided)	n/a	n/a	5/19/16	n/a	8	3/24/16
+30	nitrofurantoin, ciprofloxacin	ciprofloxacin	fluoroquinolone	6/6/16	n/a	2	5/23/16
+30	nitrofurantoin, ciprofloxacin	nitrofurantoin	nitrofuran	6/6/16	n/a	2	5/23/16
+31	azoithromycin	azithromycin	macrolide	7/13/16	n/a	3	6/22/16
