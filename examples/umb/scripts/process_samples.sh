@@ -81,7 +81,7 @@ mkdir -p "${SAMPLES_DIR}/trimmomatic"
 		# Add to timeseries input index.
 		append_fastq ${trimmed_paired_1} $days $umb_id
 		append_fastq ${trimmed_unpaired_1} $days $umb_id
-		append_fastq ${trimmed_paired_1} $days $umb_id
-		append_fastq ${trimmed_unpaired_1} $days $umb_id
+		append_fastq ${trimmed_paired_2} $days $umb_id
+		append_fastq ${trimmed_unpaired_2} $days $umb_id
 	done
 } < ${SRA_CSV_PATH}
