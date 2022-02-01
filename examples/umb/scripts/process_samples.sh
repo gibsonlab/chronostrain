@@ -61,9 +61,9 @@ mkdir -p "${SAMPLES_DIR}/trimmomatic"
 		trimmed_paired_2="${SAMPLES_DIR}/trimmomatic/${sra_id}_2_paired.fastq.gz"
 		trimmed_unpaired_2="${SAMPLES_DIR}/trimmomatic/${sra_id}_2_unpaired.fastq.gz"
 
-		if [ -f "${trimmed_paired_1}" ] && [ -f "${trimmed_unpaired_1}" ]
+		if [ -f "${trimmed_paired_1}" ] || [ -f "${trimmed_unpaired_1}" ]
 		then
-			echo "Trimmomatic outputs ${trimmed_paired_1} and ${trimmed_unpaired_1} already found!"
+			echo "Trimmomatic outputs already found!"
 		else
 			# Preprocess
 			echo "[*] Invoking trimmomatic..."
@@ -79,6 +79,8 @@ mkdir -p "${SAMPLES_DIR}/trimmomatic"
 		fi
 
 		# Add to timeseries input index.
+		append_fastq ${trimmed_paired_1} $days $umb_id
+		append_fastq ${trimmed_unpaired_1} $days $umb_id
 		append_fastq ${trimmed_paired_1} $days $umb_id
 		append_fastq ${trimmed_unpaired_1} $days $umb_id
 	done
