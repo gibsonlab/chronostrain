@@ -58,10 +58,10 @@ mkdir -p "${SAMPLES_DIR}/trimmomatic"
 
 		# Target fastq files.
 		kneaddata_output_dir="${SAMPLES_DIR}/kneaddata/${sra_id}"
-		trimmed_1_paired_gz = "${kneaddata_output_dir}/${sra_id}_kneaddata_paired_1.fastq.gz"
-		trimmed_1_unpaired_gz = "${kneaddata_output_dir}/${sra_id}_kneaddata_unmatched_1.fastq.gz"
-		trimmed_2_paired_gz = "${kneaddata_output_dir}/${sra_id}_kneaddata_paired_2.fastq.gz"
-		trimmed_2_unpaired_gz = "${kneaddata_output_dir}/${sra_id}_kneaddata_unmatched_2.fastq.gz"
+		trimmed_1_paired_gz="${kneaddata_output_dir}/${sra_id}_kneaddata_paired_1.fastq.gz"
+		trimmed_1_unpaired_gz="${kneaddata_output_dir}/${sra_id}_kneaddata_unmatched_1.fastq.gz"
+		trimmed_2_paired_gz="${kneaddata_output_dir}/${sra_id}_kneaddata_paired_2.fastq.gz"
+		trimmed_2_unpaired_gz="${kneaddata_output_dir}/${sra_id}_kneaddata_unmatched_2.fastq.gz"
 
 		if [ -f "${trimmed_1_paired_gz}" ] && [ -f "${trimmed_2_paired_gz}" ]
 		then
@@ -80,10 +80,10 @@ mkdir -p "${SAMPLES_DIR}/trimmomatic"
 			--trimmomatic ${TRIMMOMATIC_DIR} \
 			--output-prefix ${sra_id}
 
-			trimmed_1_paired = "${kneaddata_output_dir}/${sra_id}_kneaddata_paired_1.fastq"
-			trimmed_1_unpaired = "${kneaddata_output_dir}/${sra_id}_kneaddata_unmatched_1.fastq"
-			trimmed_2_paired = "${kneaddata_output_dir}/${sra_id}_kneaddata_paired_2.fastq"
-			trimmed_2_unpaired = "${kneaddata_output_dir}/${sra_id}_kneaddata_unmatched_2.fastq"
+			trimmed_1_paired="${kneaddata_output_dir}/${sra_id}_kneaddata_paired_1.fastq"
+			trimmed_1_unpaired="${kneaddata_output_dir}/${sra_id}_kneaddata_unmatched_1.fastq"
+			trimmed_2_paired="${kneaddata_output_dir}/${sra_id}_kneaddata_paired_2.fastq"
+			trimmed_2_unpaired="${kneaddata_output_dir}/${sra_id}_kneaddata_unmatched_2.fastq"
 			gzip trimmed_1_paired
 			gzip trimmed_1_unpaired
 			gzip trimmed_2_paired
