@@ -241,8 +241,7 @@ class Filter:
             if t_idx >= self.continue_from_idx:
                 sam_paths_t = []
                 for read_path in src.paths:
-                    base_path = read_path.parent
-                    aligner_tmp_dir = base_path / "tmp"
+                    aligner_tmp_dir = self.output_dir / "tmp"
                     aligner_tmp_dir.mkdir(parents=True, exist_ok=True)
 
                     sam_path = aligner_tmp_dir / "{}.sam".format(

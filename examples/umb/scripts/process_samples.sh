@@ -3,7 +3,8 @@ set -e
 source settings.sh
 
 # ======================================== Functions ===============================
-# REQUIRES: trimmomatic, gzip
+# REQUIRES: kneaddata, trimmomatic, gzip
+check_program 'kneaddata'
 check_program 'trimmomatic'
 check_program 'gzip'
 
@@ -56,32 +57,43 @@ mkdir -p "${SAMPLES_DIR}/trimmomatic"
 		fq_file_2="${SAMPLES_DIR}/${sra_id}_2.fastq.gz"
 
 		# Target fastq files.
-		trimmed_paired_1="${SAMPLES_DIR}/trimmomatic/${sra_id}_1_paired.fastq.gz"
-		trimmed_unpaired_1="${SAMPLES_DIR}/trimmomatic/${sra_id}_1_unpaired.fastq.gz"
-		trimmed_paired_2="${SAMPLES_DIR}/trimmomatic/${sra_id}_2_paired.fastq.gz"
-		trimmed_unpaired_2="${SAMPLES_DIR}/trimmomatic/${sra_id}_2_unpaired.fastq.gz"
+		kneaddata_output_dir="${SAMPLES_DIR}/kneaddata/${sra_id}"
+		trimmed_1_paired_gz = "${kneaddata_output_dir}/${sra_id}_kneaddata_paired_1.fastq.gz"
+		trimmed_1_unpaired_gz = "${kneaddata_output_dir}/${sra_id}_kneaddata_unmatched_1.fastq.gz"
+		trimmed_2_paired_gz = "${kneaddata_output_dir}/${sra_id}_kneaddata_paired_2.fastq.gz"
+		trimmed_2_unpaired_gz = "${kneaddata_output_dir}/${sra_id}_kneaddata_unmatched_2.fastq.gz"
 
-		if [ -f "${trimmed_paired_1}" ] || [ -f "${trimmed_unpaired_1}" ]
+		if [ -f "${trimmed_1_paired_gz}" ] && [ -f "${trimmed_2_paired_gz}" ]
 		then
-			echo "Trimmomatic outputs already found!"
+			echo "Processed outputs already found!"
 		else
-			# Preprocess
-			echo "[*] Invoking trimmomatic..."
-			trimmomatic PE \
-			-threads 4 \
-			-phred33 \
-			${fq_file_1} ${fq_file_2} \
-			${trimmed_paired_1} ${trimmed_unpaired_1} \
-			${trimmed_paired_2} ${trimmed_unpaired_2} \
-			SLIDINGWINDOW:100:0 \
-			MINLEN:35 \
-			ILLUMINACLIP:${NEXTERA_ADAPTER_PATH}:2:40:15
+			echo "[*] Invoking kneaddata..."
+			kneaddata \
+			--input1 ${fq_file_1} \
+			--input2 ${fq_file_2} \
+			--reference-db ${KNEADDATA_DB_DIR} \
+			--output ${kneaddata_output_dir} \
+			--trimmomatic-options "SLIDINGWINDOW:100:0 MINLEN:35 ILLUMINACLIP:${NEXTERA_ADAPTER_PATH}:2:40:15" \
+			--threads 6 \
+			--quality-scores phred33 \
+			--bypass-trf \
+			--trimmomatic ${TRIMMOMATIC_DIR} \
+			--output-prefix ${sra_id}
+
+			trimmed_1_paired = "${kneaddata_output_dir}/${sra_id}_kneaddata_paired_1.fastq"
+			trimmed_1_unpaired = "${kneaddata_output_dir}/${sra_id}_kneaddata_unmatched_1.fastq"
+			trimmed_2_paired = "${kneaddata_output_dir}/${sra_id}_kneaddata_paired_2.fastq"
+			trimmed_2_unpaired = "${kneaddata_output_dir}/${sra_id}_kneaddata_unmatched_2.fastq"
+			gzip trimmed_1_paired
+			gzip trimmed_1_unpaired
+			gzip trimmed_2_paired
+			gzip trimmed_2_unpaired
 		fi
 
 		# Add to timeseries input index.
-		append_fastq ${trimmed_paired_1} $days $umb_id
-		append_fastq ${trimmed_unpaired_1} $days $umb_id
-		append_fastq ${trimmed_paired_2} $days $umb_id
-		append_fastq ${trimmed_unpaired_2} $days $umb_id
+		append_fastq ${trimmed_1_paired_gz} $days $umb_id
+		append_fastq ${trimmed_1_unpaired_gz} $days $umb_id
+		append_fastq ${trimmed_2_paired_gz} $days $umb_id
+		append_fastq ${trimmed_2_unpaired_gz} $days $umb_id
 	done
 } < ${SRA_CSV_PATH}

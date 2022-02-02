@@ -29,6 +29,7 @@ export FASTERQ_TMP_DIR="${CHRONOSTRAIN_DATA_DIR}/fasterq-tmp"
 export SAMPLES_DIR="${CHRONOSTRAIN_DATA_DIR}/samples"
 
 # ========= Kneaddata
+export KNEADDATA_DB_DIR="/mnt/d/kneaddata_db"
 export NEXTERA_ADAPTER_PATH="/PHShome/yk847/.conda/envs/chronostrain/share/trimmomatic/adapters/NexteraPE-PE.fa"
 export TRIMMOMATIC_DIR="/PHShome/yk847/.conda/envs/chronostrain/share/trimmomatic-0.39-2"
 
