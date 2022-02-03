@@ -17,7 +17,7 @@ append_fastq()
 	read_type=$4
 	qual_fmt=$5
 
-	num_lines=$(zcat $gzip_fq_path | wc -l | awk '{print $1}')
+	num_lines=$(pigz -dc $gzip_fq_path | wc -l | awk '{print $1}')
 	num_reads=$((${num_lines} / 4))
 
 	if [[ -s "${gzip_fq_path}" ]] && [[ ${num_reads} > 0 ]]; then
