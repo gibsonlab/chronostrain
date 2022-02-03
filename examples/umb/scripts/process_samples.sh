@@ -73,9 +73,9 @@ mkdir -p "${SAMPLES_DIR}/trimmomatic"
 
 		if [ -f "${trimmed_1_paired_gz}" ] && [ -f "${trimmed_2_paired_gz}" ]
 		then
-			echo "Processed outputs already found!"
+			echo "[*] Processed outputs already found!"
 		else
-			echo "[*] Invoking kneaddata..."
+			echo "[*] Invoking kneaddata."
 			kneaddata \
 			--input1 ${fq_file_1} \
 			--input2 ${fq_file_2} \
@@ -88,6 +88,7 @@ mkdir -p "${SAMPLES_DIR}/trimmomatic"
 			--trimmomatic ${TRIMMOMATIC_DIR} \
 			--output-prefix ${sra_id}
 
+			echo "[*] Compressing fastq files."
 			trimmed_1_paired="${kneaddata_output_dir}/${sra_id}_paired_1.fastq"
 			trimmed_1_unpaired="${kneaddata_output_dir}/${sra_id}_unmatched_1.fastq"
 			trimmed_2_paired="${kneaddata_output_dir}/${sra_id}_paired_2.fastq"
