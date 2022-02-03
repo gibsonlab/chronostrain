@@ -32,7 +32,7 @@ append_fastq()
 
 # Clear index file.
 mkdir -p ${READS_DIR}
-for f in ${READS_DIR}/*_${INPUT_INDEX_FILENAME}; do rm $f; done
+find ${READS_DIR} -maxdepth 1 -name *_${INPUT_INDEX_FILENAME} -type f -exec rm '{}' \;
 
 SRA_CSV_PATH="${BASE_DIR}/files/umb_samples.csv"
 
