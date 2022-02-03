@@ -71,7 +71,7 @@ def filter_on_edge_clip(aln: SequenceReadPairwiseAlignment, clip_fraction: float
 
 def filter_file(
         db: StrainDatabase,
-        sam_files: List[Path],
+        sam_path: Path,
         result_metadata_path: Path,
         result_fq_path: Path,
         quality_format: str,
@@ -105,54 +105,53 @@ def filter_file(
     result_fq = open(result_fq_path, 'w')
     reads_already_passed = set()
 
-    for sam_file_path in sam_files:
-        logger.info(f"Reading: {sam_file_path.name}")
-        for aln in parse_alignments(
-                SamFile(sam_file_path, quality_format), db
-        ):
-            if aln.read.id in reads_already_passed:
-                # Read is already included in output file. Don't do anything.
-                continue
+    logger.info(f"Reading: {sam_path.name}")
+    for aln in parse_alignments(
+            SamFile(sam_path, quality_format), db
+    ):
+        if aln.read.id in reads_already_passed:
+            # Read is already included in output file. Don't do anything.
+            continue
 
-            # Pass filter if quality is high enough, and entire read is mapped.
-            filter_edge_clip = filter_on_edge_clip(aln, clip_fraction=0.25)
-            percent_identity_adjusted = adjusted_match_identity(aln)
+        # Pass filter if quality is high enough, and entire read is mapped.
+        filter_edge_clip = filter_on_edge_clip(aln, clip_fraction=0.25)
+        percent_identity_adjusted = adjusted_match_identity(aln)
 
-            passed_filter = (
-                filter_edge_clip
-                and len(aln.read) > min_read_len
-                and percent_identity_adjusted > pct_identity_threshold
-                and num_expected_errors(aln) < error_threshold
+        passed_filter = (
+            filter_edge_clip
+            and len(aln.read) > min_read_len
+            and percent_identity_adjusted > pct_identity_threshold
+            and num_expected_errors(aln) < error_threshold
+        )
+
+        # Write to metadata file.
+        metadata_csv_writer.writerow(
+            [
+                aln.read.id,
+                aln.marker.id,
+                aln.marker_start,
+                aln.marker_end,
+                int(passed_filter),
+                int(aln.reverse_complemented),
+                int(aln.is_edge_mapped),
+                len(aln.read),
+                aln.num_mismatches,
+                percent_identity_adjusted
+            ]
+        )
+
+        if passed_filter:
+            # Add to collection of already added reads.
+            reads_already_passed.add(aln.read.id)
+
+            # Write SeqRecord to file.
+            record = Bio.SeqIO.SeqRecord(
+                Seq(aln.read.nucleotide_content()),
+                id=aln.read.id,
+                description="{}_{}:{}".format(aln.marker.id, aln.marker_start, aln.marker_end)
             )
-
-            # Write to metadata file.
-            metadata_csv_writer.writerow(
-                [
-                    aln.read.id,
-                    aln.marker.id,
-                    aln.marker_start,
-                    aln.marker_end,
-                    int(passed_filter),
-                    int(aln.reverse_complemented),
-                    int(aln.is_edge_mapped),
-                    len(aln.read),
-                    aln.num_mismatches,
-                    percent_identity_adjusted
-                ]
-            )
-
-            if passed_filter:
-                # Add to collection of already added reads.
-                reads_already_passed.add(aln.read.id)
-
-                # Write SeqRecord to file.
-                record = Bio.SeqIO.SeqRecord(
-                    Seq(aln.read.nucleotide_content()),
-                    id=aln.read.id,
-                    description="{}_{}:{}".format(aln.marker.id, aln.marker_start, aln.marker_end)
-                )
-                record.letter_annotations["phred_quality"] = aln.read.quality
-                Bio.SeqIO.write(record, result_fq, "fastq")
+            record.letter_annotations["phred_quality"] = aln.read.quality
+            Bio.SeqIO.write(record, result_fq, "fastq")
     logger.info(f"# passed reads: {len(reads_already_passed)}")
     result_metadata.close()
     result_fq.close()
@@ -219,23 +218,17 @@ class Filter:
         csv_rows: List[Tuple[float, int, Path, str]] = []
 
         for time_point, n_reads, filepath, read_type, qual_fmt in enumerate(self.time_points):
+            logger.info(f"Applying filter to (t={time_point}) {str(filepath)}")
             result_metadata_path = self.output_dir / 'metadata_{}.tsv'.format(time_point)
             result_fq_path = self.output_dir / "reads_{}.fq".format(time_point)
 
-            sam_paths_t = []
             sam_path = aligner_tmp_dir / filepath.with_suffix(".sam").name
 
             aligner.align(query_path=filepath, output_path=sam_path)
-            sam_paths_t.append(sam_path)
-
-            logger.debug("(t = {}) Reading SAM files {}".format(
-                time_point,
-                ",".join(str(p) for p in sam_paths_t)
-            ))
 
             filter_file(
                 db=self.db,
-                sam_files=sam_paths_t,
+                sam_path=sam_path,
                 result_metadata_path=result_metadata_path,
                 result_fq_path=result_fq_path,
                 quality_format=qual_fmt,
