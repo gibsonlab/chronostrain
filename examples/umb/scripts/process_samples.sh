@@ -75,8 +75,8 @@ mkdir -p "${SAMPLES_DIR}/kneaddata"
 		then
 			echo "[*] Processed outputs already found!"
 		else
-			tmp_file_1="${SAMPLES_DIR}/${sra_id}_1.fastq"
-			tmp_file_2="${SAMPLES_DIR}/${sra_id}_2.fastq"
+			tmp_file_1="${kneaddata_output_dir}/${sra_id}_1.fastq"
+			tmp_file_2="${kneaddata_output_dir}/${sra_id}_2.fastq"
 			echo "[*] Decompressing to temporary output."
 			pigz -dck ${fq_file_1} > ${tmp_file_1}
 			pigz -dck ${fq_file_2} > ${tmp_file_2}
