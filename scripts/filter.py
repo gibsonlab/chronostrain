@@ -2,7 +2,7 @@ import argparse
 import csv
 import numpy as np
 from pathlib import Path
-from typing import List, Iterator, Tuple, Dict
+from typing import List, Tuple
 
 from Bio import SeqIO
 from Bio.Seq import Seq
@@ -12,19 +12,10 @@ from chronostrain import create_logger, cfg
 logger = create_logger("chronostrain.filter")
 
 from chronostrain.database import StrainDatabase
-from chronostrain.model.io import TimeSliceReadSource
 from chronostrain.util.alignments.sam import SamFile
 from chronostrain.util.external.commandline import call_command
 from chronostrain.util.alignments.pairwise import parse_alignments, BwaAligner, BowtieAligner, \
     SequenceReadPairwiseAlignment
-
-
-def file_base_name(file_path: Path) -> str:
-    """
-    Convert a reference fasta path to the "base name" (typically the accession + marker name).
-    e.g. "/data/CP007799.1-16S.fq" -> "CP007799.1-16S"
-    """
-    return file_path.with_suffix('').name
 
 
 def num_expected_errors(aln: SequenceReadPairwiseAlignment):
@@ -171,16 +162,13 @@ class Filter:
     def __init__(self,
                  db: StrainDatabase,
                  reference_file_path: Path,
-                 read_sources: List[TimeSliceReadSource],
-                 read_depths: List[int],
-                 time_points: List[float],
+                 time_points: List[Tuple[float, int, Path, str]],
                  output_dir: Path,
                  quality_format: str,
                  min_seed_length: int,
                  min_read_len: int,
                  pct_identity_threshold: float,
                  error_threshold: float,
-                 continue_from_idx: int = 0,
                  num_threads: int = 1):
         logger.debug("Reference path: {}".format(reference_file_path))
 
@@ -193,8 +181,6 @@ class Filter:
         else:
             self.reference_path = reference_file_path
 
-        self.read_sources = read_sources
-        self.read_depths = read_depths
         self.time_points = time_points
         self.min_seed_length = min_seed_length
 
@@ -202,12 +188,8 @@ class Filter:
         self.quality_format = quality_format
         self.min_read_len = min_read_len
         self.pct_identity_threshold = pct_identity_threshold
-        self.continue_from_idx = continue_from_idx
         self.num_threads = num_threads
         self.error_threshold = error_threshold
-
-    def time_point_specs(self) -> Iterator[Tuple[TimeSliceReadSource, int, float]]:
-        yield from zip(self.read_sources, self.read_depths, self.time_points)
 
     def apply_filter(self, destination_csv: str):
         """
@@ -233,64 +215,57 @@ class Filter:
             )
 
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        resulting_files: List[Path] = []
-        for t_idx, (src, read_depth, time_point) in enumerate(self.time_point_specs()):
+        aligner_tmp_dir = self.output_dir / "tmp"
+        aligner_tmp_dir.mkdir(parents=True, exist_ok=True)
+
+        csv_rows: List[Tuple[float, int, Path, str]] = []
+
+        for time_point, n_reads, filepath, read_type in enumerate(self.time_points):
             result_metadata_path = self.output_dir / 'metadata_{}.tsv'.format(time_point)
             result_fq_path = self.output_dir / "reads_{}.fq".format(time_point)
 
-            if t_idx >= self.continue_from_idx:
-                sam_paths_t = []
-                for read_path in src.paths:
-                    aligner_tmp_dir = self.output_dir / "tmp"
-                    aligner_tmp_dir.mkdir(parents=True, exist_ok=True)
+            sam_paths_t = []
+            sam_path = aligner_tmp_dir / filepath.with_suffix(".sam").name
 
-                    sam_path = aligner_tmp_dir / "{}.sam".format(
-                        file_base_name(read_path)
-                    )
+            aligner.align(query_path=filepath, output_path=sam_path)
+            sam_paths_t.append(sam_path)
 
-                    aligner.align(query_path=read_path, output_path=sam_path)
-                    sam_paths_t.append(sam_path)
+            logger.debug("(t = {}) Reading SAM files {}".format(
+                time_point,
+                ",".join(str(p) for p in sam_paths_t)
+            ))
 
-                logger.debug("(t = {}) Reading SAM files {}".format(
-                    time_point,
-                    ",".join(str(p) for p in sam_paths_t)
-                ))
+            filter_file(
+                db=self.db,
+                sam_files=sam_paths_t,
+                result_metadata_path=result_metadata_path,
+                result_fq_path=result_fq_path,
+                quality_format=self.quality_format,
+                min_read_len=self.min_read_len,
+                pct_identity_threshold=self.pct_identity_threshold,
+                error_threshold=self.error_threshold
+            )
+            logger.info("Timepoint {t}, filtered reads file: {f}".format(
+                t=time_point, f=result_fq_path
+            ))
 
-                filter_file(
-                    db=self.db,
-                    sam_files=sam_paths_t,
-                    result_metadata_path=result_metadata_path,
-                    result_fq_path=result_fq_path,
-                    quality_format=self.quality_format,
-                    min_read_len=self.min_read_len,
-                    pct_identity_threshold=self.pct_identity_threshold,
-                    error_threshold=self.error_threshold
-                )
-                logger.info("Timepoint {t}, filtered reads file: {f}".format(
-                    t=time_point, f=result_fq_path
-                ))
-            else:
-                pass
-
-            resulting_files.append(result_fq_path)
-
-        save_input_csv(self.time_points, self.read_depths, self.output_dir / destination_csv, resulting_files)
+            csv_rows.append((time_point, n_reads, result_fq_path, read_type))
+        save_input_csv(csv_rows, self.output_dir / destination_csv)
 
 
-def save_input_csv(time_points: List[float],
-                   read_depths: List[int],
-                   out_path: Path,
-                   filtered_files: List[Path]):
+def save_input_csv(csv_rows: List[Tuple[float, int, Path, str]],
+                   out_path: Path):
     """
     Generates the target input.csv file pointing to the proper sources (of the filtered reads).
     """
     with open(out_path, "w") as f:
         writer = csv.writer(f, delimiter=',', quotechar='\"', quoting=csv.QUOTE_ALL)
-        for time_point, read_depth, filtered_file in zip(time_points, read_depths, filtered_files):
+        for time_point, read_depth, filtered_file, read_type in csv_rows:
             writer.writerow([
                 time_point,
                 read_depth,
-                str(filtered_file)
+                str(filtered_file),
+                read_type
             ])
 
 
@@ -334,10 +309,6 @@ def parse_args():
                         default=10.0,
                         help='<Optional> The maximum number of expected errors tolerated in order to pass filter.'
                              'Default: 10.0')
-    parser.add_argument('--continue_from_idx', required=False, type=int,
-                        default=0,
-                        help='<Optional> For debugging purposes, assumes that the first N timepoints have already '
-                             'been processed, and resumes the filtering at timepoint index N.')
     parser.add_argument('--num_threads', required=False, type=int, default=1,
                         help='<Optional> Specifies the number of threads. Is passed to underlying alignment tools.')
     parser.add_argument('--canonical_only', action='store_true',
@@ -348,9 +319,10 @@ def parse_args():
     return parser.parse_args()
 
 
-def load_from_csv(csv_path: Path, quality_format: str) -> 'TimeSeriesReads':
+def load_from_csv(csv_path: Path) -> List[Tuple[float, int, Path, str]]:
     import csv
-    time_points_to_reads: Dict[float, List[Tuple[int, Path]]] = {}
+
+    time_points: List[Tuple[float, int, Path, str]] = []
     if not csv_path.exists():
         raise FileNotFoundError(f"Missing required file `{str(csv_path)}`")
 
@@ -358,9 +330,10 @@ def load_from_csv(csv_path: Path, quality_format: str) -> 'TimeSeriesReads':
     with open(csv_path, "r") as f:
         input_specs = csv.reader(f, delimiter=',', quotechar='"')
         for row in input_specs:
-            time_point = float(row[0])
+            t = float(row[0])
             num_reads = int(row[1])
             read_path = Path(row[2])
+            read_type = row[3]
 
             if not read_path.exists():
                 raise FileNotFoundError(
@@ -369,29 +342,11 @@ def load_from_csv(csv_path: Path, quality_format: str) -> 'TimeSeriesReads':
                         read_path
                     ))
 
-            if time_point not in time_points_to_reads:
-                time_points_to_reads[time_point] = []
+            time_points.append((t, num_reads, read_path, read_type))
 
-            time_points_to_reads[time_point].append((num_reads, read_path))
-
-    time_points = sorted(time_points_to_reads.keys(), reverse=False)
+    time_points = sorted(time_points, key=lambda x: x[0])
     logger.info("Found timepoints: {}".format(time_points))
-
-    read_depths = [
-        sum([
-            n_reads for n_reads, _ in time_points_to_reads[t]
-        ])
-        for t in time_points
-    ]
-
-    time_slice_sources = [
-        TimeSliceReadSource([
-            read_path for _, read_path in time_points_to_reads[t]
-        ], quality_format)
-        for t in time_points
-    ]
-
-    return time_slice_sources, read_depths, time_points
+    return time_points
 
 
 def main():
@@ -400,9 +355,8 @@ def main():
     db = cfg.database_cfg.get_database()
 
     # =========== Parse reads.
-    read_sources, read_depths, time_points = load_from_csv(
-        Path(args.reads_input),
-        quality_format=args.quality_format
+    time_points = load_from_csv(
+        Path(args.reads_input)
     )
 
     if args.canonical_only:
@@ -418,15 +372,12 @@ def main():
     filt = Filter(
         db=db,
         reference_file_path=reference_path,
-        read_sources=read_sources,
-        read_depths=read_depths,
         time_points=time_points,
         output_dir=Path(args.output_dir),
         quality_format=args.quality_format,
         min_read_len=args.min_read_len,
         pct_identity_threshold=args.pct_identity_threshold,
         min_seed_length=args.min_seed_length,
-        continue_from_idx=args.continue_from_idx,
         num_threads=args.num_threads,
         error_threshold=args.phred_error_threshold
     )
