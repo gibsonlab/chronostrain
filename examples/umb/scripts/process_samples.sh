@@ -75,10 +75,16 @@ mkdir -p "${SAMPLES_DIR}/kneaddata"
 		then
 			echo "[*] Processed outputs already found!"
 		else
+			tmp_file_1="${SAMPLES_DIR}/${sra_id}_1.fastq"
+			tmp_file_2="${SAMPLES_DIR}/${sra_id}_2.fastq"
+			echo "[*] Decompressing to temporary output."
+			pigz -dck ${fq_file_1} > ${tmp_file_1}
+			pigz -dck ${fq_file_2} > ${tmp_file_2}
+
 			echo "[*] Invoking kneaddata."
 			kneaddata \
-			--input1 ${fq_file_1} \
-			--input2 ${fq_file_2} \
+			--input1 ${tmp_file_1} \
+			--input2 ${tmp_file_2} \
 			--reference-db ${KNEADDATA_DB_DIR} \
 			--output ${kneaddata_output_dir} \
 			--trimmomatic-options "SLIDINGWINDOW:100:0 MINLEN:35 ILLUMINACLIP:${NEXTERA_ADAPTER_PATH}:2:40:15" \
