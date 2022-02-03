@@ -215,7 +215,7 @@ class Filter:
         aligner_tmp_dir = self.output_dir / "tmp"
         aligner_tmp_dir.mkdir(parents=True, exist_ok=True)
 
-        csv_rows: List[Tuple[float, int, Path, str]] = []
+        csv_rows: List[Tuple[float, int, Path, str, str]] = []
 
         for time_point, n_reads, filepath, read_type, qual_fmt in self.time_points:
             logger.info(f"Applying filter to (t={time_point}) {str(filepath)}")
@@ -240,23 +240,24 @@ class Filter:
                 t=time_point, f=result_fq_path
             ))
 
-            csv_rows.append((time_point, n_reads, result_fq_path, read_type))
+            csv_rows.append((time_point, n_reads, result_fq_path, read_type, qual_fmt))
         save_input_csv(csv_rows, self.output_dir / destination_csv)
 
 
-def save_input_csv(csv_rows: List[Tuple[float, int, Path, str]],
+def save_input_csv(csv_rows: List[Tuple[float, int, Path, str, str]],
                    out_path: Path):
     """
     Generates the target input.csv file pointing to the proper sources (of the filtered reads).
     """
     with open(out_path, "w") as f:
         writer = csv.writer(f, delimiter=',', quotechar='\"', quoting=csv.QUOTE_ALL)
-        for time_point, read_depth, filtered_file, read_type in csv_rows:
+        for time_point, read_depth, filtered_file, read_type, qual_fmt in csv_rows:
             writer.writerow([
                 time_point,
                 read_depth,
                 str(filtered_file),
-                read_type
+                read_type,
+                qual_fmt
             ])
 
 
