@@ -2,7 +2,7 @@ from typing import Union
 
 import numpy as np
 from .phred import PhredErrorModel
-from .. import SequenceRead
+from .base import SequenceRead
 from ...util.sequences import SeqType
 
 
