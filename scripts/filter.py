@@ -217,7 +217,7 @@ class Filter:
 
         csv_rows: List[Tuple[float, int, Path, str]] = []
 
-        for time_point, n_reads, filepath, read_type, qual_fmt in enumerate(self.time_points):
+        for time_point, n_reads, filepath, read_type, qual_fmt in self.time_points:
             logger.info(f"Applying filter to (t={time_point}) {str(filepath)}")
             result_metadata_path = self.output_dir / 'metadata_{}.tsv'.format(time_point)
             result_fq_path = self.output_dir / "reads_{}.fq".format(time_point)
@@ -334,7 +334,6 @@ def load_from_csv(csv_path: Path) -> List[Tuple[float, int, Path, str, str]]:
             time_points.append((t, num_reads, read_path, read_type, qual_fmt))
 
     time_points = sorted(time_points, key=lambda x: x[0])
-    logger.info("Found timepoints: {}".format(time_points))
     return time_points
 
 

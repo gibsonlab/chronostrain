@@ -37,9 +37,6 @@ def parse_args():
                         help='<Required> The file path to save learned outputs to.')
 
     # Other Optional params
-    parser.add_argument('-q', '--quality_format', required=False, type=str, default='fastq',
-                        help='<Optional> The quality format. Should be one of the options implemented in Biopython '
-                             '`Bio.SeqIO.QualityIO` module.')
     parser.add_argument('-s', '--seed', required=False, type=int, default=31415,
                         help='<Optional> Seed for randomness (for reproducibility).')
     parser.add_argument('-truth', '--true_abundance_path', required=False, type=str,
@@ -63,7 +60,6 @@ def parse_args():
                              'samples to generate as output.')
     parser.add_argument('--plot_elbo', action="store_true",
                         help='If flag is set, then outputs plots of the ELBO history (if using BBVI).')
-    parser.add_argument('--')
     parser.add_argument('--draw_training_history', action="store_true",
                         help='If flag is set, then outputs an animation of the BBVI training history.')
     parser.add_argument('--save_fragment_probs', action="store_true",
@@ -111,10 +107,7 @@ def main():
 
     # ==== Parse input reads.
     logger.info("Loading time-series read files.")
-    reads = parse_reads(
-        Path(args.reads_input),
-        quality_format=args.quality_format
-    )
+    reads = TimeSeriesReads.load_from_csv(Path(args.reads_input))
     time_points = [time_slice.time_point for time_slice in reads]
 
     # ==== Load Population instance from database info

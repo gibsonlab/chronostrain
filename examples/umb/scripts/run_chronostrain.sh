@@ -17,7 +17,6 @@ do
     python run_bbvi.py \
            --reads_input "${READS_DIR}/${umb_id}_filtered/${index_filename}" \
            --out_dir $CHRONOSTRAIN_OUTPUT_DIR/${umb_id} \
-           --quality_format "fastq" \
            --seed $SEED \
            --iters $CHRONOSTRAIN_NUM_ITERS \
            --epochs $CHRONOSTRAIN_NUM_EPOCHS \

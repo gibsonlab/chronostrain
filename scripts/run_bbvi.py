@@ -45,9 +45,6 @@ def parse_args():
                         help='<Optional> The size of matrices to divide into chunks across fragments. (Default: 500)')
 
     # Optional input params
-    parser.add_argument('-q', '--quality_format', required=False, type=str, default='fastq',
-                        help='<Optional> The quality format. Should be one of the options implemented in Biopython '
-                             '`Bio.SeqIO.QualityIO` module.')
     parser.add_argument('-s', '--seed', required=False, type=int, default=31415,
                         help='<Optional> Seed for randomness (for reproducibility).')
     parser.add_argument('-truth', '--true_abundance_path', required=False, type=str,
@@ -107,7 +104,6 @@ def main():
     logger.info("Loading time-series read files.")
     reads = TimeSeriesReads.load_from_csv(
         Path(args.reads_input),
-        quality_format=args.quality_format
     )
     time_points = [time_slice.time_point for time_slice in reads]
 
