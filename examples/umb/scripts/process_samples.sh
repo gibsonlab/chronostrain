@@ -93,6 +93,7 @@ mkdir -p "${SAMPLES_DIR}/trimmomatic"
 			gzip $trimmed_1_unpaired
 			gzip $trimmed_2_paired
 			gzip $trimmed_2_unpaired
+			rm "${kneaddata_output_dir}/*.fastq"
 		fi
 
 		# Add to timeseries input index.
