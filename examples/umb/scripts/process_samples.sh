@@ -66,7 +66,7 @@ mkdir -p "${SAMPLES_DIR}/kneaddata"
 
 		# Target fastq files.
 		kneaddata_output_dir="${SAMPLES_DIR}/kneaddata/${sra_id}"
-		mkdir -p kneaddata_output_dir
+		mkdir -p $kneaddata_output_dir
 
 		trimmed_1_paired_gz="${kneaddata_output_dir}/${sra_id}_paired_1.fastq.gz"
 		trimmed_1_unpaired_gz="${kneaddata_output_dir}/${sra_id}_unmatched_1.fastq.gz"
