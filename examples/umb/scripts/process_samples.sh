@@ -20,7 +20,7 @@ append_fastq()
 	num_lines=$(zcat $gzip_fq_path | wc -l | awk '{print $1}')
 	num_reads=$((${num_lines} / 4))
 
-	if [[ -s "${gzip_fq_path}" ]]; then
+	if [[ -s "${gzip_fq_path}" ]] && [ ${num_reads} > 0 ]; then
 		echo "Adding record ${gzip_fq_path} to ${READS_DIR}/${umb_id}_${INPUT_INDEX_FILENAME}"
 		echo "${time},${num_reads},\"${gzip_fq_path}\",${read_type},${qual_fmt}" >> "${READS_DIR}/${umb_id}_${INPUT_INDEX_FILENAME}"
 	else
