@@ -220,7 +220,7 @@ class Filter:
         for time_point, n_reads, filepath, read_type, qual_fmt in self.time_points:
             logger.info(f"Applying filter to (t={time_point}) {str(filepath)}")
             result_metadata_path = self.output_dir / 'metadata_{}.tsv'.format(time_point)
-            result_fq_path = self.output_dir / "reads_{}.fq".format(time_point)
+            result_fq_path = self.output_dir / f"filtered_{filepath.name}"
 
             sam_path = aligner_tmp_dir / filepath.with_suffix(".sam").name
 
