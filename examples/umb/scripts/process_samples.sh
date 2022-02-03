@@ -89,10 +89,10 @@ mkdir -p "${SAMPLES_DIR}/trimmomatic"
 			trimmed_1_unpaired="${kneaddata_output_dir}/${sra_id}_kneaddata_unmatched_1.fastq"
 			trimmed_2_paired="${kneaddata_output_dir}/${sra_id}_kneaddata_paired_2.fastq"
 			trimmed_2_unpaired="${kneaddata_output_dir}/${sra_id}_kneaddata_unmatched_2.fastq"
-			gzip trimmed_1_paired
-			gzip trimmed_1_unpaired
-			gzip trimmed_2_paired
-			gzip trimmed_2_unpaired
+			gzip $trimmed_1_paired
+			gzip $trimmed_1_unpaired
+			gzip $trimmed_2_paired
+			gzip $trimmed_2_unpaired
 		fi
 
 		# Add to timeseries input index.
