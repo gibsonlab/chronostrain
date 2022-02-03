@@ -115,7 +115,8 @@ class ModelConfig(AbstractConfig):
         self.sics_dof: float = self.get_float("SICS_DOF")
         self.sics_scale: float = self.get_float("SICS_SCALE")
         self.use_sparse: bool = self.get_bool("SPARSE_MATRICES")
-        self.mean_read_length: float = self.get_float("MEAN_READ_LEN")
+        self.frag_len_negbin_n: float = self.get_float("FRAG_LEN_NB_N")
+        self.frag_len_negbin_p: float = self.get_float("FRAG_LEN_NB_P")
 
 
 class TorchConfig(AbstractConfig):

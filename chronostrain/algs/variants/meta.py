@@ -144,7 +144,9 @@ class AbstractVariantBBVISolver(object):
                 deletion_error_ll=cfg.model_cfg.deletion_error_log10
             ),
             fragments=fragments,
-            mean_frag_length=cfg.model_cfg.mean_read_length
+            frag_negbin_n=cfg.model_cfg.frag_len_negbin_n,
+            frag_negbin_p=cfg.model_cfg.frag_len_negbin_p,
+            all_markers_fasta=self.db.multifasta_file
         )
 
     def run_bbvi(self,

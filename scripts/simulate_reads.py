@@ -95,7 +95,8 @@ def sample_reads(
         tau_scale=cfg.model_cfg.sics_scale,
         bacteria_pop=population,
         fragments=fragments,
-        mean_frag_length=cfg.model_cfg.mean_read_length,
+        frag_negbin_n=cfg.model_cfg.frag_len_negbin_n,
+        frag_negbin_p=cfg.model_cfg.frag_len_negbin_p,
         read_error_model=my_error_model
     )
 

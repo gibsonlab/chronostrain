@@ -47,7 +47,8 @@ def create_model(population: Population,
         tau_scale=cfg.model_cfg.sics_scale,
         read_error_model=error_model,
         fragments=fragments,
-        mean_frag_length=cfg.model_cfg.mean_read_length,
+        frag_negbin_n=cfg.model_cfg.frag_len_negbin_n,
+        frag_negbin_p=cfg.model_cfg.frag_len_negbin_p,
         all_markers_fasta=db.multifasta_file
     )
 

@@ -38,7 +38,7 @@ SRA_CSV_PATH="${BASE_DIR}/files/umb_samples.csv"
 
 mkdir -p ${SAMPLES_DIR}
 mkdir -p ${SRA_PREFETCH_DIR}
-mkdir -p "${SAMPLES_DIR}/trimmomatic"
+mkdir -p "${SAMPLES_DIR}/kneaddata"
 
 # ================== Parse CSV file.
 {
