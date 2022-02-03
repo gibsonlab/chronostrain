@@ -6,7 +6,7 @@ source settings.sh
 # REQUIRES: kneaddata, trimmomatic, gzip
 check_program 'kneaddata'
 check_program 'trimmomatic'
-check_program 'gzip'
+check_program 'pigz'
 
 # Gzips the input fastq file, and appends the fastq-timepoint pair as an entry.
 append_fastq()
@@ -93,10 +93,10 @@ mkdir -p "${SAMPLES_DIR}/kneaddata"
 			trimmed_1_unpaired="${kneaddata_output_dir}/${sra_id}_unmatched_1.fastq"
 			trimmed_2_paired="${kneaddata_output_dir}/${sra_id}_paired_2.fastq"
 			trimmed_2_unpaired="${kneaddata_output_dir}/${sra_id}_unmatched_2.fastq"
-			gzip $trimmed_1_paired
-			gzip $trimmed_1_unpaired
-			gzip $trimmed_2_paired
-			gzip $trimmed_2_unpaired
+			pigz $trimmed_1_paired
+			pigz $trimmed_1_unpaired
+			pigz $trimmed_2_paired
+			pigz $trimmed_2_unpaired
 
 			echo "[*] Cleaning up..."
 			for f in ${kneaddata_output_dir}/*.fastq; do rm $f; done
