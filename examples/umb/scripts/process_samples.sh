@@ -14,13 +14,14 @@ append_fastq()
 	gzip_fq_path=$1
 	time=$2
 	umb_id=$3
+	read_type=$4
 
 	num_lines=$(zcat $gzip_fq_path | wc -l | awk '{print $1}')
 	num_reads=$((${num_lines} / 4))
 
 	if [[ -s "${gzip_fq_path}" ]]; then
 		echo "Adding record ${gzip_fq_path} to ${READS_DIR}/${umb_id}_${INPUT_INDEX_FILENAME}"
-		echo "\"${time}\",\"${num_reads}\",\"${gzip_fq_path}\"" >> "${READS_DIR}/${umb_id}_${INPUT_INDEX_FILENAME}"
+		echo "\"${time}\",\"${num_reads}\",\"${gzip_fq_path}\",\"${read_type}\"" >> "${READS_DIR}/${umb_id}_${INPUT_INDEX_FILENAME}"
 	else
 		echo "Skipping empty record ${gzip_fq_path}"
 	fi
@@ -99,9 +100,9 @@ mkdir -p "${SAMPLES_DIR}/trimmomatic"
 		fi
 
 		# Add to timeseries input index.
-		append_fastq ${trimmed_1_paired_gz} $days $umb_id
-		append_fastq ${trimmed_1_unpaired_gz} $days $umb_id
-		append_fastq ${trimmed_2_paired_gz} $days $umb_id
-		append_fastq ${trimmed_2_unpaired_gz} $days $umb_id
+		append_fastq ${trimmed_1_paired_gz} $days $umb_id "paired_1"
+		append_fastq ${trimmed_1_unpaired_gz} $days $umb_id "paired_1"
+		append_fastq ${trimmed_2_paired_gz} $days $umb_id "paired_2"
+		append_fastq ${trimmed_2_unpaired_gz} $days $umb_id "paired_2"
 	done
 } < ${SRA_CSV_PATH}
