@@ -6,7 +6,7 @@ import numpy as np
 import torch
 
 from chronostrain.database import StrainDatabase
-from chronostrain.model import Population, GenerativeModel, FragmentSpace, PhredErrorModel
+from chronostrain.model import Population, GenerativeModel, FragmentSpace, PEPhredErrorModel
 from chronostrain.model.io import TimeSeriesReads
 from .base import StrainVariant
 from ..inference import BBVISolverV2
@@ -139,7 +139,7 @@ class AbstractVariantBBVISolver(object):
             tau_1_scale=cfg.model_cfg.sics_scale_1,
             tau_dof=cfg.model_cfg.sics_dof,
             tau_scale=cfg.model_cfg.sics_scale,
-            read_error_model=PhredErrorModel(
+            read_error_model=PEPhredErrorModel(
                 insertion_error_ll=cfg.model_cfg.insertion_error_log10,
                 deletion_error_ll=cfg.model_cfg.deletion_error_log10
             ),

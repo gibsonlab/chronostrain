@@ -1,7 +1,7 @@
 import os
 import importlib
 from abc import ABCMeta
-from typing import Any, Dict
+from typing import Any, Dict, Iterator
 from pathlib import Path
 from configparser import ConfigParser
 
@@ -21,14 +21,23 @@ class AbstractConfig(metaclass=ABCMeta):
         self.name = name
         self.cfg_dict = cfg_dict
 
+    @staticmethod
+    def key_variants(key: str) -> Iterator[str]:
+        yield key
+        yield key.upper()
+        yield key.lower()
+
     def get_item(self, key: str) -> Any:
-        try:
-            return self.cfg_dict[key]
-        except KeyError as e:
-            raise ConfigurationParseError("Could not find key {} in configuration '{}'.".format(
-                str(e),
-                self.name,
-            ))
+        for key_to_try in self.key_variants(key):
+            try:
+                return self.cfg_dict[key_to_try]
+            except KeyError:
+                logger.warning(f"Could not find key `{key_to_try}`. Trying a variant...")
+                continue
+        raise ConfigurationParseError("Could not find key {} in configuration '{}'.".format(
+            key,
+            self.name,
+        ))
 
     def get_str(self, key: str) -> str:
         return self.get_item(key).strip()

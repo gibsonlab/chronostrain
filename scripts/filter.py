@@ -162,9 +162,8 @@ class Filter:
     def __init__(self,
                  db: StrainDatabase,
                  reference_file_path: Path,
-                 time_points: List[Tuple[float, int, Path, str]],
+                 time_points: List[Tuple[float, int, Path, str, str]],
                  output_dir: Path,
-                 quality_format: str,
                  min_seed_length: int,
                  min_read_len: int,
                  pct_identity_threshold: float,
@@ -185,7 +184,6 @@ class Filter:
         self.min_seed_length = min_seed_length
 
         self.output_dir = output_dir
-        self.quality_format = quality_format
         self.min_read_len = min_read_len
         self.pct_identity_threshold = pct_identity_threshold
         self.num_threads = num_threads
@@ -220,7 +218,7 @@ class Filter:
 
         csv_rows: List[Tuple[float, int, Path, str]] = []
 
-        for time_point, n_reads, filepath, read_type in enumerate(self.time_points):
+        for time_point, n_reads, filepath, read_type, qual_fmt in enumerate(self.time_points):
             result_metadata_path = self.output_dir / 'metadata_{}.tsv'.format(time_point)
             result_fq_path = self.output_dir / "reads_{}.fq".format(time_point)
 
@@ -240,7 +238,7 @@ class Filter:
                 sam_files=sam_paths_t,
                 result_metadata_path=result_metadata_path,
                 result_fq_path=result_fq_path,
-                quality_format=self.quality_format,
+                quality_format=qual_fmt,
                 min_read_len=self.min_read_len,
                 pct_identity_threshold=self.pct_identity_threshold,
                 error_threshold=self.error_threshold
@@ -292,9 +290,6 @@ def parse_args():
                         dest="output_dir",
                         help='<Required> The file path to save learned outputs to.')
 
-    parser.add_argument('-q', '--quality_format', required=False, type=str, default='fastq',
-                        help='<Optional> The quality format. Should be one of the options implemented in Biopython '
-                             '`Bio.SeqIO.QualityIO` module.')
     parser.add_argument('-m', '--min_seed_length', required=True, type=int,
                         help='<Required> The minimal seed length to pass to bwa-mem.')
 
@@ -319,10 +314,10 @@ def parse_args():
     return parser.parse_args()
 
 
-def load_from_csv(csv_path: Path) -> List[Tuple[float, int, Path, str]]:
+def load_from_csv(csv_path: Path) -> List[Tuple[float, int, Path, str, str]]:
     import csv
 
-    time_points: List[Tuple[float, int, Path, str]] = []
+    time_points: List[Tuple[float, int, Path, str, str]] = []
     if not csv_path.exists():
         raise FileNotFoundError(f"Missing required file `{str(csv_path)}`")
 
@@ -334,6 +329,7 @@ def load_from_csv(csv_path: Path) -> List[Tuple[float, int, Path, str]]:
             num_reads = int(row[1])
             read_path = Path(row[2])
             read_type = row[3]
+            qual_fmt = row[4]
 
             if not read_path.exists():
                 raise FileNotFoundError(
@@ -342,7 +338,7 @@ def load_from_csv(csv_path: Path) -> List[Tuple[float, int, Path, str]]:
                         read_path
                     ))
 
-            time_points.append((t, num_reads, read_path, read_type))
+            time_points.append((t, num_reads, read_path, read_type, qual_fmt))
 
     time_points = sorted(time_points, key=lambda x: x[0])
     logger.info("Found timepoints: {}".format(time_points))
@@ -374,7 +370,6 @@ def main():
         reference_file_path=reference_path,
         time_points=time_points,
         output_dir=Path(args.output_dir),
-        quality_format=args.quality_format,
         min_read_len=args.min_read_len,
         pct_identity_threshold=args.pct_identity_threshold,
         min_seed_length=args.min_seed_length,

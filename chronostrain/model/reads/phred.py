@@ -1,5 +1,3 @@
-from typing import Optional
-
 import numpy as np
 from chronostrain.model import Fragment
 from chronostrain.model.reads.base import AbstractErrorModel, SequenceRead
@@ -34,20 +32,23 @@ class PhredErrorModel(AbstractErrorModel):
         self.deletion_error_ll = deletion_error_ll
         self.q_dist = BasicPhredScoreDistribution(length=read_len)  # These are deprecated/not being properly used.
 
+    # noinspection PyUnusedLocal
+    def indel_ll(self, read: SequenceRead, insertions: np.ndarray, deletions: np.ndarray):
+        insertion_ll = np.sum(insertions) * self.insertion_error_ll
+        deletion_ll = np.sum(deletions) * self.deletion_error_ll
+        return insertion_ll + deletion_ll
+
     def compute_log_likelihood(self,
                                fragment: Fragment,
                                read: SequenceRead,
                                read_reverse_complemented: bool,
-                               insertions: Optional[np.ndarray] = None,
-                               deletions: Optional[np.ndarray] = None,
+                               insertions: np.ndarray,
+                               deletions: np.ndarray,
                                read_start_clip: int = 0,
                                read_end_clip: int = 0) -> float:
         """
         Uses phred scores to compute Pr(Read | Fragment, Quality).
         """
-        insertion_ll = np.sum(insertions) * self.insertion_error_ll
-        deletion_ll = np.sum(deletions) * self.deletion_error_ll
-
         read_qual = read.quality
         read_seq = read.seq
         fragment_seq = fragment.seq
@@ -71,7 +72,7 @@ class PhredErrorModel(AbstractErrorModel):
         """
         log_p_errors = -np.log(3) + np.log(10) * error_log10_prob[np.where(mismatches)]
         log_p_matches = np.log(1 - np.power(10, error_log10_prob[np.where(matches)]))
-        return insertion_ll + deletion_ll + log_p_matches.sum() + log_p_errors.sum()
+        return self.indel_ll(read, insertions, deletions) + log_p_matches.sum() + log_p_errors.sum()
 
     def sample_noisy_read(self, read_id: str, fragment: Fragment, metadata="") -> SequenceRead:
         qvec = self.q_dist.sample_qvec()

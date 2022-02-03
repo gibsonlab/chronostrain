@@ -1,5 +1,6 @@
 from pathlib import Path
-from typing import List, Optional, Union, Iterator, Dict, Tuple
+from typing import List, Iterator, Dict, Tuple
+from enum import Enum, auto
 import numpy as np
 
 from Bio import SeqIO
@@ -7,7 +8,7 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.SeqIO.QualityIO import phred_quality_from_solexa
 
-from chronostrain.model.reads import SequenceRead
+from chronostrain.model.reads import SequenceRead, PairedEndRead
 from chronostrain.util.filesystem import convert_size
 
 from chronostrain.config.logging import create_logger
@@ -16,104 +17,121 @@ from chronostrain.util.io import read_seq_file
 logger = create_logger(__name__)
 
 
-class TimeSliceReadSource(object):
-    def __init__(self, paths: List[Path], quality_format: str):
-        self.paths: List[Path] = paths
-        self.quality_format: str = quality_format
+class ReadType(Enum):
+    PAIRED_END_1 = auto()
+    PAIRED_END_2 = auto()
+    SINGLE_END = auto()
 
-    def get_canonical_path(self) -> Path:
-        if len(self.paths) != 1:
-            raise ValueError("Found {} paths, cannot decide canonical one.".format(len(self.paths)))
-        return self.paths[0]
+
+def parse_read_type(token: str) -> ReadType:
+    if token == "paired_1":
+        return ReadType.PAIRED_END_1
+    elif token == "paired_2":
+        return ReadType.PAIRED_END_2
+    elif token == "single":
+        return ReadType.SINGLE_END
+    else:
+        raise ValueError(f"Unrecognized read type token `{token}`.")
+
+
+class TimeSliceReadSource(object):
+    def __init__(self, read_depth: int, path: Path, quality_format: str, read_type: ReadType):
+        self.read_depth: int = read_depth
+        self.path: Path = path
+        self.quality_format: str = quality_format
+        self.read_type: ReadType = read_type
 
     def __str__(self):
-        return self.paths.__str__()
+        return str(self.path)
 
     def __repr__(self):
-        return "<TimeSliceReadSource:{}>".format(self.paths.__repr__())
+        return "<TimeSliceReadSource:{}:{}:{}>".format(
+            str(self.path), self.quality_format, self.read_type
+        )
 
 
 class TimeSliceReads(object):
     def __init__(self,
                  reads: List[SequenceRead],
                  time_point: float,
-                 read_depth: int,
-                 src: Optional[TimeSliceReadSource] = None):
+                 read_depth: int):
         self.reads: List[SequenceRead] = reads
         self.time_point: float = time_point
-        self.src: Union[TimeSliceReadSource, None] = src
         self.read_depth: int = read_depth
         self._ids_to_reads: Dict[str, SequenceRead] = {read.id: read for read in reads}
 
-    def save(self) -> int:
+    def save(self, target_path: Path, quality_format: str = "fastq") -> int:
         """
         Save the reads to a fastq file, whose path is specified by attribute `self.file_path`.
 
         :return: The number of bytes of the output file.
         """
-        if self.src is None:
-            raise ValueError("Specify the `src` parameter if invoking save() of TimeSliceReads object.")
-
-        quality_format = self.src.quality_format
-        canonical_path = self.src.get_canonical_path()
         records = []
-        canonical_path.parent.mkdir(parents=True, exist_ok=True)
+        target_path.parent.mkdir(parents=True, exist_ok=True)
 
         for i, read in enumerate(self.reads):
             # Code from https://biopython.org/docs/1.74/api/Bio.SeqRecord.html
             record = SeqRecord(Seq(read.nucleotide_content()), id="Read#{}".format(i), description=read.metadata)
             record.letter_annotations["phred_quality"] = read.quality
             records.append(record)
-        SeqIO.write(records, canonical_path, quality_format)
+        SeqIO.write(records, target_path, quality_format)
 
-        file_size = canonical_path.stat().st_size
+        file_size = target_path.stat().st_size
         logger.info("Wrote fastQ file {f}. ({sz})".format(
-            f=canonical_path,
+            f=target_path,
             sz=convert_size(file_size)
         ))
         return file_size
 
     @staticmethod
-    def load(src: TimeSliceReadSource, read_depth: int, time_point: float) -> "TimeSliceReads":
+    def load(time_point: float, sources: List[TimeSliceReadSource]) -> "TimeSliceReads":
         """
         Creates an instance of TimeSliceReads() from the specified file path.
 
-        :param src: A TimeSliceReadSource instance pointing to the files on disk.
-        :param read_depth: The read depth (total number of reads in the experiment) for this particular timepoint.
         :param time_point: The timepoint that this source corresponds to.
+        :param sources: A List of TimeSliceReadSource instances pointing to the files on disk.
         :return:
         """
         reads = []
-        quality_format = src.quality_format
-        for file_path in src.paths:
-            for record in read_seq_file(file_path, quality_format):
-                if (quality_format == "fastq") \
-                        or (quality_format == "fastq-sanger") \
-                        or (quality_format == "fastq-illumina"):
+        for src in sources:
+            for record in read_seq_file(src.path, src.quality_format):
+                if (src.quality_format == "fastq") \
+                        or (src.quality_format == "fastq-sanger") \
+                        or (src.quality_format == "fastq-illumina"):
                     quality = np.array(
                         record.letter_annotations["phred_quality"],
                         dtype=int
                     )
-                elif quality_format == "fastq-solexa":
+                elif src.quality_format == "fastq-solexa":
                     quality = np.array([
                         phred_quality_from_solexa(q) for q in record.letter_annotations["solexa_quality"]
                     ], dtype=float)
                 else:
-                    raise ValueError("Unknown quality format `{}`.".format(quality_format))
-                read = SequenceRead(
-                    read_id=record.id,
-                    seq=str(record.seq),
-                    quality=quality,
-                    metadata=record.description
-                )
+                    raise ValueError("Unknown quality format `{}`.".format(src.quality_format))
+
+                if src.read_type == ReadType.SINGLE_END:
+                    read = SequenceRead(
+                        read_id=record.id,
+                        seq=str(record.seq),
+                        quality=quality,
+                        metadata=record.description
+                    )
+                elif src.read_type == ReadType.PAIRED_END_1:
+                    read = PairedEndRead(record.id, str(record.seq), quality, record.description, forward=True)
+                elif src.read_type == ReadType.PAIRED_END_2:
+                    read = PairedEndRead(record.id, str(record.seq), quality, record.description, forward=False)
+                else:
+                    raise NotImplementedError("Unimplemented ReadType instantiation for `{}`".format(src.read_type))
                 reads.append(read)
 
             logger.debug("Loaded {r} reads from fastQ file {f}. ({sz})".format(
                 r=len(reads),
-                f=file_path,
-                sz=convert_size(file_path.stat().st_size)
+                f=src.path,
+                sz=convert_size(src.path.stat().st_size)
             ))
-        return TimeSliceReads(reads, time_point, read_depth, src)
+
+        total_read_depth = sum(src.read_depth for src in sources)
+        return TimeSliceReads(reads, time_point, total_read_depth)
 
     def get_read(self, read_id: str) -> SequenceRead:
         return self._ids_to_reads[read_id]
@@ -136,13 +154,14 @@ class TimeSeriesReads(object):
     def __init__(self, time_slices: List[TimeSliceReads]):
         self.time_slices = time_slices
 
-    def save(self):
+    def save(self, out_dir: Path):
         """
         Save the sampled reads to a fastq file, one for each timepoint.
         """
+        out_dir.mkdir(exist_ok=True, parents=True)
         total_sz = 0
         for time_slice in self.time_slices:
-            total_sz += time_slice.save()
+            total_sz += time_slice.save(out_dir / f"reads_{time_slice.time_point}.fastq", "fastq")
 
         logger.info("Reads output successfully. ({sz} Total)".format(
             sz=convert_size(total_sz)
@@ -150,32 +169,34 @@ class TimeSeriesReads(object):
 
     @staticmethod
     def load(time_points: List[float],
-             read_depths: List[int],
-             sources: List[TimeSliceReadSource]) -> 'TimeSeriesReads':
+             sources: List[List[TimeSliceReadSource]]) -> 'TimeSeriesReads':
         if len(time_points) != len(sources):
             raise ValueError("Number of time points ({}) do not match number of read sources. ({})".format(
                 len(time_points), len(sources)
             ))
 
         return TimeSeriesReads([
-            TimeSliceReads.load(src, read_depth_t, t)
-            for src, read_depth_t, t in zip(sources, read_depths, time_points)
+            TimeSliceReads.load(t, src_t)
+            for t, src_t in zip(time_points, sources)
         ])
 
     @staticmethod
-    def load_from_csv(csv_path: Path, quality_format: str) -> 'TimeSeriesReads':
+    def load_from_csv(csv_path: Path) -> 'TimeSeriesReads':
         import csv
-        time_points_to_reads: Dict[float, List[Tuple[int, Path]]] = {}
+        time_points_to_reads: Dict[float, List[Tuple[int, Path, ReadType, str]]] = {}
         if not csv_path.exists():
             raise FileNotFoundError(f"Missing required file `{str(csv_path)}`")
 
         logger.debug("Parsing time-series reads from {}".format(csv_path))
+
         with open(csv_path, "r") as f:
             input_specs = csv.reader(f, delimiter=',', quotechar='"')
             for row in input_specs:
                 time_point = float(row[0])
-                num_reads = int(row[1])
+                read_depth = int(row[1])
                 read_path = Path(row[2])
+                read_type = parse_read_type(row[3])
+                quality_fmt = row[4]
 
                 if not read_path.exists():
                     raise FileNotFoundError(
@@ -187,26 +208,20 @@ class TimeSeriesReads(object):
                 if time_point not in time_points_to_reads:
                     time_points_to_reads[time_point] = []
 
-                time_points_to_reads[time_point].append((num_reads, read_path))
+                time_points_to_reads[time_point].append((read_depth, read_path, read_type, quality_fmt))
 
         time_points = sorted(time_points_to_reads.keys(), reverse=False)
         logger.info("Found timepoints: {}".format(time_points))
 
-        read_depths = [
-            sum([
-                n_reads for n_reads, _ in time_points_to_reads[t]
-            ])
-            for t in time_points
-        ]
-
         time_slice_sources = [
-            TimeSliceReadSource([
-                read_path for _, read_path in time_points_to_reads[t]
-            ], quality_format)
+            [
+                TimeSliceReadSource(read_depth, read_path, quality_fmt, read_type)
+                for read_depth, read_path, read_type, quality_fmt in time_points_to_reads[t]
+            ]
             for t in time_points
         ]
 
-        return TimeSeriesReads.load(time_points, read_depths, time_slice_sources)
+        return TimeSeriesReads.load(time_points, time_slice_sources)
 
     def __iter__(self) -> Iterator[TimeSliceReads]:
         for time_slice in self.time_slices:
