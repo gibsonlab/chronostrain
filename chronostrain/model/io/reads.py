@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Iterator, Dict, Tuple
+from typing import List, Iterator, Dict, Tuple, Optional
 from enum import Enum, auto
 import numpy as np
 
@@ -54,11 +54,13 @@ class TimeSliceReads(object):
     def __init__(self,
                  reads: List[SequenceRead],
                  time_point: float,
-                 read_depth: int):
+                 read_depth: int,
+                 sources: Optional[List[TimeSliceReadSource]] = None):
         self.reads: List[SequenceRead] = reads
         self.time_point: float = time_point
         self.read_depth: int = read_depth
         self._ids_to_reads: Dict[str, SequenceRead] = {read.id: read for read in reads}
+        self.sources = sources
 
     def save(self, target_path: Path, quality_format: str = "fastq") -> int:
         """
@@ -131,7 +133,7 @@ class TimeSliceReads(object):
             ))
 
         total_read_depth = sum(src.read_depth for src in sources)
-        return TimeSliceReads(reads, time_point, total_read_depth)
+        return TimeSliceReads(reads, time_point, total_read_depth, sources=sources)
 
     def get_read(self, read_id: str) -> SequenceRead:
         return self._ids_to_reads[read_id]

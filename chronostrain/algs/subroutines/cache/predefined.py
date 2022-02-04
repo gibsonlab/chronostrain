@@ -12,7 +12,11 @@ class ReadsComputationCache(ComputationCache):
     def __init__(self, reads: TimeSeriesReads):
         super().__init__(
             CacheTag(
-                file_paths=[reads_t.src.paths for reads_t in reads]  # read files
+                file_paths=[
+                    src.path
+                    for reads_t in reads
+                    for src in reads_t.sources
+                ]  # read files
             )
         )
 
@@ -34,6 +38,10 @@ class ReadsPopulationCache(ComputationCache):
                 strains=[
                     repr(strain) for strain in pop.strains
                 ],
-                file_paths=[reads_t.src.paths for reads_t in reads]  # read files
+                file_paths=[
+                    src.path
+                    for reads_t in reads
+                    for src in reads_t.sources
+                ]  # read files
             )
         )
