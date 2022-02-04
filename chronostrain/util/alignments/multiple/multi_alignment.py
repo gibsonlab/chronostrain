@@ -20,7 +20,7 @@ logger = create_logger(__name__)
 
 
 _READ_PREFIX = "READ"
-_SEPARATOR = "#"
+_SEPARATOR = "%"
 
 
 class MarkerMultipleFragmentAlignment(object):
