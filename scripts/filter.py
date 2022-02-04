@@ -228,7 +228,7 @@ class Filter:
             result_metadata_path = self.output_dir / 'metadata_{}.tsv'.format(time_point)
             result_fq_path = self.output_dir / f"filtered_{remove_suffixes(filepath).name}.fastq"
 
-            sam_path = aligner_tmp_dir / remove_suffixes(filepath).name
+            sam_path = aligner_tmp_dir / f"{remove_suffixes(filepath).name}.sam"
 
             aligner.align(query_path=filepath, output_path=sam_path)
 
