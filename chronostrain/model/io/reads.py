@@ -136,7 +136,16 @@ class TimeSliceReads(object):
         return TimeSliceReads(reads, time_point, total_read_depth, sources=sources)
 
     def get_read(self, read_id: str) -> SequenceRead:
-        return self._ids_to_reads[read_id]
+        try:
+            return self._ids_to_reads[read_id]
+        except KeyError as e:
+            i = 0
+            for k in self._ids_to_reads.keys():
+                print(k)
+                i += 1
+                if i == 10:
+                    break
+            raise e
 
     def contains_read(self, read_id: str) -> bool:
         return read_id in self._ids_to_reads
