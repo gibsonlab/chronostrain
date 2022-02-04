@@ -21,6 +21,7 @@ from chronostrain.util.alignments.pairwise import parse_alignments, BwaAligner, 
 def remove_suffixes(p: Path) -> Path:
     while len(p.suffix) > 0:
         p = p.with_suffix('')
+    return p
 
 
 def num_expected_errors(aln: SequenceReadPairwiseAlignment):
