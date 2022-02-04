@@ -18,6 +18,11 @@ from chronostrain.util.alignments.pairwise import parse_alignments, BwaAligner, 
     SequenceReadPairwiseAlignment
 
 
+def remove_suffixes(p: Path) -> Path:
+    while len(p.suffix) > 0:
+        p = p.with_suffix('')
+
+
 def num_expected_errors(aln: SequenceReadPairwiseAlignment):
     return np.sum(
         np.power(10, -0.1 * aln.read.quality)
@@ -220,9 +225,9 @@ class Filter:
         for time_point, n_reads, filepath, read_type, qual_fmt in self.time_points:
             logger.info(f"Applying filter to (t={time_point}) {str(filepath)}")
             result_metadata_path = self.output_dir / 'metadata_{}.tsv'.format(time_point)
-            result_fq_path = self.output_dir / f"filtered_{filepath.name}"
+            result_fq_path = self.output_dir / f"filtered_{remove_suffixes(filepath).name}"
 
-            sam_path = aligner_tmp_dir / filepath.with_suffix(".sam").name
+            sam_path = aligner_tmp_dir / remove_suffixes(filepath).name
 
             aligner.align(query_path=filepath, output_path=sam_path)
 
