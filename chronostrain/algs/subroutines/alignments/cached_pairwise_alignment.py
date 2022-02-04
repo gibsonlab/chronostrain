@@ -68,8 +68,8 @@ class CachedReadPairwiseAlignments(object):
             marker: []
             for marker in self.db.all_markers()
         }
-        for reads_path in time_slice.src.paths:
-            sam_file = self._get_alignment(reads_path, time_slice.src.quality_format)
+        for src in time_slice.sources:
+            sam_file = self._get_alignment(src.path, src.quality_format)
             for marker, alns in marker_categorized_alignments(
                     sam_file,
                     self.db,
@@ -89,8 +89,8 @@ class CachedReadPairwiseAlignments(object):
             ] for marker in self.db.all_markers()
         }
         for t_idx, time_slice in enumerate(self.reads):
-            for reads_path in time_slice.src.paths:
-                sam_file = self._get_alignment(reads_path, time_slice.src.quality_format)
+            for src in time_slice.sources:
+                sam_file = self._get_alignment(src.path, src.quality_format)
                 for aln in parse_alignments(
                         sam_file,
                         self.db,
@@ -101,8 +101,8 @@ class CachedReadPairwiseAlignments(object):
 
     def get_alignments(self) -> Iterator[Tuple[int, SequenceReadPairwiseAlignment]]:
         for t_idx, time_slice in enumerate(self.reads):
-            for reads_path in time_slice.src.paths:
-                sam_file = self._get_alignment(reads_path, time_slice.src.quality_format)
+            for src in time_slice.sources:
+                sam_file = self._get_alignment(src.path, src.quality_format)
                 for aln in parse_alignments(
                         sam_file,
                         self.db,
