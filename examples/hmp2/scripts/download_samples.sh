@@ -42,7 +42,7 @@ curl -o ${HMP2_CSV_PATH} "https://ibdmdb.org/tunnel/products/HMP2/Metadata/hmp2_
 	# Read rest of csv file.
 	while IFS=, read -r project_id external_id participant_id site_sub_coll data_type week_num date_of_receipt
 	do
-		if [[ "${participant_id}" =~ ^(C3001)$ ]]; then
+		if [[ "${participant_id}" =~ ^(C3022|M2072|M2079|H4008|P6012|P6035|C3015|M2069)$ ]]; then
 			continue
 		fi
 
