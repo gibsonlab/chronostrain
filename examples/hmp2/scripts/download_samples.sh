@@ -14,13 +14,7 @@ check_program 'curl'
 get_sra_id()
 {
 	query="$1"
-	result=$(esearch -db sra -query $query | efetch -format runinfo | cut -d "," -f 1 | tail -n +2)
-
-	if [[ $(echo "result" | wc -l) -ge 2 ]]; then
-		echo "Found multiple hits for query ${query}"
-		exit 1;
-	fi
-
+	result=$(esearch -db sra -query "$query" | efetch -format runinfo | cut -d "," -f 1 | tail -n +2)
 	echo "${result}"
 }
 
@@ -55,8 +49,14 @@ download_patient_samples()
 
 			echo "[*] -=-=-=-= Downloading ${site_sub_coll}. =-=-=-=-"
 			echo "[*] Querying entrez."
+
 			query="(${project_id} OR ${external_id}) AND WGS[Strategy]"
 			sra_id=$(get_sra_id "$query")
+			if [[ $(echo "$sra_id" | wc -l) -ge 2 ]]; then
+				echo "Multiple hits found for query ${query}. Using the first result only."
+				sra_id=$(echo "$sra_id" | head -n 1)
+			fi
+
 			echo "[*] SRA ID: ${sra_id}"
 
 			# Target gzipped fastq files.
