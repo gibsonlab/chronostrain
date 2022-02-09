@@ -53,7 +53,7 @@ curl -o ${HMP2_CSV_PATH} "https://ibdmdb.org/tunnel/products/HMP2/Metadata/hmp2_
 		echo "[*] -=-=-=-= Downloading ${site_sub_coll}. =-=-=-=-"
 		echo "[*] Querying entrez."
 		query="(${project_id} OR ${external_id}) AND WGS[Strategy]"
-		sra_id=get_sra_id "$query"
+		sra_id=$(get_sra_id "$query")
 		echo "[*] SRA ID: ${sra_id}"
 
 		# Target gzipped fastq files.
