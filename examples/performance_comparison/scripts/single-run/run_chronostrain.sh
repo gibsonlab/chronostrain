@@ -7,7 +7,7 @@ SEED=31415
 
 # =========== Read filtering. ===============
 echo "Filtering reads."
-python ${PROJECT_DIR}/scripts/filter.py \
+python ${PROJECT_DIR}/scripts/filter_timeseries.py \
 -r "${READS_DIR}" \
 -o "${READS_DIR}/filtered"
 

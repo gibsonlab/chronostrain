@@ -38,7 +38,7 @@ do
 			echo "reads dir: ${READS_DIR}"
 
 			echo "Filtering reads."
-			python ${PROJECT_DIR}/scripts/filter.py -r "${READS_DIR}" -o "${READS_DIR}/filtered"
+			python ${PROJECT_DIR}/scripts/filter_timeseries.py -r "${READS_DIR}" -o "${READS_DIR}/filtered"
 
 			# ============ Chronostrain LSF ============
 			# Generate LSF files via heredoc.

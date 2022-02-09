@@ -10,11 +10,9 @@ SEED=31415
 for umb_id in UMB05 UMB08 UMB11 UMB12 UMB15 UMB18 UMB20 UMB23 UMB24
 do
 	echo "Filtering reads for ${umb_id}"
-	cd $PROJECT_DIR/scripts
-	python filter.py \
+	python $PROJECT_DIR/scripts/filter_timeseries.py \
 	--reads_input "${READS_DIR}/${umb_id}_${INPUT_INDEX_FILENAME}" \
 	-o "${READS_DIR}/${umb_id}_filtered" \
 	--pct_identity_threshold 0.85 \
-	--min_seed_length 10 \
 	--num_threads 4
 done
