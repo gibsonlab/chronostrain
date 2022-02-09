@@ -1,6 +1,6 @@
 from pathlib import Path
 import shutil
-from typing import Dict, Tuple, Iterator, List, Optional
+from typing import Dict, Tuple, Iterator, List, Optional, Callable
 
 import Bio.AlignIO
 from Bio import SeqIO
@@ -11,7 +11,6 @@ import numpy as np
 from chronostrain.util.numpy_helpers import first_nonoccurrence_of, last_nonoccurrence_of
 from chronostrain.database import StrainDatabase
 from chronostrain.model import Marker, SequenceRead
-from chronostrain.model.io import TimeSeriesReads
 from ...external import clustal_omega, mafft_fragment, mafft_global
 from ...sequences import *
 
@@ -19,7 +18,7 @@ from chronostrain.config import create_logger
 logger = create_logger(__name__)
 
 
-_READ_PREFIX = "READ"
+_READ_PREFIX = "R"
 _SEPARATOR = "%"
 
 
@@ -35,7 +34,6 @@ class MarkerMultipleFragmentAlignment(object):
                  reverse_read_index_map: Dict[SequenceRead, int],
                  start_clips: List[int],
                  end_clips: List[int],
-                 time_idxs: np.ndarray,
                  file_path: Path
                  ):
         if aligned_marker_seqs.shape[1] != read_multi_alignment.shape[1]:
@@ -49,7 +47,6 @@ class MarkerMultipleFragmentAlignment(object):
         self.marker_idxs = marker_idxs
         self.aligned_marker_seqs = aligned_marker_seqs
         self.read_multi_alignment = read_multi_alignment
-        self.time_idxs = time_idxs
         self.forward_read_index_map = forward_read_index_map
         self.reverse_read_index_map = reverse_read_index_map
         self.start_clips = start_clips
@@ -85,9 +82,6 @@ class MarkerMultipleFragmentAlignment(object):
         for marker, marker_idx in self.marker_idxs.items():
             for revcomp, mapping in [(False, self.forward_read_index_map), (True, self.reverse_read_index_map)]:
                 for read, read_idx in mapping.items():
-                    if target_time_idx is not None and self.time_idxs[read_idx] != target_time_idx:
-                        continue
-
                     subseq, insertions, deletions, start_clip, end_clip = self.get_aligned_reference_region__indexed(
                         marker_idx,
                         read_idx
@@ -230,18 +224,16 @@ class MarkerMultipleFragmentAlignment(object):
 
 def parse(db: StrainDatabase,
           target_marker_name: str,
-          reads: TimeSeriesReads,
+          read_getter: Callable[[str], SequenceRead],
           aln_path: Path
           ) -> MarkerMultipleFragmentAlignment:
     forward_reads: List[SequenceRead] = []
     forward_seqs: List[SeqType] = []
-    forward_time_idxs: List[int] = []
     forward_start_clips: List[int] = []
     forward_end_clips: List[int] = []
 
     reverse_reads: List[SequenceRead] = []
     reverse_seqs: List[SeqType] = []
-    reverse_time_idxs: List[int] = []
     reverse_start_clips: List[int] = []
     reverse_end_clips: List[int] = []
 
@@ -269,12 +261,11 @@ def parse(db: StrainDatabase,
     def parse_read_record(read_record: SeqRecord, start_clip: int, end_clip: int):
         # Parse the tokens in the ID.
         tokens = read_record.id.split(_SEPARATOR)
-        t_idx = int(tokens[1])
-        rev_comp = int(tokens[2]) == 1
-        read_id = tokens[3]
+        rev_comp = int(tokens[1]) == 1
+        read_id = tokens[2]
 
         # Get the read instance.
-        read_obj = reads[t_idx].get_read(read_id)
+        read_obj = read_getter(read_id)
 
         # Check if alignment is clipped off the edges of the marker.
         aln_seq = nucleotides_to_z4(str(read_record.seq))
@@ -289,13 +280,11 @@ def parse(db: StrainDatabase,
             forward_seqs.append(aln_seq)
             forward_start_clips.append(n_start_clip)
             forward_end_clips.append(n_end_clip)
-            forward_time_idxs.append(t_idx)
         else:
             reverse_reads.append(read_obj)
             reverse_seqs.append(aln_seq)
             reverse_start_clips.append(n_start_clip)
             reverse_end_clips.append(n_end_clip)
-            reverse_time_idxs.append(t_idx)
     # ============================ END HELPERS ============================
     # Parse the marker entry first.
 
@@ -341,7 +330,6 @@ def parse(db: StrainDatabase,
             end_clips=forward_end_clips + reverse_end_clips,
             forward_read_index_map=forward_read_index_map,
             reverse_read_index_map=reverse_read_index_map,
-            time_idxs=np.array(forward_time_idxs + reverse_time_idxs, dtype=int),
             file_path=aln_path
         )
     else:
@@ -356,14 +344,13 @@ def parse(db: StrainDatabase,
             end_clips=forward_end_clips + reverse_end_clips,
             forward_read_index_map=forward_read_index_map,
             reverse_read_index_map=reverse_read_index_map,
-            time_idxs=np.array(forward_time_idxs + reverse_time_idxs, dtype=int),
             file_path=aln_path
         )
 
 
 def align(db: StrainDatabase,
           marker_name: str,
-          read_descriptions: Iterator[Tuple[int, SequenceRead, bool]],
+          read_descriptions: Iterator[Tuple[SequenceRead, bool]],
           intermediate_fasta_path: Path,
           out_fasta_path: Path,
           n_threads: int = 1):
@@ -396,7 +383,7 @@ def create_marker_profile(profile_path: Path, markers: List[Marker], n_threads: 
 
 
 def align_mafft(marker_profile_path: Path,
-                read_descriptions: Iterator[Tuple[int, SequenceRead, bool]],
+                read_descriptions: Iterator[Tuple[SequenceRead, bool]],
                 intermediate_fasta_path: Path,
                 out_fasta_path: Path,
                 n_threads: int = 1):
@@ -406,7 +393,7 @@ def align_mafft(marker_profile_path: Path,
     # First write to temporary file, with the reads reverse complemented if necessary.
     records = []
 
-    for t_idx, read, should_reverse_comp in read_descriptions:
+    for read, should_reverse_comp in read_descriptions:
         if should_reverse_comp:
             read_seq = reverse_complement_seq(read.seq)
         else:
@@ -419,8 +406,8 @@ def align_mafft(marker_profile_path: Path,
 
         record = SeqRecord(
             Seq(z4_to_nucleotides(read_seq)),
-            id=f"{_READ_PREFIX}{_SEPARATOR}{t_idx}{_SEPARATOR}{revcomp_flag}{_SEPARATOR}{read.id}",
-            description=f"(Read, t: {t_idx}, reverse complement:{should_reverse_comp})"
+            id=f"{_READ_PREFIX}{_SEPARATOR}{revcomp_flag}{_SEPARATOR}{read.id}",
+            description=f"REVCOMP:{int(should_reverse_comp)}"
         )
         records.append(record)
     SeqIO.write(records, intermediate_fasta_path, "fasta")
@@ -452,7 +439,7 @@ def align_mafft(marker_profile_path: Path,
 
 
 def align_clustalo(marker_profile_path: Path,
-                   read_descriptions: Iterator[Tuple[int, SequenceRead, bool]],
+                   read_descriptions: Iterator[Tuple[SequenceRead, bool]],
                    intermediate_fasta_path: Path,
                    out_fasta_path: Path):
     """
@@ -468,7 +455,7 @@ def align_clustalo(marker_profile_path: Path,
     # records.append(record)
     # record_ids.append(record.id)
 
-    for t_idx, read, should_reverse_comp in read_descriptions:
+    for read, should_reverse_comp in read_descriptions:
         if should_reverse_comp:
             read_seq = reverse_complement_seq(read.seq)
         else:
@@ -479,12 +466,12 @@ def align_clustalo(marker_profile_path: Path,
         else:
             revcomp_flag = 0
 
-        read_id = f"{_READ_PREFIX}{_SEPARATOR}{t_idx}{_SEPARATOR}{revcomp_flag}{_SEPARATOR}{read.id}"
+        read_id = f"{_READ_PREFIX}{_SEPARATOR}{revcomp_flag}{_SEPARATOR}{read.id}"
 
         record = SeqRecord(
             Seq(z4_to_nucleotides(read_seq)),
             id=read_id,
-            description=f"(Read, t: {t_idx}, reverse complement:{should_reverse_comp})"
+            description=f"REVCOMP:{int(should_reverse_comp)}"
         )
         records.append(record)
         record_ids.append(read_id)

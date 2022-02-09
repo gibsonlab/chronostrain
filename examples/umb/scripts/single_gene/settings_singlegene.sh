@@ -4,25 +4,12 @@ export CHRONOSTRAIN_DATA_DIR="/data/cctm/chronostrain"
 export BASE_DIR="${PROJECT_DIR}/examples/umb"
 
 # ======== Location of this file.
-export SETTINGS_PATH="${BASE_DIR}/scripts/settings.sh"
+export SETTINGS_PATH="${BASE_DIR}/scripts/variants/settings_variants.sh"
 
 # Location for reads and outputs.
 export OUTPUT_DIR="${CHRONOSTRAIN_DATA_DIR}/umb/output"
 export READS_DIR="${CHRONOSTRAIN_DATA_DIR}/umb/reads"
 export CHRONOSTRAIN_OUTPUT_DIR="${OUTPUT_DIR}/chronostrain"
-
-# The chronostrain input index.
-export INPUT_INDEX_FILENAME="inputs.csv"
-export INPUT_INDEX_PATH="${READS_DIR}/${INPUT_INDEX_FILENAME}"
-
-# sratools prefetch/sample output directories.
-export SRA_PREFETCH_DIR="${CHRONOSTRAIN_DATA_DIR}/umb/prefetch"
-export FASTERQ_TMP_DIR="${CHRONOSTRAIN_DATA_DIR}/umb/fasterq-tmp"
-export SAMPLES_DIR="${CHRONOSTRAIN_DATA_DIR}/umb/samples"
-
-# ========= Kneaddata
-export NEXTERA_ADAPTER_PATH="/PHShome/yk847/.conda/envs/chronostrain/share/trimmomatic/adapters/NexteraPE-PE.fa"
-export TRIMMOMATIC_DIR="/PHShome/yk847/.conda/envs/chronostrain/share/trimmomatic-0.39-2"
 
 # ========= Chronostrain settings
 export CHRONOSTRAIN_NUM_ITERS=2000
@@ -32,9 +19,10 @@ export CHRONOSTRAIN_OUTPUT_FILENAME="abundances.out"
 export CHRONOSTRAIN_DB_DIR="${CHRONOSTRAIN_DATA_DIR}/umb/database"
 
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)
-export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
+export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain_singlegene.ini"
 export CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"
-export LOGDIR="${CHRONOSTRAIN_DATA_DIR}/umb/logs"
+export LOGDIR="${CHRONOSTRAIN_DATA_DIR}/umb/variant-logs"
+export CHRONOSTRAIN_SINGLEGENE_DB_FILE="${BASE_DIR}/files/singlegene_db.json"
 
 # ========= Done.
 echo "======================================================="
