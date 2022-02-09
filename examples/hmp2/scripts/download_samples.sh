@@ -36,71 +36,66 @@ curl -o ${HMP2_CSV_PATH} "https://ibdmdb.org/tunnel/products/HMP2/Metadata/hmp2_
 download_patient_samples()
 {
 	target_patient=$1
-	{
-		# Skip header line.
-		read
 
-		# Read rest of csv file.
-		while IFS=, read -r project_id external_id participant_id site_sub_coll data_type week_num date_of_receipt
-		do
-			if [[ "${participant_id}" != "${target_patient}" ]]; then
-				continue
-			fi
+	sed 1d ${HMP2_CSV_PATH} | while IFS=, read -r project_id external_id participant_id site_sub_coll data_type week_num date_of_receipt
+	do
+		if [[ "${participant_id}" != "${target_patient}" ]]; then
+			continue
+		fi
 
-			if [[ "${data_type}" != "metagenomics" ]]; then
-				continue
-			fi
+		if [[ "${data_type}" != "metagenomics" ]]; then
+			continue
+		fi
 
-			echo "[*] -=-=-=-= Downloading ${project_id}. =-=-=-=-"
-			echo "[*] Querying entrez."
+		echo "[*] -=-=-=-= Downloading ${project_id}. =-=-=-=-"
+		echo "[*] Querying entrez."
 
-			query="(${project_id} OR ${external_id}) AND WGS[Strategy]"
-			sra_id=$(get_sra_id "$query")
-			if [[ $(echo "$sra_id" | wc -l) -ge 2 ]]; then
-				echo "Multiple hits found for query ${query}. Using the first result only."
-				sra_id=$(echo "$sra_id" | head -n 1)
-			fi
+		query="(${project_id} OR ${external_id}) AND WGS[Strategy]"
+		sra_id=$(get_sra_id "$query")
+		if [[ $(echo "$sra_id" | wc -l) -ge 2 ]]; then
+			echo "Multiple hits found for query ${query}. Using the first result only."
+			sra_id=$(echo "$sra_id" | head -n 1)
+		fi
 
-			echo "[*] SRA ID: ${sra_id}"
+		echo "[*] SRA ID: ${sra_id}"
 
-			# Target gzipped fastq files.
-			subdir="${SAMPLES_DIR}/${participant_id}"
-			gz_file_1="$subdir/${project_id}_1.fastq.gz"
-			gz_file_2="$subdir/${project_id}_2.fastq.gz"
-			if [[ -f $gz_file_1 && -f $gz_file_2 ]]; then
-				echo "[*] Target files for ${sra_id} already exist."
-			else
-				mkdir -p $subdir
+		# Target gzipped fastq files.
+		subdir="${SAMPLES_DIR}/${participant_id}"
+		gz_file_1="$subdir/${project_id}_1.fastq.gz"
+		gz_file_2="$subdir/${project_id}_2.fastq.gz"
+		if [[ -f $gz_file_1 && -f $gz_file_2 ]]; then
+			echo "[*] Target files for ${sra_id} already exist."
+		else
+			mkdir -p $subdir
 
-				# Prefetch
-				echo "[*] Prefetching..."
-				prefetch --output-directory $SRA_PREFETCH_DIR --progress --verify yes $sra_id
+			# Prefetch
+			echo "[*] Prefetching..."
+			prefetch --output-directory $SRA_PREFETCH_DIR --progress --verify yes $sra_id
 
-				# Fasterq-dump
-				echo "[*] Invoking fasterq-dump..."
-				fasterq-dump \
-				--progress \
-				--outdir $subdir \
-				--skip-technical \
-				--print-read-nr \
-				--force \
-				-t ${FASTERQ_TMP_DIR} \
-				"${SRA_PREFETCH_DIR}/${sra_id}/${sra_id}.sra"
+			# Fasterq-dump
+			echo "[*] Invoking fasterq-dump..."
+			fasterq-dump \
+			--progress \
+			--outdir $subdir \
+			--skip-technical \
+			--print-read-nr \
+			--force \
+			-t ${FASTERQ_TMP_DIR} \
+			"${SRA_PREFETCH_DIR}/${sra_id}/${sra_id}.sra"
 
-				# Resulting fq files
-				fq_file_1="$subdir/${sra_id}_1.fastq"
-				fq_file_2="$subdir/${sra_id}_2.fastq"
+			# Resulting fq files
+			fq_file_1="$subdir/${sra_id}_1.fastq"
+			fq_file_2="$subdir/${sra_id}_2.fastq"
 
-				# Compression
-				echo "[*] Compressing..."
-				pigz $fq_file_1 -c > $gz_file_1
-				pigz $fq_file_2 -c > $gz_file_2
-				wait
-			fi
+			# Compression
+			echo "[*] Compressing..."
+			pigz $fq_file_1 -c > $gz_file_1
+			pigz $fq_file_2 -c > $gz_file_2
+			wait
+		fi
 
-			echo "${participant_id},${project_id},${sra_id}" >> ${FILE_INDEX_PATH}
-		done
-	} < ${HMP2_CSV_PATH}
+		echo "${participant_id},${project_id},${sra_id}" >> ${FILE_INDEX_PATH}
+	done
 }
 
 # nonIBD
