@@ -47,7 +47,7 @@ download_patient_samples()
 			continue
 		fi
 
-		echo "[*] -=-=-=-= Downloading ${project_id}. =-=-=-=-"
+		echo "[*] -=-=-=-= Downloading ${project_id} (participant ${participant_id}). =-=-=-=-"
 		echo "[*] Querying entrez."
 
 		query="(${project_id} OR ${external_id}) AND WGS[Strategy]"
