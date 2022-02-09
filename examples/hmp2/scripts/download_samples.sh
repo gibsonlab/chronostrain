@@ -47,7 +47,7 @@ curl -o ${HMP2_CSV_PATH} "https://ibdmdb.org/tunnel/products/HMP2/Metadata/hmp2_
 		fi
 
 		if [[ "${data_type}" != "metagenomics" ]]; then
-			echo "Skipping ${sample_name}."
+			echo "Skipping ${project_id} (data type is ${data_type})"
 			continue
 		fi
 
