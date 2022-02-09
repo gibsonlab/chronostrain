@@ -13,7 +13,7 @@ check_program 'curl'
 
 get_sra_id()
 {
-	query=$1
+	query="$1"
 	result=$(esearch -db sra -query $query | efetch -format runinfo | cut -d "," -f 1 | tail -n +2)
 
 	if [[ $(echo "result" | wc -l) -ge 2 ]]; then
@@ -21,7 +21,7 @@ get_sra_id()
 		exit 1;
 	fi
 
-	return "${result}"
+	echo "${result}"
 }
 
 # ================================= Main script ==================================
