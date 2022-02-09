@@ -1,7 +1,7 @@
 # Modify these before running.
 export PROJECT_DIR="/mnt/f/microbiome_tracking"
-export CHRONOSTRAIN_DATA_DIR="/mnt/f/microbiome_tracking/data/umb"
-export BASE_DIR="${PROJECT_DIR}/examples/umb"
+export CHRONOSTRAIN_DATA_DIR="/mnt/f/microbiome_tracking/data/hmp2"
+export BASE_DIR="${PROJECT_DIR}/examples/hmp2"
 
 # ======== Location of this file.
 export SETTINGS_PATH="${BASE_DIR}/scripts/settings.sh"

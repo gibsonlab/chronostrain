@@ -14,7 +14,6 @@ export CHRONOSTRAIN_OUTPUT_DIR="${OUTPUT_DIR}/chronostrain"
 
 # The chronostrain input index.
 export INPUT_INDEX_FILENAME="inputs.csv"
-export INPUT_INDEX_PATH="${READS_DIR}/${INPUT_INDEX_FILENAME}"
 
 # ========= Chronostrain settings
 export CHRONOSTRAIN_NUM_ITERS=2000
