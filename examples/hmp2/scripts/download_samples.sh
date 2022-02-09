@@ -35,58 +35,74 @@ echo "[*] Downloading HMP2 metadata file."
 curl -o ${HMP2_CSV_PATH} "https://ibdmdb.org/tunnel/products/HMP2/Metadata/hmp2_metadata.csv"
 
 # ================== Parse CSV file.
+download_patient_samples()
 {
-	# Skip header line.
-	read
+	target_patient=$1
+	{
+		# Skip header line.
+		read
 
-	# Read rest of csv file.
-	while IFS=, read -r project_id external_id participant_id site_sub_coll data_type week_num date_of_receipt
-	do
-		if [[ "${participant_id}" =~ ^(C3022|M2072|M2079|H4008|P6012|P6035|C3015|M2069)$ ]]; then
-			continue
-		fi
+		# Read rest of csv file.
+		while IFS=, read -r project_id external_id participant_id site_sub_coll data_type week_num date_of_receipt
+		do
+			if [[ "${participant_id}" != "${target_patient}" ]]; then
+				continue
+			fi
 
-		if [[ "${data_type}" != "metagenomics" ]]; then
-			continue
-		fi
+			if [[ "${data_type}" != "metagenomics" ]]; then
+				continue
+			fi
 
-		echo "[*] -=-=-=-= Downloading ${site_sub_coll}. =-=-=-=-"
-		echo "[*] Querying entrez."
-		query="(${project_id} OR ${external_id}) AND WGS[Strategy]"
-		sra_id=$(get_sra_id "$query")
-		echo "[*] SRA ID: ${sra_id}"
+			echo "[*] -=-=-=-= Downloading ${site_sub_coll}. =-=-=-=-"
+			echo "[*] Querying entrez."
+			query="(${project_id} OR ${external_id}) AND WGS[Strategy]"
+			sra_id=$(get_sra_id "$query")
+			echo "[*] SRA ID: ${sra_id}"
 
-		# Target gzipped fastq files.
-		gz_file_1="${SAMPLES_DIR}/${site_sub_coll}_1.fastq.gz"
-		gz_file_2="${SAMPLES_DIR}/${site_sub_coll}_2.fastq.gz"
-		if [[ -f $gz_file_1 && -f $gz_file_2 ]]; then
-			echo "[*] Target files for ${sra_id} already exist."
-			continue
-		fi
+			# Target gzipped fastq files.
+			gz_file_1="${SAMPLES_DIR}/${site_sub_coll}_1.fastq.gz"
+			gz_file_2="${SAMPLES_DIR}/${site_sub_coll}_2.fastq.gz"
+			if [[ -f $gz_file_1 && -f $gz_file_2 ]]; then
+				echo "[*] Target files for ${sra_id} already exist."
+				continue
+			fi
 
-		# Prefetch
-		echo "[*] Prefetching..."
-		prefetch --output-directory $SRA_PREFETCH_DIR --progress --verify yes $sra_id
+			# Prefetch
+			echo "[*] Prefetching..."
+			prefetch --output-directory $SRA_PREFETCH_DIR --progress --verify yes $sra_id
 
-		# Fasterq-dump
-		echo "[*] Invoking fasterq-dump..."
-		fasterq-dump \
-		--progress \
-		--outdir $SAMPLES_DIR \
-		--skip-technical \
-		--print-read-nr \
-		--force \
-		-t ${FASTERQ_TMP_DIR} \
-		"${SRA_PREFETCH_DIR}/${sra_id}/${sra_id}.sra"
+			# Fasterq-dump
+			echo "[*] Invoking fasterq-dump..."
+			fasterq-dump \
+			--progress \
+			--outdir $SAMPLES_DIR \
+			--skip-technical \
+			--print-read-nr \
+			--force \
+			-t ${FASTERQ_TMP_DIR} \
+			"${SRA_PREFETCH_DIR}/${sra_id}/${sra_id}.sra"
 
-		# Resulting fq files
-		fq_file_1="${SAMPLES_DIR}/${sra_id}_1.fastq"
-		fq_file_2="${SAMPLES_DIR}/${sra_id}_2.fastq"
+			# Resulting fq files
+			fq_file_1="${SAMPLES_DIR}/${sra_id}_1.fastq"
+			fq_file_2="${SAMPLES_DIR}/${sra_id}_2.fastq"
 
-		# Compression
-		echo "[*] Compressing..."
-		pigz $fq_file_1 -c > $gz_file_1
-		pigz $fq_file_2 -c > $gz_file_2
-		wait
-	done
-} < ${HMP2_CSV_PATH}
+			# Compression
+			echo "[*] Compressing..."
+			pigz $fq_file_1 -c > $gz_file_1
+			pigz $fq_file_2 -c > $gz_file_2
+			wait
+		done
+	} < ${HMP2_CSV_PATH}
+}
+
+# nonIBD
+download_patient_samples "C3022"
+download_patient_samples "M2072"
+download_patient_samples "M2079"
+download_patient_samples "H4008"
+
+# UC
+download_patient_samples "P6012"
+download_patient_samples "P6035"
+download_patient_samples "C3015"
+download_patient_samples "M2069"
