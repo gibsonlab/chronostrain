@@ -51,7 +51,10 @@ download_patient_samples()
 		echo "[*] Querying entrez."
 
 		query="(${project_id} OR ${external_id}) AND WGS[Strategy]"
-		sra_id=$(get_sra_id "$query")
+
+		# https://unix.stackexchange.com/questions/342238/while-loop-execution-stops-after-one-iteration-within-bash-script
+		sra_id=$(get_sra_id "$query" < /dev/null)
+
 		if [[ $(echo "$sra_id" | wc -l) -ge 2 ]]; then
 			echo "Multiple hits found for query ${query}. Using the first result only."
 			sra_id=$(echo "$sra_id" | head -n 1)
@@ -91,7 +94,8 @@ download_patient_samples()
 			echo "[*] Compressing..."
 			pigz $fq_file_1 -c > $gz_file_1
 			pigz $fq_file_2 -c > $gz_file_2
-			wait
+			rm $fq_file_1
+			rm $fq_file_2
 		fi
 
 		echo "${participant_id},${project_id},${sra_id}" >> ${FILE_INDEX_PATH}
