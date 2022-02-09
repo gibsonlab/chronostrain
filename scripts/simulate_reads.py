@@ -12,7 +12,7 @@ from typing import List, Tuple
 from chronostrain import logger, cfg
 from chronostrain.model import generative, reads, FragmentSpace, construct_fragment_space_uniform_length
 from chronostrain.model.bacteria import Population
-from chronostrain.model.io import TimeSeriesReads, save_abundances, load_abundances
+from chronostrain.model.io import TimeSeriesReads, save_abundances, load_abundances, TimeSliceReadSource, ReadType
 
 
 def parse_args():
@@ -95,7 +95,8 @@ def sample_reads(
         tau_scale=cfg.model_cfg.sics_scale,
         bacteria_pop=population,
         fragments=fragments,
-        mean_frag_length=cfg.model_cfg.mean_read_length,
+        frag_negbin_n=cfg.model_cfg.frag_len_negbin_n,
+        frag_negbin_p=cfg.model_cfg.frag_len_negbin_p,
         read_error_model=my_error_model
     )
 
@@ -130,6 +131,7 @@ def sample_reads(
 
 
 def save_index_csv(time_series: TimeSeriesReads, out_dir: str, out_filename: str):
+    # TODO: update this to fit new format.
     with open(Path(out_dir) / out_filename, "w") as f:
         for time_slice in time_series:
             print(
@@ -182,11 +184,13 @@ def main():
     # read_files = save_reads_to_fastq(sampled_reads, time_points, args.out_dir, args.out_prefix)
 
     out_paths = []
+    out_dir = Path(args.out_dir)
+    out_dir.mkdir(exist_ok=True, parents=True)
     for time_slice in sampled_reads:
-        out_path_t = Path(args.out_dir) / "{}-reads.fastq".format(time_slice.time_point)
+        out_path_t = out_dir / "{}-reads.fastq".format(time_slice.time_point)
         out_paths.append(out_path_t)
-        time_slice.src = out_path_t
-    sampled_reads.save()
+        time_slice.sources = [TimeSliceReadSource(args.num_reads, out_path_t, 'fastq', ReadType.SINGLE_END)]
+    sampled_reads.save(out_dir)
 
     logger.debug("Saving (re-normalized) abundances to file...")
     save_abundances(

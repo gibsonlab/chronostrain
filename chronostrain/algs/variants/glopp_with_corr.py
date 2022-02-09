@@ -9,18 +9,18 @@ from typing import List, Tuple, Dict, Iterator, Union, Iterable, Optional
 
 import numpy as np
 
-from sklearn import covariance, preprocessing, linear_model
-from sklearn.decomposition import NMF
+from sklearn import covariance, preprocessing
 import networkx as nx
 
 from chronostrain.config import create_logger
 from chronostrain.database import StrainDatabase
-from chronostrain.algs.subroutines.assembly import CachedGloppVariantAssembly, FloppMarkerAssembly, FloppMarkerContig
+from chronostrain.algs.subroutines.assembly import CachedGloppVariantAssembly
 from chronostrain.model import AbstractMarkerVariant, StrainVariant
 from .base import FloppMarkerVariant, FloppStrainVariant
 from ...model import Marker
 from ...model.io import TimeSeriesReads
 from .meta import AbstractVariantBBVISolver
+from ...util.flopp import FloppMarkerContig, FloppMarkerAssembly
 
 logger = create_logger(__name__)
 

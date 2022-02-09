@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import List, Tuple
 
 from torch.distributions.multivariate_normal import MultivariateNormal
-from scipy.stats import rv_discrete, poisson
+from scipy.stats import rv_discrete, nbinom
 
 from chronostrain.model.bacteria import Population
 from chronostrain.model.fragments import FragmentSpace
@@ -31,7 +31,8 @@ class GenerativeModel:
                  tau_scale: float,
                  bacteria_pop: Population,
                  fragments: FragmentSpace,
-                 mean_frag_length: float,
+                 frag_negbin_n: float,
+                 frag_negbin_p: float,
                  read_error_model: AbstractErrorModel,
                  all_markers_fasta: Path):
         """
@@ -55,7 +56,7 @@ class GenerativeModel:
         self.error_model: AbstractErrorModel = read_error_model
         self.bacteria_pop: Population = bacteria_pop
         self.fragments: FragmentSpace = fragments
-        self.frag_length_distribution: rv_discrete = poisson(mean_frag_length)
+        self.frag_length_distribution: rv_discrete = nbinom(frag_negbin_n, frag_negbin_p)
 
         self.all_markers_fasta = all_markers_fasta
         self._frag_freqs_sparse = None

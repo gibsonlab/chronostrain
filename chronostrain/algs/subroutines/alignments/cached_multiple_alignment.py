@@ -12,7 +12,7 @@ from chronostrain.util.alignments.pairwise import SequenceReadPairwiseAlignment
 from chronostrain.util.cache import ComputationCache
 from .cached_pairwise_alignment import CachedReadPairwiseAlignments
 
-from chronostrain.config import create_logger, cfg
+from chronostrain.config import create_logger
 logger = create_logger(__name__)
 
 
@@ -22,6 +22,13 @@ class CachedReadMultipleAlignments(object):
                  db: StrainDatabase,
                  cache_override: Optional[ComputationCache] = None):
         self.reads = reads
+        reads_dict = {
+            read.id: read
+            for reads_t in reads
+            for read in reads_t
+        }
+        self.read_getter = lambda r_id: reads_dict[r_id]
+
         self.db = db
 
         if cache_override is not None:
@@ -85,7 +92,7 @@ class CachedReadMultipleAlignments(object):
 
             alignments = sorted(alignments_with_time, key=lambda x: x[0].marker_start)
             for aln, t_idx in alignments:
-                yield t_idx, aln.read, aln.reverse_complemented
+                yield aln.read, aln.reverse_complemented
 
         # ====== function bindings to pass to ComputationCache.
         def perform_alignment(out_path: Path) -> multialign.MarkerMultipleFragmentAlignment:
@@ -99,7 +106,7 @@ class CachedReadMultipleAlignments(object):
                 out_fasta_path=out_path,
                 n_threads=num_cores
             )
-            return multialign.parse(self.db, marker_name, self.reads, out_path)
+            return multialign.parse(self.db, marker_name, self.read_getter, out_path)
 
         # ====== Run the cached computation.
         cache_relative_path = Path("multiple_alignments") / f"{marker_name}_multi_align.fasta"
@@ -108,7 +115,7 @@ class CachedReadMultipleAlignments(object):
             relative_filepath=cache_relative_path,
             fn=perform_alignment,
             save=lambda path, obj: None,
-            load=lambda path: multialign.parse(self.db, marker_name, self.reads, path),
+            load=lambda path: multialign.parse(self.db, marker_name, self.read_getter, path),
             call_kwargs={
                 "out_path": self.cache.cache_dir / cache_relative_path
             }

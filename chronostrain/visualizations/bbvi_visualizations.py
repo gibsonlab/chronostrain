@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 
 from chronostrain import logger
-from chronostrain.algs import BBVISolver, AbstractPosterior
+from chronostrain.algs import AbstractPosterior, BBVISolverV2
 from chronostrain.model import GenerativeModel, Population
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.util import filesystem
@@ -125,7 +125,7 @@ def plot_bbvi_posterior(times: List[float],
 
 def save_frag_probabilities(
         reads: TimeSeriesReads,
-        solver: BBVISolver,
+        solver: BBVISolverV2,
         out_path: Path
 ):
     df_entries = []

@@ -1,0 +1,52 @@
+patient_id	raw_abx	clean_abx	abx_class	date	days_before	weeks_before	date_ended	experiment_day_ended
+UMB02	azithromycin	azithromycin	macrolide	2015-10-06		2	2015-09-22	21.0
+UMB02	doxycycline	doxycycline	tetracycline	2016-03-09	currently taking - started 03/10/2016		2016-03-09	190.0
+UMB02	doxycycline	doxycycline	tetracycline	2016-04-05		2	2016-03-22	203.0
+UMB03	amoxicillin clavulanate	augmentin	beta_lactam	2015-11-04		2	2015-10-21	51.0
+UMB05	ciproxin	ciproxin	fluoroquinolone	2015-10-01		3	2015-09-10	-20.0
+UMB05	ciprofloxacin	ciprofloxacin	fluoroquinolone	2016-04-04	15		2016-03-20	172.0
+UMB05	sulfamethoxazole-tmp	bactrim	sulfonamide	2016-08-02	1		2016-08-01	306.0
+UMB08	ciprofloxacin	ciprofloxacin	fluoroquinolone	2015-11-03		2	2015-10-20	-14.0
+UMB08	cipro	ciprofloxacin	fluoroquinolone	2015-12-21	4		2015-12-17	44.0
+UMB08	ciprofloxacin	ciprofloxacin	fluoroquinolone	2016-09-11	5		2016-09-06	308.0
+UMB11	sulfa	sulfamethoxazole	sulfonamide	2016-03-07	15		2016-02-21	73.0
+UMB12	macrobid 100 mg	nitrofurantoin	nitrofuran	2015-11-17		10	2015-09-08	-91.0
+UMB12	macrobid  once	nitrofurantoin	nitrofuran	2016-01-05	not answered	not answered	2016-01-05	28.0
+UMB12	macrobid 100 mg	nitrofurantoin	nitrofuran	2016-07-13	5		2016-07-08	213.0
+UMB12	macrobid 100 mg x 1	nitrofurantoin	nitrofuran	2016-08-09		2	2016-07-26	231.0
+UMB12	macrobid 	nitrofurantoin	nitrofuran	2016-09-13	1		2016-09-12	279.0
+UMB13	med not indicated - taken for sinus infection			2016-10-19		3	2016-09-28	315.0
+UMB15	sulfamethoxazole	sulfamethoxazole	sulfonamide	2015-11-23		6	2015-10-12	-58.0
+UMB15	ciprofloxacin 500mg bid for 1 week	ciprofloxacin	fluoroquinolone	2016-01-05		1	2015-12-29	20.0
+UMB18	macrobid	nitrofurantoin	nitrofuran	2016-02-10		6	2015-12-30	-44.0
+UMB18	macrobid	nitrofurantoin	nitrofuran	2016-02-23		1	2016-02-16	4.0
+UMB18	not indicated			2016-04-05		1	2016-03-29	46.0
+UMB18	amoxicillin	amoxicillin	beta_lactam	2016-10-05	4		2016-10-01	232.0
+UMB18	amoxicillin	amoxicillin	beta_lactam	2016-11-16	2		2016-11-14	276.0
+UMB18	macrobid	nitrofurantoin	nitrofuran	2016-12-19		2	2016-12-05	297.0
+UMB19	z pack	azithromycin	macrolide	2016-04-03		3	2016-03-13	6.0
+UMB20	cephalexin	cephalexin	beta_lactam	2016-02-11		7	2015-12-24	-67.0
+UMB20	ciprofloxacin	ciprofloxacin	fluoroquinolone	2016-05-02		1	2016-04-25	56.0
+UMB20	macrobid	nitrofurantoin	nitrofuran	2016-07-13		1.5	2016-07-02	124.0
+UMB20	nitrofurantoin	nitrofurantoin	nitrofuran	2016-12-05		1	2016-11-28	273.0
+UMB20	cephalexen	cephalexin	beta_lactam	2017-01-10		3	2016-12-20	295.0
+UMB21	amoxicillin clavulanate	augmentin	beta_lactam	2016-02-15		3	2016-01-25	-41.0
+UMB22	tonsillitis (name of antibiotic not indicated)			2016-02-17		10	2015-12-09	-88.0
+UMB22	cefuroxime axetil for tonsillitis	ceftin	beta_lactam	2016-03-06	0		2016-03-06	0.0
+UMB22	infected cuticle (name of antibiotic not provided)			2016-05-03		1.5	2016-04-22	47.0
+UMB22	cephalexin 500 mg tid	cephalexin	beta_lactam	2016-10-02	4		2016-09-28	206.0
+UMB22	macrophage			2017-02-07	0 (1 dose started on 2/6/17)		2017-02-07	338.0
+UMB23	headache (name of antibiotic not provided)			2016-03-15	5		2016-03-10	-27.0
+UMB23	azithromycin (subject states 'still taking them')	azithromycin	macrolide	2016-04-06			2016-04-06	0.0
+UMB23	ciprofloxacin 500 mg	ciprofloxacin	fluoroquinolone	2016-04-26	0		2016-04-26	20.0
+UMB23	nitrofurantoin macro 50 mg	nitrofurantoin	nitrofuran	2016-06-03	not provided	not provided	2016-06-03	58.0
+UMB24	not provided			2017-01-04	7		2016-12-28	267.0
+UMB25	UTI (name of antibiotic not provided			2016-04-06		3	2016-03-16	-55.0
+UMB26	amoxicillin	amoxicillin	beta_lactam	2017-01-16	17		2016-12-30	243.0
+UMB27	arithromycin for strep throat	azithromycin	macrolide	2016-07-25		1	2016-07-18	85.0
+UMB28	IV drip during labor (name of antibiotic not provided)			2016-04-25		7	2016-03-07	-48.0
+UMB29	zithromycin pak	azithromycin	macrolide	2016-12-06	3		2016-12-03	222.0
+UMB30	UTI (name of antibiotic not provided)			2016-05-19		8	2016-03-24	-74.0
+UMB30	nitrofurantoin, ciprofloxacin	ciprofloxacin	fluoroquinolone	2016-06-06		2	2016-05-23	-14.0
+UMB30	nitrofurantoin, ciprofloxacin	nitrofurantoin	nitrofuran	2016-06-06		2	2016-05-23	-14.0
+UMB31	azoithromycin	azithromycin	macrolide	2016-07-13		3	2016-06-22	31.0

@@ -9,12 +9,13 @@ from typing import List, Dict, Iterator, Union, Iterable, Optional, Set, Tuple
 
 from chronostrain.config import create_logger
 from chronostrain.database import StrainDatabase
-from chronostrain.algs.subroutines.assembly import CachedGloppVariantAssembly, FloppMarkerAssembly, FloppMarkerContig
+from chronostrain.algs.subroutines.assembly import CachedGloppVariantAssembly
 from chronostrain.model import AbstractMarkerVariant, StrainVariant
 from .base import FloppMarkerVariant, FloppStrainVariant
 from ...model import Marker
 from ...model.io import TimeSeriesReads
 from .meta import ExhaustiveVariantBBVISolver
+from ...util.flopp import FloppMarkerAssembly, FloppMarkerContig
 
 logger = create_logger(__name__)
 

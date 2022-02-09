@@ -108,11 +108,10 @@ def extract_chromosomes(path: Path) -> Iterator[Tuple[str, Path]]:
         desc = record.description
         accession = record.id.split(' ')[0]
 
-        if "plasmid" in desc or len(record.seq) < 5e6:
+        if "plasmid" in desc or len(record.seq) < 500000:
             continue
         else:
-            prefix = path.parent / f"{accession}.fasta"
-            chrom_path = path.parent / f"{prefix}.chrom.fna.gz"
+            chrom_path = path.parent / f"{accession}.chrom.fna"
             SeqIO.write([record], chrom_path, "fasta")
 
             yield accession, chrom_path
@@ -134,8 +133,8 @@ def create_chronostrain_db(
 
     # ======== BLAST configuration
     blast_db_dir = output_path.parent / "blast"
-    blast_db_name = "strainge_db"
-    blast_db_title = "\"Escherichia (metaphlan markers, strainGE strains)\""
+    blast_db_name = "db_esch"
+    blast_db_title = "\"Escherichia (metaphlan markers, NCBI complete)\""
     blast_fasta_path = blast_db_dir / "genomes.fasta"
     blast_result_dir = output_path.parent / "blast_results"
     logger.info("BLAST\n\tdatabase location: {}\n\tresults directory: {}".format(
@@ -147,7 +146,7 @@ def create_chronostrain_db(
     blast_db_dir.mkdir(parents=True, exist_ok=True)
     strain_fasta_files = []
     strain_entries = []
-    for row in seq_index.iterrows():
+    for idx, row in seq_index.iterrows():
         accession = row['Accession']
         fasta_path = row['SeqPath']
         strain_fasta_files.append(fasta_path)
@@ -161,8 +160,11 @@ def create_chronostrain_db(
         })
 
         symlink_path = Path(data_dir / f"{accession}.fasta")
-        symlink_path.symlink_to(fasta_path)
-        logger.info(f"Symlink {symlink_path} -> {fasta_path}")
+        if symlink_path.exists():
+            logger.info(f"Path {symlink_path} already exists.")
+        else:
+            symlink_path.symlink_to(fasta_path)
+            logger.info(f"Symlink {symlink_path} -> {fasta_path}")
 
     logger.info('Concatenating {} files.'.format(len(strain_fasta_files)))
     with open(blast_fasta_path, 'w') as genome_fasta_file:
@@ -175,6 +177,8 @@ def create_chronostrain_db(
         blast_fasta_path, blast_db_dir, blast_db_name,
         is_nucleotide=True, title=blast_db_title, parse_seqids=True
     )
+
+    Path(blast_fasta_path).unlink()  # clean up large fasta file.
 
     # Run BLAST to find marker genes.
     blast_result_dir.mkdir(parents=True, exist_ok=True)

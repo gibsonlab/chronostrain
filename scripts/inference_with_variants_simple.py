@@ -7,6 +7,7 @@ from chronostrain.config import create_logger, cfg
 from chronostrain.algs import GloppVariantSolver
 from chronostrain.model import FragmentSpace, Population, StrainVariant
 import chronostrain.visualizations as viz
+from chronostrain.model.io import TimeSeriesReads
 
 from helpers import *
 logger = create_logger("variant_search")
@@ -28,9 +29,6 @@ def parse_args():
                         help='<Optional> The number of strands to assemble for each marker.')
 
     # Other Optional params
-    parser.add_argument('-q', '--quality_format', required=False, type=str, default='fastq',
-                        help='<Optional> The quality format. Should be one of the options implemented in Biopython '
-                             '`Bio.SeqIO.QualityIO` module.')
     parser.add_argument('--input_file', required=False, type=str,
                         default='input_files.csv',
                         help='<Optional> The CSV input file specifier inside reads_dir.')
@@ -77,9 +75,8 @@ def main():
     # ==== Load reads.
     logger.info("Loading time-series read files.")
 
-    reads = parse_reads(
-        Path(args.reads_dir) / args.input_file,
-        quality_format=args.quality_format
+    reads = TimeSeriesReads.load_from_csv(
+        Path(args.reads_dir) / args.input_file
     )
     time_points = [time_slice.time_point for time_slice in reads]
 

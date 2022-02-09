@@ -9,14 +9,14 @@ from chronostrain.util.alignments.multiple import MarkerMultipleFragmentAlignmen
 from chronostrain.util.alignments.sam import SamFlags
 from chronostrain.util.quality import phred_to_ascii
 from chronostrain.util.sequences import *
-from .constants import VCF_GAP_CHAR
+from .base import VCF_GAP_CHAR
 
 from chronostrain.config import create_logger
 logger = create_logger(__name__)
 
 
-_z4_base_ordering: SeqType = nucleotides_to_z4("ACGT-")
-_base_to_idx: Dict[NucleotideDtype, int] = {base: idx for idx, base in enumerate(_z4_base_ordering)}
+z4_base_ordering: SeqType = nucleotides_to_z4("ACGT-")
+_base_to_idx: Dict[NucleotideDtype, int] = {base: idx for idx, base in enumerate(z4_base_ordering)}
 
 
 def to_sam(canonical_marker: Marker, alignment: MarkerMultipleFragmentAlignment, out_path: Path):
@@ -28,11 +28,11 @@ def to_sam(canonical_marker: Marker, alignment: MarkerMultipleFragmentAlignment,
     chronostrain_version = "empty"
 
     def write_read(read: SequenceRead,
-                   t_idx: int,
                    map_first_idx: int,
                    map_last_idx: int,
                    reverse_complement: bool,
-                   sam_flags: List[SamFlags], w: csv.writer):
+                   sam_flags: List[SamFlags],
+                   w: csv.writer):
         # Flag calculation (Bitwise OR)
         read_flag = 0
         for flag in sam_flags:
@@ -64,7 +64,7 @@ def to_sam(canonical_marker: Marker, alignment: MarkerMultipleFragmentAlignment,
         )
 
         w.writerow([
-            f"T{t_idx};R{int(reverse_complement)};{read.id}",
+            f"R{int(reverse_complement)};{read.id}",
             read_flag,
             canonical_marker.name,
             str(map_first_idx + 1),  # 1-indexed mapping position
@@ -87,18 +87,18 @@ def to_sam(canonical_marker: Marker, alignment: MarkerMultipleFragmentAlignment,
 
         # ========== SEQUENCE ALIGNMENTS.
         entries = [
-            (read_obj, alignment.time_idxs[r_idx], False, *alignment.aln_gapped_boundary(read_obj, False))
+            (read_obj, False, *alignment.aln_gapped_boundary(read_obj, False))
             for read_obj, r_idx in alignment.forward_read_index_map.items()
         ] + [
-            (read_obj, alignment.time_idxs[r_idx], True, *alignment.aln_gapped_boundary(read_obj, True))
+            (read_obj, True, *alignment.aln_gapped_boundary(read_obj, True))
             for read_obj, r_idx in alignment.reverse_read_index_map.items()
-        ]  # Tuple of (Read, read_t_idx, Rev_comp, Start_idx, End_idx).
+        ]  # Tuple of (Read, Rev_comp, Start_idx, End_idx).
 
         entries.sort(key=lambda x: x[3])
 
-        for read_obj, time_idx, revcomp, start_idx, end_idx in entries:
+        for read_obj, revcomp, start_idx, end_idx in entries:
             flags = [SamFlags.SeqReverseComplement] if revcomp else []
-            write_read(read_obj, time_idx, start_idx, end_idx, revcomp, flags, tsv)
+            write_read(read_obj, start_idx, end_idx, revcomp, flags, tsv)
 
 
 def to_vcf(canonical_marker: Marker,
@@ -172,7 +172,7 @@ def to_vcf(canonical_marker: Marker,
                 idx + 1,  # pos
                 ".",  # id
                 map_z4_to_nucleotide(ref_base_z4) if ref_base_z4 != nucleotide_GAP_z4 else VCF_GAP_CHAR,  # ref
-                ",".join(render_base(_z4_base_ordering[v]) for v in supported_variant_indices),  # alt
+                ",".join(render_base(z4_base_ordering[v]) for v in supported_variant_indices),  # alt
                 "100",  # qual
                 "PASS",  # filter
                 ";".join(info_tags),  # info

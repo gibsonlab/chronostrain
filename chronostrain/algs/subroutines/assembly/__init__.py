@@ -1,2 +1,1 @@
 from .cached_glopp_assembly import CachedGloppVariantAssembly
-from .classes import FloppMarkerContig, FloppMarkerAssembly

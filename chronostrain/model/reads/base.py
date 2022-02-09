@@ -1,7 +1,7 @@
 """
     Contains abstract classes. See the other python files for implementations.
 """
-from typing import Union, Optional
+from typing import Union
 
 import numpy as np
 from abc import abstractmethod, ABCMeta
@@ -75,8 +75,8 @@ class AbstractErrorModel(metaclass=ABCMeta):
                                fragment: Fragment,
                                read: SequenceRead,
                                read_reverse_complemented: bool,
-                               insertions: Optional[np.ndarray] = None,
-                               deletions: Optional[np.ndarray] = None,
+                               insertions: np.ndarray,
+                               deletions: np.ndarray,
                                read_start_clip: int = 0,
                                read_end_clip: int = 0) -> float:
         """

@@ -16,8 +16,8 @@ class NoiselessErrorModel(AbstractErrorModel):
                                fragment: Fragment,
                                read: SequenceRead,
                                read_reverse_complemented: bool,
-                               insertions: Optional[np.ndarray] = None,
-                               deletions: Optional[np.ndarray] = None,
+                               insertions: np.ndarray,
+                               deletions: np.ndarray,
                                read_start_clip: int = 0,
                                read_end_clip: int = 0) -> float:
         if np.sum(insertions) > 0 or np.sum(deletions) > 0:

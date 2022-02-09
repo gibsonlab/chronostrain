@@ -51,7 +51,7 @@ echo "reads dir: ${READS_DIR}"
 source ${BASE_DIR}/scripts/eristwo/settings.sh
 
 echo "Filtering reads."
-python ${PROJECT_DIR}/scripts/filter.py -r "${READS_DIR}" -o "${READS_DIR}/filtered"
+python ${PROJECT_DIR}/scripts/filter_timeseries.py -r "${READS_DIR}" -o "${READS_DIR}/filtered"
 EOFDOC
 
 			# ============ Chronostrain LSF ============

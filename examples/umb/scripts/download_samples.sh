@@ -3,9 +3,10 @@ set -e
 source settings.sh
 
 # ======================================== Functions ===============================
-# REQUIRES: sratools (prefetch + fasterq-dump)
+# REQUIRES: sratools (prefetch + fasterq-dump), pigz
 check_program 'prefetch'
 check_program 'fasterq-dump'
+check_program 'pigz'
 
 # ================================= Main script ==================================
 
@@ -56,8 +57,8 @@ mkdir -p ${FASTERQ_TMP_DIR}
 		echo "[*] Compressing..."
 		fq_file_1="${SAMPLES_DIR}/${sra_id}_1.fastq"
 		fq_file_2="${SAMPLES_DIR}/${sra_id}_2.fastq"
-		gzip $fq_file_1 --force &
-		gzip $fq_file_2 --force &
+		pigz $fq_file_1
+		pigz $fq_file_2
 		wait
 	done
 } < ${SRA_CSV_PATH}

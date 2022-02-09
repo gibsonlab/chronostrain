@@ -1,3 +1,5 @@
+from typing import Union
+
 import numpy as np
 
 # ================================= Constants.
@@ -31,7 +33,10 @@ z4_special = [_acgt_to_z4[b] for b in _special]
 
 # ================================= Function definitions.
 def map_nucleotide_to_z4(nucleotide: str) -> int:
-    return _acgt_to_z4[nucleotide]
+    try:
+        return _acgt_to_z4[nucleotide]
+    except KeyError:
+        raise UnknownNucleotideError(nucleotide)
 
 
 def map_z4_to_nucleotide(z4: int) -> str:
@@ -48,7 +53,7 @@ def nucleotides_to_z4(nucleotides: str) -> SeqType:
     # Even faster than np.vectorize(_acgt_to_z4.get)(list(s)), or using numba.jit(nopython=True) with numba.typed.Dict.
     z4seq = np.zeros(shape=len(nucleotides), dtype=NucleotideDtype)
     for i, nucleotide in enumerate(nucleotides):
-        z4seq[i] = _acgt_to_z4[nucleotide]
+        z4seq[i] = map_nucleotide_to_z4(nucleotide)
     return z4seq
 
 
@@ -59,5 +64,11 @@ def z4_to_nucleotides(z4seq: SeqType) -> str:
         ))
 
     return "".join(
-        _z4_to_acgt[element] for element in z4seq
+        map_z4_to_nucleotide(element) for element in z4seq
     )
+
+
+class UnknownNucleotideError(Exception):
+    def __init__(self, nucleotide: str):
+        super().__init__()
+        self.nucleotide = nucleotide

@@ -29,6 +29,7 @@ export FASTERQ_TMP_DIR="${CHRONOSTRAIN_DATA_DIR}/fasterq-tmp"
 export SAMPLES_DIR="${CHRONOSTRAIN_DATA_DIR}/samples"
 
 # ========= Kneaddata
+export KNEADDATA_DB_DIR="/mnt/d/kneaddata_db"
 export NEXTERA_ADAPTER_PATH="/PHShome/yk847/.conda/envs/chronostrain/share/trimmomatic/adapters/NexteraPE-PE.fa"
 export TRIMMOMATIC_DIR="/PHShome/yk847/.conda/envs/chronostrain/share/trimmomatic-0.39-2"
 
@@ -44,6 +45,7 @@ export CHRONOSTRAIN_OUTPUT_FILENAME="abundances.out"
 export CHRONOSTRAIN_ECOLI_DB_JSON="${CHRONOSTRAIN_DATA_DIR}/database_ecoli_all.json"
 export CHRONOSTRAIN_ECOLI_DB_JSON_PRUNED="${CHRONOSTRAIN_DATA_DIR}/database_ecoli_pruned.json"
 export CHRONOSTRAIN_ECOLI_DB_SPEC="${CHRONOSTRAIN_ECOLI_DB_JSON_PRUNED}"
+export MULTIFASTA_FILE="pruned_strain_markers.fasta"
 export CHRONOSTRAIN_DB_DIR="${CHRONOSTRAIN_DATA_DIR}/database_ecoli"
 
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)

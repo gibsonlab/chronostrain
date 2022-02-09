@@ -81,14 +81,14 @@ class FragmentFrequencyComputer(object):
                             population: Population,
                             bwa_fastmap_output_path: Path
                             ) -> Union[RowSectionedSparseMatrix, torch.Tensor]:
-        self.search(fragments, bwa_fastmap_output_path)
+        self.search(fragments, bwa_fastmap_output_path, max_num_hits=10 * population.num_strains())
         return self.construct_matrix(
             fragments,
             population,
             self.parse(fragments, population, bwa_fastmap_output_path)
         )
 
-    def search(self, fragments: FragmentSpace, output_path: Path):
+    def search(self, fragments: FragmentSpace, output_path: Path, max_num_hits: int):
         logger.debug("Creating index for exact matches.")
         bwa_index(self.all_markers_path)
 
@@ -99,7 +99,7 @@ class FragmentFrequencyComputer(object):
             reference_path=self.all_markers_path,
             query_path=fragments_path,
             min_smem_len=fragments.min_frag_len,
-            max_interval_size=1000
+            max_interval_size=max_num_hits
         )
 
     @staticmethod
@@ -165,8 +165,11 @@ class FragmentFrequencyComputer(object):
                         strain_counts = Counter()
                         for marker_hit_token in match_tokens[4:]:
                             if marker_hit_token == "*":
-                                raise ValueError("Output of bwa fastmap didn't report output. "
-                                                 "Try raising the value of the -w option.")
+                                raise ValueError(
+                                    f"Output of bwa fastmap didn't report output for {frag_line_tokens[0]} "
+                                    "(usually occurs because there were too many hits). "
+                                    "Try raising the value of the -w option."
+                                )
 
                             marker_desc, pos = marker_hit_token.split(':')
                             strain_id, gene_name, gene_id = marker_desc.split('|')

@@ -11,7 +11,10 @@ logger = create_logger(__name__)
 
 
 class FloppMarkerAssembly(object):
-    def __init__(self, aln: MarkerMultipleFragmentAlignment, contigs: List['FloppMarkerContig'], all_positions: np.ndarray):
+    def __init__(self,
+                 aln: MarkerMultipleFragmentAlignment,
+                 contigs: List['FloppMarkerContig'],
+                 all_positions: np.ndarray):
         self.aln = aln
         self.contigs = contigs
         self.all_positions = all_positions
@@ -60,7 +63,7 @@ class FloppMarkerContig(object):
                  assembly: np.ndarray,
                  read_counts: np.ndarray):
         """
-        :param marker: The marker that this object is representing.
+        :param canonical_marker: The canonical version of the marker that this object is representing.
         :param positions: The list of integer-valued positions that the assembly matrix's index represents.
             (Should be sorted in increasing order.)
         :param assembly: An (N x k) array of resolved assembly for this contig.

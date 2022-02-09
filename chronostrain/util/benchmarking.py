@@ -14,16 +14,16 @@ def millis_elapsed(start_millis):
     return current_time_millis() - start_millis
 
 
-class CyclicIntegerBuffer:
+class CyclicBuffer:
     """
-    An (integer-valued) buffer of finite capcity. Cyclically overwrites next available slot in memory.
+    A buffer of finite capcity. Cyclically overwrites next available slot in memory.
     """
-    def __init__(self, capacity, default_value=0):
+    def __init__(self, capacity):
         if capacity == 0:
             raise ValueError("Buffer size must be nonzero.")
         self.capacity = capacity
         self.size = 0
-        self.buf = [default_value for _ in range(capacity)]
+        self.buf = [0] * capacity
         self.total = 0
         self.next_idx = 0
 
@@ -54,7 +54,7 @@ class RuntimeEstimator:
         """
         self.total_iters = total_iters
         self.iters_left = total_iters
-        self.iter_buf = CyclicIntegerBuffer(capacity=horizon)
+        self.iter_buf = CyclicBuffer(capacity=horizon)
         self.last_click = None
 
     def stopwatch_click(self):

@@ -3,7 +3,7 @@ import torch
 
 from chronostrain import cfg, logger
 from chronostrain.database import StrainDatabase
-from chronostrain.model import Population, NoiselessErrorModel, PhredErrorModel, GenerativeModel, FragmentSpace
+from chronostrain.model import Population, NoiselessErrorModel, PEPhredErrorModel, GenerativeModel, FragmentSpace
 
 
 def initialize_seed(seed: int):
@@ -30,9 +30,11 @@ def create_model(population: Population,
         logger.info("Flag --disable_quality turned on; Quality scores are diabled. Initializing NoiselessErrorModel.")
         error_model = NoiselessErrorModel(mismatch_likelihood=0.)
     else:
-        error_model = PhredErrorModel(
-            insertion_error_ll=cfg.model_cfg.insertion_error_log10,
-            deletion_error_ll=cfg.model_cfg.deletion_error_log10
+        error_model = PEPhredErrorModel(
+            insertion_error_ll_1=cfg.model_cfg.get_float("INSERTION_LL_1"),
+            deletion_error_ll_1=cfg.model_cfg.get_float("DELETION_LL_1"),
+            insertion_error_ll_2=cfg.model_cfg.get_float("INSERTION_LL_2"),
+            deletion_error_ll_2=cfg.model_cfg.get_float("DELETION_LL_2")
         )
 
     model = GenerativeModel(
@@ -45,7 +47,8 @@ def create_model(population: Population,
         tau_scale=cfg.model_cfg.sics_scale,
         read_error_model=error_model,
         fragments=fragments,
-        mean_frag_length=cfg.model_cfg.mean_read_length,
+        frag_negbin_n=cfg.model_cfg.frag_len_negbin_n,
+        frag_negbin_p=cfg.model_cfg.frag_len_negbin_p,
         all_markers_fasta=db.multifasta_file
     )
 

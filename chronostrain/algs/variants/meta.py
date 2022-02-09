@@ -6,10 +6,10 @@ import numpy as np
 import torch
 
 from chronostrain.database import StrainDatabase
-from chronostrain.model import Population, GenerativeModel, FragmentSpace, PhredErrorModel
+from chronostrain.model import Population, GenerativeModel, FragmentSpace, PEPhredErrorModel
 from chronostrain.model.io import TimeSeriesReads
 from .base import StrainVariant
-from ..inference import BBVISolver
+from ..inference import BBVISolverV2
 from ..subroutines.alignments import CachedReadMultipleAlignments
 
 from chronostrain.config import create_logger, cfg
@@ -139,12 +139,14 @@ class AbstractVariantBBVISolver(object):
             tau_1_scale=cfg.model_cfg.sics_scale_1,
             tau_dof=cfg.model_cfg.sics_dof,
             tau_scale=cfg.model_cfg.sics_scale,
-            read_error_model=PhredErrorModel(
+            read_error_model=PEPhredErrorModel(
                 insertion_error_ll=cfg.model_cfg.insertion_error_log10,
                 deletion_error_ll=cfg.model_cfg.deletion_error_log10
             ),
             fragments=fragments,
-            mean_frag_length=cfg.model_cfg.mean_read_length
+            frag_negbin_n=cfg.model_cfg.frag_len_negbin_n,
+            frag_negbin_p=cfg.model_cfg.frag_len_negbin_p,
+            all_markers_fasta=self.db.multifasta_file
         )
 
     def run_bbvi(self,
@@ -154,7 +156,7 @@ class AbstractVariantBBVISolver(object):
         model = self.create_model(variants)
 
         if model.num_strains() > 1:
-            solver = BBVISolver(model=model,
+            solver = BBVISolverV2(model=model,
                                 data=self.reads,
                                 correlation_type="strain",
                                 db=self.db,
@@ -181,7 +183,7 @@ class AbstractVariantBBVISolver(object):
             data_ll = (data_conditional_ll + prior_ll - posterior_ll_est).item()
         else:
             # Special case when there is only one strain in the population. (Nothing to do)
-            solver = BBVISolver(model=model, data=self.reads, correlation_type="strain", db=self.db)
+            solver = BBVISolverV2(model=model, data=self.reads, correlation_type="strain", db=self.db)
             data_ll = solver.data_likelihoods.conditional_likelihood(
                 torch.ones((model.num_times(), 1), device=cfg.torch_cfg.device)
             ).item()

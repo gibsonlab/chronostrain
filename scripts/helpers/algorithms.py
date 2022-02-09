@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from torch import softmax
 
-from chronostrain.algs import BBVISolver, EMSolver
+from chronostrain.algs import BBVISolverV1, BBVISolverV2, EMSolver
 from chronostrain.database import StrainDatabase
 from chronostrain.model import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads, save_abundances
@@ -31,8 +31,13 @@ def perform_bbvi(
 ):
 
     # ==== Run the solver.
-    solver = BBVISolver(model=model, data=reads, correlation_type=correlation_type, db=db,
-                        frag_chunk_size=frag_chunk_sz)
+    solver = BBVISolverV1(
+        model=model,
+        data=reads,
+        correlation_type=correlation_type,
+        db=db,
+        frag_chunk_size=frag_chunk_sz
+    )
 
     callbacks = []
     uppers = [[] for _ in range(model.num_strains())]
@@ -87,7 +92,7 @@ def perform_bbvi(
         (end_time - start_time)
     ))
 
-    posterior = solver.gaussian_posterior
+    posterior = solver.posterior
     return solver, posterior, elbo_history, (uppers, lowers, medians)
 
 

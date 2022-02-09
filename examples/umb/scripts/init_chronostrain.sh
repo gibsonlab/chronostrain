@@ -4,12 +4,14 @@ set -e
 source settings.sh
 export CHRONOSTRAIN_LOG_FILEPATH="${LOGDIR}/init.log"
 
-
+echo "[*] Initializing database."
 python ${BASE_DIR}/helpers/init_chronostrain_db.py \
 -m ${METAPHLAN_PKL_PATH} \
 -o ${CHRONOSTRAIN_ECOLI_DB_JSON} \
 -r /mnt/d/ref_genomes
 
+echo "[*] Pruning database by hamming similarity."
+MULTIFASTA_FILE="all_strain_markers.fasta"
 python ${BASE_DIR}/helpers/prune_chronostrain_db.py \
 --input_json ${CHRONOSTRAIN_ECOLI_DB_JSON} \
 --output_json ${CHRONOSTRAIN_ECOLI_DB_JSON_PRUNED} \
