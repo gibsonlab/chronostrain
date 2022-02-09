@@ -64,11 +64,14 @@ download_patient_samples()
 			echo "[*] SRA ID: ${sra_id}"
 
 			# Target gzipped fastq files.
-			gz_file_1="${SAMPLES_DIR}/${project_id}_1.fastq.gz"
-			gz_file_2="${SAMPLES_DIR}/${project_id}_2.fastq.gz"
+			subdir="${SAMPLES_DIR}/${participant_id}"
+			gz_file_1="$subdir/${project_id}_1.fastq.gz"
+			gz_file_2="$subdir/${project_id}_2.fastq.gz"
 			if [[ -f $gz_file_1 && -f $gz_file_2 ]]; then
 				echo "[*] Target files for ${sra_id} already exist."
 			else
+				mkdir -p $subdir
+
 				# Prefetch
 				echo "[*] Prefetching..."
 				prefetch --output-directory $SRA_PREFETCH_DIR --progress --verify yes $sra_id
@@ -77,7 +80,7 @@ download_patient_samples()
 				echo "[*] Invoking fasterq-dump..."
 				fasterq-dump \
 				--progress \
-				--outdir $SAMPLES_DIR \
+				--outdir $subdir \
 				--skip-technical \
 				--print-read-nr \
 				--force \
@@ -85,8 +88,8 @@ download_patient_samples()
 				"${SRA_PREFETCH_DIR}/${sra_id}/${sra_id}.sra"
 
 				# Resulting fq files
-				fq_file_1="${SAMPLES_DIR}/${sra_id}_1.fastq"
-				fq_file_2="${SAMPLES_DIR}/${sra_id}_2.fastq"
+				fq_file_1="$subdir/${sra_id}_1.fastq"
+				fq_file_2="$subdir/${sra_id}_2.fastq"
 
 				# Compression
 				echo "[*] Compressing..."
