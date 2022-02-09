@@ -24,9 +24,13 @@ mkdir -p ${SRA_PREFETCH_DIR}
 mkdir -p ${FASTERQ_TMP_DIR}
 
 HMP2_CSV_PATH="${SAMPLES_DIR}/hmp2_metadata.csv"
+FILE_INDEX_PATH="${SAMPLES_DIR}/index.csv"
 
 echo "[*] Downloading HMP2 metadata file."
 curl -o ${HMP2_CSV_PATH} "https://ibdmdb.org/tunnel/products/HMP2/Metadata/hmp2_metadata.csv"
+
+# Clear the contents of the file.
+> ${FILE_INDEX_PATH}
 
 # ================== Parse CSV file.
 download_patient_samples()
@@ -47,7 +51,7 @@ download_patient_samples()
 				continue
 			fi
 
-			echo "[*] -=-=-=-= Downloading ${site_sub_coll}. =-=-=-=-"
+			echo "[*] -=-=-=-= Downloading ${project_id}. =-=-=-=-"
 			echo "[*] Querying entrez."
 
 			query="(${project_id} OR ${external_id}) AND WGS[Strategy]"
@@ -60,37 +64,38 @@ download_patient_samples()
 			echo "[*] SRA ID: ${sra_id}"
 
 			# Target gzipped fastq files.
-			gz_file_1="${SAMPLES_DIR}/${site_sub_coll}_1.fastq.gz"
-			gz_file_2="${SAMPLES_DIR}/${site_sub_coll}_2.fastq.gz"
+			gz_file_1="${SAMPLES_DIR}/${project_id}_1.fastq.gz"
+			gz_file_2="${SAMPLES_DIR}/${project_id}_2.fastq.gz"
 			if [[ -f $gz_file_1 && -f $gz_file_2 ]]; then
 				echo "[*] Target files for ${sra_id} already exist."
-				continue
+			else
+				# Prefetch
+				echo "[*] Prefetching..."
+				prefetch --output-directory $SRA_PREFETCH_DIR --progress --verify yes $sra_id
+
+				# Fasterq-dump
+				echo "[*] Invoking fasterq-dump..."
+				fasterq-dump \
+				--progress \
+				--outdir $SAMPLES_DIR \
+				--skip-technical \
+				--print-read-nr \
+				--force \
+				-t ${FASTERQ_TMP_DIR} \
+				"${SRA_PREFETCH_DIR}/${sra_id}/${sra_id}.sra"
+
+				# Resulting fq files
+				fq_file_1="${SAMPLES_DIR}/${sra_id}_1.fastq"
+				fq_file_2="${SAMPLES_DIR}/${sra_id}_2.fastq"
+
+				# Compression
+				echo "[*] Compressing..."
+				pigz $fq_file_1 -c > $gz_file_1
+				pigz $fq_file_2 -c > $gz_file_2
+				wait
 			fi
 
-			# Prefetch
-			echo "[*] Prefetching..."
-			prefetch --output-directory $SRA_PREFETCH_DIR --progress --verify yes $sra_id
-
-			# Fasterq-dump
-			echo "[*] Invoking fasterq-dump..."
-			fasterq-dump \
-			--progress \
-			--outdir $SAMPLES_DIR \
-			--skip-technical \
-			--print-read-nr \
-			--force \
-			-t ${FASTERQ_TMP_DIR} \
-			"${SRA_PREFETCH_DIR}/${sra_id}/${sra_id}.sra"
-
-			# Resulting fq files
-			fq_file_1="${SAMPLES_DIR}/${sra_id}_1.fastq"
-			fq_file_2="${SAMPLES_DIR}/${sra_id}_2.fastq"
-
-			# Compression
-			echo "[*] Compressing..."
-			pigz $fq_file_1 -c > $gz_file_1
-			pigz $fq_file_2 -c > $gz_file_2
-			wait
+			echo "${participant_id},${project_id},${sra_id}" >> ${FILE_INDEX_PATH}
 		done
 	} < ${HMP2_CSV_PATH}
 }
