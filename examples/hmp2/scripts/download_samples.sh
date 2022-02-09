@@ -4,8 +4,8 @@ source settings.sh
 
 # ======================================== Functions ===============================
 # REQUIRES: sratools (prefetch + fasterq-dump), pigz
-check-program 'esearch'
-check-program 'efetch'
+check_program 'esearch'
+check_program 'efetch'
 check_program 'prefetch'
 check_program 'fasterq-dump'
 check_program 'pigz'
