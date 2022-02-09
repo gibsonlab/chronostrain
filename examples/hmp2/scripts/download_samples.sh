@@ -48,28 +48,29 @@ download_patient_samples()
 		fi
 
 		echo "[*] -=-=-=-= Downloading ${project_id} (participant ${participant_id}). =-=-=-=-"
-		echo "[*] Querying entrez."
-
-		query="(${project_id} OR ${external_id}) AND WGS[Strategy]"
-
-		# https://unix.stackexchange.com/questions/342238/while-loop-execution-stops-after-one-iteration-within-bash-script
-		sra_id=$(get_sra_id "$query" < /dev/null)
-
-		if [[ $(echo "$sra_id" | wc -l) -ge 2 ]]; then
-			echo "Multiple hits found for query ${query}. Using the first result only."
-			sra_id=$(echo "$sra_id" | head -n 1)
-		fi
-
-		echo "[*] SRA ID: ${sra_id}"
 
 		# Target gzipped fastq files.
 		subdir="${SAMPLES_DIR}/${participant_id}"
 		gz_file_1="$subdir/${project_id}_1.fastq.gz"
 		gz_file_2="$subdir/${project_id}_2.fastq.gz"
 		if [[ -f $gz_file_1 && -f $gz_file_2 ]]; then
-			echo "[*] Target files for ${sra_id} already exist."
+			echo "[*] Target files for ${project_id} already exist."
 		else
 			mkdir -p $subdir
+
+			# Entrez query to find sra_id.
+			echo "[*] Querying entrez."
+
+			query="(${project_id} OR ${external_id}) AND WGS[Strategy]"
+			# https://unix.stackexchange.com/questions/342238/while-loop-execution-stops-after-one-iteration-within-bash-script
+			sra_id=$(get_sra_id "$query" < /dev/null)
+
+			if [[ $(echo "$sra_id" | wc -l) -ge 2 ]]; then
+				echo "Multiple hits found for query ${query}. Using the first result only."
+				sra_id=$(echo "$sra_id" | head -n 1)
+			fi
+
+			echo "[*] SRA ID: ${sra_id}"
 
 			# Prefetch
 			echo "[*] Prefetching..."
