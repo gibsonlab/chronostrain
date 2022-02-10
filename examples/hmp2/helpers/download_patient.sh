@@ -60,7 +60,7 @@ download_sample()
 
 		if [[ "${sra_id}" == '' ]]; then
 			echo "No SRA entry found."
-			continue
+			return
 		fi
 		echo "[*] SRA ID: ${sra_id}"
 
