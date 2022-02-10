@@ -32,7 +32,7 @@ curl -o ${HMP2_CSV_PATH} "https://ibdmdb.org/tunnel/products/HMP2/Metadata/hmp2_
 download_patient_samples()
 {
 	target_patient=$1
-	subdir="${SAMPLES_DIR}/${participant_id}"
+	subdir="${SAMPLES_DIR}/${target_patient}"
 
 	# Prepare index file.
 	FILE_INDEX_PATH="${subdir}/index.csv"
