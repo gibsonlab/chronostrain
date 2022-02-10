@@ -58,6 +58,10 @@ download_sample()
 			sra_id=$(echo "$sra_id" | head -n 1)
 		fi
 
+		if [[ "${sra_id}" == '' ]]; then
+			echo "No SRA entry found."
+			continue
+		fi
 		echo "[*] SRA ID: ${sra_id}"
 
 		# Prefetch
