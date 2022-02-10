@@ -49,7 +49,7 @@ EPOCH="01/01/2013"
 
 chronostrain_index_file="${READS_DIR}/${target_patient}/inputs.csv"
 # Delete if exists
-if [[ -f ${chronostrain_index_file} ]]; then rm "${chronostrain_index_file}"; done
+if [[ -f ${chronostrain_index_file} ]]; then rm "${chronostrain_index_file}"; fi
 mkdir -p ${READS_DIR}
 
 while IFS=, read -r project_id date_of_receipt; do
