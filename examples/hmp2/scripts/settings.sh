@@ -27,6 +27,9 @@ export SRA_PREFETCH_DIR="${CHRONOSTRAIN_DATA_DIR}/prefetch"
 export FASTERQ_TMP_DIR="${CHRONOSTRAIN_DATA_DIR}/fasterq-tmp"
 export SAMPLES_DIR="${CHRONOSTRAIN_DATA_DIR}/samples"
 
+# =========
+export HMP2_CSV_PATH="${SAMPLES_DIR}/hmp2_metadata.csv"
+
 # ========= Kneaddata
 export KNEADDATA_DB_DIR="/mnt/d/kneaddata_db"
 export NEXTERA_ADAPTER_PATH="/PHShome/yk847/.conda/envs/chronostrain/share/trimmomatic/adapters/NexteraPE-PE.fa"
@@ -53,18 +56,20 @@ export CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"
 export LOGDIR="${CHRONOSTRAIN_DATA_DIR}/logs"
 
 # ========= Done.
-echo "======================================================="
-echo "Loaded shell settings from ${SETTINGS_PATH}."
-echo "Chronostrain config: ${CHRONOSTRAIN_INI}"
-echo "Logging config: ${CHRONOSTRAIN_LOG_INI}"
-echo "Logging dir: ${LOGDIR}"
-echo "======================================================="
+if [[ "${1}" == "verbose" ]]; then
+	echo "======================================================="
+	echo "Loaded shell settings from ${SETTINGS_PATH}."
+	echo "Chronostrain config: ${CHRONOSTRAIN_INI}"
+	echo "Logging config: ${CHRONOSTRAIN_LOG_INI}"
+	echo "Logging dir: ${LOGDIR}"
+	echo "======================================================="
+fi
 
 check_program()
 {
 	command -v ${1} >/dev/null 2>&1 || {
 		echo >&2 "I require ${1} but it's not installed.  Aborting.";
-		exit 1;
+		exit 255;
 	}
 }
 export check_program
