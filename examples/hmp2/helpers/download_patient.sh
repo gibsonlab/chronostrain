@@ -87,7 +87,7 @@ download_sample()
 		rm "$fq_file_2"
 	fi
 
-	echo "${project_id},${sra_id},${date_of_receipt}" >> "$index_path"
+	echo "${project_id},${date_of_receipt}" >> "$index_path"
 }
 
 

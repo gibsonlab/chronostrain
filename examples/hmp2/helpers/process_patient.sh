@@ -52,7 +52,7 @@ chronostrain_index_file="${READS_DIR}/${target_patient}/inputs.csv"
 if [[ -f ${chronostrain_index_file} ]]; do rm "${chronostrain_index_file}"; done
 mkdir -p ${READS_DIR}
 
-while IFS=, read -r project_id sra_id date_of_receipt; do
+while IFS=, read -r project_id date_of_receipt; do
 	gz_file_1="${sample_subdir}/${project_id}_1.fastq.gz"
 	gz_file_2="${sample_subdir}/${project_id}_2.fastq.gz"
 	days=$(datediff "$EPOCH" "$date_of_receipt")
