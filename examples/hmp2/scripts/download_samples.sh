@@ -24,18 +24,19 @@ mkdir -p ${SRA_PREFETCH_DIR}
 mkdir -p ${FASTERQ_TMP_DIR}
 
 HMP2_CSV_PATH="${SAMPLES_DIR}/hmp2_metadata.csv"
-FILE_INDEX_PATH="${SAMPLES_DIR}/index.csv"
 
 echo "[*] Downloading HMP2 metadata file."
 curl -o ${HMP2_CSV_PATH} "https://ibdmdb.org/tunnel/products/HMP2/Metadata/hmp2_metadata.csv"
-
-# Clear the contents of the file.
-> ${FILE_INDEX_PATH}
 
 # ================== Parse CSV file.
 download_patient_samples()
 {
 	target_patient=$1
+	subdir="${SAMPLES_DIR}/${participant_id}"
+
+	# Prepare index file.
+	FILE_INDEX_PATH="${subdir}/index.csv"
+	> ${FILE_INDEX_PATH}  # clear contents
 
 	sed 1d ${HMP2_CSV_PATH} | while IFS=, read -r project_id external_id participant_id site_sub_coll data_type week_num date_of_receipt
 	do
@@ -50,7 +51,6 @@ download_patient_samples()
 		echo "[*] -=-=-=-= Downloading ${project_id} (participant ${participant_id}). =-=-=-=-"
 
 		# Target gzipped fastq files.
-		subdir="${SAMPLES_DIR}/${participant_id}"
 		gz_file_1="$subdir/${project_id}_1.fastq.gz"
 		gz_file_2="$subdir/${project_id}_2.fastq.gz"
 		if [[ -f $gz_file_1 && -f $gz_file_2 ]]; then
@@ -99,18 +99,10 @@ download_patient_samples()
 			rm $fq_file_2
 		fi
 
-		echo "${participant_id},${project_id},${sra_id}" >> ${FILE_INDEX_PATH}
+		echo "${project_id},${sra_id},${date_of_receipt}" >> ${FILE_INDEX_PATH}
 	done
 }
 
-# nonIBD
-download_patient_samples "C3022"
-download_patient_samples "M2072"
-download_patient_samples "M2079"
-download_patient_samples "H4008"
-
-# UC
-download_patient_samples "P6012"
-download_patient_samples "P6035"
-download_patient_samples "C3015"
-download_patient_samples "M2069"
+while read patient_id; do
+	download_patient_samples "$patient_id"
+done < ${BASE_DIR}/files/patients.txt
