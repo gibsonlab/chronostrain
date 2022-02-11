@@ -49,10 +49,10 @@ EPOCH="01/01/2013"
 
 chronostrain_index_file="${READS_DIR}/${target_patient}/inputs.csv"
 echo "[*] Index file: ${chronostrain_index_file}"
+mkdir -p "${READS_DIR}/${target_patient}"
 
 # Delete if exists
 if [[ -f ${chronostrain_index_file} ]]; then rm "${chronostrain_index_file}"; fi
-mkdir -p ${READS_DIR}
 
 while IFS=, read -r project_id date_of_receipt; do
 	gz_file_1="${sample_subdir}/${project_id}_1.fastq.gz"
