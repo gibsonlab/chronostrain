@@ -9,4 +9,4 @@ if ! [[ -f $HMP2_CSV_PATH ]]; then
 fi
 
 export BASE_DIR
-xargs -t -n 1 -P 1 'bash ${BASE_DIR}/helpers/download_patient.sh $1' < ${BASE_DIR}/files/patients.txt
+xargs -t -n 1 -P 1 sh -c '${BASE_DIR}/helpers/download_patient.sh $1' < ${BASE_DIR}/files/patients.txt
