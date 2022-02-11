@@ -26,7 +26,7 @@ class Filter(object):
                  min_read_len: int,
                  pct_identity_threshold: float,
                  error_threshold: float,
-                 clip_fraction: float = 0.25,
+                 clip_fraction: float = 0.5,
                  num_threads: int = 1):
         self.db = db
 
@@ -153,16 +153,10 @@ class Filter(object):
                 return False
 
             if aln.soft_clip_start > 0 or aln.hard_clip_start > 0:
-                return (
-                        (aln.soft_clip_start / len(aln.read)) < self.clip_fraction
-                        and (aln.hard_clip_start / len(aln.read)) < self.clip_fraction
-                )
+                return (aln.soft_clip_start / len(aln.read)) + (aln.hard_clip_start / len(aln.read)) < self.clip_fraction
 
             if aln.soft_clip_end > 0 or aln.hard_clip_end > 0:
-                return (
-                        (aln.soft_clip_end / len(aln.read)) < self.clip_fraction
-                        and (aln.hard_clip_end / len(aln.read)) < self.clip_fraction
-                )
+                return (aln.soft_clip_end / len(aln.read)) + (aln.hard_clip_end / len(aln.read)) < self.clip_fraction
         else:
             return True
 
