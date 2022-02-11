@@ -48,6 +48,8 @@ sample_index_path="${sample_subdir}/index.csv"
 EPOCH="01/01/2013"
 
 chronostrain_index_file="${READS_DIR}/${target_patient}/inputs.csv"
+echo "[*] Index file: ${chronostrain_index_file}"
+
 # Delete if exists
 if [[ -f ${chronostrain_index_file} ]]; then rm "${chronostrain_index_file}"; fi
 mkdir -p ${READS_DIR}
