@@ -23,18 +23,15 @@ class AbstractBBVI(ABC):
     def optimize(self,
                  optimizer: torch.optim.Optimizer,
                  lr_scheduler,
-                 num_epochs=1,
-                 iters=4000,
-                 num_samples=8000,
-                 patience_ratio=0.5,
-                 patience_horizon=10,
+                 num_epochs: int = 1,
+                 iters: int = 4000,
+                 num_samples: int = 8000,
+                 min_lr: float = 1e-4,
                  callbacks: Optional[List[Callable[[int, torch.Tensor, float], None]]] = None):
         time_est = RuntimeEstimator(total_iters=num_epochs, horizon=10)
         reparam_samples = None
         elbo_value = 0.0
 
-        patience_buffer = CyclicBuffer(capacity=patience_horizon)
-        prev_epoch_elbo = -float("inf")
         logger.info("Starting ELBO optimization.")
         for epoch in range(1, num_epochs + 1, 1):
             epoch_elbo = 0.0
@@ -66,17 +63,10 @@ class AbstractBBVI(ABC):
                 )
             )
 
-            patience_buffer.push(int(epoch_elbo > prev_epoch_elbo))
-            """
-            Early stopping criteria: Keep going as long as we improve at least <patience_ratio> fraction of the past 
-            <patience_horizon> epochs.
-            """
-            if patience_buffer.mean() < patience_ratio:
+            lr_scheduler.step(epoch_elbo)
+            if optimizer.param_groups[-1]['lr'] < min_lr:
                 logger.info("Stopping criteria met after {} epochs.".format(epoch))
                 break
-            else:
-                prev_epoch_elbo = epoch_elbo
-                lr_scheduler.step()
 
         # ========== End of optimization
         logger.info("Finished.")
@@ -111,6 +101,7 @@ class AbstractBBVI(ABC):
 
         elbo_value = 0.0
         for elbo_chunk in self.elbo(samples, posterior_sample_lls):
+            # Maximize ELBO by minimizing (-ELBO).
             elbo_loss_chunk = -elbo_chunk
             elbo_loss_chunk.backward(retain_graph=True)
 

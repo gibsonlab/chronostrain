@@ -20,10 +20,12 @@ def perform_bbvi(
         model: GenerativeModel,
         reads: TimeSeriesReads,
         num_epochs: int,
-        lr_lambda: Callable[[int], int],
+        lr_decay_factor: float,
+        lr_patience: int,
         iters: int,
         learning_rate: float,
         num_samples: int,
+        min_lr: float = 1e-4,
         frag_chunk_sz: int = 100,
         correlation_type: str = "strain",
         save_elbo_history: bool = False,
@@ -73,9 +75,10 @@ def perform_bbvi(
         params=solver.trainable_params
     )
 
-    lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
+    lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer,
-        lr_lambda=lr_lambda
+        factor=lr_decay_factor,
+        patience=lr_patience
     )
 
     start_time = time.time()
@@ -85,6 +88,7 @@ def perform_bbvi(
         iters=iters,
         num_epochs=num_epochs,
         num_samples=num_samples,
+        min_lr=min_lr,
         callbacks=callbacks
     )
     end_time = time.time()

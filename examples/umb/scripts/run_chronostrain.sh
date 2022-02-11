@@ -21,9 +21,11 @@ do
            --iters $CHRONOSTRAIN_NUM_ITERS \
            --epochs $CHRONOSTRAIN_NUM_EPOCHS \
            --decay_lr $CHRONOSTRAIN_DECAY_LR \
+           --lr_patience 10 \
+           --min_lr 1e-4 \
+           --learning_rate $CHRONOSTRAIN_LR \
            --num_samples $CHRONOSTRAIN_NUM_SAMPLES \
            --frag_chunk_size $CHRONOSTRAIN_FRAG_CHUNK_SZ \
-           --learning_rate $CHRONOSTRAIN_LR \
            --plot_format "pdf" \
            --plot_elbo
 done

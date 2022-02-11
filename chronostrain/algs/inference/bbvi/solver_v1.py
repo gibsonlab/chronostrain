@@ -133,9 +133,10 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
     def solve(self,
               optimizer: torch.optim.Optimizer,
               lr_scheduler,
-              num_epochs=1,
-              iters=4000,
-              num_samples=8000,
+              num_epochs: int = 1,
+              iters: int = 4000,
+              num_samples: int = 8000,
+              min_lr: float = 1e-4,
               callbacks: Optional[List[Callable[[int, torch.Tensor, float], None]]] = None):
         self.optimize(
             optimizer=optimizer,
@@ -143,5 +144,6 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
             iters=iters,
             num_epochs=num_epochs,
             num_samples=num_samples,
+            min_lr=min_lr,
             callbacks=callbacks
         )
