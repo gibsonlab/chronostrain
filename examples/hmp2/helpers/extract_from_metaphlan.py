@@ -104,7 +104,9 @@ def get_uniprot_references(u: UniProt, uniprot_id: str, out_dir: Path) -> str:
     if len(embl_refs) == 0:
         raise ValueError(f"No EMBL references for uniprot entry `{uniprot_id}`")
 
-    if not gene_out_path.exists():
+    if gene_out_path.exists():
+        logger.info(f"File {gene_out_path} already found.")
+    else:
         record = get_reference_sequence(gene_name, embl_refs, cluster)
         SeqIO.write(
             record,
