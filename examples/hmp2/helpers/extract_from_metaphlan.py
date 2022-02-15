@@ -83,8 +83,9 @@ def get_reference_sequence(gene_id: str, reference_acc: List[str], gene_names: S
         handle.close()
 
 
-def get_uniprot_references(u: UniProt, uniprot_id: str, out_dir: Path) -> str:
-    res: str = u.search(uniprot_id, frmt='tab', columns="id,genes,database(EMBL)", maxTrials=10)
+def get_uniprot_references(u: UniProt, uniprot_id: str, genus: str, out_dir: Path) -> str:
+    query = f"{uniprot_id}+AND+{genus}"
+    res: str = u.search(query, frmt='tab', columns="id,genes,database(EMBL)", maxTrials=10)
     lines = res.strip().split('\n')
 
     if len(lines) <= 1:
@@ -133,7 +134,8 @@ def extract_reference_marker_genes(
 
         logger.info(f"Found uniprot ID {uniprot_id} for {genus} {species} (metaphlan token was `{marker_key}`).")
         try:
-            gene_name = get_uniprot_references(u, uniprot_id, out_dir)
+            gene_name = get_uniprot_references(u, uniprot_id, genus, out_dir)
+            logger.info(f"Gene found: Uniprot = {uniprot_id}, name = {gene_name}")
         except UniprotError:
             logger.debug(
                 f"No result found for UniProt query `{uniprot_id}`, derived from metaphlan ID `{marker_key}`."
