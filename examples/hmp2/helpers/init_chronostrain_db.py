@@ -66,6 +66,9 @@ def perform_indexing(refseq_dir: Path) -> Tuple[pd.DataFrame, pd.DataFrame]:
                 continue
 
             species = species_dir.name
+            if species == 'sp.':
+                species = 'sp'
+
             logger.info(f"Searching through {genus} {species}...")
 
             for strain_dir in species_dir.iterdir():
