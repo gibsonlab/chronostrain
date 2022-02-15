@@ -131,7 +131,7 @@ def extract_reference_marker_genes(
         tokens = marker_key.split('__')
         uniprot_id = tokens[1]
 
-        logger.info(f"Found uniprot ID {uniprot_id} for {genus} {species}.")
+        logger.info(f"Found uniprot ID {uniprot_id} for {genus} {species} (metaphlan token was `{marker_key}`).")
         try:
             gene_name = get_uniprot_references(u, uniprot_id, out_dir)
         except UniprotError:
