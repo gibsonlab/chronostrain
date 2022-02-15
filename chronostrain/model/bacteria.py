@@ -12,14 +12,14 @@ logger = create_logger(__name__)
 
 @dataclass
 class MarkerMetadata:
-    parent_accession: str
+    parent_strain: str
     file_path: Union[Path, None]
     
     def __repr__(self):
         if self.file_path is not None:
-            return "MarkerMetadata[{}:{}]".format(self.parent_accession, self.file_path)
+            return "MarkerMetadata[{}:{}]".format(self.parent_strain, self.file_path)
         else:
-            return "MarkerMetadata[{}]".format(self.parent_accession)
+            return "MarkerMetadata[{}]".format(self.parent_strain)
         
     def __str__(self):
         return self.__repr__()
@@ -27,8 +27,8 @@ class MarkerMetadata:
 
 @dataclass
 class StrainMetadata:
-    ncbi_accession: str
-    source_path: Path
+    chromosomes: List[str]
+    scaffolds: List[str]
     genus: str
     species: str
 
@@ -70,14 +70,14 @@ class Marker:
     def to_seqrecord(self, description: str = "") -> SeqRecord:
         return SeqRecord(
             Seq(self.nucleotide_seq),
-            id="{}|{}|{}".format(self.metadata.parent_accession, self.name, self.id),
+            id="{}|{}|{}".format(self.metadata.parent_strain, self.name, self.id),
             description=description
         )
 
     @staticmethod
     def parse_seqrecord_id(record_id: str) -> Tuple[str, str, str]:
-        parent_accession, name, marker_id = record_id.split("|")
-        return parent_accession, name, marker_id
+        parent_strain, name, marker_id = record_id.split("|")
+        return parent_strain, name, marker_id
 
 
 @dataclass

@@ -7,7 +7,7 @@ export BASE_DIR="${PROJECT_DIR}/examples/umb"
 export SETTINGS_PATH="${BASE_DIR}/scripts/settings.sh"
 
 # ========= NCBI RefSeqs
-export NCBI_REFSEQ_DIR="${CHRONOSTRAIN_DATA_DIR}/ref_genomes"
+export NCBI_REFSEQ_DIR="/mnt/d/ref_genomes"
 export REFSEQ_ALIGN_PATH="${CHRONOSTRAIN_DATA_DIR}/strain_alignments/concatenation.fasta"
 
 # ========= (Metaphlan-specific configuration.)

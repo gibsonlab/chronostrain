@@ -56,10 +56,12 @@ class BowtieAligner(AbstractPairwiseAligner):
                  index_basepath: Path,
                  index_basename: str,
                  num_threads: int,
-                 num_report_alignments: Optional[int] = None):
+                 num_report_alignments: Optional[int] = None,
+                 report_all_alignments: bool = False):
         self.index_basepath = index_basepath
         self.index_basename = index_basename
         self.num_report_alignments = num_report_alignments
+        self.report_all_alignments = report_all_alignments
         self.num_threads = num_threads
         self.index_trace_path = self.index_basepath / f"{index_basename}.bt2trace"
 
@@ -91,6 +93,7 @@ class BowtieAligner(AbstractPairwiseAligner):
             out_path=output_path,
             quality_format=self.quality_format,
             report_k_alignments=self.num_report_alignments,
+            report_all_alignments=self.report_all_alignments,
             num_threads=self.num_threads,
             aln_seed_num_mismatches=0,
             aln_seed_len=5,
@@ -115,6 +118,7 @@ class BowtieAligner(AbstractPairwiseAligner):
             out_path=output_path,
             quality_format=self.quality_format,
             report_k_alignments=self.num_report_alignments,
+            report_all_alignments=self.report_all_alignments,
             num_threads=self.num_threads,
             aln_seed_num_mismatches=0,
             aln_seed_len=20,  # -L 20

@@ -162,6 +162,9 @@ def parse_assembly_report(report_path: Path) -> Iterator[Dict]:
                 }
 
             if entry.is_scaffold:
+                """
+                Each scaffold piece goes into its own FASTA file.
+                """
                 logger.info(f"Found scaffold `{entry.refseq_accession}`")
                 if entry.refseq_accession not in seq_records:
                     raise KeyError(f"Could not find scaffold `{entry.refseq_accession}` in {seq_path}.")

@@ -35,8 +35,7 @@ class SequenceReadPairwiseAlignment(object):
         :param read: The SequenceRead instance.
         :param marker: The reference marker.
         :param fragment: The sequence corresponding to the gapless marker fragment that the read mapped to.
-        :param aln_matrix: a 3xL matrix consisting of three rows: the gapped marker fragment, the gapped read seq,
-            and the gapped quality score vector (mirroring the second row).
+        :param aln_matrix: a 2xL matrix consisting of two rows: the gapped marker fragment, the gapped read seq.
         :param sam_path: The SAM file that this alignment was parsed from.
         :param sam_line_no: The line number of the samhandler.
         :param read_start: The left endpoint of the read at which alignment starts; inclusive.
@@ -61,10 +60,10 @@ class SequenceReadPairwiseAlignment(object):
         self.marker_start: int = marker_start
         self.marker_end: int = marker_end
 
-        self.hard_clip_start = hard_clip_start  # the number of bases at the left end (5') that got hard clipped.
-        self.hard_clip_end = hard_clip_end  # the number of bases at the right end (3') that got hard clipped.
-        self.soft_clip_start = soft_clip_start  # the number of bases at the right end (5') that got soft clipped.
-        self.soft_clip_end = soft_clip_end  # the number of bases at the right end (3') that got soft clipped.
+        self.hard_clip_start: int = hard_clip_start  # the number of bases at the left end (5') that got hard clipped.
+        self.hard_clip_end: int = hard_clip_end  # the number of bases at the right end (3') that got hard clipped.
+        self.soft_clip_start: int = soft_clip_start  # the number of bases at the right end (5') that got soft clipped.
+        self.soft_clip_end: int = soft_clip_end  # the number of bases at the right end (3') that got soft clipped.
 
         self.num_aligned_bases: Union[None, int] = num_aligned_bases
         self.num_mismatches: Union[None, int] = num_mismatches

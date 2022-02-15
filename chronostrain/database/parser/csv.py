@@ -38,7 +38,7 @@ class CSVParser(AbstractDatabaseParser):
                         name="Genome_{}[{}:{}]".format(accession, 0, self.trim_debug),
                         id="GENOME[{}]".format(accession),
                         seq=nucleotides_to_z4(genome[:self.trim_debug]),
-                        metadata=MarkerMetadata(parent_accession=accession,
+                        metadata=MarkerMetadata(parent_strain=accession,
                                                 file_path=strain_fasta_path),
                         canonical=True
                     )
@@ -49,7 +49,7 @@ class CSVParser(AbstractDatabaseParser):
                         name="Genome_{}".format(accession),
                         id="GENOME[{}]".format(accession),
                         seq=nucleotides_to_z4(genome),
-                        metadata=MarkerMetadata(parent_accession=accession,
+                        metadata=MarkerMetadata(parent_strain=accession,
                                                 file_path=strain_fasta_path),
                         canonical=True
                     )

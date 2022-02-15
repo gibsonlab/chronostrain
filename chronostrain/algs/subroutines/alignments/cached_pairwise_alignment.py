@@ -25,6 +25,7 @@ class CachedReadPairwiseAlignments(object):
                  reads: TimeSeriesReads,
                  db: StrainDatabase,
                  num_cores: int = 1,
+                 report_all_alignments: bool = True,
                  cache_override: Optional[ComputationCache] = None):
         self.reads = reads
         self.db = db
@@ -34,21 +35,22 @@ class CachedReadPairwiseAlignments(object):
         if cache_override is not None:
             self.cache = cache_override
         else:
-            self.cache = ReadsComputationCache(reads)
+            self.cache = ReadsComputationCache(reads, )
 
         if cfg.external_tools_cfg.pairwise_align_cmd == "bwa":
             self.aligner = BwaAligner(
                 reference_path=self.marker_reference_path,
                 min_seed_len=8,
                 num_threads=self.num_cores,
-                report_all_alignments=True
+                report_all_alignments=report_all_alignments
             )
         elif cfg.external_tools_cfg.pairwise_align_cmd == "bowtie2":
             self.aligner = BowtieAligner(
                 reference_path=self.marker_reference_path,
                 index_basepath=self.marker_reference_path.parent,
                 index_basename=self.marker_reference_path.stem,
-                num_threads=self.num_cores
+                num_threads=self.num_cores,
+                report_all_alignments=report_all_alignments
             )
         else:
             raise NotImplementedError(

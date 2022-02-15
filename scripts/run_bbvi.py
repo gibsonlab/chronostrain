@@ -8,7 +8,7 @@ from pathlib import Path
 from chronostrain.algs.subroutines.cache import ReadsComputationCache
 from chronostrain import cfg, create_logger
 import chronostrain.visualizations as viz
-from chronostrain.algs.subroutines.alignments import CachedReadMultipleAlignments
+from chronostrain.algs.subroutines.alignments import CachedReadMultipleAlignments, CachedReadPairwiseAlignments
 from chronostrain.database import StrainDatabase
 from chronostrain.model import Population, FragmentSpace
 from chronostrain.model.io import TimeSeriesReads
@@ -80,20 +80,34 @@ def load_fragments(reads: TimeSeriesReads, db: StrainDatabase) -> FragmentSpace:
     )
 
 
-def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase) -> FragmentSpace:
+def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase, mode: str = 'pairwise') -> FragmentSpace:
     logger.info("Constructing fragments from multiple alignments.")
-    multiple_alignments = CachedReadMultipleAlignments(reads, db)
     fragment_space = FragmentSpace()
-    for multi_align in multiple_alignments.get_alignments(num_cores=cfg.model_cfg.num_cores):
-        logger.debug(f"Constructing fragments for marker `{multi_align.canonical_marker.name}`.")
 
-        for frag_entry in multi_align.all_mapped_fragments():
-            marker, read, subseq, insertions, deletions, start_clip, end_clip, revcomp = frag_entry
+    if mode == 'pairwise':
+        alignments = CachedReadPairwiseAlignments(reads, db)
+        for t_idx in range(len(reads)):
+            for base_marker, alns in alignments.alignments_by_marker_and_timepoint(t_idx).items():
+                for aln in alns:
+                    # First, add the likelihood for the fragment for the aligned base marker.
+                    fragment_space.add_seq(
+                        aln.marker_frag,
+                        metadata=f"({aln.read.id}->{base_marker.id})"
+                    )
+    elif mode == 'multiple':
+        multiple_alignments = CachedReadMultipleAlignments(reads, db)
+        for multi_align in multiple_alignments.get_alignments(num_cores=cfg.model_cfg.num_cores):
+            logger.debug(f"Constructing fragments for marker `{multi_align.canonical_marker.name}`.")
 
-            fragment_space.add_seq(
-                subseq,
-                metadata=f"({read.id}->{marker.id})"
-            )
+            for frag_entry in multi_align.all_mapped_fragments():
+                marker, read, subseq, insertions, deletions, start_clip, end_clip, revcomp = frag_entry
+
+                fragment_space.add_seq(
+                    subseq,
+                    metadata=f"({read.id}->{marker.id})"
+                )
+    else:
+        raise ValueError(f"Unknown fragment extrapolation mode `{mode}`.")
     return fragment_space
 
 
