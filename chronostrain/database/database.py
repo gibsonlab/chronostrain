@@ -163,8 +163,7 @@ class JSONStrainDatabase(StrainDatabase):
             entries_file = Path(entries_file)
         parser = JSONParser(entries_file,
                             marker_max_len,
-                            force_refresh,
-                            load_full_genomes=load_full_genomes)
+                            force_refresh)
         backend = PandasAssistedBackend()
         super().__init__(parser, backend, multifasta_filename=multifasta_filename)
 

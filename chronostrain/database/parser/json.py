@@ -9,7 +9,7 @@ from chronostrain.model import Strain, StrainMetadata
 from chronostrain.config.logging import create_logger
 
 from .base import AbstractDatabaseParser, StrainDatabaseParseError
-from .marker_sources import MarkerSource
+from .marker_sources import CachedMarkerSource
 
 logger = create_logger(__name__)
 
@@ -52,10 +52,20 @@ class StrainEntry:
         for marker_entry in self.marker_entries:
             grouping[marker_entry.source_accession].append(marker_entry)
 
+        src_accessions_left = set(grouping.keys())
         for seq_entry in self.seq_entries:
+            src_accessions_left.remove(seq_entry.accession)
             _marker_entries = grouping[seq_entry.accession]
             if len(_marker_entries) > 0:
                 yield seq_entry, _marker_entries
+
+        if len(src_accessions_left) > 0:
+            raise StrainDatabaseParseError(
+                "Markers of strain `{}` requested the sources [{}], which were not specified.".format(
+                    self.id,
+                    ",".join(src_accessions_left)
+                )
+            )
 
     @staticmethod
     def deserialize(json_dict: dict):
@@ -141,10 +151,15 @@ class TagMarkerEntry(MarkerEntry):
 
     @staticmethod
     def deserialize(entry_dict: dict) -> "TagMarkerEntry":
+        try:
+            is_canonical = extract_key_from_json(entry_dict, 'canonical').strip().lower() == "true"
+        except StrainDatabaseParseError:
+            is_canonical = False
+
         return TagMarkerEntry(
             marker_id=extract_key_from_json(entry_dict, 'id'),
             name=extract_key_from_json(entry_dict, 'name'),
-            is_canonical=extract_key_from_json(entry_dict, 'canonical').strip().lower() == "true",
+            is_canonical=is_canonical,
             source_accession=extract_key_from_json(entry_dict, 'source'),
             locus_tag=extract_key_from_json(entry_dict, 'locus_tag')
         )
@@ -261,7 +276,7 @@ class JSONParser(AbstractDatabaseParser):
                 elif seq_entry.is_scaffold:
                     scaffold_accs.append(seq_entry.accession)
 
-                marker_src = MarkerSource(
+                marker_src = CachedMarkerSource(
                     strain_id=strain_entry.id,
                     seq_accession=seq_entry.accession,
                     marker_max_len=self.marker_max_len,

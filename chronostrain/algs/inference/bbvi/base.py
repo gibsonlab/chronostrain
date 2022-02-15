@@ -6,7 +6,7 @@ from torch.nn import Parameter
 
 from chronostrain import create_logger
 from chronostrain.algs.inference.bbvi.posteriors.base import AbstractReparametrizedPosterior
-from chronostrain.util.benchmarking import RuntimeEstimator, CyclicBuffer
+from chronostrain.util.benchmarking import RuntimeEstimator
 
 logger = create_logger(__name__)
 
@@ -24,8 +24,8 @@ class AbstractBBVI(ABC):
                  optimizer: torch.optim.Optimizer,
                  lr_scheduler,
                  num_epochs: int = 1,
-                 iters: int = 4000,
-                 num_samples: int = 8000,
+                 iters: int = 50,
+                 num_samples: int = 150,
                  min_lr: float = 1e-4,
                  callbacks: Optional[List[Callable[[int, torch.Tensor, float], None]]] = None):
         time_est = RuntimeEstimator(total_iters=num_epochs, horizon=10)
