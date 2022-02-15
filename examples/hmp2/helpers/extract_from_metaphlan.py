@@ -1,0 +1,171 @@
+"""
+Script which creates a chronostrain db of all UNIREF-specified marker genes.
+Works in 3 steps:
+    1) For each marker gene name, extract its annotation from reference K-12 genome.
+    2) Run BLAST to find all matching hits (even partial hits) of marker gene sequence to each strain assembly
+        (with blastn configured to allow, on average, up to 10 hits per genome).
+    3) Convert BLAST results into chronostrain JSON database specification.
+"""
+import argparse
+from pathlib import Path
+import pickle
+import bz2
+
+from Bio import Entrez, SeqIO
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+from bioservices import UniProt
+
+from typing import List, Dict, Tuple, Iterator, Set
+
+from chronostrain import create_logger, cfg
+logger = create_logger("chronostrain.init_chronostrain_db")
+
+
+READ_LEN = 150
+
+class UniprotError(BaseException):
+    pass
+
+
+class EntrezError(BaseException):
+    def __init__(self, query: str):
+        super().__init__()
+        self.query = query
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Create chronostrain database file from specified gene_info_uniref marker CSV."
+    )
+
+    # Input specification.
+    parser.add_argument('-m', '--metaphlan_pkl_path', required=True, type=str,
+                        help='<Required> The path to the metaphlan pickle database file.')
+    parser.add_argument('-o', '--output_path', required=True, type=str,
+                        help='<Required> The path to the target output chronostrain db json file.')
+    return parser.parse_args()
+
+
+def metaphlan_marker_entries(metaphlan_db: Dict, genus: str, species: str) -> Iterator[Tuple[str, Dict]]:
+    clade_str = f"s__{genus}_{species}"
+    for marker_key, marker_entry in metaphlan_db['markers'].items():
+        if marker_entry['taxon'].endswith(clade_str):
+            yield marker_key, marker_entry
+
+
+def get_reference_sequence(gene_id: str, reference_acc: List[str], gene_names: Set[str]) -> SeqRecord:
+    query = "({}) AND ({})".format(
+        " OR ".join(f"{acc}[Primary Accession]" for acc in reference_acc),
+        " OR ".join(f"{g}[Gene Name]" for g in gene_names)
+    )
+
+    logger.debug(f"Entrez query: `{query}`")
+    handle = Entrez.esearch("nucleotide", query)
+    records = Entrez.read(handle)
+    handle.close()
+
+    if len(records) == 0:
+        raise EntrezError(query)
+
+    handle = Entrez.efetch(db="nucleotide", id=records['IdList'][0], rettype="gb", retmode="text")
+
+    try:
+        record = SeqIO.read(handle, "genbank")
+
+        logger.debug(f"Found genbank record {record.id}")
+        genome = record.seq
+        for feature in record.features:
+            if feature.type != 'gene':
+                continue
+
+            locus_tag = feature.qualifiers['locus_tag'][0]
+            feature_gene_name = feature.qualifiers.get('gene', [''])[0]
+
+            if (locus_tag not in gene_names) and (feature_gene_name not in gene_names):
+                continue
+
+            record = SeqRecord(
+                seq=Seq(feature.extract(genome)),
+                id=f"REF_{gene_id}",
+                description=f"{record.id}_{str(feature.location)}"
+            )
+            return record
+        raise RuntimeError(f"Couldn't parse gene {gene_id} from entrez id {record.id}")
+    finally:
+        handle.close()
+
+
+def get_uniprot_references(u: UniProt, uniprot_id: str) -> Tuple[str, SeqRecord]:
+    res: str = u.search(uniprot_id, frmt='tab', columns="id,genes,database(EMBL)", maxTrials=10)
+    lines = res.strip().split('\n')
+
+    if len(lines) <= 1:
+        raise UniprotError()
+    else:
+        lines = lines[1:]
+        logger.debug(f"Found {len(lines)} hits for UniProt query `{uniprot_id}`.")
+
+    for line in lines:
+        gene_name, cluster, embl_refs = line.split('\t')
+        cluster = set(cluster.split(' '))
+        embl_refs = embl_refs.split(';')
+        if len(embl_refs[-1]) == 0:
+            embl_refs = embl_refs[:-1]
+        if len(embl_refs) == 0:
+            raise ValueError(f"No EMBL references for uniprot entry `{uniprot_id}`")
+        record = get_reference_sequence(gene_name, embl_refs, cluster)
+        return gene_name, record
+
+
+def extract_reference_marker_genes(
+        metaphlan_pkl_path: Path,
+        genus: str,
+        species: str
+):
+    out_dir = cfg.database_cfg.data_dir / "reference" / genus / species
+    logger.info(f"Target directory: {out_dir}")
+    out_dir.mkdir(exist_ok=True, parents=True)
+
+    db = pickle.load(bz2.open(metaphlan_pkl_path, 'r'))
+    u = UniProt()
+
+    for marker_key, marker_entry in metaphlan_marker_entries(db, genus, species):
+        tokens = marker_key.split('__')
+        uniprot_id = tokens[1]
+
+        logger.info(f"Found uniprot ID {uniprot_id} for {genus} {species}.")
+        try:
+            gene_name, reference_record = get_uniprot_references(u, uniprot_id)
+        except UniprotError:
+            logger.debug(
+                f"No result found for UniProt query `{uniprot_id}`, derived from metaphlan ID `{marker_key}`."
+            )
+            continue
+        except EntrezError as e:
+            logger.debug(
+                f"Failed to find Entrez entries {uniprot_id}. Query was `{e.query}`."
+            )
+            continue
+
+        gene_out_path = out_dir / f"{gene_name}.fasta"
+        SeqIO.write(
+            reference_record,
+            gene_out_path,
+            "fasta"
+        )
+
+
+def main():
+    args = parse_args()
+
+    Entrez.email = cfg.entrez_cfg.email
+    logger.info(f"Configured Entrez to use email `{cfg.entrez_cfg.email}`.")
+
+    metaphlan_pkl_path = Path(args.metaphlan_pkl_path)
+    extract_reference_marker_genes(metaphlan_pkl_path, genus="Escherichia", species="coli")
+    # extract_reference_marker_genes(metaphlan_pkl_path, genus="Gemmiger", species="formicilis")
+
+
+if __name__ == "__main__":
+    main()
