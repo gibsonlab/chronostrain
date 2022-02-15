@@ -37,7 +37,7 @@ class EntrezError(BaseException):
 def metaphlan_marker_entries(metaphlan_db: Dict, genus: str, species: str) -> Iterator[Tuple[str, Dict]]:
     clade_str = f"s__{genus}_{species}"
     for marker_key, marker_entry in metaphlan_db['markers'].items():
-        if marker_entry['taxon'].endswith(clade_str):
+        if clade_str in marker_entry['taxon']:
             yield marker_key, marker_entry
 
 
@@ -156,6 +156,9 @@ def extract_all_markers(refseq_dir: Path, metaphlan_db: Dict):
                 continue
 
             species = species_dir.name
+            if species == 'sp.':
+                species = 'sp'
+
             extract_reference_marker_genes(metaphlan_db, genus=genus, species=species)
 
 
