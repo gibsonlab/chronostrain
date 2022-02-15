@@ -66,7 +66,7 @@ def get_reference_sequence(gene_id: str, reference_acc: List[str], gene_names: S
             if feature.type != 'gene':
                 continue
 
-            locus_tag = feature.qualifiers['locus_tag'][0]
+            locus_tag = feature.qualifiers.get('locus_tag', [''])[0]
             feature_gene_name = feature.qualifiers.get('gene', [''])[0]
 
             if (locus_tag not in gene_names) and (feature_gene_name not in gene_names):
@@ -83,7 +83,7 @@ def get_reference_sequence(gene_id: str, reference_acc: List[str], gene_names: S
         handle.close()
 
 
-def get_uniprot_references(u: UniProt, uniprot_id: str) -> Tuple[str, SeqRecord]:
+def get_uniprot_references(u: UniProt, uniprot_id: str, out_dir: Path) -> str:
     res: str = u.search(uniprot_id, frmt='tab', columns="id,genes,database(EMBL)", maxTrials=10)
     lines = res.strip().split('\n')
 
@@ -93,16 +93,25 @@ def get_uniprot_references(u: UniProt, uniprot_id: str) -> Tuple[str, SeqRecord]
         lines = lines[1:]
         logger.debug(f"Found {len(lines)} hits for UniProt query `{uniprot_id}`.")
 
-    for line in lines:
-        gene_name, cluster, embl_refs = line.split('\t')
-        cluster = set(cluster.split(' '))
-        embl_refs = embl_refs.split(';')
-        if len(embl_refs[-1]) == 0:
-            embl_refs = embl_refs[:-1]
-        if len(embl_refs) == 0:
-            raise ValueError(f"No EMBL references for uniprot entry `{uniprot_id}`")
+    line = lines[0]
+    gene_name, cluster, embl_refs = line.split('\t')
+    gene_out_path = out_dir / f"{gene_name}.fasta"
+
+    cluster = set(cluster.split(' '))
+    embl_refs = embl_refs.split(';')
+    if len(embl_refs[-1]) == 0:
+        embl_refs = embl_refs[:-1]
+    if len(embl_refs) == 0:
+        raise ValueError(f"No EMBL references for uniprot entry `{uniprot_id}`")
+
+    if not gene_out_path.exists():
         record = get_reference_sequence(gene_name, embl_refs, cluster)
-        return gene_name, record
+        SeqIO.write(
+            record,
+            gene_out_path,
+            "fasta"
+        )
+    return gene_name
 
 
 def extract_reference_marker_genes(
@@ -122,7 +131,7 @@ def extract_reference_marker_genes(
 
         logger.info(f"Found uniprot ID {uniprot_id} for {genus} {species}.")
         try:
-            gene_name, reference_record = get_uniprot_references(u, uniprot_id)
+            gene_name = get_uniprot_references(u, uniprot_id, out_dir)
         except UniprotError:
             logger.debug(
                 f"No result found for UniProt query `{uniprot_id}`, derived from metaphlan ID `{marker_key}`."
@@ -133,13 +142,6 @@ def extract_reference_marker_genes(
                 f"Failed to find Entrez entries {uniprot_id}. Query was `{e.query}`."
             )
             continue
-
-        gene_out_path = out_dir / f"{gene_name}.fasta"
-        SeqIO.write(
-            reference_record,
-            gene_out_path,
-            "fasta"
-        )
 
 
 def extract_all_markers(refseq_dir: Path, metaphlan_db: Dict):
