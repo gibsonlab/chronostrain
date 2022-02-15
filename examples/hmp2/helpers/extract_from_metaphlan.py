@@ -157,7 +157,7 @@ def extract_all_markers(refseq_dir: Path, metaphlan_db: Dict):
 
             species = species_dir.name
             if species == 'sp.':
-                species = 'sp'
+                continue
 
             extract_reference_marker_genes(metaphlan_db, genus=genus, species=species)
 
