@@ -156,6 +156,7 @@ def parse_assembly_report(report_path: Path) -> Iterator[Dict]:
                 SeqIO.write([seq_records[entry.refseq_accession]], seq_path, 'fasta')
                 yield {
                     "StrainId": gcf_id,
+                    "SeqAccession": entry.refseq_accession,
                     "SeqPath": seq_path,
                     "SeqType": "chromosome"
                 }
