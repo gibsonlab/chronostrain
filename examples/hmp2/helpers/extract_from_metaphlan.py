@@ -7,9 +7,9 @@ Works in 3 steps:
     3) Convert BLAST results into chronostrain JSON database specification.
 """
 import argparse
-from pathlib import Path
 import pickle
 import bz2
+from pathlib import Path
 
 from Bio import Entrez, SeqIO
 from Bio.Seq import Seq
@@ -32,19 +32,6 @@ class EntrezError(BaseException):
     def __init__(self, query: str):
         super().__init__()
         self.query = query
-
-
-def parse_args():
-    parser = argparse.ArgumentParser(
-        description="Create chronostrain database file from specified gene_info_uniref marker CSV."
-    )
-
-    # Input specification.
-    parser.add_argument('-m', '--metaphlan_pkl_path', required=True, type=str,
-                        help='<Required> The path to the metaphlan pickle database file.')
-    parser.add_argument('-o', '--output_path', required=True, type=str,
-                        help='<Required> The path to the target output chronostrain db json file.')
-    return parser.parse_args()
 
 
 def metaphlan_marker_entries(metaphlan_db: Dict, genus: str, species: str) -> Iterator[Tuple[str, Dict]]:
@@ -119,7 +106,7 @@ def get_uniprot_references(u: UniProt, uniprot_id: str) -> Tuple[str, SeqRecord]
 
 
 def extract_reference_marker_genes(
-        metaphlan_pkl_path: Path,
+        metaphlan_db: Dict,
         genus: str,
         species: str
 ):
@@ -127,10 +114,9 @@ def extract_reference_marker_genes(
     logger.info(f"Target directory: {out_dir}")
     out_dir.mkdir(exist_ok=True, parents=True)
 
-    db = pickle.load(bz2.open(metaphlan_pkl_path, 'r'))
     u = UniProt()
 
-    for marker_key, marker_entry in metaphlan_marker_entries(db, genus, species):
+    for marker_key, marker_entry in metaphlan_marker_entries(metaphlan_db, genus, species):
         tokens = marker_key.split('__')
         uniprot_id = tokens[1]
 
@@ -156,15 +142,45 @@ def extract_reference_marker_genes(
         )
 
 
+def extract_all_markers(refseq_dir: Path, metaphlan_db: Dict):
+    if not refseq_dir.is_dir():
+        raise RuntimeError(f"Provided path `{refseq_dir}` is not a directory.")
+
+    for genus_dir in (refseq_dir / "human_readable" / "refseq" / "bacteria").iterdir():
+        if not genus_dir.is_dir():
+            continue
+
+        genus = genus_dir.name
+        for species_dir in genus_dir.iterdir():
+            if not species_dir.is_dir():
+                continue
+
+            species = species_dir.name
+            extract_reference_marker_genes(metaphlan_db, genus=genus, species=species)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Extract marker genes and reference sequences based on Metaphlan database."
+    )
+
+    # Input specification.
+    parser.add_argument('-m', '--metaphlan_pkl_path', required=True, type=str,
+                        help='<Required> The path to the metaphlan pickle database file.')
+    parser.add_argument('-r', '--refseq_dir', required=True, type=str,
+                        help='<Required> The strainGE database directory.')
+    return parser.parse_args()
+
+
 def main():
     args = parse_args()
 
     Entrez.email = cfg.entrez_cfg.email
     logger.info(f"Configured Entrez to use email `{cfg.entrez_cfg.email}`.")
 
-    metaphlan_pkl_path = Path(args.metaphlan_pkl_path)
-    extract_reference_marker_genes(metaphlan_pkl_path, genus="Escherichia", species="coli")
-    # extract_reference_marker_genes(metaphlan_pkl_path, genus="Gemmiger", species="formicilis")
+    refseq_dir = Path(args.refseq_dir)
+    metaphlan_db = pickle.load(bz2.open(args.metaphlan_pkl_path, 'r'))
+    extract_all_markers(refseq_dir, metaphlan_db)
 
 
 if __name__ == "__main__":

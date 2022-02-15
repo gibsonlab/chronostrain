@@ -40,10 +40,6 @@ def parse_args():
     parser.add_argument('-r', '--refseq_dir', required=True, type=str,
                         help='<Required> The strainGE database directory.')
 
-    # Optional params
-    parser.add_argument('--reference_accession', required=False, type=str,
-                        default='U00096.3',
-                        help='<Optional> The reference genome to use for pulling out annotated gene sequences.')
     return parser.parse_args()
 
 
@@ -427,9 +423,6 @@ def main():
     seq_index_path = seq_dir / "seqs.tsv"
     seq_df.to_csv(seq_index_path, sep='\t')
     logger.info(f"Wrote seq index to {str(seq_index_path)}.")
-
-    # ================= Pull out reference genes
-    logger.info(f"Retrieving reference genes from {args.reference_accession}")
 
     # ================= Compile into JSON.
     logger.info("Creating JSON entries.")
