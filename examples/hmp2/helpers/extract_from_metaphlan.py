@@ -85,6 +85,7 @@ def get_reference_sequence(gene_id: str, reference_acc: List[str], gene_names: S
 
 def get_uniprot_references(u: UniProt, uniprot_id: str, genus: str, out_dir: Path) -> str:
     query = f"{uniprot_id}+AND+{genus}"
+    logger.debug(f"Uniprot query: `{query}`")
     res: str = u.search(query, frmt='tab', columns="id,genes,database(EMBL)", maxTrials=10)
     lines = res.strip().split('\n')
 
