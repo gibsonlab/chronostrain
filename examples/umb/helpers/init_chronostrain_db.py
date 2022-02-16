@@ -128,8 +128,8 @@ def parse_assembly_report(report_path: Path) -> Iterator[Dict]:
     Parse assembly report, save all relevant seqs to separate files and them by returning a DataFrame dictionary entry.
     """
     tokens = report_path.name.split('_')
-    gcf_id = tokens[0]
-    asm_id = tokens[1]
+    gcf_id = f"{tokens[0]}_{tokens[1]}"
+    asm_id = tokens[2]
     refseq_fasta_path = report_path.parent / f"{gcf_id}_{asm_id}_genomic.fna.gz"
     if not refseq_fasta_path.exists():
         raise FileNotFoundError(

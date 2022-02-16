@@ -19,7 +19,7 @@ from bioservices import UniProt
 from typing import List, Dict, Tuple, Iterator, Set
 
 from chronostrain import create_logger, cfg
-logger = create_logger("chronostrain.init_chronostrain_db")
+logger = create_logger("chronostrain.extract_from_metaphlan")
 
 
 READ_LEN = 150
