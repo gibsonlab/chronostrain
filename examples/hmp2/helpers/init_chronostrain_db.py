@@ -86,8 +86,9 @@ def perform_indexing(refseq_dir: Path) -> Tuple[pd.DataFrame, pd.DataFrame]:
                 target_files = list(strain_dir.glob("*_assembly_report.txt"))
 
                 for fpath in target_files:
-                    gcf_id = fpath.name.split('_')[0]
-                    logger.info(f"Parsing strain `{strain_name}`, RefSeq Assembly `{gcf_id}`")
+                    tokens = fpath.name.split('_')
+                    gcf_id = f"{tokens[0]}_{tokens[1]}"
+                    logger.info(f"Parsing strain `{strain_name}`, RefSeq Assembly `{gcf_id}` (target file: {fpath})")
                     strain_entries.append({
                         'StrainId': gcf_id,
                         'Genus': genus,
@@ -497,4 +498,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except BaseException as e:
+        logger.error(e)
+        raise
