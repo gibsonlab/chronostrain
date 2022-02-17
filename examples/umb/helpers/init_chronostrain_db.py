@@ -207,14 +207,15 @@ def create_chronostrain_db(
         logger.debug(f"Parsing BLAST hits for gene `{gene_name}`.")
         locations = parse_blast_hits(blast_result_path)
         for strain_entry in strain_entries:
-            for blast_hit in locations[strain_entry['accession']]:
+            seq_accession = strain_entry['seqs'][0]['accession']
+            for blast_hit in locations[seq_accession]:
                 gene_id = f"{gene_name}_BLASTIDX_{blast_hit.line_idx}"
                 strain_entry['markers'].append(
                     {
                         'id': gene_id,
                         'name': gene_name,
                         'type': 'subseq',
-                        'source': strain_entry['seqs'][0]['accession'],
+                        'source': seq_accession,
                         'start': blast_hit.subj_start,
                         'end': blast_hit.subj_end,
                         'strand': blast_hit.strand,
@@ -230,8 +231,8 @@ def prune_entries(strain_entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     for strain_entry in strain_entries:
         logger.info("No markers found for "
                     f"{strain_entry['genus']} {strain_entry['species']} "
-                    f"{strain_entry['strain']} "
-                    f"(Accession {strain_entry['accession']}).")
+                    f"{strain_entry['name']} "
+                    f"(ID {strain_entry['id']}).")
     return [
         strain_entry
         for strain_entry in strain_entries
@@ -393,7 +394,7 @@ def parse_genbank_genes(gb_file: Path) -> Iterator[Tuple[str, str, FeatureLocati
 # ================= MAIN
 def print_summary(strain_entries: List[Dict[str, Any]], gene_paths: Dict[str, Path]):
     for strain_entry in strain_entries:
-        accession = strain_entry['accession']
+        seq_accession = strain_entry['seqs'][0]['accession']
         found_genes: Set[str] = set()
         for marker_entry in strain_entry['markers']:
             found_genes.add(marker_entry['name'])
@@ -401,7 +402,7 @@ def print_summary(strain_entries: List[Dict[str, Any]], gene_paths: Dict[str, Pa
         genes_not_found = set(gene_paths.keys()).difference(found_genes)
         if len(genes_not_found) > 0:
             logger.info("Accession {}, {} genes not found: [{}]".format(
-                accession,
+                seq_accession,
                 len(genes_not_found),
                 ', '.join(genes_not_found)
             ))
