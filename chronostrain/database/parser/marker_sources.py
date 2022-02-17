@@ -157,14 +157,17 @@ class CachedMarkerSource(MarkerSource):
                 cfg.database_cfg.data_dir
                 / "markers"
                 / f"{self.strain_id}"
-                / f"{self.seq_accession}-{marker_id}.fasta"
+                / f"{marker_id}.fasta"
         )
 
-    @staticmethod
-    def save_to_disk(marker: Marker, target_path: Path):
+    def save_to_disk(self, marker: Marker, target_path: Path):
         marker.metadata.file_path = target_path
         target_path.parent.mkdir(exist_ok=True, parents=True)
-        SeqIO.write([marker.to_seqrecord()], target_path, "fasta")
+        SeqIO.write(
+            [marker.to_seqrecord(description=f"Strain={self.strain_id},Source={self.seq_accession}")],
+            target_path,
+            "fasta"
+        )
 
     def load_from_disk(self, marker_id: str, marker_name: str, is_canonical: bool, marker_filepath: Path):
         marker_seq = nucleotides_to_z4(
