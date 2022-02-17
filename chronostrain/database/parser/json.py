@@ -5,11 +5,12 @@ from pathlib import Path
 from typing import Iterator, List, Tuple, Dict
 
 from chronostrain.config import cfg
-from chronostrain.model import Strain, StrainMetadata
+from chronostrain.model import Strain, StrainMetadata, Marker
 from chronostrain.config.logging import create_logger
 
 from .base import AbstractDatabaseParser, StrainDatabaseParseError
-from .marker_sources import CachedMarkerSource
+from .marker_sources import CachedMarkerSource, MarkerSource
+from ...util.sequences import UnknownNucleotideError
 
 logger = create_logger(__name__)
 
@@ -250,6 +251,12 @@ class SubseqMarkerEntry(MarkerEntry):
         )
 
 
+class UnknownSourceNucleotideError(BaseException):
+    def __init__(self, e: UnknownNucleotideError, src: str):
+        self.nucleotide = e.nucleotide
+        self.src = src
+
+
 class JSONParser(AbstractDatabaseParser):
     def __init__(self,
                  entries_file: Path,
@@ -267,77 +274,93 @@ class JSONParser(AbstractDatabaseParser):
             for idx, strain_json_obj in enumerate(json.load(f)):
                 yield StrainEntry.deserialize(strain_json_obj)
 
+    def parse_strain(self, strain_entry: StrainEntry) -> Strain:
+        strain_markers = []
+        chromosome_accs = []
+        scaffold_accs = []
+        contig_accs = []
+        for seq_entry, marker_entries in strain_entry.marker_entries_by_seq():
+            if seq_entry.is_chromosome:
+                chromosome_accs.append(seq_entry.accession)
+            elif seq_entry.is_scaffold:
+                scaffold_accs.append(seq_entry.accession)
+            elif seq_entry.is_contig:
+                contig_accs.append(seq_entry.accession)
+
+            marker_src = CachedMarkerSource(
+                strain_id=strain_entry.id,
+                seq_accession=seq_entry.accession,
+                marker_max_len=self.marker_max_len,
+                force_download=self.force_refresh
+            )
+
+            try:
+                for marker in self.parse_markers(marker_entries, marker_src):
+                    strain_markers.append(marker)
+            except UnknownNucleotideError as e:
+                raise UnknownSourceNucleotideError(e, marker_src.seq_accession) from None
+
+        if len(strain_markers) == 0:
+            logger.warning("No markers parsed for strain entry {}.".format(
+                str(strain_entry)
+            ))
+        else:
+            logger.debug("Strain {} loaded with {} markers.".format(
+                strain_entry.id,
+                len(strain_markers)
+            ))
+
+        return Strain(
+            id=strain_entry.id,
+            name=strain_entry.strain_name,
+            markers=strain_markers,
+            metadata=StrainMetadata(
+                chromosomes=chromosome_accs,
+                scaffolds=scaffold_accs + contig_accs,  # Treat these as the same in the metadata.
+                genus=strain_entry.genus,
+                species=strain_entry.species,
+            )
+        )
+
+    def parse_markers(self, marker_entries: List[MarkerEntry], marker_src: MarkerSource) -> Iterator[Marker]:
+        for marker_entry in marker_entries:
+            if isinstance(marker_entry, TagMarkerEntry):
+                marker = marker_src.extract_from_locus_tag(
+                    marker_entry.marker_id,
+                    marker_entry.name,
+                    marker_entry.is_canonical,
+                    marker_entry.locus_tag
+                )
+            elif isinstance(marker_entry, PrimerMarkerEntry):
+                marker = marker_src.extract_from_primer(
+                    marker_entry.marker_id,
+                    marker_entry.name,
+                    marker_entry.is_canonical,
+                    marker_entry.forward,
+                    marker_entry.reverse
+                )
+            elif isinstance(marker_entry, SubseqMarkerEntry):
+                marker = marker_src.extract_subseq(
+                    marker_entry.marker_id,
+                    marker_entry.name,
+                    marker_entry.is_canonical,
+                    marker_entry.start_pos,
+                    marker_entry.end_pos,
+                    marker_entry.is_negative_strand
+                )
+            else:
+                raise NotImplementedError(
+                    f"Unsupported entry class `{marker_entry.__class__.__name__}`."
+                )
+            yield marker
+
     def strains(self) -> Iterator[Strain]:
         logger.info("Loading from JSON marker database file {}.".format(self.entries_file))
         logger.debug("Database root directory: {}".format(cfg.database_cfg.data_dir))
         for strain_entry in self.strain_entries():
-            strain_markers = []
-            chromosome_accs = []
-            scaffold_accs = []
-            contig_accs = []
-            for seq_entry, marker_entries in strain_entry.marker_entries_by_seq():
-                if seq_entry.is_chromosome:
-                    chromosome_accs.append(seq_entry.accession)
-                elif seq_entry.is_scaffold:
-                    scaffold_accs.append(seq_entry.accession)
-                elif seq_entry.is_contig:
-                    contig_accs.append(seq_entry.accession)
-
-                marker_src = CachedMarkerSource(
-                    strain_id=strain_entry.id,
-                    seq_accession=seq_entry.accession,
-                    marker_max_len=self.marker_max_len,
-                    force_download=self.force_refresh
-                )
-
-                for marker_entry in marker_entries:
-                    if isinstance(marker_entry, TagMarkerEntry):
-                        marker = marker_src.extract_from_locus_tag(
-                            marker_entry.marker_id,
-                            marker_entry.name,
-                            marker_entry.is_canonical,
-                            marker_entry.locus_tag
-                        )
-                    elif isinstance(marker_entry, PrimerMarkerEntry):
-                        marker = marker_src.extract_from_primer(
-                            marker_entry.marker_id,
-                            marker_entry.name,
-                            marker_entry.is_canonical,
-                            marker_entry.forward,
-                            marker_entry.reverse
-                        )
-                    elif isinstance(marker_entry, SubseqMarkerEntry):
-                        marker = marker_src.extract_subseq(
-                            marker_entry.marker_id,
-                            marker_entry.name,
-                            marker_entry.is_canonical,
-                            marker_entry.start_pos,
-                            marker_entry.end_pos,
-                            marker_entry.is_negative_strand
-                        )
-                    else:
-                        raise NotImplementedError(
-                            f"Unsupported entry class `{marker_entry.__class__.__name__}`."
-                        )
-                    strain_markers.append(marker)
-
-            if len(strain_markers) == 0:
-                logger.warning("No markers parsed for strain entry {}.".format(
-                    str(strain_entry)
-                ))
-            else:
-                logger.debug("Strain {} loaded with {} markers.".format(
-                    strain_entry.id,
-                    len(strain_markers)
-                ))
-            yield Strain(
-                id=strain_entry.id,
-                name=strain_entry.strain_name,
-                markers=strain_markers,
-                metadata=StrainMetadata(
-                    chromosomes=chromosome_accs,
-                    scaffolds=scaffold_accs + contig_accs,  # Treat these as the same in the metadata.
-                    genus=strain_entry.genus,
-                    species=strain_entry.species,
-                )
-            )
+            try:
+                yield self.parse_strain(strain_entry)
+            except UnknownSourceNucleotideError as e:
+                logger.warning(f"Skipping strain entry {strain_entry.id}, "
+                               f"due to unknown nucleotide {e.nucleotide} (possible IUPAC code) in {e.src}.")
+                continue
