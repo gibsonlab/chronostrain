@@ -384,7 +384,7 @@ def extract_strain_seqs(seq_df: pd.DataFrame, strain_id: str) -> Tuple[List[Dict
     Creates a symbolic link to each relevant seq file into chronostrain's configured database directory, and
     adds the corresponding index entry to the JSON object.
     """
-    section = seq_df.loc[seq_df['StrainId'] == strain_id, ['SeqPath', 'SeqType']]
+    section = seq_df.loc[seq_df['StrainId'] == strain_id, ['SeqAccession', 'SeqPath', 'SeqType']]
     json_strain_seqs = []
     seq_paths = []
     for _, row in section.iterrows():
