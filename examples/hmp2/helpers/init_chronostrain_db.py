@@ -163,13 +163,17 @@ def parse_assembly_report(report_path: Path) -> Iterator[Dict]:
         seq_records[refseq_accession] = record
 
     with open(report_path, 'r') as report:
+        n_chromosomes = 0
+        n_scaffolds = 0
+        n_contigs = 0
+
         for line in report:
             if line.startswith('#'):
                 continue
 
             entry = AssemblyReportEntry(line)
             if entry.is_chromosome:
-                logger.info(f"Found chromosome `{entry.refseq_accession}`")
+                logger.debug(f"Found chromosome `{entry.refseq_accession}`")
                 if entry.refseq_accession not in seq_records:
                     raise KeyError(f"Could not find matching chromosome `{entry.refseq_accession}` in {refseq_fasta_path}.")
 
@@ -181,12 +185,13 @@ def parse_assembly_report(report_path: Path) -> Iterator[Dict]:
                     "SeqPath": seq_path,
                     "SeqType": "chromosome"
                 }
+                n_chromosomes += 1
 
             if entry.is_scaffold:
                 """
                 Each scaffold piece goes into its own FASTA file.
                 """
-                logger.info(f"Found scaffold `{entry.refseq_accession}`")
+                logger.debug(f"Found scaffold `{entry.refseq_accession}`")
                 if entry.refseq_accession not in seq_records:
                     raise KeyError(f"Could not find matching scaffold `{entry.refseq_accession}` in {seq_path}.")
 
@@ -198,12 +203,13 @@ def parse_assembly_report(report_path: Path) -> Iterator[Dict]:
                     "SeqPath": seq_path,
                     "SeqType": "scaffold"
                 }
+                n_scaffolds += 1
 
             if entry.is_contig:
                 """
                 Each contig piece goes into its own FASTA file.
                 """
-                logger.info(f"Found contig `{entry.refseq_accession}`")
+                logger.debug(f"Found contig `{entry.refseq_accession}`")
                 if entry.refseq_accession not in seq_records:
                     raise KeyError(f"Could not find matching contig `{entry.refseq_accession}` in {seq_path}.")
 
@@ -215,6 +221,9 @@ def parse_assembly_report(report_path: Path) -> Iterator[Dict]:
                     "SeqPath": seq_path,
                     "SeqType": "contig"
                 }
+                n_contigs += 1
+
+        logger.info(f"# chromosomes: {n_chromosomes}, # scaffolds: {n_scaffolds}, # contigs: {n_contigs}")
 
 
 # ============= Browse reference genes (assuming they have already been extracted.)
