@@ -300,6 +300,8 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
 def download_reference(accession: str, metaphlan_pkl_path: Path) -> Dict[str, Path]:
     logger.info(f"Downloading reference accession {accession}")
     target_dir = cfg.database_cfg.data_dir / "reference" / accession
+    target_dir.mkdir(exist_ok=True, parents=True)
+
     gb_file = fetch_genbank(accession, target_dir)
 
     clusters_already_found: Set[str] = set()
