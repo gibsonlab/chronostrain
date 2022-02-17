@@ -32,6 +32,10 @@ class MarkerSource:
         self._gb_record = None
 
     @property
+    def nucleotide_length(self) -> int:
+        return len(self.seq_nucleotide)
+
+    @property
     def seq_nucleotide(self) -> str:
         if self._seq is None:
             if self._gb_record is not None:

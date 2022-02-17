@@ -279,6 +279,7 @@ class JSONParser(AbstractDatabaseParser):
         chromosome_accs = []
         scaffold_accs = []
         contig_accs = []
+        total_len = 0
         for seq_entry, marker_entries in strain_entry.marker_entries_by_seq():
             if seq_entry.is_chromosome:
                 chromosome_accs.append(seq_entry.accession)
@@ -300,6 +301,7 @@ class JSONParser(AbstractDatabaseParser):
             except UnknownNucleotideError as e:
                 raise UnknownSourceNucleotideError(e, marker_src.seq_accession) from None
 
+            total_len += marker_src.nucleotide_length
         if len(strain_markers) == 0:
             logger.warning("No markers parsed for strain entry {}.".format(
                 str(strain_entry)
@@ -319,6 +321,7 @@ class JSONParser(AbstractDatabaseParser):
                 scaffolds=scaffold_accs + contig_accs,  # Treat these as the same in the metadata.
                 genus=strain_entry.genus,
                 species=strain_entry.species,
+                total_len=total_len
             )
         )
 

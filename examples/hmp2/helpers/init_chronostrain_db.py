@@ -331,6 +331,7 @@ def create_chronostrain_db(
 
     # ========= Run BLAST to find marker genes.
     blast_paths: Dict[str, Path] = {}
+    blast_result_dir.mkdir(parents=True, exist_ok=True)
     for gene_name, ref_gene_path in all_reference_genes():
         logger.info(f"Running blastn on {gene_name}.")
         blast_result_path = blast_result_dir / f"{gene_name}.tsv"
@@ -347,7 +348,6 @@ def create_chronostrain_db(
         )
         blast_paths[gene_name] = blast_result_path
 
-    blast_result_dir.mkdir(parents=True, exist_ok=True)
     for json_strain_entry in json_strain_entries:
         logger.debug(f"Looking for BLAST hits for strain `{json_strain_entry['id']}`.")
         marker_objs = blast_hits_into_markers(

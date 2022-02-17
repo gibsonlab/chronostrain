@@ -31,6 +31,7 @@ class StrainMetadata:
     scaffolds: List[str]
     genus: str
     species: str
+    total_len: int
 
 
 @dataclass

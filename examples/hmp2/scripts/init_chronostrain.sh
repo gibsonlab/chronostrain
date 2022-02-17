@@ -9,6 +9,7 @@ if python -c "import intervaltree" &> /dev/null; then
 	:
 else
 	echo "Python package 'intervaltree' is required. (Try: 'pip install intervaltree')"
+	exit 255;
 fi
 
 
