@@ -156,7 +156,7 @@ class TagMarkerEntry(MarkerEntry):
     @staticmethod
     def deserialize(entry_dict: dict) -> "TagMarkerEntry":
         try:
-            is_canonical = extract_key_from_json(entry_dict, 'canonical').strip().lower() == "true"
+            is_canonical = str(extract_key_from_json(entry_dict, 'canonical')).strip().lower() == "true"
         except StrainDatabaseParseError:
             is_canonical = False
 
@@ -199,7 +199,7 @@ class PrimerMarkerEntry(MarkerEntry):
         return PrimerMarkerEntry(
             marker_id=extract_key_from_json(entry_dict, 'id'),
             name=extract_key_from_json(entry_dict, 'name'),
-            is_canonical=extract_key_from_json(entry_dict, 'canonical').strip().lower() == "true",
+            is_canonical=str(extract_key_from_json(entry_dict, 'canonical')).strip().lower() == "true",
             source_accession=extract_key_from_json(entry_dict, 'source'),
             forward=extract_key_from_json(entry_dict, 'forward'),
             reverse=extract_key_from_json(entry_dict, 'reverse')
@@ -242,7 +242,7 @@ class SubseqMarkerEntry(MarkerEntry):
         return SubseqMarkerEntry(
             marker_id=extract_key_from_json(entry_dict, 'id'),
             name=extract_key_from_json(entry_dict, 'name'),
-            is_canonical=extract_key_from_json(entry_dict, 'canonical').strip().lower() == "true",
+            is_canonical=str(extract_key_from_json(entry_dict, 'canonical')).strip().lower() == "true",
             source_accession=extract_key_from_json(entry_dict, 'source'),
             start=start_pos,
             end=end_pos,
