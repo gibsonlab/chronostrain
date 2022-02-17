@@ -25,7 +25,7 @@ from typing import List, Dict, Any, Tuple, Iterator
 
 from chronostrain.util.io import read_seq_file
 from chronostrain import cfg, create_logger
-logger = create_logger("chronostrain.init_chronostrain_db")
+logger = create_logger("chronostrain.init_db")
 
 
 READ_LEN = 150
