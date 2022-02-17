@@ -7,6 +7,9 @@ from chronostrain.config import cfg, create_logger
 logger = create_logger(__name__)
 
 
+logger.info(f"Using email `{cfg.entrez_cfg.email}` for Entrez.")
+Entrez.email = cfg.entrez_cfg.email
+
 _fasta_filename = "{accession}.fasta"
 _genbank_filename = "{accession}.gb"
 
@@ -45,9 +48,6 @@ def fetch_entrez(entrez_db: str,
                  file_path: Path,
                  retmode: str = "text",
                  force_download: bool = False):
-    logger.info(f"Using email `{cfg.entrez_cfg.email}` for Entrez.")
-    Entrez.email = cfg.entrez_cfg.email
-
     if not force_download and file_path.exists() and file_path.stat().st_size > 0:
         logger.debug("[{}] File found: {}".format(
             accession[0] if isinstance(accession, list) else accession,
