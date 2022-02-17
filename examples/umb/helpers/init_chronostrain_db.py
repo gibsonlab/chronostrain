@@ -168,6 +168,7 @@ def create_chronostrain_db(
         if symlink_path.exists():
             logger.info(f"Path {symlink_path} already exists.")
         else:
+            symlink_path.parent.mkdir(exist_ok=True, parents=True)
             symlink_path.symlink_to(fasta_path)
             logger.info(f"Symlink {symlink_path} -> {fasta_path}")
 
