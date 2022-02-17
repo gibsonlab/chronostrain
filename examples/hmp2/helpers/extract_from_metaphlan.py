@@ -51,14 +51,20 @@ def extract_reference_marker_genes(
         genus: str,
         species: str
 ):
-    out_dir = cfg.database_cfg.data_dir / "reference" / genus / species
-    logger.info(f"Species {genus} {species}, Target directory: {out_dir}")
-    out_dir.mkdir(exist_ok=True, parents=True)
-
     gene_ids: Set[str] = {
         gene_id
         for gene_id, _ in metaphlan_marker_entries(metaphlan_db, genus, species)
     }
+
+    if len(gene_ids) == 0:
+        logger.warning("Clade `{genus} {species}` has no documented marker genes.")
+        return
+
+    out_dir = cfg.database_cfg.data_dir / "reference" / genus / species
+    logger.info(f"Species {genus} {species}, Target directory: {out_dir}")
+    logger.info(f"# markers: {len(gene_ids)}")
+    out_dir.mkdir(exist_ok=True, parents=True)
+
     fetch_and_save_references(
         gene_ids,
         metaphlan_fasta_path,
