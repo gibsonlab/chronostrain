@@ -269,7 +269,7 @@ class JSONParser(AbstractDatabaseParser):
 
     def strains(self) -> Iterator[Strain]:
         logger.info("Loading from JSON marker database file {}.".format(self.entries_file))
-        logger.debug("Data will be saved to/load from: {}".format(cfg.database_cfg.data_dir))
+        logger.debug("Database root directory: {}".format(cfg.database_cfg.data_dir))
         for strain_entry in self.strain_entries():
             strain_markers = []
             chromosome_accs = []

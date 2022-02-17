@@ -1,2 +1,2 @@
-from .database import StrainDatabase, JSONStrainDatabase, SimpleCSVStrainDatabase
+from .database import StrainDatabase, JSONStrainDatabase
 from .error import QueryNotFoundError

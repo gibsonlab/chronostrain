@@ -1,13 +1,13 @@
 import time
 from collections import defaultdict
 from pathlib import Path
-from typing import List, Union, Optional, Set
+from typing import List, Union, Set
 
 from Bio import SeqIO
 
 from chronostrain.model import Strain, Marker
-from .parser import AbstractDatabaseParser, JSONParser, CSVParser
-from .backend import AbstractStrainDatabaseBackend, DictionaryBackend, PandasAssistedBackend
+from .parser import AbstractDatabaseParser, JSONParser
+from .backend import AbstractStrainDatabaseBackend, PandasAssistedBackend
 from .error import QueryNotFoundError
 from .. import cfg, create_logger
 
@@ -165,21 +165,4 @@ class JSONStrainDatabase(StrainDatabase):
                             marker_max_len,
                             force_refresh)
         backend = PandasAssistedBackend()
-        super().__init__(parser, backend, multifasta_filename=multifasta_filename)
-
-
-class SimpleCSVStrainDatabase(StrainDatabase):
-    def __init__(self,
-                 entries_file: Union[str, Path],
-                 trim_debug: Optional[int] = None,
-                 force_refresh: bool = False,
-                 load_full_genomes: bool = False,
-                 multifasta_filename: str = 'all_markers.fasta'):
-        if isinstance(entries_file, str):
-            entries_file = Path(entries_file)
-        parser = CSVParser(entries_file,
-                           force_refresh,
-                           trim_debug,
-                           load_full_genomes=load_full_genomes)
-        backend = DictionaryBackend()
         super().__init__(parser, backend, multifasta_filename=multifasta_filename)

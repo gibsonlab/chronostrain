@@ -38,7 +38,7 @@ class MarkerSource:
                 self._seq = str(self._gb_record.seq)
             else:
                 fasta_path = fetch_fasta(self.seq_accession,
-                                         base_dir=cfg.database_cfg.data_dir,
+                                         base_dir=cfg.database_cfg.data_dir / "assemblies" / self.strain_id,
                                          force_download=self.force_download)
                 self._seq = str(SeqIO.read(fasta_path, "fasta").seq)
         return self._seq
@@ -47,7 +47,7 @@ class MarkerSource:
     def seq_genbank_features(self) -> Iterator[SeqFeature]:
         if self._gb_record is None:
             genbank_path = fetch_genbank(self.seq_accession,
-                                         base_dir=cfg.database_cfg.data_dir,
+                                         base_dir=cfg.database_cfg.data_dir / "assemblies" / self.strain_id,
                                          force_download=self.force_download)
             self._gb_record = list(SeqIO.parse(genbank_path, "gb"))[0]
         yield from self._gb_record.features

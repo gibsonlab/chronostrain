@@ -47,7 +47,7 @@ def parse_args():
 
 # ============================= Common resources
 def strain_seq_dir(strain_id: str) -> Path:
-    return cfg.database_cfg.data_dir / strain_id
+    return cfg.database_cfg.data_dir / "assemblies" / strain_id
 
 
 # ============================= Creation of database configuration (Indexing + partial JSON creation)

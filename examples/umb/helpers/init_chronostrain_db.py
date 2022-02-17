@@ -54,6 +54,11 @@ def parse_args():
     return parser.parse_args()
 
 
+# ============================= Common resources
+def strain_seq_dir(strain_id: str) -> Path:
+    return cfg.database_cfg.data_dir / "assemblies" / strain_id
+
+
 # ============================= Creation of database configuration (Indexing + partial JSON creation)
 def perform_indexing(refseq_dir: Path) -> pd.DataFrame:
     df_entries = []
@@ -129,8 +134,6 @@ def create_chronostrain_db(
     :param output_path:
     :return:
     """
-    data_dir: Path = cfg.database_cfg.data_dir
-
     # ======== BLAST configuration
     blast_db_dir = output_path.parent / "blast"
     blast_db_name = "db_esch"
@@ -148,10 +151,12 @@ def create_chronostrain_db(
     strain_entries = []
     for idx, row in seq_index.iterrows():
         accession = row['Accession']
+        strain_id = accession  # Use the accession as the strain's ID (we are only using full chromosome assemblies).
+
         fasta_path = row['SeqPath']
         strain_fasta_files.append(fasta_path)
         strain_entries.append({
-            'id': accession,
+            'id': strain_id,
             'genus': row['Genus'],
             'species': row['Species'],
             'name': row['Strain'],
@@ -159,7 +164,7 @@ def create_chronostrain_db(
             'markers': []
         })
 
-        symlink_path = Path(data_dir / f"{accession}.fasta")
+        symlink_path = strain_seq_dir(strain_id) / f"{accession}.fasta"
         if symlink_path.exists():
             logger.info(f"Path {symlink_path} already exists.")
         else:
@@ -294,8 +299,8 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
 # ======================== Reference genome: pull from downloaded genbank file.
 def download_reference(accession: str, metaphlan_pkl_path: Path) -> Dict[str, Path]:
     logger.info(f"Downloading reference accession {accession}")
-    data_dir: Path = cfg.database_cfg.data_dir
-    gb_file = fetch_genbank(accession, data_dir)
+    target_dir = cfg.database_cfg.data_dir / "reference" / accession
+    gb_file = fetch_genbank(accession, target_dir)
 
     clusters_already_found: Set[str] = set()
     clusters_to_find: Set[str] = set()
@@ -324,7 +329,7 @@ def download_reference(accession: str, metaphlan_pkl_path: Path) -> Dict[str, Pa
             clusters_already_found.add(found_cluster)
             clusters_to_find.remove(found_cluster)
 
-            gene_out_path = data_dir / f"REF_{accession}_{found_cluster}.fasta"
+            gene_out_path = target_dir / f"{found_cluster}.fasta"
             gene_seq = location.extract(chromosome_seq)
             SeqIO.write(
                 SeqRecord(gene_seq, id=f"REF_GENE_{found_cluster}", description=f"{accession}_{str(location)}"),
