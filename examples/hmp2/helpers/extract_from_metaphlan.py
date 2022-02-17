@@ -13,7 +13,7 @@ from pathlib import Path
 
 from Bio import Entrez, SeqIO
 
-from typing import Dict, Tuple, Iterator
+from typing import Dict, Tuple, Iterator, Set
 
 from chronostrain import create_logger, cfg
 logger = create_logger("chronostrain.extract_from_metaphlan")
@@ -29,17 +29,20 @@ def metaphlan_marker_entries(metaphlan_db: Dict, genus: str, species: str) -> It
             yield marker_key, marker_entry
 
 
-def fetch_and_save_reference(gene_id: str, fasta_path: Path, out_path: Path):
-    gene_record = None
+def fetch_and_save_references(gene_ids: Set[str], fasta_path: Path, out_dir: Path):
+    genes_not_found = set(gene_ids)
     for record in SeqIO.parse(fasta_path, "fasta"):
-        if record.id == gene_id:
-            gene_record = record
+        if record.id in gene_ids:
+            genes_not_found.remove(record.id)
 
-    if gene_record is None:
-        raise RuntimeError(f"Marker gene `{gene_id}` not found in target fasta file `{fasta_path}`.")
-
-    SeqIO.write([gene_record], out_path, "fasta")
-    logger.info(f"Wrote gene {gene_id} to {out_path}.")
+            out_path = out_dir / f"{record.id}.fasta"
+            SeqIO.write([record], out_path, "fasta")
+            logger.info(f"Wrote gene {record.id} to {out_path}.")
+    if len(genes_not_found) > 0:
+        raise RuntimeError("Couldn't find gene IDs {} in fasta file {}.".format(
+            ",".join(genes_not_found),
+            fasta_path
+        ))
 
 
 def extract_reference_marker_genes(
@@ -52,12 +55,15 @@ def extract_reference_marker_genes(
     logger.info(f"Species {genus} {species}, Target directory: {out_dir}")
     out_dir.mkdir(exist_ok=True, parents=True)
 
-    for metaphlan_gene_id, marker_entry in metaphlan_marker_entries(metaphlan_db, genus, species):
-        fetch_and_save_reference(
-            metaphlan_gene_id,
-            metaphlan_fasta_path,
-            out_dir / f"{metaphlan_gene_id}.fasta"
-        )
+    gene_ids: Set[str] = {
+        gene_id
+        for gene_id, _ in metaphlan_marker_entries(metaphlan_db, genus, species)
+    }
+    fetch_and_save_references(
+        gene_ids,
+        metaphlan_fasta_path,
+        out_dir
+    )
 
 
 def extract_all_markers(refseq_dir: Path, metaphlan_db: Dict, metaphlan_fasta_path: Path):
