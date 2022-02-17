@@ -189,7 +189,10 @@ def create_chronostrain_db(
     # Run BLAST to find marker genes.
     blast_result_dir.mkdir(parents=True, exist_ok=True)
     for gene_name, ref_gene_path in gene_paths.items():
-        gene_already_found = False
+        canonical_gene_found = False
+        ref_gene_len = len(next(iter(read_seq_file(ref_gene_path, 'fasta'))).seq)
+        min_canonical_length = ref_gene_len * 0.95
+
         logger.info(f"Running blastn on {gene_name}.")
         blast_result_path = blast_result_dir / f"{gene_name}.tsv"
         blastn(
@@ -209,6 +212,12 @@ def create_chronostrain_db(
         for strain_entry in strain_entries:
             seq_accession = strain_entry['seqs'][0]['accession']
             for blast_hit in locations[seq_accession]:
+                is_canonical = (
+                        (blast_hit.subj_end - blast_hit.subj_start) >= min_canonical_length
+                        and
+                        not canonical_gene_found
+                )
+
                 gene_id = f"{gene_name}_BLASTIDX_{blast_hit.line_idx}"
                 strain_entry['markers'].append(
                     {
@@ -219,10 +228,10 @@ def create_chronostrain_db(
                         'start': blast_hit.subj_start,
                         'end': blast_hit.subj_end,
                         'strand': blast_hit.strand,
-                        'canonical': not gene_already_found
+                        'canonical': is_canonical
                     }
                 )
-                gene_already_found = True
+                canonical_gene_found = canonical_gene_found or is_canonical
 
     return prune_entries(strain_entries)
 
@@ -418,7 +427,7 @@ def main():
     logger.info(f"Indexing refseqs located in {seq_dir}")
     seq_index = perform_indexing(seq_dir)
     index_path = seq_dir / "index.tsv"
-    seq_index.to_csv(index_path, sep='\t')
+    seq_index.to_csv(index_path, sep='\t', index=False)
     logger.info(f"Wrote index to {str(index_path)}.")
 
     # ================= Pull out reference genes

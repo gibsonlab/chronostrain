@@ -22,6 +22,7 @@ from chronostrain.util.entrez import fetch_fasta
 from chronostrain.util.external import make_blast_db, blastn
 
 from typing import List, Dict, Any, Tuple, Iterator
+from intervaltree import IntervalTree
 
 from chronostrain.util.io import read_seq_file
 from chronostrain import cfg, create_logger
@@ -104,7 +105,6 @@ def perform_indexing(refseq_dir: Path) -> Tuple[pd.DataFrame, pd.DataFrame]:
                 strain_name = strain_dir.name
                 target_files = list(strain_dir.glob("*_assembly_report.txt"))
 
-
                 for fpath in target_files:
                     gcf_id, _ = parse_assembly_report_filepath(fpath)
 
@@ -175,7 +175,9 @@ def parse_assembly_report(report_path: Path) -> Iterator[Dict]:
             if entry.is_chromosome:
                 logger.debug(f"Found chromosome `{entry.refseq_accession}`")
                 if entry.refseq_accession not in seq_records:
-                    raise KeyError(f"Could not find matching chromosome `{entry.refseq_accession}` in {refseq_fasta_path}.")
+                    raise KeyError(
+                        f"Could not find matching chromosome `{entry.refseq_accession}` in {refseq_fasta_path}."
+                    )
 
                 seq_path = report_path.parent / f"{entry.refseq_accession}.fasta"
                 SeqIO.write([seq_records[entry.refseq_accession]], seq_path, 'fasta')
@@ -328,12 +330,8 @@ def create_chronostrain_db(
                 yield from reference_marker_genes(genus, species)
 
     # ========= Run BLAST to find marker genes.
-    blast_result_dir.mkdir(parents=True, exist_ok=True)
+    blast_paths: Dict[str, Path] = {}
     for gene_name, ref_gene_path in all_reference_genes():
-        canonical_gene_found = False
-        ref_gene_len = len(next(iter(read_seq_file(ref_gene_path, 'fasta'))).seq)
-        min_canonical_length = ref_gene_len * 0.95
-
         logger.info(f"Running blastn on {gene_name}.")
         blast_result_path = blast_result_dir / f"{gene_name}.tsv"
         blastn(
@@ -347,44 +345,94 @@ def create_chronostrain_db(
             max_target_seqs=10 * seq_index.shape[0],  # A generous value, 10 hits per genome
             strand="both"
         )
+        blast_paths[gene_name] = blast_result_path
 
-        logger.debug(f"Parsing BLAST hits for gene `{gene_name}`.")
-        locations = parse_blast_hits(blast_result_path)
-        for json_strain_entry in json_strain_entries:
-            strain_id = json_strain_entry['id']
-            for seq_entry in json_strain_entry['seqs']:
-                seq_accession = seq_entry['accession']
-                for blast_hit in locations[seq_accession]:
-                    is_canonical = (
-                            (blast_hit.subj_end - blast_hit.subj_start) >= min_canonical_length
-                            and
-                            not canonical_gene_found
-                    )
-                    gene_id = f"{gene_name}_BLASTIDX_{blast_hit.line_idx}"
-
-                    if seq_entry['seq_type'] == 'scaffold':
-                        start_loc, end_loc = extract_ungapped_subseq(strain_id, seq_accession, blast_hit)
-                    else:
-                        start_loc, end_loc = blast_hit.subj_start, blast_hit.subj_end
-
-                    json_strain_entry['markers'].append(
-                        {
-                            'id': gene_id,
-                            'name': gene_name,
-                            'type': 'subseq',
-                            'source': seq_accession,
-                            'start': start_loc,
-                            'end': end_loc,
-                            'strand': blast_hit.strand,
-                            'canonical': is_canonical
-                        }
-                    )
-                    canonical_gene_found = canonical_gene_found or is_canonical
-
-        if not canonical_gene_found:
-            logger.warn(f"No canonical version of gene `{gene_name}` found.")
-
+    blast_result_dir.mkdir(parents=True, exist_ok=True)
+    for json_strain_entry in json_strain_entries:
+        logger.debug(f"Looking for BLAST hits for strain `{json_strain_entry['id']}`.")
+        marker_objs = blast_hits_into_markers(
+            seq_accessions=[seq['accession'] for seq in json_strain_entry['seqs']],
+            blast_paths=blast_paths
+        )
+        json_strain_entry['markers'] = marker_objs
     return prune_entries(json_strain_entries)
+
+
+def blast_hits_into_markers(seq_accessions: List[str], blast_paths: Dict[str, Path]) -> List[Dict]:
+    """
+    For the provided strain (implicitly defined by the collection `seq_accessions`), collect all of the BLAST hits
+    assorted by genes.
+
+    Performs an additional check to see whether BLAST hits are overlapping. In that scenario, merges them into one
+    large gene.
+
+    :return: A list of JSON objects (dictionaries) representing marker entries.
+    """
+    marker_objs = []
+    for seq_accession in seq_accessions:
+        tree = IntervalTree()
+        for gene_name, blast_path in blast_paths.items():
+            blast_hits = parse_blast_hits(blast_path)[seq_accession]
+            for blast_hit in blast_hits:
+                left = blast_hit.subj_start
+                right = blast_hit.subj_end + 1
+
+                overlapping_hits = tree[left:right]
+                if len(overlapping_hits) > 0:
+                    # Special scenario: merge all overlapping hits.
+                    logger.info("Merging overlapping BLAST hits of seq {} from {}: {}".format(
+                        seq_accession,
+                        blast_path.name,
+                        ", ".join(
+                            str(hit_node.data) for hit_node in overlapping_hits
+                        )
+                    ))
+
+                    for hit in overlapping_hits:
+                        tree.remove(hit)
+
+                    leftmost = min(hit_node.data[0] for hit_node in overlapping_hits)
+                    rightmost = max(hit_node.data[1] for hit_node in overlapping_hits)
+                    mean_evalue = sum(hit_node.data[2] for hit_node in overlapping_hits)
+
+                    new_strands = []
+                    new_names = []
+                    new_lines = []
+                    for hit_node in overlapping_hits:
+                        new_strands += hit_node.data[3]
+                        new_names += hit_node.data[4]
+                        new_lines += hit_node.data[5]
+
+                    tree[leftmost:rightmost+1] = (leftmost, rightmost, mean_evalue, new_strands, new_names, new_lines)
+                else:
+                    # Default scenario
+                    tree[left:right] = (
+                        blast_hit.subj_start,
+                        blast_hit.subj_end,
+                        blast_hit.evalue,
+                        [blast_hit.strand],
+                        [gene_name],
+                        [blast_hit.line_idx]
+                    )
+
+        # Now, hits are guaranteed to be non-overlapping. Instantiate the objects.
+        for node in tree:
+            start_loc, end_loc, e_values, strand_arr, gene_name_arr, line_arr = node.data
+            gene_ids = [
+                f"{gene_name}#{line_idx}"
+                for strand, gene_name, line_idx in zip(strand_arr, gene_name_arr, line_arr)
+            ]
+            marker_objs.append({
+                'id': "+".join(gene_ids),
+                'name': "+".join(gene_name_arr),
+                'type': 'subseq',
+                'source': seq_accession,
+                'start': start_loc,
+                'end': end_loc,
+                'strand': '+' if len(strand_arr) > 1 else strand_arr[0],
+                'canonical': False
+            })
+    return marker_objs
 
 
 def extract_strain_seqs(seq_df: pd.DataFrame, strain_id: str) -> Tuple[List[Dict], List[Path]]:
@@ -450,8 +498,22 @@ class BlastHit(object):
     num_gaps: int
     query_coverage_per_hsp: float
 
+    def __repr__(self):
+        return "BLAST#{}<{}:{}>".format(
+            self.line_idx,
+            self.subj_start,
+            self.subj_end
+        )
+
+    def __str__(self):
+        return self.__repr__()
+
 
 def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
+    """
+    :return: A dictionary of blast hits categorized by database sequence, e.g.
+     <sequence accession> -> <Blast hits on that accession>
+    """
     accession_to_positions: Dict[str, List[BlastHit]] = defaultdict(list)
     with open(blast_result_path, "r") as f:
         blast_result_reader = csv.reader(f, delimiter='\t')
@@ -504,10 +566,10 @@ def main():
 
     # Save both dataframes to disk.
     strain_index_path = seq_dir / "strains.tsv"
-    strain_df.to_csv(strain_index_path, sep='\t')
+    strain_df.to_csv(strain_index_path, sep='\t', index=False)
     logger.info(f"Wrote strain index to {str(strain_index_path)}.")
     seq_index_path = seq_dir / "seqs.tsv"
-    seq_df.to_csv(seq_index_path, sep='\t')
+    seq_df.to_csv(seq_index_path, sep='\t', index=False)
     logger.info(f"Wrote seq index to {str(seq_index_path)}.")
 
     # ================= Compile into JSON.

@@ -4,6 +4,14 @@ set -e
 source settings.sh
 export CHRONOSTRAIN_LOG_FILEPATH="${LOGDIR}/init.log"
 
+# Require intervaltree package
+if python -c "import intervaltree" &> /dev/null; then
+	:
+else
+	echo "Python package 'intervaltree' is required. (Try: 'pip install intervaltree')"
+fi
+
+
 echo "[*] Extracting markers from metaphlan database file."
 python ${BASE_DIR}/helpers/extract_from_metaphlan.py \
 -m ${METAPHLAN_PKL_PATH} \
