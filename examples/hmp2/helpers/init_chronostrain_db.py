@@ -60,7 +60,7 @@ def parse_assembly_report_filepath(assembly_report_path: Path) -> Tuple[str, Pat
         raise RuntimeError(f"Unexpected naming format for file `{assembly_report_path}`.")
 
     gcf_id = f"{tokens[0]}_{tokens[1]}"
-    fasta_path = assembly_report_path.parent / f"{basename}_genomic.fna"
+    fasta_path = assembly_report_path.parent / f"{basename}_genomic.fna.gz"
 
     if not fasta_path.exists():
         raise FileNotFoundError(
