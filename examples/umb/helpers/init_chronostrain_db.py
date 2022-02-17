@@ -7,23 +7,28 @@ Works in 3 steps:
     3) Convert BLAST results into chronostrain JSON database specification.
 """
 import argparse
-import glob
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 import csv
 import json
+import pickle
+import bz2
 import pandas as pd
 
 from Bio import SeqIO
+from Bio.SeqFeature import FeatureLocation
 from Bio.SeqRecord import SeqRecord
+from bioservices import UniProt
+
+from chronostrain.util.entrez import fetch_genbank
 from chronostrain.util.external import make_blast_db, blastn
 
-from typing import List, Dict, Any, Tuple, Iterator
+from typing import List, Set, Dict, Any, Tuple, Iterator
 
 from chronostrain.util.io import read_seq_file
 from chronostrain import cfg, create_logger
-logger = create_logger("chronostrain.init_chronostrain_db")
+logger = create_logger("chronostrain.create_db_from_uniref")
 
 
 READ_LEN = 150
@@ -35,24 +40,23 @@ def parse_args():
     )
 
     # Input specification.
+    parser.add_argument('-m', '--metaphlan_pkl_path', required=True, type=str,
+                        help='<Required> The path to the metaphlan pickle database file.')
     parser.add_argument('-o', '--output_path', required=True, type=str,
                         help='<Required> The path to the target output chronostrain db json file.')
     parser.add_argument('-r', '--refseq_dir', required=True, type=str,
                         help='<Required> The strainGE database directory.')
 
+    # Optional params
+    parser.add_argument('--reference_accession', required=False, type=str,
+                        default='U00096.3',
+                        help='<Optional> The reference genome to use for pulling out annotated gene sequences.')
     return parser.parse_args()
 
 
 # ============================= Creation of database configuration (Indexing + partial JSON creation)
-def perform_indexing(refseq_dir: Path) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    Parse all existing assembly files in the directory hierarchy (downloaded from NCBI).
-    :return: a pair of dataframes:
-    1) A description of each strain's label,
-    2) A complete index of all relevant chromosomes/scaffolds/contigs etc.
-    """
-    strain_entries = []
-    seq_entries = []
+def perform_indexing(refseq_dir: Path) -> pd.DataFrame:
+    df_entries = []
 
     if not refseq_dir.is_dir():
         raise RuntimeError(f"Provided path `{refseq_dir}` is not a directory.")
@@ -66,9 +70,6 @@ def perform_indexing(refseq_dir: Path) -> Tuple[pd.DataFrame, pd.DataFrame]:
                 continue
 
             species = species_dir.name
-            if species == 'sp.':
-                species = 'sp'
-
             logger.info(f"Searching through {genus} {species}...")
 
             for strain_dir in species_dir.iterdir():
@@ -76,138 +77,64 @@ def perform_indexing(refseq_dir: Path) -> Tuple[pd.DataFrame, pd.DataFrame]:
                     continue
 
                 strain_name = strain_dir.name
-                target_files = list(strain_dir.glob("*_assembly_report.txt"))
+                target_files = list(strain_dir.glob("*_genomic.fna.gz"))
 
                 for fpath in target_files:
-                    gcf_id = fpath.name.split('_')[0]
-                    logger.info(f"Parsing strain `{strain_name}`, RefSeq Assembly `{gcf_id}`")
-                    strain_entries.append({
-                        'StrainId': gcf_id,
-                        'Genus': genus,
-                        'Species': species,
-                        'Name': strain_name
-                    })
+                    if fpath.name.endswith('_cds_from_genomic.fna.gz'):
+                        continue
 
-                    for seq_entry in parse_assembly_report(Path(fpath)):
-                        seq_entries.append(seq_entry)
-    return pd.DataFrame(strain_entries), pd.DataFrame(seq_entries)
+                    if fpath.name.endswith('_rna_from_genomic.fna.gz'):
+                        continue
 
-
-class AssemblyReportEntry:
-    """
-    Represents a single line in <gcf_id>_assembly_report.txt.
-    """
-    def __init__(self, line):
-        tokens = line.split('\t')
-        self.seq_name = tokens[0]
-        self.seq_role = tokens[1]
-        self.asgn_mol = tokens[2]
-        self.asgn_mol_loctype = tokens[3]
-        self.gb_accession = tokens[4]
-        self.relationship = tokens[5]
-        self.refseq_accession = tokens[6]
-        self.assembly_unit = tokens[7]
-        self.seq_len = tokens[8]
-        self.ucsc_style_name = tokens[9]
-
-    @property
-    def is_chromosome(self) -> bool:
-        return (self.seq_role == 'assembled-molecule') and (self.asgn_mol_loctype == 'Chromosome')
-
-    @property
-    def is_scaffold(self) -> bool:
-        return 'scaffold' in self.seq_role
-
-    @property
-    def is_contig(self) -> bool:
-        return 'contig' in self.seq_role
+                    for accession, chrom_path in extract_chromosomes(fpath):
+                        logger.debug("Found accession {} ({} {}, Strain `{}`)".format(
+                            accession,
+                            genus,
+                            species,
+                            strain_name
+                        ))
+                        df_entries.append({
+                            "Genus": genus,
+                            "Species": species,
+                            "Strain": strain_name,
+                            "Accession": accession,
+                            "SeqPath": chrom_path
+                        })
+    return pd.DataFrame(df_entries)
 
 
-def parse_assembly_report(report_path: Path) -> Iterator[Dict]:
-    """
-    Parse assembly report, save all relevant seqs to separate files and them by returning a DataFrame dictionary entry.
-    """
-    tokens = report_path.name.split('_')
-    gcf_id = f"{tokens[0]}_{tokens[1]}"
-    asm_id = tokens[2]
-    refseq_fasta_path = report_path.parent / f"{gcf_id}_{asm_id}_genomic.fna.gz"
-    if not refseq_fasta_path.exists():
-        raise FileNotFoundError(
-            f"GCF `{gcf_id}`, asm `{asm_id}`: Expected {refseq_fasta_path}, but does not exist."
-        )
+def extract_chromosomes(path: Path) -> Iterator[Tuple[str, Path]]:
+    for record in read_seq_file(path, file_format='fasta'):
+        desc = record.description
+        accession = record.id.split(' ')[0]
 
-    seq_records: Dict[str, SeqRecord] = {}
-    for record in read_seq_file(refseq_fasta_path, file_format='fasta'):
-        refseq_accession = record.id.split(' ')[0]
-        seq_records[refseq_accession] = record
+        if "plasmid" in desc or len(record.seq) < 500000:
+            continue
+        else:
+            chrom_path = path.parent / f"{accession}.chrom.fna"
+            SeqIO.write([record], chrom_path, "fasta")
 
-    with open(report_path, 'r') as report:
-        for line in report:
-            if line.startswith('#'):
-                continue
-
-            entry = AssemblyReportEntry(line)
-            if entry.is_chromosome:
-                logger.info(f"Found chromosome `{entry.refseq_accession}`")
-                if entry.refseq_accession not in seq_records:
-                    raise KeyError(f"Could not find chromosome `{entry.refseq_accession}` in {refseq_fasta_path}.")
-
-                seq_path = report_path.parent / f"{entry.refseq_accession}.fasta"
-                SeqIO.write([seq_records[entry.refseq_accession]], seq_path, 'fasta')
-                yield {
-                    "StrainId": gcf_id,
-                    "SeqAccession": entry.refseq_accession,
-                    "SeqPath": seq_path,
-                    "SeqType": "chromosome"
-                }
-
-            if entry.is_scaffold:
-                """
-                Each scaffold piece goes into its own FASTA file.
-                """
-                logger.info(f"Found scaffold `{entry.refseq_accession}`")
-                if entry.refseq_accession not in seq_records:
-                    raise KeyError(f"Could not find scaffold `{entry.refseq_accession}` in {seq_path}.")
-
-                seq_path = report_path.parent / f"{entry.refseq_accession}.fasta"
-                SeqIO.write([seq_records[entry.refseq_accession]], seq_path, 'fasta')
-                yield {
-                    "StrainId": gcf_id,
-                    "SeqAccession": entry.refseq_accession,
-                    "SeqPath": seq_path,
-                    "SeqType": "scaffold"
-                }
-
-            if entry.is_contig:
-                logger.warning(f"Skipping contig `{entry.refseq_accession}`.")
-
-
-# ============= Browse reference genes (assuming they have already been extracted.)
-def reference_marker_genes(genus: str, species: str) -> Iterator[Tuple[str, Path]]:
-    dir_path = cfg.database_cfg.data_dir / "reference" / genus / species
-    for fasta_path in glob.glob(str(dir_path / "*.fasta")):
-        fasta_path = Path(fasta_path)
-        gene_name = fasta_path.stem
-        yield gene_name, fasta_path
+            yield accession, chrom_path
 
 
 # ============= Rest of initialization (Run BLAST)
 def create_chronostrain_db(
-        strain_index: pd.DataFrame,
+        gene_paths: Dict[str, Path],
         seq_index: pd.DataFrame,
         output_path: Path
 ) -> List[Dict[str, Any]]:
     """
-    :param strain_index: A DataFrame with 4 columns: StrainId, Genus, Species, Name.
-    :param seq_index: A DataFrame with 4 columns: StrainId, SeqAccession, SeqPath, SeqType.
+    :param gene_paths:
+    :param seq_index: A DataFrame with five columns: "Genus", "Species", "Strain", "Accession", "SeqPath".
     :param output_path:
     :return:
     """
+    data_dir: Path = cfg.database_cfg.data_dir
 
     # ======== BLAST configuration
     blast_db_dir = output_path.parent / "blast"
-    blast_db_name = "db_bacteria"
-    blast_db_title = "\"Bacteria (metaphlan markers, NCBI complete)\""
+    blast_db_name = "db_esch"
+    blast_db_title = "\"Escherichia (metaphlan markers, NCBI complete)\""
     blast_fasta_path = blast_db_dir / "genomes.fasta"
     blast_result_dir = output_path.parent / "blast_results"
     logger.info("BLAST\n\tdatabase location: {}\n\tresults directory: {}".format(
@@ -218,25 +145,28 @@ def create_chronostrain_db(
     # ========= Initialize BLAST database.
     blast_db_dir.mkdir(parents=True, exist_ok=True)
     strain_fasta_files = []
-    json_strain_entries = []
-    for idx, row in strain_index.iterrows():
-        strain_id = row['StrainId']
-        json_seq_entries, seq_paths = extract_strain_seqs(seq_index, strain_id)
-        if len(json_seq_entries) == 0:
-            logger.info(f"No usable sequence assemblies found for `{strain_id}`.")
-            continue
-
-        json_strain_entries.append({
-            'id': strain_id,
+    strain_entries = []
+    for idx, row in seq_index.iterrows():
+        accession = row['Accession']
+        fasta_path = row['SeqPath']
+        strain_fasta_files.append(fasta_path)
+        strain_entries.append({
+            'id': accession,
             'genus': row['Genus'],
             'species': row['Species'],
-            'name': row['Name'],
-            'seqs': json_seq_entries,
+            'name': row['Strain'],
+            'seqs': [{'accession': accession, 'seq_type': 'chromosome'}],
             'markers': []
         })
-        strain_fasta_files += seq_paths
 
-    logger.info('Concatenating {} files, in preparation for makeblastdb.'.format(len(strain_fasta_files)))
+        symlink_path = Path(data_dir / f"{accession}.fasta")
+        if symlink_path.exists():
+            logger.info(f"Path {symlink_path} already exists.")
+        else:
+            symlink_path.symlink_to(fasta_path)
+            logger.info(f"Symlink {symlink_path} -> {fasta_path}")
+
+    logger.info('Concatenating {} files.'.format(len(strain_fasta_files)))
     with open(blast_fasta_path, 'w') as genome_fasta_file:
         for fpath in strain_fasta_files:
             with open(fpath, 'r') as in_file:
@@ -250,18 +180,10 @@ def create_chronostrain_db(
 
     Path(blast_fasta_path).unlink()  # clean up large fasta file.
 
-    def all_reference_genes() -> Iterator[Tuple[str, Path]]:
-        for genus in strain_index['Genus'].unique():
-            for species in strain_index.loc[strain_index['Genus'] == genus, 'Species'].unique():
-                yield from reference_marker_genes(genus, species)
-
-    # ========= Run BLAST to find marker genes.
+    # Run BLAST to find marker genes.
     blast_result_dir.mkdir(parents=True, exist_ok=True)
-    for gene_name, ref_gene_path in all_reference_genes():
-        canonical_gene_found = False
-        ref_gene_len = len(next(iter(read_seq_file(ref_gene_path, 'fasta'))).seq)
-        min_canonical_length = ref_gene_len * 0.95
-
+    for gene_name, ref_gene_path in gene_paths.items():
+        gene_already_found = False
         logger.info(f"Running blastn on {gene_name}.")
         blast_result_path = blast_result_dir / f"{gene_name}.tsv"
         blastn(
@@ -278,72 +200,27 @@ def create_chronostrain_db(
 
         logger.debug(f"Parsing BLAST hits for gene `{gene_name}`.")
         locations = parse_blast_hits(blast_result_path)
-        for json_strain_entry in json_strain_entries:
-            for seq in json_strain_entry['seq_entries']:
-                seq_accession = seq['accession']
-                for blast_hit in locations[seq_accession]:
-                    is_canonical = (
-                            (blast_hit.subj_end - blast_hit.subj_start) >= min_canonical_length
-                            and
-                            not canonical_gene_found
-                    )
-                    gene_id = f"{gene_name}_BLASTIDX_{blast_hit.line_idx}"
-                    json_strain_entry['markers'].append(
-                        {
-                            'id': gene_id,
-                            'name': gene_name,
-                            'type': 'subseq',
-                            'source': seq_accession,
-                            'start': blast_hit.subj_start,
-                            'end': blast_hit.subj_end,
-                            'strand': blast_hit.strand,
-                            'canonical': is_canonical
-                        }
-                    )
-                    canonical_gene_found = canonical_gene_found or is_canonical
+        for strain_entry in strain_entries:
+            for blast_hit in locations[strain_entry['accession']]:
+                gene_id = f"{gene_name}_BLASTIDX_{blast_hit.line_idx}"
+                strain_entry['markers'].append(
+                    {
+                        'id': gene_id,
+                        'name': gene_name,
+                        'type': 'subseq',
+                        'source': strain_entry['seqs'][0]['accession'],
+                        'start': blast_hit.subj_start,
+                        'end': blast_hit.subj_end,
+                        'strand': blast_hit.strand,
+                        'canonical': not gene_already_found
+                    }
+                )
+                gene_already_found = True
 
-        if not canonical_gene_found:
-            logger.warn(f"No canonical version of gene `{gene_name}` found.")
-
-    return prune_entries(json_strain_entries)
-
-
-def extract_strain_seqs(seq_df: pd.DataFrame, strain_id: str) -> Tuple[List[Dict], List[Path]]:
-    """
-    Extract all sequences from seq_df corresponding to strain_id.
-    Creates a symbolic link to each relevant seq file into chronostrain's configured database directory, and
-    adds the corresponding index entry to the JSON object.
-    """
-    section = seq_df.loc[seq_df['StrainId'] == strain_id, ['SeqPath', 'SeqType']]
-    json_strain_seqs = []
-    seq_paths = []
-    for _, row in section.iterrows():
-        seq_accession = row['SeqAccession']
-        seq_path = Path(row['SeqPath'])
-        seq_type = row['SeqType']
-
-        # Add the JSON attribute.
-        json_strain_seqs.append({
-            'accession': seq_accession,
-            'seq_type': seq_type
-        })
-
-        # Create symbolic link to sequence file in database directory.
-        symlink_path = cfg.database_cfg.data_dir / strain_id / f"{seq_accession}.fasta"
-        if symlink_path.exists():
-            logger.debug(f"Path {symlink_path} already exists.")
-        else:
-            symlink_path.parent.mkdir(exist_ok=True, parents=True)
-            symlink_path.symlink_to(seq_path)
-            logger.debug(f"Created symlink {symlink_path} -> {seq_path}")
-        seq_paths.append(symlink_path)
-    return json_strain_seqs, seq_paths
+    return prune_entries(strain_entries)
 
 
 def prune_entries(strain_entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """
-    Delete all strain entries with zero markers.
-    """
     for strain_entry in strain_entries:
         logger.info("No markers found for "
                     f"{strain_entry['genus']} {strain_entry['species']} "
@@ -414,27 +291,136 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
     return accession_to_positions
 
 
+# ======================== Reference genome: pull from downloaded genbank file.
+def download_reference(accession: str, metaphlan_pkl_path: Path) -> Dict[str, Path]:
+    logger.info(f"Downloading reference accession {accession}")
+    data_dir: Path = cfg.database_cfg.data_dir
+    gb_file = fetch_genbank(accession, data_dir)
+
+    clusters_already_found: Set[str] = set()
+    clusters_to_find: Set[str] = set()
+    genes_to_clusters: Dict[str, str] = {}
+
+    for cluster, cluster_genes in get_marker_genes(metaphlan_pkl_path):
+        clusters_to_find.add(cluster)
+        for gene in cluster_genes:
+            genes_to_clusters[gene.lower()] = cluster
+
+    chromosome_seq = next(SeqIO.parse(gb_file, "gb")).seq
+    gene_paths: Dict[str, Path] = {}
+
+    for gb_gene_name, locus_tag, location in parse_genbank_genes(gb_file):
+        if gb_gene_name.lower() not in genes_to_clusters:
+            continue
+        if genes_to_clusters[gb_gene_name.lower()] not in clusters_to_find:
+            continue
+
+        found_cluster = genes_to_clusters[gb_gene_name.lower()]
+        logger.info(f"Found uniref cluster {found_cluster} for accession {accession} (name={gb_gene_name})")
+
+        if found_cluster in clusters_already_found:
+            logger.warning(f"Multiple copies of {found_cluster} found in {accession}. Skipping second instance.")
+        else:
+            clusters_already_found.add(found_cluster)
+            clusters_to_find.remove(found_cluster)
+
+            gene_out_path = data_dir / f"REF_{accession}_{found_cluster}.fasta"
+            gene_seq = location.extract(chromosome_seq)
+            SeqIO.write(
+                SeqRecord(gene_seq, id=f"REF_GENE_{found_cluster}", description=f"{accession}_{str(location)}"),
+                gene_out_path,
+                "fasta"
+            )
+            gene_paths[found_cluster] = gene_out_path
+
+    if len(clusters_to_find) > 0:
+        logger.info("Couldn't find genes {}.".format(
+            ",".join(clusters_to_find))
+        )
+
+    logger.info(f"Finished parsing reference accession {accession}.")
+    return gene_paths
+
+
+def metaphlan_markers(metaphlan_db: Dict, metaphlan_clade: str):
+    for marker_key, marker_entry in metaphlan_db['markers'].items():
+        if metaphlan_clade in marker_entry['taxon']:
+            yield marker_key
+
+
+def get_marker_genes(metaphlan_pkl_path: Path) -> Iterator[Tuple[str, List[str]]]:
+    db = pickle.load(bz2.open(metaphlan_pkl_path, 'r'))
+    u = UniProt()
+
+    # for metaphlan_marker_id in metaphlan_markers(db, 'g__Escherichia'):
+    for metaphlan_marker_id in metaphlan_markers(db, 's__Escherichia_coli'):
+        tokens = metaphlan_marker_id.split('__')
+        uniprot_id = tokens[1]
+
+        res = u.quick_search(uniprot_id)
+
+        if uniprot_id not in res:
+            logger.debug(
+                f"No result found for UniProt query `{uniprot_id}`, derived from metaphlan ID `{metaphlan_marker_id}`."
+            )
+            continue
+        else:
+            logger.debug(f"Found {len(res)} hits for UniProt query `{uniprot_id}`.")
+
+        gene_name = res[uniprot_id]['Entry name']
+        cluster = res[uniprot_id]['Gene names'].split()
+        yield gene_name, cluster
+
+
+def parse_genbank_genes(gb_file: Path) -> Iterator[Tuple[str, str, FeatureLocation]]:
+    for record in SeqIO.parse(gb_file, format="gb"):
+        for feature in record.features:
+            if feature.type == "gene":
+                gene_name = feature.qualifiers['gene'][0]
+                locus_tag = feature.qualifiers['locus_tag'][0]
+
+                yield gene_name, locus_tag, feature.location
+
+
+# ================= MAIN
+def print_summary(strain_entries: List[Dict[str, Any]], gene_paths: Dict[str, Path]):
+    for strain_entry in strain_entries:
+        accession = strain_entry['accession']
+        found_genes: Set[str] = set()
+        for marker_entry in strain_entry['markers']:
+            found_genes.add(marker_entry['name'])
+
+        genes_not_found = set(gene_paths.keys()).difference(found_genes)
+        if len(genes_not_found) > 0:
+            logger.info("Accession {}, {} genes not found: [{}]".format(
+                accession,
+                len(genes_not_found),
+                ', '.join(genes_not_found)
+            ))
+
+
 def main():
     args = parse_args()
+    metaphlan_pkl_path = Path(args.metaphlan_pkl_path)
     output_path = Path(args.output_path)
     seq_dir = Path(args.refseq_dir)
 
     # ================= Indexing of refseqs
     logger.info(f"Indexing refseqs located in {seq_dir}")
-    strain_df, seq_df = perform_indexing(seq_dir)
+    seq_index = perform_indexing(seq_dir)
+    index_path = seq_dir / "index.tsv"
+    seq_index.to_csv(index_path, sep='\t')
+    logger.info(f"Wrote index to {str(index_path)}.")
 
-    # Save both dataframes to disk.
-    strain_index_path = seq_dir / "strains.tsv"
-    strain_df.to_csv(strain_index_path, sep='\t')
-    logger.info(f"Wrote strain index to {str(strain_index_path)}.")
-    seq_index_path = seq_dir / "seqs.tsv"
-    seq_df.to_csv(seq_index_path, sep='\t')
-    logger.info(f"Wrote seq index to {str(seq_index_path)}.")
+    # ================= Pull out reference genes
+    logger.info(f"Retrieving reference genes from {args.reference_accession}")
+    ref_gene_paths = download_reference(args.reference_accession, metaphlan_pkl_path)
 
     # ================= Compile into JSON.
     logger.info("Creating JSON entries.")
-    object_entries = create_chronostrain_db(strain_df, seq_df, output_path)
+    object_entries = create_chronostrain_db(ref_gene_paths, seq_index, output_path)
 
+    print_summary(object_entries, ref_gene_paths)
     with open(output_path, 'w') as outfile:
         json.dump(object_entries, outfile, indent=4)
     logger.info(f"Wrote output to {str(output_path)}.")

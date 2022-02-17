@@ -17,6 +17,8 @@ import pandas as pd
 
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
+
+from chronostrain.util.entrez import fetch_fasta
 from chronostrain.util.external import make_blast_db, blastn
 
 from typing import List, Dict, Any, Tuple, Iterator
@@ -41,6 +43,11 @@ def parse_args():
                         help='<Required> The strainGE database directory.')
 
     return parser.parse_args()
+
+
+# ============================= Common resources
+def strain_seq_dir(strain_id: str) -> Path:
+    return cfg.database_cfg.data_dir / strain_id
 
 
 # ============================= Creation of database configuration (Indexing + partial JSON creation)
@@ -150,7 +157,7 @@ def parse_assembly_report(report_path: Path) -> Iterator[Dict]:
             if entry.is_chromosome:
                 logger.info(f"Found chromosome `{entry.refseq_accession}`")
                 if entry.refseq_accession not in seq_records:
-                    raise KeyError(f"Could not find chromosome `{entry.refseq_accession}` in {refseq_fasta_path}.")
+                    raise KeyError(f"Could not find matching chromosome `{entry.refseq_accession}` in {refseq_fasta_path}.")
 
                 seq_path = report_path.parent / f"{entry.refseq_accession}.fasta"
                 SeqIO.write([seq_records[entry.refseq_accession]], seq_path, 'fasta')
@@ -167,7 +174,7 @@ def parse_assembly_report(report_path: Path) -> Iterator[Dict]:
                 """
                 logger.info(f"Found scaffold `{entry.refseq_accession}`")
                 if entry.refseq_accession not in seq_records:
-                    raise KeyError(f"Could not find scaffold `{entry.refseq_accession}` in {seq_path}.")
+                    raise KeyError(f"Could not find matching scaffold `{entry.refseq_accession}` in {seq_path}.")
 
                 seq_path = report_path.parent / f"{entry.refseq_accession}.fasta"
                 SeqIO.write([seq_records[entry.refseq_accession]], seq_path, 'fasta')
@@ -179,7 +186,21 @@ def parse_assembly_report(report_path: Path) -> Iterator[Dict]:
                 }
 
             if entry.is_contig:
-                logger.warning(f"Skipping contig `{entry.refseq_accession}`.")
+                """
+                Each contig piece goes into its own FASTA file.
+                """
+                logger.info(f"Found contig `{entry.refseq_accession}`")
+                if entry.refseq_accession not in seq_records:
+                    raise KeyError(f"Could not find matching contig `{entry.refseq_accession}` in {seq_path}.")
+
+                seq_path = report_path.parent / f"{entry.refseq_accession}.fasta"
+                SeqIO.write([seq_records[entry.refseq_accession]], seq_path, 'fasta')
+                yield {
+                    "StrainId": gcf_id,
+                    "SeqAccession": entry.refseq_accession,
+                    "SeqPath": seq_path,
+                    "SeqType": "contig"
+                }
 
 
 # ============= Browse reference genes (assuming they have already been extracted.)
@@ -192,6 +213,34 @@ def reference_marker_genes(genus: str, species: str) -> Iterator[Tuple[str, Path
 
 
 # ============= Rest of initialization (Run BLAST)
+def extract_ungapped_subseq(strain_id: str, seq_accession: str, blast_hit: 'BlastHit') -> Tuple[int, int]:
+    """
+    Strategy for gapped scaffolds: If the BLAST hit contains gaps, take the largest ungapped sub-region.
+    :return: The start and end position (note: 1-indexed, inclusive) of the longest consecutive ungapped substring.
+    """
+    subseq = str(
+        next(read_seq_file(
+            fetch_fasta(seq_accession, strain_seq_dir(strain_id)),
+            "fasta"
+        )).seq[blast_hit.subj_start - 1:blast_hit.subj_end]
+    )
+
+    # Extract the largest.
+    best_token_len = -1
+    best_start = -1
+    running_sum = 0
+    for tok_idx, token in enumerate(subseq.split('N')):
+        if len(token) > best_token_len:
+            best_token_len = len(token)
+            best_start = 1 + tok_idx + running_sum
+        running_sum += len(token)
+
+    if best_token_len <= 0:
+        raise RuntimeError("Subseq for BLAST hit contained only gaps.")
+
+    return best_start, best_start - 1 + best_token_len
+
+
 def create_chronostrain_db(
         strain_index: pd.DataFrame,
         seq_index: pd.DataFrame,
@@ -279,8 +328,9 @@ def create_chronostrain_db(
         logger.debug(f"Parsing BLAST hits for gene `{gene_name}`.")
         locations = parse_blast_hits(blast_result_path)
         for json_strain_entry in json_strain_entries:
-            for seq in json_strain_entry['seq_entries']:
-                seq_accession = seq['accession']
+            strain_id = json_strain_entry['id']
+            for seq_entry in json_strain_entry['seqs']:
+                seq_accession = seq_entry['accession']
                 for blast_hit in locations[seq_accession]:
                     is_canonical = (
                             (blast_hit.subj_end - blast_hit.subj_start) >= min_canonical_length
@@ -288,14 +338,20 @@ def create_chronostrain_db(
                             not canonical_gene_found
                     )
                     gene_id = f"{gene_name}_BLASTIDX_{blast_hit.line_idx}"
+
+                    if seq_entry['seq_type'] == 'scaffold':
+                        start_loc, end_loc = extract_ungapped_subseq(strain_id, seq_accession, blast_hit)
+                    else:
+                        start_loc, end_loc = blast_hit.subj_start, blast_hit.subj_end
+
                     json_strain_entry['markers'].append(
                         {
                             'id': gene_id,
                             'name': gene_name,
                             'type': 'subseq',
                             'source': seq_accession,
-                            'start': blast_hit.subj_start,
-                            'end': blast_hit.subj_end,
+                            'start': start_loc,
+                            'end': end_loc,
                             'strand': blast_hit.strand,
                             'canonical': is_canonical
                         }
@@ -329,7 +385,7 @@ def extract_strain_seqs(seq_df: pd.DataFrame, strain_id: str) -> Tuple[List[Dict
         })
 
         # Create symbolic link to sequence file in database directory.
-        symlink_path = cfg.database_cfg.data_dir / strain_id / f"{seq_accession}.fasta"
+        symlink_path = strain_seq_dir(strain_id) / f"{seq_accession}.fasta"
         if symlink_path.exists():
             logger.debug(f"Path {symlink_path} already exists.")
         else:

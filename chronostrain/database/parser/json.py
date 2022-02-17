@@ -110,6 +110,10 @@ class SeqEntry:
     def is_scaffold(self) -> bool:
         return self.seq_type == "scaffold"
 
+    @property
+    def is_contig(self) -> bool:
+        return self.seq_type == "contig"
+
 
 class MarkerEntry:
     def __init__(self, marker_id: str, name: str, is_canonical: bool, source_accession: str):
@@ -270,11 +274,14 @@ class JSONParser(AbstractDatabaseParser):
             strain_markers = []
             chromosome_accs = []
             scaffold_accs = []
+            contig_accs = []
             for seq_entry, marker_entries in strain_entry.marker_entries_by_seq():
                 if seq_entry.is_chromosome:
                     chromosome_accs.append(seq_entry.accession)
                 elif seq_entry.is_scaffold:
                     scaffold_accs.append(seq_entry.accession)
+                elif seq_entry.is_contig:
+                    contig_accs.append(seq_entry.accession)
 
                 marker_src = CachedMarkerSource(
                     strain_id=strain_entry.id,
@@ -329,7 +336,7 @@ class JSONParser(AbstractDatabaseParser):
                 markers=strain_markers,
                 metadata=StrainMetadata(
                     chromosomes=chromosome_accs,
-                    scaffolds=scaffold_accs,
+                    scaffolds=scaffold_accs + contig_accs,  # Treat these as the same in the metadata.
                     genus=strain_entry.genus,
                     species=strain_entry.species,
                 )
