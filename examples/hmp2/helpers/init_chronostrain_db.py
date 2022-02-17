@@ -51,6 +51,25 @@ def strain_seq_dir(strain_id: str) -> Path:
 
 
 # ============================= Creation of database configuration (Indexing + partial JSON creation)
+def parse_assembly_report_filepath(assembly_report_path: Path) -> Tuple[str, Path]:
+    suffix = '_assembly_report.txt'
+    basename = assembly_report_path.name[:-len(suffix)]
+    tokens = basename.split('_')
+
+    if tokens[0] != "GCF":
+        raise RuntimeError(f"Unexpected naming format for file `{assembly_report_path}`.")
+
+    gcf_id = f"{tokens[0]}_{tokens[1]}"
+    fasta_path = assembly_report_path.parent / f"{basename}_genomic.fna"
+
+    if not fasta_path.exists():
+        raise FileNotFoundError(
+            f"Expected {fasta_path.name} relative to {assembly_report_path.name}, but does not exist."
+        )
+
+    return gcf_id, fasta_path
+
+
 def perform_indexing(refseq_dir: Path) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Parse all existing assembly files in the directory hierarchy (downloaded from NCBI).
@@ -85,10 +104,11 @@ def perform_indexing(refseq_dir: Path) -> Tuple[pd.DataFrame, pd.DataFrame]:
                 strain_name = strain_dir.name
                 target_files = list(strain_dir.glob("*_assembly_report.txt"))
 
+
                 for fpath in target_files:
-                    tokens = fpath.name.split('_')
-                    gcf_id = f"{tokens[0]}_{tokens[1]}"
-                    logger.info(f"Parsing strain `{strain_name}`, RefSeq Assembly `{gcf_id}` (target file: {fpath})")
+                    gcf_id, _ = parse_assembly_report_filepath(fpath)
+
+                    logger.info(f"Parsing strain `{strain_name}`, (target file: {fpath})")
                     strain_entries.append({
                         'StrainId': gcf_id,
                         'Genus': genus,
@@ -135,14 +155,7 @@ def parse_assembly_report(report_path: Path) -> Iterator[Dict]:
     """
     Parse assembly report, save all relevant seqs to separate files and them by returning a DataFrame dictionary entry.
     """
-    tokens = report_path.name.split('_')
-    gcf_id = f"{tokens[0]}_{tokens[1]}"
-    asm_id = tokens[2]
-    refseq_fasta_path = report_path.parent / f"{gcf_id}_{asm_id}_genomic.fna.gz"
-    if not refseq_fasta_path.exists():
-        raise FileNotFoundError(
-            f"GCF `{gcf_id}`, asm `{asm_id}`: Expected {refseq_fasta_path}, but does not exist."
-        )
+    gcf_id, refseq_fasta_path = parse_assembly_report_filepath(report_path)
 
     seq_records: Dict[str, SeqRecord] = {}
     for record in read_seq_file(refseq_fasta_path, file_format='fasta'):
