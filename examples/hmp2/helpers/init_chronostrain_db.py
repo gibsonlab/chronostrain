@@ -370,6 +370,7 @@ def blast_hits_into_markers(seq_accessions: List[str], blast_paths: Dict[str, Pa
     """
     marker_objs = []
     for seq_accession in seq_accessions:
+        logger.debug(f"Parsing Sequence accession {seq_accession}.")
         tree = IntervalTree()
         for gene_name, blast_path in blast_paths.items():
             blast_hits = parse_blast_hits(blast_path)[seq_accession]
@@ -380,20 +381,23 @@ def blast_hits_into_markers(seq_accessions: List[str], blast_paths: Dict[str, Pa
                 overlapping_hits = tree[left:right]
                 if len(overlapping_hits) > 0:
                     # Special scenario: merge all overlapping hits.
-                    logger.info("Merging overlapping BLAST hits of seq {} from {}: {}".format(
+                    logger.info("Found {} hits that overlap with blast hit {} of {}.".format(
+                        len(overlapping_hits),
                         seq_accession,
                         blast_path.name,
-                        ", ".join(
-                            str(hit_node.data) for hit_node in overlapping_hits
-                        )
                     ))
 
                     for hit in overlapping_hits:
+                        _st, _end, _eval, _strands, _gene_names, _blast_idx = hit.data
+                        logger.info("Target hit: {}({}--{})".format(
+                            _gene_names,
+                            _st, _end
+                        ))
                         tree.remove(hit)
 
                     leftmost = min(hit_node.data[0] for hit_node in overlapping_hits)
                     rightmost = max(hit_node.data[1] for hit_node in overlapping_hits)
-                    mean_evalue = sum(hit_node.data[2] for hit_node in overlapping_hits)
+                    mean_evalue = sum(hit_node.data[2] for hit_node in overlapping_hits) / len(overlapping_hits)
 
                     new_strands = []
                     new_names = []
