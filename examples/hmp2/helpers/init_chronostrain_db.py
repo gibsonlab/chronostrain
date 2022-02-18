@@ -478,7 +478,7 @@ def prune_entries(strain_entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     for strain_entry in strain_entries:
         logger.info("No markers found for "
                     f"{strain_entry['genus']} {strain_entry['species']} "
-                    f"{strain_entry['strain']} "
+                    f"{strain_entry['name']} "
                     f"(Accession {strain_entry['accession']}).")
     return [
         strain_entry
@@ -589,5 +589,5 @@ if __name__ == "__main__":
     try:
         main()
     except BaseException as e:
-        logger.error(e)
+        logger.error(str(e))
         raise
