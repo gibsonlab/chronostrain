@@ -388,7 +388,7 @@ def blast_hits_into_markers(seq_accessions: List[str], blast_paths: Dict[str, Pa
                     ))
 
                     for hit in overlapping_hits:
-                        _st, _end, _eval, _strands, _gene_names, _blast_idx = hit.data
+                        _st, _end, _strands, _gene_names, _blast_idx = hit.data
                         logger.info("Target hit: {}({}--{})".format(
                             _gene_names,
                             _st, _end
@@ -591,5 +591,5 @@ if __name__ == "__main__":
     try:
         main()
     except BaseException as e:
-        logger.error(str(e))
+        logger.error(e, exc_info=True)
         raise
