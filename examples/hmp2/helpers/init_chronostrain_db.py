@@ -477,9 +477,8 @@ def prune_entries(strain_entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     for strain_entry in strain_entries:
         logger.info("No markers found for "
-                    f"{strain_entry['genus']} {strain_entry['species']} "
-                    f"{strain_entry['name']} "
-                    f"(Accession {strain_entry['accession']}).")
+                    f"{strain_entry['genus']} {strain_entry['species']}, "
+                    f"{strain_entry['name']}.")
     return [
         strain_entry
         for strain_entry in strain_entries
