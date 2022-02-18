@@ -381,10 +381,10 @@ def blast_hits_into_markers(seq_accessions: List[str], blast_paths: Dict[str, Pa
                 overlapping_hits = tree[left:right]
                 if len(overlapping_hits) > 0:
                     # Special scenario: merge all overlapping hits.
-                    logger.info("Found {} hits that overlap with blast hit {} of {}.".format(
+                    logger.info("Found {} hits that overlap with blast hit {}({}--{}).".format(
                         len(overlapping_hits),
-                        seq_accession,
-                        blast_path.name,
+                        gene_name,
+                        blast_hit.subj_start, blast_hit.subj_end
                     ))
 
                     for hit in overlapping_hits:
@@ -395,25 +395,27 @@ def blast_hits_into_markers(seq_accessions: List[str], blast_paths: Dict[str, Pa
                         ))
                         tree.remove(hit)
 
-                    leftmost = min(hit_node.data[0] for hit_node in overlapping_hits)
-                    rightmost = max(hit_node.data[1] for hit_node in overlapping_hits)
-                    mean_evalue = sum(hit_node.data[2] for hit_node in overlapping_hits) / len(overlapping_hits)
+                    leftmost = min(min(hit_node.data[0] for hit_node in overlapping_hits), blast_hit.subj_start)
+                    rightmost = max(max(hit_node.data[1] for hit_node in overlapping_hits), blast_hit.subj_end)
 
-                    new_strands = []
-                    new_names = []
-                    new_lines = []
+                    strand_arr = []
+                    name_arr = []
+                    line_arr = []
                     for hit_node in overlapping_hits:
-                        new_strands += hit_node.data[3]
-                        new_names += hit_node.data[4]
-                        new_lines += hit_node.data[5]
+                        strand_arr += hit_node.data[2]
+                        name_arr += hit_node.data[3]
+                        line_arr += hit_node.data[4]
 
-                    tree[leftmost:rightmost+1] = (leftmost, rightmost, mean_evalue, new_strands, new_names, new_lines)
+                    strand_arr.append(blast_hit.strand)
+                    name_arr.append(gene_name)
+                    line_arr.append(blast_hit.line_idx)
+
+                    tree[leftmost:rightmost+1] = (leftmost, rightmost, strand_arr, name_arr, line_arr)
                 else:
                     # Default scenario
                     tree[left:right] = (
                         blast_hit.subj_start,
                         blast_hit.subj_end,
-                        blast_hit.evalue,
                         [blast_hit.strand],
                         [gene_name],
                         [blast_hit.line_idx]
@@ -476,9 +478,10 @@ def prune_entries(strain_entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     Delete all strain entries with zero markers.
     """
     for strain_entry in strain_entries:
-        logger.info("No markers found for "
-                    f"{strain_entry['genus']} {strain_entry['species']}, "
-                    f"{strain_entry['name']}.")
+        if len(strain_entry['markers'] == 0):
+            logger.info("No markers found for "
+                        f"{strain_entry['genus']} {strain_entry['species']}, "
+                        f"{strain_entry['name']}.")
     return [
         strain_entry
         for strain_entry in strain_entries
