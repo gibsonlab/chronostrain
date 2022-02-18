@@ -238,7 +238,7 @@ def create_chronostrain_db(
 
 def prune_entries(strain_entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     for strain_entry in strain_entries:
-        if len(strain_entry['markers'] == 0):
+        if len(strain_entry['markers']) == 0:
             logger.info("No markers found for "
                         f"{strain_entry['genus']} {strain_entry['species']} "
                         f"{strain_entry['name']} "
