@@ -423,7 +423,7 @@ def blast_hits_into_markers(seq_accessions: List[str], blast_paths: Dict[str, Pa
 
         # Now, hits are guaranteed to be non-overlapping. Instantiate the objects.
         for node in tree:
-            start_loc, end_loc, e_values, strand_arr, gene_name_arr, line_arr = node.data
+            start_loc, end_loc, strand_arr, gene_name_arr, line_arr = node.data
             gene_ids = [
                 f"{gene_name}#{line_idx}"
                 for strand, gene_name, line_idx in zip(strand_arr, gene_name_arr, line_arr)
