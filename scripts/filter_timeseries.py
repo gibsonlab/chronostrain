@@ -86,7 +86,9 @@ def main():
         target_csv_path = out_dir / f"filtered_{Path(args.reads_input).name}"
     else:
         target_csv_path = out_dir / args.reads_output_filename
+
     logger.info(f"Target index file: {target_csv_path}")
+    target_csv_path.parent.mkdir(exist_ok=True, parents=True)
     with open(target_csv_path, 'w') as _:
         # Clear the file (Will append in a for loop).
         pass
