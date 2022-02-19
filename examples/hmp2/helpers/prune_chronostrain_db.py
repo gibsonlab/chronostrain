@@ -45,13 +45,21 @@ def multi_align_markers(output_path: Path, markers: List[Marker], n_threads: int
         "fasta"
     )
 
-    mafft_global(
-        input_fasta_path=input_fasta_path,
-        output_path=output_path,
-        n_threads=n_threads,
-        auto=True,
-        max_iterates=1000
-    )
+    if len(markers) > 1:
+        mafft_global(
+            input_fasta_path=input_fasta_path,
+            output_path=output_path,
+            n_threads=n_threads,
+            auto=True,
+            max_iterates=1000
+        )
+    else:
+        logger.debug("Only one marker found. Skipping multiple alignment.")
+        SeqIO.write(
+            [marker.to_seqrecord() for marker in markers],
+            output_path,
+            "fasta"
+        )
 
     ids_to_records = {}
     for record in SeqIO.parse(output_path, format='fasta'):
