@@ -102,6 +102,7 @@ def main():
         num_threads=args.num_threads
     )
     for t, read_depth, read_path, read_type, qual_fmt in load_from_csv(Path(args.reads_input)):
+        logger.info(f"Applying filter to timepoint {t}, {str(read_path)}")
         out_path = out_dir / f"filtered_{remove_suffixes(read_path).name}.fastq"
         filter.apply(read_path, out_path, quality_format=qual_fmt)
         with open(target_csv_path, 'a') as target_csv:

@@ -48,7 +48,6 @@ class Filter(object):
         aligner_tmp_dir = out_path.parent / "tmp"
         aligner_tmp_dir.mkdir(exist_ok=True)
 
-        logger.info(f"Applying filter to {str(read_file)}")
         metadata_path = out_path.parent / f"{remove_suffixes(read_file).name}.metadata.tsv"
         sam_path = aligner_tmp_dir / f"{remove_suffixes(read_file).name}.sam"
 
@@ -92,7 +91,7 @@ class Filter(object):
         result_fq = open(result_fq_path, 'w')
         reads_already_passed = set()
 
-        logger.info(f"Reading: {sam_path.name}")
+        logger.debug(f"Reading: {sam_path.name}")
         for aln in parse_alignments(
                 SamFile(sam_path, quality_format), self.db
         ):
@@ -139,7 +138,7 @@ class Filter(object):
                 )
                 record.letter_annotations["phred_quality"] = aln.read.quality
                 SeqIO.write(record, result_fq, "fastq")
-        logger.info(f"# passed reads: {len(reads_already_passed)}")
+        logger.debug(f"# passed reads: {len(reads_already_passed)}")
         result_metadata.close()
         result_fq.close()
 
