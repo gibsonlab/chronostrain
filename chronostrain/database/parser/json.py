@@ -49,13 +49,16 @@ class StrainEntry:
         )
 
     def marker_entries_by_seq(self) -> Iterator[Tuple['SeqEntry', List['MarkerEntry']]]:
+        # Group markers by their source acessions.
         grouping: Dict[str, List[MarkerEntry]] = defaultdict(list)
         for marker_entry in self.marker_entries:
             grouping[marker_entry.source_accession].append(marker_entry)
 
+        # Iterate through source accessions.
         src_accessions_left = set(grouping.keys())
         for seq_entry in self.seq_entries:
-            src_accessions_left.remove(seq_entry.accession)
+            if seq_entry.accession in src_accessions_left:
+                src_accessions_left.remove(seq_entry.accession)
             _marker_entries = grouping[seq_entry.accession]
             if len(_marker_entries) > 0:
                 yield seq_entry, _marker_entries
