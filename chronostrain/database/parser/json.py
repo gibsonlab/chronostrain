@@ -310,8 +310,11 @@ class JSONParser(AbstractDatabaseParser):
                 str(strain_entry)
             ))
         else:
-            logger.debug("Strain {} loaded with {} markers.".format(
+            logger.debug("Strain {} ({} {}, {}) loaded with {} markers.".format(
                 strain_entry.id,
+                strain_entry.genus,
+                strain_entry.species,
+                strain_entry.name,
                 len(strain_markers)
             ))
 
