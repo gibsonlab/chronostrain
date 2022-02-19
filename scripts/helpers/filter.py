@@ -60,8 +60,6 @@ class Filter(object):
         ).align(query_path=read_file, output_path=sam_path)
         self._apply_helper(sam_path, metadata_path, out_path, quality_format)
 
-        aligner_tmp_dir.rmdir()
-
     def _apply_helper(
             self,
             sam_path: Path,
