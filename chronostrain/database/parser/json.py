@@ -314,7 +314,7 @@ class JSONParser(AbstractDatabaseParser):
                 strain_entry.id,
                 strain_entry.genus,
                 strain_entry.species,
-                strain_entry.name,
+                strain_entry.strain_name,
                 len(strain_markers)
             ))
 
