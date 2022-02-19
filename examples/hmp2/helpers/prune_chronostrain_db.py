@@ -72,6 +72,7 @@ def get_all_alignments(db: StrainDatabase, work_dir: Path) -> Dict[str, Dict[str
     work_dir.mkdir(exist_ok=True, parents=True)
     all_alignments = {}
     for gene_name in db.all_marker_names():
+        logger.info(f"Aligning marker genes with label `{gene_name}`.")
         alignment_records = multi_align_markers(
             output_path=work_dir / f"{gene_name}.fasta",
             markers=db.get_markers_by_name(gene_name),
