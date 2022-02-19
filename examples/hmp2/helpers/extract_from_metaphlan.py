@@ -123,5 +123,5 @@ if __name__ == "__main__":
     try:
         main()
     except BaseException as e:
-        logger.error(e)
+        logger.exception(e)
         raise
