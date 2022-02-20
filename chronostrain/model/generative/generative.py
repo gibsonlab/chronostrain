@@ -2,10 +2,10 @@
  generative.py
  Contains classes for representing the generative model.
 """
-from typing import List, Tuple, Callable
+from typing import List, Tuple
 
 from torch.distributions.multivariate_normal import MultivariateNormal
-from scipy.stats import geom
+from scipy.stats import rv_discrete, nbinom
 
 from chronostrain.model.bacteria import Population
 from chronostrain.model.fragments import FragmentSpace
@@ -32,9 +32,9 @@ class GenerativeModel:
                  tau_scale: float,
                  bacteria_pop: Population,
                  fragments: FragmentSpace,
-                 frag_adapter_p: float,
+                 frag_negbin_n: float,
+                 frag_negbin_p: float,
                  read_error_model: AbstractErrorModel,
-                 max_read_len: int,
                  min_overlap_ratio: float,
                  db: StrainDatabase):
         """
@@ -58,12 +58,8 @@ class GenerativeModel:
         self.error_model: AbstractErrorModel = read_error_model
         self.bacteria_pop: Population = bacteria_pop
         self.fragments: FragmentSpace = fragments
-        self.frag_length_logpmf: Callable[[int], float] = lambda k: geom.logpmf(
-            k=max_read_len - k + 1,
-            p=frag_adapter_p
-        )
+        self.frag_length_distribution: rv_discrete = nbinom(frag_negbin_n, frag_negbin_p)
 
-        self.max_read_len: int = max_read_len
         self.min_overlap_ratio: float = min_overlap_ratio
 
         self.db = db
@@ -88,10 +84,9 @@ class GenerativeModel:
         """
         if self._frag_freqs_sparse is None:
             self._frag_freqs_sparse = SparseFragmentFrequencyComputer(
-                length_logpmf=self.frag_length_logpmf,
+                frag_length_rv=self.frag_length_distribution,
                 db=self.db,
-                min_overlap_ratio=self.min_overlap_ratio,
-                max_read_len=self.max_read_len
+                min_overlap_ratio=self.min_overlap_ratio
             ).get_frequencies(self.fragments, self.bacteria_pop)
         return self._frag_freqs_sparse
 
@@ -397,7 +392,8 @@ class GenerativeModel:
         )
 
         frag_samples = []
-        from .util import construct_fragment_space_uniform_length
+
+        from .. import construct_fragment_space_uniform_length
         fragments = construct_fragment_space_uniform_length(read_length, self.bacteria_pop)
 
         # Draw a read from each fragment.

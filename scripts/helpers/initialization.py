@@ -48,8 +48,8 @@ def create_model(population: Population,
         tau_scale=cfg.model_cfg.sics_scale,
         read_error_model=error_model,
         fragments=fragments,
-        frag_adapter_p=cfg.model_cfg.frag_adapter_p,
-        max_read_len=cfg.model_cfg.max_read_len,
+        frag_negbin_n=cfg.model_cfg.frag_len_negbin_n,
+        frag_negbin_p=cfg.model_cfg.frag_len_negbin_p,
         min_overlap_ratio=cfg.model_cfg.min_overlap_ratio,
         db=db
     )

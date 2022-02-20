@@ -1,11 +1,12 @@
 from abc import abstractmethod
 from pathlib import Path
-from typing import Dict, Union, List, Tuple, Callable
+from typing import Dict, Union, List, Tuple
 
 import numpy as np
 import torch
 from Bio import SeqIO
 import scipy.special
+from scipy.stats import rv_discrete
 
 from chronostrain.database import StrainDatabase
 from chronostrain.model import FragmentSpace, Fragment, Population, Marker, Strain
@@ -19,11 +20,10 @@ logger = create_logger(__name__)
 
 
 class FragmentFrequencyComputer(object):
-    def __init__(self, length_logpmf: Callable[[int], float], db: StrainDatabase, min_overlap_ratio: float, max_read_len: int):
-        self.length_logpmf = length_logpmf
+    def __init__(self, frag_length_rv: rv_discrete, db: StrainDatabase, min_overlap_ratio: float):
+        self.frag_length_rv = frag_length_rv
         self.db: StrainDatabase = db
         self.min_overlap_ratio = min_overlap_ratio
-        self.max_read_len = max_read_len
 
     def get_frequencies(self,
                         fragments: FragmentSpace,
@@ -100,12 +100,15 @@ class FragmentFrequencyComputer(object):
         if (frag_position == 1) or (frag_position == len(marker) - len(frag) + 1):
             # Edge case: at the start or end of marker.
             return np.log(len(marker)) + scipy.special.logsumexp([
-                self.length_logpmf(k) - np.log(length_normalizer(k, self.min_overlap_ratio))
-                for k in range(len(frag), self.max_read_len + 1)
+                self.frag_length_rv.logpmf(k) - np.log(length_normalizer(k, self.min_overlap_ratio))
+                for k in range(
+                    len(frag),
+                    int(np.max([self.frag_length_rv.mean() + 2 * self.frag_length_rv.std(), len(frag)]))
+                )
             ])
         else:
             n_sliding_windows = length_normalizer(len(frag), self.min_overlap_ratio)
-            ans = np.log(len(marker)) + self.length_logpmf(len(frag)) - np.log(n_sliding_windows)
+            ans = np.log(len(marker)) + self.frag_length_rv.logpmf(len(frag)) - np.log(n_sliding_windows)
             return ans
 
     def compute_frequencies(self,
@@ -221,8 +224,8 @@ class FragmentFrequencyComputer(object):
 
 
 class SparseFragmentFrequencyComputer(FragmentFrequencyComputer):
-    def __init__(self, length_logpmf: Callable[[int], float], db: StrainDatabase, min_overlap_ratio: float, max_read_len: int):
-        super().__init__(length_logpmf, db, min_overlap_ratio, max_read_len)
+    def __init__(self, frag_length_rv: rv_discrete, db: StrainDatabase, min_overlap_ratio: float):
+        super().__init__(frag_length_rv, db, min_overlap_ratio)
 
     def relative_matrix_path(self) -> Path:
         return Path('fragment_frequencies') / 'sparse_frag_freqs.npz'
