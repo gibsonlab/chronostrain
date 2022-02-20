@@ -4,7 +4,7 @@ import torch
 from torch.distributions import Normal
 from torch.nn import Parameter
 
-from chronostrain.model import GenerativeModel
+from chronostrain.model.generative import GenerativeModel
 from .base import AbstractReparametrizedPosterior
 from .util import TrilLinear, init_diag
 

@@ -8,7 +8,8 @@ from matplotlib.lines import Line2D
 
 from chronostrain import logger
 from chronostrain.algs import AbstractPosterior, BBVISolverV2
-from chronostrain.model import GenerativeModel, Population
+from chronostrain.model import Population
+from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.util import filesystem
 

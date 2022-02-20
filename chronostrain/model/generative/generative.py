@@ -2,11 +2,10 @@
  generative.py
  Contains classes for representing the generative model.
 """
-from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Callable
 
 from torch.distributions.multivariate_normal import MultivariateNormal
-from scipy.stats import rv_discrete, nbinom
+from scipy.stats import geom
 
 from chronostrain.model.bacteria import Population
 from chronostrain.model.fragments import FragmentSpace
@@ -17,6 +16,8 @@ from chronostrain.util.sparse import RowSectionedSparseMatrix
 from .fragment_frequencies import SparseFragmentFrequencyComputer
 
 from chronostrain.config.logging import create_logger
+from chronostrain.database import StrainDatabase
+
 logger = create_logger(__name__)
 
 
@@ -31,10 +32,11 @@ class GenerativeModel:
                  tau_scale: float,
                  bacteria_pop: Population,
                  fragments: FragmentSpace,
-                 frag_negbin_n: float,
-                 frag_negbin_p: float,
+                 frag_adapter_p: float,
                  read_error_model: AbstractErrorModel,
-                 all_markers_fasta: Path):
+                 max_read_len: int,
+                 min_overlap_ratio: float,
+                 db: StrainDatabase):
         """
         :param times: A list of time points.
         :param mu: The prior mean E[X_1] of the first time point.
@@ -56,9 +58,15 @@ class GenerativeModel:
         self.error_model: AbstractErrorModel = read_error_model
         self.bacteria_pop: Population = bacteria_pop
         self.fragments: FragmentSpace = fragments
-        self.frag_length_distribution: rv_discrete = nbinom(frag_negbin_n, frag_negbin_p)
+        self.frag_length_logpmf: Callable[[int], float] = lambda k: geom.logpmf(
+            k=max_read_len - k + 1,
+            p=frag_adapter_p
+        )
 
-        self.all_markers_fasta = all_markers_fasta
+        self.max_read_len: int = max_read_len
+        self.min_overlap_ratio: float = min_overlap_ratio
+
+        self.db = db
         self._frag_freqs_sparse = None
         self._frag_freqs_dense = None
 
@@ -80,8 +88,10 @@ class GenerativeModel:
         """
         if self._frag_freqs_sparse is None:
             self._frag_freqs_sparse = SparseFragmentFrequencyComputer(
-                all_markers_path=self.all_markers_fasta,
-                length_rv=self.frag_length_distribution
+                length_logpmf=self.frag_length_logpmf,
+                db=self.db,
+                min_overlap_ratio=self.min_overlap_ratio,
+                max_read_len=self.max_read_len
             ).get_frequencies(self.fragments, self.bacteria_pop)
         return self._frag_freqs_sparse
 
@@ -290,7 +300,6 @@ class GenerativeModel:
             time_slices.append(TimeSliceReads(
                 reads=reads_arr,
                 time_point=self.times[t],
-                src=None,
                 read_depth=read_depth
             ))
 

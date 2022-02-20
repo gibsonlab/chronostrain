@@ -1,14 +1,14 @@
 from abc import abstractmethod
-from collections import Counter
 from pathlib import Path
-from typing import Dict, Union
+from typing import Dict, Union, List, Tuple, Callable
 
 import numpy as np
 import torch
 from Bio import SeqIO
-from scipy.stats import rv_discrete
+import scipy.special
 
-from chronostrain.model import FragmentSpace, Fragment, Population
+from chronostrain.database import StrainDatabase
+from chronostrain.model import FragmentSpace, Fragment, Population, Marker, Strain
 from chronostrain.util.cache import ComputationCache, CacheTag
 from chronostrain.util.external import bwa_index, bwa_fastmap
 
@@ -19,9 +19,11 @@ logger = create_logger(__name__)
 
 
 class FragmentFrequencyComputer(object):
-    def __init__(self, all_markers_path: Path, length_rv: rv_discrete):
-        self.all_markers_path = all_markers_path
-        self.length_rv = length_rv
+    def __init__(self, length_logpmf: Callable[[int], float], db: StrainDatabase, min_overlap_ratio: float, max_read_len: int):
+        self.length_logpmf = length_logpmf
+        self.db: StrainDatabase = db
+        self.min_overlap_ratio = min_overlap_ratio
+        self.max_read_len = max_read_len
 
     def get_frequencies(self,
                         fragments: FragmentSpace,
@@ -33,7 +35,7 @@ class FragmentFrequencyComputer(object):
         ))
         cache = ComputationCache(
             CacheTag(
-                markers=self.all_markers_path,
+                markers=self.db.multifasta_file,
                 fragments=fragments
             )
         )
@@ -64,7 +66,7 @@ class FragmentFrequencyComputer(object):
     def construct_matrix(self,
                          fragments: FragmentSpace,
                          population: Population,
-                         counts: Dict[Fragment, Counter]
+                         counts: Dict[Fragment, List[Tuple[Marker, Strain, int]]]
                          ) -> Union[RowSectionedSparseMatrix, torch.Tensor]:
         pass
 
@@ -76,6 +78,38 @@ class FragmentFrequencyComputer(object):
     def load_matrix(self, matrix_path: Path) -> Union[RowSectionedSparseMatrix, torch.Tensor]:
         pass
 
+    def frag_log_ll(self, frag: Fragment, marker: Marker, frag_position: int) -> float:
+        """
+        Compute the partial likelihood
+            P(M=m|S=s) * SUM_{k >= |f|} P(F=f|M=m,K=k) * P(K = k)
+        where
+            P(F=f|M=m,K=k) = SUM_{i in <positions_with_0.5_coverage>}
+                (1/# sliding windows of length k)
+                * 1_{window at position i is f}
+        by marginalizing over all possible positions and all possible "parent lengths" k (insert measurement lengths,
+        e.g. the chunk of the insert that makes it into the read),
+        and across all positions i.
+        """
+        def length_normalizer(k: int, min_overlap_ratio: float) -> float:
+            """
+            Computes the number of sliding windows of length `k`, with padding on either end of the marker,
+            such that the window always overlaps for half of its length with the marker.
+            """
+            return len(marker) + (2 * (1 - min_overlap_ratio) * k) - k + 1
+
+        if (frag_position == 1) or (frag_position == len(marker) - len(frag) + 1):
+            # Edge case: at the start or end of marker.
+            return np.log(len(marker)) + scipy.special.logsumexp([
+                self.length_logpmf(k) - np.log(length_normalizer(k, self.min_overlap_ratio))
+                for k in range(len(frag), self.max_read_len + 1)
+            ])
+        else:
+            n_sliding_windows = length_normalizer(len(frag), self.min_overlap_ratio)
+            ans = np.log(len(marker)) + self.length_logpmf(len(frag)) - np.log(n_sliding_windows)
+            if len(frag) >= 150:
+                print(f"NORMAL ANS = {ans}")
+            return ans
+
     def compute_frequencies(self,
                             fragments: FragmentSpace,
                             population: Population,
@@ -85,18 +119,18 @@ class FragmentFrequencyComputer(object):
         return self.construct_matrix(
             fragments,
             population,
-            self.parse(fragments, population, bwa_fastmap_output_path)
+            self.parse(fragments, bwa_fastmap_output_path)
         )
 
     def search(self, fragments: FragmentSpace, output_path: Path, max_num_hits: int):
         logger.debug("Creating index for exact matches.")
-        bwa_index(self.all_markers_path)
+        bwa_index(self.db.multifasta_file)
 
         output_path.parent.mkdir(exist_ok=True, parents=True)
         fragments_path = self.fragments_to_fasta(fragments, output_path.parent)
         bwa_fastmap(
             output_path=output_path,
-            reference_path=self.all_markers_path,
+            reference_path=self.db.multifasta_file,
             query_path=fragments_path,
             min_smem_len=fragments.min_frag_len,
             max_interval_size=max_num_hits
@@ -112,19 +146,13 @@ class FragmentFrequencyComputer(object):
                 SeqIO.write([fragment.to_seqrecord()], f, 'fasta')
         return out_path
 
-    @staticmethod
-    def parse(fragments: FragmentSpace,
-              population: Population,
-              fastmap_output_path: Path) -> Dict[Fragment, Counter]:
+    def parse(self,
+              fragments: FragmentSpace,
+              fastmap_output_path: Path) -> Dict[Fragment, List[Tuple[Marker, Strain, int]]]:
         """
         :return: A dictionary mapping (fragment) -> List of (strain, num_hits) pairs
         """
-        strain_indices = {
-            strain.id: strain_idx
-            for strain_idx, strain in enumerate(population.strains)
-        }
-
-        hits_dict: Dict[Fragment, Counter] = {}
+        hits_dict: Dict[Fragment, List[Tuple[Marker, Strain, int]]] = {}
         with open(fastmap_output_path) as f:
             for fragment_line in f:
                 fragment_line = fragment_line.strip()
@@ -162,7 +190,7 @@ class FragmentFrequencyComputer(object):
                     if frag_end - frag_start == len(fragment):
                         # Parse the strain/marker hits and tally them up.
                         exact_match_found = True
-                        strain_counts = Counter()
+                        mapping_locations: List[Tuple[Marker, Strain, int]] = []
                         for marker_hit_token in match_tokens[4:]:
                             if marker_hit_token == "*":
                                 raise ValueError(
@@ -173,9 +201,18 @@ class FragmentFrequencyComputer(object):
 
                             marker_desc, pos = marker_hit_token.split(':')
                             strain_id, gene_name, gene_id = marker_desc.split('|')
-                            strain_idx = strain_indices[strain_id]
-                            strain_counts[strain_idx] += 1
-                        hits_dict[fragment] = strain_counts
+
+                            marker = self.db.get_marker(gene_id)
+                            strain = self.db.get_strain(strain_id)
+                            pos = int(pos)
+                            if pos < 0:
+                                # Skip `-` strands (since fragments are canonically defined using the forward strand)
+                                continue
+
+                            mapping_locations.append(
+                                (marker, strain, pos)
+                            )
+                        hits_dict[fragment] = mapping_locations
                 if not exact_match_found:
                     logger.warning(
                         f"No exact matches found for fragment {fragment.index} [{fragment.nucleotide_content()}]."
@@ -186,8 +223,8 @@ class FragmentFrequencyComputer(object):
 
 
 class SparseFragmentFrequencyComputer(FragmentFrequencyComputer):
-    def __init__(self, all_markers_path: Path, length_rv: rv_discrete):
-        super().__init__(all_markers_path, length_rv)
+    def __init__(self, length_logpmf: Callable[[int], float], db: StrainDatabase, min_overlap_ratio: float, max_read_len: int):
+        super().__init__(length_logpmf, db, min_overlap_ratio, max_read_len)
 
     def relative_matrix_path(self) -> Path:
         return Path('fragment_frequencies') / 'sparse_frag_freqs.npz'
@@ -195,25 +232,34 @@ class SparseFragmentFrequencyComputer(FragmentFrequencyComputer):
     def construct_matrix(self,
                          fragments: FragmentSpace,
                          population: Population,
-                         counts: Dict[Fragment, Counter]) -> RowSectionedSparseMatrix:
+                         all_frag_hits: Dict[Fragment, List[Tuple[Marker, Strain, int]]]) -> RowSectionedSparseMatrix:
+        """
+        :param fragments:
+        :param population:
+        :param all_frag_hits: Represents the mapping <Fragment> -> [ <hit_1_marker, hit_1_strain, hit_1_pos>, ... ]
+        :return:
+        """
         strain_indices = []
         frag_indices = []
         matrix_values = []
 
-        for fragment, frag_counts in counts.items():
-            for strain_idx, strain_frag_hits in frag_counts.items():
+        for fragment, frag_hits in all_frag_hits.items():
+            strains = np.array([
+                population.strain_index(hit_strain)
+                for _, hit_strain, _ in frag_hits
+            ], dtype=int)
+
+            frag_lls = np.array([
+                self.frag_log_ll(fragment, hit_marker, hit_pos)
+                for hit_marker, _, hit_pos in frag_hits
+            ], dtype=float)
+
+            for strain_idx in np.unique(strains):
                 strain_indices.append(strain_idx)
                 frag_indices.append(fragment.index)
-
-                length_ll = self.length_rv.logpmf(len(fragment))
-                frag_log_ll = (
-                        length_ll
-                        + np.log(strain_frag_hits)
-                        - np.log(population.strains[strain_idx].num_marker_frags(len(fragment)))
-                )
-
-                matrix_values.append(frag_log_ll)
-
+                matrix_values.append(scipy.special.logsumexp(
+                    frag_lls[strains == strain_idx]
+                ))
         return RowSectionedSparseMatrix(
             indices=torch.tensor([frag_indices, strain_indices], device=cfg.torch_cfg.device, dtype=torch.long),
             values=torch.tensor(matrix_values, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype),

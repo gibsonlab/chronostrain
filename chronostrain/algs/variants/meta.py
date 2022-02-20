@@ -6,7 +6,8 @@ import numpy as np
 import torch
 
 from chronostrain.database import StrainDatabase
-from chronostrain.model import Population, GenerativeModel, FragmentSpace, PEPhredErrorModel
+from chronostrain.model import Population, FragmentSpace, PEPhredErrorModel
+from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
 from .base import StrainVariant
 from ..inference import BBVISolverV2
@@ -140,13 +141,16 @@ class AbstractVariantBBVISolver(object):
             tau_dof=cfg.model_cfg.sics_dof,
             tau_scale=cfg.model_cfg.sics_scale,
             read_error_model=PEPhredErrorModel(
-                insertion_error_ll=cfg.model_cfg.insertion_error_log10,
-                deletion_error_ll=cfg.model_cfg.deletion_error_log10
+                insertion_error_ll_1=cfg.model_cfg.get_float("INSERTION_LL_1"),
+                deletion_error_ll_1=cfg.model_cfg.get_float("DELETION_LL_1"),
+                insertion_error_ll_2=cfg.model_cfg.get_float("INSERTION_LL_2"),
+                deletion_error_ll_2=cfg.model_cfg.get_float("DELETION_LL_2")
             ),
             fragments=fragments,
-            frag_negbin_n=cfg.model_cfg.frag_len_negbin_n,
-            frag_negbin_p=cfg.model_cfg.frag_len_negbin_p,
-            all_markers_fasta=self.db.multifasta_file
+            frag_adapter_p=cfg.model_cfg.frag_adapter_p,
+            max_read_len=cfg.model_cfg.max_read_len,
+            min_overlap_ratio=cfg.model_cfg.min_overlap_ratio,
+            db=self.db
         )
 
     def run_bbvi(self,

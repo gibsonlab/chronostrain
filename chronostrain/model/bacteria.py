@@ -120,6 +120,7 @@ class Population:
             raise ValueError("All elements in strains must be Strain instances")
 
         self.strains = list(strains)  # A list of Strain objects.
+        self.strain_indices = {strain: s_idx for s_idx, strain in enumerate(self.strains)}
         self.all_markers = {
             marker
             for strain in strains
@@ -153,3 +154,9 @@ class Population:
 
     def contains_marker(self, marker: Marker) -> bool:
         return marker in self.all_markers
+
+    def strain_index(self, strain: Strain) -> int:
+        """
+        Return the relative index of the strain (useful for resolving matrix index positions)
+        """
+        return self.strain_indices[strain]

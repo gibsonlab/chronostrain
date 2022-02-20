@@ -115,8 +115,9 @@ class ModelConfig(AbstractConfig):
         self.sics_dof: float = self.get_float("SICS_DOF")
         self.sics_scale: float = self.get_float("SICS_SCALE")
         self.use_sparse: bool = self.get_bool("SPARSE_MATRICES")
-        self.frag_len_negbin_n: float = self.get_float("FRAG_LEN_NB_N")
-        self.frag_len_negbin_p: float = self.get_float("FRAG_LEN_NB_P")
+        self.frag_adapter_p: float = self.get_float("FRAG_ADAPTER_P")
+        self.max_read_len: int = self.get_int("MAX_READ_LEN")
+        self.min_overlap_ratio: float = self.get_float("MIN_OVERLAP_RATIO")
 
 
 class TorchConfig(AbstractConfig):

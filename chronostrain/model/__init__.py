@@ -1,6 +1,5 @@
 from .bacteria import Marker, MarkerMetadata, Strain, Population, StrainMetadata
 from .fragments import Fragment, FragmentSpace
-from .generative import GenerativeModel
 
 from .reads import AbstractErrorModel, SequenceRead, PairedEndRead, AbstractTrainableErrorModel, \
     AbstractQScoreDistribution, BasicQScoreDistribution, BasicPhredScoreDistribution, BasicErrorModel, \

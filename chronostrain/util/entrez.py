@@ -54,6 +54,7 @@ def fetch_entrez(entrez_db: str,
             file_path
         ))
     else:
+        file_path.parent.mkdir(exist_ok=True, parents=True)
         logger.debug("[{}] Downloading entrez file ({})...".format(
             accession[0] if isinstance(accession, list) else accession,
             str(file_path.name)

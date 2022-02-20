@@ -8,7 +8,7 @@ from torch import softmax
 
 from chronostrain.algs import BBVISolverV1, BBVISolverV2, EMSolver
 from chronostrain.database import StrainDatabase
-from chronostrain.model import GenerativeModel
+from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads, save_abundances
 from chronostrain.visualizations import plot_abundances, plot_abundances_comparison
 

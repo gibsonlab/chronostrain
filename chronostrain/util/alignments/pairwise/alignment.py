@@ -24,10 +24,10 @@ class SequenceReadPairwiseAlignment(object):
                  read_end: int,
                  marker_start: int,
                  marker_end: int,
-                 hard_clip_start: float,
-                 hard_clip_end: float,
-                 soft_clip_start: float,
-                 soft_clip_end: float,
+                 hard_clip_start: int,
+                 hard_clip_end: int,
+                 soft_clip_start: int,
+                 soft_clip_end: int,
                  num_aligned_bases: Optional[int],
                  num_mismatches: Optional[int],
                  reverse_complemented: bool):
@@ -77,11 +77,7 @@ class SequenceReadPairwiseAlignment(object):
 
     @property
     def is_edge_mapped(self) -> bool:
-        if self.marker_start == 0:
-            return self.soft_clip_start > 0 or self.hard_clip_start > 0
-        elif self.marker_end == len(self.marker) - 1:
-            return self.soft_clip_end > 0 or self.hard_clip_end > 0
-        return False
+        return (self.marker_start == 0) or (self.marker_end == len(self.marker) - 1)
 
     @property
     def read_aligned_section(self) -> Tuple[SeqType, SeqType]:
@@ -223,6 +219,30 @@ def parse_line_into_alignment(sam_path: Path,
     frag = alignment[0]
     fragment = frag[frag != nucleotide_GAP_z4]
 
+    # """
+    # For the special case where bases have been clipped but the mapping is not at the edge, append the rest of
+    # the fragment.
+    # """
+    # is_left_edge_mapped = (marker_start == 0)
+    # is_right_edge_mapped = (marker_end == len(marker) - 1)
+    # if not is_left_edge_mapped and soft_clip_start + hard_clip_start > 0:
+    #     prefix_start = max(marker_start-soft_clip_start-hard_clip_start, 0)
+    #     prefix = marker.seq[prefix_start:marker_start]
+    #     print("Re-appending to start.")
+    #     print(f"frag before: {z4_to_nucleotides(fragment)}")
+    #     print(f"len prefix: {soft_clip_start + hard_clip_start}")
+    #     fragment = np.concatenate([prefix, fragment])
+    #     print(f"frag after: {z4_to_nucleotides(fragment)}")
+    #
+    # if not is_right_edge_mapped and soft_clip_end + hard_clip_end > 0:
+    #     suffix_end = min(marker_end + soft_clip_end + hard_clip_end, len(marker))
+    #     suffix = marker.seq[marker_end+1:suffix_end+1]
+    #     print("Re-appending to end.")
+    #     print(f"frag before: {z4_to_nucleotides(fragment)}")
+    #     print(f"len suffix: {soft_clip_end + hard_clip_end}")
+    #     fragment = np.concatenate([fragment, suffix])
+    #     print(f"frag after: {z4_to_nucleotides(fragment)}")
+
     # ============ Return the appropriate instance.
     return SequenceReadPairwiseAlignment(
         read,
@@ -263,8 +283,7 @@ def parse_alignments(sam_file: SamFile,
 
 def marker_categorized_alignments(sam_file: SamFile,
                                   db: StrainDatabase,
-                                  read_getter: Callable[[str], SequenceRead],
-                                  ignore_edge_mapped_reads: bool = True
+                                  read_getter: Callable[[str], SequenceRead]
                                   ) -> Dict[Marker, List[SequenceReadPairwiseAlignment]]:
     """
     Parses the input SamFile instance into a dictionary, mapping each marker to alignments that map to
@@ -278,10 +297,6 @@ def marker_categorized_alignments(sam_file: SamFile,
     for aln in parse_alignments(sam_file,
                                 db,
                                 read_getter=read_getter):
-        if ignore_edge_mapped_reads and aln.is_edge_mapped:
-            logger.debug(f"Ignoring alignment of read {aln.read.id} to marker {aln.marker.id} "
-                         f"({aln.sam_path.name}, Line {aln.sam_line_no}), which is edge-mapped.")
-            continue
         marker_alignments[aln.marker].append(aln)
 
     return marker_alignments

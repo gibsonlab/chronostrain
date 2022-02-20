@@ -37,9 +37,9 @@ def parse_args():
     parser.add_argument('--decay_lr', required=False, type=float, default=0.25,
                         help='<Optional> The multiplicative factor to apply to the learning rate based on '
                              'ReduceLROnPlateau criterion. (Default: 0.25)')
-    parser.add_argument('--lr_patience', required=False, type=int, default=10,
-                        help='<Optional> The `patience` parameter that specifies how long to tolerate no improvement'
-                             'before decaying lr.')
+    parser.add_argument('--lr_patience', required=False, type=int, default=5,
+                        help='<Optional> The `patience` parameter that specifies how many epochs to tolerate '
+                             'no observed improvements before decaying lr. (Default: 5)')
     parser.add_argument('--min_lr', required=False, type=float, default=1e-4,
                         help='<Optional> Stop the algorithm when the LR is below this threshold. (Default: 1e-4)')
     parser.add_argument('-lr', '--learning_rate', required=False, type=float, default=0.05,

@@ -3,7 +3,7 @@ from typing import List, Iterator, Optional, Callable
 import torch
 
 from chronostrain.database import StrainDatabase
-from chronostrain.model import GenerativeModel
+from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
 
 from chronostrain.config import cfg, create_logger

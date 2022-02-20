@@ -3,7 +3,8 @@ from typing import Optional, Callable, List, Iterator, Tuple
 import torch
 
 from chronostrain.database import StrainDatabase
-from chronostrain.model import GenerativeModel, Fragment
+from chronostrain.model import Fragment
+from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.algs.subroutines.likelihoods import SparseDataLikelihoods
 from chronostrain.util.sparse import SparseMatrix
