@@ -368,6 +368,13 @@ def blast_hits_into_markers(seq_accessions: List[str], blast_paths: Dict[str, Pa
 
     :return: A list of JSON objects (dictionaries) representing marker entries.
     """
+    def add_to_tree(t: IntervalTree, start_loc: int, end_loc: int, strand: str, gene_name: str, blast_idx: int):
+        interval_len = end_loc - start_loc + 1
+        if interval_len >= READ_LEN:
+            t[start_loc:end_loc+1] = (start_loc, end_loc, strand, gene_name, blast_idx)
+        else:
+            logger.warning(f"Requested interval is too short (len = {interval_len}). Skipping.")
+
     marker_objs = []
     for seq_accession in seq_accessions:
         logger.debug(f"Parsing Sequence accession {seq_accession}.")
@@ -375,51 +382,50 @@ def blast_hits_into_markers(seq_accessions: List[str], blast_paths: Dict[str, Pa
         for gene_name, blast_path in blast_paths.items():
             blast_hits = parse_blast_hits(blast_path)[seq_accession]
             for blast_hit in blast_hits:
-                left = blast_hit.subj_start
-                right = blast_hit.subj_end + 1
+                start = blast_hit.subj_start
+                end = blast_hit.subj_end
+                hit_len = end - start + 1
 
-                overlapping_hits = tree[left:right]
+                overlapping_hits = tree[start:end+1]
                 if len(overlapping_hits) > 0:
-                    # Special scenario: merge all overlapping hits.
+                    # Special scenario: remove overlapping regions of hits.
                     logger.info("Found {} hits that overlap with blast hit {}({}--{}).".format(
                         len(overlapping_hits),
                         gene_name,
                         blast_hit.subj_start, blast_hit.subj_end
                     ))
 
-                    for hit in overlapping_hits:
-                        _st, _end, _strands, _gene_names, _blast_idx = hit.data
-                        logger.info("Target hit: {}({}--{})".format(
-                            _gene_names,
-                            _st, _end
-                        ))
-                        tree.remove(hit)
+                for other_hit in overlapping_hits:
+                    _start_other, _end_other, _strand_other, _name_other, _blast_idx_other = other_hit.data
+                    logger.info("Target hit: {}({}--{})".format(_name_other, _start_other, _end_other))
 
-                    leftmost = min(min(hit_node.data[0] for hit_node in overlapping_hits), blast_hit.subj_start)
-                    rightmost = max(max(hit_node.data[1] for hit_node in overlapping_hits), blast_hit.subj_end)
+                    _len_other = _end_other - _start_other + 1
+                    if _len_other > hit_len:
+                        # Chop off overlapping region from this hit.
+                        if _start_other <= start <= end <= _end_other:
+                            end = start - 1
+                        elif _start_other <= start <= _end_other:
+                            start = _end_other + 1
+                        elif _start_other <= end <= _end_other:
+                            end = _start_other - 1
+                        else:
+                            raise RuntimeError("Unknown overlap scenario.")
+                        hit_len = end - start + 1
+                    else:
+                        # Chop off overlapping region from other hit.
+                        if start <= _start_other <= _end_other <= end:
+                            _end_other = _start_other - 1
+                        elif start <= _start_other <= end:
+                            _start_other = end + 1
+                        elif start <= _end_other <= end:
+                            _end_other = start - 1
+                        else:
+                            raise RuntimeError("Unknown overlap scenario.")
+                        tree.remove(other_hit)
+                        add_to_tree(tree, _start_other, _end_other, _strand_other, _name_other, _blast_idx_other)
 
-                    strand_arr = []
-                    name_arr = []
-                    line_arr = []
-                    for hit_node in overlapping_hits:
-                        strand_arr += hit_node.data[2]
-                        name_arr += hit_node.data[3]
-                        line_arr += hit_node.data[4]
-
-                    strand_arr.append(blast_hit.strand)
-                    name_arr.append(gene_name)
-                    line_arr.append(blast_hit.line_idx)
-
-                    tree[leftmost:rightmost+1] = (leftmost, rightmost, strand_arr, name_arr, line_arr)
-                else:
-                    # Default scenario
-                    tree[left:right] = (
-                        blast_hit.subj_start,
-                        blast_hit.subj_end,
-                        [blast_hit.strand],
-                        [gene_name],
-                        [blast_hit.line_idx]
-                    )
+                # Default scenario
+                add_to_tree(tree, start, end, blast_hit.strand, gene_name, blast_hit.line_idx)
 
         # Now, hits are guaranteed to be non-overlapping. Instantiate the objects.
         for node in tree:
