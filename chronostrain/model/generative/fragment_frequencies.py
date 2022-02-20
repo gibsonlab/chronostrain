@@ -106,8 +106,6 @@ class FragmentFrequencyComputer(object):
         else:
             n_sliding_windows = length_normalizer(len(frag), self.min_overlap_ratio)
             ans = np.log(len(marker)) + self.length_logpmf(len(frag)) - np.log(n_sliding_windows)
-            if len(frag) >= 150:
-                print(f"NORMAL ANS = {ans}")
             return ans
 
     def compute_frequencies(self,
