@@ -21,7 +21,7 @@ from Bio.SeqRecord import SeqRecord
 from chronostrain.util.entrez import fetch_fasta
 from chronostrain.util.external import make_blast_db, blastn
 
-from typing import List, Dict, Any, Tuple, Iterator
+from typing import List, Dict, Any, Tuple, Iterator, Callable
 from intervaltree import IntervalTree
 
 from chronostrain.util.io import read_seq_file
@@ -331,9 +331,11 @@ def create_chronostrain_db(
                 yield from reference_marker_genes(genus, species)
 
     # ========= Run BLAST to find marker genes.
-    blast_paths: Dict[str, Path] = {}
+    blast_hits: Dict[str, Dict[str, List['BlastHit']]] = {}
+    gene_names: List[str] = []
     blast_result_dir.mkdir(parents=True, exist_ok=True)
     for gene_name, ref_gene_path in all_reference_genes():
+        blast_hits[gene_name] = defaultdict()
         logger.info(f"Running blastn on {gene_name}.")
         blast_result_path = blast_result_dir / f"{gene_name}.tsv"
         blastn(
@@ -347,20 +349,26 @@ def create_chronostrain_db(
             max_target_seqs=10 * seq_index.shape[0],  # A generous value, 10 hits per genome
             strand="both"
         )
-        blast_paths[gene_name] = blast_result_path
+
+        gene_names.append(gene_name)
+        blast_hits[gene_name] = parse_blast_hits(blast_result_path)
 
     for json_strain_entry in json_strain_entries:
         logger.debug(f"Looking for BLAST hits for strain `{json_strain_entry['id']}`.")
         marker_objs = blast_hits_into_markers(
             strain_id=json_strain_entry['id'],
             seq_accessions=[seq['accession'] for seq in json_strain_entry['seqs']],
-            blast_paths=blast_paths
+            genes=gene_names,
+            get_blast_hits=lambda acc, gene: blast_hits[gene][acc]
         )
         json_strain_entry['markers'] = marker_objs
     return prune_entries(json_strain_entries)
 
 
-def blast_hits_into_markers(strain_id: str, seq_accessions: List[str], blast_paths: Dict[str, Path]) -> List[Dict]:
+def blast_hits_into_markers(strain_id: str,
+                            seq_accessions: List[str],
+                            genes: List[str],
+                            get_blast_hits: Callable[[str, str], List['BlastHit']]) -> List[Dict]:
     """
     For the provided strain (implicitly defined by the collection `seq_accessions`), collect all of the BLAST hits
     assorted by genes.
@@ -380,8 +388,8 @@ def blast_hits_into_markers(strain_id: str, seq_accessions: List[str], blast_pat
     marker_objs = []
     for seq_accession in seq_accessions:
         tree = IntervalTree()
-        for gene_name, blast_path in blast_paths.items():
-            for blast_hit in parse_blast_hits(blast_path, seq_accession):
+        for gene_name in genes:
+            for blast_hit in get_blast_hits(seq_accession, gene_name):
                 start, end = extract_ungapped_subseq(strain_id, seq_accession, blast_hit)
                 hit_len = end - start + 1
 
@@ -520,18 +528,17 @@ class BlastHit(object):
         return self.__repr__()
 
 
-def parse_blast_hits(blast_result_path: Path, seq_accession: str) -> Iterator[BlastHit]:
+def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
     """
     :return: A dictionary of blast hits categorized by database sequence, e.g.
      <sequence accession> -> <Blast hits on that accession>
     """
+    blast_hits_by_acc = defaultdict(list)
     with open(blast_result_path, "r") as f:
         blast_result_reader = csv.reader(f, delimiter='\t')
         for row_idx, row in enumerate(blast_result_reader):
 
             subj_acc, subj_start, subj_end, qstart, qend, evalue, bitscore, pident, gaps, qcovhsp = row
-            if subj_acc != seq_accession:
-                continue
 
             subj_start = int(subj_start)
             subj_end = int(subj_end)
@@ -548,21 +555,23 @@ def parse_blast_hits(blast_result_path: Path, seq_accession: str) -> Iterator[Bl
             if end_pos - start_pos + 1 < READ_LEN:
                 continue
 
-            yield BlastHit(
-                row_idx,
-                subj_acc,
-                start_pos,
-                end_pos,
-                int(qstart),
-                int(qend),
-                strand,
-                float(evalue),
-                float(bitscore),
-                float(pident),
-                int(gaps),
-                float(qcovhsp)
+            blast_hits_by_acc[subj_acc].append(
+                BlastHit(
+                    row_idx,
+                    subj_acc,
+                    start_pos,
+                    end_pos,
+                    int(qstart),
+                    int(qend),
+                    strand,
+                    float(evalue),
+                    float(bitscore),
+                    float(pident),
+                    int(gaps),
+                    float(qcovhsp)
+                )
             )
-
+    return blast_hits_by_acc
 
 def main():
     args = parse_args()
