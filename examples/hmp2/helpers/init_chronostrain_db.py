@@ -379,7 +379,6 @@ def blast_hits_into_markers(strain_id: str, seq_accessions: List[str], blast_pat
 
     marker_objs = []
     for seq_accession in seq_accessions:
-        logger.debug(f"Parsing Sequence accession {seq_accession}.")
         tree = IntervalTree()
         for gene_name, blast_path in blast_paths.items():
             blast_hits = parse_blast_hits(blast_path)[seq_accession]
@@ -393,7 +392,7 @@ def blast_hits_into_markers(strain_id: str, seq_accessions: List[str], blast_pat
                     logger.info("Found {} hits that overlap with blast hit {}({}--{}).".format(
                         len(overlapping_hits),
                         gene_name,
-                        blast_hit.subj_start, blast_hit.subj_end
+                        start, end
                     ))
 
                 for other_hit in overlapping_hits:
@@ -442,6 +441,9 @@ def blast_hits_into_markers(strain_id: str, seq_accessions: List[str], blast_pat
                 'strand': strand,
                 'canonical': False
             })
+
+        if len(tree) > 0:
+            logger.debug(f"Parsed {len(tree)} hits for sequence accession {seq_accession}.")
     return marker_objs
 
 
