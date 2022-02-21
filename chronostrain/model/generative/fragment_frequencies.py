@@ -1,6 +1,6 @@
 from abc import abstractmethod
 from pathlib import Path
-from typing import Dict, Union, List, Tuple
+from typing import Union, List, Tuple, Iterator
 
 import numpy as np
 import torch
@@ -66,7 +66,7 @@ class FragmentFrequencyComputer(object):
     def construct_matrix(self,
                          fragments: FragmentSpace,
                          population: Population,
-                         counts: Dict[Fragment, List[Tuple[Marker, Strain, int]]]
+                         all_frag_hits: Iterator[Tuple[Fragment, List[Tuple[Marker, Strain, int]]]]
                          ) -> Union[RowSectionedSparseMatrix, torch.Tensor]:
         pass
 
@@ -149,11 +149,10 @@ class FragmentFrequencyComputer(object):
 
     def parse(self,
               fragments: FragmentSpace,
-              fastmap_output_path: Path) -> Dict[Fragment, List[Tuple[Marker, Strain, int]]]:
+              fastmap_output_path: Path) -> Iterator[Tuple[Fragment, List[Tuple[Marker, Strain, int]]]]:
         """
         :return: A dictionary mapping (fragment) -> List of (strain, num_hits) pairs
         """
-        hits_dict: Dict[Fragment, List[Tuple[Marker, Strain, int]]] = {}
         with open(fastmap_output_path) as f:
             for fragment_line in f:
                 fragment_line = fragment_line.strip()
@@ -167,6 +166,7 @@ class FragmentFrequencyComputer(object):
                 # Parse fragment
                 frag_idx = int(frag_line_tokens[1][len('FRAGMENT_'):])
                 fragment = fragments.get_fragment_by_index(frag_idx)
+                fragment_mapping_locations: List[Tuple[Marker, Strain, int]] = []
 
                 # Parse matches
                 exact_match_found = False
@@ -187,11 +187,9 @@ class FragmentFrequencyComputer(object):
                     # Only accept a match if it spans the whole fragment (we are looking for exact matches)
                     frag_start = int(match_tokens[1])
                     frag_end = int(match_tokens[2])
-
                     if frag_end - frag_start == len(fragment):
                         # Parse the strain/marker hits and tally them up.
                         exact_match_found = True
-                        mapping_locations: List[Tuple[Marker, Strain, int]] = []
                         for marker_hit_token in match_tokens[4:]:
                             if marker_hit_token == "*":
                                 raise ValueError(
@@ -210,17 +208,16 @@ class FragmentFrequencyComputer(object):
                                 # Skip `-` strands (since fragments are canonically defined using the forward strand)
                                 continue
 
-                            mapping_locations.append(
+                            fragment_mapping_locations.append(
                                 (marker, strain, pos)
                             )
-                        hits_dict[fragment] = mapping_locations
                 if not exact_match_found:
                     logger.warning(
                         f"No exact matches found for fragment {fragment.index} [{fragment.nucleotide_content()}]."
                         f"Validate the output of bwa fastmap!"
                     )
-
-        return hits_dict
+                else:
+                    yield fragment, fragment_mapping_locations
 
 
 class SparseFragmentFrequencyComputer(FragmentFrequencyComputer):
@@ -233,7 +230,8 @@ class SparseFragmentFrequencyComputer(FragmentFrequencyComputer):
     def construct_matrix(self,
                          fragments: FragmentSpace,
                          population: Population,
-                         all_frag_hits: Dict[Fragment, List[Tuple[Marker, Strain, int]]]) -> RowSectionedSparseMatrix:
+                         all_frag_hits: Iterator[Tuple[Fragment, List[Tuple[Marker, Strain, int]]]]
+                         ) -> RowSectionedSparseMatrix:
         """
         :param fragments:
         :param population:
@@ -244,7 +242,7 @@ class SparseFragmentFrequencyComputer(FragmentFrequencyComputer):
         frag_indices = []
         matrix_values = []
 
-        for fragment, frag_hits in all_frag_hits.items():
+        for fragment, frag_hits in all_frag_hits:
             strains = np.array([
                 population.strain_index(hit_strain)
                 for _, hit_strain, _ in frag_hits

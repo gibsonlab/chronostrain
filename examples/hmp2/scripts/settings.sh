@@ -38,15 +38,15 @@ export TRIMMOMATIC_DIR="/PHShome/yk847/.conda/envs/chronostrain/share/trimmomati
 # ========= Chronostrain settings
 export CHRONOSTRAIN_NUM_ITERS=50
 export CHRONOSTRAIN_NUM_SAMPLES=150
-export CHRONOSTRAIN_FRAG_CHUNK_SZ=500
-export CHRONOSTRAIN_NUM_EPOCHS=10
-export CHRONOSTRAIN_DECAY_LR=0.6
-export CHRONOSTRAIN_LR=0.01
+export CHRONOSTRAIN_FRAG_CHUNK_SZ=1000
+export CHRONOSTRAIN_NUM_EPOCHS=160
+export CHRONOSTRAIN_DECAY_LR=0.25
+export CHRONOSTRAIN_LR=0.05
 export CHRONOSTRAIN_OUTPUT_FILENAME="abundances.out"
 
 export CHRONOSTRAIN_DB_JSON="${CHRONOSTRAIN_DATA_DIR}/database_all.json"
-export CHRONOSTRAIN_DB_JSON_PRUNED="${CHRONOSTRAIN_DATA_DIR}/database_pruned.json"
-export MULTIFASTA_FILE="pruned_strain_markers.fasta"
+#export CHRONOSTRAIN_DB_JSON_PRUNED="${CHRONOSTRAIN_DATA_DIR}/database_pruned.json"
+export MULTIFASTA_FILE="strain_markers.fasta"
 export CHRONOSTRAIN_DB_DIR="${CHRONOSTRAIN_DATA_DIR}/database"
 
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)
