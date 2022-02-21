@@ -351,6 +351,7 @@ def create_chronostrain_db(
     for json_strain_entry in json_strain_entries:
         logger.debug(f"Looking for BLAST hits for strain `{json_strain_entry['id']}`.")
         marker_objs = blast_hits_into_markers(
+            strain_id=json_strain_entry['id'],
             seq_accessions=[seq['accession'] for seq in json_strain_entry['seqs']],
             blast_paths=blast_paths
         )
@@ -358,7 +359,7 @@ def create_chronostrain_db(
     return prune_entries(json_strain_entries)
 
 
-def blast_hits_into_markers(seq_accessions: List[str], blast_paths: Dict[str, Path]) -> List[Dict]:
+def blast_hits_into_markers(strain_id: str, seq_accessions: List[str], blast_paths: Dict[str, Path]) -> List[Dict]:
     """
     For the provided strain (implicitly defined by the collection `seq_accessions`), collect all of the BLAST hits
     assorted by genes.
@@ -382,8 +383,7 @@ def blast_hits_into_markers(seq_accessions: List[str], blast_paths: Dict[str, Pa
         for gene_name, blast_path in blast_paths.items():
             blast_hits = parse_blast_hits(blast_path)[seq_accession]
             for blast_hit in blast_hits:
-                start = blast_hit.subj_start
-                end = blast_hit.subj_end
+                start, end = extract_ungapped_subseq(strain_id, seq_accession, blast_hit)
                 hit_len = end - start + 1
 
                 overlapping_hits = tree[start:end+1]
