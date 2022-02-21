@@ -154,6 +154,8 @@ class Filter(object):
 
             if aln.soft_clip_end > 0 or aln.hard_clip_end > 0:
                 return (aln.soft_clip_end / len(aln.read)) + (aln.hard_clip_end / len(aln.read)) < self.clip_fraction
+
+            return True
         else:
             return True
 
