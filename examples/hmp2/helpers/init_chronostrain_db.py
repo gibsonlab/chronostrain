@@ -252,18 +252,19 @@ def extract_ungapped_subseq(strain_id: str, seq_accession: str, blast_hit: 'Blas
 
     # Extract the largest.
     best_token_len = -1
-    best_start = -1
+    best_left_idx = -1
     running_sum = 0
     for tok_idx, token in enumerate(subseq.split('N')):
         if len(token) > best_token_len:
             best_token_len = len(token)
-            best_start = 1 + tok_idx + running_sum
+            best_left_idx = tok_idx + running_sum
         running_sum += len(token)
 
     if best_token_len <= 0:
         raise RuntimeError("Subseq for BLAST hit contained only gaps.")
 
-    return best_start, best_start - 1 + best_token_len
+    overall_start = blast_hit.subj_start + best_left_idx
+    return overall_start, overall_start - 1 + best_token_len
 
 
 def create_chronostrain_db(

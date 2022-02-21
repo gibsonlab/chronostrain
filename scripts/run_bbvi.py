@@ -81,7 +81,7 @@ def load_fragments(reads: TimeSeriesReads, db: StrainDatabase) -> FragmentSpace:
 
 
 def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase, mode: str = 'pairwise') -> FragmentSpace:
-    logger.info("Constructing fragments from multiple alignments.")
+    logger.info("Constructing fragments from alignments.")
     fragment_space = FragmentSpace()
 
     if mode == 'pairwise':
