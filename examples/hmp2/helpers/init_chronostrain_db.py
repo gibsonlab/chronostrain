@@ -381,8 +381,7 @@ def blast_hits_into_markers(strain_id: str, seq_accessions: List[str], blast_pat
     for seq_accession in seq_accessions:
         tree = IntervalTree()
         for gene_name, blast_path in blast_paths.items():
-            blast_hits = parse_blast_hits(blast_path)[seq_accession]
-            for blast_hit in blast_hits:
+            for blast_hit in parse_blast_hits(blast_path, seq_accession):
                 start, end = extract_ungapped_subseq(strain_id, seq_accession, blast_hit)
                 hit_len = end - start + 1
 
@@ -521,17 +520,18 @@ class BlastHit(object):
         return self.__repr__()
 
 
-def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
+def parse_blast_hits(blast_result_path: Path, seq_accession: str) -> Iterator[BlastHit]:
     """
     :return: A dictionary of blast hits categorized by database sequence, e.g.
      <sequence accession> -> <Blast hits on that accession>
     """
-    accession_to_positions: Dict[str, List[BlastHit]] = defaultdict(list)
     with open(blast_result_path, "r") as f:
         blast_result_reader = csv.reader(f, delimiter='\t')
         for row_idx, row in enumerate(blast_result_reader):
 
             subj_acc, subj_start, subj_end, qstart, qend, evalue, bitscore, pident, gaps, qcovhsp = row
+            if subj_acc != seq_accession:
+                continue
 
             subj_start = int(subj_start)
             subj_end = int(subj_end)
@@ -548,23 +548,20 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
             if end_pos - start_pos + 1 < READ_LEN:
                 continue
 
-            accession_to_positions[subj_acc].append(
-                BlastHit(
-                    row_idx,
-                    subj_acc,
-                    start_pos,
-                    end_pos,
-                    int(qstart),
-                    int(qend),
-                    strand,
-                    float(evalue),
-                    float(bitscore),
-                    float(pident),
-                    int(gaps),
-                    float(qcovhsp)
-                )
+            yield BlastHit(
+                row_idx,
+                subj_acc,
+                start_pos,
+                end_pos,
+                int(qstart),
+                int(qend),
+                strand,
+                float(evalue),
+                float(bitscore),
+                float(pident),
+                int(gaps),
+                float(qcovhsp)
             )
-    return accession_to_positions
 
 
 def main():
