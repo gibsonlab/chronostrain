@@ -2,10 +2,8 @@ from abc import abstractmethod
 from pathlib import Path
 from typing import Union, List, Tuple, Iterator
 
-import numpy as np
 import torch
 from Bio import SeqIO
-import scipy.special
 from scipy.stats import rv_discrete
 
 from chronostrain.database import StrainDatabase
@@ -99,17 +97,16 @@ class FragmentFrequencyComputer(object):
 
         if (frag_position == 1) or (frag_position == len(marker) - len(frag) + 1):
             # Edge case: at the start or end of marker.
-            return np.log(len(marker)) + scipy.special.logsumexp([
-                self.frag_length_rv.logpmf(k) - np.log(length_normalizer(k, self.min_overlap_ratio))
+            return torch.log(torch.tensor(len(marker))) + torch.logsumexp(torch.tensor([
+                self.frag_length_rv.logpmf(k) - torch.log(torch.tensor(length_normalizer(k, self.min_overlap_ratio)))
                 for k in range(
                     len(frag),
-                    int(np.max([self.frag_length_rv.mean() + 2 * self.frag_length_rv.std(), len(frag)]))
+                    max(int(self.frag_length_rv.mean() + 2 * self.frag_length_rv.std()), len(frag))
                 )
-            ])
+            ], dtype=cfg.torch_cfg.default_dtype), dim=0, keepdim=False)
         else:
             n_sliding_windows = length_normalizer(len(frag), self.min_overlap_ratio)
-            ans = np.log(len(marker)) + self.frag_length_rv.logpmf(len(frag)) - np.log(n_sliding_windows)
-            return ans
+            return torch.log(torch.tensor(len(marker))) + self.frag_length_rv.logpmf(len(frag)) - torch.log(torch.tensor(n_sliding_windows))
 
     def compute_frequencies(self,
                             fragments: FragmentSpace,
