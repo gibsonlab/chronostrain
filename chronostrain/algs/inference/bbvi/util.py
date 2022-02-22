@@ -1,8 +1,9 @@
 from typing import List
 
 import torch
+import torch_scatter
 from chronostrain.util.sparse import SparseMatrix, RowSectionedSparseMatrix
-from torch_scatter import scatter
+from chronostrain.util.sparse.sliceable import BBVIOptimizedSparseMatrix
 
 
 def log_softmax(x_samples: torch.Tensor, t: int) -> torch.Tensor:
@@ -61,21 +62,21 @@ class LogMMExpDenseSPModel(torch.nn.Module):
         return result
 
 
-from chronostrain.util.sparse.sliceable import BBVIOptimizedSparseMatrix
-import torch_scatter
-
 class LogMMExpDenseSPModel_Async(torch.nn.Module):
     """
     Represents a Module which represents
         f_A(X) = log_matmul_exp(X, A)
     where A is a (D x E) SparseMatrix, and X is an (N x D) matrix.
     """
-    def __init__(self, sparse_right_matrix: SparseMatrix):
+    def __init__(self, sparse_right_matrix: SparseMatrix, row_chunk_size: int = 100):
         super().__init__()
-        self.A = BBVIOptimizedSparseMatrix.optimize_from_sparse_matrix(
-            sparse_right_matrix,
-            row_chunk_size=2
-        )
+        if not isinstance(sparse_right_matrix, BBVIOptimizedSparseMatrix):
+            self.A = BBVIOptimizedSparseMatrix.optimize_from_sparse_matrix(
+                sparse_right_matrix,
+                row_chunk_size=row_chunk_size
+            )
+        else:
+            self.A = sparse_right_matrix
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         expansion = self.A.values.unsqueeze(0) + x[:, self.A.indices[0]]

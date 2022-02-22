@@ -154,7 +154,8 @@ class ComputationCache(object):
         cache_path = self.cache_dir / relative_filepath
         if cache_path.exists():
             logger.debug("[Cache {}] Loading pre-computed file {}.".format(
-                self.cache_tag.encoding, cache_path
+                self.cache_tag.encoding,
+                relative_filepath
             ))
 
             data = load(cache_path)

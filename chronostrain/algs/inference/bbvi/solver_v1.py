@@ -74,7 +74,9 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
                     row_chunk_size=self.frag_chunk_size
             ).chunks:
                 n_chunks += 1
-                self.frag_freq_logmmexp[t_idx].append(LogMMExpDenseSPModel_Async(sparse_chunk.t()))
+                self.frag_freq_logmmexp[t_idx].append(
+                    LogMMExpDenseSPModel_Async(sparse_chunk.t(), row_chunk_size=self.frag_chunk_size)
+                )
 
             logger.debug(f"Divided {projector.rows} x {frag_freqs.columns} sparse matrix "
                          f"into {n_chunks} chunks.")
@@ -82,7 +84,7 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
             # Prepare data likelihood chunks.
             self.data_ll_logmmexp[t_idx] = [
                 # Trace via JIT for a speedup (we will re-use these many times.)
-                LogMMExpDenseSPModel_Async(chunk)
+                LogMMExpDenseSPModel_Async(chunk, row_chunk_size=self.frag_chunk_size)
                 for chunk in self.data_likelihoods.matrices[t_idx].chunks
             ]
 

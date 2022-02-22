@@ -133,7 +133,6 @@ class FragmentFrequencyComputer(object):
             output_path=output_path,
             reference_path=self.db.multifasta_file,
             query_path=fragments_path,
-            min_smem_len=fragments.min_frag_len,
             max_interval_size=max_num_hits
         )
 
@@ -243,21 +242,23 @@ class SparseFragmentFrequencyComputer(FragmentFrequencyComputer):
         matrix_values = []
 
         for fragment, frag_hits in all_frag_hits:
-            strains = np.array([
+            strains = torch.tensor([
                 population.strain_index(hit_strain)
                 for _, hit_strain, _ in frag_hits
-            ], dtype=int)
+            ], dtype=torch.long)
 
-            frag_lls = np.array([
+            frag_lls = torch.tensor([
                 self.frag_log_ll(fragment, hit_marker, hit_pos)
                 for hit_marker, _, hit_pos in frag_hits
-            ], dtype=float)
+            ], dtype=cfg.torch_cfg.default_dtype)
 
             for strain_idx in np.unique(strains):
                 strain_indices.append(strain_idx)
                 frag_indices.append(fragment.index)
-                matrix_values.append(scipy.special.logsumexp(
-                    frag_lls[strains == strain_idx]
+                matrix_values.append(torch.logsumexp(
+                    frag_lls[strains == strain_idx],
+                    dim=0,
+                    keepdim=False
                 ))
         return RowSectionedSparseMatrix(
             indices=torch.tensor([frag_indices, strain_indices], device=cfg.torch_cfg.device, dtype=torch.long),
