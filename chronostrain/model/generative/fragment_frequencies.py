@@ -252,7 +252,7 @@ class SparseFragmentFrequencyComputer(FragmentFrequencyComputer):
                 for hit_marker, _, hit_pos in frag_hits
             ], dtype=cfg.torch_cfg.default_dtype)
 
-            for strain_idx in np.unique(strains):
+            for strain_idx in torch.unique(strains):
                 strain_indices.append(strain_idx)
                 frag_indices.append(fragment.index)
                 matrix_values.append(torch.logsumexp(
