@@ -131,7 +131,7 @@ def prune_db(strains: List[Strain], input_json_path: Path, output_json_path: Pat
     with open(input_json_path, "r") as f:
         start_entries = json.load(f)
         for entry in start_entries:
-            accession = entry['accession']
+            accession = entry['id']
             entries[accession] = entry
 
     # Read the alignments.
