@@ -168,8 +168,8 @@ def prune_db(strains: List[Strain], input_json_path: Path, output_json_path: Pat
     for cluster in clusters:
         cluster_entry = entries[cluster[0]]
         cluster_entry['cluster'] = [
-            "{}({})".format(acc, entries[acc]['strain'])
-            for acc in cluster
+            "{}({})".format(s_id, entries[s_id]['name'])
+            for s_id in cluster
         ]
         result_entries.append(cluster_entry)
 
