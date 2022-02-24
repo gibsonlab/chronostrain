@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 
 from chronostrain import cfg
+from chronostrain.util.entrez import fetch_fasta
 
 
 def parse_args():
@@ -32,7 +33,13 @@ def main():
     script = "bash {clermon_script_path} --fasta {fasta_path} --name {analysis_name}"
 
     db = cfg.database_cfg.get_database()
-    fasta_paths = [strain.metadata.source_path for strain in db.all_strains()]
+    fasta_paths = [
+        fetch_fasta(
+            strain.metadata.chromosomes[0],
+            base_dir=cfg.database_cfg.data_dir / "assemblies" / strain.id
+        )
+        for strain in db.all_strains()
+    ]
 
     output_path = Path(args.output_path)
     output_path.parent.mkdir(exist_ok=True, parents=True)
