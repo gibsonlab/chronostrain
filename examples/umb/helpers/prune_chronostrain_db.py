@@ -150,34 +150,68 @@ def prune_db(strains: List[Strain], input_json_path: Path, output_json_path: Pat
         distances[i2, i1] = hamming_dist
 
     logger.info("Computing clusters.")
+    ident_fraction = 0.01  # corresponds to 1% identity
     clustering = AgglomerativeClustering(
         affinity='precomputed',
         linkage='average',
-        distance_threshold=math.ceil(0.001 * align_len),
+        distance_threshold=math.ceil(ident_fraction * align_len),
         n_clusters=None
     ).fit(distances)
 
     n_clusters, cluster_labels = clustering.n_clusters_, clustering.labels_
-    clusters: List[List[str]] = [
-        [strains[s_idx].id for s_idx in np.where(cluster_labels == c)[0]]
+    clusters: List[List[int]] = [
+        [s_idx for s_idx in np.where(cluster_labels == c)[0]]
         for c in range(n_clusters)
     ]
 
+    cluster_reps = pick_cluster_representatives(clusters, distances)
+
     # Create the clustered json.
     result_entries = []
-    for cluster in clusters:
-        cluster_entry = entries[cluster[0]]
+    for cluster, rep in zip(clusters, cluster_reps):
+        rep_strain_idx = cluster[rep]
+        rep_strain = strains[rep_strain_idx].id
+
+        cluster_entry = entries[rep_strain]
         cluster_entry['cluster'] = [
-            "{}({})".format(s_id, entries[s_id]['name'])
-            for s_id in cluster
+            "{}({})".format(strains[s_idx].id, entries[strains[s_idx].id]['name'])
+            for s_idx in cluster
         ]
         result_entries.append(cluster_entry)
 
     with open(output_json_path, 'w') as outfile:
         json.dump(result_entries, outfile, indent=4)
 
-    print("Before clustering: {} strains".format(len(entries)))
-    print("After clustering: {} strains".format(len(result_entries)))
+    logger.info("Before clustering: {} strains".format(len(entries)))
+    logger.info("After clustering: {} strains".format(len(result_entries)))
+
+
+def pick_cluster_representatives(clusters: List[List[int]], distances: np.ndarray) -> List[int]:
+    """
+    Decide the cluster reps by looking for the node that most closely resembles the cluster-wide average distances.
+    """
+    reps = []
+    for c_idx, cluster in enumerate(clusters):
+        cluster_averages = []
+        node_averages = []
+        for other_c_idx, other_cluster in enumerate(clusters):
+            # (include the same cluster in this calculation.)
+            submatrix = distances[np.ix_(cluster, other_cluster)]
+            cluster_averages.append(np.mean(submatrix))
+            node_averages.append(np.mean(submatrix, axis=1))
+
+        cluster_averages = np.array(cluster_averages)
+        node_averages = np.stack(node_averages, dim=1)
+
+        # Difference form cluster-wide averages.
+        differences = node_averages - cluster_averages.reshape(1, -1)
+        rep = int(np.argmin(
+            np.abs(differences).sum(axis=1)  # Minimize L1-norm of the difference vector.
+        ))
+
+        # Note: this indexing is relative to each cluster (e.g. "0" is the first element of the cluster).
+        reps.append(rep)
+    return reps
 
 
 def main():
