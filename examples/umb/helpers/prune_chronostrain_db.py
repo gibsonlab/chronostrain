@@ -201,7 +201,7 @@ def pick_cluster_representatives(clusters: List[List[int]], distances: np.ndarra
             node_averages.append(np.mean(submatrix, axis=1))
 
         cluster_averages = np.array(cluster_averages)
-        node_averages = np.stack(node_averages, dim=1)
+        node_averages = np.stack(node_averages, axis=1)
 
         # Difference form cluster-wide averages.
         differences = node_averages - cluster_averages.reshape(1, -1)
