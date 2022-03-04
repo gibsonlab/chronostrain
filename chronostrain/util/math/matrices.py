@@ -274,12 +274,17 @@ def log_spspmm_exp(x: ColumnSectionedSparseMatrix, y: RowSectionedSparseMatrix) 
     This implementation uses the identity (A + B)C = AC + BC, and uses a col-partitioning recursive strategy
     of depth log(n) to maintain O(mp) memory usage, where X is (m x n) and Y is (n x p).
     """
+    if x.columns != y.rows:
+        raise ValueError("Rows of x and columns of y must match.")
+
     if x.rows == 0:
-        return torch.zeros(0, y.columns, dtype=y.values.dtype)
+        return torch.empty(0, y.columns, dtype=y.values.dtype)
     elif y.columns == 0:
-        return torch.zeros(x.rows, 0, dtype=x.values.dtype)
+        return torch.empty(x.rows, 0, dtype=x.values.dtype)
     elif x.columns == 0 and y.rows == 0:
-        return torch.zeros(x.rows, y.columns, dtype=x.values.dtype)
+        raise RuntimeError("Cannot apply operation to ({} x 0) @ (0 x {}) matrix.".format(
+            x.rows, y.columns
+        ))
 
     return log_spspmm_exp_helper(
         x.indices, x.values, x.rows, x.columns, x.locs_per_column,
