@@ -77,7 +77,8 @@ class CachedReadPairwiseAlignments(object):
             for marker, alns in marker_categorized_alignments(
                     sam_file,
                     self.db,
-                    lambda read_id: time_slice.get_read(read_id)
+                    read_getter=lambda read_id: time_slice.get_read(read_id),
+                    reattach_clipped_bases=True
             ).items():
                 alignments[marker] = alignments[marker] + alns
         return alignments
@@ -98,6 +99,7 @@ class CachedReadPairwiseAlignments(object):
                         sam_file,
                         self.db,
                         read_getter=lambda read_id: time_slice.get_read(read_id),
+                        reattach_clipped_bases=True
                 ):
                     marker_to_reads[aln.marker][t_idx].append(aln)
         yield from marker_to_reads.items()
@@ -110,6 +112,7 @@ class CachedReadPairwiseAlignments(object):
                         sam_file,
                         self.db,
                         read_getter=lambda read_id: time_slice.get_read(read_id),
+                        reattach_clipped_bases=True
                 ):
                     yield t_idx, aln
 
