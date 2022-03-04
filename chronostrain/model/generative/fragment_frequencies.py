@@ -76,18 +76,19 @@ class FragmentFrequencyComputer(object):
     def load_matrix(self, matrix_path: Path) -> Union[RowSectionedSparseMatrix, torch.Tensor]:
         pass
 
-    def frag_log_ll(self, frag: Fragment, marker: Marker, frag_position: int) -> float:
+    def frag_log_ll(self, frag: Fragment, marker: Marker, strain: Strain, frag_position: int) -> float:
         """
+        Let β = self.min_overlap_ratio (minimum allowed coverage of markers by fragments).
         Compute the partial likelihood
-            P(M=m|S=s) * SUM_{k >= |f|} P(F=f|M=m,K=k) * P(K = k)
+            P(M=m|S=s) * Σ_{k >= |f|} P(F=f|M=m,K=k) * P(K = k)
         where
-            P(F=f|M=m,K=k) = SUM_{i in <positions_with_0.5_coverage>}
+            P(F=f|M=m,K=k) = Σ_{i in <positions_with_β_coverage>}
                 (1/# sliding windows of length k)
                 * 1_{window at position i is f}
-        by marginalizing over all possible positions and all possible "parent lengths" k (insert measurement lengths,
-        e.g. the chunk of the insert that makes it into the read),
-        and across all positions i.
+        by marginalizing over all possible positions i and all possible "parent lengths" k (insert measurement lengths,
+        e.g. the chunk of the insert that makes it into the read)
         """
+
         def length_normalizer(k: int, min_overlap_ratio: float) -> float:
             """
             Computes the number of sliding windows of length `k`, with padding on either end of the marker,
@@ -95,9 +96,12 @@ class FragmentFrequencyComputer(object):
             """
             return len(marker) + (2 * (1 - min_overlap_ratio) * k) - k + 1
 
+        total_marker_len = sum(len(m) for m in strain.markers)
+        marker_ll = torch.log(torch.tensor(len(marker))) - torch.log(torch.tensor(total_marker_len))
+
         if (frag_position == 1) or (frag_position == len(marker) - len(frag) + 1):
             # Edge case: at the start or end of marker.
-            return torch.log(torch.tensor(len(marker))) + torch.logsumexp(torch.tensor([
+            return marker_ll + torch.logsumexp(torch.tensor([
                 self.frag_length_rv.logpmf(k) - torch.log(torch.tensor(length_normalizer(k, self.min_overlap_ratio)))
                 for k in range(
                     len(frag),
@@ -106,7 +110,7 @@ class FragmentFrequencyComputer(object):
             ], dtype=cfg.torch_cfg.default_dtype), dim=0, keepdim=False)
         else:
             n_sliding_windows = length_normalizer(len(frag), self.min_overlap_ratio)
-            return torch.log(torch.tensor(len(marker))) + self.frag_length_rv.logpmf(len(frag)) - torch.log(torch.tensor(n_sliding_windows))
+            return marker_ll + self.frag_length_rv.logpmf(len(frag)) - torch.log(torch.tensor(n_sliding_windows))
 
     def compute_frequencies(self,
                             fragments: FragmentSpace,
@@ -245,18 +249,16 @@ class SparseFragmentFrequencyComputer(FragmentFrequencyComputer):
             ], dtype=torch.long)
 
             frag_lls = torch.tensor([
-                self.frag_log_ll(fragment, hit_marker, hit_pos)
-                for hit_marker, _, hit_pos in frag_hits
+                self.frag_log_ll(fragment, hit_marker, hit_strain, hit_pos)
+                for hit_marker, hit_strain, hit_pos in frag_hits
             ], dtype=cfg.torch_cfg.default_dtype)
 
             for strain_idx in torch.unique(strains):
                 strain_indices.append(strain_idx)
                 frag_indices.append(fragment.index)
-                matrix_values.append(torch.logsumexp(
-                    frag_lls[strains == strain_idx],
-                    dim=0,
-                    keepdim=False
-                ))
+                matrix_values.append(
+                    torch.logsumexp(frag_lls[strains == strain_idx], dim=0, keepdim=False)
+                )
         return RowSectionedSparseMatrix(
             indices=torch.tensor([frag_indices, strain_indices], device=cfg.torch_cfg.device, dtype=torch.long),
             values=torch.tensor(matrix_values, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype),
