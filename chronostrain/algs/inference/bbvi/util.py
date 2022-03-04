@@ -11,6 +11,24 @@ def log_softmax(x_samples: torch.Tensor, t: int) -> torch.Tensor:
     return x_samples[t] - torch.logsumexp(x_samples[t], dim=1, keepdim=True)
 
 
+class LogMMExpModel(torch.nn.Module):
+    """
+    Represents a Module which represents
+        f_A(X) = log_matmul_exp(X, A)
+    where A is a (D x E) dense matrix, and X is a (N x D) dense matrix.
+    """
+    def __init__(self, right_matrix: torch.Tensor):
+        super().__init__()
+        self.A: torch.Tensor = right_matrix
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return torch.logsumexp(
+            x.unsqueeze(2) + self.A.unsqueeze(0),
+            dim=1,
+            keepdim=False
+        )
+
+
 class LogMMExpDenseSPModel(torch.nn.Module):
     """
     Represents a Module which represents

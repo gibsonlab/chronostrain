@@ -7,12 +7,12 @@ from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
 
 from chronostrain.config import cfg, create_logger
-from chronostrain.util.sparse import SparseMatrix
-from chronostrain.util.sparse.sliceable import BBVIOptimizedSparseMatrix
+from chronostrain.util.math import log_spspmm_exp
+from chronostrain.util.sparse.sliceable import ColumnSectionedSparseMatrix
 from .. import AbstractModelSolver
 from .base import AbstractBBVI
 from .posteriors import *
-from .util import log_softmax, LogMMExpDenseSPModel, LogMMExpDenseSPModel_Async
+from .util import log_softmax, LogMMExpModel
 
 logger = create_logger(__name__)
 
@@ -55,38 +55,30 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
             device=cfg.torch_cfg.device
         )
 
-        self.frag_chunk_size = frag_chunk_size
-        self.frag_freq_logmmexp: List[List[LogMMExpDenseSPModel_Async]] = [[] for _ in range(model.num_times())]
-        self.data_ll_logmmexp: List[List[LogMMExpDenseSPModel_Async]] = [[] for _ in range(model.num_times())]
-
         logger.debug("Initializing BBVI data structures.")
         if not cfg.model_cfg.use_sparse:
             raise NotImplementedError("BBVI only supports sparse data structures.")
 
-        frag_freqs: SparseMatrix = self.model.fragment_frequencies_sparse  # F x S
+        # (S x R) matrices: Contains P(R = r | S = s) for each read r, strain s.
+        self.strain_read_ll_models: List[LogMMExpModel] = []
+
+        # Precompute this (only possible in V1).
+        logger.debug("Precomputing likelihood products.")
         for t_idx in range(model.num_times()):
-            # Sparsity transformation (R^F -> R^{Support}), matrix size = (F' x F)
+            data_ll_t = self.data_likelihoods.matrices[t_idx]  # F x R
+            # self.model.fragment_frequencies_sparse
+
             projector = self.data_likelihoods.projectors[t_idx]
+            strain_read_lls_t = log_spspmm_exp(
+                ColumnSectionedSparseMatrix.from_sparse_matrix(
+                    projector.sparse_mul(self.model.fragment_frequencies_sparse).t()
+                ),  # (S x F_), note the transpose!
+                data_ll_t  # (F_ x R)
+            )  # (S x R)
 
-            n_chunks = 0
-            for sparse_chunk in BBVIOptimizedSparseMatrix.optimize_from_sparse_matrix(
-                    projector.sparse_mul(frag_freqs),
-                    row_chunk_size=self.frag_chunk_size
-            ).chunks:
-                n_chunks += 1
-                self.frag_freq_logmmexp[t_idx].append(
-                    LogMMExpDenseSPModel_Async(sparse_chunk.t(), row_chunk_size=self.frag_chunk_size)
-                )
-
-            logger.debug(f"Divided {projector.rows} x {frag_freqs.columns} sparse matrix "
-                         f"into {n_chunks} chunks.")
-
-            # Prepare data likelihood chunks.
-            self.data_ll_logmmexp[t_idx] = [
-                # Trace via JIT for a speedup (we will re-use these many times.)
-                LogMMExpDenseSPModel_Async(chunk, row_chunk_size=self.frag_chunk_size)
-                for chunk in self.data_likelihoods.matrices[t_idx].chunks
-            ]
+            self.strain_read_ll_models.append(
+                LogMMExpModel(strain_read_lls_t)
+            )
 
     def elbo(self,
              x_samples: torch.Tensor,
@@ -123,14 +115,8 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
         for t_idx in range(self.model.num_times()):
             # =========== NEW IMPLEMENTATION: chunks
             log_softmax_xt = log_softmax(x_samples, t=t_idx)
-            for chunk_idx, (ff_chunk, data_chunk) in enumerate(
-                    zip(self.frag_freq_logmmexp[t_idx], self.data_ll_logmmexp[t_idx])
-            ):
-                log_lls = data_chunk.forward(  # (N x F_CHUNK) @ (F_CHUNK x R) -> (N x R)
-                    ff_chunk.forward(log_softmax_xt)  # (N x S) @ (S x F_CHUNK) -> (N x F_CHUNK)
-                )
-                e = torch.sum(log_lls[torch.isfinite(log_lls)]) * (1 / n_samples)
-                yield e
+            log_lls = self.strain_read_ll_models[t_idx].forward(log_softmax_xt)  # (N x R)
+            yield (1 / n_samples) * torch.sum(log_lls)
 
     def solve(self,
               optimizer: torch.optim.Optimizer,
