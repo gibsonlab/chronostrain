@@ -244,11 +244,11 @@ class SparseFragmentFrequencyComputer(FragmentFrequencyComputer):
         def is_edge_positioned(marker: Marker, pos: int) -> bool:
             return (pos == 1) or (pos == len(marker) - len(frag) + 1)
 
-        for k in range(min_window_len, max_window_len + 1):
+        for k_idx, k in enumerate(range(min_window_len, max_window_len + 1)):
             n_windows_k = sum(num_windows(m, k) for m in strain.markers)
             n_matching_windows_k = sum(1 for m, p in hits if is_edge_positioned(m, p))
 
-            per_position_lls[k] = (
+            per_position_lls[k_idx] = (
                 self.frag_length_rv.logpmf(k)
                 + torch.log(torch.tensor(n_matching_windows_k))
                 - torch.log(torch.tensor(n_windows_k))
