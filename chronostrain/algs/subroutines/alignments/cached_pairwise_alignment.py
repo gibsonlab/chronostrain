@@ -37,6 +37,8 @@ class CachedReadPairwiseAlignments(object):
         else:
             self.cache = ReadsComputationCache(reads, )
 
+        if cfg.external_tools_cfg.pairwise_align_cmd == "ssw-align":
+            self.aligner = SmithWatermanAligner(self.marker_reference_path)
         if cfg.external_tools_cfg.pairwise_align_cmd == "bwa":
             self.aligner = BwaAligner(
                 reference_path=self.marker_reference_path,

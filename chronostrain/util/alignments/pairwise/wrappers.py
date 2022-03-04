@@ -20,6 +20,28 @@ class AbstractPairwiseAligner(object):
         pass
 
 
+class SmithWatermanAligner(AbstractPairwiseAligner):
+    def __init__(self,
+                 reference_path: Path):
+        self.reference_path = reference_path
+        self.match_score = 1
+        self.mismatch_penalty = 3
+        self.gap_open_penalty = 5
+        self.gap_extend_penalty = 2
+
+    def align(self, query_path: Path, output_path: Path):
+        ssw_align(
+            target_path=self.reference_path,
+            query_path=query_path,
+            match_score=self.match_score,
+            mismatch_penalty=self.mismatch_penalty,
+            gap_open_penalty=self.gap_open_penalty,
+            gap_extend_penalty=self.gap_extend_penalty,
+            output_path=output_path,
+            best_of_strands=True
+        )
+
+
 class BwaAligner(AbstractPairwiseAligner):
     def __init__(self,
                  reference_path: Path,

@@ -111,9 +111,8 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
         model_gaussian_log_likelihoods = self.model.log_likelihood_x(X=x_samples)
         yield model_gaussian_log_likelihoods.sum() * (1 / n_samples)
 
-        # ======== log P(R|X) = log Σ_F P(R|F)P(F|X)
+        # ======== log P(R|X) = log Σ_S P(R|S)P(S|X)
         for t_idx in range(self.model.num_times()):
-            # =========== NEW IMPLEMENTATION: chunks
             log_softmax_xt = log_softmax(x_samples, t=t_idx)
             log_lls = self.strain_read_ll_models[t_idx].forward(log_softmax_xt)  # (N x R)
             yield (1 / n_samples) * torch.sum(log_lls)
