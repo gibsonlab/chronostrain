@@ -1,6 +1,7 @@
 from abc import abstractmethod
+from collections import defaultdict
 from pathlib import Path
-from typing import Union, List, Tuple, Iterator
+from typing import Union, List, Tuple, Iterator, Dict
 
 import torch
 from Bio import SeqIO
@@ -18,10 +19,9 @@ logger = create_logger(__name__)
 
 
 class FragmentFrequencyComputer(object):
-    def __init__(self, frag_length_rv: rv_discrete, db: StrainDatabase, min_overlap_ratio: float):
+    def __init__(self, frag_length_rv: rv_discrete, db: StrainDatabase):
         self.frag_length_rv = frag_length_rv
         self.db: StrainDatabase = db
-        self.min_overlap_ratio = min_overlap_ratio
 
     def get_frequencies(self,
                         fragments: FragmentSpace,
@@ -75,42 +75,6 @@ class FragmentFrequencyComputer(object):
     @abstractmethod
     def load_matrix(self, matrix_path: Path) -> Union[RowSectionedSparseMatrix, torch.Tensor]:
         pass
-
-    def frag_log_ll(self, frag: Fragment, marker: Marker, strain: Strain, frag_position: int) -> float:
-        """
-        Let β = self.min_overlap_ratio (minimum allowed coverage of markers by fragments).
-        Compute the partial likelihood
-            P(M=m|S=s) * Σ_{k >= |f|} P(F=f|M=m,K=k) * P(K = k)
-        where
-            P(F=f|M=m,K=k) = Σ_{i in <positions_with_β_coverage>}
-                (1/# sliding windows of length k)
-                * 1_{window at position i is f}
-        by marginalizing over all possible positions i and all possible "parent lengths" k (insert measurement lengths,
-        e.g. the chunk of the insert that makes it into the read)
-        """
-
-        def length_normalizer(k: int, min_overlap_ratio: float) -> float:
-            """
-            Computes the number of sliding windows of length `k`, with padding on either end of the marker,
-            such that the window always overlaps for half of its length with the marker.
-            """
-            return len(marker) + (2 * (1 - min_overlap_ratio) * k) - k + 1
-
-        total_marker_len = sum(len(m) for m in strain.markers)
-        marker_ll = torch.log(torch.tensor(len(marker))) - torch.log(torch.tensor(total_marker_len))
-
-        if (frag_position == 1) or (frag_position == len(marker) - len(frag) + 1):
-            # Edge case: at the start or end of marker.
-            return marker_ll + torch.logsumexp(torch.tensor([
-                self.frag_length_rv.logpmf(k) - torch.log(torch.tensor(length_normalizer(k, self.min_overlap_ratio)))
-                for k in range(
-                    len(frag),
-                    max(int(self.frag_length_rv.mean() + 2 * self.frag_length_rv.std()), len(frag))
-                )
-            ], dtype=cfg.torch_cfg.default_dtype), dim=0, keepdim=False)
-        else:
-            n_sliding_windows = length_normalizer(len(frag), self.min_overlap_ratio)
-            return marker_ll + self.frag_length_rv.logpmf(len(frag)) - torch.log(torch.tensor(n_sliding_windows))
 
     def compute_frequencies(self,
                             fragments: FragmentSpace,
@@ -222,7 +186,8 @@ class FragmentFrequencyComputer(object):
 
 class SparseFragmentFrequencyComputer(FragmentFrequencyComputer):
     def __init__(self, frag_length_rv: rv_discrete, db: StrainDatabase, min_overlap_ratio: float):
-        super().__init__(frag_length_rv, db, min_overlap_ratio)
+        super().__init__(frag_length_rv, db)
+        self.min_overlap_ratio: float = min_overlap_ratio
 
     def relative_matrix_path(self) -> Path:
         return Path('fragment_frequencies') / 'sparse_frag_freqs.npz'
@@ -243,22 +208,14 @@ class SparseFragmentFrequencyComputer(FragmentFrequencyComputer):
         matrix_values = []
 
         for fragment, frag_hits in all_frag_hits:
-            strains = torch.tensor([
-                population.strain_index(hit_strain)
-                for _, hit_strain, _ in frag_hits
-            ], dtype=torch.long)
+            hits_per_strain: Dict[Strain, List[Tuple[Marker, int]]] = defaultdict(list)
+            for hit_marker, hit_strain, hit_pos in frag_hits:
+                hits_per_strain[hit_strain].append((hit_marker, hit_pos))
 
-            frag_lls = torch.tensor([
-                self.frag_log_ll(fragment, hit_marker, hit_strain, hit_pos)
-                for hit_marker, hit_strain, hit_pos in frag_hits
-            ], dtype=cfg.torch_cfg.default_dtype)
-
-            for strain_idx in torch.unique(strains):
-                strain_indices.append(strain_idx)
+            for strain, hits in hits_per_strain.items():
+                strain_indices.append(population.strain_index(strain))
                 frag_indices.append(fragment.index)
-                matrix_values.append(
-                    torch.logsumexp(frag_lls[strains == strain_idx], dim=0, keepdim=False)
-                )
+                matrix_values.append(self.frag_log_ll(fragment, strain, hits))
         return RowSectionedSparseMatrix(
             indices=torch.tensor([frag_indices, strain_indices], device=cfg.torch_cfg.device, dtype=torch.long),
             values=torch.tensor(matrix_values, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype),
@@ -275,3 +232,29 @@ class SparseFragmentFrequencyComputer(FragmentFrequencyComputer):
             device=cfg.torch_cfg.device,
             dtype=cfg.torch_cfg.default_dtype
         ))
+
+    def frag_log_ll(self, frag: Fragment, strain: Strain, hits: List[Tuple[Marker, int]]) -> torch.Tensor:
+        min_window_len = len(frag)
+        max_window_len = max(int(self.frag_length_rv.mean() + 2 * self.frag_length_rv.std()), len(frag))
+        per_position_lls = torch.zeros(max_window_len - min_window_len + 1, dtype=cfg.torch_cfg.default_dtype)
+
+        def num_windows(marker: Marker, window_len: int) -> int:
+            return len(marker) + int(2 * (1 - self.min_overlap_ratio) * window_len) - window_len + 1
+
+        def is_edge_positioned(marker: Marker, pos: int) -> bool:
+            return (pos == 1) or (pos == len(marker) - len(frag) + 1)
+
+        for k in range(min_window_len, max_window_len + 1):
+            n_windows_k = sum(num_windows(m, k) for m in strain.markers)
+            n_matching_windows_k = sum(1 for m, p in hits if is_edge_positioned(m, p))
+
+            per_position_lls[k] = (
+                self.frag_length_rv.logpmf(k)
+                + torch.log(torch.tensor(n_matching_windows_k))
+                - torch.log(torch.tensor(n_windows_k))
+            )
+        return torch.logsumexp(
+            per_position_lls,
+            dim=0,
+            keepdim=False
+        )
