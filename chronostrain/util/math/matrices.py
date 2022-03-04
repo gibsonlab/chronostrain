@@ -278,6 +278,8 @@ def log_spspmm_exp(x: ColumnSectionedSparseMatrix, y: RowSectionedSparseMatrix) 
         return torch.zeros(0, y.columns, dtype=y.values.dtype)
     elif y.columns == 0:
         return torch.zeros(x.rows, 0, dtype=x.values.dtype)
+    elif x.columns == 0 and y.rows == 0:
+        return torch.zeros(x.rows, y.columns, dtype=x.values.dtype)
 
     return log_spspmm_exp_helper(
         x.indices, x.values, x.rows, x.columns, x.locs_per_column,
