@@ -246,7 +246,11 @@ class SparseFragmentFrequencyComputer(FragmentFrequencyComputer):
 
         for k_idx, k in enumerate(range(min_window_len, max_window_len + 1)):
             n_windows_k = sum(num_windows(m, k) for m in strain.markers)
-            n_matching_windows_k = sum(1 for m, p in hits if is_edge_positioned(m, p))
+            n_matching_windows_k = sum(
+                1
+                for m, p in hits
+                if k == len(frag) or is_edge_positioned(m, p)
+            )
 
             per_position_lls[k_idx] = (
                 self.frag_length_rv.logpmf(k)

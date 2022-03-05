@@ -1,3 +1,4 @@
+import subprocess
 from pathlib import Path
 from typing import Optional
 
@@ -39,7 +40,8 @@ def ssw_align(
     exit_code = call_command(
         command='ssw-align',
         args=params,
-        output_path=output_path
+        output_path=output_path,
+        stderr=subprocess.DEVNULL
     )
 
     if exit_code != 0:

@@ -19,6 +19,8 @@ def call_command(command: str,
                  shell: bool = False,
                  environment: Optional[Dict[str, str]] = None,
                  output_path: Path = None,
+                 stdin: int = subprocess.PIPE,
+                 stderr: int = subprocess.PIPE,
                  silent: bool = False) -> int:
     """
     Executes the command (using the subprocess module).
@@ -29,6 +31,9 @@ def call_command(command: str,
     :param shell: Indicates whether or not to instantiate a shell from which to invoke the command (not recommended!)
     :param environment: A key-value pair representing an environment with necessary variables set.
     :param output_path: A path to print the contents of STDOUT to. (If None, logs STDOUT instead.)
+    :param stdin: (default: subprocess.PIPE)
+    :param stderr: (default: subprocess.PIPE)
+    :param silent: Determines whether to send debug messages to the logger.
     :return: The exit code. (zero by default, the program's returncode if error.)
     """
     args = [str(arg) for arg in args]
@@ -50,8 +55,8 @@ def call_command(command: str,
     try:
         p = subprocess.run(
             [command] + args,
-            stdin=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stdin=stdin,
+            stderr=stderr,
             stdout=output_file if output_file is not None else subprocess.PIPE,
             shell=shell,
             cwd=None if cwd is None else str(cwd),
