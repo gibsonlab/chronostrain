@@ -57,7 +57,8 @@ class PhredErrorModel(AbstractErrorModel):
             read_qual = read_qual[::-1]
             read_seq = reverse_complement_seq(read_seq)
 
-        # take care of insertions/deletions/clipping.
+        # take care of insertions/deletions/clipping
+        # (NOTE: after reverse complement transformation of read, if necessary)
         _slice = slice(read_start_clip, len(read_seq) - read_end_clip)
         read_qual = read_qual[_slice][~insertions]
         read_seq = read_seq[_slice][~insertions]

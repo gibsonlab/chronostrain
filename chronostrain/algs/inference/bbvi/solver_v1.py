@@ -66,7 +66,6 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
         logger.debug("Precomputing likelihood products.")
         for t_idx in range(model.num_times()):
             data_ll_t = self.data_likelihoods.matrices[t_idx]  # F x R
-            # self.model.fragment_frequencies_sparse
 
             projector = self.data_likelihoods.projectors[t_idx]
             strain_read_lls_t = log_spspmm_exp(
