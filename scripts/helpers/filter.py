@@ -96,7 +96,9 @@ class Filter(object):
 
         logger.debug(f"Reading: {sam_path.name}")
         for aln in parse_alignments(
-                SamFile(sam_path, quality_format), self.db
+                SamFile(sam_path, quality_format),
+                self.db,
+                min_hit_ratio=self.min_hit_ratio
         ):
             if aln.read.id in reads_already_passed:
                 # Read is already included in output file. Don't do anything.
