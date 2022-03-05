@@ -10,6 +10,7 @@ from chronostrain.util.alignments.sam import SamFile
 from chronostrain.util.external import call_command
 from chronostrain.util.alignments.pairwise import parse_alignments, BowtieAligner, SequenceReadPairwiseAlignment
 from chronostrain.config import cfg, create_logger
+from chronostrain.util.sequences import nucleotide_GAP_z4
 
 logger = create_logger("chronostrain.filter")
 
@@ -26,7 +27,7 @@ class Filter(object):
                  min_read_len: int,
                  pct_identity_threshold: float,
                  error_threshold: float,
-                 clip_fraction: float = 0.5,
+                 min_hit_ratio: float = 0.5,
                  num_threads: int = 1):
         self.db = db
 
@@ -40,7 +41,7 @@ class Filter(object):
         self.min_read_len = min_read_len
         self.pct_identity_threshold = pct_identity_threshold
         self.error_threshold = error_threshold
-        self.clip_fraction = clip_fraction
+        self.min_hit_ratio = min_hit_ratio
         self.num_threads = num_threads
 
     def apply(self, read_file: Path, out_path: Path, quality_format: str = 'fastq'):
@@ -84,7 +85,9 @@ class Filter(object):
                 "IS_EDGE_MAPPED",
                 "READ_LEN",
                 "N_MISMATCHES",
-                "PCT_ID_ADJ"
+                "PCT_ID_ADJ",
+                "START_CLIP",
+                "END_CLIP"
             ]
         )
 
@@ -100,7 +103,7 @@ class Filter(object):
                 continue
 
             # Pass filter if quality is high enough, and entire read is mapped.
-            filter_edge_clip = self.filter_on_edge_clip(aln)
+            filter_edge_clip = self.filter_on_ungapped_bases(aln)
             percent_identity_adjusted = self.adjusted_match_identity(aln)
 
             passed_filter = (
@@ -122,7 +125,9 @@ class Filter(object):
                     int(aln.is_edge_mapped),
                     len(aln.read),
                     aln.num_mismatches,
-                    percent_identity_adjusted
+                    percent_identity_adjusted,
+                    aln.soft_clip_start + aln.hard_clip_start,
+                    aln.soft_clip_end + aln.hard_clip_end
                 ]
             )
 
@@ -142,22 +147,8 @@ class Filter(object):
         result_metadata.close()
         result_fq.close()
 
-    def filter_on_edge_clip(self, aln: SequenceReadPairwiseAlignment):
-        if aln.is_edge_mapped:
-            # Fail if start and end are both soft clipped.
-            if (aln.soft_clip_start > 0 or aln.hard_clip_start > 0) and (
-                    aln.soft_clip_end > 0 or aln.hard_clip_end > 0):
-                return False
-
-            if aln.soft_clip_start > 0 or aln.hard_clip_start > 0:
-                return (aln.soft_clip_start / len(aln.read)) + (aln.hard_clip_start / len(aln.read)) < self.clip_fraction
-
-            if aln.soft_clip_end > 0 or aln.hard_clip_end > 0:
-                return (aln.soft_clip_end / len(aln.read)) + (aln.hard_clip_end / len(aln.read)) < self.clip_fraction
-
-            return True
-        else:
-            return True
+    def filter_on_ungapped_bases(self, aln: SequenceReadPairwiseAlignment):
+        return np.sum(aln.aln_matrix[1] != nucleotide_GAP_z4) / len(aln.read) > self.min_hit_ratio
 
     def adjusted_match_identity(self, aln: SequenceReadPairwiseAlignment):
         """
