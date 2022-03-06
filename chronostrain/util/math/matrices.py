@@ -278,9 +278,9 @@ def log_spspmm_exp(x: ColumnSectionedSparseMatrix, y: RowSectionedSparseMatrix) 
         raise ValueError("Rows of x and columns of y must match.")
 
     if x.rows == 0:
-        return torch.empty(0, y.columns, dtype=y.values.dtype)
+        return torch.empty(0, y.columns, dtype=y.values.dtype, device=y.values.device)
     elif y.columns == 0:
-        return torch.empty(x.rows, 0, dtype=x.values.dtype)
+        return torch.empty(x.rows, 0, dtype=x.values.dtype, device=y.values.device)
     elif x.columns == 0 and y.rows == 0:
         raise RuntimeError("Cannot apply operation to ({} x 0) @ (0 x {}) matrix.".format(
             x.rows, y.columns
