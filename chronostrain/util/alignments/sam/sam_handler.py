@@ -6,7 +6,7 @@ import numpy as np
 
 from chronostrain.util.quality import ascii_to_phred
 from .cigar import CigarElement, parse_cigar, CigarOp
-from chronostrain.util.sequences import SeqType, nucleotides_to_z4
+from chronostrain.util.sequences import SeqType, nucleotides_to_z4, UnknownNucleotideError
 
 from chronostrain.config import create_logger
 logger = create_logger(__name__)
@@ -207,12 +207,18 @@ class SamFile:
                 if line[0] == '@':
                     continue
 
-                sam_line = SamLine.parse(
-                    lineno=line_idx+1,
-                    plaintext_line=line,
-                    prev_sam_line=prev_sam_line,
-                    quality_format=self.quality_format
-                )
+                try:
+                    sam_line = SamLine.parse(
+                        lineno=line_idx+1,
+                        plaintext_line=line,
+                        prev_sam_line=prev_sam_line,
+                        quality_format=self.quality_format
+                    )
+                except UnknownNucleotideError as e:
+                    raise RuntimeError(
+                        f"Encountered unknown nucleotide {e.nucleotide} "
+                        f"while reading {self.file_path}, line {line_idx+1}"
+                    )
                 if sam_line.is_mapped:
                     n_mapped_lines += 1
                     yield sam_line

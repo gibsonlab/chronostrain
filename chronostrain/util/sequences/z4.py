@@ -36,7 +36,7 @@ def map_nucleotide_to_z4(nucleotide: str) -> int:
     try:
         return _acgt_to_z4[nucleotide]
     except KeyError:
-        raise UnknownNucleotideError(nucleotide)
+        raise UnknownNucleotideError(nucleotide) from None
 
 
 def map_z4_to_nucleotide(z4: int) -> str:
