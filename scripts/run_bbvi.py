@@ -197,7 +197,7 @@ def main():
             out_path=out_dir / "reads_to_frags.csv"
         )
 
-    # ==== Finally, plot the posterior.
+    # ==== Plot the posterior.
     viz.plot_bbvi_posterior(
         times=model.times,
         population=model.bacteria_pop,
@@ -209,6 +209,11 @@ def main():
         num_samples=args.num_posterior_samples,
         draw_legend=True
     )
+
+    # ==== Save the posterior distribution.
+    model_out_path = out_dir / "model.pt"
+    posterior.save(model_out_path)
+    logger.debug(f"Saved model to `{model_out_path}`.")
 
 
 if __name__ == "__main__":
