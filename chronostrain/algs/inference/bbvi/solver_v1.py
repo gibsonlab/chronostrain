@@ -41,11 +41,20 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
 
         self.correlation_type = correlation_type
         if correlation_type == "time":
-            posterior = GaussianPosteriorTimeCorrelation(model=model)
+            posterior = GaussianPosteriorTimeCorrelation(
+                num_strains=model.num_strains(),
+                num_times=model.num_times()
+            )
         elif correlation_type == "strain":
-            posterior = GaussianPosteriorStrainCorrelation(model=model)
+            posterior = GaussianPosteriorStrainCorrelation(
+                num_strains=model.num_strains(),
+                num_times=model.num_times()
+            )
         elif correlation_type == "full":
-            posterior = GaussianPosteriorFullCorrelation(model=model)
+            posterior = GaussianPosteriorFullCorrelation(
+                num_strains=model.num_strains(),
+                num_times=model.num_times()
+            )
         else:
             raise ValueError("Unrecognized `correlation_type` argument {}.".format(correlation_type))
 

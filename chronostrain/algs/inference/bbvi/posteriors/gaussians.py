@@ -270,6 +270,6 @@ class GaussianPosteriorTimeCorrelation(AbstractReparametrizedPosterior):
         params = torch.load(path)
         for s_idx in range(num_strains):
             linear_layer = posterior.reparam_networks[s_idx]
-            linear_layer.weight = params['weight']
-            linear_layer.bias = params['bias']
+            linear_layer.weight = torch.nn.Parameter(params[s_idx]['weight'])
+            linear_layer.bias = torch.nn.Parameter(params[s_idx]['bias'])
         return posterior
