@@ -236,16 +236,24 @@ class SparseFragmentFrequencyComputer(FragmentFrequencyComputer):
     def frag_log_ll(self, frag: Fragment, strain: Strain, hits: List[Tuple[Marker, int]]) -> torch.Tensor:
         min_window_len = len(frag)
         max_window_len = max(int(self.frag_length_rv.mean() + 2 * self.frag_length_rv.std()), len(frag))
-        per_position_lls = torch.zeros(max_window_len - min_window_len + 1, dtype=cfg.torch_cfg.default_dtype)
+        per_position_lls = torch.zeros(
+            max_window_len - min_window_len + 1,
+            dtype=cfg.torch_cfg.default_dtype
+        )
 
-        def num_windows(marker: Marker, window_len: int) -> int:
-            return len(marker) + int(2 * (1 - self.min_overlap_ratio) * window_len) - window_len + 1
+        marker_lengths = torch.tensor(
+            [len(marker) for marker in strain.markers],
+            dtype=cfg.torch_cfg.default_dtype
+        )
 
         def is_edge_positioned(marker: Marker, pos: int) -> bool:
             return (pos == 1) or (pos == len(marker) - len(frag) + 1)
 
         for k_idx, k in enumerate(range(min_window_len, max_window_len + 1)):
-            n_windows_k = sum(num_windows(m, k) for m in strain.markers)
+            n_windows_k = torch.sum(
+                marker_lengths
+                + (2 * (1 - self.min_overlap_ratio) * k) - k + 1
+            )
             n_matching_windows_k = sum(
                 1
                 for m, p in hits
@@ -254,8 +262,8 @@ class SparseFragmentFrequencyComputer(FragmentFrequencyComputer):
 
             per_position_lls[k_idx] = (
                 self.frag_length_rv.logpmf(k)
-                + torch.log(torch.tensor(n_matching_windows_k))
-                - torch.log(torch.tensor(n_windows_k))
+                + torch.log(torch.tensor(n_matching_windows_k, device=cfg.torch_cfg.device))
+                - torch.log(n_windows_k)
             )
         return torch.logsumexp(
             per_position_lls,
