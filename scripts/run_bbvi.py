@@ -211,7 +211,7 @@ def main():
     )
 
     # ==== Save the posterior distribution.
-    model_out_path = out_dir / "model.pt"
+    model_out_path = out_dir / "posterior.pt"
     posterior.save(model_out_path)
     logger.debug(f"Saved model to `{model_out_path}`.")
 
