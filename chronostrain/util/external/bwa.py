@@ -56,7 +56,7 @@ def bwa_fastmap(output_path: Path,
             query_path,
             '-w', max_interval_size]
     if min_smem_len is not None and isinstance(min_smem_len, int):
-        args += ['-i', min_smem_len]
+        args += ['-l', min_smem_len]
 
     exit_code = call_command(
         command='bwa',
