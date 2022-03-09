@@ -233,40 +233,34 @@ class SparseFragmentFrequencyComputer(FragmentFrequencyComputer):
             dtype=cfg.torch_cfg.default_dtype
         ))
 
-    def frag_log_ll(self, frag: Fragment, strain: Strain, hits: List[Tuple[Marker, int]]) -> torch.Tensor:
-        min_window_len = len(frag)
-        max_window_len = max(int(self.frag_length_rv.mean() + 2 * self.frag_length_rv.std()), len(frag))
-        per_position_lls = torch.zeros(
-            max_window_len - min_window_len + 1,
+    def frag_log_ll(self, frag: Fragment, strain: Strain, hits: List[Tuple[Marker, int]]) -> float:
+        marker_lengths = torch.tensor([len(marker) for marker in strain.markers], dtype=cfg.torch_cfg.default_dtype)
+
+        window_lens = torch.arange(
+            len(frag),
+            1 + max(int(self.frag_length_rv.mean() + 2 * self.frag_length_rv.std()), len(frag)) ,
             dtype=cfg.torch_cfg.default_dtype
         )
 
-        marker_lengths = torch.tensor(
-            [len(marker) for marker in strain.markers],
-            dtype=cfg.torch_cfg.default_dtype
-        )
+        n_windows = torch.sum(
+            torch.unsqueeze(marker_lengths, 1)  # (M x 1)
+            + torch.unsqueeze((2 * (1 - self.min_overlap_ratio) * window_lens) - window_lens + 1, 0),  # (1 x W)
+            dim=0
+        )  # length W
 
         def is_edge_positioned(marker: Marker, pos: int) -> bool:
             return (pos == 1) or (pos == len(marker) - len(frag) + 1)
 
-        for k_idx, k in enumerate(range(min_window_len, max_window_len + 1)):
-            n_windows_k = torch.sum(
-                marker_lengths
-                + (2 * (1 - self.min_overlap_ratio) * k) - k + 1
-            )
-            n_matching_windows_k = sum(
-                1
-                for m, p in hits
-                if k == len(frag) or is_edge_positioned(m, p)
-            )
+        n_matching_windows = torch.sum(
+            torch.unsqueeze(torch.tensor([is_edge_positioned(m, p) for m, p in hits], dtype=torch.bool), 1)  # H x 1
+            | torch.unsqueeze(window_lens == len(frag), 0),  # (1 x W)
+            dim=0
+        )  # length W
 
-            per_position_lls[k_idx] = (
-                self.frag_length_rv.logpmf(k)
-                + torch.log(torch.tensor(n_matching_windows_k, device=cfg.torch_cfg.device))
-                - torch.log(n_windows_k)
-            )
-        return torch.logsumexp(
-            per_position_lls,
+        return float(torch.logsumexp(
+            torch.tensor(self.frag_length_rv.logpmf(window_lens))
+            + torch.log(n_matching_windows)
+            - torch.log(n_windows),
             dim=0,
             keepdim=False
-        )
+        ).item())
