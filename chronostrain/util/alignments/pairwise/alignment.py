@@ -303,16 +303,19 @@ def parse_alignments(sam_file: SamFile,
     """
     for samline in sam_file.mapped_lines():
         try:
+            read = read_getter(samline.readname)
+            if len(samline.read_seq) / len(read) <= min_hit_ratio:
+                pass
+
             aln = parse_line_into_alignment(sam_file.file_path,
                                             samline,
                                             db,
                                             read_getter)
 
-            if np.sum(aln.aln_matrix[1] != nucleotide_GAP_z4) / len(aln.read) > min_hit_ratio:
-                if reattach_clipped_bases:
-                    reattach_clipped_bases_to_aln(aln)
+            if reattach_clipped_bases:
+                reattach_clipped_bases_to_aln(aln)
 
-                yield aln
+            yield aln
         except NotImplementedError as e:
             logger.warning(str(e))
 
