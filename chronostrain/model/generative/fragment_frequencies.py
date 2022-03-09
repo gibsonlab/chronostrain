@@ -98,7 +98,8 @@ class FragmentFrequencyComputer(object):
             output_path=output_path,
             reference_path=self.db.multifasta_file,
             query_path=fragments_path,
-            max_interval_size=max_num_hits
+            max_interval_size=max_num_hits,
+            min_smem_len=min(len(f) for f in fragments)
         )
 
     @staticmethod
@@ -238,7 +239,7 @@ class SparseFragmentFrequencyComputer(FragmentFrequencyComputer):
 
         window_lens = torch.arange(
             len(frag),
-            1 + max(int(self.frag_length_rv.mean() + 2 * self.frag_length_rv.std()), len(frag)) ,
+            1 + max(int(self.frag_length_rv.mean() + 2 * self.frag_length_rv.std()), len(frag)),
             dtype=cfg.torch_cfg.default_dtype
         )
 

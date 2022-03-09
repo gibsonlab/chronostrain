@@ -303,9 +303,10 @@ def parse_alignments(sam_file: SamFile,
     """
     for samline in sam_file.mapped_lines():
         try:
-            read = read_getter(samline.readname)
-            if len(samline.read_seq) / len(read) <= min_hit_ratio:
-                pass
+            if read_getter is not None:
+                # Apply min_hit_ratio criterion.
+                if len(samline.read_seq) / len(read_getter(samline.readname)) <= min_hit_ratio:
+                    pass
 
             aln = parse_line_into_alignment(sam_file.file_path,
                                             samline,
