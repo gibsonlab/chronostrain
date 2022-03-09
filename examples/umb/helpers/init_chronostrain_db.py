@@ -91,9 +91,10 @@ def perform_indexing(refseq_dir: Path) -> pd.DataFrame:
                     if fpath.name.endswith('_rna_from_genomic.fna.gz'):
                         continue
 
-                    for accession, chrom_path in extract_chromosomes(fpath):
-                        logger.debug("Found accession {} ({} {}, Strain `{}`)".format(
+                    for accession, assembly_gcf, chrom_path in extract_chromosomes(fpath):
+                        logger.debug("Found accession {} from assembly {} ({} {}, Strain `{}`)".format(
                             accession,
+                            assembly_gcf,
                             genus,
                             species,
                             strain_name
@@ -103,12 +104,14 @@ def perform_indexing(refseq_dir: Path) -> pd.DataFrame:
                             "Species": species,
                             "Strain": strain_name,
                             "Accession": accession,
+                            "Assembly": assembly_gcf,
                             "SeqPath": chrom_path
                         })
     return pd.DataFrame(df_entries)
 
 
 def extract_chromosomes(path: Path) -> Iterator[Tuple[str, Path]]:
+    assembly_gcf = "_".join(path.name.split("_")[:2])
     for record in read_seq_file(path, file_format='fasta'):
         desc = record.description
         accession = record.id.split(' ')[0]
@@ -119,7 +122,7 @@ def extract_chromosomes(path: Path) -> Iterator[Tuple[str, Path]]:
             chrom_path = path.parent / f"{accession}.chrom.fna"
             SeqIO.write([record], chrom_path, "fasta")
 
-            yield accession, chrom_path
+            yield accession, assembly_gcf, chrom_path
 
 
 # ============= Rest of initialization (Run BLAST)
