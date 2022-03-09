@@ -294,7 +294,8 @@ def parse_alignments(sam_file: SamFile,
                      db: StrainDatabase,
                      read_getter: Optional[Callable[[str], SequenceRead]] = None,
                      reattach_clipped_bases: bool = False,
-                     min_hit_ratio: float = 0.75) -> Iterator[SequenceReadPairwiseAlignment]:
+                     min_hit_ratio: float = 0.75,
+                     min_frag_len: int = 10) -> Iterator[SequenceReadPairwiseAlignment]:
     """
     A basic function which parses a SamFile instance and outputs a generator over alignments.
     :param sam_file: The Sam file to parse.
@@ -312,6 +313,9 @@ def parse_alignments(sam_file: SamFile,
                                             samline,
                                             db,
                                             read_getter)
+
+            if len(aln.marker_frag) < min_frag_len:
+                pass
 
             if reattach_clipped_bases:
                 reattach_clipped_bases_to_aln(aln)

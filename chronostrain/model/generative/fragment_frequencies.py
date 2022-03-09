@@ -158,7 +158,7 @@ class FragmentFrequencyComputer(object):
                         for marker_hit_token in match_tokens[4:]:
                             if marker_hit_token == "*":
                                 raise ValueError(
-                                    f"Output of bwa fastmap didn't report output for {frag_line_tokens[0]} "
+                                    f"Output of bwa fastmap didn't report output for {frag_line_tokens[1]} "
                                     "(usually occurs because there were too many hits). "
                                     "Try raising the value of the -w option."
                                 )
