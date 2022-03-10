@@ -79,7 +79,8 @@ class CachedReadPairwiseAlignments(object):
                     self.db,
                     read_getter=lambda read_id: time_slice.get_read(read_id),
                     reattach_clipped_bases=True,
-                    min_hit_ratio=0.50
+                    min_hit_ratio=0.50,
+                    min_frag_len=15
             ).items():
                 alignments[marker] = alignments[marker] + alns
         return alignments

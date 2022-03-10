@@ -94,6 +94,9 @@ def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase, mode: st
                         aln.marker_frag,
                         metadata=f"({aln.read.id}->{base_marker.id})"
                     )
+
+                    if len(aln.marker_frag) < 15:
+                        raise Exception("UNEXPECTED ERROR! found frag of length smaller than 15")
     elif mode == 'multiple':
         multiple_alignments = CachedReadMultipleAlignments(reads, db)
         for multi_align in multiple_alignments.get_alignments(num_cores=cfg.model_cfg.num_cores):

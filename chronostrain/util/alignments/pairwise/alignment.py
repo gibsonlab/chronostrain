@@ -294,7 +294,7 @@ def parse_alignments(sam_file: SamFile,
                      db: StrainDatabase,
                      read_getter: Optional[Callable[[str], SequenceRead]] = None,
                      reattach_clipped_bases: bool = False,
-                     min_hit_ratio: float = 0.75,
+                     min_hit_ratio: float = 0.5,
                      min_frag_len: int = 15) -> Iterator[SequenceReadPairwiseAlignment]:
     """
     A basic function which parses a SamFile instance and outputs a generator over alignments.
@@ -329,7 +329,8 @@ def marker_categorized_alignments(sam_file: SamFile,
                                   db: StrainDatabase,
                                   read_getter: Callable[[str], SequenceRead],
                                   reattach_clipped_bases: bool = False,
-                                  min_hit_ratio: float = 0.75
+                                  min_hit_ratio: float = 0.5,
+                                  min_frag_len: int = 15,
                                   ) -> Dict[Marker, List[SequenceReadPairwiseAlignment]]:
     """
     Parses the input SamFile instance into a dictionary, mapping each marker to alignments that map to
@@ -344,7 +345,8 @@ def marker_categorized_alignments(sam_file: SamFile,
                                 db,
                                 read_getter=read_getter,
                                 reattach_clipped_bases=reattach_clipped_bases,
-                                min_hit_ratio=min_hit_ratio):
+                                min_hit_ratio=min_hit_ratio,
+                                min_frag_len=min_frag_len):
         marker_alignments[aln.marker].append(aln)
 
     return marker_alignments

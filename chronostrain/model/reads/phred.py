@@ -34,7 +34,7 @@ class PhredErrorModel(AbstractErrorModel):
 
     # noinspection PyUnusedLocal
     def indel_ll(self, read: SequenceRead, insertions: np.ndarray, deletions: np.ndarray):
-        insertion_ll = np.sum(insertions) * self.insertion_error_ll
+        insertion_ll = np.sum(insertions) * (self.insertion_error_ll - np.log(4))
         deletion_ll = np.sum(deletions) * self.deletion_error_ll
         return insertion_ll + deletion_ll
 
