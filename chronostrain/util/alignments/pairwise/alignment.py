@@ -314,11 +314,11 @@ def parse_alignments(sam_file: SamFile,
                                             db,
                                             read_getter)
 
-            if len(aln.marker_frag) < min_frag_len:
-                pass
-
             if reattach_clipped_bases:
                 reattach_clipped_bases_to_aln(aln)
+
+            if len(aln.marker_frag) < min_frag_len:
+                continue
 
             yield aln
         except NotImplementedError as e:
