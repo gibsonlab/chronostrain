@@ -295,7 +295,7 @@ def parse_alignments(sam_file: SamFile,
                      read_getter: Optional[Callable[[str], SequenceRead]] = None,
                      reattach_clipped_bases: bool = False,
                      min_hit_ratio: float = 0.75,
-                     min_frag_len: int = 10) -> Iterator[SequenceReadPairwiseAlignment]:
+                     min_frag_len: int = 15) -> Iterator[SequenceReadPairwiseAlignment]:
     """
     A basic function which parses a SamFile instance and outputs a generator over alignments.
     :param sam_file: The Sam file to parse.
