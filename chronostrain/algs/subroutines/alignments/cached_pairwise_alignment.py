@@ -44,7 +44,7 @@ class CachedReadPairwiseAlignments(object):
             self.aligner = SmithWatermanAligner(
                 reference_path=self.marker_reference_path,
                 match_score=np.floor((4 * 500) / reads.min_read_length).astype(int),
-                mismatch_penalty=np.floor(np.log(3) + 4 * np.log(10)),
+                mismatch_penalty=np.floor(np.log(10) * 4.2),
                 gap_open_penalty=np.mean(
                     [-cfg.model_cfg.get_float("INSERTION_LL_1"), -cfg.model_cfg.get_float("DELETION_LL_1")]
                 ).astype(int).item(),
@@ -60,7 +60,7 @@ class CachedReadPairwiseAlignments(object):
             )
         elif cfg.external_tools_cfg.pairwise_align_cmd == "bowtie2":
             # The smallest possible value such that score_min_fn remains a nonnegative function.
-            score_offset = np.floor((4 * 500) / reads.min_read_length).astype(int)
+            score_offset = np.floor((2 * 250) / reads.min_read_length).astype(int)
 
             self.aligner = BowtieAligner(
                 reference_path=self.marker_reference_path,
@@ -69,16 +69,16 @@ class CachedReadPairwiseAlignments(object):
                 num_threads=self.num_cores,
                 report_all_alignments=report_all_alignments,
                 num_reseeds=db.num_markers(),
-                score_min_fn=bt2_func_linear(const=-500, coef=score_offset),
+                score_min_fn=bt2_func_constant(const=1.0),
                 score_match_bonus=0 + score_offset,
                 score_mismatch_penalty=np.floor(
                     [np.log(3) + 4 * np.log(10), np.log(3)]
-                ).astype(int),
+                ).astype(int) - score_offset,
                 score_read_gap_penalty=np.floor(
-                    [-cfg.model_cfg.get_float("INSERTION_LL_1"), 0]
+                    [0, -cfg.model_cfg.get_float("INSERTION_LL_1")]
                 ).astype(int),
                 score_ref_gap_penalty=np.floor(
-                    [-cfg.model_cfg.get_float("DELETION_LL_1"), 0]
+                    [0, -cfg.model_cfg.get_float("DELETION_LL_1")]
                 ).astype(int)
             )
         else:
