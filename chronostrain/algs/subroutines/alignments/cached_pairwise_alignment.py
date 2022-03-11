@@ -50,6 +50,9 @@ class CachedReadPairwiseAlignments(object):
                 report_all_alignments=report_all_alignments
             )
         elif cfg.external_tools_cfg.pairwise_align_cmd == "bowtie2":
+            # The smallest possible value such that score_min_fn remains a nonnegative function.
+            score_offset = np.floor(1000 / reads.min_read_length).astype(int)
+
             self.aligner = BowtieAligner(
                 reference_path=self.marker_reference_path,
                 index_basepath=self.marker_reference_path.parent,
@@ -57,11 +60,17 @@ class CachedReadPairwiseAlignments(object):
                 num_threads=self.num_cores,
                 report_all_alignments=report_all_alignments,
                 num_reseeds=db.num_markers(),
-                score_min_fn=bt2_func_constant(-500),
-                score_match_bonus=0,
-                score_mismatch_penalty=np.floor([np.log(3) + 4 * np.log(10), np.log(3)]).astype(int),
-                score_read_gap_penalty=np.floor([cfg.model_cfg.get_float("INSERTION_LL_1"), 0]).astype(int),
-                score_ref_gap_penalty=np.floor([cfg.model_cfg.get_float("DELETION_LL_1"), 0]).astype(int)
+                score_min_fn=bt2_func_linear(const=-500, coef=score_offset),
+                score_match_bonus=0 + score_offset,
+                score_mismatch_penalty=np.floor(
+                    [np.log(3) + 4 * np.log(10), np.log(3)]
+                ).astype(int) - score_offset,
+                score_read_gap_penalty=np.floor(
+                    [-cfg.model_cfg.get_float("INSERTION_LL_1"), 0]
+                ).astype(int) - score_offset,
+                score_ref_gap_penalty=np.floor(
+                    [-cfg.model_cfg.get_float("DELETION_LL_1"), 0]
+                ).astype(int) - score_offset
             )
         else:
             raise NotImplementedError(
