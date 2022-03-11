@@ -2,7 +2,10 @@ import os
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+from chronostrain.config import create_logger
 from .commandline import call_command, CommandLineException
+
+logger = create_logger(__name__)
 
 
 def bowtie2_inspect(basename: str,
@@ -188,6 +191,7 @@ def bowtie2(
 
     env = os.environ.copy()
     env['BOWTIE2_INDEXES'] = str(index_basepath)
+    logger.debug("Bowtie2 index dir: {}".format(index_basepath))
 
     exit_code = call_command(
         command_path,
