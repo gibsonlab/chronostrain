@@ -22,13 +22,18 @@ class AbstractPairwiseAligner(object):
 
 class SmithWatermanAligner(AbstractPairwiseAligner):
     def __init__(self,
-                 reference_path: Path):
+                 reference_path: Path,
+                 match_score: int,
+                 mismatch_penalty: int,
+                 gap_open_penalty: int,
+                 gap_extend_penalty: int,
+                 score_threshold: int):
         self.reference_path = reference_path
-        self.match_score = 1
-        self.mismatch_penalty = 3
-        self.gap_open_penalty = 5
-        self.gap_extend_penalty = 2
-        self.score_threshold = None
+        self.match_score = match_score
+        self.mismatch_penalty = mismatch_penalty
+        self.gap_open_penalty = gap_open_penalty
+        self.gap_extend_penalty = gap_extend_penalty
+        self.score_threshold = score_threshold
 
     def align(self, query_path: Path, output_path: Path):
         ssw_align(

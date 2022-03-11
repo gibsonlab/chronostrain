@@ -41,7 +41,16 @@ class CachedReadPairwiseAlignments(object):
             self.cache = ReadsComputationCache(reads, )
 
         if cfg.external_tools_cfg.pairwise_align_cmd == "ssw-align":
-            self.aligner = SmithWatermanAligner(self.marker_reference_path)
+            self.aligner = SmithWatermanAligner(
+                reference_path=self.marker_reference_path,
+                match_score=np.floor((4 * 500) / reads.min_read_length).astype(int),
+                mismatch_penalty=np.floor(np.log(3) + 4 * np.log(10)),
+                gap_open_penalty=np.mean(
+                    [-cfg.model_cfg.get_float("INSERTION_LL_1"), -cfg.model_cfg.get_float("DELETION_LL_1")]
+                ).astype(int).item(),
+                gap_extend_penalty=0,
+                score_threshold=1,
+            )
         elif cfg.external_tools_cfg.pairwise_align_cmd == "bwa":
             self.aligner = BwaAligner(
                 reference_path=self.marker_reference_path,
