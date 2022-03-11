@@ -3,13 +3,13 @@ Contains alignment-specific subroutines necessary for other algorithm implementa
 """
 
 from pathlib import Path
-from typing import Optional, Dict, List, Iterator, Tuple
+from typing import Dict, List, Iterator, Tuple
 
 import numpy as np
 
+from chronostrain.algs.subroutines.cache import ReadsComputationCache
 from chronostrain.model import Marker
 from chronostrain.model.io import TimeSeriesReads
-from chronostrain.util.cache import ComputationCache, CacheTag
 from chronostrain.util.alignments.sam import SamFile
 from chronostrain.util.alignments.pairwise import *
 from chronostrain.database import StrainDatabase
@@ -26,16 +26,12 @@ class CachedReadPairwiseAlignments(object):
     def __init__(self,
                  reads: TimeSeriesReads,
                  db: StrainDatabase,
-                 num_cores: int = 1,
-                 report_all_alignments: bool = True):
+                 num_cores: int = 1):
         self.reads = reads
         self.db = db
         self.num_cores = num_cores
         self.marker_reference_path = db.multifasta_file
-        self.cache = ComputationCache(CacheTag(
-            reads=reads,
-            report_all_alignments=report_all_alignments
-        ))
+        self.cache = ReadsComputationCache(reads)
 
         if cfg.external_tools_cfg.pairwise_align_cmd == "ssw-align":
             self.aligner = SmithWatermanAligner(
@@ -53,7 +49,7 @@ class CachedReadPairwiseAlignments(object):
                 reference_path=self.marker_reference_path,
                 min_seed_len=8,
                 num_threads=self.num_cores,
-                report_all_alignments=report_all_alignments
+                report_all_alignments=True
             )
         elif cfg.external_tools_cfg.pairwise_align_cmd == "bowtie2":
             self.aligner = BowtieAligner(
@@ -61,7 +57,7 @@ class CachedReadPairwiseAlignments(object):
                 index_basepath=self.marker_reference_path.parent,
                 index_basename=self.marker_reference_path.stem,
                 num_threads=self.num_cores,
-                report_all_alignments=report_all_alignments,
+                report_all_alignments=True,
                 num_reseeds=self.db.num_strains(),
                 score_min_fn=bt2_func_constant(const=-500),
                 score_mismatch_penalty=np.floor(
