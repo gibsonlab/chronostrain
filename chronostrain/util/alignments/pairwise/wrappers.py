@@ -142,7 +142,7 @@ class BowtieAligner(AbstractPairwiseAligner):
             aln_seed_interval_fn=bt2_func_constant(7),
             aln_gbar=1,
             effort_seed_ext_failures=30,  # -D 30
-            local=True,
+            local=False,
             effort_num_reseeds=self.num_reseeds,
             score_min_fn=self.score_min_fn,
             score_mismatch_penalty=self.score_mismatch_penalty,
