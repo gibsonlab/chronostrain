@@ -87,7 +87,6 @@ class BowtieAligner(AbstractPairwiseAligner):
                  num_threads: int,
                  num_reseeds: int,
                  score_min_fn: str,
-                 score_match_bonus: int,
                  score_mismatch_penalty: Tuple[int, int],
                  score_read_gap_penalty: Tuple[int, int],
                  score_ref_gap_penalty: Tuple[int, int],
@@ -102,7 +101,6 @@ class BowtieAligner(AbstractPairwiseAligner):
         # Alignment params
         self.num_reseeds = num_reseeds
         self.score_min_fn = score_min_fn
-        self.score_match_bonus = score_match_bonus
         self.score_mismatch_penalty = score_mismatch_penalty
         self.score_read_gap_penalty = score_read_gap_penalty
         self.score_ref_gap_penalty = score_ref_gap_penalty
@@ -126,35 +124,10 @@ class BowtieAligner(AbstractPairwiseAligner):
             ))
 
     def align(self, query_path: Path, output_path: Path):
-        # return self.align_end_to_end(query_path, output_path)
-        return self.align_local(query_path, output_path)
+        return self.align_end_to_end(query_path, output_path)
+        # return self.align_local(query_path, output_path)
 
-    # def align_end_to_end(self, query_path: Path, output_path: Path):
-    #     bowtie2(
-    #         index_basepath=self.index_basepath,
-    #         index_basename=self.index_basename,
-    #         unpaired_reads=query_path,
-    #         out_path=output_path,
-    #         quality_format=self.quality_format,
-    #         report_k_alignments=self.num_report_alignments,
-    #         report_all_alignments=self.report_all_alignments,
-    #         num_threads=self.num_threads,
-    #         aln_seed_num_mismatches=0,
-    #         aln_seed_len=5,
-    #         aln_seed_interval_fn=bt2_func_constant(3),
-    #         aln_gbar=1,
-    #         effort_seed_ext_failures=30,
-    #         # aln_n_ceil=bt2_func_linear(0, .1),
-    #         score_mismatch_penalty=(2, 0),
-    #         # score_min_fn=bt2_func_linear(0, -0.05),
-    #         # score_read_gap_penalty=(5, 1),
-    #         # score_ref_gap_penalty=(5, 1),
-    #         sam_suppress_noalign=True,
-    #     )
-
-    def align_local(self, query_path: Path, output_path: Path):
-        # This implements the --very-sensitive-local setting with more extensive seeding.
-        #-D 20 -R 3 -N 0 -L 20 -i S,1,0.50
+    def align_end_to_end(self, query_path: Path, output_path: Path):
         bowtie2(
             index_basepath=self.index_basepath,
             index_basename=self.index_basename,
@@ -170,11 +143,37 @@ class BowtieAligner(AbstractPairwiseAligner):
             aln_gbar=1,
             effort_seed_ext_failures=30,  # -D 30
             local=True,
-            effort_num_reseeds=self.num_reseeds,  # -R 3
+            effort_num_reseeds=self.num_reseeds,
             score_min_fn=self.score_min_fn,
-            score_match_bonus=self.score_match_bonus,
             score_mismatch_penalty=self.score_mismatch_penalty,
             score_read_gap_penalty=self.score_read_gap_penalty,
             score_ref_gap_penalty=self.score_ref_gap_penalty,
             sam_suppress_noalign=True
         )
+
+    # def align_local(self, query_path: Path, output_path: Path):
+    #     # This implements the --very-sensitive-local setting with more extensive seeding.
+    #     #-D 20 -R 3 -N 0 -L 20 -i S,1,0.50
+    #     bowtie2(
+    #         index_basepath=self.index_basepath,
+    #         index_basename=self.index_basename,
+    #         unpaired_reads=query_path,
+    #         out_path=output_path,
+    #         quality_format=self.quality_format,
+    #         report_k_alignments=self.num_report_alignments,
+    #         report_all_alignments=self.report_all_alignments,
+    #         num_threads=self.num_threads,
+    #         aln_seed_num_mismatches=0,
+    #         aln_seed_len=20,  # -L 20
+    #         aln_seed_interval_fn=bt2_func_constant(7),
+    #         aln_gbar=1,
+    #         effort_seed_ext_failures=30,  # -D 30
+    #         local=True,
+    #         effort_num_reseeds=self.num_reseeds,  # -R 3
+    #         score_min_fn=self.score_min_fn,
+    #         score_match_bonus=self.score_match_bonus,
+    #         score_mismatch_penalty=self.score_mismatch_penalty,
+    #         score_read_gap_penalty=self.score_read_gap_penalty,
+    #         score_ref_gap_penalty=self.score_ref_gap_penalty,
+    #         sam_suppress_noalign=True
+    #     )

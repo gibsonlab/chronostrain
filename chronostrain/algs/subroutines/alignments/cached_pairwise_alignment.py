@@ -59,9 +59,6 @@ class CachedReadPairwiseAlignments(object):
                 report_all_alignments=report_all_alignments
             )
         elif cfg.external_tools_cfg.pairwise_align_cmd == "bowtie2":
-            # The smallest possible value such that score_min_fn remains a nonnegative function.
-            score_offset = np.floor((2 * 250) / reads.min_read_length).astype(int)
-
             self.aligner = BowtieAligner(
                 reference_path=self.marker_reference_path,
                 index_basepath=self.marker_reference_path.parent,
@@ -70,10 +67,9 @@ class CachedReadPairwiseAlignments(object):
                 report_all_alignments=report_all_alignments,
                 num_reseeds=db.num_markers(),
                 score_min_fn=bt2_func_constant(const=1.0),
-                score_match_bonus=0 + score_offset,
                 score_mismatch_penalty=np.floor(
-                    [np.log(3) + 4 * np.log(10), np.log(3)]
-                ).astype(int) - score_offset,
+                    [np.log(3) + 4 * np.log(10), 0]
+                ).astype(int),
                 score_read_gap_penalty=np.floor(
                     [0, -cfg.model_cfg.get_float("INSERTION_LL_1")]
                 ).astype(int),
