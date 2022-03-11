@@ -28,6 +28,7 @@ class SmithWatermanAligner(AbstractPairwiseAligner):
         self.mismatch_penalty = 3
         self.gap_open_penalty = 5
         self.gap_extend_penalty = 2
+        self.score_threshold = None
 
     def align(self, query_path: Path, output_path: Path):
         ssw_align(
@@ -38,7 +39,8 @@ class SmithWatermanAligner(AbstractPairwiseAligner):
             gap_open_penalty=self.gap_open_penalty,
             gap_extend_penalty=self.gap_extend_penalty,
             output_path=output_path,
-            best_of_strands=True
+            best_of_strands=True,
+            score_threshold=self.score_threshold
         )
 
 
@@ -64,7 +66,7 @@ class BwaAligner(AbstractPairwiseAligner):
             report_all_alignments=self.report_all_alignments,
             match_score=1,
             mismatch_penalty=1,
-            off_diag_dropoff=75,
+            off_diag_dropoff=75
         )
 
 
@@ -78,6 +80,7 @@ class BowtieAligner(AbstractPairwiseAligner):
                  index_basepath: Path,
                  index_basename: str,
                  num_threads: int,
+                 num_reseeds: int,
                  num_report_alignments: Optional[int] = None,
                  report_all_alignments: bool = False):
         self.index_basepath = index_basepath
@@ -85,6 +88,7 @@ class BowtieAligner(AbstractPairwiseAligner):
         self.num_report_alignments = num_report_alignments
         self.report_all_alignments = report_all_alignments
         self.num_threads = num_threads
+        self.num_reseeds = num_reseeds
         self.index_trace_path = self.index_basepath / f"{index_basename}.bt2trace"
 
         self.quality_format = 'phred33'
@@ -147,7 +151,7 @@ class BowtieAligner(AbstractPairwiseAligner):
             aln_seed_interval_fn=bt2_func_constant(7),
             aln_gbar=1,
             effort_seed_ext_failures=30,  # -D 30
-            effort_num_reseeds=3,  # -R 3
+            effort_num_reseeds=self.num_reseeds,  # -R 3
             local=True,
             score_min_fn=bt2_func_log(20, 8.0),  # 20 + 8.0 * ln(L), default
             sam_suppress_noalign=True,

@@ -52,7 +52,8 @@ class CachedReadPairwiseAlignments(object):
                 index_basepath=self.marker_reference_path.parent,
                 index_basename=self.marker_reference_path.stem,
                 num_threads=self.num_cores,
-                report_all_alignments=report_all_alignments
+                report_all_alignments=report_all_alignments,
+                num_reseeds=db.num_markers()
             )
         else:
             raise NotImplementedError(

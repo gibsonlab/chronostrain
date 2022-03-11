@@ -56,6 +56,7 @@ class Filter(object):
             reference_path=self.reference_path,
             index_basepath=self.reference_path.parent,
             index_basename="markers",
+            num_reseeds=3,
             num_threads=cfg.model_cfg.num_cores
         ).align(query_path=read_file, output_path=sam_path)
         self._apply_helper(sam_path, metadata_path, out_path, quality_format)
