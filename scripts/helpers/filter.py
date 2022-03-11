@@ -52,32 +52,24 @@ class Filter(object):
         metadata_path = out_path.parent / f"{remove_suffixes(read_file).name}.metadata.tsv"
         sam_path = aligner_tmp_dir / f"{remove_suffixes(read_file).name}.sam"
 
-        bt2_index_basename = "markers"
-        bowtie2_build(
-            refs_in=[self.reference_path],
+        BowtieAligner(
+            reference_path=self.reference_path,
             index_basepath=self.reference_path.parent,
-            index_basename=bt2_index_basename,
-            quiet=True,
-            n_threads=cfg.model_cfg.num_cores
-        )
-        bowtie2(
-            index_basepath=self.reference_path.parent,
-            index_basename=bt2_index_basename,
-            unpaired_reads=read_file,
-            out_path=sam_path,
-            quality_format=quality_format,
-            report_all_alignments=True,
+            index_basename=self.reference_path.stem,
             num_threads=cfg.model_cfg.num_cores,
-            aln_seed_num_mismatches=0,
-            aln_seed_len=20, # -L 20
-            aln_seed_interval_fn=bt2_func_constant(7),
-            aln_gbar=1,
-            effort_seed_ext_failures=30,
-            effort_num_reseeds=3,
-            local=True,
-            score_min_fn=bt2_func_log(20,  8.0),  # 20 + 8.0 * ln(L), default option for bowtie2
-            sam_suppress_noalign=True
-        )
+            report_all_alignments=False,
+            num_reseeds=self.db.num_strains(),
+            score_min_fn=bt2_func_constant(const=-500),
+            score_mismatch_penalty=np.floor(
+                [np.log(3) + 4 * np.log(10), 0]
+            ).astype(int),
+            score_read_gap_penalty=np.floor(
+                [0, -cfg.model_cfg.get_float("INSERTION_LL_1")]
+            ).astype(int),
+            score_ref_gap_penalty=np.floor(
+                [0, -cfg.model_cfg.get_float("DELETION_LL_1")]
+            ).astype(int)
+        ).align(query_path=read_file, output_path=sam_path)
         self._apply_helper(sam_path, metadata_path, out_path, quality_format)
 
     def _apply_helper(

@@ -9,14 +9,13 @@ import numpy as np
 
 from chronostrain.model import Marker
 from chronostrain.model.io import TimeSeriesReads
-from chronostrain.util.cache import ComputationCache
+from chronostrain.util.cache import ComputationCache, CacheTag
 from chronostrain.util.alignments.sam import SamFile
 from chronostrain.util.alignments.pairwise import *
 from chronostrain.database import StrainDatabase
 
-from chronostrain.algs.subroutines.cache import ReadsComputationCache
 from chronostrain.config import cfg
-from chronostrain.util.external import bt2_func_linear, bt2_func_constant
+from chronostrain.util.external import bt2_func_constant
 
 
 class CachedReadPairwiseAlignments(object):
@@ -28,17 +27,15 @@ class CachedReadPairwiseAlignments(object):
                  reads: TimeSeriesReads,
                  db: StrainDatabase,
                  num_cores: int = 1,
-                 report_all_alignments: bool = True,
-                 cache_override: Optional[ComputationCache] = None):
+                 report_all_alignments: bool = True):
         self.reads = reads
         self.db = db
         self.num_cores = num_cores
         self.marker_reference_path = db.multifasta_file
-
-        if cache_override is not None:
-            self.cache = cache_override
-        else:
-            self.cache = ReadsComputationCache(reads, )
+        self.cache = ComputationCache(CacheTag(
+            reads=reads,
+            report_all_alignments=report_all_alignments
+        ))
 
         if cfg.external_tools_cfg.pairwise_align_cmd == "ssw-align":
             self.aligner = SmithWatermanAligner(
@@ -65,8 +62,8 @@ class CachedReadPairwiseAlignments(object):
                 index_basename=self.marker_reference_path.stem,
                 num_threads=self.num_cores,
                 report_all_alignments=report_all_alignments,
-                num_reseeds=db.num_markers(),
-                score_min_fn=bt2_func_constant(const=1.0),
+                num_reseeds=self.db.num_strains(),
+                score_min_fn=bt2_func_constant(const=-500),
                 score_mismatch_penalty=np.floor(
                     [np.log(3) + 4 * np.log(10), 0]
                 ).astype(int),
