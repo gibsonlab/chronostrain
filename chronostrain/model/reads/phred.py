@@ -69,9 +69,9 @@ class PhredErrorModel(AbstractErrorModel):
         mismatches: np.ndarray = (fragment_seq != read_seq) & (read_seq != nucleotide_N_z4)
 
         """
-        Phred model: Pr(measured base = 'A', true base = 'G' | q) = ( 1/3 * 10^{-q/10} )
+        Phred model: Pr(measured base = 'A', true base = 'A' | q) = (1/4 * 10^{-q/10}) + (1 - 10^{q/10})
         """
-        log_p_errors = -np.log(3) + np.log(10) * error_log10_prob[np.where(mismatches)]
+        log_p_errors = -np.log(4) + np.log(10) * error_log10_prob
         log_p_matches = np.log(1 - np.power(10, error_log10_prob[np.where(matches)]))
         return self.indel_ll(read, insertions, deletions) + log_p_matches.sum() + log_p_errors.sum()
 
