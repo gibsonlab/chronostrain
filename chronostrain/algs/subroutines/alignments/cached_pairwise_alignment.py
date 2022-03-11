@@ -5,6 +5,8 @@ Contains alignment-specific subroutines necessary for other algorithm implementa
 from pathlib import Path
 from typing import Optional, Dict, List, Iterator, Tuple
 
+import numpy as np
+
 from chronostrain.model import Marker
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.util.cache import ComputationCache
@@ -14,6 +16,7 @@ from chronostrain.database import StrainDatabase
 
 from chronostrain.algs.subroutines.cache import ReadsComputationCache
 from chronostrain.config import cfg
+from chronostrain.util.external import bt2_func_linear, bt2_func_constant
 
 
 class CachedReadPairwiseAlignments(object):
@@ -53,7 +56,12 @@ class CachedReadPairwiseAlignments(object):
                 index_basename=self.marker_reference_path.stem,
                 num_threads=self.num_cores,
                 report_all_alignments=report_all_alignments,
-                num_reseeds=db.num_markers()
+                num_reseeds=db.num_markers(),
+                score_min_fn=bt2_func_constant(-500),
+                score_match_bonus=0,
+                score_mismatch_penalty=np.floor([np.log(3) + 4 * np.log(10), np.log(3)]).astype(int),
+                score_read_gap_penalty=np.floor([cfg.model_cfg.get_float("INSERTION_LL_1"), 0]).astype(int),
+                score_ref_gap_penalty=np.floor([cfg.model_cfg.get_float("DELETION_LL_1"), 0]).astype(int)
             )
         else:
             raise NotImplementedError(
