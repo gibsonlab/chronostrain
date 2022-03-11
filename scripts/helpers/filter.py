@@ -185,8 +185,20 @@ class Filter(object):
 
     @staticmethod
     def num_expected_errors(aln: SequenceReadPairwiseAlignment):
+        read_qual = aln.read.quality
+        if aln.reverse_complemented:
+            read_qual = read_qual[::-1]
+
+        read_start_clip = aln.soft_clip_start + aln.hard_clip_start
+        read_end_clip = aln.hard_clip_end + aln.soft_clip_end
+        _slice = slice(read_start_clip, len(read_qual) - read_end_clip)
+
+        marker_aln, read_aln = aln.aln_matrix[0], aln.aln_matrix[1]
+        insertion_locs = np.equal(marker_aln, nucleotide_GAP_z4)[read_aln != nucleotide_GAP_z4]
+        read_qual = read_qual[_slice][~insertion_locs]
+
         return np.sum(
-            np.power(10, -0.1 * aln.read.quality)
+            np.power(10, -0.1 * read_qual)
         )
 
     @staticmethod
