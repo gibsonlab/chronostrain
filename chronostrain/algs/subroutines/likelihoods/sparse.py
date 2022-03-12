@@ -204,8 +204,8 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                 end_clip=end_clip
             )
 
-            if ll < ll_threshold:
-                return
+            # if ll < ll_threshold:
+            #     return
             read_to_frag_likelihoods[read.id].append((frag, ll))
 
         for base_marker, alns in self.pairwise_reference_alignments.alignments_by_marker_and_timepoint(t_idx).items():
