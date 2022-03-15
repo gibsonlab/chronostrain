@@ -7,6 +7,7 @@ Works in 3 steps:
     3) Convert BLAST results into chronostrain JSON database specification.
 """
 import argparse
+import itertools
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -40,17 +41,21 @@ def parse_args():
     )
 
     # Input specification.
-    parser.add_argument('-m', '--metaphlan_pkl_path', required=True, type=str,
-                        help='<Required> The path to the metaphlan pickle database file.')
     parser.add_argument('-o', '--output_path', required=True, type=str,
                         help='<Required> The path to the target output chronostrain db json file.')
     parser.add_argument('-r', '--refseq_dir', required=True, type=str,
                         help='<Required> The strainGE database directory.')
 
     # Optional params
+    parser.add_argument('--metaphlan_pkl_path', required=True, type=str,
+                        help='<Optional> The path to the metaphlan pickle database file.')
     parser.add_argument('--reference_accession', required=False, type=str,
                         default='U00096.3',
                         help='<Optional> The reference genome to use for pulling out annotated gene sequences.')
+    parser.add_argument('--uniprot_tsv', required=False, type=str,
+                        default='',
+                        help='<Optional> A path to a two-column TSV file (<UniprotID>, <ClusterName>) format specifying'
+                             'any desired additional genes not given by metaphlan.')
     return parser.parse_args()
 
 
@@ -312,7 +317,7 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
 
 
 # ======================== Reference genome: pull from downloaded genbank file.
-def download_reference(accession: str, metaphlan_pkl_path: Path) -> Dict[str, Path]:
+def download_reference(accession: str, metaphlan_pkl_path: Path, additional_genes: List[str]) -> Dict[str, Path]:
     logger.info(f"Downloading reference accession {accession}")
     target_dir = cfg.database_cfg.data_dir / "reference" / accession
     target_dir.mkdir(exist_ok=True, parents=True)
@@ -323,7 +328,7 @@ def download_reference(accession: str, metaphlan_pkl_path: Path) -> Dict[str, Pa
     clusters_to_find: Set[str] = set()
     genes_to_clusters: Dict[str, str] = {}
 
-    for cluster, cluster_genes in get_marker_genes(metaphlan_pkl_path):
+    for cluster, cluster_genes in get_marker_genes(metaphlan_pkl_path, additional_genes):
         clusters_to_find.add(cluster)
         for gene in cluster_genes:
             genes_to_clusters[gene.lower()] = cluster
@@ -364,26 +369,37 @@ def download_reference(accession: str, metaphlan_pkl_path: Path) -> Dict[str, Pa
     return gene_paths
 
 
-def metaphlan_markers(metaphlan_db: Dict, metaphlan_clade: str):
-    for marker_key, marker_entry in metaphlan_db['markers'].items():
-        if metaphlan_clade in marker_entry['taxon']:
-            yield marker_key
+def metaphlan_markers(metaphlan_pkl_path: Path, metaphlan_clade: str):
+    if metaphlan_pkl_path is None:
+        yield from []
 
-
-def get_marker_genes(metaphlan_pkl_path: Path) -> Iterator[Tuple[str, List[str]]]:
     db = pickle.load(bz2.open(metaphlan_pkl_path, 'r'))
+    for marker_key, marker_entry in db['markers'].items():
+        if metaphlan_clade in marker_entry['taxon']:
+            tokens = marker_key.split('__')
+            uniprot_id = tokens[1]
+            logger.debug(
+                f"Found metaphlan marker key `{marker_key}`, parsed UniProt ID `{uniprot_id}`."
+            )
+            yield uniprot_id
+
+
+def get_marker_genes(
+        metaphlan_pkl_path: Path,
+        additional_genes: List[str]
+) -> Iterator[Tuple[str, List[str]]]:
     u = UniProt()
 
     # for metaphlan_marker_id in metaphlan_markers(db, 'g__Escherichia'):
-    for metaphlan_marker_id in metaphlan_markers(db, 's__Escherichia_coli'):
-        tokens = metaphlan_marker_id.split('__')
-        uniprot_id = tokens[1]
-
+    for uniprot_id in itertools.chain(
+            metaphlan_markers(metaphlan_pkl_path, 's__Escherichia_coli'),
+            additional_genes
+    ):
         res = u.quick_search(uniprot_id)
 
         if uniprot_id not in res:
             logger.debug(
-                f"No result found for UniProt query `{uniprot_id}`, derived from metaphlan ID `{metaphlan_marker_id}`."
+                f"No result found for UniProt query `{uniprot_id}`."
             )
             continue
         else:
@@ -421,6 +437,18 @@ def print_summary(strain_entries: List[Dict[str, Any]], gene_paths: Dict[str, Pa
             ))
 
 
+def parse_uniprot_tsv(tsv_path: Path) -> List[str]:
+    with open(tsv_path, "r") as f:
+        for line in f:
+            if len(line.strip()) == 0:
+                continue
+
+            tokens = line.strip().split("\t")
+            uniprot_id, cluster_name = tokens[0], tokens[1]
+            logger.debug(f"Searching additional cluster `{cluster_name}`, uniprot ID `{uniprot_id}`")
+            yield uniprot_id
+
+
 def main():
     args = parse_args()
     metaphlan_pkl_path = Path(args.metaphlan_pkl_path)
@@ -436,7 +464,8 @@ def main():
 
     # ================= Pull out reference genes
     logger.info(f"Retrieving reference genes from {args.reference_accession}")
-    ref_gene_paths = download_reference(args.reference_accession, metaphlan_pkl_path)
+    additional_genes = parse_uniprot_tsv(Path(args.uniprot_tsv))
+    ref_gene_paths = download_reference(args.reference_accession, metaphlan_pkl_path, additional_genes)
 
     # ================= Compile into JSON.
     logger.info("Creating JSON entries.")
