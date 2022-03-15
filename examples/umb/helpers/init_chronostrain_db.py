@@ -47,7 +47,7 @@ def parse_args():
                         help='<Required> The strainGE database directory.')
 
     # Optional params
-    parser.add_argument('--metaphlan_pkl_path', required=True, type=str,
+    parser.add_argument('--metaphlan_pkl_path', required=False, type=str,
                         help='<Optional> The path to the metaphlan pickle database file.')
     parser.add_argument('--reference_accession', required=False, type=str,
                         default='U00096.3',

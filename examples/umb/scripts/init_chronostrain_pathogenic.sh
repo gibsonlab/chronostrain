@@ -2,7 +2,7 @@
 set -e
 
 source settings.sh
-export CHRONOSTRAIN_LOG_FILEPATH="${LOGDIR}/init.log"
+export CHRONOSTRAIN_LOG_FILEPATH="${LOGDIR}/init_pathogenic_genes.log"
 
 echo "[*] Initializing database."
 python ${BASE_DIR}/helpers/init_chronostrain_db.py \
