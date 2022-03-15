@@ -25,7 +25,7 @@ from bioservices import UniProt
 from chronostrain.util.entrez import fetch_genbank
 from chronostrain.util.external import make_blast_db, blastn
 
-from typing import List, Set, Dict, Any, Tuple, Iterator
+from typing import List, Set, Dict, Any, Tuple, Iterator, Optional
 
 from chronostrain.util.io import read_seq_file
 from chronostrain import cfg, create_logger
@@ -317,7 +317,7 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
 
 
 # ======================== Reference genome: pull from downloaded genbank file.
-def download_reference(accession: str, metaphlan_pkl_path: Path, additional_genes: List[str]) -> Dict[str, Path]:
+def download_reference(accession: str, metaphlan_pkl_path: Path, uniprot_tsv_path: Path) -> Dict[str, Path]:
     logger.info(f"Downloading reference accession {accession}")
     target_dir = cfg.database_cfg.data_dir / "reference" / accession
     target_dir.mkdir(exist_ok=True, parents=True)
@@ -328,7 +328,7 @@ def download_reference(accession: str, metaphlan_pkl_path: Path, additional_gene
     clusters_to_find: Set[str] = set()
     genes_to_clusters: Dict[str, str] = {}
 
-    for cluster, cluster_genes in get_marker_genes(metaphlan_pkl_path, additional_genes):
+    for cluster, cluster_genes in get_marker_genes(metaphlan_pkl_path, uniprot_tsv_path):
         clusters_to_find.add(cluster)
         for gene in cluster_genes:
             genes_to_clusters[gene.lower()] = cluster
@@ -369,7 +369,7 @@ def download_reference(accession: str, metaphlan_pkl_path: Path, additional_gene
     return gene_paths
 
 
-def metaphlan_markers(metaphlan_pkl_path: Path, metaphlan_clade: str):
+def metaphlan_markers(metaphlan_pkl_path: Path, metaphlan_clade: str) -> Iterator[str]:
     if metaphlan_pkl_path is None:
         yield from []
 
@@ -385,16 +385,19 @@ def metaphlan_markers(metaphlan_pkl_path: Path, metaphlan_clade: str):
 
 
 def get_marker_genes(
-        metaphlan_pkl_path: Path,
-        additional_genes: List[str]
+        metaphlan_pkl_path: Optional[Path],
+        uniprot_tsv_path: Optional[Path]
 ) -> Iterator[Tuple[str, List[str]]]:
     u = UniProt()
 
+    sources = []
+    if metaphlan_pkl_path is not None:
+        sources.append(metaphlan_markers(metaphlan_pkl_path, 's__Escherichia_coli'))
+    if uniprot_tsv_path is not None:
+        sources.append(parse_uniprot_tsv(uniprot_tsv_path))
+
     # for metaphlan_marker_id in metaphlan_markers(db, 'g__Escherichia'):
-    for uniprot_id in itertools.chain(
-            metaphlan_markers(metaphlan_pkl_path, 's__Escherichia_coli'),
-            additional_genes
-    ):
+    for uniprot_id in itertools.chain(*sources):
         res = u.quick_search(uniprot_id)
 
         if uniprot_id not in res:
@@ -437,7 +440,7 @@ def print_summary(strain_entries: List[Dict[str, Any]], gene_paths: Dict[str, Pa
             ))
 
 
-def parse_uniprot_tsv(tsv_path: Path) -> List[str]:
+def parse_uniprot_tsv(tsv_path: Path) -> Iterator[str]:
     with open(tsv_path, "r") as f:
         for line in f:
             if len(line.strip()) == 0:
@@ -451,7 +454,6 @@ def parse_uniprot_tsv(tsv_path: Path) -> List[str]:
 
 def main():
     args = parse_args()
-    metaphlan_pkl_path = Path(args.metaphlan_pkl_path)
     output_path = Path(args.output_path)
     seq_dir = Path(args.refseq_dir)
 
@@ -464,8 +466,7 @@ def main():
 
     # ================= Pull out reference genes
     logger.info(f"Retrieving reference genes from {args.reference_accession}")
-    additional_genes = parse_uniprot_tsv(Path(args.uniprot_tsv))
-    ref_gene_paths = download_reference(args.reference_accession, metaphlan_pkl_path, additional_genes)
+    ref_gene_paths = download_reference(args.reference_accession, args.metaphlan_pkl_path, args.uniprot_tsv)
 
     # ================= Compile into JSON.
     logger.info("Creating JSON entries.")
