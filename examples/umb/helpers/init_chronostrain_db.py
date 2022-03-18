@@ -215,8 +215,9 @@ def run_blast_remote(gene_paths: Dict[str, Path],
 
         output_path = blast_result_dir / f"{gene_name}.tsv"
         output_file = open(output_path, 'w')
-        p = subprocess.run(
+        p = subprocess.Popen(
             str(cline),
+            stdin=subprocess.PIPE,
             stdout=output_file,
             stderr=subprocess.PIPE
         )
@@ -294,7 +295,7 @@ def create_chronostrain_db_remote(
     blast_results = run_blast_remote(
         gene_paths,
         blast_result_dir,
-        max_target_seqs=5000,  # May need to raise this?
+        max_target_seqs=1000000,  # May need to raise this?
         min_pct_idty=min_pct_idty,
         out_fmt=_BLAST_OUT_FMT
     )
