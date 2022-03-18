@@ -586,6 +586,8 @@ def get_marker_genes(
             continue
         else:
             logger.debug(f"Found {len(res)} hits for UniProt query `{uniprot_id}`.")
+            if len(res) > 1:
+                logger.debug(str(res))
 
         gene_name = res[uniprot_id]['Entry name']
         cluster = res[uniprot_id]['Gene names'].split()
@@ -627,6 +629,11 @@ def parse_uniprot_csv(csv_path: Path) -> Iterator[str]:
 
             tokens = line.strip().split(",")
             uniprot_id, cluster_name = tokens[0], tokens[1]
+
+            if uniprot_id == "UNIPROT_ID":
+                # Header line
+                continue
+
             logger.debug(f"Searching additional cluster `{cluster_name}`, uniprot ID `{uniprot_id}`")
             yield uniprot_id
 
