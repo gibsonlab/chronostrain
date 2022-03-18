@@ -212,12 +212,12 @@ def run_blast_remote(gene_paths: Dict[str, Path],
             strand="both",
             query=str(gene_path)
         )
+        args = str(cline).split(' ')[1:]
 
         output_path = blast_result_dir / f"{gene_name}.tsv"
         output_file = open(output_path, 'w')
-        p = subprocess.Popen(
-            str(cline),
-            stdin=subprocess.PIPE,
+        p = subprocess.run(
+            ['blastn'] + args,
             stdout=output_file,
             stderr=subprocess.PIPE
         )
