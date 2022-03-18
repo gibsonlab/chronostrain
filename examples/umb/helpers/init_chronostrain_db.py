@@ -199,37 +199,21 @@ def run_blast_remote(gene_paths: Dict[str, Path],
                      out_fmt: str) -> Dict[str, Path]:
     blast_result_dir.mkdir(parents=True, exist_ok=True)
 
-    from Bio.Blast.Applications import NcbiblastnCommandline
-    import subprocess
-
     blast_results: Dict[str, Path] = {}
     for gene_name, gene_path in gene_paths.items():
-        cline = NcbiblastnCommandline(
-            db='nt',
-            num_alignments=max_target_seqs,
-            perc_identity=min_pct_idty,
-            outfmt=out_fmt,
+        output_path = blast_result_dir / f"{gene_name}.tsv"
+        blastn(
+            db_name='nt',
+            query_fasta=gene_path,
+            out_path=output_path,
+            max_target_seqs=max_target_seqs,
+            perc_identity_cutoff=min_pct_idty,
+            out_fmt=out_fmt,
             strand="both",
-            query=str(gene_path),
             remote=True,
             entrez_query='Bacteria[Organism]'
         )
-        args = str(cline).split(' ')[1:]
-
-        output_path = blast_result_dir / f"{gene_name}.tsv"
-        output_file = open(output_path, 'w')
-        logger.debug("EXECUTE blastn {}".format(' '.join(args)))
-        p = subprocess.run(
-            ['blastn'] + args,
-            stdout=output_file,
-            stderr=subprocess.PIPE
-        )
-
-        if p.returncode != 0:
-            stderr = p.stderr.decode("utf-8").strip()
-            raise RuntimeError(f"BLAST returned with nonzero return code `{p.returncode}`. STDERR was: `{stderr}`")
-        else:
-            blast_results[gene_name] = output_path
+        blast_results[gene_name] = output_path
     return blast_results
 
 

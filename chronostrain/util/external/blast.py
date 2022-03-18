@@ -34,9 +34,9 @@ def make_blast_db(
 
 def blastn(
         db_name: str,
-        db_dir: Path,
         query_fasta: Path,
         out_path: Path,
+        db_dir: Optional[Path] = None,
         evalue_max: Optional[float] = None,
         perc_identity_cutoff: Optional[int] = None,
         out_fmt: Union[str, int] = 6,  # 6: TSV without comments
@@ -44,7 +44,9 @@ def blastn(
         max_hsps: Optional[int] = None,
         num_threads: int = 1,
         query_coverage_hsp_percentage: Optional[float] = None,
-        strand: str = 'both'
+        strand: str = 'both',
+        remote: bool = False,
+        entrez_query: Optional[str] = None
 ):
     params = [
         '-db', db_name,
@@ -55,6 +57,10 @@ def blastn(
         '-strand', strand
     ]
 
+    if remote:
+        params.append('-remote')
+    if entrez_query is not None:
+        params += ['-entrez_query', entrez_query]
     if perc_identity_cutoff is not None:
         params += ['-perc_identity', perc_identity_cutoff]
     if evalue_max is not None:
@@ -66,14 +72,17 @@ def blastn(
     if query_coverage_hsp_percentage is not None:
         params += ['-qcov_hsp_perc', query_coverage_hsp_percentage]
 
-    env = os.environ.copy()
-    env['BLASTDB'] = str(db_dir)
+    if db_dir is not None:
+        env = os.environ.copy()
+        env['BLASTDB'] = str(db_dir)
 
-    exit_code = call_command(
-        command='blastn',
-        args=params,
-        environment=env
-    )
+        exit_code = call_command(
+            command='blastn',
+            args=params,
+            environment=env
+        )
+    else:
+        exit_code = call_command(command='blastn', args=params)
     if exit_code != 0:
         raise CommandLineException('blastn', exit_code)
 
