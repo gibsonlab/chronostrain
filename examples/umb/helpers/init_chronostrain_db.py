@@ -210,7 +210,9 @@ def run_blast_remote(gene_paths: Dict[str, Path],
             perc_identity=min_pct_idty,
             outfmt=out_fmt,
             strand="both",
-            query=str(gene_path)
+            query=str(gene_path),
+            remote=True,
+            entrez_query='Bacteria[Organism]'
         )
         args = str(cline).split(' ')[1:]
 
@@ -296,7 +298,7 @@ def create_chronostrain_db_remote(
     blast_results = run_blast_remote(
         gene_paths,
         blast_result_dir,
-        max_target_seqs=1000000,  # May need to raise this?
+        max_target_seqs=1000,  # May need to raise this?
         min_pct_idty=min_pct_idty,
         out_fmt=_BLAST_OUT_FMT
     )
