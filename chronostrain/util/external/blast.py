@@ -36,8 +36,9 @@ def blastn(
         db_name: str,
         db_dir: Path,
         query_fasta: Path,
-        evalue_max: float,
         out_path: Path,
+        evalue_max: Optional[float] = None,
+        perc_identity_cutoff: Optional[int] = None,
         out_fmt: Union[str, int] = 6,  # 6: TSV without comments
         max_target_seqs: Optional[int] = None,
         max_hsps: Optional[int] = None,
@@ -49,12 +50,15 @@ def blastn(
         '-db', db_name,
         '-num_threads', num_threads,
         '-query', query_fasta,
-        '-evalue', evalue_max,
         '-outfmt', out_fmt,
         '-out', out_path,
         '-strand', strand
     ]
 
+    if perc_identity_cutoff is not None:
+        params += ['-perc_identity', perc_identity_cutoff]
+    if evalue_max is not None:
+        params += ['-evalue', evalue_max]
     if max_target_seqs is not None:
         params += ['-max_target_seqs', max_target_seqs]
     if max_hsps is not None:

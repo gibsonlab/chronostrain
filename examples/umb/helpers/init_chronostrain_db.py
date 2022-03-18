@@ -6,16 +6,21 @@ Works in 3 steps:
         (with blastn configured to allow, on average, up to 10 hits per genome).
     3) Convert BLAST results into chronostrain JSON database specification.
 """
+import os
 import argparse
 import itertools
 from collections import defaultdict
-from dataclasses import dataclass
 from pathlib import Path
 import csv
 import json
 import pickle
 import bz2
+import tarfile
 import pandas as pd
+
+import shutil
+import urllib.request as request
+from contextlib import closing
 
 from Bio import SeqIO
 from Bio.SeqFeature import FeatureLocation
@@ -43,10 +48,16 @@ def parse_args():
     # Input specification.
     parser.add_argument('-o', '--output_path', required=True, type=str,
                         help='<Required> The path to the target output chronostrain db json file.')
-    parser.add_argument('-r', '--refseq_dir', required=True, type=str,
-                        help='<Required> The strainGE database directory.')
 
     # Optional params
+    parser.add_argument('--use_local', action='store_true', type=bool, required=False,
+                        help='If flag is set, use locally stored RefSeq files. User must specify the directory via the '
+                             '-r option.')
+    parser.add_argument('-r', '--refseq_dir', required=False, type=str, default="",
+                        help='<Optional> The directory containing RefSeq-downloaded files, '
+                             'in human-readable directory structure.')
+    parser.add_argument('--min_pct_idty', required=False, type=int, default=50,
+                        help='<Optional> The percent identity threshold for BLAST. (default: 50)')
     parser.add_argument('--metaphlan_pkl_path', required=False, type=str,
                         help='<Optional> The path to the metaphlan pickle database file.')
     parser.add_argument('--reference_accession', required=False, type=str,
@@ -59,6 +70,7 @@ def parse_args():
     return parser.parse_args()
 
 
+# ===================================================== BEGIN Local resources
 # ============================= Common resources
 def strain_seq_dir(strain_id: str) -> Path:
     return cfg.database_cfg.data_dir / "assemblies" / strain_id
@@ -130,56 +142,19 @@ def extract_chromosomes(path: Path) -> Iterator[Tuple[str, Path]]:
             yield accession, assembly_gcf, chrom_path
 
 
-# ============= Rest of initialization (Run BLAST)
-def create_chronostrain_db(
-        gene_paths: Dict[str, Path],
-        seq_index: pd.DataFrame,
-        output_path: Path
-) -> List[Dict[str, Any]]:
-    """
-    :param gene_paths:
-    :param seq_index: A DataFrame with five columns: "Genus", "Species", "Strain", "Accession", "SeqPath".
-    :param output_path:
-    :return:
-    """
-    # ======== BLAST configuration
-    blast_db_dir = output_path.parent / "blast"
+def run_blast_local(blast_db_dir: Path,
+                    blast_result_dir: Path,
+                    gene_paths: Dict[str, Path],
+                    strain_fasta_files: List[Path],
+                    max_target_seqs: int,
+                    min_pct_idty: int,
+                    out_fmt: str) -> Dict[str, Path]:
     blast_db_name = "db_esch"
     blast_db_title = "\"Escherichia (metaphlan markers, NCBI complete)\""
     blast_fasta_path = blast_db_dir / "genomes.fasta"
-    blast_result_dir = output_path.parent / "blast_results"
-    logger.info("BLAST\n\tdatabase location: {}\n\tresults directory: {}".format(
-        str(blast_db_dir),
-        str(blast_result_dir)
-    ))
 
     # ========= Initialize BLAST database.
     blast_db_dir.mkdir(parents=True, exist_ok=True)
-    strain_fasta_files = []
-    strain_entries = []
-    for idx, row in seq_index.iterrows():
-        accession = row['Accession']
-        strain_id = accession  # Use the accession as the strain's ID (we are only using full chromosome assemblies).
-
-        fasta_path = row['SeqPath']
-        strain_fasta_files.append(fasta_path)
-        strain_entries.append({
-            'id': strain_id,
-            'genus': row['Genus'],
-            'species': row['Species'],
-            'name': row['Strain'],
-            'seqs': [{'accession': accession, 'seq_type': 'chromosome'}],
-            'markers': []
-        })
-
-        symlink_path = strain_seq_dir(strain_id) / f"{accession}.fasta"
-        if symlink_path.exists():
-            logger.info(f"Path {symlink_path} already exists.")
-        else:
-            symlink_path.parent.mkdir(exist_ok=True, parents=True)
-            symlink_path.symlink_to(fasta_path)
-            logger.info(f"Symlink {symlink_path} -> {fasta_path}")
-
     logger.info('Concatenating {} files.'.format(len(strain_fasta_files)))
     with open(blast_fasta_path, 'w') as genome_fasta_file:
         for fpath in strain_fasta_files:
@@ -194,32 +169,178 @@ def create_chronostrain_db(
 
     Path(blast_fasta_path).unlink()  # clean up large fasta file.
 
-    # Run BLAST to find marker genes.
+    # Run BLAST.
+    blast_results: Dict[str, Path] = {}
     blast_result_dir.mkdir(parents=True, exist_ok=True)
     for gene_name, ref_gene_path in gene_paths.items():
-        canonical_gene_found = False
-        ref_gene_len = len(next(iter(read_seq_file(ref_gene_path, 'fasta'))).seq)
-        min_canonical_length = ref_gene_len * 0.95
-
         logger.info(f"Running blastn on {gene_name}.")
         blast_result_path = blast_result_dir / f"{gene_name}.tsv"
         blastn(
             db_name=blast_db_name,
             db_dir=blast_db_dir,
             query_fasta=ref_gene_path,
-            evalue_max=1e-3,
+            perc_identity_cutoff=min_pct_idty,
             out_path=blast_result_path,
             num_threads=cfg.model_cfg.num_cores,
-            out_fmt="6 saccver sstart send qstart qend evalue bitscore pident gaps qcovhsp",
-            max_target_seqs=10 * seq_index.shape[0],  # A generous value, 10 hits per genome
+            out_fmt=out_fmt,
+            max_target_seqs=max_target_seqs,
             strand="both"
         )
+        blast_results[gene_name] = blast_result_path
+    return blast_results
+# ===================================================== END Local resources
+
+
+# ===================================================== BEGIN Remote resources
+def run_blast_remote(gene_paths: Dict[str, Path],
+                     blast_result_dir: Path,
+                     max_target_seqs: int,
+                     min_pct_idty: int,
+                     out_fmt: str) -> Dict[str, Path]:
+    blast_result_dir.mkdir(parents=True, exist_ok=True)
+
+    from Bio.Blast.Applications import NcbiblastnCommandline
+    import subprocess
+
+    blast_results: Dict[str, Path] = {}
+    for gene_name, gene_path in gene_paths.items():
+        cline = NcbiblastnCommandline(
+            db='nt',
+            num_alignments=max_target_seqs,
+            perc_identity=min_pct_idty,
+            outfmt=out_fmt,
+            strand="both",
+            query=str(gene_path)
+        )
+
+        output_path = blast_result_dir / f"{gene_name}.tsv"
+        output_file = open(output_path, 'w')
+        p = subprocess.run(
+            str(cline),
+            stdout=output_file,
+            stderr=subprocess.PIPE
+        )
+
+        if p.returncode != 0:
+            stderr = p.stderr.decode("utf-8").strip()
+            raise RuntimeError(f"BLAST returned with nonzero return code `{p.returncode}`. STDERR was: `{stderr}`")
+        else:
+            blast_results[gene_name] = output_path
+    return blast_results
+
+
+# ===================================================== END Remote resources
+
+
+# ============= Rest of initialization
+def create_chronostrain_db_local(
+        blast_result_dir: Path,
+        gene_paths: Dict[str, Path],
+        seq_dir: Path,
+        min_pct_idty: int,
+        taxonomy: 'Taxonomy'
+) -> List[Dict[str, Any]]:
+    """
+    :return:
+    """
+    # ================= Indexing of refseqs
+    logger.info(f"Indexing refseqs located in {seq_dir}")
+    seq_index = perform_indexing(seq_dir)
+    index_path = seq_dir / "index.tsv"
+    seq_index.to_csv(index_path, sep='\t', index=False)
+    logger.info(f"Wrote index to {str(index_path)}.")
+
+    # ======== BLAST configuration
+    blast_db_dir = blast_result_dir / "blast_db"
+    logger.info("BLAST\n\tdatabase location: {}\n\tresults directory: {}".format(
+        str(blast_db_dir),
+        str(blast_result_dir)
+    ))
+
+    strain_fasta_files = []
+    for idx, row in seq_index.iterrows():
+        accession = row['Accession']
+        strain_id = accession  # Use the accession as the strain's ID (we are only using full chromosome assemblies).
+
+        fasta_path = row['SeqPath']
+        strain_fasta_files.append(fasta_path)
+        symlink_path = strain_seq_dir(strain_id) / f"{accession}.fasta"
+        if symlink_path.exists():
+            logger.info(f"Path {symlink_path} already exists.")
+        else:
+            symlink_path.parent.mkdir(exist_ok=True, parents=True)
+            symlink_path.symlink_to(fasta_path)
+            logger.info(f"Symlink {symlink_path} -> {fasta_path}")
+
+    blast_results = run_blast_local(
+        blast_db_dir,
+        blast_result_dir,
+        gene_paths,
+        strain_fasta_files,
+        max_target_seqs=10 * seq_index.shape[0],
+        min_pct_idty=min_pct_idty,
+        out_fmt=_BLAST_OUT_FMT
+    )
+
+    return create_strain_entries(blast_results, gene_paths, taxonomy)
+
+
+def create_chronostrain_db_remote(
+        blast_result_dir: Path,
+        gene_paths: Dict[str, Path],
+        min_pct_idty: int,
+        taxonomy: 'Taxonomy'
+) -> List[Dict[str, Any]]:
+    blast_results = run_blast_remote(
+        gene_paths,
+        blast_result_dir,
+        max_target_seqs=5000,  # May need to raise this?
+        min_pct_idty=min_pct_idty,
+        out_fmt=_BLAST_OUT_FMT
+    )
+
+    return create_strain_entries(blast_results, gene_paths, taxonomy)
+
+
+def blank_strain_entry(strain_id: str, genus: str, species: str, name: str, accession: str):
+    return {
+        'id': strain_id,
+        'genus': genus,
+        'species': species,
+        'name': name,
+        'seqs': [{'accession': accession, 'seq_type': 'chromosome'}],
+        'markers': []
+    }
+
+
+def create_strain_entries(blast_results: Dict[str, Path], ref_gene_paths: Dict[str, Path], taxonomy):
+    strain_entries: Dict[str, Dict] = {}
+
+    for gene_name, blast_result_path in blast_results:
+        blast_hits = parse_blast_hits(blast_result_path, taxonomy)
+
+        # Parse the entries.
+        canonical_gene_found = False
+        ref_gene_path = ref_gene_paths[gene_name]
+        ref_gene_len = len(next(iter(read_seq_file(ref_gene_path, 'fasta'))).seq)
+        min_canonical_length = ref_gene_len * 0.95
 
         logger.debug(f"Parsing BLAST hits for gene `{gene_name}`.")
-        locations = parse_blast_hits(blast_result_path)
-        for strain_entry in strain_entries:
+        for subj_acc in blast_hits.keys():
+            # Create strain entries if they don't already exist.
+            if subj_acc not in strain_entries:
+                sample_hit = blast_hits[subj_acc][0]
+                strain_entries[subj_acc] = blank_strain_entry(
+                    strain_id=subj_acc,
+                    genus=sample_hit.subj_genus,
+                    species=sample_hit.subj_species,
+                    name=sample_hit.subj_sci_name,
+                    accession=subj_acc
+                )
+
+            strain_entry = strain_entries[subj_acc]
             seq_accession = strain_entry['seqs'][0]['accession']
-            for blast_hit in locations[seq_accession]:
+            for blast_hit in blast_hits[seq_accession]:
                 is_canonical = (
                         (blast_hit.subj_end - blast_hit.subj_start) >= min_canonical_length
                         and
@@ -241,7 +362,7 @@ def create_chronostrain_db(
                 )
                 canonical_gene_found = canonical_gene_found or is_canonical
 
-    return prune_entries(strain_entries)
+    return prune_entries([entry for _, entry in strain_entries.items()])
 
 
 def prune_entries(strain_entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -258,59 +379,117 @@ def prune_entries(strain_entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     ]
 
 
-@dataclass
+_BLAST_OUT_FMT = "6 saccver sstart send slen qstart qend evalue bitscore pident gaps qcovhsp staxids"
+
+
 class BlastHit(object):
-    line_idx: int
-    subj_accession: str
-    subj_start: int
-    subj_end: int
-    query_start: int
-    query_end: int
-    strand: str
-    evalue: float
-    bitscore: float
-    pct_identity: float
-    num_gaps: int
-    query_coverage_per_hsp: float
+    def __init__(self,
+                 line_idx: int,
+                 subj_accession: str,
+                 subj_start: int,
+                 subj_end: int,
+                 subj_len: int,
+                 query_start: int,
+                 query_end: int,
+                 strand: str,
+                 evalue: float,
+                 bitscore: float,
+                 pct_identity: float,
+                 num_gaps: int,
+                 query_coverage_per_hsp: float,
+                 subj_taxid: str,
+                 subj_genus: str,
+                 subj_species: str,
+                 subj_sci_name: str
+                 ):
+        self.line_idx = line_idx
+        self.subj_accession = subj_accession
+        self.subj_start = subj_start
+        self.subj_end = subj_end
+        self.subj_len = subj_len
+        self.query_start = query_start
+        self.query_end = query_end
+        self.strand = strand
+        self.evalue = evalue
+        self.bitscore = bitscore
+        self.pct_identity = pct_identity
+        self.num_gaps = num_gaps
+        self.query_coverage_per_hsp = query_coverage_per_hsp
+        self.subj_taxid = subj_taxid
+        self.subj_genus = subj_genus
+        self.subj_species = subj_species
+        self.subj_sci_name = subj_sci_name
 
 
-def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
+class Taxonomy(object):
+    def __init__(self, taxdump_tar: Path):
+        self.mapping: Dict[str, Tuple[str, str, str]] = {}
+        tar = tarfile.open(taxdump_tar)
+        f = tar.extractfile("names.dmp")
+        for line_idx, line in enumerate(f):
+            line = line.decode("utf-8").strip()
+            tax_id, name_txt, unique_name, name_class, _ = [token.strip() for token in line.split("|")]
+
+            name_tokens = name_txt.split()
+            if len(name_tokens) < 3:
+                continue
+            genus = name_tokens[0].strip()
+            species = name_tokens[1].strip()
+            name = ' '.join(name_tokens[2:])
+            self.mapping[tax_id] = (genus, species, name)
+        tar.close()
+
+    def get(self, staxid: str) -> Tuple[str, str, str]:
+        """
+        Returns a (genus, species, subj_name) triple.
+        """
+        return self.mapping[staxid]
+
+
+def parse_blast_hits(blast_result_path: Path, taxonomy: Taxonomy) -> Dict[str, List[BlastHit]]:
     accession_to_positions: Dict[str, List[BlastHit]] = defaultdict(list)
     with open(blast_result_path, "r") as f:
         blast_result_reader = csv.reader(f, delimiter='\t')
         for row_idx, row in enumerate(blast_result_reader):
-
-            subj_acc, subj_start, subj_end, qstart, qend, evalue, bitscore, pident, gaps, qcovhsp = row
+            subj_acc, subj_start, subj_end, subj_len, qstart, qend, evalue, bitscore, pident, gaps, qcovhsp, staxid = row
 
             subj_start = int(subj_start)
             subj_end = int(subj_end)
+            subj_len = int(subj_len)
 
             if subj_start < subj_end:
-                start_pos = subj_start
-                end_pos = subj_end
+                subj_start_pos = subj_start
+                subj_end_pos = subj_end
                 strand = '+'
             else:
-                start_pos = subj_end
-                end_pos = subj_start
+                subj_start_pos = subj_end
+                subj_end_pos = subj_start
                 strand = '-'
 
-            if end_pos - start_pos + 1 < READ_LEN:
+            if subj_end_pos - subj_start_pos + 1 < READ_LEN:
                 continue
+
+            genus, species, subj_sci_name = taxonomy.get(staxid)
 
             accession_to_positions[subj_acc].append(
                 BlastHit(
-                    row_idx,
-                    subj_acc,
-                    start_pos,
-                    end_pos,
-                    int(qstart),
-                    int(qend),
-                    strand,
-                    float(evalue),
-                    float(bitscore),
-                    float(pident),
-                    int(gaps),
-                    float(qcovhsp)
+                    line_idx=row_idx,
+                    subj_accession=subj_acc,
+                    subj_start=subj_start_pos,
+                    subj_end=subj_end_pos,
+                    subj_len=subj_len,
+                    query_start=int(qstart),
+                    query_end=int(qend),
+                    strand=strand,
+                    evalue=float(evalue),
+                    bitscore=float(bitscore),
+                    pct_identity=float(pident),
+                    num_gaps=int(gaps),
+                    query_coverage_per_hsp=float(qcovhsp),
+                    subj_taxid=staxid,
+                    subj_genus=genus,
+                    subj_species=species,
+                    subj_sci_name=subj_sci_name
                 )
             )
     return accession_to_positions
@@ -452,17 +631,22 @@ def parse_uniprot_csv(csv_path: Path) -> Iterator[str]:
             yield uniprot_id
 
 
+def download_taxonomies(target_dir: Path) -> Taxonomy:
+    target_url = "ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.Z"
+    target_dir.mkdir(exist_ok=True, parents=True)
+    target_file = target_dir / "taxdump.tar.Z"
+
+    with closing(request.urlopen(target_url)) as r:
+        with open(target_file, 'wb') as f:
+            shutil.copyfileobj(r, f)
+
+    os.system(f'uncompress {target_file}')
+    return Taxonomy(target_dir / "taxdump.tar")
+
+
 def main():
     args = parse_args()
     output_path = Path(args.output_path)
-    seq_dir = Path(args.refseq_dir)
-
-    # ================= Indexing of refseqs
-    logger.info(f"Indexing refseqs located in {seq_dir}")
-    seq_index = perform_indexing(seq_dir)
-    index_path = seq_dir / "index.tsv"
-    seq_index.to_csv(index_path, sep='\t', index=False)
-    logger.info(f"Wrote index to {str(index_path)}.")
 
     # ================= Pull out reference genes
     logger.info(f"Retrieving reference genes from {args.reference_accession}")
@@ -470,7 +654,21 @@ def main():
 
     # ================= Compile into JSON.
     logger.info("Creating JSON entries.")
-    object_entries = create_chronostrain_db(ref_gene_paths, seq_index, output_path)
+    taxonomy = download_taxonomies(output_path.parent / "taxonomy")
+    blast_result_dir = output_path.parent / "blast_results"
+    min_pct_idty = args.min_pct_idty
+    if args.mode == "local":
+        if args.refseq_dir == "":
+            raise ValueError("In local mode, refseq_dir must be specified.")
+        else:
+            seq_dir = Path(args.refseq_dir)
+        object_entries = create_chronostrain_db_local(
+            blast_result_dir, ref_gene_paths, seq_dir, min_pct_idty, taxonomy
+        )
+    else:
+        object_entries = create_chronostrain_db_remote(
+            blast_result_dir, ref_gene_paths, min_pct_idty, taxonomy
+        )
 
     print_summary(object_entries, ref_gene_paths)
     with open(output_path, 'w') as outfile:
