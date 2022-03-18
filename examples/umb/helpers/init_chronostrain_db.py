@@ -642,9 +642,11 @@ def main():
     logger.info(f"Retrieving reference genes from {args.reference_accession}")
     ref_gene_paths = download_reference(args.reference_accession, args.metaphlan_pkl_path, args.uniprot_csv)
 
+    logger.info("Downloading and extracting taxonomy dump...")
+    taxonomy = download_taxonomies(output_path.parent / "taxonomy")
+
     # ================= Compile into JSON.
     logger.info("Creating JSON entries.")
-    taxonomy = download_taxonomies(output_path.parent / "taxonomy")
     blast_result_dir = output_path.parent / "blast_results"
     min_pct_idty = args.min_pct_idty
     if args.use_local:
