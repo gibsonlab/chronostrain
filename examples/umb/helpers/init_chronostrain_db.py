@@ -468,7 +468,6 @@ def parse_blast_hits(blast_result_path: Path, taxonomy: Taxonomy) -> Dict[str, L
                     query_end=int(qend),
                     strand=strand,
                     evalue=float(evalue),
-                    bitscore=float(bitscore),
                     pct_identity=float(pident),
                     num_gaps=int(gaps),
                     query_coverage_per_hsp=float(qcovhsp),
