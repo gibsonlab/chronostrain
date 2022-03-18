@@ -216,6 +216,7 @@ def run_blast_remote(gene_paths: Dict[str, Path],
 
         output_path = blast_result_dir / f"{gene_name}.tsv"
         output_file = open(output_path, 'w')
+        logger.debug("EXECUTE blastn {}".format(' '.join(args)))
         p = subprocess.run(
             ['blastn'] + args,
             stdout=output_file,
@@ -380,7 +381,7 @@ def prune_entries(strain_entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     ]
 
 
-_BLAST_OUT_FMT = "6 saccver sstart send slen qstart qend evalue bitscore pident gaps qcovhsp staxids"
+_BLAST_OUT_FMT = "6 saccver sstart send slen qstart qend evalue pident gaps qcovhsp staxids"
 
 
 class BlastHit(object):
@@ -394,7 +395,6 @@ class BlastHit(object):
                  query_end: int,
                  strand: str,
                  evalue: float,
-                 bitscore: float,
                  pct_identity: float,
                  num_gaps: int,
                  query_coverage_per_hsp: float,
@@ -412,7 +412,6 @@ class BlastHit(object):
         self.query_end = query_end
         self.strand = strand
         self.evalue = evalue
-        self.bitscore = bitscore
         self.pct_identity = pct_identity
         self.num_gaps = num_gaps
         self.query_coverage_per_hsp = query_coverage_per_hsp
@@ -452,7 +451,7 @@ def parse_blast_hits(blast_result_path: Path, taxonomy: Taxonomy) -> Dict[str, L
     with open(blast_result_path, "r") as f:
         blast_result_reader = csv.reader(f, delimiter='\t')
         for row_idx, row in enumerate(blast_result_reader):
-            subj_acc, subj_start, subj_end, subj_len, qstart, qend, evalue, bitscore, pident, gaps, qcovhsp, staxid = row
+            subj_acc, subj_start, subj_end, subj_len, qstart, qend, evalue, pident, gaps, qcovhsp, staxid = row
 
             subj_start = int(subj_start)
             subj_end = int(subj_end)
