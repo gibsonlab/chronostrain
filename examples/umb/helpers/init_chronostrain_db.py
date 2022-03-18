@@ -50,7 +50,7 @@ def parse_args():
                         help='<Required> The path to the target output chronostrain db json file.')
 
     # Optional params
-    parser.add_argument('--use_local', action='store_true', type=bool, required=False,
+    parser.add_argument('--use_local', action='store_true', required=False,
                         help='If flag is set, use locally stored RefSeq files. User must specify the directory via the '
                              '-r option.')
     parser.add_argument('-r', '--refseq_dir', required=False, type=str, default="",
