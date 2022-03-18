@@ -51,7 +51,7 @@ def blastn(
     params = [
         '-db', db_name,
         '-query', query_fasta,
-        '-outfmt', f"\"out_fmt\"",
+        '-outfmt', f"\"{out_fmt}\"",
         '-out', out_path,
         '-strand', strand
     ]
@@ -61,7 +61,7 @@ def blastn(
     if remote:
         params.append('-remote')
     if entrez_query is not None:
-        params += ['-entrez_query', entrez_query]
+        params += ['-entrez_query', f"\"{entrez_query}\""]
     if perc_identity_cutoff is not None:
         params += ['-perc_identity', perc_identity_cutoff]
     if evalue_max is not None:
