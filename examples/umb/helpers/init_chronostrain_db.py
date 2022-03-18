@@ -282,7 +282,7 @@ def create_chronostrain_db_remote(
     blast_results = run_blast_remote(
         gene_paths,
         blast_result_dir,
-        max_target_seqs=1000,  # May need to raise this?
+        max_target_seqs=50000,  # May need to raise this?
         min_pct_idty=min_pct_idty,
         out_fmt=_BLAST_OUT_FMT
     )
