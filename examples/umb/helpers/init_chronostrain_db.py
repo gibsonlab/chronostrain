@@ -196,6 +196,7 @@ def run_blast_remote(gene_paths: Dict[str, Path],
                      blast_result_dir: Path,
                      max_target_seqs: int,
                      min_pct_idty: int,
+                     taxidlist_path: Path,
                      out_fmt: str) -> Dict[str, Path]:
     blast_result_dir.mkdir(parents=True, exist_ok=True)
 
@@ -211,6 +212,7 @@ def run_blast_remote(gene_paths: Dict[str, Path],
             out_fmt=out_fmt,
             strand="both",
             remote=True,
+            taxidlist_path=taxidlist_path,
             entrez_query='Bacteria[Organism] AND Chromosome[Assembly Level]'
         )
         blast_results[gene_name] = output_path
@@ -284,7 +286,8 @@ def create_chronostrain_db_remote(
         blast_result_dir,
         max_target_seqs=50000,  # May need to raise this?
         min_pct_idty=min_pct_idty,
-        out_fmt=_BLAST_OUT_FMT
+        out_fmt=_BLAST_OUT_FMT,
+        taxidlist_path=taxonomy.taxids_list_path
     )
 
     return create_strain_entries(blast_results, gene_paths, taxonomy)
@@ -408,17 +411,28 @@ class BlastHit(object):
 
 
 class Taxonomy(object):
-    def __init__(self, taxdump_tar: Path):
+    def __init__(self, taxids_list_path: Path, taxdump_tar: Path):
         self.mapping: Dict[str, Tuple[str, str, str]] = {}
+        self.taxids_list_path = taxids_list_path
+        self.bacterial_taxids: Set[str] = set()
+
+        with open(taxids_list_path, 'r') as tf:
+            for line in tf:
+                self.bacterial_taxids.add(line.strip())
+
         tar = tarfile.open(taxdump_tar)
         f = tar.extractfile("names.dmp")
         for line_idx, line in enumerate(f):
             line = line.decode("utf-8").strip()
             tax_id, name_txt, unique_name, name_class, _ = [token.strip() for token in line.split("|")]
 
+            if tax_id not in self.bacterial_taxids:
+                continue
+
             name_tokens = name_txt.split()
             if len(name_tokens) < 3:
                 continue
+
             genus = name_tokens[0].strip()
             species = name_tokens[1].strip()
             name = ' '.join(name_tokens[2:])
@@ -629,9 +643,12 @@ def download_taxonomies(target_dir: Path) -> Taxonomy:
     with closing(request.urlopen(target_url)) as r:
         with open(target_file, 'wb') as f:
             shutil.copyfileobj(r, f)
-
     os.system(f'uncompress -f {target_file}')
-    return Taxonomy(target_dir / "taxdump.tar")
+
+    taxids_file = target_dir / "bacterial_species.txt"
+    os.system(f'get_species_taxids.sh -t 2 > {taxids_file}')
+
+    return Taxonomy(taxids_file, target_dir / "taxdump.tar")
 
 
 def main():
