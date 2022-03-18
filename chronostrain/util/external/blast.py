@@ -51,7 +51,7 @@ def blastn(
     params = [
         '-db', db_name,
         '-query', query_fasta,
-        '-outfmt', out_fmt,
+        '-outfmt', f"\"out_fmt\"",
         '-out', out_path,
         '-strand', strand
     ]
