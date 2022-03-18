@@ -586,8 +586,6 @@ def get_marker_genes(
             continue
         else:
             logger.debug(f"Found {len(res)} hits for UniProt query `{uniprot_id}`.")
-            if len(res) > 1:
-                logger.debug(str(res))
 
         gene_name = res[uniprot_id]['Entry name']
         cluster = res[uniprot_id]['Gene names'].split()
@@ -664,7 +662,7 @@ def main():
     taxonomy = download_taxonomies(output_path.parent / "taxonomy")
     blast_result_dir = output_path.parent / "blast_results"
     min_pct_idty = args.min_pct_idty
-    if args.mode == "local":
+    if args.use_local:
         if args.refseq_dir == "":
             raise ValueError("In local mode, refseq_dir must be specified.")
         else:
