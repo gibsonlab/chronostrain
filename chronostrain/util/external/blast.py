@@ -42,7 +42,7 @@ def blastn(
         out_fmt: Union[str, int] = 6,  # 6: TSV without comments
         max_target_seqs: Optional[int] = None,
         max_hsps: Optional[int] = None,
-        num_threads: int = 1,
+        num_threads: Optional[int] = None,
         query_coverage_hsp_percentage: Optional[float] = None,
         strand: str = 'both',
         remote: bool = False,
@@ -50,13 +50,14 @@ def blastn(
 ):
     params = [
         '-db', db_name,
-        '-num_threads', num_threads,
         '-query', query_fasta,
         '-outfmt', out_fmt,
         '-out', out_path,
         '-strand', strand
     ]
 
+    if num_threads is not None:
+        params += ['-num_threads', num_threads]
     if remote:
         params.append('-remote')
     if entrez_query is not None:
