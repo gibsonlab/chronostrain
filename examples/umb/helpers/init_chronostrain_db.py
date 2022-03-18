@@ -211,7 +211,7 @@ def run_blast_remote(gene_paths: Dict[str, Path],
             out_fmt=out_fmt,
             strand="both",
             remote=True,
-            entrez_query='Bacteria[Organism]'
+            entrez_query='Bacteria[Organism] AND Chromosome[Assembly Level]'
         )
         blast_results[gene_name] = output_path
     return blast_results
@@ -630,7 +630,7 @@ def download_taxonomies(target_dir: Path) -> Taxonomy:
         with open(target_file, 'wb') as f:
             shutil.copyfileobj(r, f)
 
-    os.system(f'uncompress {target_file}')
+    os.system(f'uncompress -f {target_file}')
     return Taxonomy(target_dir / "taxdump.tar")
 
 
