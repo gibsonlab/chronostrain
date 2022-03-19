@@ -11,6 +11,7 @@ python ${BASE_DIR}/helpers/index_refseqs.py -r "/mnt/d/ref_genomes"
 
 echo "[*] Creating Blast database."
 REFSEQ_FASTA_FILE=${BLAST_DB_DIR}/refseqs.fasta
+echo "Target fasta file: ${REFSEQ_FASTA_FILE}"
 > ${REFSEQ_FASTA_FILE}  # Clear file
 for fasta_file in ${CHRONOSTRAIN_DB_DIR}/assemblies/*/*.fasta; do
 	echo "Concatenating ${fasta_file}..."
