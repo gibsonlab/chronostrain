@@ -3,8 +3,6 @@ set -e
 
 source settings.sh
 export CHRONOSTRAIN_LOG_FILEPATH="${LOGDIR}/init.log"
-BLAST_DB_DIR="${CHRONOSTRAIN_DB_DIR}/blast_db"
-BLAST_DB_NAME="esch_chrom"
 
 
 echo "[*] Creating RefSeq index."
@@ -12,7 +10,6 @@ python ${BASE_DIR}/helpers/index_refseqs.py -r "/mnt/d/ref_genomes"
 
 
 echo "[*] Creating Blast database."
-
 REFSEQ_FASTA_FILE = ${BLAST_DB_DIR}/refseqs.fasta
 > ${REFSEQ_FASTA_FILE}  # Clear file
 for fasta_file in ${CHRONOSTRAIN_DB_DIR}/assemblies/*/*.fasta; do
@@ -29,6 +26,7 @@ makeblastdb \
 -parse_seqids
 
 rm ${REFSEQ_FASTA_FILE}
+cd -
 
 echo "[*] Initializing database."
 python ${BASE_DIR}/helpers/init_chronostrain_db.py \
