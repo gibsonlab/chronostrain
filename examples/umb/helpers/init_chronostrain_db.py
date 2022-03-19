@@ -177,7 +177,7 @@ def create_strain_entries(blast_results: Dict[str, Path], ref_gene_paths: Dict[s
     strain_entries: Dict[str, Dict] = {}
     seen_accessions: Set[str] = set()
 
-    for gene_name, blast_result_path in blast_results:
+    for gene_name, blast_result_path in blast_results.items():
         blast_hits = parse_blast_hits(blast_result_path)
 
         # Parse the entries.
