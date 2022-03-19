@@ -19,7 +19,7 @@ python init_chronostrain_db.py \
 -o ${CHRONOSTRAIN_DATA_DIR}/database_ecoli_MLST_all.json \
 -dbdir ${BLAST_DB_DIR} \
 -dbname ${BLAST_DB_NAME} \
---min_pct_idty 50 \
+--min_pct_idty 75 \
 --max_target_seqs 1000000 \
 --uniprot_csv ${BASE_DIR}/files/mlst_markers.csv \
 --reference_accession "U00096.3"

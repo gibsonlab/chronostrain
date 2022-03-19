@@ -48,8 +48,8 @@ def parse_args():
                         help='<Required> The name of the BLAST database.')
 
     # Optional params
-    parser.add_argument('--min_pct_idty', required=False, type=int, default=50,
-                        help='<Optional> The percent identity threshold for BLAST. (default: 50)')
+    parser.add_argument('--min_pct_idty', required=False, type=int, default=75,
+                        help='<Optional> The percent identity threshold for BLAST. (default: 75)')
     parser.add_argument('--max_target_seqs', required=False, type=int, default=100000,
                         help='<Optional> The max # of alignments to output for each BLAST query. (default: 100000)')
     parser.add_argument('--metaphlan_pkl_path', required=False, type=str,

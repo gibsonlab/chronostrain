@@ -36,7 +36,7 @@ python ${BASE_DIR}/helpers/init_chronostrain_db.py \
 -o ${CHRONOSTRAIN_ECOLI_DB_JSON} \
 -dbdir ${BLAST_DB_DIR} \
 -dbname ${BLAST_DB_NAME} \
---min_pct_idty 50 \
+--min_pct_idty 75 \
 --max_target_seqs 100000 \
 --metaphlan_pkl_path ${METAPHLAN_PKL_PATH} \
 --reference_accession "U00096.3"
