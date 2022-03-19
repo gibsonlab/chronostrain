@@ -6,6 +6,7 @@ Works in 3 steps:
         (with blastn configured to allow, on average, up to 10 hits per genome).
     3) Convert BLAST results into chronostrain JSON database specification.
 """
+import os
 import argparse
 import itertools
 from collections import defaultdict
@@ -95,6 +96,10 @@ def run_blast_local(db_dir: Path,
                     max_target_seqs: int,
                     min_pct_idty: int,
                     out_fmt: str) -> Dict[str, Path]:
+    # Retrieve taxIDs for bacteria.
+    taxids_file = db_dir / "bacterial_species.txt"
+    os.system(f'get_species_taxids.sh -t 2 > {taxids_file}')
+
     # Run BLAST.
     result_paths: Dict[str, Path] = {}
     result_dir.mkdir(parents=True, exist_ok=True)
@@ -110,7 +115,8 @@ def run_blast_local(db_dir: Path,
             num_threads=cfg.model_cfg.num_cores,
             out_fmt=out_fmt,
             max_target_seqs=max_target_seqs,
-            strand="both"
+            strand="both",
+            taxidlist_path=taxids_file
         )
         result_paths[gene_name] = blast_result_path
     return result_paths
