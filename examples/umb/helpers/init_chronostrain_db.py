@@ -194,7 +194,8 @@ def create_strain_entries(blast_results: Dict[str, Path], ref_gene_paths: Dict[s
 
                 try:
                     strain_name = get_strain_name(subj_acc)
-                except ValueError:
+                except ValueError as e:
+                    logger.debug(str(e))
                     continue
 
                 sample_hit = blast_hits[subj_acc][0]
