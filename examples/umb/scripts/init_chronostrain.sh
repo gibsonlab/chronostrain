@@ -6,7 +6,7 @@ export CHRONOSTRAIN_LOG_FILEPATH="${LOGDIR}/init.log"
 
 
 echo "[*] Creating RefSeq index."
-python ${BASE_DIR}/helpers/index_refseqs.py -r "/mnt/d/ref_genomes"
+python ${BASE_DIR}/helpers/index_refseqs.py -r ${NCBI_REFSEQ_DIR}
 
 
 echo "[*] Creating Blast database."

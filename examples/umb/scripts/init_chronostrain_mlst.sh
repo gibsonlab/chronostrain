@@ -17,7 +17,7 @@ echo "[*] Initializing database."
 cd ${BASE_DIR}/helpers
 python init_chronostrain_db.py \
 -o ${CHRONOSTRAIN_DATA_DIR}/database_ecoli_MLST_all.json \
--dbdir /mnt/e/blastdb \
+-dbdir ${BLAST_DB_DIR} \
 -dbname ${BLAST_DB_NAME} \
 --min_pct_idty 50 \
 --max_target_seqs 1000000 \
