@@ -97,6 +97,7 @@ def run_blast_local(db_dir: Path,
                     min_pct_idty: int,
                     out_fmt: str) -> Dict[str, Path]:
     # Retrieve taxIDs for bacteria.
+    logger.info("Retrieving taxonomic IDS for bacteria.")
     taxids_file = db_dir / "bacterial_species.txt"
     os.system(f'get_species_taxids.sh -t 2 > {taxids_file}')
 
