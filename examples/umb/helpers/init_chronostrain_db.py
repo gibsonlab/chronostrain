@@ -161,6 +161,10 @@ def blank_strain_entry(strain_id: str, genus: str, species: str, name: str, acce
     }
 
 
+class StrainParseError(BaseException):
+    pass
+
+
 def get_strain_name(accession: str) -> str:
     """
     :return:
@@ -171,13 +175,13 @@ def get_strain_name(accession: str) -> str:
 
     name_str = record[0]["GBSeq_definition"]
     if ("strain" not in name_str) or ("chromosome, complete genome" not in name_str):
-        raise ValueError(f"Accession {accession} is not a strain chromosomal assembly!")
+        raise StrainParseError(f"Accession {accession} is not a strain chromosomal assembly!")
 
     name_tokens = name_str.split()
     for tok_idx, tok in enumerate(name_tokens):
         if tok == "strain":
             return name_tokens[tok_idx + 1]
-    raise ValueError(f"Couldn't extract strain name from {accession} ({name_str})")
+    raise StrainParseError(f"Couldn't extract strain name from {accession} ({name_str})")
 
 
 def create_strain_entries(blast_results: Dict[str, Path], ref_gene_paths: Dict[str, Path]):
@@ -201,8 +205,8 @@ def create_strain_entries(blast_results: Dict[str, Path], ref_gene_paths: Dict[s
 
                 try:
                     strain_name = get_strain_name(subj_acc)
-                except ValueError as e:
-                    logger.debug(str(e))
+                except StrainParseError as ex:
+                    logger.debug(str(ex))
                     continue
 
                 sample_hit = blast_hits[subj_acc][0]
