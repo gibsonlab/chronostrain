@@ -6,7 +6,6 @@ Works in 3 steps:
         (with blastn configured to allow, on average, up to 10 hits per genome).
     3) Convert BLAST results into chronostrain JSON database specification.
 """
-import os
 import argparse
 import itertools
 from collections import defaultdict
@@ -15,13 +14,8 @@ import csv
 import json
 import pickle
 import bz2
-import tarfile
 
-import shutil
-import urllib.request as request
-from contextlib import closing
-
-from Bio import SeqIO
+from Bio import SeqIO, Entrez
 from Bio.SeqFeature import FeatureLocation
 from Bio.SeqRecord import SeqRecord
 from bioservices import UniProt
@@ -37,6 +31,7 @@ logger = create_logger("chronostrain.init_db")
 
 
 READ_LEN = 150
+Entrez.email = cfg.entrez_cfg.email
 
 
 def parse_args():
@@ -99,7 +94,6 @@ def run_blast_local(db_dir: Path,
                     gene_paths: Dict[str, Path],
                     max_target_seqs: int,
                     min_pct_idty: int,
-                    taxonomy: 'Taxonomy',
                     out_fmt: str) -> Dict[str, Path]:
     # Run BLAST.
     result_paths: Dict[str, Path] = {}
@@ -116,8 +110,7 @@ def run_blast_local(db_dir: Path,
             num_threads=cfg.model_cfg.num_cores,
             out_fmt=out_fmt,
             max_target_seqs=max_target_seqs,
-            strand="both",
-            taxidlist_path=taxonomy.taxids_list_path
+            strand="both"
         )
         result_paths[gene_name] = blast_result_path
     return result_paths
@@ -131,7 +124,6 @@ def create_chronostrain_db(
         blast_db_dir: Path,
         blast_db_name: str,
         min_pct_idty: int,
-        taxonomy: 'Taxonomy',
         max_target_seqs: int
 ) -> List[Dict[str, Any]]:
     """
@@ -145,11 +137,10 @@ def create_chronostrain_db(
         gene_paths=gene_paths,
         max_target_seqs=max_target_seqs,
         min_pct_idty=min_pct_idty,
-        taxonomy=taxonomy,
         out_fmt=_BLAST_OUT_FMT
     )
 
-    return create_strain_entries(blast_results, gene_paths, taxonomy)
+    return create_strain_entries(blast_results, gene_paths)
 
 
 def blank_strain_entry(strain_id: str, genus: str, species: str, name: str, accession: str):
@@ -163,11 +154,31 @@ def blank_strain_entry(strain_id: str, genus: str, species: str, name: str, acce
     }
 
 
-def create_strain_entries(blast_results: Dict[str, Path], ref_gene_paths: Dict[str, Path], taxonomy):
+def get_strain_name(accession: str) -> str:
+    """
+    :return:
+    """
+    handle = Entrez.efetch(db="nucleotide", id=accession, retmode="xml")
+    record = Entrez.read(handle)
+    handle.close()
+
+    name_str = record[0]["GBSeq_definition"]
+    if ("strain" not in name_str) or ("chromosome, complete genome" not in name_str):
+        raise ValueError(f"Accession {accession} is not a strain chromosomal assembly!")
+
+    name_tokens = name_str.split()
+    for tok_idx, tok in enumerate(name_tokens):
+        if tok == "strain":
+            return name_tokens[tok_idx + 1]
+    raise ValueError(f"Couldn't extract strain name from {accession} ({name_str})")
+
+
+def create_strain_entries(blast_results: Dict[str, Path], ref_gene_paths: Dict[str, Path]):
     strain_entries: Dict[str, Dict] = {}
+    seen_accessions: Set[str] = set()
 
     for gene_name, blast_result_path in blast_results:
-        blast_hits = parse_blast_hits(blast_result_path, taxonomy)
+        blast_hits = parse_blast_hits(blast_result_path)
 
         # Parse the entries.
         canonical_gene_found = False
@@ -178,15 +189,25 @@ def create_strain_entries(blast_results: Dict[str, Path], ref_gene_paths: Dict[s
         logger.debug(f"Parsing BLAST hits for gene `{gene_name}`.")
         for subj_acc in blast_hits.keys():
             # Create strain entries if they don't already exist.
-            if subj_acc not in strain_entries:
+            if subj_acc not in seen_accessions:
+                seen_accessions.add(subj_acc)
+
+                try:
+                    strain_name = get_strain_name(subj_acc)
+                except ValueError:
+                    continue
+
                 sample_hit = blast_hits[subj_acc][0]
                 strain_entries[subj_acc] = blank_strain_entry(
                     strain_id=subj_acc,
                     genus=sample_hit.subj_genus,
                     species=sample_hit.subj_species,
-                    name=sample_hit.subj_sci_name,
+                    name=strain_name,
                     accession=subj_acc
                 )
+
+            if subj_acc not in strain_entries:
+                continue
 
             strain_entry = strain_entries[subj_acc]
             seq_accession = strain_entry['seqs'][0]['accession']
@@ -229,7 +250,7 @@ def prune_entries(strain_entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     ]
 
 
-_BLAST_OUT_FMT = "6 saccver sstart send slen qstart qend evalue pident gaps qcovhsp staxids"
+_BLAST_OUT_FMT = "6 saccver sstart send slen qstart qend evalue pident gaps qcovhsp sscinames scomnames"
 
 
 class BlastHit(object):
@@ -246,10 +267,10 @@ class BlastHit(object):
                  pct_identity: float,
                  num_gaps: int,
                  query_coverage_per_hsp: float,
-                 subj_taxid: str,
                  subj_genus: str,
                  subj_species: str,
-                 subj_sci_name: str
+                 subj_sci_name: str,
+                 subj_common_name: str
                  ):
         self.line_idx = line_idx
         self.subj_accession = subj_accession
@@ -263,54 +284,18 @@ class BlastHit(object):
         self.pct_identity = pct_identity
         self.num_gaps = num_gaps
         self.query_coverage_per_hsp = query_coverage_per_hsp
-        self.subj_taxid = subj_taxid
         self.subj_genus = subj_genus
         self.subj_species = subj_species
         self.subj_sci_name = subj_sci_name
+        self.subj_common_name = subj_common_name
 
 
-class Taxonomy(object):
-    def __init__(self, taxids_list_path: Path, taxdump_tar: Path):
-        self.mapping: Dict[str, Tuple[str, str, str]] = {}
-        self.taxids_list_path = taxids_list_path
-        self.bacterial_taxids: Set[str] = set()
-
-        with open(taxids_list_path, 'r') as tf:
-            for line in tf:
-                self.bacterial_taxids.add(line.strip())
-
-        tar = tarfile.open(taxdump_tar)
-        f = tar.extractfile("names.dmp")
-        for line_idx, line in enumerate(f):
-            line = line.decode("utf-8").strip()
-            tax_id, name_txt, unique_name, name_class, _ = [token.strip() for token in line.split("|")]
-
-            if tax_id not in self.bacterial_taxids:
-                continue
-
-            name_tokens = name_txt.split()
-            if len(name_tokens) < 3:
-                continue
-
-            genus = name_tokens[0].strip()
-            species = name_tokens[1].strip()
-            name = ' '.join(name_tokens[2:])
-            self.mapping[tax_id] = (genus, species, name)
-        tar.close()
-
-    def get(self, staxid: str) -> Tuple[str, str, str]:
-        """
-        Returns a (genus, species, subj_name) triple.
-        """
-        return self.mapping[staxid]
-
-
-def parse_blast_hits(blast_result_path: Path, taxonomy: Taxonomy) -> Dict[str, List[BlastHit]]:
+def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
     accession_to_positions: Dict[str, List[BlastHit]] = defaultdict(list)
     with open(blast_result_path, "r") as f:
         blast_result_reader = csv.reader(f, delimiter='\t')
         for row_idx, row in enumerate(blast_result_reader):
-            subj_acc, subj_start, subj_end, subj_len, qstart, qend, evalue, pident, gaps, qcovhsp, staxid = row
+            subj_acc, subj_start, subj_end, subj_len, qstart, qend, evalue, pident, gaps, qcovhsp, subj_sci_name, subj_common_name = row
 
             subj_start = int(subj_start)
             subj_end = int(subj_end)
@@ -328,7 +313,11 @@ def parse_blast_hits(blast_result_path: Path, taxonomy: Taxonomy) -> Dict[str, L
             if subj_end_pos - subj_start_pos + 1 < READ_LEN:
                 continue
 
-            genus, species, subj_sci_name = taxonomy.get(staxid)
+            sci_name_tokens = subj_sci_name.strip().split()
+            if len(sci_name_tokens) < 2:
+                continue
+
+            genus, species = sci_name_tokens[0], sci_name_tokens[1]
 
             accession_to_positions[subj_acc].append(
                 BlastHit(
@@ -344,10 +333,10 @@ def parse_blast_hits(blast_result_path: Path, taxonomy: Taxonomy) -> Dict[str, L
                     pct_identity=float(pident),
                     num_gaps=int(gaps),
                     query_coverage_per_hsp=float(qcovhsp),
-                    subj_taxid=staxid,
                     subj_genus=genus,
                     subj_species=species,
-                    subj_sci_name=subj_sci_name
+                    subj_sci_name=subj_sci_name,
+                    subj_common_name=subj_common_name
                 )
             )
     return accession_to_positions
@@ -494,22 +483,6 @@ def parse_uniprot_csv(csv_path: Path) -> Iterator[str]:
             yield uniprot_id
 
 
-def download_taxonomies(target_dir: Path) -> Taxonomy:
-    target_url = "ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.Z"
-    target_dir.mkdir(exist_ok=True, parents=True)
-    target_file = target_dir / "taxdump.tar.Z"
-
-    with closing(request.urlopen(target_url)) as r:
-        with open(target_file, 'wb') as f:
-            shutil.copyfileobj(r, f)
-    os.system(f'uncompress -f {target_file}')
-
-    taxids_file = target_dir / "bacterial_species.txt"
-    os.system(f'get_species_taxids.sh -t 2 > {taxids_file}')
-
-    return Taxonomy(taxids_file, target_dir / "taxdump.tar")
-
-
 def main():
     args = parse_args()
     output_path = Path(args.output_path)
@@ -517,9 +490,6 @@ def main():
     # ================= Pull out reference genes
     logger.info(f"Retrieving reference genes from {args.reference_accession}")
     ref_gene_paths = download_reference(args.reference_accession, args.metaphlan_pkl_path, args.uniprot_csv)
-
-    logger.info("Downloading and extracting taxonomy dump...")
-    taxonomy = download_taxonomies(output_path.parent / "taxonomy")
 
     # ================= Compile into JSON.
     logger.info("Creating JSON entries.")
@@ -532,7 +502,6 @@ def main():
         blast_db_dir=Path(args.blast_db_dir),
         blast_db_name=args.blast_db_name,
         min_pct_idty=min_pct_idty,
-        taxonomy=taxonomy,
         max_target_seqs=args.max_target_seqs
     )
 
