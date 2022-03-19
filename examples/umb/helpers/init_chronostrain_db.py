@@ -250,7 +250,7 @@ def prune_entries(strain_entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     ]
 
 
-_BLAST_OUT_FMT = "6 saccver sstart send slen qstart qend evalue pident gaps qcovhsp sscinames scomnames"
+_BLAST_OUT_FMT = "6 saccver sstart send slen qstart qend evalue pident gaps qcovhsp sscinames"
 
 
 class BlastHit(object):
@@ -269,8 +269,7 @@ class BlastHit(object):
                  query_coverage_per_hsp: float,
                  subj_genus: str,
                  subj_species: str,
-                 subj_sci_name: str,
-                 subj_common_name: str
+                 subj_sci_name: str
                  ):
         self.line_idx = line_idx
         self.subj_accession = subj_accession
@@ -287,7 +286,6 @@ class BlastHit(object):
         self.subj_genus = subj_genus
         self.subj_species = subj_species
         self.subj_sci_name = subj_sci_name
-        self.subj_common_name = subj_common_name
 
 
 def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
@@ -295,7 +293,7 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
     with open(blast_result_path, "r") as f:
         blast_result_reader = csv.reader(f, delimiter='\t')
         for row_idx, row in enumerate(blast_result_reader):
-            subj_acc, subj_start, subj_end, subj_len, qstart, qend, evalue, pident, gaps, qcovhsp, subj_sci_name, subj_common_name = row
+            subj_acc, subj_start, subj_end, subj_len, qstart, qend, evalue, pident, gaps, qcovhsp, subj_sci_name = row
 
             subj_start = int(subj_start)
             subj_end = int(subj_end)
@@ -335,8 +333,7 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
                     query_coverage_per_hsp=float(qcovhsp),
                     subj_genus=genus,
                     subj_species=species,
-                    subj_sci_name=subj_sci_name,
-                    subj_common_name=subj_common_name
+                    subj_sci_name=subj_sci_name
                 )
             )
     return accession_to_positions
