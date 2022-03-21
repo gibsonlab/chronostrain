@@ -174,12 +174,12 @@ def get_strain_name(accession: str) -> str:
     handle.close()
 
     name_str = record[0]["GBSeq_definition"]
-    if ("strain" not in name_str) or ("isolate" not in name_str) or ("chromosome" not in name_str):
+    if ("strain" not in name_str and "isolate" not in name_str and "str." not in name_str) or ("chromosome" not in name_str):
         raise StrainParseError(f"Accession {accession} ({name_str}) is not a strain chromosomal assembly!")
 
     name_tokens = name_str.split()
     for tok_idx, tok in enumerate(name_tokens):
-        if tok == "strain":
+        if tok == "strain" or tok == "str." or tok == "isolate":
             return name_tokens[tok_idx + 1]
     raise StrainParseError(f"Couldn't extract strain name from {accession} ({name_str})")
 
