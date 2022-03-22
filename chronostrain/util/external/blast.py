@@ -41,6 +41,7 @@ def blastn(
         perc_identity_cutoff: Optional[int] = None,
         out_fmt: Union[str, int] = 6,  # 6: TSV without comments
         max_target_seqs: Optional[int] = None,
+        num_alignments: Optional[int] = None,
         max_hsps: Optional[int] = None,
         num_threads: Optional[int] = None,
         query_coverage_hsp_percentage: Optional[float] = None,
@@ -69,6 +70,8 @@ def blastn(
         params += ['-evalue', evalue_max]
     if max_target_seqs is not None:
         params += ['-max_target_seqs', max_target_seqs]
+    if num_alignments is not None:
+        params += ['-num_alignments', num_alignments]
     if max_hsps is not None:
         params += ['-max_hsps', max_hsps]
     if query_coverage_hsp_percentage is not None:
