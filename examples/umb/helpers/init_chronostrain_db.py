@@ -56,8 +56,6 @@ def parse_args():
                         help='<Optional> The percent identity threshold for BLAST. (default: 75)')
     parser.add_argument('--max_target_seqs', required=False, type=int, default=4000,
                         help='<Optional> The max # of alignments to output for each BLAST query. (default: 4000)')
-    parser.add_argument('--num_alignments', required=False, type=int, default=1000000,
-                        help='<Optional> The max # of alignments to output for each BLAST query. (default: 1000000)')
     parser.add_argument('--metaphlan_pkl_path', required=False, type=str,
                         help='<Optional> The path to the metaphlan pickle database file.')
     parser.add_argument('--reference_accession', required=False, type=str,
@@ -100,7 +98,6 @@ def run_blast_local(db_dir: Path,
                     gene_paths: Dict[str, Path],
                     max_target_seqs: int,
                     min_pct_idty: int,
-                    num_alignments: int,
                     out_fmt: str) -> Dict[str, Path]:
     # Retrieve taxIDs for bacteria.
     logger.info("Retrieving taxonomic IDS for bacteria.")
@@ -120,7 +117,6 @@ def run_blast_local(db_dir: Path,
             num_threads=cfg.model_cfg.num_cores,
             out_fmt=out_fmt,
             max_target_seqs=max_target_seqs,
-            num_alignments=num_alignments,
             strand="both"
         )
         result_paths[gene_name] = blast_result_path
@@ -136,8 +132,7 @@ def create_chronostrain_db(
         blast_db_dir: Path,
         blast_db_name: str,
         min_pct_idty: int,
-        max_target_seqs: int,
-        num_alignments: int
+        max_target_seqs: int
 ) -> List[Dict[str, Any]]:
     """
     :return:
@@ -150,7 +145,6 @@ def create_chronostrain_db(
         gene_paths=gene_paths,
         min_pct_idty=min_pct_idty,
         max_target_seqs=max_target_seqs,
-        num_alignments=num_alignments,
         out_fmt=_BLAST_OUT_FMT
     )
 
@@ -480,8 +474,7 @@ def main():
         blast_db_dir=Path(args.blast_db_dir),
         blast_db_name=args.blast_db_name,
         min_pct_idty=min_pct_idty,
-        max_target_seqs=args.max_target_seqs,
-        num_alignments=args.num_alignments
+        max_target_seqs=args.max_target_seqs
     )
 
     print_summary(object_entries, ref_gene_paths)
