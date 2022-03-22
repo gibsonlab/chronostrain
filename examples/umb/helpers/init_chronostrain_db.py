@@ -23,9 +23,9 @@ from Bio.SeqRecord import SeqRecord
 from bioservices import UniProt
 
 from chronostrain.util.entrez import fetch_genbank
-from chronostrain.util.external import make_blast_db, blastn
+from chronostrain.util.external import blastn
 
-from typing import List, Set, Dict, Any, Tuple, Iterator, Optional
+from typing import List, Set, Dict, Any, Tuple, Iterator
 
 from chronostrain.util.io import read_seq_file
 from chronostrain import cfg, create_logger
@@ -38,10 +38,14 @@ Entrez.email = cfg.entrez_cfg.email
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Create chronostrain database file from specified gene_info_uniref marker CSV."
+        description="Create chronostrain database file from specified uniprot marker CSV."
     )
 
     # Input specification.
+    parser.add_argument('-u', '--uniprot_csv', required=True, type=str,
+                        default='',
+                        help='<Optional> A path to a two-column CSV file (<UniprotID>, <ClusterName>) format specifying'
+                             'any desired additional genes not given by metaphlan.')
     parser.add_argument('-o', '--output_path', required=True, type=str,
                         help='<Required> The path to the target output chronostrain db json file.')
     parser.add_argument('-dbdir', '--blast_db_dir', required=True, type=str,
@@ -56,42 +60,13 @@ def parse_args():
                         help='<Optional> The percent identity threshold for BLAST. (default: 75)')
     parser.add_argument('--max_target_seqs', required=False, type=int, default=4000,
                         help='<Optional> The max # of alignments to output for each BLAST query. (default: 4000)')
-    parser.add_argument('--metaphlan_pkl_path', required=False, type=str,
-                        help='<Optional> The path to the metaphlan pickle database file.')
     parser.add_argument('--reference_accession', required=False, type=str,
                         default='U00096.3',
                         help='<Optional> The reference genome to use for pulling out annotated gene sequences.')
-    parser.add_argument('--uniprot_csv', required=False, type=str,
-                        default='',
-                        help='<Optional> A path to a two-column CSV file (<UniprotID>, <ClusterName>) format specifying'
-                             'any desired additional genes not given by metaphlan.')
     return parser.parse_args()
 
 
 # ===================================================== BEGIN Local resources
-
-def create_blast_db(blast_db_dir: Path,
-                    blast_db_name: str,
-                    blast_db_title: str,
-                    strain_fasta_files: List[Path]):
-    # ========= Initialize BLAST database.
-    blast_fasta_path = blast_db_dir / "genomes.fasta"
-    blast_db_dir.mkdir(parents=True, exist_ok=True)
-    logger.info('Concatenating {} files.'.format(len(strain_fasta_files)))
-    with open(blast_fasta_path, 'w') as genome_fasta_file:
-        for fpath in strain_fasta_files:
-            with open(fpath, 'r') as in_file:
-                for line in in_file:
-                    genome_fasta_file.write(line)
-
-    make_blast_db(
-        blast_fasta_path, blast_db_dir, blast_db_name,
-        is_nucleotide=True, title=blast_db_title, parse_seqids=True
-    )
-
-    Path(blast_fasta_path).unlink()  # clean up large fasta file.
-
-
 def run_blast_local(db_dir: Path,
                     db_name: str,
                     result_dir: Path,
@@ -312,7 +287,7 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
 
 
 # ======================== Reference genome: pull from downloaded genbank file.
-def download_reference(accession: str, metaphlan_pkl_path: Path, uniprot_csv_path: Path) -> Dict[str, Path]:
+def download_reference(accession: str, uniprot_csv_path: Path) -> Dict[str, Path]:
     logger.info(f"Downloading reference accession {accession}")
     target_dir = cfg.database_cfg.data_dir / "reference" / accession
     target_dir.mkdir(exist_ok=True, parents=True)
@@ -323,7 +298,7 @@ def download_reference(accession: str, metaphlan_pkl_path: Path, uniprot_csv_pat
     clusters_to_find: Set[str] = set()
     genes_to_clusters: Dict[str, str] = {}
 
-    for cluster, cluster_genes in get_marker_genes(metaphlan_pkl_path, uniprot_csv_path):
+    for cluster, cluster_genes in get_marker_genes(uniprot_csv_path):
         clusters_to_find.add(cluster)
         for gene in cluster_genes:
             genes_to_clusters[gene.lower()] = cluster
@@ -364,35 +339,11 @@ def download_reference(accession: str, metaphlan_pkl_path: Path, uniprot_csv_pat
     return gene_paths
 
 
-def metaphlan_markers(metaphlan_pkl_path: Path, metaphlan_clade: str) -> Iterator[str]:
-    if metaphlan_pkl_path is None:
-        yield from []
-
-    db = pickle.load(bz2.open(metaphlan_pkl_path, 'r'))
-    for marker_key, marker_entry in db['markers'].items():
-        if metaphlan_clade in marker_entry['taxon']:
-            tokens = marker_key.split('__')
-            uniprot_id = tokens[1]
-            logger.debug(
-                f"Found metaphlan marker key `{marker_key}`, parsed UniProt ID `{uniprot_id}`."
-            )
-            yield uniprot_id
-
-
-def get_marker_genes(
-        metaphlan_pkl_path: Optional[Path],
-        uniprot_csv_path: Optional[Path]
-) -> Iterator[Tuple[str, List[str]]]:
+def get_marker_genes(uniprot_csv_path: Path) -> Iterator[Tuple[str, List[str]]]:
     u = UniProt()
 
-    sources = []
-    if metaphlan_pkl_path is not None:
-        sources.append(metaphlan_markers(metaphlan_pkl_path, 's__Escherichia_coli'))
-    if uniprot_csv_path is not None:
-        sources.append(parse_uniprot_csv(uniprot_csv_path))
-
     # for metaphlan_marker_id in metaphlan_markers(db, 'g__Escherichia'):
-    for uniprot_id in itertools.chain(*sources):
+    for uniprot_id in parse_uniprot_csv(uniprot_csv_path):
         res = u.quick_search(uniprot_id)
 
         if uniprot_id not in res:
@@ -458,7 +409,7 @@ def main():
 
     # ================= Pull out reference genes
     logger.info(f"Retrieving reference genes from {args.reference_accession}")
-    ref_gene_paths = download_reference(args.reference_accession, args.metaphlan_pkl_path, args.uniprot_csv)
+    ref_gene_paths = download_reference(args.reference_accession, args.uniprot_csv)
 
     refseq_index_df = pd.read_csv(Path(args.refseq_index), sep='\t')
 

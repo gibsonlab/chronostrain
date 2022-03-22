@@ -39,7 +39,7 @@ python ${BASE_DIR}/helpers/init_chronostrain_db.py \
 --min_pct_idty 75 \
 --max_target_seqs 100000 \
 --refseq_index ${NCBI_REFSEQ_DIR}/index.tsv \
---metaphlan_pkl_path ${METAPHLAN_PKL_PATH} \
+--uniprot_csv ${BASE_DIR}/files/metaphlan_markers.csv \
 --reference_accession "U00096.3"
 
 
