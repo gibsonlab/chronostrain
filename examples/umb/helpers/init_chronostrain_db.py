@@ -116,8 +116,7 @@ def run_blast_local(db_dir: Path,
             num_threads=cfg.model_cfg.num_cores,
             out_fmt=out_fmt,
             max_target_seqs=max_target_seqs,
-            strand="both",
-            taxidlist_path=taxids_file
+            strand="both"
         )
         result_paths[gene_name] = blast_result_path
     return result_paths
