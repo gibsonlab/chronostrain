@@ -6,7 +6,6 @@ Works in 3 steps:
         (with blastn configured to allow, on average, up to 10 hits per genome).
     3) Convert BLAST results into chronostrain JSON database specification.
 """
-import os
 import argparse
 import itertools
 from collections import defaultdict
@@ -15,6 +14,8 @@ import csv
 import json
 import pickle
 import bz2
+
+import pandas as pd
 
 from Bio import SeqIO, Entrez
 from Bio.SeqFeature import FeatureLocation
@@ -47,6 +48,8 @@ def parse_args():
                         help='<Required> The path to the blast database directory.')
     parser.add_argument('-dbname', '--blast_db_name', required=True, type=str,
                         help='<Required> The name of the BLAST database.')
+    parser.add_argument('-r', '--refseq_index', required=True, type=str,
+                        help='<Required> Path to the RefSeq index TSV file.')
 
     # Optional params
     parser.add_argument('--min_pct_idty', required=False, type=int, default=75,
@@ -124,6 +127,7 @@ def run_blast_local(db_dir: Path,
 # ============= Rest of initialization
 def create_chronostrain_db(
         blast_result_dir: Path,
+        strain_df: pd.DataFrame,
         gene_paths: Dict[str, Path],
         blast_db_dir: Path,
         blast_db_name: str,
@@ -144,7 +148,7 @@ def create_chronostrain_db(
         out_fmt=_BLAST_OUT_FMT
     )
 
-    return create_strain_entries(blast_results, gene_paths)
+    return create_strain_entries(blast_results, gene_paths, strain_df)
 
 
 def blank_strain_entry(strain_id: str, genus: str, species: str, name: str, accession: str):
@@ -158,30 +162,7 @@ def blank_strain_entry(strain_id: str, genus: str, species: str, name: str, acce
     }
 
 
-class StrainParseError(BaseException):
-    pass
-
-
-def get_strain_name(accession: str) -> str:
-    """
-    :return:
-    """
-    handle = Entrez.efetch(db="nucleotide", id=accession, retmode="xml")
-    record = Entrez.read(handle)
-    handle.close()
-
-    name_str = record[0]["GBSeq_definition"]
-    if ("strain" not in name_str and "isolate" not in name_str and "str." not in name_str) or ("chromosome" not in name_str):
-        raise StrainParseError(f"Accession {accession} ({name_str}) is not a strain chromosomal assembly!")
-
-    name_tokens = name_str.split()
-    for tok_idx, tok in enumerate(name_tokens):
-        if tok == "strain" or tok == "str." or tok == "isolate":
-            return name_tokens[tok_idx + 1]
-    raise StrainParseError(f"Couldn't extract strain name from {accession} ({name_str})")
-
-
-def create_strain_entries(blast_results: Dict[str, Path], ref_gene_paths: Dict[str, Path]):
+def create_strain_entries(blast_results: Dict[str, Path], ref_gene_paths: Dict[str, Path], strain_df: pd.DataFrame):
     strain_entries: Dict[str, Dict] = {}
     seen_accessions: Set[str] = set()
 
@@ -199,19 +180,16 @@ def create_strain_entries(blast_results: Dict[str, Path], ref_gene_paths: Dict[s
             # Create strain entries if they don't already exist.
             if subj_acc not in seen_accessions:
                 seen_accessions.add(subj_acc)
+                strain_row = strain_df.loc[strain_df['Accession'] == subj_acc, ['Genus', 'Species', 'Strain']].head(1)
+                subj_genus = strain_row['Genus'].item()
+                subj_species = strain_row['Species'].item()
+                subj_strain_name = strain_row['Strain'].item()
 
-                try:
-                    strain_name = get_strain_name(subj_acc)
-                except StrainParseError as ex:
-                    logger.debug(str(ex))
-                    continue
-
-                sample_hit = blast_hits[subj_acc][0]
                 strain_entries[subj_acc] = blank_strain_entry(
                     strain_id=subj_acc,
-                    genus=sample_hit.subj_genus,
-                    species=sample_hit.subj_species,
-                    name=strain_name,
+                    genus=subj_genus,
+                    species=subj_species,
+                    name=subj_strain_name,
                     accession=subj_acc
                 )
 
@@ -259,7 +237,7 @@ def prune_entries(strain_entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     ]
 
 
-_BLAST_OUT_FMT = "6 saccver sstart send slen qstart qend evalue pident gaps qcovhsp sscinames"
+_BLAST_OUT_FMT = "6 saccver sstart send slen qstart qend evalue pident gaps qcovhsp"
 
 
 class BlastHit(object):
@@ -276,9 +254,6 @@ class BlastHit(object):
                  pct_identity: float,
                  num_gaps: int,
                  query_coverage_per_hsp: float,
-                 subj_genus: str,
-                 subj_species: str,
-                 subj_sci_name: str
                  ):
         self.line_idx = line_idx
         self.subj_accession = subj_accession
@@ -292,9 +267,6 @@ class BlastHit(object):
         self.pct_identity = pct_identity
         self.num_gaps = num_gaps
         self.query_coverage_per_hsp = query_coverage_per_hsp
-        self.subj_genus = subj_genus
-        self.subj_species = subj_species
-        self.subj_sci_name = subj_sci_name
 
 
 def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
@@ -302,7 +274,7 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
     with open(blast_result_path, "r") as f:
         blast_result_reader = csv.reader(f, delimiter='\t')
         for row_idx, row in enumerate(blast_result_reader):
-            subj_acc, subj_start, subj_end, subj_len, qstart, qend, evalue, pident, gaps, qcovhsp, subj_sci_name = row
+            subj_acc, subj_start, subj_end, subj_len, qstart, qend, evalue, pident, gaps, qcovhsp = row
 
             subj_start = int(subj_start)
             subj_end = int(subj_end)
@@ -320,12 +292,6 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
             if subj_end_pos - subj_start_pos + 1 < READ_LEN:
                 continue
 
-            sci_name_tokens = subj_sci_name.strip().split()
-            if len(sci_name_tokens) < 2:
-                continue
-
-            genus, species = sci_name_tokens[0], sci_name_tokens[1]
-
             accession_to_positions[subj_acc].append(
                 BlastHit(
                     line_idx=row_idx,
@@ -339,10 +305,7 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
                     evalue=float(evalue),
                     pct_identity=float(pident),
                     num_gaps=int(gaps),
-                    query_coverage_per_hsp=float(qcovhsp),
-                    subj_genus=genus,
-                    subj_species=species,
-                    subj_sci_name=subj_sci_name
+                    query_coverage_per_hsp=float(qcovhsp)
                 )
             )
     return accession_to_positions
@@ -497,6 +460,8 @@ def main():
     logger.info(f"Retrieving reference genes from {args.reference_accession}")
     ref_gene_paths = download_reference(args.reference_accession, args.metaphlan_pkl_path, args.uniprot_csv)
 
+    refseq_index_df = pd.read_csv(Path(args.refseq_index), sep='\t')
+
     # ================= Compile into JSON.
     logger.info("Creating JSON entries.")
     blast_result_dir = output_path.parent / "blast_results"
@@ -504,6 +469,7 @@ def main():
 
     object_entries = create_chronostrain_db(
         blast_result_dir=blast_result_dir,
+        strain_df=refseq_index_df,
         gene_paths=ref_gene_paths,
         blast_db_dir=Path(args.blast_db_dir),
         blast_db_name=args.blast_db_name,

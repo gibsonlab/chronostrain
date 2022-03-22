@@ -38,6 +38,7 @@ python ${BASE_DIR}/helpers/init_chronostrain_db.py \
 -dbname ${BLAST_DB_NAME} \
 --min_pct_idty 75 \
 --max_target_seqs 100000 \
+--refseq_index ${NCBI_REFSEQ_DIR}/index.tsv \
 --metaphlan_pkl_path ${METAPHLAN_PKL_PATH} \
 --reference_accession "U00096.3"
 
