@@ -74,9 +74,6 @@ def run_blast_local(db_dir: Path,
                     max_target_seqs: int,
                     min_pct_idty: int,
                     out_fmt: str) -> Dict[str, Path]:
-    # Retrieve taxIDs for bacteria.
-    logger.info("Retrieving taxonomic IDS for bacteria.")
-
     # Run BLAST.
     result_paths: Dict[str, Path] = {}
     result_dir.mkdir(parents=True, exist_ok=True)
