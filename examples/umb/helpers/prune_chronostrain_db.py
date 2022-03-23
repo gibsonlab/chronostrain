@@ -81,11 +81,11 @@ def get_concatenated_alignments(db: StrainDatabase, out_path: Path):
     If multiple hits are found, then the first available one is used (found in the same order as BLAST hits).
     """
     all_marker_alignments = get_all_alignments(db, out_path.parent / "marker_genes")
+    gene_names = list(all_marker_alignments.keys())
 
     records: List[SeqRecord] = []
     for strain in db.all_strains():
         seqs_to_concat = []
-        gene_names = list(all_marker_alignments.keys())
 
         strain_marker_map: Dict[str, Marker] = {}
         for marker in strain.markers:
