@@ -79,15 +79,25 @@ class CachedReadPairwiseAlignments(object):
     def get_path(reads_path: Path) -> Path:
         return Path("") / "{}.sam".format(reads_path.stem)
 
-    def alignments_by_marker_and_timepoint(self, t_idx: int) -> Dict[Marker, List[SequenceReadPairwiseAlignment]]:
+    def alignments_by_timepoint(self, t_idx: int) -> Iterator[SequenceReadPairwiseAlignment]:
+        time_slice = self.reads[t_idx]
+        for src in time_slice.sources:
+            sam_file = self._get_alignment(src.path, src.quality_format)
+            yield from parse_alignments(
+                sam_file,
+                self.db,
+                read_getter=lambda read_id: time_slice.get_read(read_id),
+                reattach_clipped_bases=True,
+                min_hit_ratio=0.50,
+                min_frag_len=15
+            )
+
+    def alignments_by_marker_and_timepoint(self, t_idx: int) -> Iterator[Tuple[Marker, List[SequenceReadPairwiseAlignment]]]:
         """
+        DEPRECATED.
         Returns a mapping of marker -> (read alignments to marker from t[t_idx])
         """
         time_slice = self.reads[t_idx]
-        alignments = {
-            marker: []
-            for marker in self.db.all_markers()
-        }
         for src in time_slice.sources:
             sam_file = self._get_alignment(src.path, src.quality_format)
             for marker, alns in marker_categorized_alignments(
@@ -98,11 +108,11 @@ class CachedReadPairwiseAlignments(object):
                     min_hit_ratio=0.50,
                     min_frag_len=15
             ).items():
-                alignments[marker] = alignments[marker] + alns
-        return alignments
+                yield marker, alns
 
     def reads_with_alignments_to_marker(self) -> Iterator[Tuple[Marker, List[List[SequenceReadPairwiseAlignment]]]]:
         """
+        DEPRECATED.
         Returns a mapping of marker -> (read alignments to marker from t, across all t_idx)
         """
         marker_to_reads: Dict[Marker, List[List[SequenceReadPairwiseAlignment]]] = {

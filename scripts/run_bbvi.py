@@ -86,17 +86,15 @@ def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase, mode: st
 
     if mode == 'pairwise':
         alignments = CachedReadPairwiseAlignments(reads, db)
-        for t_idx in range(len(reads)):
-            for base_marker, alns in alignments.alignments_by_marker_and_timepoint(t_idx).items():
-                for aln in alns:
-                    # First, add the likelihood for the fragment for the aligned base marker.
-                    fragment_space.add_seq(
-                        aln.marker_frag,
-                        metadata=f"({aln.read.id}->{base_marker.id})"
-                    )
+        for _, aln in alignments.get_alignments():
+            # First, add the likelihood for the fragment for the aligned base marker.
+            fragment_space.add_seq(
+                aln.marker_frag,
+                metadata=f"({aln.read.id}->{aln.marker.id})"
+            )
 
-                    if len(aln.marker_frag) < 15:
-                        raise Exception("UNEXPECTED ERROR! found frag of length smaller than 15")
+            if len(aln.marker_frag) < 15:
+                raise Exception("UNEXPECTED ERROR! found frag of length smaller than 15")
     elif mode == 'multiple':
         multiple_alignments = CachedReadMultipleAlignments(reads, db)
         for multi_align in multiple_alignments.get_alignments(num_cores=cfg.model_cfg.num_cores):

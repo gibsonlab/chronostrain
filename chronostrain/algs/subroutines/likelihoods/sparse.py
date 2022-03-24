@@ -14,7 +14,7 @@ from chronostrain.util.sparse import SparseMatrix, ColumnSectionedSparseMatrix
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.config import cfg
 from chronostrain.model.generative import GenerativeModel
-from chronostrain.util.sparse.sliceable import BBVIOptimizedSparseMatrix
+from chronostrain.util.sparse.sliceable import BBVIOptimizedSparseMatrix, RowSectionedSparseMatrix
 
 from .base import DataLikelihoods, AbstractLogLikelihoodComputer
 from ..alignments import CachedReadMultipleAlignments, CachedReadPairwiseAlignments
@@ -65,9 +65,8 @@ class SparseDataLikelihoods(DataLikelihoods):
                 dims=(_F, F)
             )
 
-            self.matrices[t_idx] = BBVIOptimizedSparseMatrix.optimize_from_sparse_matrix(
-                projector.sparse_mul(self.matrices[t_idx]),
-                row_chunk_size=frag_chunk_size
+            self.matrices[t_idx] = RowSectionedSparseMatrix.from_sparse_matrix(
+                projector.sparse_mul(self.matrices[t_idx])
             )
             self.projectors.append(projector)
             self.supported_frags.append(row_support)
@@ -208,19 +207,17 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
             #     return
             read_to_frag_likelihoods[read.id].append((frag, ll))
 
-        for base_marker, alns in self.pairwise_reference_alignments.alignments_by_marker_and_timepoint(t_idx).items():
-            for aln in alns:
-                # First, add the likelihood for the fragment for the aligned base marker.
-                if self.model.bacteria_pop.contains_marker(base_marker):
-                    add_subseq_likelihood(
-                        aln.marker_frag,
-                        aln.read,
-                        aln.read_insertion_locs(),
-                        aln.marker_deletion_locs(),
-                        aln.reverse_complemented,
-                        aln.soft_clip_start + aln.hard_clip_start,
-                        aln.soft_clip_end + aln.hard_clip_end
-                    )
+        for aln in self.pairwise_reference_alignments.alignments_by_timepoint(t_idx):
+            if self.model.bacteria_pop.contains_marker(aln.marker):
+                add_subseq_likelihood(
+                    aln.marker_frag,
+                    aln.read,
+                    aln.read_insertion_locs(),
+                    aln.marker_deletion_locs(),
+                    aln.reverse_complemented,
+                    aln.soft_clip_start + aln.hard_clip_start,
+                    aln.soft_clip_end + aln.hard_clip_end
+                )
         return read_to_frag_likelihoods
 
     def _compute_read_frag_alignments_multiple(self, t_idx: int) -> Dict[str, List[Tuple[Fragment, float]]]:
