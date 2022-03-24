@@ -8,7 +8,7 @@ from chronostrain.model.io import TimeSeriesReads
 
 from chronostrain.config import cfg, create_logger
 from chronostrain.util.math import log_spspmm_exp
-from chronostrain.util.sparse.sliceable import ColumnSectionedSparseMatrix
+from chronostrain.util.sparse.sliceable import ColumnSectionedSparseMatrix, RowSectionedSparseMatrix
 from .. import AbstractModelSolver
 from .base import AbstractBBVI
 from .posteriors import *

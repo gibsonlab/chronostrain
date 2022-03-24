@@ -43,7 +43,7 @@ class SparseDataLikelihoods(DataLikelihoods):
 
         # Delete empty rows (Fragments)
         for t_idx in range(self.model.num_times()):
-            F = self.matrices[t_idx].size()[0]
+            F, R = self.matrices[t_idx].size()
             row_support = self.matrices[t_idx].indices[0, :].unique(
                 sorted=True, return_inverse=False, return_counts=False
             )
@@ -65,9 +65,17 @@ class SparseDataLikelihoods(DataLikelihoods):
                 dims=(_F, F)
             )
 
-            self.matrices[t_idx] = RowSectionedSparseMatrix.from_sparse_matrix(
-                projector.sparse_mul(self.matrices[t_idx])
+            projected_indices = torch.stack([
+                torch.bucketize(self.matrices[t_idx].indices[0], row_support),
+                self.matrices[t_idx].indices[1]
+            ])  # Simply call bucketize() to project, faster than multiplying by the projector matrix.
+
+            self.matrices[t_idx] = RowSectionedSparseMatrix(
+                indices=projected_indices,
+                values=self.matrices[t_idx].values,
+                dims=(_F, R)
             )
+
             self.projectors.append(projector)
             self.supported_frags.append(row_support)
 
