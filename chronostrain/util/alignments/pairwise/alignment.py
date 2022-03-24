@@ -302,9 +302,10 @@ def parse_alignments(sam_file: SamFile,
     :param db: The database to create.
     :param read_getter:
     """
-    logger.debug(f"Parsing {sam_file.num_mapped_lines()} alignments from {sam_file.file_path.name}")
+    n_alns = sam_file.num_mapped_lines()
+    logger.debug(f"Parsing {n_alns} alignments from {sam_file.file_path.name}")
     from tqdm import tqdm
-    for samline in tqdm(sam_file.mapped_lines(), total=sam_file.num_mapped_lines()):
+    for samline in tqdm(sam_file.mapped_lines(), total=n_alns):
         try:
             if read_getter is not None:
                 # Apply min_hit_ratio criterion.
