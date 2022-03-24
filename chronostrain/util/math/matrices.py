@@ -1,5 +1,8 @@
 from typing import List
 
+import numpy as np
+import numba
+from numba.typed import List as nList
 import torch
 from chronostrain.util.sparse import ColumnSectionedSparseMatrix, RowSectionedSparseMatrix, SparseMatrix
 
@@ -203,68 +206,40 @@ def log_mm_exp_densesp(x: torch.Tensor, y: RowSectionedSparseMatrix) -> torch.Te
     )
 
 
-@torch.jit.script
-def spsp_outer_sum(x_indices: torch.Tensor,
-                   x_values: torch.Tensor,
-                   x_rows: int,
-                   x_target_locs: torch.Tensor,
-                   y_indices: torch.Tensor,
-                   y_values: torch.Tensor,
-                   y_cols: int,
-                   y_target_locs: torch.Tensor) -> torch.Tensor:
-    x_target_rows = x_indices[0, x_target_locs]  # Get the relevant row indices.
-    y_target_cols = y_indices[1, y_target_locs]
-
-    z = -float('inf') * torch.ones(
-        x_rows, y_cols,
-        device=x_values.device,
-        dtype=x_values.dtype
-    )
-
-    r, c = torch.meshgrid(x_target_rows, y_target_cols, indexing='ij')
-    z[r, c] = x_values[x_target_locs].view(-1, 1) + y_values[y_target_locs].view(1, -1)
-    return z
+@numba.njit
+def meshgrid2d(x, y):
+    xx = np.empty(shape=(x.size, y.size), dtype=x.dtype)
+    yy = np.empty(shape=(x.size, y.size), dtype=y.dtype)
+    for i in range(x.size):
+        for j in range(y.size):
+            xx[i, j] = x[i]
+            yy[i, j] = y[j]
+    return xx.flatten(), yy.flatten()
 
 
-@torch.jit.script
-def log_spspmm_exp_helper(x_indices: torch.Tensor,
-                          x_values: torch.Tensor,
-                          x_rows: int,
-                          x_cols: int,
-                          x_locs_per_col: List[torch.Tensor],
-                          y_indices: torch.Tensor,
-                          y_values: torch.Tensor,
-                          y_rows: int,
-                          y_cols: int,
-                          y_locs_per_row: List[torch.Tensor]) -> torch.Tensor:
-    assert x_cols == y_rows
+@numba.njit
+def log_spspmm_exp_helper(x_indices,
+                          x_values,
+                          x_locs_per_col,
+                          y_indices,
+                          y_values,
+                          y_locs_per_row,
+                          ans_buffer) -> np.ndarray:
+    for target_x_locs, target_y_locs in zip(x_locs_per_col, y_locs_per_row):
+        for x_loc in target_x_locs:
+            for y_loc in target_y_locs:
+                r = x_indices[0, x_loc]
+                c = y_indices[1, y_loc]
+                ans_buffer[r, c] = np.logaddexp(ans_buffer[r, c], x_values[x_loc] + y_values[y_loc])
+    return ans_buffer
 
-    ans = spsp_outer_sum(
-        x_indices,
-        x_values,
-        x_rows,
-        x_locs_per_col[0],
-        y_indices,
-        y_values,
-        y_cols,
-        y_locs_per_row[0]
-    )
-    for target_idx in range(1, x_cols):
-        next_sum = spsp_outer_sum(
-            x_indices,
-            x_values,
-            x_rows,
-            x_locs_per_col[target_idx],
-            y_indices,
-            y_values,
-            y_cols,
-            y_locs_per_row[target_idx],
-        )
-        ans = torch.logsumexp(
-            torch.stack([ans, next_sum], dim=0),
-            dim=0
-        )
-    return ans
+
+def pass_to_numba(x: torch.Tensor) -> np.ndarray:
+    if x.is_cuda:
+        import numba.cuda
+        return numba.cuda.as_cuda_array(x)
+    else:
+        return x.numpy()
 
 
 def log_spspmm_exp(x: ColumnSectionedSparseMatrix, y: RowSectionedSparseMatrix) -> torch.Tensor:
@@ -286,7 +261,18 @@ def log_spspmm_exp(x: ColumnSectionedSparseMatrix, y: RowSectionedSparseMatrix) 
             x.rows, y.columns
         ))
 
-    return log_spspmm_exp_helper(
-        x.indices, x.values, x.rows, x.columns, x.locs_per_column,
-        y.indices, y.values, y.rows, y.columns, y.locs_per_row
-    )
+    typed_x_locs = nList()
+    for loc in x.locs_per_column:
+        typed_x_locs.append(pass_to_numba(loc))
+    typed_y_locs = nList()
+    for loc in y.locs_per_row:
+        typed_y_locs.append(pass_to_numba(loc))
+    return torch.tensor(log_spspmm_exp_helper(
+        pass_to_numba(x.indices),
+        pass_to_numba(x.values),
+        typed_x_locs,
+        pass_to_numba(y.indices),
+        pass_to_numba(y.values),
+        typed_y_locs,
+        np.full((x.rows, y.columns), np.NINF, float)
+    ), dtype=x.values.dtype)
