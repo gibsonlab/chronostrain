@@ -46,8 +46,8 @@ def parse_args():
                         help='<Optional> The learning rate to use for the optimizer. (Default: 0.05.)')
     parser.add_argument('--num_samples', required=False, type=int, default=100,
                         help='<Optional> The number of samples to use for monte-carlo estimation of gradients.')
-    parser.add_argument('--frag_chunk_size', required=False, type=int, default=500,
-                        help='<Optional> The size of matrices to divide into chunks across fragments. (Default: 500)')
+    parser.add_argument('--read_batch_size', required=False, type=int, default=5000,
+                        help='<Optional> The size of matrices to divide into batches across reads. (Default: 5000)')
 
     # Optional input params
     parser.add_argument('-s', '--seed', required=False, type=int, default=31415,
@@ -172,7 +172,7 @@ def main():
         correlation_type='time',
         save_elbo_history=args.plot_elbo,
         save_training_history=args.draw_training_history,
-        frag_chunk_sz=args.frag_chunk_size,
+        read_batch_size=args.read_batch_size,
     )
 
     if args.plot_elbo:

@@ -1,5 +1,6 @@
 from typing import List, Iterator, Optional, Callable
 
+import numpy as np
 import torch
 
 from chronostrain.database import StrainDatabase
@@ -17,6 +18,14 @@ from .util import log_softmax, LogMMExpModel
 logger = create_logger(__name__)
 
 
+def divide_columns_into_batches(x: torch.Tensor, read_batch_size: int):
+    columns = torch.randperm(x.shape[1], device=cfg.torch_cfg.device)
+    for i in range(np.ceil(x.shape[1] / read_batch_size)):
+        left_idx = i * read_batch_size
+        right_idx = np.min(x.shape[1], (i + 1) * read_batch_size)
+        yield x[:, columns[left_idx:right_idx]]
+
+
 class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
     """
     A basic implementation of BBVI estimating the posterior p(X|R), with fragments
@@ -26,7 +35,7 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
                  model: GenerativeModel,
                  data: TimeSeriesReads,
                  db: StrainDatabase,
-                 frag_chunk_size: int = 100,
+                 read_batch_size: int = 5000,
                  num_cores: int = 1,
                  correlation_type: str = "time"):
         logger.info("Initializing V1 solver (Marginalized posterior X)")
@@ -35,7 +44,6 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
             model,
             data,
             db,
-            frag_chunk_size=frag_chunk_size,
             num_cores=num_cores
         )
 
@@ -69,7 +77,9 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
             raise NotImplementedError("BBVI only supports sparse data structures.")
 
         # (S x R) matrices: Contains P(R = r | S = s) for each read r, strain s.
-        self.strain_read_ll_models: List[LogMMExpModel] = []
+        self.strain_read_ll_model_batches: List[List[LogMMExpModel]] = [
+            [] for _ in range(model.num_times())
+        ]
 
         # Precompute this (only possible in V1).
         logger.debug("Precomputing likelihood products.")
@@ -84,9 +94,10 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
                 data_ll_t  # (F_ x R)
             )  # (S x R)
 
-            self.strain_read_ll_models.append(
-                LogMMExpModel(strain_read_lls_t)
-            )
+            for batch_matrix in divide_columns_into_batches(strain_read_lls_t, read_batch_size):
+                self.strain_read_ll_model_batches[t_idx].append(
+                    LogMMExpModel(batch_matrix)
+                )
 
     def elbo(self,
              x_samples: torch.Tensor,
@@ -122,8 +133,8 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
         # ======== log P(R|X) = log Σ_S P(R|S)P(S|X)
         for t_idx in range(self.model.num_times()):
             log_softmax_xt = log_softmax(x_samples, t=t_idx)
-            log_lls = self.strain_read_ll_models[t_idx].forward(log_softmax_xt)  # (N x R)
-            yield (1 / n_samples) * torch.sum(log_lls)
+            for batch_model in self.strain_read_ll_model_batches[t_idx]:
+                yield (1 / n_samples) * torch.sum(batch_model.forward(log_softmax_xt))
 
     def solve(self,
               optimizer: torch.optim.Optimizer,

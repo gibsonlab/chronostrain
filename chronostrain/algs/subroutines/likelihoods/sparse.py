@@ -31,7 +31,6 @@ class SparseDataLikelihoods(DataLikelihoods):
             model: GenerativeModel,
             data: TimeSeriesReads,
             db: StrainDatabase,
-            frag_chunk_size: int = 5000,
             read_likelihood_lower_bound: float = 1e-30,
             num_cores: int = 1
     ):

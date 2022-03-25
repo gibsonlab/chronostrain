@@ -271,8 +271,9 @@ def log_spspmm_exp(x: ColumnSectionedSparseMatrix, y: RowSectionedSparseMatrix) 
     """
     ans_buffer = np.full((x.rows, y.columns), np.NINF, float)
 
+    # TODO: do this directly on CUDA. (See note below)
     """
-    TODO: do this directly on CUDA. Previously, ran into an issue where x_locs_per_row/y_locs_per_col (A list of
+    Previously, ran into an issue where x_locs_per_row/y_locs_per_col (A list of
     CUDA arrays) was not indexable. One needs to pre-allocate a large array, or find a different representation
     in memory.
     """

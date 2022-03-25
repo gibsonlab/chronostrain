@@ -19,14 +19,12 @@ class AbstractModelSolver(metaclass=ABCMeta):
                  model: GenerativeModel,
                  data: TimeSeriesReads,
                  db: StrainDatabase,
-                 frag_chunk_size: int,
                  num_cores: int = 1):
         self.model = model
         self.data = data
-        self.frag_chunk_size = frag_chunk_size
         if cfg.model_cfg.use_sparse:
             self.data_likelihoods = SparseDataLikelihoods(
-                model, data, db, num_cores=num_cores, frag_chunk_size=frag_chunk_size
+                model, data, db, num_cores=num_cores
             )
         else:
             self.data_likelihoods = DenseDataLikelihoods(model, data)

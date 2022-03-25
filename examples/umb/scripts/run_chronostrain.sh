@@ -25,7 +25,7 @@ do
            --min_lr 1e-4 \
            --learning_rate $CHRONOSTRAIN_LR \
            --num_samples $CHRONOSTRAIN_NUM_SAMPLES \
-           --frag_chunk_size $CHRONOSTRAIN_FRAG_CHUNK_SZ \
+           --read_batch_size $CHRONOSTRAIN_READ_BATCH_SZ \
            --plot_format "pdf" \
            --plot_elbo
 done
