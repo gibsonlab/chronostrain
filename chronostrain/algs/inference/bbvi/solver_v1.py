@@ -20,7 +20,7 @@ logger = create_logger(__name__)
 
 def divide_columns_into_batches(x: torch.Tensor, read_batch_size: int):
     columns = torch.randperm(x.shape[1], device=cfg.torch_cfg.device)
-    for i in range(np.ceil(x.shape[1] / read_batch_size)):
+    for i in range(int(np.ceil(x.shape[1] / read_batch_size))):
         left_idx = i * read_batch_size
         right_idx = np.min(x.shape[1], (i + 1) * read_batch_size)
         yield x[:, columns[left_idx:right_idx]]

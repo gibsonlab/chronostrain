@@ -37,7 +37,7 @@ export TRIMMOMATIC_DIR="/PHShome/yk847/.conda/envs/chronostrain/share/trimmomati
 # ========= Chronostrain settings
 export CHRONOSTRAIN_NUM_ITERS=50
 export CHRONOSTRAIN_NUM_SAMPLES=200
-export CHRONOSTRAIN_FRAG_CHUNK_SZ=5000
+export CHRONOSTRAIN_READ_BATCH_SZ=5000
 export CHRONOSTRAIN_NUM_EPOCHS=150
 export CHRONOSTRAIN_DECAY_LR=0.25
 export CHRONOSTRAIN_LR=0.05
