@@ -44,7 +44,7 @@ def fasta_batches(paths: List[Path], batch_sz: int) -> List[List[Path]]:
 def main():
     args = parse_args()
     seq_batch_size = 100
-    script = "bash {clermon_script_path} --fasta {fasta_path} --name {analysis_name}"
+    script = "bash {clermon_script_path} --fasta {fasta_path} --name {analysis_name}_{batch_idx}"
 
     df = pd.read_csv(args.refseq_index, sep='\t')
     fasta_paths = []
@@ -54,12 +54,13 @@ def main():
     output_path = Path(args.output_path)
     output_path.parent.mkdir(exist_ok=True, parents=True)
     with open(output_path, 'w') as f:
-        for fasta_batch in fasta_batches(fasta_paths, seq_batch_size):
+        for batch_idx, fasta_batch in enumerate(fasta_batches(fasta_paths, seq_batch_size)):
             print(
                 script.format(
                     clermon_script_path=args.clermon_script_path,
                     fasta_path='@'.join(bash_escape(str(p)) for p in fasta_batch),
-                    analysis_name=args.analysis_name
+                    analysis_name=args.analysis_name,
+                    batch_idx=batch_idx
                 ),
                 file=f
             )
