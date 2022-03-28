@@ -23,4 +23,4 @@ for f in ${PHYLOGENY_OUTPUT_DIR}/ClermonTyping/umb_*/umb_*_phylogroups.txt
 do
 	cat $f >> $final_path
 done
-echo "[*] Generated phylogroup path ${final_pathk}."
+echo "[*] Generated phylogroup path ${final_path}."
