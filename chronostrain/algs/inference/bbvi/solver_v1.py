@@ -98,6 +98,11 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
                 self.strain_read_ll_model_batches[t_idx].append(
                     LogMMExpModel(batch_matrix)
                 )
+            logger.debug("Divided t = {} read-likelihood matrices into {} batches of {}.".format(
+                t_idx,
+                len(self.strain_read_ll_model_batches[t_idx]),
+                read_batch_size
+            ))
 
     def elbo(self,
              x_samples: torch.Tensor,
