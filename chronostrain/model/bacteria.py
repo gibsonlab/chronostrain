@@ -32,6 +32,7 @@ class StrainMetadata:
     genus: str
     species: str
     total_len: int
+    cluster: List[str]
 
 
 @dataclass

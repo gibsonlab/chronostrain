@@ -2,7 +2,7 @@ import json
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator, List, Tuple, Dict
+from typing import Iterator, List, Tuple, Dict, Any
 
 from chronostrain.config import cfg
 from chronostrain.model import Strain, StrainMetadata, Marker
@@ -27,6 +27,10 @@ def extract_key_from_json(json_obj: dict, key: str):
         raise StrainDatabaseParseError(f"Missing entry `{key}` from json entry {json_obj}.")
 
 
+def extract_optional_key_from_json(json_obj: dict, key: str, default: Any):
+    return json_obj.get(key, default=default)
+
+
 @dataclass
 class StrainEntry:
     id: str
@@ -35,6 +39,7 @@ class StrainEntry:
     strain_name: str
     seq_entries: List["SeqEntry"]
     marker_entries: List["MarkerEntry"]
+    cluster: List[str]
 
     def __str__(self):
         return "(Strain Entry: {genus} {species})".format(
@@ -78,6 +83,7 @@ class StrainEntry:
         species = extract_key_from_json(json_dict, 'species')
         strain_name = extract_key_from_json(json_dict, 'name')
         seqs_json = extract_key_from_json(json_dict, 'seqs')
+        cluster_json = extract_optional_key_from_json(json_dict, 'cluster', [])
         markers_json = extract_key_from_json(json_dict, 'markers')
 
         marker_entries = []
@@ -87,7 +93,8 @@ class StrainEntry:
                             species=species,
                             strain_name=strain_name,
                             seq_entries=seq_entries,
-                            marker_entries=marker_entries)
+                            marker_entries=marker_entries,
+                            cluster=cluster_json)
         for idx, marker_json_obj in enumerate(markers_json):
             marker_entries.append(MarkerEntry.deserialize(marker_json_obj))
         for idx, seq_json_obj in enumerate(seqs_json):
@@ -327,7 +334,8 @@ class JSONParser(AbstractDatabaseParser):
                 scaffolds=scaffold_accs + contig_accs,  # Treat these as the same in the metadata.
                 genus=strain_entry.genus,
                 species=strain_entry.species,
-                total_len=total_len
+                total_len=total_len,
+                cluster=strain_entry.cluster
             )
         )
 
