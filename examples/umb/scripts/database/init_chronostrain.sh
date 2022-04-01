@@ -32,8 +32,9 @@ rm ${REFSEQ_FASTA_FILE}
 cd -
 
 echo "[*] Initializing database."
-python ${BASE_DIR}/helpers/init_chronostrain_db.py \
--o ${CHRONOSTRAIN_ECOLI_DB_JSON} \
+cd ${BASE_DIR}/helpers
+python init_chronostrain_db.py \
+-o ${CHRONOSTRAIN_DB_JSON_ALL} \
 -dbdir ${BLAST_DB_DIR} \
 -dbname ${BLAST_DB_NAME} \
 --min_pct_idty 75 \
@@ -45,7 +46,8 @@ python ${BASE_DIR}/helpers/init_chronostrain_db.py \
 
 echo "[*] Pruning database by hamming similarity."
 MULTIFASTA_FILE="all_strain_markers.fasta"
-python ${BASE_DIR}/helpers/prune_chronostrain_db.py \
---input_json ${CHRONOSTRAIN_ECOLI_DB_JSON} \
---output_json ${CHRONOSTRAIN_ECOLI_DB_JSON_PRUNED} \
+cd ${BASE_DIR}/helpers
+python prune_chronostrain_db.py \
+--input_json ${CHRONOSTRAIN_DB_JSON_ALL} \
+--output_json ${CHRONOSTRAIN_DB_JSON_PRUNED} \
 --alignments_path ${REFSEQ_ALIGN_PATH}

@@ -21,8 +21,8 @@ append_fastq()
 	num_reads=$((${num_lines} / 4))
 
 	if [[ -s "${gzip_fq_path}" ]] && [[ ${num_reads} > 0 ]]; then
-		echo "Adding record ${gzip_fq_path} to ${READS_DIR}/${umb_id}_${INPUT_INDEX_FILENAME}"
-		echo "${time},${num_reads},\"${gzip_fq_path}\",${read_type},${qual_fmt}" >> "${READS_DIR}/${umb_id}_${INPUT_INDEX_FILENAME}"
+		echo "Adding record ${gzip_fq_path} to ${READS_DIR}/${umb_id}_inputs.csv"
+		echo "${time},${num_reads},\"${gzip_fq_path}\",${read_type},${qual_fmt}" >> "${READS_DIR}/${umb_id}_inputs.csv"
 	else
 		echo "Skipping empty record ${gzip_fq_path}"
 	fi
