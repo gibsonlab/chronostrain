@@ -11,7 +11,7 @@ export LOGDIR="${OUTPUT_DIR}/logs"
 export SETTINGS_PATH="${BASE_DIR}/scripts/urine/settings.sh"
 
 # Location for reads and outputs.
-export READS_DIR="${DATA_DIR}/reads"
+export READS_DIR="${OUTPUT_DIR}/reads"
 export CHRONOSTRAIN_OUTPUT_DIR="${OUTPUT_DIR}/chronostrain"
 
 # sratools prefetch/sample output directories.
