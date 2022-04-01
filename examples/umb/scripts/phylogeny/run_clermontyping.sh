@@ -1,7 +1,6 @@
 #!/bin/bash
 set -e
-source ../settings.sh
-export CHRONOSTRAIN_LOG_FILEPATH="${LOGDIR}/create_clermontyping_input.log"
+source settings.sh
 
 CLERMONTYPING_SCRIPT=~/ClermonTyping/clermonTyping.sh
 echo "[*] Using ClermonTyping script at: ${CLERMONTYPING_SCRIPT}"
