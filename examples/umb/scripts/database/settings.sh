@@ -15,8 +15,8 @@ export BLAST_DB_DIR="${CHRONOSTRAIN_DB_DIR}/blast_db"
 export BLAST_DB_NAME="esch_chrom"
 
 # ======== Chronostrain settings
-export CHRONOSTRAIN_DB_JSON_ALL="${CHRONOSTRAIN_DB_DIR}/database_ecoli_all.json"
-export CHRONOSTRAIN_DB_JSON_PRUNED="${CHRONOSTRAIN_DB_DIR}/database_ecoli_pruned.json"
+export CHRONOSTRAIN_DB_JSON_ALL="${CHRONOSTRAIN_DB_DIR}/database_all.json"
+export CHRONOSTRAIN_DB_JSON_PRUNED="${CHRONOSTRAIN_DB_DIR}/database_pruned.json"
 export CHRONOSTRAIN_DB_JSON="${CHRONOSTRAIN_DB_JSON_PRUNED}"
 export MULTIFASTA_FILE="strain_markers.fasta"
 
