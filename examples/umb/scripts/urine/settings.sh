@@ -5,6 +5,7 @@ export DATA_DIR="/mnt/e/umb_data"
 export OUTPUT_DIR="/mnt/d/chronostrain/umb_urine"
 export CHRONOSTRAIN_DB_DIR="/mnt/d/chronostrain/umb_database"
 export SAMPLES_DIR="${DATA_DIR}/samples_urine"
+export LOGDIR="${OUTPUT_DIR}/logs"
 
 # ======== Location of this file.
 export SETTINGS_PATH="${BASE_DIR}/scripts/urine/settings.sh"
@@ -12,9 +13,6 @@ export SETTINGS_PATH="${BASE_DIR}/scripts/urine/settings.sh"
 # Location for reads and outputs.
 export READS_DIR="${DATA_DIR}/reads"
 export CHRONOSTRAIN_OUTPUT_DIR="${OUTPUT_DIR}/chronostrain"
-
-# The chronostrain input index.
-export INPUT_INDEX_FILENAME="inputs.csv"
 
 # sratools prefetch/sample output directories.
 export SRA_PREFETCH_DIR="${DATA_DIR}/prefetch"
@@ -32,17 +30,17 @@ export CHRONOSTRAIN_READ_BATCH_SZ=5000
 export CHRONOSTRAIN_NUM_EPOCHS=150
 export CHRONOSTRAIN_DECAY_LR=0.25
 export CHRONOSTRAIN_LR=0.05
+export CHRONOSTRAIN_CACHE_DIR="${OUTPUT_DIR}/cache"
 export CHRONOSTRAIN_OUTPUT_FILENAME="abundances.out"
 
-export CHRONOSTRAIN_DB_JSON_ALL="${CHRONOSTRAIN_DATA_DIR}/database_ecoli_all.json"
-export CHRONOSTRAIN_DB_JSON_PRUNED="${CHRONOSTRAIN_DATA_DIR}/database_ecoli_pruned.json"
+export CHRONOSTRAIN_DB_JSON_ALL="${CHRONOSTRAIN_DB_DIR}/database_all.json"
+export CHRONOSTRAIN_DB_JSON_PRUNED="${CHRONOSTRAIN_DB_DIR}/database_pruned.json"
 export CHRONOSTRAIN_DB_JSON="${CHRONOSTRAIN_DB_JSON_PRUNED}"
 export MULTIFASTA_FILE="strain_markers.fasta"
 
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)
 export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
 export CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"
-export LOGDIR="${OUTPUT_DIR}/logs"
 
 # ========= Done.
 echo "======================================================="
