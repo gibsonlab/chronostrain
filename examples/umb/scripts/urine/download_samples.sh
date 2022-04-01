@@ -24,7 +24,7 @@ mkdir -p ${FASTERQ_TMP_DIR}
 	# Read rest of csv file.
 	while IFS=, read -r sra_id umb_id sample_name date days experiment_type model library_strategy exp_group
 	do
-		if [[ "${experiment_type}" != "urine raw" ]]; then
+		if [[ "${experiment_type}" != "urine raw" ]] && [[ "${experiment_type}" != "urine outgrowth" ]]; then
 			echo "Skipping ${sample_name}."
 			continue
 		fi
