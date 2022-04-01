@@ -81,7 +81,7 @@ class DatabaseConfig(AbstractConfig):
             for key, value in database_kwargs.items()
         }
         self.class_name: str = self.get_str("DB_CLASS")
-        self.data_dir: Path = self.get_path("DATA_DIR")
+        self.data_dir: Path = self.get_path("DB_DATA_DIR")
         self.data_dir.mkdir(parents=True, exist_ok=True)
 
     def get_database(self, force_refresh: bool = False, **kwargs) -> "chronostrain.database.StrainDatabase":
