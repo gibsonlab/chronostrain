@@ -89,8 +89,7 @@ def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase, mode: st
         for _, aln in alignments.get_alignments():
             # First, add the likelihood for the fragment for the aligned base marker.
             fragment_space.add_seq(
-                aln.marker_frag,
-                metadata=f"({aln.read.id}->{aln.marker.id})"
+                aln.marker_frag
             )
 
             if len(aln.marker_frag) < 15:
