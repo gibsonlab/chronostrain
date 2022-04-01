@@ -28,7 +28,7 @@ def extract_key_from_json(json_obj: dict, key: str):
 
 
 def extract_optional_key_from_json(json_obj: dict, key: str, default: Any):
-    return json_obj.get(key, default=default)
+    return json_obj.get(key, default)
 
 
 @dataclass
