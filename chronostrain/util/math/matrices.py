@@ -283,7 +283,7 @@ def log_spspmm_exp(x: ColumnSectionedSparseMatrix, y: RowSectionedSparseMatrix) 
     typed_y_locs = nList()
     for loc in y.locs_per_row:
         typed_y_locs.append(loc.cpu().numpy())
-    log_spspmm_exp_helper(
+    log_spspmm_exp_helper_jit(
         x.indices.cpu().numpy(),
         x.values.cpu().numpy(),
         typed_x_locs,
