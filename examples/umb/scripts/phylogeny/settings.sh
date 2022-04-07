@@ -1,7 +1,7 @@
 # Modify these before running.
 export PROJECT_DIR="/home/bromii/chronostrain"
 export BASE_DIR="${PROJECT_DIR}/examples/umb"
-export NCBI_REFSEQ_DIR="/mnt/d/ref_genomes"
+export NCBI_REFSEQ_DIR="/mnt/e/ref_genomes"
 
 export PHYLOGENY_OUTPUT_DIR="/mnt/d/chronostrain/phylogeny"
 export LOGDIR="/mnt/d/chronostrain/phylogeny/logs"
