@@ -7,4 +7,5 @@ mkdir -p ${PHYLOGENY_OUTPUT_DIR}/tree
 fasttree -gtr -nt ${REFSEQ_ALIGN_PATH} > ${PHYLOGENY_OUTPUT_DIR}/tree/tree.nwk
 python ${BASE_DIR}/scripts/phylogeny/tree_annotations.py \
 -o ${PHYLOGENY_OUTPUT_DIR}/tree \
+-i ${NCBI_REFSEQ_DIR}/index.tsv \
 -p ${PHYLOGENY_OUTPUT_DIR}/ClermonTyping/umb/umb_phylogroups.txt
