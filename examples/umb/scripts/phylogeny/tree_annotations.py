@@ -65,7 +65,7 @@ def load_clade_assignments(phylogroup_path: Path) -> Dict[str, str]:
     with open(phylogroup_path, 'r') as f:
         for line in f:
             tokens = line.strip().split('\t')
-            accession = Path(tokens[0]).with_suffix('').name
+            accession = Path(tokens[0]).with_suffix('').with_suffix('').name
             phylogroup = tokens[4]
             strain_to_phylogroup[accession] = phylogroup
     return strain_to_phylogroup
