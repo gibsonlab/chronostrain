@@ -31,7 +31,7 @@ def parse_strain_index(index_path: Path) -> List[Tuple[str, str]]:
     strains = []
     for _, row in df.loc[df['Genus'] == 'Escherichia'].iterrows():
         strains.append((
-            row['Strain'], row['Accession']
+            row['Accession'], row['Strain']
         ))
     return strains
 
