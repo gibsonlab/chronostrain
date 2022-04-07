@@ -27,7 +27,7 @@ def parse_strain_index(index_path: Path) -> List[Tuple[str, str]]:
     """
     Return a list of (strain accession, strain name) tuples.
     """
-    df = pd.read_csv(index_path)
+    df = pd.read_csv(index_path, sep='\t')
     strains = []
     for _, row in df.loc[df['Genus'] == 'Escherichia'].iterrows():
         strains.append((

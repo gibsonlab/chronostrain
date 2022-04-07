@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-source ../settings.sh
+source settings.sh
 export CHRONOSTRAIN_LOG_FILEPATH="${LOGDIR}/create_tree.log"
 
 mkdir -p ${PHYLOGENY_OUTPUT_DIR}/tree
