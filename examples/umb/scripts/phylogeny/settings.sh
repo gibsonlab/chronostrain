@@ -5,7 +5,7 @@ export NCBI_REFSEQ_DIR="/mnt/e/ref_genomes"
 
 export PHYLOGENY_OUTPUT_DIR="/mnt/d/chronostrain/phylogeny"
 export LOGDIR="/mnt/d/chronostrain/phylogeny/logs"
-export REFSEQ_ALIGN_PATH="${CHRONOSTRAIN_DATA_DIR}/strain_alignments/concatenation.fasta"
+export REFSEQ_ALIGN_PATH="${CHRONOSTRAIN_DB_DIR}/strain_alignments/concatenation.fasta"
 
 # ======== Location of this file.
 export SETTINGS_PATH="${BASE_DIR}/scripts/phylogeny/settings.sh"

@@ -46,6 +46,7 @@ def parse_args():
                         default='',
                         help='<Optional> A path to a two-column CSV file (<UniprotID>, <ClusterName>) format specifying'
                              'any desired additional genes not given by metaphlan.')
+    parser.add_argument('')
     parser.add_argument('-o', '--output_path', required=True, type=str,
                         help='<Required> The path to the target output chronostrain db json file.')
     parser.add_argument('-dbdir', '--blast_db_dir', required=True, type=str,
