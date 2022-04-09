@@ -9,7 +9,7 @@ export CHRONOSTRAIN_DB_DIR="/mnt/d/chronostrain/umb_database"
 export SETTINGS_PATH="${BASE_DIR}/scripts/settings.sh"
 
 # ========= NCBI RefSeqs
-export NCBI_REFSEQ_DIR="/mnt/d/ref_genomes"
+export NCBI_REFSEQ_DIR="/mnt/e/ref_genomes"
 export REFSEQ_ALIGN_PATH="${CHRONOSTRAIN_DB_DIR}/strain_alignments/concatenation.fasta"
 export BLAST_DB_DIR="${CHRONOSTRAIN_DB_DIR}/blast_db"
 export BLAST_DB_NAME="esch_chrom"

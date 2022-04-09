@@ -5,13 +5,14 @@ export DATA_DIR="/mnt/e/umb_data"
 export OUTPUT_DIR="/mnt/d/chronostrain/umb_plate_scrapes"
 export CHRONOSTRAIN_DB_DIR="/mnt/d/chronostrain/umb_database"
 export LOGDIR="${OUTPUT_DIR}/logs"
+export SAMPLES_DIR="/mnt/e/umb_data/plate_scrapes"
 
 # ======== Location of this file.
 export SETTINGS_PATH="${BASE_DIR}/scripts/plate_scrapes/settings.sh"
 
 # Location for reads and outputs.
 export READS_DIR="${OUTPUT_DIR}/reads"
-export CHRONOSTRAIN_OUTPUT_DIR="${OUTPUT_DIR}/chronostrain"
+export CHRONOSTRAIN_OUTPUT_DIR="${OUTPUT_DIR}/output/chronostrain"
 
 # ========= Chronostrain settings
 export CHRONOSTRAIN_NUM_ITERS=50

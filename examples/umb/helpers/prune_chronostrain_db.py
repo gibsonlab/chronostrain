@@ -125,7 +125,7 @@ def get_concatenated_alignments(db: StrainDatabase, out_path: Path):
 
 
 def prune_db(strains: List[Strain], input_json_path: Path, output_json_path: Path, alignments_path: Path):
-    print("Preprocessing for pruning.")
+    logger.info("Preprocessing for pruning.")
     # parse json entries.
     entries: Dict[str, Dict[str, Any]] = {}
     with open(input_json_path, "r") as f:
