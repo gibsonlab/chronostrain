@@ -413,11 +413,11 @@ def parse_uniprot_csv(csv_path: Path) -> Iterator[str]:
 def main():
     args = parse_args()
 
-    if args.uniprot_path == '' and args.genes_fasta == '':
+    if args.uniprot_csv == '' and args.genes_fasta == '':
         print("Must specify at least one of --uniprot_path or --primers_path.")
         exit(1)
 
-    if len(args.uniprot_path) > 0:
+    if len(args.uniprot_csv) > 0:
         uniprot_path = Path(args.uniprot_csv)
     else:
         uniprot_path = None
