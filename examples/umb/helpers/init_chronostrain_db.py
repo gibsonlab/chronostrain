@@ -339,6 +339,7 @@ def retrieve_reference(accession: str, uniprot_csv_path: Optional[Path], genes_p
     if genes_path is not None:
         for record in SeqIO.parse(genes_path, 'fasta'):
             gene_name = record.id
+            logger.info(f"Found FASTA record for gene `{gene_name}` ({record.description})")
             gene_out_path = target_dir / f"{gene_name}.fasta"
             SeqIO.write(record, gene_out_path, "fasta")
             gene_paths[gene_name] = gene_out_path
