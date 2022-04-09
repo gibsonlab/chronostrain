@@ -41,6 +41,7 @@ python init_chronostrain_db.py \
 --max_target_seqs 100000 \
 --refseq_index ${NCBI_REFSEQ_DIR}/index.tsv \
 --uniprot_csv ${BASE_DIR}/files/metaphlan_markers.csv \
+--genes_fasta ${BASE_DIR}/files/clermont_genes.fasta \
 --reference_accession "U00096.3"
 
 

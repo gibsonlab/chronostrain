@@ -7,13 +7,10 @@ Works in 3 steps:
     3) Convert BLAST results into chronostrain JSON database specification.
 """
 import argparse
-import itertools
 from collections import defaultdict
 from pathlib import Path
 import csv
 import json
-import pickle
-import bz2
 
 import pandas as pd
 
@@ -25,7 +22,7 @@ from bioservices import UniProt
 from chronostrain.util.entrez import fetch_genbank
 from chronostrain.util.external import blastn
 
-from typing import List, Set, Dict, Any, Tuple, Iterator
+from typing import List, Set, Dict, Any, Tuple, Iterator, Optional
 
 from chronostrain.util.io import read_seq_file
 from chronostrain import cfg, create_logger
@@ -42,11 +39,12 @@ def parse_args():
     )
 
     # Input specification.
-    parser.add_argument('-u', '--uniprot_csv', required=True, type=str,
-                        default='',
-                        help='<Optional> A path to a two-column CSV file (<UniprotID>, <ClusterName>) format specifying'
+    parser.add_argument('-u', '--uniprot_csv', required=False, type=str, default='',
+                        help='<Required> A path to a two-column CSV file (<UniprotID>, <ClusterName>) format specifying'
                              'any desired additional genes not given by metaphlan.')
-    # parser.add_argument('')
+    parser.add_argument('-g', '--genes_fasta', required=False, type=str, default='',
+                        help='<Optional> A path to a fasta file listing out genes. Each records ID must be the '
+                             'desired gene name.')
     parser.add_argument('-o', '--output_path', required=True, type=str,
                         help='<Required> The path to the target output chronostrain db json file.')
     parser.add_argument('-dbdir', '--blast_db_dir', required=True, type=str,
@@ -139,6 +137,7 @@ def create_strain_entries(blast_results: Dict[str, Path], ref_gene_paths: Dict[s
     strain_entries: Dict[str, Dict] = {}
     seen_accessions: Set[str] = set()
 
+    # ===================== Parse BLAST hits.
     for gene_name, blast_result_path in blast_results.items():
         blast_hits = parse_blast_hits(blast_result_path)
 
@@ -285,55 +284,65 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
 
 
 # ======================== Reference genome: pull from downloaded genbank file.
-def download_reference(accession: str, uniprot_csv_path: Path) -> Dict[str, Path]:
+def retrieve_reference(accession: str, uniprot_csv_path: Optional[Path], genes_path: Optional[Path]) -> Dict[str, Path]:
     logger.info(f"Downloading reference accession {accession}")
     target_dir = cfg.database_cfg.data_dir / "reference" / accession
     target_dir.mkdir(exist_ok=True, parents=True)
 
-    gb_file = fetch_genbank(accession, target_dir)
-
-    clusters_already_found: Set[str] = set()
-    clusters_to_find: Set[str] = set()
-    genes_to_clusters: Dict[str, str] = {}
-
-    for cluster, cluster_genes in get_marker_genes(uniprot_csv_path):
-        clusters_to_find.add(cluster)
-        for gene in cluster_genes:
-            genes_to_clusters[gene.lower()] = cluster
-
-    chromosome_seq = next(SeqIO.parse(gb_file, "gb")).seq
     gene_paths: Dict[str, Path] = {}
 
-    for gb_gene_name, locus_tag, location in parse_genbank_genes(gb_file):
-        if gb_gene_name.lower() not in genes_to_clusters:
-            continue
-        if genes_to_clusters[gb_gene_name.lower()] not in clusters_to_find:
-            continue
+    # ========== Retrieve from Uniprot
+    if uniprot_csv_path is not None:
+        gb_file = fetch_genbank(accession, target_dir)
+        clusters_already_found: Set[str] = set()
+        clusters_to_find: Set[str] = set()
+        genes_to_clusters: Dict[str, str] = {}
 
-        found_cluster = genes_to_clusters[gb_gene_name.lower()]
-        logger.info(f"Found uniref cluster {found_cluster} for accession {accession} (name={gb_gene_name})")
+        for cluster, cluster_genes in get_marker_genes(uniprot_csv_path):
+            clusters_to_find.add(cluster)
+            for gene in cluster_genes:
+                genes_to_clusters[gene.lower()] = cluster
 
-        if found_cluster in clusters_already_found:
-            logger.warning(f"Multiple copies of {found_cluster} found in {accession}. Skipping second instance.")
-        else:
-            clusters_already_found.add(found_cluster)
-            clusters_to_find.remove(found_cluster)
+        chromosome_seq = next(SeqIO.parse(gb_file, "gb")).seq
 
-            gene_out_path = target_dir / f"{found_cluster}.fasta"
-            gene_seq = location.extract(chromosome_seq)
-            SeqIO.write(
-                SeqRecord(gene_seq, id=f"REF_GENE_{found_cluster}", description=f"{accession}_{str(location)}"),
-                gene_out_path,
-                "fasta"
+        for gb_gene_name, locus_tag, location in parse_genbank_genes(gb_file):
+            if gb_gene_name.lower() not in genes_to_clusters:
+                continue
+            if genes_to_clusters[gb_gene_name.lower()] not in clusters_to_find:
+                continue
+
+            found_cluster = genes_to_clusters[gb_gene_name.lower()]
+            logger.info(f"Found uniref cluster {found_cluster} for accession {accession} (name={gb_gene_name})")
+
+            if found_cluster in clusters_already_found:
+                logger.warning(f"Multiple copies of {found_cluster} found in {accession}. Skipping second instance.")
+            else:
+                clusters_already_found.add(found_cluster)
+                clusters_to_find.remove(found_cluster)
+
+                gene_out_path = target_dir / f"{found_cluster}_{accession}.fasta"
+                gene_seq = location.extract(chromosome_seq)
+                SeqIO.write(
+                    SeqRecord(gene_seq, id=f"REF_GENE_{found_cluster}", description=f"{accession}_{str(location)}"),
+                    gene_out_path,
+                    "fasta"
+                )
+                gene_paths[found_cluster] = gene_out_path
+
+        if len(clusters_to_find) > 0:
+            logger.info("Couldn't find uniprot genes {}.".format(
+                ",".join(clusters_to_find))
             )
-            gene_paths[found_cluster] = gene_out_path
+        logger.info(f"Finished parsing reference accession {accession}.")
 
-    if len(clusters_to_find) > 0:
-        logger.info("Couldn't find genes {}.".format(
-            ",".join(clusters_to_find))
-        )
+    # =========== Retrieve from Fasta
+    if genes_path is not None:
+        for record in SeqIO.parse(genes_path, 'fasta'):
+            gene_name = record.id
+            gene_out_path = target_dir / f"{gene_name}.fasta"
+            SeqIO.write(record, gene_out_path, "fasta")
+            gene_paths[gene_name] = gene_out_path
 
-    logger.info(f"Finished parsing reference accession {accession}.")
     return gene_paths
 
 
@@ -403,11 +412,26 @@ def parse_uniprot_csv(csv_path: Path) -> Iterator[str]:
 
 def main():
     args = parse_args()
+
+    if args.uniprot_path == '' and args.genes_fasta == '':
+        print("Must specify at least one of --uniprot_path or --primers_path.")
+        exit(1)
+
+    if len(args.uniprot_path) > 0:
+        uniprot_path = Path(args.uniprot_csv)
+    else:
+        uniprot_path = None
+
+    if len(args.genes_fasta) > 0:
+        genes_path = Path(args.genes_fasta)
+    else:
+        genes_path = None
+
     output_path = Path(args.output_path)
 
     # ================= Pull out reference genes
     logger.info(f"Retrieving reference genes from {args.reference_accession}")
-    ref_gene_paths = download_reference(args.reference_accession, args.uniprot_csv)
+    ref_gene_paths = retrieve_reference(args.reference_accession, uniprot_path, genes_path)
 
     refseq_index_df = pd.read_csv(Path(args.refseq_index), sep='\t')
 
