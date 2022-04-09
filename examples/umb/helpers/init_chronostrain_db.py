@@ -298,7 +298,7 @@ def retrieve_reference(accession: str, uniprot_csv_path: Optional[Path], genes_p
         clusters_to_find: Set[str] = set()
         genes_to_clusters: Dict[str, str] = {}
 
-        for cluster, cluster_genes in get_marker_genes(uniprot_csv_path):
+        for cluster, cluster_genes in get_uniprot_genes(uniprot_csv_path):
             clusters_to_find.add(cluster)
             for gene in cluster_genes:
                 genes_to_clusters[gene.lower()] = cluster
@@ -347,7 +347,7 @@ def retrieve_reference(accession: str, uniprot_csv_path: Optional[Path], genes_p
     return gene_paths
 
 
-def get_marker_genes(uniprot_csv_path: Path) -> Iterator[Tuple[str, List[str]]]:
+def get_uniprot_genes(uniprot_csv_path: Path) -> Iterator[Tuple[str, List[str]]]:
     u = UniProt()
 
     # for metaphlan_marker_id in metaphlan_markers(db, 'g__Escherichia'):
@@ -407,7 +407,7 @@ def parse_uniprot_csv(csv_path: Path) -> Iterator[str]:
                 # Header line
                 continue
 
-            logger.debug(f"Searching additional cluster `{cluster_name}`, uniprot ID `{uniprot_id}`")
+            logger.debug(f"Yielding cluster `{cluster_name}`, uniprot ID `{uniprot_id}`")
             yield uniprot_id
 
 
