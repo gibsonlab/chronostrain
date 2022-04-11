@@ -119,9 +119,9 @@ def get_concatenated_alignments(db: StrainDatabase, out_path: Path):
             )
         )
 
-        SeqIO.write(
-            records, out_path, "fasta"
-        )
+    SeqIO.write(
+        records, out_path, "fasta"
+    )
 
 
 def prune_db(strains: List[Strain], input_json_path: Path, output_json_path: Path, alignments_path: Path):
