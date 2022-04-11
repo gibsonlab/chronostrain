@@ -12,7 +12,7 @@ export SETTINGS_PATH="${BASE_DIR}/scripts/stool/settings.sh"
 
 # Location for reads and outputs.
 export READS_DIR="${OUTPUT_DIR}/reads"
-export CHRONOSTRAIN_OUTPUT_DIR="${OUTPUT_DIR}/chronostrain"
+export CHRONOSTRAIN_OUTPUT_DIR="${OUTPUT_DIR}/output/chronostrain"
 
 # sratools prefetch/sample output directories.
 export SRA_PREFETCH_DIR="${DATA_DIR}/prefetch"
@@ -26,7 +26,7 @@ export TRIMMOMATIC_DIR="/home/bromii/anaconda3/envs/chronostrain/share/trimmomat
 # ========= Chronostrain settings
 export CHRONOSTRAIN_NUM_ITERS=50
 export CHRONOSTRAIN_NUM_SAMPLES=200
-export CHRONOSTRAIN_READ_BATCH_SZ=5000
+export CHRONOSTRAIN_READ_BATCH_SZ=2500
 export CHRONOSTRAIN_NUM_EPOCHS=150
 export CHRONOSTRAIN_DECAY_LR=0.25
 export CHRONOSTRAIN_LR=0.05
