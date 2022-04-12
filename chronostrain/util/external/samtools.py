@@ -56,10 +56,9 @@ def merge(
 
 
 def sam_mapped_only(sam_path: Path, output_path: Path):
-    # Biopython's interface appears outdated (as of 10/23/2021). Use our own cline interface.
     params = [
         'view',
-        '-S',
+        '-F', 4,
         sam_path,
         '-o', output_path
     ]
