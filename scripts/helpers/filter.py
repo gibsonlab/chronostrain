@@ -58,7 +58,7 @@ class Filter(object):
             reseed_ratio=1,  # default; smaller = slower but more alignments.
             bandwidth=10,
             num_threads=self.num_threads,
-            report_all_alignments=True,
+            report_all_alignments=False,
             match_score=2,  # log likelihood ratio log_2(4p)
             mismatch_penalty=5,  # Assume quality score of 20, log likelihood ratio log_2(4 * error * <3/4>)
             off_diag_dropoff=100,  # default
