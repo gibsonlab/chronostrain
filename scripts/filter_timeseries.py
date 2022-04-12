@@ -36,7 +36,7 @@ def parse_args():
                         default=0.1,
                         help='<Optional> The percent identity threshold at which to filter reads. Default: 0.1.')
     parser.add_argument('--error_threshold', required=False, type=float,
-                        default=10.0,
+                        default=15.0,
                         help='<Optional> The maximum number of expected errors tolerated in order to pass filter.'
                              'Default: 10.0')
     parser.add_argument('--num_threads', required=False, type=int,
