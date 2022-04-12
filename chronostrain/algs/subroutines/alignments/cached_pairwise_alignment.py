@@ -58,7 +58,7 @@ class CachedReadPairwiseAlignments(object):
                 index_basename=self.marker_reference_path.stem,
                 num_threads=self.num_cores,
                 report_all_alignments=True,
-                num_reseeds=5,
+                num_reseeds=15,
                 score_min_fn=bt2_func_constant(const=-500),
                 score_mismatch_penalty=np.floor(
                     [np.log(3) + 4 * np.log(10), 0]
