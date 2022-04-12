@@ -27,8 +27,6 @@ class SequenceReadPairwiseAlignment(object):
                  hard_clip_end: int,
                  soft_clip_start: int,
                  soft_clip_end: int,
-                 num_aligned_bases: Optional[int],
-                 num_mismatches: Optional[int],
                  reverse_complemented: bool):
         """
         :param read: The SequenceRead instance.
@@ -63,9 +61,6 @@ class SequenceReadPairwiseAlignment(object):
         self.soft_clip_start: int = soft_clip_start  # the number of bases at the right end (5') that got soft clipped.
         self.soft_clip_end: int = soft_clip_end  # the number of bases at the right end (3') that got soft clipped.
 
-        self.num_aligned_bases: Union[None, int] = num_aligned_bases
-        self.num_mismatches: Union[None, int] = num_mismatches
-
         # Indicates whether the read has been reverse complemented.
         self.reverse_complemented: bool = reverse_complemented
 
@@ -85,11 +80,26 @@ class SequenceReadPairwiseAlignment(object):
     @property
     def read_aligned_section(self) -> Tuple[SeqType, SeqType]:
         """
-        Returns the section of the read corresponding to matches/mismatches.
-        Specifically removes clipped edges. Optionally deletes insertions and/or deletions.
+        Returns the section of the read corresponding to the alignment.
         """
         section = slice(self.read_start, self.read_end + 1)
         return self.read.seq[section], self.read.quality[section]
+
+    @property
+    def num_aligned_bases(self) -> int:
+        m_bases, r_bases = np.not_equal(self.aln_matrix, nucleotide_GAP_z4)
+        return np.sum(np.logical_and(m_bases, r_bases)).item()
+
+    @property
+    def num_mismatches(self) -> int:
+        m_bases, r_bases = np.not_equal(self.aln_matrix, nucleotide_GAP_z4)
+        mismatches = np.not_equal(self.aln_matrix[0], self.aln_matrix[1])
+        return np.sum(
+            np.logical_and(
+                np.logical_and(m_bases, r_bases),
+                mismatches
+            )
+        ).item()
 
     def read_insertion_locs(self) -> np.ndarray:
         insertion_locs = np.equal(self.aln_matrix[0], nucleotide_GAP_z4)
@@ -237,8 +247,6 @@ def parse_line_into_alignment(sam_path: Path,
         hard_clip_end,
         soft_clip_start,
         soft_clip_end,
-        samline.num_aligned_bases,
-        samline.num_mismatches,
         samline.is_reverse_complemented
     )
 

@@ -1,11 +1,11 @@
 import enum
 from pathlib import Path
-from typing import List, Iterator, Union, Optional
+from typing import List, Iterator, Union
 
 import numpy as np
 
 from chronostrain.util.quality import ascii_to_phred
-from .cigar import CigarElement, parse_cigar, CigarOp
+from .cigar import CigarElement, parse_cigar
 from chronostrain.util.sequences import SeqType, nucleotides_to_z4, UnknownNucleotideError
 
 from chronostrain.config import create_logger
@@ -64,9 +64,7 @@ class SamLine:
                  cigar: List[CigarElement],
                  mate_pair: str,
                  mate_pos: str,
-                 template_len: str,
-                 num_aligned_bases: Optional[int],
-                 num_mismatches: Optional[int]
+                 template_len: str
                  ):
         """
         Parse the line using the provided reference.
@@ -90,9 +88,6 @@ class SamLine:
         self.mate_pair = mate_pair
         self.mate_pos = mate_pos
         self.template_len = template_len
-
-        self.num_aligned_bases = num_aligned_bases
-        self.num_mismatches = num_mismatches
 
     @property
     def read_len(self) -> int:
@@ -142,24 +137,6 @@ class SamLine:
 
         cigar = parse_cigar(tokens[_SamTags.Cigar.value])
 
-        num_aligned_bases = sum(
-            cigar_el.num
-            for cigar_el in cigar
-            if cigar_el.op == CigarOp.ALIGN or cigar_el.op == CigarOp.MATCH or cigar_el.op == CigarOp.MISMATCH
-        )
-        num_mismatches: Union[float, None] = None
-
-        for optional_tag in tokens[11:]:
-            '''
-            The MD tag stores information about which bases match to the reference and is necessary
-            for determining percent identity
-            '''
-            # MD tag: shows percent identity
-            if optional_tag.startswith("XM:"):
-                num_mismatches = num_mismatches_from_xm(optional_tag)
-            else:
-                pass
-
         return SamLine(
             lineno=lineno,
             plaintext_line=plaintext_line,
@@ -173,9 +150,7 @@ class SamLine:
             cigar=cigar,
             mate_pair=tokens[_SamTags.MatePair.value],
             mate_pos=tokens[_SamTags.MatePos.value],
-            template_len=tokens[_SamTags.TemplateLen.value],
-            num_aligned_bases=num_aligned_bases,
-            num_mismatches=num_mismatches
+            template_len=tokens[_SamTags.TemplateLen.value]
         )
 
 
