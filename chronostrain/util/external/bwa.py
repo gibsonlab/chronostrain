@@ -3,10 +3,10 @@ from typing import Union, Tuple
 from .commandline import *
 
 
-def bwa_index(reference_path: Path, algorithm: str = "is"):
+def bwa_index(reference_path: Path):
     exit_code = call_command(
         'bwa-mem2',
-        ['index', '-a', algorithm, reference_path]
+        ['index', reference_path]
     )
     if exit_code != 0:
         raise CommandLineException("bwa-mem2 index", exit_code)
