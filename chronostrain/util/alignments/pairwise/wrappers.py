@@ -89,6 +89,8 @@ class BwaAligner(AbstractPairwiseAligner):
             ))
 
     def align(self, query_path: Path, output_path: Path):
+        tmp_sam = output_path.with_stem(f'{output_path.stem}_bwa')
+
         bwa_mem(
             output_path=output_path,
             reference_path=self.reference_path,
@@ -108,6 +110,9 @@ class BwaAligner(AbstractPairwiseAligner):
             soft_clip_for_supplementary=True,
             score_threshold=self.score_threshold
         )
+
+        sam_mapped_only(tmp_sam, output_path)
+        tmp_sam.unlink()
 
 
 logger.warn("If invoked, bowtie2 will initialize using default setting `phred33`. "
