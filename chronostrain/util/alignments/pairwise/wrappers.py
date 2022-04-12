@@ -77,7 +77,16 @@ class BwaAligner(AbstractPairwiseAligner):
         self.gap_extend_penalty = gap_extend_penalty
         self.clip_penalty = clip_penalty
         self.score_threshold = score_threshold
-        bwa_index(self.reference_path)
+
+        self.index_trace_path = self.reference_path.with_suffix('.bwa_trace')
+
+        if not self.index_trace_path.exists():  # only create if this hasn't been run yet.
+            bwa_index(self.reference_path)
+            self.index_trace_path.touch(exist_ok=True)  # Create an empty file to indicate that this finished.
+        else:
+            logger.debug("pre-built bwa index found at {}".format(
+                str(self.index_trace_path)
+            ))
 
     def align(self, query_path: Path, output_path: Path):
         bwa_mem(
