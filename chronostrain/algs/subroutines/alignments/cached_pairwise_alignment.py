@@ -54,7 +54,7 @@ class CachedReadPairwiseAlignments(object):
                 report_all_alignments=True,
                 match_score=2,  # log likelihood ratio log_2(4p)
                 mismatch_penalty=5,  # Assume quality score of 20, log likelihood ratio log_2(4 * error * <3/4>)
-                off_diag_dropoff=20,  # 10 bases worth of matches.
+                off_diag_dropoff=100,
                 gap_open_penalty=(0, 0),
                 gap_extend_penalty=(0, 0),
                 clip_penalty=5,
