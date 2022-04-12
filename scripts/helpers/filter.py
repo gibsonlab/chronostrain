@@ -54,7 +54,7 @@ class Filter(object):
 
         BwaAligner(
             reference_path=self.db.multifasta_file,
-            min_seed_len=10,
+            min_seed_len=11,
             reseed_ratio=1.5,  # default; smaller = slower but more alignments.
             bandwidth=10,
             num_threads=self.num_threads,
