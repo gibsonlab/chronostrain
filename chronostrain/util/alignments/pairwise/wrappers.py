@@ -92,7 +92,7 @@ class BwaAligner(AbstractPairwiseAligner):
         tmp_sam = output_path.with_stem(f'{output_path.stem}_bwa')
 
         bwa_mem(
-            output_path=output_path,
+            output_path=tmp_sam,
             reference_path=self.reference_path,
             read_path=query_path,
             min_seed_length=self.min_seed_len,
