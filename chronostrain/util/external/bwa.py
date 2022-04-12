@@ -1,3 +1,5 @@
+from typing import Union, Tuple
+
 from .commandline import *
 
 
@@ -14,33 +16,52 @@ def bwa_mem(output_path: Path,
             reference_path: Path,
             read_path: Path,
             min_seed_length: int,
+            reseed_ratio: float = 1.5,
+            bandwidth: int = 100,
             num_threads: int = 1,
             report_all_alignments: bool = False,
             off_diag_dropoff: int = 100,
             match_score: int = 1,
             mismatch_penalty: int = 4,
-            gap_open_penalty: int = 6,
-            gap_extend_penalty: int = 1,
-            clip_penalty: int = 5):
+            gap_open_penalty: Union[int, Tuple[int, int]] = 6,
+            gap_extend_penalty: Union[int, Tuple[int, int]] = 1,
+            clip_penalty: int = 5,
+            score_threshold: int = 30,
+            unpaired_penalty: int = 17,
+            soft_clip_for_supplementary: bool = False):
     params = [
         'mem',
         '-o', output_path,
         '-t', num_threads,
         '-k', str(min_seed_length),
+        '-r', reseed_ratio,
+        '-w', bandwidth,
         '-d', off_diag_dropoff,
         '-A', match_score,
         '-B', mismatch_penalty,
-        '-O', gap_open_penalty,
-        '-E', gap_extend_penalty,
         '-L', clip_penalty,
-        reference_path,
-        read_path
+        '-T', score_threshold,
+        '-U', unpaired_penalty,
     ]
+
+    if isinstance(gap_open_penalty, Tuple):
+        params += ['-O', f'{gap_open_penalty[0]},{gap_open_penalty[1]}']
+    else:
+        params += ['-O', gap_open_penalty]
+
+    if isinstance(gap_extend_penalty, Tuple):
+        params += ['-E', f'{gap_extend_penalty[0]},{gap_extend_penalty[1]}']
+    else:
+        params += ['-E', gap_extend_penalty]
+
     if report_all_alignments:
-        params.insert(5, '-a')
+        params.append('-a')
+    if soft_clip_for_supplementary:
+        params.append('-Y')
+
     exit_code = call_command(
         command='bwa',
-        args=params
+        args=params + [reference_path, read_path]
     )
     if exit_code != 0:
         raise CommandLineException("bwa mem", exit_code)

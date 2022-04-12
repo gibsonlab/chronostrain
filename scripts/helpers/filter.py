@@ -7,8 +7,8 @@ from Bio.Seq import Seq
 
 from chronostrain.database import StrainDatabase
 from chronostrain.util.alignments.sam import SamFile
-from chronostrain.util.external import call_command, bowtie2, bowtie2_build, bt2_func_constant, bt2_func_log
-from chronostrain.util.alignments.pairwise import parse_alignments, BowtieAligner, SequenceReadPairwiseAlignment
+from chronostrain.util.external import call_command
+from chronostrain.util.alignments.pairwise import parse_alignments, BwaAligner, SequenceReadPairwiseAlignment
 from chronostrain.config import cfg, create_logger
 from chronostrain.util.sequences import nucleotide_GAP_z4
 
@@ -52,24 +52,42 @@ class Filter(object):
         metadata_path = out_path.parent / f"{remove_suffixes(read_file).name}.metadata.tsv"
         sam_path = aligner_tmp_dir / f"{remove_suffixes(read_file).name}.sam"
 
-        BowtieAligner(
-            reference_path=self.reference_path,
-            index_basepath=self.reference_path.parent,
-            index_basename=self.reference_path.stem,
-            num_threads=cfg.model_cfg.num_cores,
-            report_all_alignments=False,
-            num_reseeds=22,
-            score_min_fn=bt2_func_constant(const=-500),
-            score_mismatch_penalty=np.floor(
-                [np.log(3) + 4 * np.log(10), 0]
-            ).astype(int),
-            score_read_gap_penalty=np.floor(
-                [0, -cfg.model_cfg.get_float("INSERTION_LL_1")]
-            ).astype(int),
-            score_ref_gap_penalty=np.floor(
-                [0, -cfg.model_cfg.get_float("DELETION_LL_1")]
-            ).astype(int)
+        BwaAligner(
+            reference_path=self.db.multifasta_file,
+            min_seed_len=5,
+            reseed_ratio=1.5,  # default; smaller = slower but more alignments.
+            bandwidth=20,
+            num_threads=self.num_threads,
+            report_all_alignments=True,
+            match_score=2,  # log likelihood ratio log_2(4p)
+            mismatch_penalty=-5,  # Assume quality score of 20, log likelihood ratio log_2(4 * error * <3/4>)
+            off_diag_dropoff=100,  # default
+            gap_open_penalty=(0, 0),
+            gap_extend_penalty=(
+                -int(cfg.model_cfg.get_float("DELETION_LL_1") / np.log(2)),
+                -int(cfg.model_cfg.get_float("INSERTION_LL_1") / np.log(2))
+            ),
+            clip_penalty=5
         ).align(query_path=read_file, output_path=sam_path)
+
+        # BowtieAligner(
+        #     reference_path=self.reference_path,
+        #     index_basepath=self.reference_path.parent,
+        #     index_basename=self.reference_path.stem,
+        #     num_threads=cfg.model_cfg.num_cores,
+        #     report_all_alignments=False,
+        #     num_reseeds=22,
+        #     score_min_fn=bt2_func_constant(const=-500),
+        #     score_mismatch_penalty=np.floor(
+        #         [np.log(3) + 4 * np.log(10), 0]
+        #     ).astype(int),
+        #     score_read_gap_penalty=np.floor(
+        #         [0, -cfg.model_cfg.get_float("INSERTION_LL_1")]
+        #     ).astype(int),
+        #     score_ref_gap_penalty=np.floor(
+        #         [0, -cfg.model_cfg.get_float("DELETION_LL_1")]
+        #     ).astype(int)
+        # ).align(query_path=read_file, output_path=sam_path)
         self._apply_helper(sam_path, metadata_path, out_path, quality_format)
 
     def _apply_helper(

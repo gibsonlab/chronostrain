@@ -6,7 +6,7 @@ simple command-line interfaces).
 
 from abc import abstractmethod
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 from chronostrain.util.external import *
 
@@ -53,12 +53,28 @@ class BwaAligner(AbstractPairwiseAligner):
     def __init__(self,
                  reference_path: Path,
                  min_seed_len: int,
+                 reseed_ratio: float,
+                 bandwidth: int,
                  num_threads: int,
-                 report_all_alignments: bool):
+                 report_all_alignments: bool,
+                 match_score: int,
+                 mismatch_penalty: int,
+                 off_diag_dropoff: int,
+                 gap_open_penalty: Union[int, Tuple[int, int]],
+                 gap_extend_penalty: Union[int, Tuple[int, int]],
+                 clip_penalty: int):
         self.reference_path = reference_path
         self.min_seed_len = min_seed_len
+        self.reseed_ratio = reseed_ratio
+        self.bandwidth = bandwidth
         self.num_threads = num_threads
         self.report_all_alignments = report_all_alignments
+        self.match_score = match_score
+        self.mismatch_penalty = mismatch_penalty
+        self.off_diag_dropoff = off_diag_dropoff
+        self.gap_open_penalty = gap_open_penalty
+        self.gap_extend_penalty = gap_extend_penalty
+        self.clip_penalty = clip_penalty
         bwa_index(self.reference_path)
 
     def align(self, query_path: Path, output_path: Path):
@@ -67,11 +83,18 @@ class BwaAligner(AbstractPairwiseAligner):
             reference_path=self.reference_path,
             read_path=query_path,
             min_seed_length=self.min_seed_len,
+            reseed_ratio=self.reseed_ratio,
+            bandwidth=self.bandwidth,
             num_threads=self.num_threads,
             report_all_alignments=self.report_all_alignments,
-            match_score=1,
-            mismatch_penalty=1,
-            off_diag_dropoff=75
+            match_score=self.match_score,
+            mismatch_penalty=self.mismatch_penalty,
+            off_diag_dropoff=self.off_diag_dropoff,
+            gap_open_penalty=self.gap_open_penalty,
+            gap_extend_penalty=self.gap_extend_penalty,
+            clip_penalty=self.clip_penalty,
+            unpaired_penalty=0,
+            soft_clip_for_supplementary=True
         )
 
 
