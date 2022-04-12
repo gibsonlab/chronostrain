@@ -48,18 +48,15 @@ class CachedReadPairwiseAlignments(object):
             self.aligner = BwaAligner(
                 reference_path=self.db.multifasta_file,
                 min_seed_len=5,
-                reseed_ratio=1.5,  # default; smaller = slower but more alignments.
+                reseed_ratio=1,  # default; smaller = slower but more alignments.
                 bandwidth=20,
                 num_threads=self.num_cores,
                 report_all_alignments=True,
                 match_score=2,  # log likelihood ratio log_2(4p)
-                mismatch_penalty=-5,  # Assume quality score of 20, log likelihood ratio log_2(4 * error * <3/4>)
+                mismatch_penalty=5,  # Assume quality score of 20, log likelihood ratio log_2(4 * error * <3/4>)
                 off_diag_dropoff=100,  # default
                 gap_open_penalty=(0, 0),
-                gap_extend_penalty=(
-                    -int(cfg.model_cfg.get_float("DELETION_LL_1") / np.log(2)),
-                    -int(cfg.model_cfg.get_float("INSERTION_LL_1") / np.log(2))
-                ),
+                gap_extend_penalty=(1, 1),
                 clip_penalty=5
             )
         elif cfg.external_tools_cfg.pairwise_align_cmd == "bowtie2":
