@@ -49,15 +49,16 @@ class CachedReadPairwiseAlignments(object):
                 reference_path=self.db.multifasta_file,
                 min_seed_len=5,
                 reseed_ratio=1,  # default; smaller = slower but more alignments.
-                bandwidth=20,
+                bandwidth=10,
                 num_threads=self.num_cores,
                 report_all_alignments=True,
                 match_score=2,  # log likelihood ratio log_2(4p)
                 mismatch_penalty=5,  # Assume quality score of 20, log likelihood ratio log_2(4 * error * <3/4>)
                 off_diag_dropoff=100,  # default
                 gap_open_penalty=(0, 0),
-                gap_extend_penalty=(1, 1),
-                clip_penalty=5
+                gap_extend_penalty=(0, 0),
+                clip_penalty=5,
+                score_threshold=20
             )
         elif cfg.external_tools_cfg.pairwise_align_cmd == "bowtie2":
             self.aligner = BowtieAligner(

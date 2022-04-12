@@ -62,7 +62,8 @@ class BwaAligner(AbstractPairwiseAligner):
                  off_diag_dropoff: int,
                  gap_open_penalty: Union[int, Tuple[int, int]],
                  gap_extend_penalty: Union[int, Tuple[int, int]],
-                 clip_penalty: int):
+                 clip_penalty: int,
+                 score_threshold: int):
         self.reference_path = reference_path
         self.min_seed_len = min_seed_len
         self.reseed_ratio = reseed_ratio
@@ -75,6 +76,7 @@ class BwaAligner(AbstractPairwiseAligner):
         self.gap_open_penalty = gap_open_penalty
         self.gap_extend_penalty = gap_extend_penalty
         self.clip_penalty = clip_penalty
+        self.score_threshold = score_threshold
         bwa_index(self.reference_path)
 
     def align(self, query_path: Path, output_path: Path):
@@ -94,7 +96,8 @@ class BwaAligner(AbstractPairwiseAligner):
             gap_extend_penalty=self.gap_extend_penalty,
             clip_penalty=self.clip_penalty,
             unpaired_penalty=0,
-            soft_clip_for_supplementary=True
+            soft_clip_for_supplementary=True,
+            score_threshold=self.score_threshold
         )
 
 
