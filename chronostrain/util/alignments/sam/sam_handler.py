@@ -142,8 +142,13 @@ class SamLine:
 
         cigar = parse_cigar(tokens[_SamTags.Cigar.value])
 
-        num_aligned_bases: Union[float, None] = None
+        num_aligned_bases = sum(
+            cigar_el.num
+            for cigar_el in cigar
+            if cigar_el.op == CigarOp.ALIGN or cigar_el.op == CigarOp.MATCH or cigar_el.op == CigarOp.MISMATCH
+        )
         num_mismatches: Union[float, None] = None
+
         for optional_tag in tokens[11:]:
             '''
             The MD tag stores information about which bases match to the reference and is necessary
@@ -151,11 +156,6 @@ class SamLine:
             '''
             # MD tag: shows percent identity
             if optional_tag.startswith("XM:"):
-                num_aligned_bases = sum(
-                    cigar_el.num
-                    for cigar_el in cigar
-                    if cigar_el.op == CigarOp.ALIGN or cigar_el.op == CigarOp.MATCH or cigar_el.op == CigarOp.MISMATCH
-                )
                 num_mismatches = num_mismatches_from_xm(optional_tag)
             else:
                 pass
