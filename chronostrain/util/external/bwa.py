@@ -5,11 +5,11 @@ from .commandline import *
 
 def bwa_index(reference_path: Path):
     exit_code = call_command(
-        'bwa-mem2',
+        'bwa',
         ['index', reference_path]
     )
     if exit_code != 0:
-        raise CommandLineException("bwa-mem2 index", exit_code)
+        raise CommandLineException("bwa index", exit_code)
 
 
 def bwa_mem(output_path: Path,
@@ -60,11 +60,11 @@ def bwa_mem(output_path: Path,
         params.append('-Y')
 
     exit_code = call_command(
-        command='bwa-mem2',
+        command='bwa',
         args=params + [reference_path, read_path]
     )
     if exit_code != 0:
-        raise CommandLineException("bwa-mem2 mem", exit_code)
+        raise CommandLineException("bwa mem", exit_code)
 
 
 def bwa_fastmap(output_path: Path,
