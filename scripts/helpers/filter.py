@@ -58,7 +58,7 @@ class Filter(object):
             index_basename=self.reference_path.stem,
             num_threads=cfg.model_cfg.num_cores,
             report_all_alignments=False,
-            num_reseeds=self.db.num_strains(),
+            num_reseeds=5,
             score_min_fn=bt2_func_constant(const=-500),
             score_mismatch_penalty=np.floor(
                 [np.log(3) + 4 * np.log(10), 0]
