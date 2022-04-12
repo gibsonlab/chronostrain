@@ -58,7 +58,7 @@ class CachedReadPairwiseAlignments(object):
                 gap_open_penalty=(0, 0),
                 gap_extend_penalty=(0, 0),
                 clip_penalty=5,
-                score_threshold=20
+                score_threshold=50
             )
         elif cfg.external_tools_cfg.pairwise_align_cmd == "bowtie2":
             self.aligner = BowtieAligner(

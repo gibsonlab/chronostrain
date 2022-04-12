@@ -65,7 +65,7 @@ class Filter(object):
             gap_open_penalty=(0, 0),
             gap_extend_penalty=(0, 0),
             clip_penalty=5,
-            score_threshold=20
+            score_threshold=50   # Corresponds to log_2(eps) > -100
         ).align(query_path=read_file, output_path=sam_path)
 
         # BowtieAligner(
