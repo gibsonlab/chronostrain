@@ -126,6 +126,7 @@ class Filter(object):
         for aln in parse_alignments(
                 SamFile(sam_path, quality_format),
                 self.db,
+                reattach_clipped_bases=True,
                 min_hit_ratio=self.min_hit_ratio
         ):
             if aln.read.id in reads_already_passed:
