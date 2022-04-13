@@ -80,8 +80,8 @@ mkdir -p "${SAMPLES_DIR}/kneaddata"
 			tmp_file_1="${kneaddata_output_dir}/${sra_id}_1.fastq"
 			tmp_file_2="${kneaddata_output_dir}/${sra_id}_2.fastq"
 			echo "[*] Decompressing to temporary output."
-			pigz -dck ${fq_file_1} > ${tmp_file_1}
-			pigz -dck ${fq_file_2} > ${tmp_file_2}
+			pigz -dck ${fq_file_1} | sed -e '3~4s/+.*/+/' -re '1~4s/(@[A-Za-z0-9]*)\.([0-9]+)\/1.*/\1.\2 \2\/1/' > $tmp_file_1
+			pigz -dck ${fq_file_2} | sed -e '3~4s/+.*/+/' -re '1~4s/(@[A-Za-z0-9]*)\.([0-9]+)\/2.*/\1.\2 \2\/2/' > $tmp_file_2
 
 			echo "[*] Invoking kneaddata."
 			kneaddata \
@@ -89,7 +89,7 @@ mkdir -p "${SAMPLES_DIR}/kneaddata"
 			--input2 ${tmp_file_2} \
 			--reference-db ${KNEADDATA_DB_DIR} \
 			--output ${kneaddata_output_dir} \
-			--trimmomatic-options "SLIDINGWINDOW:100:0 MINLEN:35 ILLUMINACLIP:${NEXTERA_ADAPTER_PATH}:2:40:15" \
+			--trimmomatic-options "MINLEN:35 ILLUMINACLIP:${NEXTERA_ADAPTER_PATH}:2:30:10:2 LEADING:10 TRAILING:10" \
 			--threads 6 \
 			--quality-scores phred33 \
 			--bypass-trf \
