@@ -23,6 +23,6 @@ do
 	python $PROJECT_DIR/scripts/filter_timeseries.py \
 	--reads_input "${READS_DIR}/${csv_file}" \
 	-o "${READS_DIR}/${sample_name}_filtered" \
-	--pct_identity_threshold 0.5 \
+	--pct_identity_threshold 0.75 \
 	--num_threads 4
 done
