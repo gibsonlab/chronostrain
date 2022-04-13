@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Tuple, Dict, List, Iterator, Callable, Optional, Union
+from typing import Tuple, Dict, List, Iterator, Callable, Optional
 import numpy as np
 
 from chronostrain.database import StrainDatabase, QueryNotFoundError
@@ -31,7 +31,6 @@ class SequenceReadPairwiseAlignment(object):
         """
         :param read: The SequenceRead instance.
         :param marker: The reference marker.
-        :param fragment: The sequence corresponding to the gapless marker fragment that the read mapped to.
         :param aln_matrix: a 2xL matrix consisting of two rows: the gapped marker fragment, the gapped read seq.
         :param sam_path: The SAM file that this alignment was parsed from.
         :param sam_line_no: The line number of the samhandler.
@@ -100,6 +99,11 @@ class SequenceReadPairwiseAlignment(object):
                 mismatches
             )
         ).item()
+
+    @property
+    def num_matches(self) -> int:
+        m_bases, r_bases = self.aln_matrix
+        return np.sum(np.equal(m_bases, r_bases)).item()
 
     def read_insertion_locs(self) -> np.ndarray:
         insertion_locs = np.equal(self.aln_matrix[0], nucleotide_GAP_z4)

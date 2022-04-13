@@ -25,7 +25,7 @@ class Filter(object):
     def __init__(self,
                  db: StrainDatabase,
                  min_read_len: int,
-                 pct_identity_threshold: float,
+                 frac_identity_threshold: float,
                  error_threshold: float,
                  min_hit_ratio: float = 0.5,
                  num_threads: int = 1):
@@ -39,7 +39,7 @@ class Filter(object):
             self.reference_path = self.db.multifasta_file
 
         self.min_read_len = min_read_len
-        self.pct_identity_threshold = pct_identity_threshold
+        self.frac_identity_threshold = frac_identity_threshold
         self.error_threshold = error_threshold
         self.min_hit_ratio = min_hit_ratio
         self.num_threads = num_threads
@@ -128,7 +128,7 @@ class Filter(object):
                 "IS_EDGE_MAPPED",
                 "READ_LEN",
                 "N_MISMATCHES",
-                "PCT_ID_ADJ",
+                "PCT_ID",
                 "START_CLIP",
                 "END_CLIP"
             ]
@@ -150,13 +150,13 @@ class Filter(object):
 
             # Pass filter if quality is high enough, and entire read is mapped.
             filter_edge_clip = self.filter_on_ungapped_bases(aln)
-            percent_identity_adjusted = self.adjusted_match_identity(aln)
+            frac_identity = aln.num_matches / len(aln.read)
 
             passed_filter = (
                     filter_edge_clip
                     and len(aln.read) > self.min_read_len
-                    and percent_identity_adjusted > self.pct_identity_threshold
-                    and self.num_expected_errors(aln) < self.error_threshold
+                    and frac_identity > self.frac_identity_threshold
+                    and self.num_expected_errors(aln) < (self.error_threshold * len(aln.read))
             )
 
             # Write to metadata file.
@@ -171,7 +171,7 @@ class Filter(object):
                     int(aln.is_edge_mapped),
                     len(aln.read),
                     aln.num_mismatches,
-                    percent_identity_adjusted,
+                    frac_identity * 100.0,
                     aln.soft_clip_start + aln.hard_clip_start,
                     aln.soft_clip_end + aln.hard_clip_end
                 ]
@@ -195,25 +195,6 @@ class Filter(object):
 
     def filter_on_ungapped_bases(self, aln: SequenceReadPairwiseAlignment):
         return np.sum(aln.aln_matrix[1] != nucleotide_GAP_z4) / len(aln.read) > self.min_hit_ratio
-
-    def adjusted_match_identity(self, aln: SequenceReadPairwiseAlignment):
-        """
-        Applies a filtering criteria for reads that continue in the pipeline.
-        Currently a simple threshold on percent identity, likely should be adjusted to maximize downstream sensitivity?
-        """
-        if aln.num_aligned_bases is None:
-            raise ValueError(f"Unknown num_aligned_bases from alignment of read `{aln.read.id}`")
-        if aln.num_mismatches is None:
-            raise ValueError(f"Unknown num_mismatches from alignment of read `{aln.read.id}`")
-
-        n_expected_errors = self.num_expected_errors(aln)
-        adjusted_pct_identity = self.clip_between(
-            1.0 - ((aln.num_mismatches - n_expected_errors) / (aln.num_aligned_bases - n_expected_errors)),
-            lower=0.0,
-            upper=1.0,
-        )
-
-        return adjusted_pct_identity
 
     @staticmethod
     def num_expected_errors(aln: SequenceReadPairwiseAlignment):

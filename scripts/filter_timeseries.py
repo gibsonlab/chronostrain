@@ -32,13 +32,14 @@ def parse_args():
                         help='<Optional> Filters out a read if its length was less than the specified value '
                              '(helps reduce spurious alignments). Ideally, trimmomatic should have taken care '
                              'of this step already!')
-    parser.add_argument('--pct_identity_threshold', required=False, type=float,
+    parser.add_argument('--frac_identity_threshold', required=False, type=float,
                         default=0.1,
                         help='<Optional> The percent identity threshold at which to filter reads. Default: 0.1.')
     parser.add_argument('--error_threshold', required=False, type=float,
-                        default=15.0,
-                        help='<Optional> The maximum number of expected errors tolerated in order to pass filter.'
-                             'Default: 10.0')
+                        default=0.05,
+                        help='<Optional> The number of expected errors tolerated in order to pass filter, '
+                             'expressed as a ratio to the length of the read..'
+                             'Default: 0.05')
     parser.add_argument('--num_threads', required=False, type=int,
                         default=cfg.model_cfg.num_cores,
                         help='<Optional> Specifies the number of threads. Is passed to underlying alignment tools.')
@@ -97,7 +98,7 @@ def main():
     filter = Filter(
         db=db,
         min_read_len=args.min_read_len,
-        pct_identity_threshold=args.pct_identity_threshold,
+        frac_identity_threshold=args.frac_identity_threshold,
         error_threshold=args.error_threshold,
         num_threads=args.num_threads
     )
