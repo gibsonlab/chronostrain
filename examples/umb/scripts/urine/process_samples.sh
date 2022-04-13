@@ -80,8 +80,8 @@ mkdir -p "${SAMPLES_DIR}/kneaddata"
 			tmp_file_1="${kneaddata_output_dir}/${sra_id}_1.fastq"
 			tmp_file_2="${kneaddata_output_dir}/${sra_id}_2.fastq"
 			echo "[*] Decompressing to temporary output."
-			pigz -dck ${fq_file_1} | grep -o '^\S*' > $tmp_file_1
-			pigz -dck ${fq_file_2} | grep -o '^\S*' > $tmp_file_2
+			pigz -dck ${fq_file_1} > $tmp_file_1
+			pigz -dck ${fq_file_2} > $tmp_file_2
 
 			echo "[*] Invoking kneaddata."
 			kneaddata \
@@ -90,7 +90,7 @@ mkdir -p "${SAMPLES_DIR}/kneaddata"
 			--reference-db ${KNEADDATA_DB_DIR} \
 			--output ${kneaddata_output_dir} \
 			--trimmomatic-options "MINLEN:35 ILLUMINACLIP:${NEXTERA_ADAPTER_PATH}:2:30:10:2 LEADING:10 TRAILING:10" \
-			--threads 6 \
+			--threads 8 \
 			--quality-scores phred33 \
 			--bypass-trf \
 			--trimmomatic ${TRIMMOMATIC_DIR} \

@@ -53,7 +53,11 @@ class Fragment:
         )
 
     def __repr__(self):
-        return self.__str__()
+        return "Fragment({}:{}:{})".format(
+            self.index,
+            '|'.join(self.metadata) if self.metadata else "",
+            self.nucleotide_content()
+        )
 
     def __len__(self):
         return self.seq_len
