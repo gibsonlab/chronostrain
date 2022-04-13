@@ -80,8 +80,8 @@ mkdir -p "${SAMPLES_DIR}/kneaddata"
 			tmp_file_1="${kneaddata_output_dir}/${sra_id}_1.fastq"
 			tmp_file_2="${kneaddata_output_dir}/${sra_id}_2.fastq"
 			echo "[*] Decompressing to temporary output."
-			pigz -dck ${fq_file_1} | sed -e '3~4s/+.*/+/' -re '1~4s/(@[A-Za-z0-9]*)\.([0-9]+)\/1.*/\1.\2 \2\/1/' > $tmp_file_1
-			pigz -dck ${fq_file_2} | sed -e '3~4s/+.*/+/' -re '1~4s/(@[A-Za-z0-9]*)\.([0-9]+)\/2.*/\1.\2 \2\/2/' > $tmp_file_2
+			pigz -dck ${fq_file_1} | grep -o '^\S*' > $tmp_file_1
+			pigz -dck ${fq_file_2} | grep -o '^\S*' > $tmp_file_2
 
 			echo "[*] Invoking kneaddata."
 			kneaddata \
