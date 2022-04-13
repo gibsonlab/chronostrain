@@ -9,7 +9,7 @@ import numpy as np
 
 from chronostrain.algs.subroutines.cache import ReadsComputationCache
 from chronostrain.model import Marker
-from chronostrain.model.io import TimeSeriesReads
+from chronostrain.model.io import TimeSeriesReads, TimeSliceReadSource, ReadType
 from chronostrain.util.alignments.sam import SamFile
 from chronostrain.util.alignments.pairwise import *
 from chronostrain.database import StrainDatabase
@@ -33,10 +33,11 @@ class CachedReadPairwiseAlignments(object):
         self.marker_reference_path = db.multifasta_file
         self.cache = ReadsComputationCache(reads)
 
+    def get_aligner(self, read_src: TimeSliceReadSource):
         if cfg.external_tools_cfg.pairwise_align_cmd == "ssw-align":
-            self.aligner = SmithWatermanAligner(
+            return SmithWatermanAligner(
                 reference_path=self.marker_reference_path,
-                match_score=np.floor((4 * 500) / reads.min_read_length).astype(int),
+                match_score=np.floor((4 * 500) / self.reads.min_read_length).astype(int),
                 mismatch_penalty=np.floor(np.log(10) * 4.2),
                 gap_open_penalty=np.mean(
                     [-cfg.model_cfg.get_float("INSERTION_LL_1"), -cfg.model_cfg.get_float("DELETION_LL_1")]
@@ -45,7 +46,19 @@ class CachedReadPairwiseAlignments(object):
                 score_threshold=1,
             )
         elif cfg.external_tools_cfg.pairwise_align_cmd == "bwa":
-            self.aligner = BwaAligner(
+            if read_src.read_type == ReadType.PAIRED_END_1:
+                insertion_ll = cfg.model_cfg.get_float("INSERTION_LL_1")
+                deletion_ll = cfg.model_cfg.get_float("DELETION_LL_1")
+            elif read_src.read_type == ReadType.PAIRED_END_2:
+                insertion_ll = cfg.model_cfg.get_float("INSERTION_LL_2")
+                deletion_ll = cfg.model_cfg.get_float("DELETION_LL_2")
+            elif read_src.read_type == ReadType.SINGLE_END:
+                insertion_ll = cfg.model_cfg.get_float("INSERTION_LL")
+                deletion_ll = cfg.model_cfg.get_float("DELETION_LL")
+            else:
+                raise NotImplementedError(f"Read type `{read_src.read_type}` not implemented for aligner.")
+
+            return BwaAligner(
                 reference_path=self.db.multifasta_file,
                 min_seed_len=15,
                 reseed_ratio=1,  # default; smaller = slower but more alignments.
@@ -56,12 +69,15 @@ class CachedReadPairwiseAlignments(object):
                 mismatch_penalty=5,  # Assume quality score of 20, log likelihood ratio log_2(4 * error * <3/4>)
                 off_diag_dropoff=100,
                 gap_open_penalty=(0, 0),
-                gap_extend_penalty=(0, 0),
+                gap_extend_penalty=(
+                    int(-deletion_ll / np.log(2)),
+                    int(-insertion_ll / np.log(2))
+                ),
                 clip_penalty=5,
                 score_threshold=50
             )
         elif cfg.external_tools_cfg.pairwise_align_cmd == "bowtie2":
-            self.aligner = BowtieAligner(
+            return BowtieAligner(
                 reference_path=self.marker_reference_path,
                 index_basepath=self.marker_reference_path.parent,
                 index_basename=self.marker_reference_path.stem,
@@ -91,7 +107,7 @@ class CachedReadPairwiseAlignments(object):
     def alignments_by_timepoint(self, t_idx: int) -> Iterator[SequenceReadPairwiseAlignment]:
         time_slice = self.reads[t_idx]
         for src in time_slice.sources:
-            sam_file = self._get_alignment(src.path, src.quality_format)
+            sam_file = self._get_alignment(src)
             yield from parse_alignments(
                 sam_file,
                 self.db,
@@ -108,7 +124,7 @@ class CachedReadPairwiseAlignments(object):
         """
         time_slice = self.reads[t_idx]
         for src in time_slice.sources:
-            sam_file = self._get_alignment(src.path, src.quality_format)
+            sam_file = self._get_alignment(src)
             for marker, alns in marker_categorized_alignments(
                     sam_file,
                     self.db,
@@ -131,7 +147,7 @@ class CachedReadPairwiseAlignments(object):
         }
         for t_idx, time_slice in enumerate(self.reads):
             for src in time_slice.sources:
-                sam_file = self._get_alignment(src.path, src.quality_format)
+                sam_file = self._get_alignment(src)
                 for aln in parse_alignments(
                         sam_file,
                         self.db,
@@ -144,7 +160,7 @@ class CachedReadPairwiseAlignments(object):
     def get_alignments(self) -> Iterator[Tuple[int, SequenceReadPairwiseAlignment]]:
         for t_idx, time_slice in enumerate(self.reads):
             for src in time_slice.sources:
-                sam_file = self._get_alignment(src.path, src.quality_format)
+                sam_file = self._get_alignment(src)
                 for aln in parse_alignments(
                         sam_file,
                         self.db,
@@ -153,24 +169,24 @@ class CachedReadPairwiseAlignments(object):
                 ):
                     yield t_idx, aln
 
-    def _get_alignment(self, reads_path: Path, quality_format: str) -> SamFile:
+    def _get_alignment(self, read_src: TimeSliceReadSource) -> SamFile:
         # ====== Files relative to cache dir.
-        cache_relative_path = Path("alignments") / self.get_path(reads_path)
+        cache_relative_path = Path("alignments") / self.get_path(read_src.path)
         absolute_path = self.cache.cache_dir / cache_relative_path
 
         # ====== function bindings to pass to ComputationCache.
         def perform_alignment():
             absolute_path.parent.mkdir(exist_ok=True, parents=True)
-            self.aligner.align(
-                query_path=reads_path,
+            self.get_aligner(read_src).align(
+                query_path=read_src.path,
                 output_path=absolute_path
             )
-            return SamFile(absolute_path, quality_format)
+            return SamFile(absolute_path, read_src.quality_format)
 
         # ====== Run the cached computation.
         return self.cache.call(
             relative_filepath=cache_relative_path,
             fn=perform_alignment,
             save=lambda path, obj: None,
-            load=lambda path: SamFile(path, quality_format)
+            load=lambda path: SamFile(path, read_src.quality_format)
         )

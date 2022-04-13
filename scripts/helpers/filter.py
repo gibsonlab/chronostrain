@@ -44,13 +44,25 @@ class Filter(object):
         self.min_hit_ratio = min_hit_ratio
         self.num_threads = num_threads
 
-    def apply(self, read_file: Path, out_path: Path, quality_format: str = 'fastq'):
+    def apply(self, read_file: Path, out_path: Path, read_type: str, quality_format: str = 'fastq'):
         out_path.parent.mkdir(parents=True, exist_ok=True)
         aligner_tmp_dir = out_path.parent / "tmp"
         aligner_tmp_dir.mkdir(exist_ok=True)
 
         metadata_path = out_path.parent / f"{remove_suffixes(read_file).name}.metadata.tsv"
         sam_path = aligner_tmp_dir / f"{remove_suffixes(read_file).name}.sam"
+
+        if read_type == "paired_1":
+            insertion_ll = cfg.model_cfg.get_float("INSERTION_LL_1")
+            deletion_ll = cfg.model_cfg.get_float("DELETION_LL_1")
+        elif read_type == "paired_2":
+            insertion_ll = cfg.model_cfg.get_float("INSERTION_LL_2")
+            deletion_ll = cfg.model_cfg.get_float("DELETION_LL_2")
+        elif read_type == "single":
+            insertion_ll = cfg.model_cfg.get_float("INSERTION_LL")
+            deletion_ll = cfg.model_cfg.get_float("DELETION_LL")
+        else:
+            raise ValueError(f"Unrecognized read type `{read_type}`.")
 
         BwaAligner(
             reference_path=self.db.multifasta_file,
@@ -63,7 +75,10 @@ class Filter(object):
             mismatch_penalty=5,  # Assume quality score of 20, log likelihood ratio log_2(4 * error * <3/4>)
             off_diag_dropoff=100,  # default
             gap_open_penalty=(0, 0),
-            gap_extend_penalty=(0, 0),
+            gap_extend_penalty=(
+                int(-deletion_ll / np.log(2)),
+                int(-insertion_ll / np.log(2))
+            ),
             clip_penalty=5,
             score_threshold=50   # Corresponds to log_2(eps) > -100
         ).align(query_path=read_file, output_path=sam_path)
