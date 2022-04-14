@@ -3,13 +3,13 @@ from typing import Union, Tuple
 from .commandline import *
 
 
-def bwa_index(reference_path: Path):
+def bwa_index(reference_path: Path, bwa_cmd='bwa-mem2'):
     exit_code = call_command(
-        'bwa-mem2',
+        bwa_cmd,
         ['index', reference_path]
     )
     if exit_code != 0:
-        raise CommandLineException("bwa-mem2 index", exit_code)
+        raise CommandLineException(f"{bwa_cmd} index", exit_code)
 
 
 def bwa_mem(output_path: Path,
@@ -28,7 +28,8 @@ def bwa_mem(output_path: Path,
             clip_penalty: int = 5,
             score_threshold: int = 30,
             unpaired_penalty: int = 17,
-            soft_clip_for_supplementary: bool = False):
+            soft_clip_for_supplementary: bool = False,
+            bwa_cmd='bwa-mem2'):
     params = [
         'mem',
         '-o', output_path,
@@ -61,11 +62,11 @@ def bwa_mem(output_path: Path,
         params.append('-Y')
 
     exit_code = call_command(
-        command='bwa-mem2',
+        command=bwa_cmd,
         args=params + [reference_path, read_path]
     )
     if exit_code != 0:
-        raise CommandLineException("bwa-mem2 mem", exit_code)
+        raise CommandLineException(f"{bwa_cmd} mem", exit_code)
 
 
 def bwa_fastmap(output_path: Path,

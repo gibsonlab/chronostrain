@@ -90,7 +90,7 @@ class FragmentFrequencyComputer(object):
 
     def search(self, fragments: FragmentSpace, output_path: Path, max_num_hits: int):
         logger.debug("Creating index for exact matches.")
-        bwa_index(self.db.multifasta_file)
+        bwa_index(self.db.multifasta_file, bwa_cmd='bwa')
 
         output_path.parent.mkdir(exist_ok=True, parents=True)
         fragments_path = self.fragments_to_fasta(fragments, output_path.parent)
