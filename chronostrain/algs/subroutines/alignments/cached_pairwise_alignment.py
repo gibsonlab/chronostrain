@@ -74,7 +74,8 @@ class CachedReadPairwiseAlignments(object):
                     int(-insertion_ll / np.log(2))
                 ),
                 clip_penalty=5,
-                score_threshold=50
+                score_threshold=50,
+                bwa_command='bwa'
             )
         elif cfg.external_tools_cfg.pairwise_align_cmd == "bowtie2":
             return BowtieAligner(

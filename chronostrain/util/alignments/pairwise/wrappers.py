@@ -63,7 +63,8 @@ class BwaAligner(AbstractPairwiseAligner):
                  gap_open_penalty: Union[int, Tuple[int, int]],
                  gap_extend_penalty: Union[int, Tuple[int, int]],
                  clip_penalty: int,
-                 score_threshold: int):
+                 score_threshold: int,
+                 bwa_command: str = 'bwa-mem2'):
         self.reference_path = reference_path
         self.min_seed_len = min_seed_len
         self.reseed_ratio = reseed_ratio
@@ -77,11 +78,12 @@ class BwaAligner(AbstractPairwiseAligner):
         self.gap_extend_penalty = gap_extend_penalty
         self.clip_penalty = clip_penalty
         self.score_threshold = score_threshold
+        self.bwa_command = bwa_command
 
-        self.index_trace_path = self.reference_path.with_suffix('.bwa_trace')
+        self.index_trace_path = self.reference_path.with_suffix(f'.{bwa_command}_trace')
 
         if not self.index_trace_path.exists():  # only create if this hasn't been run yet.
-            bwa_index(self.reference_path)
+            bwa_index(self.reference_path, bwa_cmd=bwa_command)
             self.index_trace_path.touch(exist_ok=True)  # Create an empty file to indicate that this finished.
         else:
             logger.debug("pre-built bwa index found at {}".format(
@@ -108,7 +110,8 @@ class BwaAligner(AbstractPairwiseAligner):
             clip_penalty=self.clip_penalty,
             unpaired_penalty=0,
             soft_clip_for_supplementary=True,
-            score_threshold=self.score_threshold
+            score_threshold=self.score_threshold,
+            bwa_cmd=self.bwa_command
         )
 
         sam_mapped_only(tmp_sam, output_path)
