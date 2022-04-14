@@ -42,6 +42,7 @@ def bwa_mem(output_path: Path,
         '-L', clip_penalty,
         '-T', score_threshold,
         '-U', unpaired_penalty,
+        '-v', 2
     ]
 
     if isinstance(gap_open_penalty, Tuple):
