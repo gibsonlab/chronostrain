@@ -61,7 +61,10 @@ class TimeSliceReads(object):
         self.read_depth: int = read_depth
         self._ids_to_reads: Dict[str, SequenceRead] = {read.id: read for read in reads}
         self.sources = sources
-        self.min_read_length = min(len(read) for read in reads)
+        if len(reads) == 0:
+            self.min_read_length = float('inf')
+        else:
+            self.min_read_length = min(len(read) for read in reads)
 
     def save(self, target_path: Path, quality_format: str = "fastq") -> int:
         """
