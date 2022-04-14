@@ -36,10 +36,10 @@ def parse_args():
                         default=0.1,
                         help='<Optional> The percent identity threshold at which to filter reads. Default: 0.1.')
     parser.add_argument('--error_threshold', required=False, type=float,
-                        default=0.05,
-                        help='<Optional> The number of expected errors tolerated in order to pass filter, '
-                             'expressed as a ratio to the length of the read..'
-                             'Default: 0.05')
+                        default=1.0,
+                        help='<Optional> The upper bound on the number of expected errors, expressed as a fraction '
+                             'of length of the read.'
+                             'Default: 1.0 (disabled)')
     parser.add_argument('--num_threads', required=False, type=int,
                         default=cfg.model_cfg.num_cores,
                         help='<Optional> Specifies the number of threads. Is passed to underlying alignment tools.')

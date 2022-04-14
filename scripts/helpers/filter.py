@@ -26,7 +26,7 @@ class Filter(object):
                  db: StrainDatabase,
                  min_read_len: int,
                  frac_identity_threshold: float,
-                 error_threshold: float,
+                 error_threshold: float = 1.0,
                  min_hit_ratio: float = 0.5,
                  num_threads: int = 1):
         self.db = db
@@ -129,6 +129,7 @@ class Filter(object):
                 "READ_LEN",
                 "N_MISMATCHES",
                 "PCT_ID",
+                "EXP_ERRORS",
                 "START_CLIP",
                 "END_CLIP"
             ]
@@ -151,12 +152,13 @@ class Filter(object):
             # Pass filter if quality is high enough, and entire read is mapped.
             filter_edge_clip = self.filter_on_ungapped_bases(aln)
             frac_identity = aln.num_matches / len(aln.read)
+            n_exp_errors = self.num_expected_errors(aln)
 
             passed_filter = (
                     filter_edge_clip
                     and len(aln.read) > self.min_read_len
                     and frac_identity > self.frac_identity_threshold
-                    and self.num_expected_errors(aln) < (self.error_threshold * len(aln.read))
+                    and n_exp_errors < (self.error_threshold * len(aln.read))
             )
 
             # Write to metadata file.
@@ -172,6 +174,7 @@ class Filter(object):
                     len(aln.read),
                     aln.num_mismatches,
                     frac_identity * 100.0,
+                    n_exp_errors,
                     aln.soft_clip_start + aln.hard_clip_start,
                     aln.soft_clip_end + aln.hard_clip_end
                 ]
