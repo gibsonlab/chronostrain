@@ -6,6 +6,7 @@ from Bio import SeqIO
 from Bio.Seq import Seq
 
 from chronostrain.database import StrainDatabase
+from chronostrain.model.io import ReadType, parse_read_type
 from chronostrain.util.alignments.sam import SamFile
 from chronostrain.util.external import call_command
 from chronostrain.util.alignments.pairwise import parse_alignments, BwaAligner, SequenceReadPairwiseAlignment
@@ -53,12 +54,15 @@ class Filter(object):
         sam_path = aligner_tmp_dir / f"{remove_suffixes(read_file).name}.sam"
 
         if read_type == "paired_1":
+            read_type = parse_read_type(read_type)
             insertion_ll = cfg.model_cfg.get_float("INSERTION_LL_1")
             deletion_ll = cfg.model_cfg.get_float("DELETION_LL_1")
         elif read_type == "paired_2":
+            read_type = parse_read_type(read_type)
             insertion_ll = cfg.model_cfg.get_float("INSERTION_LL_2")
             deletion_ll = cfg.model_cfg.get_float("DELETION_LL_2")
         elif read_type == "single":
+            read_type = parse_read_type(read_type)
             insertion_ll = cfg.model_cfg.get_float("INSERTION_LL")
             deletion_ll = cfg.model_cfg.get_float("DELETION_LL")
         else:
@@ -81,26 +85,7 @@ class Filter(object):
             ),
             clip_penalty=5,
             score_threshold=50   # Corresponds to log_2(eps) > -100
-        ).align(query_path=read_file, output_path=sam_path)
-
-        # BowtieAligner(
-        #     reference_path=self.reference_path,
-        #     index_basepath=self.reference_path.parent,
-        #     index_basename=self.reference_path.stem,
-        #     num_threads=cfg.model_cfg.num_cores,
-        #     report_all_alignments=False,
-        #     num_reseeds=22,
-        #     score_min_fn=bt2_func_constant(const=-500),
-        #     score_mismatch_penalty=np.floor(
-        #         [np.log(3) + 4 * np.log(10), 0]
-        #     ).astype(int),
-        #     score_read_gap_penalty=np.floor(
-        #         [0, -cfg.model_cfg.get_float("INSERTION_LL_1")]
-        #     ).astype(int),
-        #     score_ref_gap_penalty=np.floor(
-        #         [0, -cfg.model_cfg.get_float("DELETION_LL_1")]
-        #     ).astype(int)
-        # ).align(query_path=read_file, output_path=sam_path)
+        ).align(query_path=read_file, output_path=sam_path, read_type=read_type)
         self._apply_helper(sam_path, metadata_path, out_path, quality_format)
 
     def _apply_helper(

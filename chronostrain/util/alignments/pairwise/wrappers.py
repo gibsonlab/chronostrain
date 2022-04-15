@@ -8,6 +8,7 @@ from abc import abstractmethod
 from pathlib import Path
 from typing import Optional, Tuple, Union
 
+from chronostrain.model.io import ReadType
 from chronostrain.util.external import *
 
 from chronostrain.config import create_logger
@@ -16,7 +17,7 @@ logger = create_logger(__name__)
 
 class AbstractPairwiseAligner(object):
     @abstractmethod
-    def align(self, query_path: Path, output_path: Path):
+    def align(self, query_path: Path, output_path: Path, read_type: ReadType):
         pass
 
 
@@ -35,7 +36,7 @@ class SmithWatermanAligner(AbstractPairwiseAligner):
         self.gap_extend_penalty = gap_extend_penalty
         self.score_threshold = score_threshold
 
-    def align(self, query_path: Path, output_path: Path):
+    def align(self, query_path: Path, output_path: Path, read_type: ReadType):
         ssw_align(
             target_path=self.reference_path,
             query_path=query_path,
@@ -90,7 +91,23 @@ class BwaAligner(AbstractPairwiseAligner):
                 str(self.index_trace_path)
             ))
 
-    def align(self, query_path: Path, output_path: Path):
+    def post_process(self, sam_path: Path, output_path: Path, id_suffix: str):
+        with open(sam_path, 'r') as in_f, open(output_path, 'w') as out_f:
+            for line in in_f:
+                if line.startswith('@'):
+                    continue
+
+                tokens = line.rstrip().split('\t')
+
+                is_unmapped = (int(tokens[1]) & 4) == 4
+                if is_unmapped:
+                    continue
+
+                read_id = tokens[0]
+                tokens[0] = f'{read_id}{id_suffix}'
+                print('\t'.join(tokens), file=out_f)
+
+    def align(self, query_path: Path, output_path: Path, read_type: ReadType):
         tmp_sam = output_path.with_stem(f'{output_path.stem}_bwa')
 
         bwa_mem(
@@ -114,7 +131,10 @@ class BwaAligner(AbstractPairwiseAligner):
             bwa_cmd=self.bwa_command
         )
 
-        sam_mapped_only(tmp_sam, output_path)
+        if read_type == ReadType.PAIRED_END_1:
+            self.post_process(tmp_sam, output_path, '/1')
+        if read_type == ReadType.PAIRED_END_2:
+            self.post_process(tmp_sam, output_path, '/2')
         tmp_sam.unlink()
 
 
@@ -166,7 +186,7 @@ class BowtieAligner(AbstractPairwiseAligner):
                 str(self.index_trace_path)
             ))
 
-    def align(self, query_path: Path, output_path: Path):
+    def align(self, query_path: Path, output_path: Path, read_type: ReadType):
         return self.align_end_to_end(query_path, output_path)
         # return self.align_local(query_path, output_path)
 

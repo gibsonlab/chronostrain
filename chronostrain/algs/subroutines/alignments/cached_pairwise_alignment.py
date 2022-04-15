@@ -180,7 +180,8 @@ class CachedReadPairwiseAlignments(object):
             absolute_path.parent.mkdir(exist_ok=True, parents=True)
             self.get_aligner(read_src).align(
                 query_path=read_src.path,
-                output_path=absolute_path
+                output_path=absolute_path,
+                read_type=read_src.read_type
             )
             return SamFile(absolute_path, read_src.quality_format)
 
