@@ -47,8 +47,8 @@ class SparseDataLikelihoods(DataLikelihoods):
                 sorted=True, return_inverse=False, return_counts=False
             )
             _F = len(row_support)
-            logger.debug("(t = {}) # of supported fragments: {} out of {} ({:.2e})".format(
-                t_idx, _F, F, _F / F
+            logger.debug("(t = {}) # of supported fragments: {} out of {} ({:.2e}) ({} reads)".format(
+                t_idx, _F, F, _F / F, len(data[t_idx])
             ))
 
             _support_indices = torch.tensor([
