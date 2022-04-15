@@ -84,7 +84,7 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
         # Precompute this (only possible in V1).
         logger.debug("Precomputing likelihood products.")
         for t_idx in range(model.num_times()):
-            data_ll_t = self.data_likelihoods.matrices[t_idx]  # F x R
+            data_ll_t = self.data_likelihoods.matrices[t_idx]  # F_ x R
 
             projector = self.data_likelihoods.projectors[t_idx]
             strain_read_lls_t = log_spspmm_exp(
@@ -93,6 +93,13 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
                 ),  # (S x F_), note the transpose!
                 data_ll_t  # (F_ x R)
             )  # (S x R)
+
+            # Locate and filter out reads with no good alignments.
+            bad_indices = set(float(x.cpu()) for x in torch.where(torch.sum(~torch.isinf(strain_read_lls_t), dim=0) == 0)[0])
+            good_indices = [i for i in range(data_ll_t.shape[1]) if i not in bad_indices]
+            if len(bad_indices) > 0:
+                logger.debug(f"(t = {t_idx}) Found {len(bad_indices)} reads without good alignments: {bad_indices}")
+                strain_read_lls_t = strain_read_lls_t[:, good_indices]
 
             for batch_matrix in divide_columns_into_batches(strain_read_lls_t, read_batch_size):
                 self.strain_read_ll_model_batches[t_idx].append(
