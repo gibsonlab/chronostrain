@@ -136,7 +136,7 @@ class Filter(object):
 
             # Pass filter if quality is high enough, and entire read is mapped.
             filter_edge_clip = self.filter_on_ungapped_bases(aln)
-            frac_identity = aln.num_matches / len(aln.read)
+            frac_identity = aln.num_matches / (aln.read_end + 1 - aln.read_start)
             n_exp_errors = self.num_expected_errors(aln)
 
             passed_filter = (
