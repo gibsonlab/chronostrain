@@ -16,6 +16,6 @@ do
 	--reads_input "${READS_DIR}/${umb_id}_inputs.csv" \
 	-o "${READS_DIR}/${umb_id}_filtered" \
 	--frac_identity_threshold 0.9 \
-	--error_threhsold 0.05 \
+	--error_threshold 1.0 \
 	--num_threads 4
 done
