@@ -44,12 +44,12 @@ def blastn(
         num_alignments: Optional[int] = None,
         num_descriptions: Optional[int] = None,
         max_hsps: Optional[int] = None,
+        gi_list_path: Optional[Path] = None,
         num_threads: Optional[int] = None,
         query_coverage_hsp_percentage: Optional[float] = None,
         strand: str = 'both',
         remote: bool = False,
-        entrez_query: Optional[str] = None,
-        taxidlist_path: Optional[Path] = None
+        entrez_query: Optional[str] = None
 ):
     params = [
         '-db', db_name,
@@ -79,8 +79,8 @@ def blastn(
         params += ['-max_hsps', max_hsps]
     if query_coverage_hsp_percentage is not None:
         params += ['-qcov_hsp_perc', query_coverage_hsp_percentage]
-    if taxidlist_path is not None:
-        params += ['-taxidlist', taxidlist_path]
+    if gi_list_path is not None:
+        params += ['-gilist', gi_list_path]
 
     if db_dir is not None:
         env = os.environ.copy()
