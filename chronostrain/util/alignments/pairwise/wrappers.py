@@ -108,7 +108,7 @@ class BwaAligner(AbstractPairwiseAligner):
                 print('\t'.join(tokens), file=out_f)
 
     def align(self, query_path: Path, output_path: Path, read_type: ReadType):
-        tmp_sam = output_path.with_stem(f'{output_path.stem}_bwa')
+        tmp_sam = output_path.parent / (f'{output_path.stem}_bwa.sam')
 
         bwa_mem(
             output_path=tmp_sam,
@@ -133,9 +133,12 @@ class BwaAligner(AbstractPairwiseAligner):
 
         if read_type == ReadType.PAIRED_END_1:
             self.post_process(tmp_sam, output_path, '/1')
-        if read_type == ReadType.PAIRED_END_2:
+            tmp_sam.unlink()
+        elif read_type == ReadType.PAIRED_END_2:
             self.post_process(tmp_sam, output_path, '/2')
-        tmp_sam.unlink()
+            tmp_sam.unlink()
+        else:
+            tmp_sam.rename(output_path)
 
 
 logger.warn("If invoked, bowtie2 will initialize using default setting `phred33`. "

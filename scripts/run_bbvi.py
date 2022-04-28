@@ -67,6 +67,7 @@ def parse_args():
     parser.add_argument('--save_fragment_probs', action="store_true",
                         help='If flag is set, then save posterior fragment probabilities for valid reads.')
     parser.add_argument('--plot_format', required=False, type=str, default="pdf")
+    parser.add_argument('--single_ended', action='store_true')
 
     return parser.parse_args()
 
@@ -136,7 +137,8 @@ def main():
         fragments=fragments,
         time_points=time_points,
         disable_quality=not cfg.model_cfg.use_quality_scores,
-        db=db
+        db=db,
+        pair_ended=not args.single_ended
     )
 
     """

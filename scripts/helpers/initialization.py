@@ -3,7 +3,7 @@ import torch
 
 from chronostrain import cfg, logger
 from chronostrain.database import StrainDatabase
-from chronostrain.model import Population, NoiselessErrorModel, PEPhredErrorModel, FragmentSpace
+from chronostrain.model import Population, NoiselessErrorModel, PEPhredErrorModel, FragmentSpace, PhredErrorModel
 from chronostrain.model.generative import GenerativeModel
 
 
@@ -15,7 +15,8 @@ def create_model(population: Population,
                  fragments: FragmentSpace,
                  time_points: List[float],
                  disable_quality: bool,
-                 db: StrainDatabase) -> GenerativeModel:
+                 db: StrainDatabase,
+                 pair_ended: bool = True) -> GenerativeModel:
     """
     Simple wrapper for creating a generative model.
     :param population: The bacteria population.
@@ -30,6 +31,11 @@ def create_model(population: Population,
     if disable_quality:
         logger.info("Flag --disable_quality turned on; Quality scores are diabled. Initializing NoiselessErrorModel.")
         error_model = NoiselessErrorModel(mismatch_likelihood=0.)
+    elif not pair_ended:
+        error_model = PhredErrorModel(
+            insertion_error_ll=cfg.model_cfg.get_float("INSERTION_LL"),
+            deletion_error_ll=cfg.model_cfg.get_float("DELETION_LL")
+        )
     else:
         error_model = PEPhredErrorModel(
             insertion_error_ll_1=cfg.model_cfg.get_float("INSERTION_LL_1"),
