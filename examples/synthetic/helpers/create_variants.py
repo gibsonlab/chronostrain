@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Iterator, Dict, List, Tuple
+from typing import Dict, List
 import argparse
 import json
 from pathlib import Path
@@ -74,7 +74,7 @@ def parse_variant_desc(variant_desc: Dict, output_dir: Path):
     src_strain_id = variant_desc['source']
     variant_id = variant_desc['target']
 
-    fasta_path = output_dir / f'{src_strain_id}.fasta'
+    fasta_path = output_dir / src_strain_id / f'{src_strain_id}.fasta'
     download_fasta(src_strain_id, fasta_path)
 
     genome = str(SeqIO.read(fasta_path, "fasta").seq)
@@ -94,7 +94,7 @@ def parse_variant_desc(variant_desc: Dict, output_dir: Path):
 
     # ========= Save altered genome.
     variant_genome = apply_variations(genome, insertions, deletions, substitutions)
-    fasta_path = output_dir / f"{variant_id}.fasta"
+    fasta_path = output_dir / variant_id / f"{variant_id}.fasta"
     record = SeqRecord(Seq(variant_genome), id=variant_id, description="")
     SeqIO.write([record], fasta_path, format='fasta')
     print("Created variant FASTA file {}".format(fasta_path))

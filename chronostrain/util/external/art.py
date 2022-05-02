@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 from .commandline import call_command, CommandLineException
 
 
@@ -16,7 +16,7 @@ def art_illumina(reference_path: Path,
                  output_sam: bool = False,
                  output_aln: bool = True,
                  quality_shift: Optional[int] = None,
-                 quality_shift_2: Optional[int] = None) -> Path:
+                 quality_shift_2: Optional[int] = None) -> Tuple[Path, Path]:
     """
     Call art_illumina.
 
@@ -68,4 +68,4 @@ def art_illumina(reference_path: Path,
     if exit_code != 0:
         raise CommandLineException("art_illumina", exit_code)
     else:
-        return output_dir / "{}1.fq".format(output_prefix)
+        return output_dir / "{}1.fq".format(output_prefix), output_dir / "{}2.fq".format(output_prefix)
