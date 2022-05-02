@@ -26,6 +26,7 @@ def main():
     output_dir = Path(args.output_dir)
     output_dir.mkdir(exist_ok=True, parents=True)
 
+    print(f"Reading from {args.variant_json_path}")
     with open(args.variant_json_path, "r") as f:
         parse_variants(json.load(f), output_dir)
 
@@ -50,6 +51,7 @@ class Substitution:
 
 
 def parse_variants(variant_desc_list: List[Dict], output_dir: Path):
+    print(f"# variants found: {len(variant_desc_list)}")
     for idx, desc in enumerate(variant_desc_list):
         print(f"Parsing variant #{idx+1}...")
         yield parse_variant_desc(desc, output_dir)
