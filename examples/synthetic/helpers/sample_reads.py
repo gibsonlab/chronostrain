@@ -220,8 +220,8 @@ def sample_reads_from_rel_abundances(
                     seed.next_value(),
                     1000,
                     200,
-                    False,
-                    False,
+                    True,
+                    True,
                     quality_shift,
                     quality_shift_2
                 ))
