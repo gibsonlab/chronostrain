@@ -20,7 +20,7 @@ do
 		mkdir -p $read_dir
 		export CHRONOSTRAIN_LOG_FILEPATH="${log_dir}/read_sample.log"
 
-		python ${BASE_DIR}/sample_reads.py \
+		python ${BASE_DIR}/helpers/sample_reads.py \
 		--out_dir $read_dir \
 		--abundance_path $GROUND_TRUTH \
 		--num_reads $n_reads \
