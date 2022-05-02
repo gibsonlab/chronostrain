@@ -3,7 +3,6 @@ export PROJECT_DIR="/home/bromii/chronostrain"
 export BASE_DIR="${PROJECT_DIR}/examples/synthetic"
 export DATA_DIR="/mnt/e/synthetic_data"
 export CHRONOSTRAIN_DB_DIR="/mnt/d/chronostrain/synthetic/database"
-export LOGDIR="${OUTPUT_DIR}/logs"
 
 # ==================== Read sampling settings
 export N_TRIALS=20
@@ -42,7 +41,7 @@ echo "======================================================="
 echo "Loaded shell settings from ${SETTINGS_PATH}."
 echo "Chronostrain config: ${CHRONOSTRAIN_INI}"
 echo "Logging config: ${CHRONOSTRAIN_LOG_INI}"
-echo "Logging dir: ${LOGDIR}"
+echo "DB directory: ${CHRONOSTRAIN_DB_DIR}"
 echo "======================================================="
 
 check_program()
