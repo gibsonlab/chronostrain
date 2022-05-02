@@ -100,6 +100,7 @@ def parse_variant_desc(variant_desc: Dict, output_dir: Path):
     # ========= Save altered genome.
     variant_genome = apply_variations(genome, insertions, deletions, substitutions)
     fasta_path = output_dir / variant_id / f"{variant_id}.fasta"
+    fasta_path.parent.mkdir(exist_ok=True, parents=True)
     record = SeqRecord(Seq(variant_genome), id=variant_id, description="")
     SeqIO.write([record], fasta_path, format='fasta')
     print("Created variant FASTA file {}".format(fasta_path))
