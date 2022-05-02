@@ -130,8 +130,6 @@ def create_index_file(index_path: Path, entries: List[Tuple[float, int, Path, Pa
 
             os.system(f'gzip {reads1} -c > {reads1_gzip}')
             os.system(f'gzip {reads2} -c > {reads2_gzip}')
-            reads1.unlink()
-            reads2.unlink()
 
 
 def parse_abundance_profile(abundance_path: str) -> List[Tuple[float, Dict]]:
