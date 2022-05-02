@@ -54,7 +54,7 @@ def parse_variants(variant_desc_list: List[Dict], output_dir: Path):
     print(f"# variants found: {len(variant_desc_list)}")
     for idx, desc in enumerate(variant_desc_list):
         print(f"Parsing variant #{idx+1}...")
-        yield parse_variant_desc(desc, output_dir)
+        parse_variant_desc(desc, output_dir)
 
 
 def download_fasta(accession: str, out_path: Path):
