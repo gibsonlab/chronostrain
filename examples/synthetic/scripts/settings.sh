@@ -9,9 +9,6 @@ export N_TRIALS=20
 export READ_LEN=150
 export N_CORES=4
 
-# ======== Location of this file.
-export SETTINGS_PATH="${BASE_DIR}/scripts/settings.sh"
-
 # Ground truth.
 export GROUND_TRUTH="${BASE_DIR}/files/ground_truth.csv"
 
@@ -36,13 +33,6 @@ export MULTIFASTA_FILE="markers.fasta"
 export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
 export CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"
 
-# ========= Done.
-echo "======================================================="
-echo "Loaded shell settings from ${SETTINGS_PATH}."
-echo "Chronostrain config: ${CHRONOSTRAIN_INI}"
-echo "Logging config: ${CHRONOSTRAIN_LOG_INI}"
-echo "DB directory: ${CHRONOSTRAIN_DB_DIR}"
-echo "======================================================="
 
 check_program()
 {
