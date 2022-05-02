@@ -2,8 +2,6 @@
 set -e
 source settings.sh
 
-
-mkdir -p $READS_DIR
 seed=0
 
 for n_reads in 10000 50000 100000 500000 1000000
