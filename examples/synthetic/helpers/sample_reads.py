@@ -30,7 +30,7 @@ def parse_args():
     parser.add_argument('-p', '--profiles', dest='profiles', required=True, nargs=2,
                         help='<Required> A pair of read profiles for paired-end reads. '
                              'The first profile is for the forward strand and the second profile is for the reverse.')
-    parser.add_argument('-l', '--read_len', dest='read_len', required=False, type=int, default=151,
+    parser.add_argument('-l', '--read_len', dest='read_len', required=False, type=int, default=150,
                         help='<Required> The length of each read.')
 
     # ============ Optional params
