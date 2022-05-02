@@ -208,7 +208,7 @@ def sample_reads_from_rel_abundances(
                     raise RuntimeError("Cannot sample reads using more than one chromosomal accession.")
                 chromosome_acc = strain.metadata.chromosomes[0]
 
-                fasta_path = cfg.database_cfg.data_dir / "assemblies" / f'{chromosome_acc}.fasta'
+                fasta_path = cfg.database_cfg.data_dir / "assemblies" / strain.id / f'{chromosome_acc}.fasta'
                 configs.append((
                     fasta_path,
                     n_reads,
