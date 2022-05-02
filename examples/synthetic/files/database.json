@@ -10,7 +10,7 @@
                 "id": "fimA",
                 "name": "fimA" ,
                 "type": "subseq",
-                "source": "CP009273.1_Original",
+                "source": "CP009273.1",
                 "start": 4532932,
                 "end": 4533480,
                 "strand": "+",
