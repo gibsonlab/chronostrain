@@ -122,14 +122,14 @@ def main():
 def create_index_file(index_path: Path, entries: List[Tuple[float, int, Path, Path]]):
     with open(index_path, 'w') as index_file:
         for time_point, n_reads, reads1, reads2 in entries:
-            reads1_gzip = reads1.with_suffix('.fq.gz')
-            reads2_gzip = reads2.with_suffix('.fq.gz')
+            reads1_gzip = reads1.with_suffix(f'{reads1.suffix}.gz')
+            reads2_gzip = reads2.with_suffix(f'{reads2.suffix}.gz')
 
             print(f'{time_point},{n_reads},{reads1_gzip},paired_1,fastq', file=index_file)
             print(f'{time_point},{n_reads},{reads2_gzip},paired_2,fastq', file=index_file)
 
-            os.system(f'gzip {reads1} -c > {reads1_gzip}')
-            os.system(f'gzip {reads2} -c > {reads2_gzip}')
+            os.system(f'gzip {reads1}')
+            os.system(f'gzip {reads2}')
 
 
 def parse_abundance_profile(abundance_path: str) -> List[Tuple[float, Dict]]:
@@ -179,7 +179,7 @@ def sample_reads_from_rel_abundances(
                     raise RuntimeError("Cannot sample reads using more than one chromosomal accession.")
                 chromosome_acc = strain.metadata.chromosomes[0]
 
-                fasta_path = cfg.database_cfg.data_dir / "assemblies" / f'{chromosome_acc}.fasta'
+                fasta_path = cfg.database_cfg.data_dir / "assemblies" / strain.id / f'{chromosome_acc}.fasta'
                 output_path_1, out_path_2 = art_illumina(
                     reference_path=fasta_path,
                     num_reads=n_reads,
