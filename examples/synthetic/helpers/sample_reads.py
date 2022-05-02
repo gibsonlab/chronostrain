@@ -193,8 +193,8 @@ def sample_reads_from_rel_abundances(
                     quality_shift_2=quality_shift_2,
                     read_length=read_len,
                     seed=seed.next_value(),
-                    output_sam=False,
-                    output_aln=False
+                    output_sam=True,
+                    output_aln=True
                 )
 
                 index_entries.append(
