@@ -10,11 +10,11 @@ do
 	do
 		seed=$((seed+1))
 
-		echo "[Number of reads: ${n_reads}, qShift: ${quality_shift}, trial #${trial}] -> ${LSF_PATH}"
-
 		trial_dir=$(get_trial_dir $n_reads $trial)
 		read_dir=${trial_dir}/reads
 		log_dir=${trial_dir}/logs
+
+		echo "[Number of reads: ${n_reads}, qShift: ${quality_shift}, trial #${trial}] -> ${trial_dir}"
 
 		mkdir -p $log_dir
 		mkdir -p $read_dir
