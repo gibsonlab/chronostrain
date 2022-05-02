@@ -19,6 +19,7 @@ do
 		mkdir -p $log_dir
 		mkdir -p $read_dir
 		export CHRONOSTRAIN_LOG_FILEPATH="${log_dir}/read_sample.log"
+		export CHRONOSTRAIN_CACHE_DIR="${trial_dir}/cache"
 
 		python ${BASE_DIR}/helpers/sample_reads.py \
 		--out_dir $read_dir \
