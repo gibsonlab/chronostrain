@@ -51,6 +51,7 @@ class Substitution:
 
 def parse_variants(variant_desc_list: List[Dict], output_dir: Path):
     for idx, desc in enumerate(variant_desc_list):
+        print(f"Parsing variant #{idx+1}...")
         yield parse_variant_desc(desc, output_dir)
 
 
@@ -91,6 +92,8 @@ def parse_variant_desc(variant_desc: Dict, output_dir: Path):
         Substitution(int(d['pos']), d['base'])
         for d in variant_desc.get('substitutions', [])
     ]
+
+    print(f"{len(insertions)} insertions, {len(deletions)} deletions, {len(substitutions)} substitutions")
 
     # ========= Save altered genome.
     variant_genome = apply_variations(genome, insertions, deletions, substitutions)
