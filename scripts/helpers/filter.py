@@ -1,12 +1,13 @@
 import csv
 from pathlib import Path
+import re
 
 import numpy as np
 from Bio import SeqIO
 from Bio.Seq import Seq
 
 from chronostrain.database import StrainDatabase
-from chronostrain.model.io import ReadType, parse_read_type
+from chronostrain.model.io import parse_read_type
 from chronostrain.util.alignments.sam import SamFile
 from chronostrain.util.external import call_command
 from chronostrain.util.alignments.pairwise import parse_alignments, BwaAligner, SequenceReadPairwiseAlignment
@@ -17,7 +18,7 @@ logger = create_logger("chronostrain.filter")
 
 
 def remove_suffixes(p: Path) -> Path:
-    while len(p.suffix) > 0:
+    while re.search(r'(\.zip)|(\.gz)|(\.bz2)|(\.fastq)|(\.fq)|(\.fasta)', p.suffix) is not None:
         p = p.with_suffix('')
     return p
 
