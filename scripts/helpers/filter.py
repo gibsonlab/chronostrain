@@ -135,16 +135,25 @@ class Filter(object):
                 # Read is already included in output file. Don't do anything.
                 continue
 
-            # Pass filter if quality is high enough, and entire read is mapped.
+            # Pass filter if quality is high enough, and
+            # enough of the bases are mapped (if read maps to the edge of a marker).
             filter_edge_clip = self.filter_on_ungapped_bases(aln)
             frac_identity = aln.num_matches / len(aln.read)
+            aln_frac_identity = aln.num_matches / len(aln.aln_matrix.shape[1])
             n_exp_errors = self.num_expected_errors(aln)
 
             passed_filter = (
-                    filter_edge_clip
-                    and len(aln.read) > self.min_read_len
-                    and frac_identity > self.frac_identity_threshold
-                    and n_exp_errors < (self.error_threshold * len(aln.read))
+                not aln.is_edge_mapped
+                and filter_edge_clip
+                and len(aln.read) > self.min_read_len
+                and frac_identity > self.frac_identity_threshold
+                and n_exp_errors < (self.error_threshold * len(aln.read))
+            ) or (
+                aln.is_edge_mapped
+                and filter_edge_clip
+                and len(aln.read) > self.min_read_len
+                and aln_frac_identity > self.frac_identity_threshold
+                and n_exp_errors < (self.error_threshold * len(aln.read))
             )
 
             # Write to metadata file.
