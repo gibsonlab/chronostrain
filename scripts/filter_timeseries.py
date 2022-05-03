@@ -1,5 +1,6 @@
 import argparse
 import csv
+import re
 from pathlib import Path
 from typing import List, Tuple
 
@@ -10,7 +11,7 @@ logger = create_logger("chronostrain.filter_timeseries")
 
 
 def remove_suffixes(p: Path) -> Path:
-    while len(p.suffix) > 0:
+    while re.search(r'(\.zip)|(\.gz)|(\.bz2)|(\.fastq)|(\.fq)|(\.fasta)', p.suffix) is not None:
         p = p.with_suffix('')
     return p
 
