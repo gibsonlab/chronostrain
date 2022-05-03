@@ -139,7 +139,7 @@ class Filter(object):
             # enough of the bases are mapped (if read maps to the edge of a marker).
             filter_edge_clip = self.filter_on_ungapped_bases(aln)
             frac_identity = aln.num_matches / len(aln.read)
-            aln_frac_identity = aln.num_matches / len(aln.aln_matrix.shape[1])
+            aln_frac_identity = aln.num_matches / aln.aln_matrix.shape[1]
             n_exp_errors = self.num_expected_errors(aln)
 
             passed_filter = (
