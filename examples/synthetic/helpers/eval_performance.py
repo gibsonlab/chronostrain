@@ -122,7 +122,7 @@ def parse_straingst_error(ground_truth: pd.DataFrame, output_dir: Path, mode: st
         for t in time_points
     ])
 
-    return np.square(np.sqrt(est_rel_abunds) - np.sqrt(ground_truth)).sum(axis=2).sqrt().mean(axis=0)
+    return np.square(np.sqrt(est_rel_abunds) - np.sqrt(ground_truth)).sum(axis=1).sqrt().mean(axis=0)
 
 
 def main():
@@ -135,7 +135,6 @@ def main():
 
     # search through all of the read depths.
     df_entries = []
-    print("[*] WARNING: TODO: implement straingst parsing.")
     for read_depth, read_depth_dir in read_depth_dirs(base_dir):
         for trial_num, trial_dir in trial_dirs(read_depth_dir):
             print(f"Handling read depth {read_depth}, trial {trial_num}")
