@@ -110,7 +110,7 @@ def main():
             chronostrain_hellinger = parse_chronostrain_error(
                 db,
                 ground_truth,
-                torch.load(trial_dir / 'output' / 'chronostrain')
+                trial_dir / 'output' / 'chronostrain'
             )
 
             df_entries.append({
