@@ -1,3 +1,8 @@
+#!/bin/bash
+set -e
+source settings.sh
+
+
 # Step 1: Kmerize reference genomes.
 mkdir -p ${STRAINGST_DB_DIR}
 cd ${STRAINGST_DB_DIR}
