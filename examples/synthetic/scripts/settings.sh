@@ -19,6 +19,7 @@ export TRIALS_DIR="/mnt/d/chronostrain/synthetic/data"
 export READ_PROFILE_PATH="${BASE_DIR}/files/HiSeqReference"
 
 # ========= Chronostrain settings
+export INFERENCE_SEED=31415
 export CHRONOSTRAIN_NUM_ITERS=50
 export CHRONOSTRAIN_NUM_SAMPLES=200
 export CHRONOSTRAIN_READ_BATCH_SZ=2500
