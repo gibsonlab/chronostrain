@@ -44,9 +44,16 @@ ${read_dir}/${time_point}_CP009273.1_Original_2.fq.gz \
 ${read_dir}/${time_point}_CP009273.1_Substitution_1.fq.gz \
 ${read_dir}/${time_point}_CP009273.1_Substitution_2.fq.gz
 
-echo "[*] Running StrainGST."
+echo "[*] Running StrainGST (minhash)."
 straingst run \
--o ${output_dir}/output_${time_point}.tsv \
+-o ${output_dir}/output_mash_${time_point}.tsv \
+--score 0.000001 \
+${STRAINGST_DB_HDF5} \
+${hdf5_path}
+
+echo "[*] Running StrainGST (full db)."
+straingst run \
+-o ${output_dir}/output_fulldb_${time_point}.tsv \
 --score 0.000001 \
 --fulldb \
 ${STRAINGST_DB_HDF5} \
