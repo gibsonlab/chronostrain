@@ -122,7 +122,7 @@ def parse_straingst_error(ground_truth: pd.DataFrame, output_dir: Path, mode: st
         for t in time_points
     ])
 
-    return np.square(np.sqrt(est_rel_abunds) - np.sqrt(ground_truth)).sum(axis=1).sqrt().mean(axis=0)
+    return np.sqrt(np.square(np.sqrt(est_rel_abunds) - np.sqrt(ground_truth)).sum(axis=1)).mean(axis=0)
 
 
 def main():
