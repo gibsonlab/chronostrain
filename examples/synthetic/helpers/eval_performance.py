@@ -90,7 +90,7 @@ def parse_chronostrain_error(db: StrainDatabase, ground_truth: pd.DataFrame, out
     hellingers = torch.square(
         torch.sqrt(torch.softmax(samples, dim=2)) - torch.unsqueeze(torch.sqrt(ground_truth_tensor), 1)
     ).sum(dim=2).sqrt().mean(dim=0)  # Average hellinger distance across time, for each sample.
-    return torch.median(hellingers).item()
+    return torch.median(hellingers).item() / np.sqrt(2)
 
 
 def parse_straingst_error(ground_truth: pd.DataFrame, output_dir: Path, mode: str) -> float:
@@ -126,7 +126,7 @@ def parse_straingst_error(ground_truth: pd.DataFrame, output_dir: Path, mode: st
         for t in time_points
     ])
 
-    return np.sqrt(np.square(np.sqrt(est_rel_abunds) - np.sqrt(ground_truth)).sum(axis=1)).mean(axis=0)
+    return np.sqrt(np.square(np.sqrt(est_rel_abunds) - np.sqrt(ground_truth)).sum(axis=1)).mean(axis=0) / np.sqrt(2)
 
 
 def get_baseline_diff(ground_truth: pd.DataFrame) -> float:
@@ -141,7 +141,7 @@ def get_baseline_diff(ground_truth: pd.DataFrame) -> float:
         ]
         for t in time_points
     ])
-    return np.sqrt(np.square(np.sqrt(baseline_arr) - np.sqrt(ground_truth)).sum(axis=1)).mean(axis=0)
+    return np.sqrt(np.square(np.sqrt(baseline_arr) - np.sqrt(ground_truth)).sum(axis=1)).mean(axis=0) / np.sqrt(2)
 
 
 def main():
