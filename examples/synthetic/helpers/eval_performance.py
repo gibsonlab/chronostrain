@@ -96,7 +96,7 @@ def parse_chronostrain_error(db: StrainDatabase, ground_truth: pd.DataFrame, out
 def parse_straingst_error(ground_truth: pd.DataFrame, output_dir: Path, mode: str) -> float:
     time_points = sorted(pd.unique(ground_truth['T']))
     strains = sorted(pd.unique(ground_truth['Strain']))
-    strain_indices = {strain.id: s_idx for s_idx, strain in enumerate(strains)}
+    strain_indices = {strain_id: s_idx for s_idx, strain_id in enumerate(strains)}
 
     est_rel_abunds = np.zeros(shape=(len(time_points), len(strains)), dtype=float)
 
