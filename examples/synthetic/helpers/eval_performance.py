@@ -106,6 +106,7 @@ def main():
     print("[*] WARNING: TODO: implement straingst parsing.")
     for read_depth, read_depth_dir in read_depth_dirs(base_dir):
         for trial_num, trial_dir in trial_dirs(read_depth_dir):
+            print(f"Handling read depth {read_depth}, trial {trial_num}")
             chronostrain_hellinger = parse_chronostrain_error(
                 db,
                 ground_truth,
