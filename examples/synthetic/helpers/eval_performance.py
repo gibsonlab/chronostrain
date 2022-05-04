@@ -129,6 +129,21 @@ def parse_straingst_error(ground_truth: pd.DataFrame, output_dir: Path, mode: st
     return np.sqrt(np.square(np.sqrt(est_rel_abunds) - np.sqrt(ground_truth)).sum(axis=1)).mean(axis=0)
 
 
+def get_baseline_diff(ground_truth: pd.DataFrame) -> float:
+    time_points = sorted(pd.unique(ground_truth['T']))
+    strains = sorted(pd.unique(ground_truth['Strain']))
+
+    baseline_arr = 0.5 * np.ones(shape=(len(time_points), len(strains)), dtype=float)
+    ground_truth = np.array([
+        [
+            ground_truth.loc[(ground_truth['Strain'] == strain_id) & (ground_truth['T'] == t), 'RelAbund'].item()
+            for strain_id in strains
+        ]
+        for t in time_points
+    ])
+    return np.sqrt(np.square(np.sqrt(baseline_arr) - np.sqrt(ground_truth)).sum(axis=1)).mean(axis=0)
+
+
 def main():
     args = parse_args()
 
@@ -181,6 +196,10 @@ def main():
         y='Error',
         ax=ax
     )
+
+    time_points = sorted(pd.unique(ground_truth['T']))
+    baseline_diff = get_baseline_diff(ground_truth)
+    ax.plot(time_points, baseline_diff * np.ones(len(time_points)), linestyle='dotted', color='black', alpha=0.3)
     plt.savefig(plot_path)
     print(f"[*] Saved plot to {plot_path}.")
 
