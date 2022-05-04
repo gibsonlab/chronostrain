@@ -101,7 +101,11 @@ def parse_straingst_error(ground_truth: pd.DataFrame, output_dir: Path, mode: st
     est_rel_abunds = np.zeros(shape=(len(time_points), len(strains)), dtype=float)
 
     for t_idx, t in enumerate(time_points):
-        with open(output_dir / f"output_{mode}_{t_idx}.tsv", 'r') as tsv_file:
+        output_path = output_dir / f"output_{mode}_{t_idx}.tsv"
+        if not output_path.exists():
+            continue
+
+        with open(output_path, 'r') as tsv_file:
             reader = csv.reader(tsv_file, delimiter='\t')
             _ = next(reader)
             _ = next(reader)
