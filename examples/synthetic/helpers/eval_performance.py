@@ -3,9 +3,9 @@ from pathlib import Path
 from typing import Tuple, Iterator
 
 import csv
+import numpy as np
 import pandas as pd
 import torch
-import matplotlib
 import matplotlib.pyplot as plt
 import seaborn as sb
 
@@ -60,7 +60,7 @@ def load_ground_truth(ground_truth_path: Path) -> pd.DataFrame:
     return pd.DataFrame(df_entries)
 
 
-def parse_chronostrain_error(db: StrainDatabase, ground_truth: pd.DataFrame, output_dir: Path) -> torch.Tensor:
+def parse_chronostrain_error(db: StrainDatabase, ground_truth: pd.DataFrame, output_dir: Path) -> float:
     samples = torch.load(output_dir / 'samples.pt')
     strains = db.all_strains()
 
@@ -93,6 +93,38 @@ def parse_chronostrain_error(db: StrainDatabase, ground_truth: pd.DataFrame, out
     return torch.median(hellingers).item()
 
 
+def parse_straingst_error(ground_truth: pd.DataFrame, output_dir: Path, mode: str) -> float:
+    time_points = sorted(pd.unique(ground_truth['T']))
+    strains = sorted(pd.unique(ground_truth['Strain']))
+    strain_indices = {strain.id: s_idx for s_idx, strain in enumerate(strains)}
+
+    est_rel_abunds = np.zeros(shape=(len(time_points), len(strains)), dtype=float)
+
+    for t_idx, t in range(len(time_points)):
+        with open(output_dir / f"output_{mode}_{t_idx}.tsv", 'r') as tsv_file:
+            reader = csv.reader(tsv_file, delimiter='\t')
+            _ = next(reader)
+            _ = next(reader)
+            line3 = next(reader)
+            assert line3[0] == 'i'
+
+            for row in reader:
+                strain_id = row[1]
+                strain_idx = strain_indices[strain_id]
+                rel_abund = float(row[11]) / 100.0
+                est_rel_abunds[t_idx][strain_idx] = rel_abund
+
+    ground_truth = np.array([
+        [
+            ground_truth.loc[(ground_truth['Strain'] == strain_id) & (ground_truth['T'] == t), 'RelAbund'].item()
+            for strain_id in strains
+        ]
+        for t in time_points
+    ])
+
+    return np.square(np.sqrt(est_rel_abunds) - np.sqrt(ground_truth)).sum(axis=2).sqrt().mean(axis=0)
+
+
 def main():
     args = parse_args()
 
@@ -107,17 +139,30 @@ def main():
     for read_depth, read_depth_dir in read_depth_dirs(base_dir):
         for trial_num, trial_dir in trial_dirs(read_depth_dir):
             print(f"Handling read depth {read_depth}, trial {trial_num}")
-            chronostrain_hellinger = parse_chronostrain_error(
-                db,
-                ground_truth,
-                trial_dir / 'output' / 'chronostrain'
-            )
 
+            # =========== Chronostrain
+            chronostrain_hellinger = parse_chronostrain_error(db, ground_truth, trial_dir / 'output' / 'chronostrain')
             df_entries.append({
                 'ReadDepth': read_depth,
                 'TrialNum': trial_num,
                 'Method': 'Chronostrain',
                 'Error': chronostrain_hellinger
+            })
+
+            # =========== StrainGST
+            straingst_mash_hellinger = parse_straingst_error(ground_truth, trial_dir / 'output' / 'straingst', 'mash')
+            straingst_fulldb_hellinger = parse_straingst_error(ground_truth, trial_dir / 'output' / 'straingst', 'fulldb')
+            df_entries.append({
+                'ReadDepth': read_depth,
+                'TrialNum': trial_num,
+                'Method': 'StrainGST (mash)',
+                'Error': straingst_mash_hellinger
+            })
+            df_entries.append({
+                'ReadDepth': read_depth,
+                'TrialNum': trial_num,
+                'Method': 'StrainGST (full DB)',
+                'Error': straingst_fulldb_hellinger
             })
 
     summary_df = pd.DataFrame(df_entries)
