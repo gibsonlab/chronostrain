@@ -48,6 +48,7 @@ echo "[*] Running StrainGST."
 straingst run \
 -o ${output_dir}/output_${time_point}.tsv \
 --score 0.000001 \
+--fulldb \
 ${STRAINGST_DB_HDF5} \
 ${hdf5_path}
 

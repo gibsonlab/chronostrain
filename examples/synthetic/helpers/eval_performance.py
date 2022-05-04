@@ -90,7 +90,7 @@ def parse_chronostrain_error(db: StrainDatabase, ground_truth: pd.DataFrame, out
     hellingers = torch.square(
         torch.sqrt(torch.softmax(samples, dim=2)) - torch.unsqueeze(torch.sqrt(ground_truth_tensor), 1)
     ).sum(dim=2).sqrt().mean(dim=0)  # Average hellinger distance across time, for each sample.
-    return torch.median(hellingers)
+    return torch.median(hellingers).item()
 
 
 def main():
@@ -125,11 +125,13 @@ def main():
     print(f"[*] Saved results to {out_path}.")
 
     plot_path = out_path.parent / "plot.pdf"
-    sb.barplot(
+    fig, ax = plt.subplots(1, 1, figsize=(16, 10))
+    sb.boxplot(
         data=summary_df,
         x='ReadDepth',
         hue='Method',
-        y='Error'
+        y='Error',
+        ax=ax
     )
     plt.savefig(plot_path)
     print(f"[*] Saved plot to {plot_path}.")
