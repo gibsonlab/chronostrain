@@ -2,6 +2,7 @@
 set -e
 source settings.sh
 
+# ============ Requires arguments:
 n_reads=$1
 trial=$2
 
@@ -17,6 +18,7 @@ then
 	exit 1
 fi
 
+# ============ script body:
 trial_dir=$(get_trial_dir $n_reads $trial)
 read_dir=${trial_dir}/reads
 output_dir=${trial_dir}/output/chronostrain
