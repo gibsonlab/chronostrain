@@ -199,7 +199,8 @@ def main():
 
     time_points = sorted(pd.unique(ground_truth['T']))
     baseline_diff = get_baseline_diff(ground_truth)
-    ax.plot(time_points, baseline_diff * np.ones(len(time_points)), linestyle='dotted', color='black', alpha=0.3)
+    x = np.arange(1, len(pd.unique(summary_df['ReadDepth'])), 1)
+    ax.plot(x, baseline_diff * np.ones(len(time_points)), linestyle='dotted', color='black', alpha=0.3)
     plt.savefig(plot_path)
     print(f"[*] Saved plot to {plot_path}.")
 
