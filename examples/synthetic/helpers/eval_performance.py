@@ -1,11 +1,13 @@
 import argparse
 from pathlib import Path
-from typing import Tuple, Iterator, List
+from typing import Tuple, Iterator
 
 import csv
-import numpy as np
 import pandas as pd
 import torch
+import matplotlib
+import matplotlib.pyplot as plt
+import seaborn as sb
 
 from chronostrain import cfg
 from chronostrain.database import StrainDatabase
@@ -110,17 +112,25 @@ def main():
                 torch.load(trial_dir / 'output' / 'chronostrain')
             )
 
-            straingst_hellinger = float(0.0)  # TODO
-
             df_entries.append({
                 'ReadDepth': read_depth,
                 'TrialNum': trial_num,
-                'Chronostrain': chronostrain_hellinger,
-                'StrainGST': straingst_hellinger
+                'Method': 'Chronostrain',
+                'Error': chronostrain_hellinger
             })
 
-    pd.DataFrame(df_entries).to_csv(out_path)
+    summary_df = pd.DataFrame(df_entries)
+    summary_df.to_csv(out_path)
     print(f"[*] Saved results to {out_path}.")
+
+    plot_path = out_path.parent / "plot.pdf"
+    sb.barplot(
+        data=summary_df,
+        x='ReadDepth',
+        hue='Method',
+        y='Error'
+    )
+    print(f"[*] Saved plot to {plot_path}.")
 
 
 if __name__ == "__main__":

@@ -12,9 +12,6 @@ export N_CORES=4
 # Ground truth.
 export GROUND_TRUTH="${BASE_DIR}/files/ground_truth.csv"
 
-# Location for reads and outputs.
-export TRIALS_DIR="/mnt/d/chronostrain/synthetic/data"
-
 # ART specification
 export READ_PROFILE_PATH="${BASE_DIR}/files/HiSeqReference"
 
