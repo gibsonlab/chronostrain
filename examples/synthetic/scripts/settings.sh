@@ -15,6 +15,10 @@ export GROUND_TRUTH="${BASE_DIR}/files/ground_truth.csv"
 # ART specification
 export READ_PROFILE_PATH="${BASE_DIR}/files/HiSeqReference"
 
+# ================= StrainGST settings
+export STRAINGST_DB_DIR=${CHRONOSTRAIN_DB_DIR}/straingst
+export STRAINGST_DB_HDF5=${STRAINGST_DB_DIR}/database.hdf5
+
 # ========= Chronostrain settings
 export INFERENCE_SEED=31415
 export CHRONOSTRAIN_NUM_ITERS=50
