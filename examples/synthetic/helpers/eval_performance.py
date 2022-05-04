@@ -88,7 +88,7 @@ def parse_chronostrain_error(db: StrainDatabase, ground_truth: pd.DataFrame, out
     ])
 
     hellingers = torch.square(
-        torch.sqrt(samples) - torch.unsqueeze(torch.sqrt(ground_truth_tensor), 1)
+        torch.sqrt(torch.softmax(samples, dim=2)) - torch.unsqueeze(torch.sqrt(ground_truth_tensor), 1)
     ).sum(dim=2).sqrt().mean(dim=0)  # Average hellinger distance across time, for each sample.
     return torch.median(hellingers)
 
@@ -121,7 +121,7 @@ def main():
             })
 
     summary_df = pd.DataFrame(df_entries)
-    summary_df.to_csv(out_path)
+    summary_df.to_csv(out_path, index=False)
     print(f"[*] Saved results to {out_path}.")
 
     plot_path = out_path.parent / "plot.pdf"
