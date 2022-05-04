@@ -131,6 +131,7 @@ def main():
         hue='Method',
         y='Error'
     )
+    plt.savefig(plot_path)
     print(f"[*] Saved plot to {plot_path}.")
 
 
