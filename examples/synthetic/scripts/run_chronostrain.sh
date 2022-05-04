@@ -29,7 +29,7 @@ export CHRONOSTRAIN_CACHE_DIR="${trial_dir}/cache"
 
 echo "[*] Filtering reads for n_reads: ${n_reads}, trial: ${trial}"
 python $PROJECT_DIR/scripts/run_bbvi.py \
---reads_input "${READS_DIR}/filtered/filtered_input_files.csv" \
+--reads_input "${read_dir}/filtered/filtered_input_files.csv" \
 --out_dir ${output_dir} \
 --seed ${INFERENCE_SEED} \
 --iters $CHRONOSTRAIN_NUM_ITERS \
