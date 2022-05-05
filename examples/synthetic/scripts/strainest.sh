@@ -64,6 +64,8 @@ samtools index ${sorted_bam_file}
 
 # Run StrainEst
 strainest est ${BASE_DIR}/files/strainest_snvs.dgrp ${sorted_bam_file} ./
+mv abund.txt abund_${time_point}.txt
+mv info.txt info_${time_point}.txt
 
 # Clean up
 rm ${reads_1_gz}
