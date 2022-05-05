@@ -5,7 +5,6 @@ source settings.sh
 # ============ Requires arguments:
 n_reads=$1
 trial=$2
-time_point=$3
 
 if [ -z "$n_reads" ]
 then
