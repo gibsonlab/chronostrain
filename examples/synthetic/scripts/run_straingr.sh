@@ -33,10 +33,9 @@ cd ${straingr_output_dir}
 
 echo "[*] Running StrainGR."
 straingr prepare-ref \
--s ${straingst_output_dir}/output_fulldb_*.tsv \
--p "${STRAINGST_DB_DIR}/{ref}.fasta" \
--S "${STRAINGST_DB_DIR}/similarities.tsv" \
--o refs_concat.fasta
+--output refs_concat.fasta \
+-r "CP009273.1_Original" "CP009273.1_Substitution" \
+-p "${STRAINGST_DB_DIR}/{ref}.fasta"
 
 
 for time_point in 0 1 2 3 4
@@ -58,13 +57,15 @@ do
 	echo "[*] Aligning..."
 	bam_file="sample_${time_point}.bam"
 	summary_tsv="sample_${time_point}.tsv"
+	hdf5_file="sample_${time_point}.hdf5"
+
 	bwa index refs_concat.fasta
 	bwa mem -I 300 -t 4 refs_concat.fasta ${reads_1_gz} ${reads_2_gz} \
 	| samtools sort -@ 2 -O BAM -o ${bam_file} -
 	samtools index ${bam_file}
 
 	echo "[*] Calling StrainGR..."
-	straingr call refs_concat.fasta ${bam_file} --summary ${summary_tsv} --tracks all
+	straingr call refs_concat.fasta ${bam_file} --summary ${summary_tsv} --tracks all --hdf5-out ${hdf5_file}
 
 	echo "[*] Cleaning up."
 	rm *.fq
