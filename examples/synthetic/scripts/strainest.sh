@@ -26,6 +26,7 @@ fi
 
 trial_dir=$(get_trial_dir $n_reads $trial)
 read_dir=${trial_dir}/reads
+cd ${trial_dir}/output/strainest
 
 # Concatenate reads.
 reads_1="reads_${time_point}.1.fq"
