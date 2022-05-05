@@ -44,19 +44,15 @@ pigz -dck ${read_dir}/${time_point}_CP009273.1_Substitution_2.fq.gz > ${reads_2}
 pigz ${reads_1}
 pigz ${reads_2}
 
-# Compile bowtie2 database
-echo "TODO"
-
 # Perform bowtie2 alignment
 sam_file="reads_${time_point}.sam"
 bam_file="reads_${time_point}.bam"
 sorted_bam_file="reads_${time_point}.sorted.bam"
 
-export BOWTIE2_INDEXES=/mnt/d/chronostrain/synthetic/database/straingst
-BOWTIE2_INDEX_BASENAME='bt2_strains'
+export BOWTIE2_INDEXES=${STRAINEST_DB_DIR}
 bowtie2 \
 --very-fast --no-unal \
--x ${BOWTIE2_INDEX_BASENAME} \
+-x ${STRAINEST_BOWTIE2_DB_NAME} \
 -1 ${reads_1_gz} \
 -2 ${reads_2_gz} \
 -S ${sam_file}
