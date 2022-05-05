@@ -57,8 +57,6 @@ def parse_args():
     # Optional params
     parser.add_argument('--min_pct_idty', required=False, type=int, default=75,
                         help='<Optional> The percent identity threshold for BLAST. (default: 75)')
-    parser.add_argument('--max_target_seqs', required=False, type=int, default=4000,
-                        help='<Optional> The max # of alignments to output for each BLAST query. (default: 4000)')
     parser.add_argument('--reference_accession', required=False, type=str,
                         default='U00096.3',
                         help='<Optional> The reference genome to use for pulling out annotated gene sequences.')
@@ -103,7 +101,7 @@ def create_chronostrain_db(
         blast_db_dir: Path,
         blast_db_name: str,
         min_pct_idty: int,
-        max_target_seqs: int
+        num_ref_genomes: int
 ) -> List[Dict[str, Any]]:
     """
     :return:
@@ -115,7 +113,7 @@ def create_chronostrain_db(
         result_dir=blast_result_dir,
         gene_paths=gene_paths,
         min_pct_idty=min_pct_idty,
-        max_target_seqs=max_target_seqs,
+        max_target_seqs=10 * num_ref_genomes,
         out_fmt=_BLAST_OUT_FMT
     )
 
@@ -448,7 +446,7 @@ def main():
         blast_db_dir=Path(args.blast_db_dir),
         blast_db_name=args.blast_db_name,
         min_pct_idty=min_pct_idty,
-        max_target_seqs=args.max_target_seqs
+        num_ref_genomes=refseq_index_df.shape[0]
     )
 
     print_summary(object_entries, ref_gene_paths)
