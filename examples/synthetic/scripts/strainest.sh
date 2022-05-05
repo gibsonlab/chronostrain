@@ -41,8 +41,8 @@ pigz -dck ${read_dir}/${time_point}_CP009273.1_Original_1.fq.gz > ${reads_1}
 pigz -dck ${read_dir}/${time_point}_CP009273.1_Original_2.fq.gz > ${reads_2}
 pigz -dck ${read_dir}/${time_point}_CP009273.1_Substitution_1.fq.gz > ${reads_1}
 pigz -dck ${read_dir}/${time_point}_CP009273.1_Substitution_2.fq.gz > ${reads_2}
-pigz ${reads_1}
-pigz ${reads_2}
+pigz ${reads_1} -f
+pigz ${reads_2} -f
 
 # Perform bowtie2 alignment
 sam_file="reads_${time_point}.sam"
