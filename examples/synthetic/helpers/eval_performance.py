@@ -133,7 +133,6 @@ def get_baseline_diff(ground_truth: pd.DataFrame) -> float:
     time_points = sorted(pd.unique(ground_truth['T']))
     strains = sorted(pd.unique(ground_truth['Strain']))
 
-    baseline_arr = 0.5 * np.ones(shape=(len(time_points), len(strains)), dtype=float)
     ground_truth = np.array([
         [
             ground_truth.loc[(ground_truth['Strain'] == strain_id) & (ground_truth['T'] == t), 'RelAbund'].item()
@@ -141,6 +140,9 @@ def get_baseline_diff(ground_truth: pd.DataFrame) -> float:
         ]
         for t in time_points
     ])
+
+    baseline_arr = np.round(ground_truth, 0)
+
     return np.sqrt(np.square(np.sqrt(baseline_arr) - np.sqrt(ground_truth)).sum(axis=1)).mean(axis=0) / np.sqrt(2)
 
 
