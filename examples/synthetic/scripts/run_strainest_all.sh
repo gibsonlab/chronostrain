@@ -7,7 +7,7 @@ mkdir -p ${STRAINEST_DB_DIR}
 cd ${STRAINEST_DB_DIR}
 cp ${CHRONOSTRAIN_DB_DIR}/assemblies/CP009273.1_Original/CP009273.1.fasta CP009273.1_Original.fasta
 cp ${CHRONOSTRAIN_DB_DIR}/assemblies/CP009273.1_Substitution/CP009273.1_Substitution.fasta CP009273.1_Substitution.fasta
-bowtie2-build CP009273.1_Original.fasta,CP009273.1_Substitution.fasta -f ${STRAINEST_BOWTIE2_DB_NAME}
+bowtie2-build CP009273.1_Original.fasta,CP009273.1_Substitution.fasta -f ${STRAINEST_BOWTIE2_DB_NAME} --quiet
 
 
 cd ${BASE_DIR}/scripts
