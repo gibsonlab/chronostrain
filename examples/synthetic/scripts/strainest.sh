@@ -52,14 +52,14 @@ sam_file="reads_${time_point}.sam"
 bam_file="reads_${time_point}.bam"
 sorted_bam_file="reads_${time_point}.sorted.bam"
 
-cd /mnt/d/chronostrain/synthetic/database/straingst
+export BOWTIE2_INDEXES=/mnt/d/chronostrain/synthetic/database/straingst
+BOWTIE2_INDEX_BASENAME='bt2_strains'
 bowtie2 \
 --very-fast --no-unal \
 -x ${BOWTIE2_INDEX_BASENAME} \
 -1 ${reads_1_gz} \
 -2 ${reads_2_gz} \
--S ${output_dir}/${sam_file}
-cd ${output_dir}
+-S ${sam_file}
 
 # Invoke samtools
 samtools view -b ${sam_file} > ${bam_file}
@@ -67,7 +67,7 @@ samtools sort ${bam_file} -o ${sorted_bam_file}
 samtools index ${sorted_bam_file}
 
 # Run StrainEst
-strainest est
+strainest est ${BASE_DIR}/files/strainest_snvs.dgrp ${sorted_bam_file} ./
 
 # Clean up
 rm ${reads_1_gz}
