@@ -24,6 +24,6 @@ do
 	--reads_input "${READS_DIR}/${csv_file}" \
 	-o "${READS_DIR}/${sample_name}_filtered" \
 	--frac_identity_threshold 0.975 \
-	--error_threhsold 1.0 \
+	--error_threshold 1.0 \
 	--num_threads 4
 done
