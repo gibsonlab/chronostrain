@@ -10,6 +10,7 @@ from typing import Optional, Tuple, Union
 
 from chronostrain.model.io import ReadType
 from chronostrain.util.external import *
+from chronostrain.util.alignments.sam.sam_iterators import *
 
 from chronostrain.config import create_logger
 logger = create_logger(__name__)
@@ -93,16 +94,11 @@ class BwaAligner(AbstractPairwiseAligner):
 
     def post_process(self, sam_path: Path, output_path: Path, id_suffix: str):
         with open(sam_path, 'r') as in_f, open(output_path, 'w') as out_f:
-            for line in in_f:
-                if line.startswith('@'):
-                    continue
-
+            # only keep mapped reads.
+            for line in cull_repetitive_templates(mapped_only(skip_headers(in_f))):
                 tokens = line.rstrip().split('\t')
 
-                is_unmapped = (int(tokens[1]) & 4) == 4
-                if is_unmapped:
-                    continue
-
+                # BWA-MEM idiosyncracy: aligner removes the paired-end identifiers '/1', '/2'.
                 read_id = tokens[0]
                 tokens[0] = f'{read_id}{id_suffix}'
                 print('\t'.join(tokens), file=out_f)

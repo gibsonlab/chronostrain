@@ -1,4 +1,3 @@
-import enum
 from pathlib import Path
 from typing import List, Iterator, Union
 
@@ -9,45 +8,8 @@ from .cigar import CigarElement, parse_cigar
 from chronostrain.util.sequences import SeqType, nucleotides_to_z4, UnknownNucleotideError
 
 from chronostrain.config import create_logger
+from .util import *
 logger = create_logger(__name__)
-
-
-class _SamTags(enum.Enum):
-    ReadName = 0
-    MapFlag = 1
-    ContigName = 2
-    MapPos = 3
-    MapQuality = 4
-    Cigar = 5
-    MatePair = 6
-    MatePos = 7
-    TemplateLen = 8
-    Read = 9
-    Quality = 10
-
-
-class SamFlags(enum.Enum):
-    """
-    The mapping types given in the MapFlag tag. The actual tag is given bitwise,
-    so the presence of these tags is found as:
-    (Line[SamTags.MapFlag] & MapFlags.flag == MapFlags.flag)
-    """
-    QueryHasMultipleSegments = 1
-    SegmentsProperlyAligned = 2
-    SegmentUnmapped = 4
-    NextSegmentUnmapped = 8
-    SeqReverseComplement = 16
-    SeqNextSegmentReverseComplement = 32
-    FirstSegment = 64
-    LastSegment = 128
-    SecondaryAlignment = 256
-    FilterNotPassed = 512
-    PCRorOptionalDuplicate = 1024
-    SupplementaryAlignment = 2048
-
-
-def _check_bit_flag(x: int, pow2: int) -> bool:
-    return (x & pow2) == pow2
 
 
 class SamLine:
@@ -109,9 +71,9 @@ class SamLine:
               quality_format: str) -> 'SamLine':
         tokens = plaintext_line.strip().split('\t')
 
-        readname = tokens[_SamTags.ReadName.value]
-        map_flag = int(tokens[_SamTags.MapFlag.value])
-        is_secondary_alignment = _check_bit_flag(map_flag, SamFlags.SecondaryAlignment.value)
+        readname = tokens[SamTags.ReadName.value]
+        map_flag = int(tokens[SamTags.MapFlag.value])
+        is_secondary_alignment = has_sam_flag(map_flag, SamFlags.SecondaryAlignment)
 
         if is_secondary_alignment:
             if prev_sam_line is None:
@@ -132,10 +94,10 @@ class SamLine:
             read_seq = prev_sam_line.read_seq
             read_phred = prev_sam_line.read_phred
         else:
-            read_seq = nucleotides_to_z4(tokens[_SamTags.Read.value])
-            read_phred = ascii_to_phred(tokens[_SamTags.Quality.value], quality_format)
+            read_seq = nucleotides_to_z4(tokens[SamTags.Read.value])
+            read_phred = ascii_to_phred(tokens[SamTags.Quality.value], quality_format)
 
-        cigar = parse_cigar(tokens[_SamTags.Cigar.value])
+        cigar = parse_cigar(tokens[SamTags.Cigar.value])
 
         return SamLine(
             lineno=lineno,
@@ -143,14 +105,14 @@ class SamLine:
             readname=readname,
             read_seq=read_seq,
             read_phred=read_phred,
-            is_mapped=not _check_bit_flag(map_flag, SamFlags.SegmentUnmapped.value),
-            is_reverse_complemented=_check_bit_flag(map_flag, SamFlags.SeqReverseComplement.value),
-            contig_name=tokens[_SamTags.ContigName.value],
-            contig_map_idx=int(tokens[_SamTags.MapPos.value]) - 1,
+            is_mapped=not has_sam_flag(map_flag, SamFlags.SegmentUnmapped),
+            is_reverse_complemented=has_sam_flag(map_flag, SamFlags.SeqReverseComplement),
+            contig_name=tokens[SamTags.ContigName.value],
+            contig_map_idx=int(tokens[SamTags.MapPos.value]) - 1,
             cigar=cigar,
-            mate_pair=tokens[_SamTags.MatePair.value],
-            mate_pos=tokens[_SamTags.MatePos.value],
-            template_len=tokens[_SamTags.TemplateLen.value]
+            mate_pair=tokens[SamTags.MatePair.value],
+            mate_pos=tokens[SamTags.MatePos.value],
+            template_len=tokens[SamTags.TemplateLen.value]
         )
 
 
@@ -173,13 +135,9 @@ class SamFile:
         self.file_path = file_path
         self.quality_format = quality_format
 
-    @staticmethod
-    def _line_is_header(line: str):
-        return line[0] == '@'
-
     def num_mapped_lines(self) -> int:
         with open(self.file_path, 'r') as f:
-            return sum(1 for line in f if not self._line_is_header(line))
+            return sum(1 for line in f if not sam_line_is_header(line))
 
     def mapped_lines(self) -> Iterator[SamLine]:
         n_lines = 0
@@ -187,7 +145,7 @@ class SamFile:
         prev_sam_line: Union[SamLine, None] = None
         with open(self.file_path, 'r') as f:
             for line_idx, line in enumerate(f):
-                if self._line_is_header(line):
+                if sam_line_is_header(line):
                     continue
 
                 try:
