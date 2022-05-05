@@ -54,7 +54,7 @@ sorted_bam_file="reads_${time_point}.sorted.bam"
 export BOWTIE2_INDEXES=${STRAINEST_DB_DIR}
 echo "[*] Running alignment..."
 bowtie2 \
---very-fast --no-unal \
+--very-fast --no-unal --quiet \
 -x ${STRAINEST_BOWTIE2_DB_NAME} \
 -1 ${reads_1_gz} \
 -2 ${reads_2_gz} \
