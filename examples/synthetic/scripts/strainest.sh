@@ -50,6 +50,7 @@ bam_file="reads_${time_point}.bam"
 sorted_bam_file="reads_${time_point}.sorted.bam"
 
 export BOWTIE2_INDEXES=${STRAINEST_DB_DIR}
+echo "[*] Running alignment..."
 bowtie2 \
 --very-fast --no-unal \
 -x ${STRAINEST_BOWTIE2_DB_NAME} \
@@ -58,16 +59,19 @@ bowtie2 \
 -S ${sam_file}
 
 # Invoke samtools
+echo "[*] Invoking samtools..."
 samtools view -b ${sam_file} > ${bam_file}
 samtools sort ${bam_file} -o ${sorted_bam_file}
 samtools index ${sorted_bam_file}
 
 # Run StrainEst
+echo "[*] Running StrainEst..."
 strainest est ${BASE_DIR}/files/strainest_snvs.dgrp ${sorted_bam_file} ./
 mv abund.txt abund_${time_point}.txt
 mv info.txt info_${time_point}.txt
 
 # Clean up
+echo "[*] Cleaning up..."
 rm ${reads_1_gz}
 rm ${reads_2_gz}
 rm ${sam_file}
