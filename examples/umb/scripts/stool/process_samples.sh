@@ -89,7 +89,7 @@ mkdir -p "${SAMPLES_DIR}/kneaddata"
 			--input2 ${tmp_file_2} \
 			--reference-db ${KNEADDATA_DB_DIR} \
 			--output ${kneaddata_output_dir} \
-			--trimmomatic-options "ILLUMINACLIP:${NEXTERA_ADAPTER_PATH}:2:30:10:2:True LEADING:10 TRAILING:10 MINLEN:35" \
+			--trimmomatic-options "ILLUMINACLIP:${NEXTERA_ADAPTER_PATH}:2:30:10:2 LEADING:10 TRAILING:10 MINLEN:35" \
 			--threads 8 \
 			--quality-scores phred33 \
 			--bypass-trf \
