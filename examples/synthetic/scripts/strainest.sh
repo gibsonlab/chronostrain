@@ -26,7 +26,10 @@ fi
 
 trial_dir=$(get_trial_dir $n_reads $trial)
 read_dir=${trial_dir}/reads
-cd ${trial_dir}/output/strainest
+output_dir=${trial_dir}/output/strainest
+
+mkdir -p ${output_dir}
+cd ${output_dir}
 
 # Concatenate reads.
 reads_1="reads_${time_point}.1.fq"
