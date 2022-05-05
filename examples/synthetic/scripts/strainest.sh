@@ -51,12 +51,15 @@ echo "TODO"
 sam_file="reads_${time_point}.sam"
 bam_file="reads_${time_point}.bam"
 sorted_bam_file="reads_${time_point}.sorted.bam"
+
+cd /mnt/d/chronostrain/synthetic/database/straingst
 bowtie2 \
 --very-fast --no-unal \
 -x ${BOWTIE2_INDEX_BASENAME} \
 -1 ${reads_1_gz} \
 -2 ${reads_2_gz} \
--S ${sam_file}
+-S ${output_dir}/${sam_file}
+cd ${output_dir}
 
 # Invoke samtools
 samtools view -b ${sam_file} > ${bam_file}
