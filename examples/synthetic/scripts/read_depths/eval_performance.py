@@ -60,6 +60,18 @@ def load_ground_truth(ground_truth_path: Path) -> pd.DataFrame:
     return pd.DataFrame(df_entries)
 
 
+def hellinger_error(abundance_est: np.ndarray, ground_truth: pd.DataFrame) -> float:
+    time_points = sorted(pd.unique(ground_truth['T']))
+    strains = sorted(pd.unique(ground_truth['Strain']))
+    ground_truth = np.array([
+        [
+            ground_truth.loc[(ground_truth['Strain'] == strain_id) & (ground_truth['T'] == t), 'RelAbund'].item()
+            for strain_id in strains
+        ]
+        for t in time_points
+    ])
+    return np.sqrt(np.square(np.sqrt(abundance_est) - np.sqrt(ground_truth)).sum(axis=1)).mean(axis=0) / np.sqrt(2)
+
 def parse_chronostrain_error(db: StrainDatabase, ground_truth: pd.DataFrame, output_dir: Path) -> float:
     samples = torch.load(output_dir / 'samples.pt')
     strains = db.all_strains()
@@ -80,21 +92,12 @@ def parse_chronostrain_error(db: StrainDatabase, ground_truth: pd.DataFrame, out
 
     inferred_abundances = torch.softmax(samples, dim=2)
 
-    # ground truth array
-    ground_truth_tensor = torch.tensor([
-        [
-            ground_truth.loc[(ground_truth['Strain'] == strain.id) & (ground_truth['T'] == t), 'RelAbund'].item()
-            for strain in strains
-        ]
-        for t in time_points
-    ])
-
     # hellingers = torch.square(
     #     torch.sqrt(torch.softmax(samples, dim=2)) - torch.unsqueeze(torch.sqrt(ground_truth_tensor), 1)
     # ).sum(dim=2).sqrt().mean(dim=0)  # Average hellinger distance across time, for each sample.
     # return torch.median(hellingers).item() / np.sqrt(2)
     median_abundances = np.median(inferred_abundances.numpy(), axis=1)
-    return np.sqrt(np.square(np.sqrt(median_abundances) - np.sqrt(ground_truth_tensor.numpy())).sum(axis=1)).mean(axis=0) / np.sqrt(2)
+    return hellinger_error(median_abundances, ground_truth)
 
 
 def parse_straingst_error(ground_truth: pd.DataFrame, output_dir: Path, mode: str) -> float:
@@ -122,15 +125,7 @@ def parse_straingst_error(ground_truth: pd.DataFrame, output_dir: Path, mode: st
                 rel_abund = float(row[11]) / 100.0
                 est_rel_abunds[t_idx][strain_idx] = rel_abund
 
-    ground_truth = np.array([
-        [
-            ground_truth.loc[(ground_truth['Strain'] == strain_id) & (ground_truth['T'] == t), 'RelAbund'].item()
-            for strain_id in strains
-        ]
-        for t in time_points
-    ])
-
-    return np.sqrt(np.square(np.sqrt(est_rel_abunds) - np.sqrt(ground_truth)).sum(axis=1)).mean(axis=0) / np.sqrt(2)
+    return hellinger_error(est_rel_abunds, ground_truth)
 
 
 def parse_strainest_error(ground_truth: pd.DataFrame, output_dir: Path) -> float:
@@ -156,33 +151,13 @@ def parse_strainest_error(ground_truth: pd.DataFrame, output_dir: Path) -> float
                 strain_idx = strain_indices[strain_id]
                 est_rel_abunds[t_idx][strain_idx] = abund
 
-    ground_truth = np.array([
-        [
-            ground_truth.loc[(ground_truth['Strain'] == strain_id) & (ground_truth['T'] == t), 'RelAbund'].item()
-            for strain_id in strains
-        ]
-        for t in time_points
-    ])
-
-    return np.sqrt(np.square(np.sqrt(est_rel_abunds) - np.sqrt(ground_truth)).sum(axis=1)).mean(axis=0) / np.sqrt(2)
+    return hellinger_error(est_rel_abunds, ground_truth)
 
 
 def get_baseline_diff(ground_truth: pd.DataFrame) -> float:
-    time_points = sorted(pd.unique(ground_truth['T']))
-    strains = sorted(pd.unique(ground_truth['Strain']))
-
-    ground_truth = np.array([
-        [
-            ground_truth.loc[(ground_truth['Strain'] == strain_id) & (ground_truth['T'] == t), 'RelAbund'].item()
-            for strain_id in strains
-        ]
-        for t in time_points
-    ])
-
     # baseline_arr = np.round(ground_truth, 0)
     baseline_arr = 0.5 * np.ones(ground_truth.shape, dtype=float)
-
-    return np.sqrt(np.square(np.sqrt(baseline_arr) - np.sqrt(ground_truth)).sum(axis=1)).mean(axis=0) / np.sqrt(2)
+    return hellinger_error(baseline_arr, ground_truth)
 
 
 def main():
