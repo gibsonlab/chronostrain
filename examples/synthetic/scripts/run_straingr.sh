@@ -33,7 +33,7 @@ cd ${straingr_output_dir}
 echo "[*] Running StrainGR."
 straingr prepare-ref \
 --output refs_concat.fasta \
--S path/to/straingst_db/similarities.tsv \
+-S ${STRAINGST_DB_DIR}/similarities.tsv \
 -s \
 ${straingst_output_dir}/output_fulldb_0.tsv \
 ${straingst_output_dir}/output_fulldb_1.tsv \
