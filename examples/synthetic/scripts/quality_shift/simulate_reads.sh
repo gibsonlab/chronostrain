@@ -14,7 +14,7 @@ do
 		read_dir=${trial_dir}/reads
 		log_dir=${trial_dir}/logs
 
-		echo "[Number of reads: ${N_READS}, qShift: ${quality_shift}, trial #${trial}] -> ${trial_dir}"
+		echo "[Number of reads: ${N_READS}, qShift: ${q_shift}, trial #${trial}] -> ${trial_dir}"
 
 		mkdir -p $log_dir
 		mkdir -p $read_dir
