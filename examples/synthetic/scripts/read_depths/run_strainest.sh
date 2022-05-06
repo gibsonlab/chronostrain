@@ -72,8 +72,6 @@ samtools index ${sorted_bam_file}
 # Run StrainEst
 echo "[*] Running StrainEst..."
 strainest est ${BASE_DIR}/files/strainest_snvs.dgrp ${sorted_bam_file} ./
-mv abund.txt abund_${time_point}.txt
-mv info.txt info_${time_point}.txt
 
 # Clean up
 echo "[*] Cleaning up..."
@@ -82,3 +80,8 @@ rm ${reads_2_gz}
 rm ${sam_file}
 rm ${bam_file}
 rm ${sorted_bam_file}
+
+mv abund.txt abund_${time_point}.txt
+mv info.txt info_${time_point}.txt
+mv counts.txt counts_${time_point}.txt
+mv max_ident.txt max_ident_${time_point}.txt
