@@ -33,6 +33,13 @@ cd ${straingr_output_dir}
 echo "[*] Running StrainGR."
 straingr prepare-ref \
 --output refs_concat.fasta \
+-S path/to/straingst_db/similarities.tsv \
+-s \
+${straingst_output_dir}/output_fulldb_0.tsv \
+${straingst_output_dir}/output_fulldb_1.tsv \
+${straingst_output_dir}/output_fulldb_2.tsv \
+${straingst_output_dir}/output_fulldb_3.tsv \
+${straingst_output_dir}/output_fulldb_4.tsv \
 -r "CP009273.1_Original" "CP009273.1_Substitution" \
 -p "${STRAINGST_DB_DIR}/{ref}.fasta"
 
