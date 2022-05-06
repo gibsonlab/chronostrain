@@ -30,10 +30,11 @@ mkdir -p ${straingr_output_dir}
 cd ${straingr_output_dir}
 
 
-echo "[*] Running StrainGR."
+echo "[*] Running StrainGR 'prepare-ref'."
 straingr prepare-ref \
 --output refs_concat.fasta \
 -S ${STRAINGST_DB_DIR}/similarities.tsv \
+-t 1.0 \
 -s \
 ${straingst_output_dir}/output_fulldb_0.tsv \
 ${straingst_output_dir}/output_fulldb_1.tsv \
@@ -57,8 +58,8 @@ do
 	pigz -dck ${read_dir}/${time_point}_CP009273.1_Original_2.fq.gz > ${reads_2}
 	pigz -dck ${read_dir}/${time_point}_CP009273.1_Substitution_1.fq.gz > ${reads_1}
 	pigz -dck ${read_dir}/${time_point}_CP009273.1_Substitution_2.fq.gz > ${reads_2}
-	pigz ${reads_1}
-	pigz ${reads_2}
+	pigz ${reads_1} -f
+	pigz ${reads_2} -f
 
 	echo "[*] Aligning..."
 	bam_file="sample_${time_point}.bam"
@@ -70,7 +71,7 @@ do
 	| samtools sort -@ 2 -O BAM -o ${bam_file} -
 	samtools index ${bam_file}
 
-	echo "[*] Calling StrainGR..."
+	echo "[*] Running StrainGR 'call'."
 	straingr call refs_concat.fasta ${bam_file} --summary ${summary_tsv} --tracks all --hdf5-out ${hdf5_file}
 
 	echo "[*] Cleaning up."
