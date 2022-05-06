@@ -81,3 +81,4 @@ rm ${reads_1_gz}
 rm ${reads_2_gz}
 rm ${sam_file}
 rm ${bam_file}
+rm ${sorted_bam_file}
