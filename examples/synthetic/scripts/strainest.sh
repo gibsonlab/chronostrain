@@ -39,10 +39,12 @@ reads_2="reads_${time_point}.2.fq"
 reads_1_gz="${reads_1}.gz"
 reads_2_gz="${reads_2}.gz"
 echo "[*] Concatenating reads..."
-pigz -dck ${read_dir}/${time_point}_CP009273.1_Original_1.fq.gz > ${reads_1}
-pigz -dck ${read_dir}/${time_point}_CP009273.1_Original_2.fq.gz > ${reads_2}
-pigz -dck ${read_dir}/${time_point}_CP009273.1_Substitution_1.fq.gz > ${reads_1}
-pigz -dck ${read_dir}/${time_point}_CP009273.1_Substitution_2.fq.gz > ${reads_2}
+> ${reads_1}
+> ${reads_2}
+pigz -dck ${read_dir}/${time_point}_CP009273.1_Original_1.fq.gz >> ${reads_1}
+pigz -dck ${read_dir}/${time_point}_CP009273.1_Original_2.fq.gz >> ${reads_2}
+pigz -dck ${read_dir}/${time_point}_CP009273.1_Substitution_1.fq.gz >> ${reads_1}
+pigz -dck ${read_dir}/${time_point}_CP009273.1_Substitution_2.fq.gz >> ${reads_2}
 pigz ${reads_1} -f
 pigz ${reads_2} -f
 
