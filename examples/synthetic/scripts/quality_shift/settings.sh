@@ -57,7 +57,7 @@ get_trial_dir()
 {
 	qshift=$1
 	trial=$2
-	trial_dir="${DATA_DIR}/reads_${n_reads}/trial_${trial}"
+	trial_dir="${DATA_DIR}/qshift_${qshift}/trial_${trial}"
 	echo ${trial_dir}
 }
 
