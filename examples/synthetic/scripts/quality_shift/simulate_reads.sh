@@ -29,6 +29,7 @@ do
 		--read_len $READ_LEN \
 		--seed ${seed} \
 		--qShift ${q_shift} \
+		--qShift2 ${q_shift} \
 		--num_cores $N_CORES
 	done
 done
