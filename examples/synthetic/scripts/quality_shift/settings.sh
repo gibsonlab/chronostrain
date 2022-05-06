@@ -1,7 +1,7 @@
 # Modify these before running.
 export PROJECT_DIR="/home/bromii/chronostrain"
 export BASE_DIR="${PROJECT_DIR}/examples/synthetic"
-export DATA_DIR="/mnt/e/synthetic_data"
+export DATA_DIR="/mnt/e/synthetic_data_qshift"
 export CHRONOSTRAIN_DB_DIR="/mnt/d/chronostrain/synthetic/database"
 
 # ==================== Read sampling settings
