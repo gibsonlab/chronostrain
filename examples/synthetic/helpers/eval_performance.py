@@ -78,6 +78,8 @@ def parse_chronostrain_error(db: StrainDatabase, ground_truth: pd.DataFrame, out
             samples.shape[2]
         ))
 
+    inferred_abundances = torch.softmax(samples, dim=2)
+
     # ground truth array
     ground_truth_tensor = torch.tensor([
         [
@@ -87,10 +89,12 @@ def parse_chronostrain_error(db: StrainDatabase, ground_truth: pd.DataFrame, out
         for t in time_points
     ])
 
-    hellingers = torch.square(
-        torch.sqrt(torch.softmax(samples, dim=2)) - torch.unsqueeze(torch.sqrt(ground_truth_tensor), 1)
-    ).sum(dim=2).sqrt().mean(dim=0)  # Average hellinger distance across time, for each sample.
-    return torch.median(hellingers).item() / np.sqrt(2)
+    # hellingers = torch.square(
+    #     torch.sqrt(torch.softmax(samples, dim=2)) - torch.unsqueeze(torch.sqrt(ground_truth_tensor), 1)
+    # ).sum(dim=2).sqrt().mean(dim=0)  # Average hellinger distance across time, for each sample.
+    # return torch.median(hellingers).item() / np.sqrt(2)
+    median_abundances = np.median(inferred_abundances.numpy(), axis=1)
+    return np.sqrt(np.square(np.sqrt(median_abundances) - np.sqrt(ground_truth_tensor.numpy())).sum(axis=1)).mean(axis=0) / np.sqrt(2)
 
 
 def parse_straingst_error(ground_truth: pd.DataFrame, output_dir: Path, mode: str) -> float:
@@ -206,19 +210,19 @@ def main():
 
             # =========== StrainGST
             straingst_mash_hellinger = parse_straingst_error(ground_truth, trial_dir / 'output' / 'straingst', 'mash')
-            # straingst_fulldb_hellinger = parse_straingst_error(ground_truth, trial_dir / 'output' / 'straingst', 'fulldb')
+            straingst_fulldb_hellinger = parse_straingst_error(ground_truth, trial_dir / 'output' / 'straingst', 'fulldb')
             df_entries.append({
                 'ReadDepth': read_depth,
                 'TrialNum': trial_num,
                 'Method': 'StrainGST (mash)',
                 'Error': straingst_mash_hellinger
             })
-            # df_entries.append({
-            #     'ReadDepth': read_depth,
-            #     'TrialNum': trial_num,
-            #     'Method': 'StrainGST (full DB)',
-            #     'Error': straingst_fulldb_hellinger
-            # })
+            df_entries.append({
+                'ReadDepth': read_depth,
+                'TrialNum': trial_num,
+                'Method': 'StrainGST (full DB)',
+                'Error': straingst_fulldb_hellinger
+            })
 
             strainest_hellinger = parse_strainest_error(ground_truth, trial_dir / 'output' / 'strainest')
             df_entries.append({
