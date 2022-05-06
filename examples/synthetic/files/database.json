@@ -4,13 +4,13 @@
         "genus": "Escherichia",
         "species": "coli",
         "name": "K12_Original",
-        "seqs": [{"accession": "CP009273.1", "seq_type": "chromosome"}],
+        "seqs": [{"accession": "CP009273.1_Original", "seq_type": "chromosome"}],
         "markers": [
             {
                 "id": "fimA",
                 "name": "fimA" ,
                 "type": "subseq",
-                "source": "CP009273.1",
+                "source": "CP009273.1_Original",
                 "start": 4532932,
                 "end": 4533480,
                 "strand": "+",

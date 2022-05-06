@@ -12,5 +12,9 @@
             {"pos": 4533238, "base": "t"},
             {"pos": 4533239, "base": "t"}
         ]
+    },
+    {
+        "source": "CP009273.1",
+        "target": "CP009273.1_Original"
     }
 ]
