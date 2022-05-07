@@ -155,8 +155,11 @@ def parse_strainest_error(ground_truth: pd.DataFrame, output_dir: Path) -> float
 
 
 def get_baseline_diff(ground_truth: pd.DataFrame) -> float:
+    time_points = sorted(pd.unique(ground_truth['T']))
+    strains = sorted(pd.unique(ground_truth['Strain']))
+
     # baseline_arr = np.round(ground_truth, 0)
-    baseline_arr = 0.5 * np.ones(ground_truth.shape, dtype=float)
+    baseline_arr = 0.5 * np.ones(shape=(len(time_points), len(strains)), dtype=float)
     return hellinger_error(baseline_arr, ground_truth)
 
 
