@@ -128,22 +128,38 @@ def main():
         seed=master_seed
     )
 
-    create_index_file(index_path, index_entries)
+    create_index_file(time_points, out_dir, index_path, index_entries)
 
     logger.info("Sampled reads to {}".format(args.out_dir))
 
 
-def create_index_file(index_path: Path, entries: List[Tuple[float, int, Path, Path]]):
+def create_index_file(time_points: List[float], out_dir: Path, index_path: Path, entries: List[Tuple[float, int, Path, Path]]):
     with open(index_path, 'w') as index_file:
-        for time_point, n_reads, reads1, reads2 in entries:
-            reads1_gzip = reads1.with_suffix(f'{reads1.suffix}.gz')
-            reads2_gzip = reads2.with_suffix(f'{reads2.suffix}.gz')
+        for t_idx, t in enumerate(time_points):
+            entries_t = [entry for entry in entries if entry[0] == t]
 
-            print(f'{time_point},{n_reads},{reads1_gzip},paired_1,fastq', file=index_file)
-            print(f'{time_point},{n_reads},{reads2_gzip},paired_2,fastq', file=index_file)
+            # First, combine the read files.
+            reads1_all = out_dir / "0_reads_1.fq.gz"
+            reads2_all = out_dir / "0_reads_2.fq.gz"
+            n_reads = sum(entry[1] for entry in entries_t)
 
-            os.system(f'gzip {reads1}')
-            os.system(f'gzip {reads2}')
+            files1 = []
+            files2 = []
+            for _, _, reads1, reads2 in entries:
+                files1.append(reads1)
+                files2.append(reads2)
+
+            os.system('cat {} | pigz -cf > {}'.format(
+                ' '.join(str(f) for f in files1),
+                str(reads1_all)
+            ))
+            os.system('cat {} | pigz -cf > {}'.format(
+                ' '.join(str(f) for f in files2),
+                str(reads2_all)
+            ))
+
+            print(f'{t},{n_reads},{reads1_all},paired_1,fastq', file=index_file)
+            print(f'{t},{n_reads},{reads2_all},paired_2,fastq', file=index_file)
 
 
 def parse_abundance_profile(abundance_path: str) -> List[Tuple[float, Dict]]:
