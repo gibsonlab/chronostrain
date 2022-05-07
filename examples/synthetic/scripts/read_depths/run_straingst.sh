@@ -35,14 +35,11 @@ echo "[*] Running inference for n_reads: ${n_reads}, trial: ${trial}, timepoint 
 mkdir -p ${output_dir}
 hdf5_path=${output_dir}/reads.hdf5
 
+reads_1="${read_dir}/${time_point}_reads_1.fq.gz"
+reads_2="${read_dir}/${time_point}_reads_2.fq.gz"
+
 echo "[*] Kmerizing..."
-straingst kmerize \
--k 23 \
--o ${hdf5_path} \
-${read_dir}/${time_point}_CP009273.1_Original_1.fq.gz \
-${read_dir}/${time_point}_CP009273.1_Original_2.fq.gz \
-${read_dir}/${time_point}_CP009273.1_Substitution_1.fq.gz \
-${read_dir}/${time_point}_CP009273.1_Substitution_2.fq.gz
+straingst kmerize -k 23 -o ${hdf5_path} ${reads_1} ${reads_2}
 
 echo "[*] Running StrainGST (minhash)."
 straingst run \

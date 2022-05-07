@@ -101,7 +101,7 @@ def main():
     index_path = out_dir / "input_files.csv"
 
     # Invoke art sampler on each time point.
-    sample_reads_from_rel_abundances(
+    index_entries = sample_reads_from_rel_abundances(
         db=cfg.database_cfg.get_database(),
         time_points=time_points,
         read_counts=read_counts,
@@ -112,24 +112,40 @@ def main():
         quality_shift=args.quality_shift,
         quality_shift_2=args.quality_shift_2,
         seed=master_seed,
-        n_cores=args.num_cores,
-        index_path=index_path
+        n_cores=args.num_cores
     )
+    create_index_file(time_points, out_dir, index_path, index_entries)
 
     logger.info("Sampled reads to {}".format(args.out_dir))
 
 
-def create_index_file(index_path: Path, entries: List[Tuple[float, int, Path, Path]]):
+def create_index_file(time_points: List[float], out_dir: Path, index_path: Path, entries: List[Tuple[float, int, Path, Path]]):
     with open(index_path, 'w') as index_file:
-        for time_point, n_reads, reads1, reads2 in entries:
-            reads1_gzip = reads1.with_suffix(f'{reads1.suffix}.gz')
-            reads2_gzip = reads2.with_suffix(f'{reads2.suffix}.gz')
+        for t_idx, t in enumerate(time_points):
+            entries_t = [entry for entry in entries if entry[0] == t]
 
-            print(f'{time_point},{n_reads},{reads1_gzip},paired_1,fastq', file=index_file)
-            print(f'{time_point},{n_reads},{reads2_gzip},paired_2,fastq', file=index_file)
+            # First, combine the read files.
+            reads1_all = out_dir / "0_reads_1.fq.gz"
+            reads2_all = out_dir / "0_reads_2.fq.gz"
+            n_reads = sum(entry[1] for entry in entries_t)
 
-            os.system(f'gzip {reads1}')
-            os.system(f'gzip {reads2}')
+            files1 = []
+            files2 = []
+            for _, _, reads1, reads2 in entries:
+                files1.append(reads1)
+                files2.append(reads2)
+
+            os.system('cat {} | pigz -cf > {}'.format(
+                ' '.join(str(f) for f in files1),
+                str(reads1_all)
+            ))
+            os.system('cat {} | pigz -cf > {}'.format(
+                ' '.join(str(f) for f in files2),
+                str(reads2_all)
+            ))
+
+            print(f'{t},{n_reads},{reads1_all},paired_1,fastq', file=index_file)
+            print(f'{t},{n_reads},{reads2_all},paired_2,fastq', file=index_file)
 
 
 def parse_abundance_profile(abundance_path: str) -> List[Tuple[float, Dict]]:
@@ -163,9 +179,8 @@ def sample_reads_from_rel_abundances(
         quality_shift: int,
         quality_shift_2: int,
         seed: Seed,
-        n_cores: int,
-        index_path: Path
-):
+        n_cores: int
+) -> List[Tuple[float, int, Path, Path]]:
     """
     Loop over each timepoint, and invoke art_illumina on each item. Each instance outputs a separate fastq file,
     so concatenate them at the end.
@@ -187,12 +202,12 @@ def sample_reads_from_rel_abundances(
                     output_prefix="{}_{}_".format(t_idx, strain_id),
                     profile_first=profile_first,
                     profile_second=profile_second,
-                    quality_shift=quality_shift,
-                    quality_shift_2=quality_shift_2,
                     read_length=read_len,
                     seed=seed.next_value(),
-                    output_sam=True,
-                    output_aln=True
+                    output_sam=False,
+                    output_aln=False,
+                    quality_shift=quality_shift,
+                    quality_shift_2=quality_shift_2
                 )
 
                 index_entries.append(
@@ -220,8 +235,8 @@ def sample_reads_from_rel_abundances(
                     seed.next_value(),
                     1000,
                     200,
-                    True,
-                    True,
+                    False,
+                    False,
                     quality_shift,
                     quality_shift_2
                 ))
@@ -240,7 +255,7 @@ def sample_reads_from_rel_abundances(
     else:
         raise ValueError("# cores must be positive. Got: {}".format(n_cores))
 
-    create_index_file(index_path, index_entries)
+    return index_entries
 
 
 if __name__ == "__main__":

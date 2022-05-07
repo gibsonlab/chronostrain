@@ -47,19 +47,9 @@ ${straingst_output_dir}/output_fulldb_4.tsv \
 
 for time_point in 0 1 2 3 4
 do
-	# Concatenate reads.
-	reads_1="reads_${time_point}.1.fq"
-	reads_2="reads_${time_point}.2.fq"
-	reads_1_gz="${reads_1}.gz"
-	reads_2_gz="${reads_2}.gz"
-
-	echo "[*] Concatenating reads..."
-	pigz -dck ${read_dir}/${time_point}_CP009273.1_Original_1.fq.gz > ${reads_1}
-	pigz -dck ${read_dir}/${time_point}_CP009273.1_Original_2.fq.gz > ${reads_2}
-	pigz -dck ${read_dir}/${time_point}_CP009273.1_Substitution_1.fq.gz > ${reads_1}
-	pigz -dck ${read_dir}/${time_point}_CP009273.1_Substitution_2.fq.gz > ${reads_2}
-	pigz ${reads_1} -f
-	pigz ${reads_2} -f
+	echo "[*] Handling timepoint ${time_point}..."
+	reads_1="${read_dir}/${time_point}_reads_1.fq.gz"
+	reads_2="${read_dir}/${time_point}_reads_2.fq.gz"
 
 	echo "[*] Aligning..."
 	bam_file="sample_${time_point}.bam"
@@ -67,14 +57,10 @@ do
 	hdf5_file="sample_${time_point}.hdf5"
 
 	bwa index refs_concat.fasta
-	bwa mem -I 300 -t 4 refs_concat.fasta ${reads_1_gz} ${reads_2_gz} \
+	bwa mem -I 300 -t 4 refs_concat.fasta ${reads_1} ${reads_2} \
 	| samtools sort -@ 2 -O BAM -o ${bam_file} -
 	samtools index ${bam_file}
 
 	echo "[*] Running StrainGR 'call'."
 	straingr call refs_concat.fasta ${bam_file} --summary ${summary_tsv} --tracks all --hdf5-out ${hdf5_file}
-
-	echo "[*] Cleaning up."
-	rm *.fq
-	rm *.fq.gz
 done

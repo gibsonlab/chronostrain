@@ -33,20 +33,8 @@ echo "[*] Running inference for n_reads: ${n_reads}, trial: ${trial}, timepoint 
 mkdir -p ${output_dir}
 cd ${output_dir}
 
-# Concatenate reads.
-reads_1="reads_${time_point}.1.fq"
-reads_2="reads_${time_point}.2.fq"
-reads_1_gz="${reads_1}.gz"
-reads_2_gz="${reads_2}.gz"
-echo "[*] Concatenating reads..."
-> ${reads_1}
-> ${reads_2}
-pigz -dck ${read_dir}/${time_point}_CP009273.1_Original_1.fq.gz >> ${reads_1}
-pigz -dck ${read_dir}/${time_point}_CP009273.1_Original_2.fq.gz >> ${reads_2}
-pigz -dck ${read_dir}/${time_point}_CP009273.1_Substitution_1.fq.gz >> ${reads_1}
-pigz -dck ${read_dir}/${time_point}_CP009273.1_Substitution_2.fq.gz >> ${reads_2}
-pigz ${reads_1} -f
-pigz ${reads_2} -f
+reads_1="${read_dir}/${time_point}_reads_1.fq.gz"
+reads_2="${read_dir}/${time_point}_reads_2.fq.gz"
 
 # Perform bowtie2 alignment
 sam_file="reads_${time_point}.sam"
@@ -59,8 +47,8 @@ bowtie2 \
 --very-fast --no-unal --quiet \
 -k 2 \
 -x ${STRAINEST_BOWTIE2_DB_NAME} \
--1 ${reads_1_gz} \
--2 ${reads_2_gz} \
+-1 ${reads_1} \
+-2 ${reads_2} \
 -S ${sam_file}
 
 # Invoke samtools
@@ -75,13 +63,12 @@ strainest est ${BASE_DIR}/files/strainest_snvs.dgrp ${sorted_bam_file} ./
 
 # Clean up
 echo "[*] Cleaning up..."
-rm ${reads_1_gz}
-rm ${reads_2_gz}
 rm ${sam_file}
 rm ${bam_file}
 rm ${sorted_bam_file}
 
-mv abund.txt abund_${time_point}.txt
-mv info.txt info_${time_point}.txt
-mv counts.txt counts_${time_point}.txt
-mv max_ident.txt max_ident_${time_point}.txt
+	mv abund.txt abund_${time_point}.txt
+	mv info.txt info_${time_point}.txt
+	mv counts.txt counts_${time_point}.txt
+	mv max_ident.txt max_ident_${time_point}.txt
+done
