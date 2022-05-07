@@ -51,7 +51,7 @@ do
 
 		python ${BASE_DIR}/helpers/sample_reads.py \
 		--out_dir $read_dir \
-		--abundance_path $GROUND_TRUTH \
+		--abundance_path $RELATIVE_GROUND_TRUTH \
 		--background_samples $BACKGROUND_FQ_1 $BACKGROUND_FQ_2 \
 		--background_read_counts ${BACKGROUND_N_READS} \
 		--num_reads $n_reads \
