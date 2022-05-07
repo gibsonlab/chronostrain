@@ -280,6 +280,7 @@ def sample_background_reads(
         out_dir: Path,
         seed: Seed
 ) -> List[Tuple[float, int, Path, Path]]:
+    logger.info("Sampling background reads...")
     index_entries = []
     for t_idx, time_point in enumerate(time_points):
         sample_seed = seed.next_value()
