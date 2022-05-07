@@ -67,8 +67,7 @@ rm ${sam_file}
 rm ${bam_file}
 rm ${sorted_bam_file}
 
-	mv abund.txt abund_${time_point}.txt
-	mv info.txt info_${time_point}.txt
-	mv counts.txt counts_${time_point}.txt
-	mv max_ident.txt max_ident_${time_point}.txt
-done
+mv abund.txt abund_${time_point}.txt
+mv info.txt info_${time_point}.txt
+mv counts.txt counts_${time_point}.txt
+mv max_ident.txt max_ident_${time_point}.txt
