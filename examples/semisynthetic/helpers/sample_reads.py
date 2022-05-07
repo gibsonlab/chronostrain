@@ -103,6 +103,7 @@ def main():
         read_counts.append(read_counts_t)
 
     index_path = out_dir / "input_files.csv"
+    logger.info(f"Reads will be sampled to {index_path}.")
 
     # Invoke art sampler on each time point.
     index_entries = sample_reads_from_rel_abundances(
