@@ -42,8 +42,9 @@ done < ${GROUND_TRUTH}
 index_csv="input_files_trimmed.csv"
 > $index_csv
 
+echo "[*] Running trimmomatic.sh on trial ${trial_dir}"
 for time_point in 0 1 2 3 4; do
-	echo "[*] Running trimmomatic on timepoint #${time_point}..."
+	echo "[*] Running trimmomatic on timepoint #${time_point}"
 	t_value="${time_points[time_point]}"
 
 	reads_1="${read_dir}/${time_point}_reads_1.fq.gz"
