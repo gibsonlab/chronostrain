@@ -9,6 +9,6 @@ do
 	for (( trial = 1; trial < ${N_TRIALS}+1; trial++ ));
 	do
 		trial_dir=$(get_trial_dir $q_shift $trial)
-		bash trimmomatich.sh ${trial_dir}
+		bash trimmomatic.sh ${trial_dir}
 	done
 done
