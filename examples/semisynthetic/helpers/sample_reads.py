@@ -25,6 +25,8 @@ def parse_args():
                         help='<Required> The directory to which the reads should be output to.')
     parser.add_argument('-a', '--abundance_path', dest='abundance_path', required=True, type=str,
                         help='<Required> The path to the abundance CSV file.')
+    parser.add_argument('-i', '--index_path', dest='index_path', required=True, type=str,
+                        help='<Required> The path to the RefSeq index TSV file.')
     parser.add_argument('-n', '--num_reads', dest='num_reads', required=True, type=int,
                         help='<Required> The number of reads to sample per time point..')
     parser.add_argument('-bs', '--background_samples', dest='background_samples', required=True, type=str, nargs=2,

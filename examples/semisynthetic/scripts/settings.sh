@@ -41,6 +41,7 @@ export CHRONOSTRAIN_OUTPUT_FILENAME="abundances.out"
 
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)
 #export CHRONOSTRAIN_DB_JSON="${BASE_DIR}/files/database.json"
+export REFSEQ_INDEX="/mnt/e/ref_genomes/index.tsv"
 export CHRONOSTRAIN_DB_JSON="/mnt/d/chronostrain/umb_database/database_pruned.json"
 export MULTIFASTA_FILE="markers.fasta"
 export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
