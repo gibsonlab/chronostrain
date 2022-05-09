@@ -8,7 +8,7 @@ export CHRONOSTRAIN_DB_DIR="/mnt/d/chronostrain/semisynthetic/database"
 export N_TRIALS=20
 export READ_LEN=150
 export N_CORES=4
-export BACKGROUND_N_READS=1000000
+export BACKGROUND_N_READS=500000
 
 export RELATIVE_GROUND_TRUTH="${BASE_DIR}/files/ground_truth.csv"
 export BACKGROUND_SRA_ID="SRR061229"
@@ -40,7 +40,8 @@ export CHRONOSTRAIN_LR=0.01
 export CHRONOSTRAIN_OUTPUT_FILENAME="abundances.out"
 
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)
-export CHRONOSTRAIN_DB_JSON="${BASE_DIR}/files/database.json"
+#export CHRONOSTRAIN_DB_JSON="${BASE_DIR}/files/database.json"
+export CHRONOSTRAIN_DB_JSON="/mnt/d/chronostrain/umb_database/database_pruned.json"
 export MULTIFASTA_FILE="markers.fasta"
 export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
 export CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"

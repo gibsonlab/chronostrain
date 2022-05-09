@@ -141,8 +141,8 @@ def create_index_file(time_points: List[float], out_dir: Path, index_path: Path,
 
             # First, combine the read files.
             logger.info(f"Concatenating timepoint t = {t}...")
-            reads1_all = out_dir / "0_reads_1.fq.gz"
-            reads2_all = out_dir / "0_reads_2.fq.gz"
+            reads1_all = out_dir / f"{t_idx}_reads_1.fq.gz"
+            reads2_all = out_dir / f"{t_idx}_reads_2.fq.gz"
             n_reads = sum(entry[1] for entry in entries_t)
 
             files1 = []
