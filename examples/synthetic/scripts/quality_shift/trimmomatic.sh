@@ -43,6 +43,7 @@ index_csv="input_files_trimmed.csv"
 > $index_csv
 
 for time_point in 0 1 2 3 4; do
+	echo "[*] Running trimmomatic on timepoint #${time_point}..."
 	t_value="${time_points[time_point]}"
 
 	reads_1="${read_dir}/${time_point}_reads_1.fq.gz"
