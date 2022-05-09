@@ -4,11 +4,11 @@ import random
 import csv
 from pathlib import Path
 
+import pandas as pd
 from multiprocessing.dummy import Pool
 from typing import Tuple, Dict, List
 
 from chronostrain.config import create_logger, cfg
-from chronostrain.database import StrainDatabase
 from chronostrain.util.external.art import art_illumina
 
 from random import seed, randint
@@ -105,9 +105,11 @@ def main():
     index_path = out_dir / "input_files.csv"
     logger.info(f"Reads will be sampled to {index_path}.")
 
+    index_df = pd.read_csv(args.index_path, sep='\t')
+
     # Invoke art sampler on each time point.
     index_entries = sample_reads_from_rel_abundances(
-        db=cfg.database_cfg.get_database(),
+        index_df=index_df,
         time_points=time_points,
         read_counts=read_counts,
         out_dir=out_dir,
@@ -185,7 +187,7 @@ def parse_abundance_profile(abundance_path: str) -> List[Tuple[float, Dict]]:
 
 
 def sample_reads_from_rel_abundances(
-        db: StrainDatabase,
+        index_df: pd.DataFrame,
         time_points: List[float],
         read_counts: List[Dict[str, int]],
         out_dir: Path,
@@ -205,12 +207,11 @@ def sample_reads_from_rel_abundances(
         index_entries = []
         for t_idx, (time_point, read_counts_t) in enumerate(zip(time_points, read_counts)):
             for strain_id, n_reads in read_counts_t.items():
-                strain = db.get_strain(strain_id)
-                if len(strain.metadata.chromosomes) > 1:
-                    raise RuntimeError("Cannot sample reads using more than one chromosomal accession.")
-                chromosome_acc = strain.metadata.chromosomes[0]
+                refseq_rows = index_df.loc[index_df['Accession'] == strain_id]
+                if refseq_rows.shape[0] == 0:
+                    raise RuntimeError(f"Unable to locate strain id `{strain_id}`.")
 
-                fasta_path = cfg.database_cfg.data_dir / "assemblies" / strain.id / f'{chromosome_acc}.fasta'
+                fasta_path = Path(refseq_rows.head(1)['SeqPath'].item())
                 output_path_1, out_path_2 = art_illumina(
                     reference_path=fasta_path,
                     num_reads=n_reads,
@@ -234,12 +235,11 @@ def sample_reads_from_rel_abundances(
         configs = []
         for t_idx, (time_point, read_counts_t) in enumerate(zip(time_points, read_counts)):
             for strain_id, n_reads in read_counts_t.items():
-                strain = db.get_strain(strain_id)
-                if len(strain.metadata.chromosomes) > 1:
-                    raise RuntimeError("Cannot sample reads using more than one chromosomal accession.")
-                chromosome_acc = strain.metadata.chromosomes[0]
+                refseq_rows = index_df.loc[index_df['Accession'] == strain_id]
+                if refseq_rows.shape[0] == 0:
+                    raise RuntimeError(f"Unable to locate strain id `{strain_id}`.")
 
-                fasta_path = cfg.database_cfg.data_dir / "assemblies" / strain.id / f'{chromosome_acc}.fasta'
+                fasta_path = Path(refseq_rows.head(1)['SeqPath'].item())
                 configs.append((
                     fasta_path,
                     n_reads,
