@@ -24,7 +24,7 @@ then
 	exit 1
 fi
 
-trial_dir=$(get_trial_dir q_shift $trial)
+trial_dir=$(get_trial_dir $q_shift $trial)
 read_dir=${trial_dir}/reads
 output_dir=${trial_dir}/output/strainest
 
