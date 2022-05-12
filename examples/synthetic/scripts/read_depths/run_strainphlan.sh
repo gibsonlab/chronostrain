@@ -51,6 +51,7 @@ for time_point in 0 1 2 3 4; do
 	--index database \
 	--bowtie2db ${METAPHLAN3_DB_DIR} \
 	-s ${samdir}/${time_point}.sam.bz2 \
+	--bowtie2out ${bt2dir}/${time_point}.bowtie2.bz2 \
 	-o ${profiledir}/${time_point}_profiled.tsv
 done
 
