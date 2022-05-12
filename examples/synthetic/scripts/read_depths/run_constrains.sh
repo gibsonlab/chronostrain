@@ -29,9 +29,9 @@ mkdir -p ${output_dir}
 > $cfg_file
 for time_point in 0 1 2 3 4; do
 	echo "//" >> $cfg_file
-	echo "sample: [${time_point}_reads]" >> $cfg_file
-	echo "fq1: [${read_dir}/${time_point}_reads_1.fq.gz]" >> $cfg_file
-	echo "fq2: [${read_dir}/${time_point}_reads_2.fq.gz]" >> $cfg_file
+	echo "sample: ${time_point}_reads" >> $cfg_file
+	echo "fq1: ${read_dir}/${time_point}_reads_1.fq.gz" >> $cfg_file
+	echo "fq2: ${read_dir}/${time_point}_reads_2.fq.gz" >> $cfg_file
 done
 
 
