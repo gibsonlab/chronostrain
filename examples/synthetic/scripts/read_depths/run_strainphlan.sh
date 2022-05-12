@@ -55,7 +55,7 @@ for time_point in 0 1 2 3 4; do
 	-o ${profiledir}/${time_point}_profiled.tsv
 done
 
-sample2markers.py -i ${samdir}/*.sam.bz2 -o ${consensusdir} -n 8
+sample2markers.py -i ${samdir}/*.sam.bz2 --input_type sam -o ${consensusdir} -n 8
 #extract_markers.py -c s__Escherichia_coli -o ${markerdir}
 #strainphlan \
 #-s ${consensusdir}/*.pkl \
