@@ -20,7 +20,7 @@ fi
 
 trial_dir=$(get_trial_dir $n_reads $trial)
 read_dir=${trial_dir}/reads
-output_dir=${trial_dir}/output/strainest
+output_dir=${trial_dir}/output/constrains
 cfg_file=${output_dir}/constrains_input.cfg
 
 echo "[*] Running ConStrains for n_reads: ${n_reads}, trial: ${trial}, timepoint #${time_point}"
