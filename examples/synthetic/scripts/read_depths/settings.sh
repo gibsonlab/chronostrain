@@ -26,6 +26,7 @@ export STRAINEST_BOWTIE2_DB_NAME='bt2_strains'
 # ================= ConStrains settings
 export CONSTRAINS_DIR=/home/bromii/constrains
 export METAPHLAN2_DIR=/home/bromii/MetaPhlAn2
+export METAPHLAN3_DB_DIR=${CHRONOSTRAIN_DB_DIR}/metaphlan3
 
 # ========= Chronostrain settings
 export INFERENCE_SEED=31415
