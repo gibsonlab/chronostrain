@@ -25,6 +25,7 @@ cfg_file=${output_dir}/constrains_input.cfg
 
 echo "[*] Running ConStrains for n_reads: ${n_reads}, trial: ${trial}, timepoint #${time_point}"
 
+mkdir -p ${output_dir}
 > $cfg_file
 for time_point in 0 1 2 3 4; do
 	echo "//" >> $cfg_file
