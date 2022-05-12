@@ -40,7 +40,7 @@ def create_db(genomes: List[Genome], markers: List[Marker], db_dir: Path):
                 for line in marker_file:
                     if line.startswith('>'):
                         print(
-                            f'{marker.name} {marker.name};{marker.taxon};CP009273',
+                            f'>{marker.name} {marker.name};{marker.taxon};CP009273',
                             file=fasta_file
                         )
                     else:
