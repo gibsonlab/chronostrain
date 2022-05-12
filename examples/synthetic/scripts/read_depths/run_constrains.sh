@@ -41,4 +41,4 @@ python ${CONSTRAINS_DIR}/ConStrains.py \
 -o ${output_dir} \
 -c ${cfg_file} \
 -t 4 \
---min_cov=2
+--min_cov=3
