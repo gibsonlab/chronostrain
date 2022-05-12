@@ -40,5 +40,6 @@ export mpa_dir=${METAPHLAN2_DIR}:$PATH
 python ${CONSTRAINS_DIR}/ConStrains.py \
 -o ${output_dir} \
 -c ${cfg_file} \
+-m ${METAPHLAN2_DIR}/metaphlan2.py \
 -t 4 \
 --min_cov=3
