@@ -38,7 +38,13 @@ def create_db(genomes: List[Genome], markers: List[Marker], db_dir: Path):
         for marker in markers:
             with open(marker.fasta_path, 'r') as marker_file:
                 for line in marker_file:
-                    fasta_file.write(line)
+                    if line.startswith('>'):
+                        print(
+                            f'{marker.name} {marker.name};{marker.taxon};CP009273',
+                            file=fasta_file
+                        )
+                    else:
+                        fasta_file.write(line)
 
     print(f'bowtie2-build {db_fasta_path} {db_dir}/database')
     os.system(f'bowtie2-build {db_fasta_path} {db_dir}/database')
