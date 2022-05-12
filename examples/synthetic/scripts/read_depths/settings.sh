@@ -23,6 +23,10 @@ export STRAINGST_DB_HDF5=${STRAINGST_DB_DIR}/database.hdf5
 export STRAINEST_DB_DIR=${CHRONOSTRAIN_DB_DIR}/strainest
 export STRAINEST_BOWTIE2_DB_NAME='bt2_strains'
 
+# ================= ConStrains settings
+export CONSTRAINS_DIR=/home/bromii/constrains
+export METAPHLAN2_DIR=/home/bromii/MetaPhlAn2
+
 # ========= Chronostrain settings
 export INFERENCE_SEED=31415
 export CHRONOSTRAIN_NUM_ITERS=50
