@@ -40,6 +40,7 @@ def create_db(genomes: List[Genome], markers: List[Marker], db_dir: Path):
                 for line in marker_file:
                     fasta_file.write(line)
 
+    print('bowtie2-build {marker_file} {db_dir}')
     os.system(f'bowtie2-build {marker_file} {db_dir}')
 
     db = {
