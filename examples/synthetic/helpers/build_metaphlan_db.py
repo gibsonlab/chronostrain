@@ -32,16 +32,16 @@ def parse_args() -> argparse.Namespace:
 
 def create_db(genomes: List[Genome], markers: List[Marker], db_dir: Path):
     db_dir.mkdir(exist_ok=True, parents=True)
-    marker_file = db_dir / "database.fasta"
+    db_fasta_path = db_dir / "database.fasta"
 
-    with open(marker_file, 'w') as fasta_file:
+    with open(db_fasta_path, 'w') as fasta_file:
         for marker in markers:
             with open(marker.fasta_path, 'r') as marker_file:
                 for line in marker_file:
                     fasta_file.write(line)
 
-    print(f'bowtie2-build {marker_file} {db_dir}')
-    os.system(f'bowtie2-build {marker_file} {db_dir}')
+    print(f'bowtie2-build {db_fasta_path} {db_dir}')
+    os.system(f'bowtie2-build {db_fasta_path} {db_dir}')
 
     db = {
         'taxonomy': {
