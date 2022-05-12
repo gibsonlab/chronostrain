@@ -40,8 +40,8 @@ def create_db(genomes: List[Genome], markers: List[Marker], db_dir: Path):
                 for line in marker_file:
                     fasta_file.write(line)
 
-    print(f'bowtie2-build {db_fasta_path} {db_dir}')
-    os.system(f'bowtie2-build {db_fasta_path} {db_dir}')
+    print(f'bowtie2-build {db_fasta_path} {db_dir}/database')
+    os.system(f'bowtie2-build {db_fasta_path} {db_dir}/database')
 
     db = {
         'taxonomy': {
