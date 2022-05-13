@@ -45,7 +45,7 @@ echo "[*] Running alignment..."
 bowtie2 \
 --very-fast --no-unal --quiet \
 -k 2 \
--x ${STRAINEST_DB_DIR}/bowtie/align \
+-x ${STRAINEST_DB_DIR}/bowtie/ecoli \
 -1 ${reads_1} \
 -2 ${reads_2} \
 -S ${sam_file}
@@ -58,7 +58,7 @@ samtools index ${sorted_bam_file}
 
 # Run StrainEst
 echo "[*] Running StrainEst..."
-strainest est ${STRAINEST_DB_DIR}/snp_clust.dgrp ${sorted_bam_file} ./
+strainest est ${STRAINEST_DB_DIR}/snv.txt ${sorted_bam_file} ./
 
 # Clean up
 echo "[*] Cleaning up..."
@@ -66,18 +66,18 @@ rm ${sam_file}
 rm ${bam_file}
 rm ${sorted_bam_file}
 
-if [[ -f abund.txt ]]; do
+if [ -f abund.txt ]; then
 	mv abund.txt abund_${time_point}.txt
-done
+fi
 
-if [[ -f info.txt ]]; do
+if [ -f info.txt ]; then
 	mv info.txt info_${time_point}.txt
-done
+fi
 
-if [[ -f counts.txt ]]; do
+if [ -f counts.txt ]; then
 	mv counts.txt counts_${time_point}.txt
-done
+fi
 
-if [[ -f max_ident.txt ]]; do
+if [ -f max_ident.txt ]; then
 	mv max_ident.txt max_ident_${time_point}.txt
-done
+fi
