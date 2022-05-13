@@ -58,7 +58,7 @@ samtools index ${sorted_bam_file}
 
 # Run StrainEst
 echo "[*] Running StrainEst..."
-strainest est ${BASE_DIR}/files/strainest_snvs.dgrp ${sorted_bam_file} ./
+strainest est ${STRAINEST_DB_DIR}/snp_clust.dgrp ${sorted_bam_file} ./
 
 # Clean up
 echo "[*] Cleaning up..."
