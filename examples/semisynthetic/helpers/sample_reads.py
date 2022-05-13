@@ -151,7 +151,7 @@ def create_index_file(time_points: List[float], out_dir: Path, index_path: Path,
 
             files1 = []
             files2 = []
-            for _, _, reads1, reads2 in entries:
+            for _, _, reads1, reads2 in entries_t:
                 files1.append(reads1)
                 files2.append(reads2)
 
