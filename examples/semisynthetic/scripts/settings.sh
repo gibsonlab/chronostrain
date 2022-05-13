@@ -26,8 +26,7 @@ export STRAINGST_DB_DIR=${CHRONOSTRAIN_DB_DIR}/straingst
 export STRAINGST_DB_HDF5=${STRAINGST_DB_DIR}/database.hdf5
 
 # ================= StrainEst settings
-export STRAINEST_DB_DIR=${CHRONOSTRAIN_DB_DIR}/strainest
-export STRAINEST_BOWTIE2_DB_NAME='bt2_strains'
+export STRAINEST_DB_DIR="/mnt/e/strainest_db"
 
 # ========= Chronostrain settings
 export INFERENCE_SEED=31415
