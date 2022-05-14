@@ -1,4 +1,3 @@
-import os
 import argparse
 from typing import List
 from pathlib import Path
@@ -12,15 +11,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('-i', '--index_path', required=True, type=str)
     parser.add_argument('-o', '--output_fasta', required=True, type=str)
     parser.add_argument('-r', '--rep_fasta', required=True, type=str)
+    parser.add_argument('-t', '--target_script_path', required=True, type=str)
     return parser.parse_args()
 
 
 def strainest_mapgenomes(genome_paths: List[Path], rep_fasta: Path, output_fasta: Path):
-    os.system('strainest mapgenomes {} {} {}'.format(
+    script = 'strainest mapgenomes {} {} {}'.format(
         ' '.join(str(genome_paths)),
         rep_fasta,
         output_fasta
-    ))
+    )
+    return script
 
 
 def main():
@@ -38,8 +39,10 @@ def main():
         seq_path = df.loc[df['Accession'] == accession, 'SeqPath'].item()
         genome_paths.append(seq_path)
 
-    strainest_mapgenomes(
+    script = strainest_mapgenomes(
         genome_paths,
         Path(args.rep_fasta),
         Path(args.output_fasta)
     )
+    with open(args.target_script_path, 'w') as f:
+        print(script, file=f)

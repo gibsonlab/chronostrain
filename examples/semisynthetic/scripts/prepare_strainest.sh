@@ -4,10 +4,14 @@ source settings.sh
 
 # Step 1: Align representatives to Species Representative (K-12 MG1655).
 output_fasta=${STRAINEST_DB_DIR}/aln_all.fasta
+strainest_script=${STRAINEST_DB_DIR}/child_script.sh
 python ${BASE_DIR}/helpers/strainest_helper.py \
 -i $REFSEQ_INDEX \
 -o $output_fasta \
--r $STRAIN_REP_FASTA
+-r $STRAIN_REP_FASTA \
+-t $strainest_script
+
+bash $strainest_script
 
 # Step 2: Generate raw SNV matrix, and then cluster it.
 snv_file=${STRAINEST_DB_DIR}/snvs_all.txt
