@@ -1,11 +1,10 @@
 import argparse
-from typing import List
 from pathlib import Path
 import pandas as pd
 import json
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-j', '--db_json_path', required=True, type=str)
     parser.add_argument('-i', '--index_path', required=True, type=str)
@@ -15,7 +14,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def strainest_mapgenomes(genome_paths: List[Path], rep_fasta: Path, output_fasta: Path):
+def strainest_mapgenomes(genome_paths, rep_fasta, output_fasta):
     script = 'strainest mapgenomes {} {} {}'.format(
         ' '.join(str(genome_paths)),
         rep_fasta,
