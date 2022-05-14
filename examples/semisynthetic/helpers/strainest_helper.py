@@ -36,6 +36,7 @@ def main():
     df = pd.read_csv(args.index_path, sep='\t')
     for accession in accessions:
         seq_path = df.loc[df['Accession'] == accession, 'SeqPath'].item()
+        print("Adding {}".format(seq_path))
         genome_paths.append(seq_path)
 
     script = strainest_mapgenomes(
