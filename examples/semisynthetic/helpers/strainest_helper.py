@@ -1,5 +1,4 @@
 import argparse
-from pathlib import Path
 import pandas as pd
 import json
 
@@ -41,8 +40,8 @@ def main():
 
     script = strainest_mapgenomes(
         genome_paths,
-        Path(args.rep_fasta),
-        Path(args.output_fasta)
+        args.rep_fasta,
+        args.output_fasta
     )
     with open(args.target_script_path, 'w') as f:
         f.write(script)
