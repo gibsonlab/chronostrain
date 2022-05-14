@@ -45,7 +45,7 @@ def main():
         Path(args.output_fasta)
     )
     with open(args.target_script_path, 'w') as f:
-        print(script, file=f)
+        f.write(script)
 
 
 if __name__ == "__main__":
