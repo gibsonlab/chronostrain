@@ -13,15 +13,6 @@ def parse_args():
     return parser.parse_args()
 
 
-def strainest_mapgenomes(genome_paths, rep_fasta, output_fasta):
-    script = 'strainest mapgenomes {} {} {}'.format(
-        ' '.join(str(genome_paths)),
-        rep_fasta,
-        output_fasta
-    )
-    return script
-
-
 def main():
     args = parse_args()
 
@@ -39,13 +30,14 @@ def main():
         print("Adding {}".format(seq_path))
         genome_paths.append(seq_path)
 
-    script = strainest_mapgenomes(
-        genome_paths,
-        args.rep_fasta,
-        args.output_fasta
-    )
     with open(args.target_script_path, 'w') as f:
-        f.write(script)
+        f.write('strainest mapgenomes')
+        for seq_path in genome_paths:
+            f.write(' ')
+            f.write(seq_path)
+        f.write(args.rep_fasta)
+        f.write(args.output_fasta)
+        f.write('\n')
 
 
 if __name__ == "__main__":
