@@ -3,6 +3,7 @@ export PROJECT_DIR="/home/bromii/chronostrain"
 export BASE_DIR="${PROJECT_DIR}/examples/semisynthetic"
 export DATA_DIR="/mnt/e/semisynthetic_data"
 export CHRONOSTRAIN_DB_DIR="/mnt/d/chronostrain/umb_database"
+export MISC_DB_DIR="/mnt/d/chronostrain/semisynthetic"
 
 # ==================== Read sampling settings
 export N_TRIALS=20
@@ -22,11 +23,11 @@ export FASTERQ_TMP_DIR="${DATA_DIR}/fasterq-tmp"
 export READ_PROFILE_PATH="${BASE_DIR}/files/HiSeqReference"
 
 # ================= StrainGST settings
-export STRAINGST_DB_DIR=${CHRONOSTRAIN_DB_DIR}/straingst
+export STRAINGST_DB_DIR=${MISC_DB_DIR}/straingst
 export STRAINGST_DB_HDF5=${STRAINGST_DB_DIR}/database.hdf5
 
 # ================= StrainEst settings
-export STRAINEST_DB_DIR="/mnt/e/strainest_db"
+export STRAINEST_DB_DIR=${MISC_DB_DIR}/strainest
 
 # ========= Chronostrain settings
 export INFERENCE_SEED=31415
