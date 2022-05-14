@@ -31,13 +31,12 @@ def main():
         genome_paths.append(seq_path)
 
     with open(args.target_script_path, 'w') as f:
-        f.write('strainest mapgenomes')
+        f.write('strainest mapgenomes \\\n')
         for seq_path in genome_paths:
-            f.write(' ')
             f.write(seq_path)
-        f.write(' ')
+            f.write(' \\\n')
         f.write(args.rep_fasta)
-        f.write(' ')
+        f.write(' \\\n')
         f.write(args.output_fasta)
         f.write('\n')
 
