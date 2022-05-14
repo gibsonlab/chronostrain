@@ -8,6 +8,7 @@ strainest_script=${STRAINEST_DB_DIR}/child_script.sh
 
 export CHRONOSTRAIN_CACHE_DIR="."
 python ${BASE_DIR}/helpers/strainest_helper.py \
+-j ${CHRONOSTRAIN_DB_JSON} \
 -i $REFSEQ_INDEX \
 -o $output_fasta \
 -r $STRAIN_REP_FASTA \
