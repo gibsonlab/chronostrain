@@ -46,3 +46,7 @@ def main():
     )
     with open(args.target_script_path, 'w') as f:
         print(script, file=f)
+
+
+if __name__ == "__main__":
+    main()
