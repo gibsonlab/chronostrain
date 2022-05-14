@@ -35,7 +35,9 @@ def main():
         for seq_path in genome_paths:
             f.write(' ')
             f.write(seq_path)
+        f.write(' ')
         f.write(args.rep_fasta)
+        f.write(' ')
         f.write(args.output_fasta)
         f.write('\n')
 
