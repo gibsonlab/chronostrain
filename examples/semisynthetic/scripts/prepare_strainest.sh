@@ -5,6 +5,7 @@ source settings.sh
 # Step 1: Align representatives to Species Representative (K-12 MG1655).
 output_fasta=${STRAINEST_DB_DIR}/aln_all.fasta
 strainest_script=${STRAINEST_DB_DIR}/child_script.sh
+mkdir -p ${STRAINEST_DB_DIR}
 
 export CHRONOSTRAIN_CACHE_DIR="."
 python ${BASE_DIR}/helpers/strainest_helper.py \
