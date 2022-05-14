@@ -27,6 +27,7 @@ export STRAINGST_DB_DIR=${MISC_DB_DIR}/straingst
 export STRAINGST_DB_HDF5=${STRAINGST_DB_DIR}/database.hdf5
 
 # ================= StrainEst settings
+export STRAIN_REP_FASTA=/mnt/e/ref_genomes/human_readable/refseq/bacteria/Escherichia/coli/K-12_MG1655/NZ_CP010438.1.chrom.fna
 export STRAINEST_DB_DIR=${MISC_DB_DIR}/strainest
 
 # ========= Chronostrain settings
