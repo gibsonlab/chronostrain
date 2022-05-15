@@ -23,5 +23,8 @@ snv_dist_file=${STRAINEST_DB_DIR}/snvs_dist_all.txt
 snv_clust_file=${STRAINEST_DB_DIR}/snvs_clust.txt
 clust_file=${STRAINEST_DB_DIR}/clusters.txt
 strainest map2snp $STRAIN_REP_FASTA $output_fasta $snv_file
-strainest snpdist $snv_file $snv_dist_file
-strainest snpclust $snv_file $snv_dist_file $snv_clust_file $clust_file
+
+# (Note: skip clustering step.)
+# Step 3: Build bowtie2 index.
+cd ${STRAINEST_DB_DIR}
+bowtie2-build ${output_fasta} $STRAINEST_BT2_DB
