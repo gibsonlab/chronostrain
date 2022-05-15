@@ -7,14 +7,7 @@ output_fasta=${STRAINEST_DB_DIR}/aln_all.fasta
 strainest_script=${STRAINEST_DB_DIR}/child_script.sh
 mkdir -p ${STRAINEST_DB_DIR}
 
-seq_paths=''
-export CHRONOSTRAIN_CACHE_DIR="."
-python ${BASE_DIR}/helpers/strainest_helper.py \
--j ${CHRONOSTRAIN_DB_JSON} \
--i $REFSEQ_INDEX | while read strain_seq; do
-	seq_paths="${seq_paths} ${strain_seq}"
-done
-
+seq_paths=$(python ${BASE_DIR}/helpers/list_strain_paths.py -j ${CHRONOSTRAIN_DB_JSON} -i $REFSEQ_INDEX | paste -s -d " ")
 strainest mapgenomes ${seq_paths} ${STRAIN_REP_FASTA} ${output_fasta}
 
 # Step 2: Generate raw SNV matrix, and then cluster it.

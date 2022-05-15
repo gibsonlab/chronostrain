@@ -12,6 +12,7 @@ python ${BASE_DIR}/helpers/strainest_helper.py \
 -j ${CHRONOSTRAIN_DB_JSON} \
 -i $REFSEQ_INDEX | while read strain_seq; do
 	base_name="$(basename -- $strain_seq)"
+	echo "Kmerizing ${base_name}"
 	strain_kmers="${base_name}.hdf5"
 	all_strain_kmers="${all_strain_kmers} ${strain_kmers}"
 	straingst kmerize -o $strain_kmers $strain_seq
