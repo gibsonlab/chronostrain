@@ -15,7 +15,7 @@ python ${BASE_DIR}/helpers/list_strain_paths.py -j ${CHRONOSTRAIN_DB_JSON} -i $R
 done
 
 all_strain_kmers=""
-for f in *.hdf5; do
-	all_strain_kmers="${all_strain_kmers} ${strain_kmers}"
+for f in *.fna.hdf5; do
+	all_strain_kmers="${all_strain_kmers} ${f}"
 done
 straingst createdb -o ${STRAINGST_DB_HDF5} ${all_strain_kmers}
