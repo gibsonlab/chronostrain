@@ -8,9 +8,8 @@ cd ${STRAINGST_DB_DIR}
 
 all_strain_kmers=""
 
-python ${BASE_DIR}/helpers/strainest_helper.py \
--j ${CHRONOSTRAIN_DB_JSON} \
--i $REFSEQ_INDEX | while read strain_seq; do
+python ${BASE_DIR}/helpers/list_strain_paths.py -j ${CHRONOSTRAIN_DB_JSON} -i $REFSEQ_INDEX \
+| while read strain_seq; do
 	base_name="$(basename -- $strain_seq)"
 	echo "Kmerizing ${base_name}"
 	strain_kmers="${base_name}.hdf5"
