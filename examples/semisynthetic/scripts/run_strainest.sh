@@ -45,7 +45,7 @@ echo "[*] Running alignment..."
 bowtie2 \
 --very-fast --no-unal --quiet \
 -k 2 \
--x ${STRAINEST_DB_DIR}/bowtie/ecoli \
+-x ${STRAINEST_DB_DIR}/${STRAINEST_BT2_DB} \
 -1 ${reads_1} \
 -2 ${reads_2} \
 -S ${sam_file}
@@ -58,7 +58,7 @@ samtools index ${sorted_bam_file}
 
 # Run StrainEst
 echo "[*] Running StrainEst..."
-strainest est ${STRAINEST_DB_DIR}/snv.txt ${sorted_bam_file} ./
+strainest est ${STRAINEST_DB_DIR}/snvs_all.txt ${sorted_bam_file} ./
 
 # Clean up
 echo "[*] Cleaning up..."

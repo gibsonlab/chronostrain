@@ -19,9 +19,6 @@ bash $strainest_script
 
 # Step 2: Generate raw SNV matrix, and then cluster it.
 snv_file=${STRAINEST_DB_DIR}/snvs_all.txt
-snv_dist_file=${STRAINEST_DB_DIR}/snvs_dist_all.txt
-snv_clust_file=${STRAINEST_DB_DIR}/snvs_clust.txt
-clust_file=${STRAINEST_DB_DIR}/clusters.txt
 strainest map2snp $STRAIN_REP_FASTA $output_fasta $snv_file
 
 # (Note: skip clustering step.)
