@@ -118,9 +118,6 @@ def parse_strainest_estimate(ground_truth: pd.DataFrame,
     est_rel_abunds = np.zeros(shape=(len(time_points), len(strain_ids)), dtype=float)
     for t_idx, t in enumerate(time_points):
         output_path = output_dir / f"abund_{t_idx}.txt"
-        if not output_path.exists():
-            continue
-
         with open(output_path, 'rt') as f:
             lines = iter(f)
             header_line = next(lines)
@@ -205,22 +202,29 @@ def main():
             print(f"Handling read depth {read_depth}, trial {trial_num}")
 
             # =========== Chronostrain
-            chronostrain_estimate = parse_chronostrain_estimate(db, ground_truth, strain_ids, trial_dir / 'output' / 'chronostrain')
-            df_entries.append({
-                'ReadDepth': read_depth,
-                'TrialNum': trial_num,
-                'Method': 'Chronostrain',
-                'Error': wasserstein_error(chronostrain_estimate, ground_truth, distances, strain_ids)
-            })
+            try:
+                chronostrain_estimate = parse_chronostrain_estimate(db, ground_truth, strain_ids, trial_dir / 'output' / 'chronostrain')
+                df_entries.append({
+                    'ReadDepth': read_depth,
+                    'TrialNum': trial_num,
+                    'Method': 'Chronostrain',
+                    'Error': wasserstein_error(chronostrain_estimate, ground_truth, distances, strain_ids)
+                })
+            except FileNotFoundError:
+                print("Skipping Chronostrain output.")
 
             # =========== StrainEst
-            strainest_estimate = parse_strainest_estimate(ground_truth, strain_ids, trial_dir / 'output' / 'strainest')
-            df_entries.append({
-                'ReadDepth': read_depth,
-                'TrialNum': trial_num,
-                'Method': 'StrainEst',
-                'Error': wasserstein_error(strainest_estimate, ground_truth, distances, strain_ids)
-            })
+            try:
+                strainest_estimate = parse_strainest_estimate(ground_truth, strain_ids, trial_dir / 'output' / 'strainest')
+                df_entries.append({
+                    'ReadDepth': read_depth,
+                    'TrialNum': trial_num,
+                    'Method': 'StrainEst',
+                    'Error': wasserstein_error(strainest_estimate, ground_truth, distances, strain_ids)
+                })
+            except FileNotFoundError:
+                print("Skipping StrainEst output.")
+
 
     summary_df = pd.DataFrame(df_entries)
     summary_df.to_csv(out_path, index=False)
