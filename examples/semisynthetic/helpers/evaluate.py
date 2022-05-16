@@ -56,12 +56,16 @@ def hamming_distance(x: str, y: str) -> int:
     return sum(1 for c, d in zip(x, y) if c != d)
 
 
-def parse_hamming(multi_align_path: Path) -> Tuple[List[str], np.ndarray]:
+def parse_hamming(multi_align_path: Path, index_df: pd.DataFrame) -> Tuple[List[str], np.ndarray]:
     """Use pre-constructed multiple alignment to compute distance in hamming space."""
     strain_ids: List[str] = []
     aligned_seqs: List[str] = []
     for record in SeqIO.parse(multi_align_path, 'fasta'):
         strain_id = record.id
+
+        if index_df.loc[index_df['Accession'] == strain_id, 'Species'].item() != 'coli':
+            continue
+
         strain_ids.append(strain_id)
         aligned_seqs.append(str(record.seq))
 
