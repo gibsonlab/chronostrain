@@ -191,6 +191,7 @@ def all_ecoli_strain_ids(index_path: Path) -> List[str]:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument('-b', '--base_data_dir', type=str, required=True)
+    parser.add_argument('-i', '--index_path', type=str, required=True)
     parser.add_argument('-a', '--alignment_file', type=str, required=True)
     parser.add_argument('-o', '--out_path', type=str, required=True)
     parser.add_argument('-g', '--ground_truth_path', type=str, required=True)
@@ -205,10 +206,11 @@ def main():
 
     # Necessary precomputation.
     ground_truth = load_ground_truth(Path(args.ground_truth_path))
+    index_df = pd.read_csv(args.index_path, sep='\t')
     db = cfg.database_cfg.get_database()
 
     print("Parsing hamming distances.")
-    strain_ids, distances = parse_hamming(Path(args.alignment_file))
+    strain_ids, distances = parse_hamming(Path(args.alignment_file), index_df)
 
     # search through all of the read depths.
     df_entries = []
