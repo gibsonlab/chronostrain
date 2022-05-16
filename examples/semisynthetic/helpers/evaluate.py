@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import seaborn as sb
 import ot
 from Bio import SeqIO
+from tqdm import tqdm
 
 from chronostrain.database import StrainDatabase
 from chronostrain import cfg
@@ -69,7 +70,10 @@ def parse_hamming(multi_align_path: Path) -> Tuple[List[str], np.ndarray]:
         shape=(len(strain_ids), len(strain_ids)),
         dtype=float
     )
-    for (i, i_seq), (j, j_seq) in itertools.combinations(enumerate(aligned_seqs), r=2):
+
+    n_strains = len(strain_ids)
+    n_pairs = int(n_strains * (n_strains - 1)) // 2
+    for (i, i_seq), (j, j_seq) in tqdm(itertools.combinations(enumerate(aligned_seqs), r=2), total=n_pairs):
         if len(i_seq) != len(j_seq):
             raise RuntimeError("Found mismatching string lengths {} and {} (strains {} vs {})".format(
                 len(i_seq), len(j_seq),
