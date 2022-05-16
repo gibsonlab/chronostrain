@@ -5,7 +5,6 @@ source settings.sh
 
 export CHRONOSTRAIN_CACHE_DIR=.
 python ${BASE_DIR}/helpers/evaluate.py \
--i ${REFSEQ_INDEX} \
 -b ${DATA_DIR} \
 -o ${DATA_DIR}/summary/output.csv \
 -g ${RELATIVE_GROUND_TRUTH} \

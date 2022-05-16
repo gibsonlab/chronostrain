@@ -55,15 +55,14 @@ def hamming_distance(x: str, y: str) -> int:
     return sum(1 for c, d in zip(x, y) if c != d)
 
 
-def parse_hamming(strain_ids: List[str], multi_align_path: Path) -> np.ndarray:
+def parse_hamming(multi_align_path: Path) -> Tuple[List[str], np.ndarray]:
     """Use pre-constructed multiple alignment to compute distance in hamming space."""
-    aligned_seqs: List[str] = ['' for _ in strain_ids]
-    strain_idxs: Dict[str, int] = {sid: i for i, sid in enumerate(strain_ids)}
+    strain_ids: List[str] = []
+    aligned_seqs: List[str] = []
     for record in SeqIO.parse(multi_align_path, 'fasta'):
         strain_id = record.id
-        if strain_id not in strain_idxs:
-            continue
-        strain_idx = strain_idxs[strain_id]
+        strain_ids.append(strain_id)
+        strain_idx = len(strain_id) - 1
         aligned_seqs[strain_idx] = str(record.seq)
 
     matrix = np.zeros(
@@ -79,7 +78,7 @@ def parse_hamming(strain_ids: List[str], multi_align_path: Path) -> np.ndarray:
         d = hamming_distance(i_seq, j_seq)
         matrix[i, j] = d
         matrix[j, i] = d
-    return matrix
+    return strain_ids, matrix
 
 
 def parse_chronostrain_estimate(db: StrainDatabase,
@@ -183,7 +182,6 @@ def all_ecoli_strain_ids(index_path: Path) -> List[str]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument('-i', '--index_file', type=str, required=True)
     parser.add_argument('-b', '--base_data_dir', type=str, required=True)
     parser.add_argument('-a', '--alignment_file', type=str, required=True)
     parser.add_argument('-o', '--out_path', type=str, required=True)
@@ -200,8 +198,7 @@ def main():
     # Necessary precomputation.
     ground_truth = load_ground_truth(Path(args.ground_truth_path))
     db = cfg.database_cfg.get_database()
-    strain_ids = all_ecoli_strain_ids(Path(args.index_file))
-    distances = parse_hamming(strain_ids, Path(args.alignment_file))
+    strain_ids, distances = parse_hamming(Path(args.alignment_file))
 
     # search through all of the read depths.
     df_entries = []
