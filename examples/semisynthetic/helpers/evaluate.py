@@ -242,3 +242,7 @@ def main():
 
     plt.savefig(plot_path)
     print(f"[*] Saved plot to {plot_path}.")
+
+
+if __name__ == "__main__":
+    main()
