@@ -62,8 +62,7 @@ def parse_hamming(multi_align_path: Path) -> Tuple[List[str], np.ndarray]:
     for record in SeqIO.parse(multi_align_path, 'fasta'):
         strain_id = record.id
         strain_ids.append(strain_id)
-        strain_idx = len(strain_id) - 1
-        aligned_seqs[strain_idx] = str(record.seq)
+        aligned_seqs.append(str(record.seq))
 
     matrix = np.zeros(
         shape=(len(strain_ids), len(strain_ids)),
