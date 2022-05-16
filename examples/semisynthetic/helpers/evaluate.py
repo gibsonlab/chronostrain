@@ -218,6 +218,7 @@ def main():
     ground_truth = load_ground_truth(Path(args.ground_truth_path))
     index_df = pd.read_csv(args.index_path, sep='\t')
     chronostrain_db = cfg.database_cfg.get_database()
+    out_dir.mkdir(exist_ok=True, parents=True)
 
     dists_path = out_dir / 'strain_distances.pkl'
     try:
