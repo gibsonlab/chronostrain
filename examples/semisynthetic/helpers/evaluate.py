@@ -64,6 +64,7 @@ def parse_hamming(multi_align_path: Path) -> Tuple[List[str], np.ndarray]:
         strain_ids.append(strain_id)
         aligned_seqs.append(str(record.seq))
 
+    print("Found {} strains.".format(len(strain_ids)))
     matrix = np.zeros(
         shape=(len(strain_ids), len(strain_ids)),
         dtype=float
@@ -197,6 +198,8 @@ def main():
     # Necessary precomputation.
     ground_truth = load_ground_truth(Path(args.ground_truth_path))
     db = cfg.database_cfg.get_database()
+
+    print("Parsing hamming distances.")
     strain_ids, distances = parse_hamming(Path(args.alignment_file))
 
     # search through all of the read depths.
