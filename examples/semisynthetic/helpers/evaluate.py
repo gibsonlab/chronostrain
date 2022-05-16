@@ -71,6 +71,11 @@ def parse_hamming(strain_ids: List[str], multi_align_path: Path) -> np.ndarray:
         dtype=float
     )
     for (i, i_seq), (j, j_seq) in itertools.combinations(enumerate(aligned_seqs), r=2):
+        if len(i_seq) != len(j_seq):
+            raise RuntimeError("Found mismatching string lengths {} and {} (strains {} vs {})".format(
+                len(i_seq), len(j_seq),
+                strain_ids[i], strain_ids[j]
+            ))
         d = hamming_distance(i_seq, j_seq)
         matrix[i, j] = d
         matrix[j, i] = d
