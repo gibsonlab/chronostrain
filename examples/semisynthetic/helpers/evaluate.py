@@ -179,6 +179,7 @@ def all_ecoli_strain_ids(index_path: Path) -> List[str]:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--index_file', type=str, required=True)
+    parser.add_argument('-b', '--base_data_dir', type=str, required=True)
     parser.add_argument('-a', '--alignment_file', type=str, required=True)
     parser.add_argument('-v', '--verbose', action='store_true')
     return parser.parse_args()
