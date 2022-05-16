@@ -1,7 +1,8 @@
 import itertools
 from pathlib import Path
-from typing import List, Dict, Iterator, Tuple
+from typing import List, Iterator, Tuple
 import argparse
+import pickle
 
 import csv
 import numpy as np
@@ -89,6 +90,14 @@ def parse_hamming(multi_align_path: Path, index_df: pd.DataFrame) -> Tuple[List[
     return strain_ids, matrix
 
 
+def strip_suffixes(strain_id_string: str):
+    suffixes = {'.chrom', '.fna', '.gz', '.bz', '.fastq', '.fasta'}
+    x = Path(strain_id_string)
+    while x.suffix in suffixes:
+        x = x.with_suffix('')
+    return x.name
+
+
 def parse_chronostrain_estimate(db: StrainDatabase,
                                 ground_truth: pd.DataFrame,
                                 strain_ids: List[str],
@@ -138,6 +147,7 @@ def parse_strainest_estimate(ground_truth: pd.DataFrame,
 
             for line in lines:
                 strain_id, abund = line.rstrip().split('\t')
+                strain_id = strip_suffixes(strain_id)
                 abund = float(abund)
                 strain_idx = strain_indices[strain_id]
                 est_rel_abunds[t_idx][strain_idx] = abund
@@ -202,15 +212,24 @@ def parse_args() -> argparse.Namespace:
 def main():
     args = parse_args()
     base_dir = Path(args.base_data_dir)
-    out_path = Path(args.out_path)
+    out_dir = Path(args.out_dir)
 
     # Necessary precomputation.
     ground_truth = load_ground_truth(Path(args.ground_truth_path))
     index_df = pd.read_csv(args.index_path, sep='\t')
     chronostrain_db = cfg.database_cfg.get_database()
 
-    print("Parsing hamming distances.")
-    strain_ids, distances = parse_hamming(Path(args.alignment_file), index_df)
+    dists_path = out_dir / 'strain_distances.pkl'
+    try:
+        with open(dists_path, 'rb') as f:
+            strain_ids = pickle.load(f)
+            distances = pickle.load(f)
+    except BaseException:
+        print("Parsing hamming distances.")
+        strain_ids, distances = parse_hamming(Path(args.alignment_file), index_df)
+        with open(dists_path, 'wb') as f:
+            pickle.dump(strain_ids, f)
+            pickle.dump(distances, f)
 
     # search through all of the read depths.
     df_entries = []
@@ -242,7 +261,7 @@ def main():
             except FileNotFoundError:
                 print("Skipping StrainEst output.")
 
-
+    out_path = out_dir / 'summary.csv'
     summary_df = pd.DataFrame(df_entries)
     summary_df.to_csv(out_path, index=False)
     print(f"[*] Saved results to {out_path}.")
