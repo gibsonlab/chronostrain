@@ -111,7 +111,7 @@ def parse_chronostrain_estimate(db: StrainDatabase,
         ))
 
     inferred_abundances = torch.softmax(samples, dim=2)
-    median_abundances = np.median(inferred_abundances.numpy(), axis=1)
+    median_abundances = np.median(inferred_abundances.cpu().numpy(), axis=1)
 
     estimate = np.zeros(shape=(len(time_points), len(strain_ids)), dtype=float)
     strain_indices = {sid: i for i, sid in enumerate(strain_ids)}
@@ -207,7 +207,7 @@ def main():
     # Necessary precomputation.
     ground_truth = load_ground_truth(Path(args.ground_truth_path))
     index_df = pd.read_csv(args.index_path, sep='\t')
-    db = cfg.database_cfg.get_database()
+    chronostrain_db = cfg.database_cfg.get_database()
 
     print("Parsing hamming distances.")
     strain_ids, distances = parse_hamming(Path(args.alignment_file), index_df)
@@ -220,7 +220,7 @@ def main():
 
             # =========== Chronostrain
             try:
-                chronostrain_estimate = parse_chronostrain_estimate(db, ground_truth, strain_ids, trial_dir / 'output' / 'chronostrain')
+                chronostrain_estimate = parse_chronostrain_estimate(chronostrain_db, ground_truth, strain_ids, trial_dir / 'output' / 'chronostrain')
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
