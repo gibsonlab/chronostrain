@@ -181,6 +181,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('-i', '--index_file', type=str, required=True)
     parser.add_argument('-b', '--base_data_dir', type=str, required=True)
     parser.add_argument('-a', '--alignment_file', type=str, required=True)
+    parser.add_argument('-o', '--out_path', type=str, required=True)
     parser.add_argument('-v', '--verbose', action='store_true')
     return parser.parse_args()
 
