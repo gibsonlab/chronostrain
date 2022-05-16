@@ -180,7 +180,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', '--index_file', type=str, required=True)
     parser.add_argument('-a', '--alignment_file', type=str, required=True)
-    parser.add_argument('-v', '--verbose', type=bool, action='store_true')
+    parser.add_argument('-v', '--verbose', action='store_true')
     return parser.parse_args()
 
 
