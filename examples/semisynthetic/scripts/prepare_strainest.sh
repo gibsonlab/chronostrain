@@ -26,7 +26,7 @@ alignment_clust_fasta=${STRAINEST_DB_DIR}/aln_clust.fasta
 strainest snpdist ${snv_file} ${snv_dist_file} ${histogram}
 strainest snpclust ${snv_file} ${snv_dist_file} ${snv_clust_file} ${clusters_file}
 
-cluster_seq_paths=$(python ${BASE_DIR}/helpers/parse_strainest_clusters.py --clusters_file ${clusters_file} | paste -s -d " ")
+cluster_seq_paths=$(python ${BASE_DIR}/helpers/parse_strainest_clusters.py --clusters_file ${clusters_file} --refseq_index ${REFSEQ_INDEX} | paste -s -d " ")
 strainest mapgenomes ${cluster_seq_paths} ${STRAIN_REP_FASTA} ${alignment_clust_fasta}
 
 # Step 4: Build bowtie2 index.
