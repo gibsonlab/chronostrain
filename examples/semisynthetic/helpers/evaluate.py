@@ -247,10 +247,11 @@ def main():
     try:
         with open(dists_path, 'rb') as f:
             strain_ids = pickle.load(f)
-            distances = pickle.load(f)
+            distances = torch.tensor(pickle.load(f), device=device)
     except BaseException:
         logger.info("Parsing hamming distances.")
         strain_ids, distances = parse_hamming(Path(args.alignment_file), index_df)
+        distances = torch.tensor(distances, device=device)
         with open(dists_path, 'wb') as f:
             pickle.dump(strain_ids, f)
             pickle.dump(distances, f)
