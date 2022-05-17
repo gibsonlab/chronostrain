@@ -271,6 +271,7 @@ def main():
                     chronostrain_estimate_samples[:, :30, :],
                     ground_truth, distances, strain_ids
                 )
+                logger.info("Mean error: {}".format(errors.mean()))
                 for sample_idx in range(len(errors)):
                     df_entries.append({
                         'ReadDepth': read_depth,
@@ -286,12 +287,14 @@ def main():
             try:
                 strainest_estimate = parse_strainest_estimate(ground_truth, strain_ids,
                                                               trial_dir / 'output' / 'strainest')
+                error = wasserstein_error(strainest_estimate, ground_truth, distances, strain_ids).item()
+                logger.info("Error: {}".format(error))
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
                     'SampleIdx': 0,
                     'Method': 'StrainEst',
-                    'Error': wasserstein_error(strainest_estimate, ground_truth, distances, strain_ids).item()
+                    'Error': error
                 })
             except FileNotFoundError:
                 logger.info("Skipping StrainEst output.")
