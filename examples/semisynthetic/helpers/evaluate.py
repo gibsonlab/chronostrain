@@ -208,7 +208,7 @@ def compute_wasserstein(
         verbose=False,
         reg=1e-2,
         method='sinkhorn_log',
-        numItermax=100
+        numItermax=500
     )
     return wasserstein
 
@@ -271,7 +271,7 @@ def main():
                     chronostrain_estimate_samples[:, :30, :],
                     ground_truth, distances, strain_ids
                 )
-                logger.info("Mean error: {}".format(errors.mean()))
+                logger.info("Chronostrain Mean error: {}".format(errors.mean()))
                 for sample_idx in range(len(errors)):
                     df_entries.append({
                         'ReadDepth': read_depth,
@@ -288,7 +288,7 @@ def main():
                 strainest_estimate = parse_strainest_estimate(ground_truth, strain_ids,
                                                               trial_dir / 'output' / 'strainest')
                 error = wasserstein_error(strainest_estimate, ground_truth, distances, strain_ids).item()
-                logger.info("Error: {}".format(error))
+                logger.info("StrainEst Error: {}".format(error))
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
