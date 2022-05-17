@@ -307,7 +307,7 @@ def main():
                     chronostrain_estimate_samples[:, :30, :],
                     ground_truth, distances, strain_ids
                 )
-                logger.info("Chronostrain Mean error: {}".format(errors.mean()))
+                logger.info("Chronostrain median error: {}".format(errors.median()))
                 for sample_idx in range(len(errors)):
                     df_entries.append({
                         'ReadDepth': read_depth,
