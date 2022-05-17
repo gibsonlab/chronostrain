@@ -15,7 +15,7 @@ def main():
     with open(args.clusters_file, 'rt') as f:
         for line in f:
             line = line.strip()
-            tokens = line.split(' ')
+            tokens = line.split('\t')
             strain_id = tokens[1]
             representative.add(strain_id)
     for strain_id in representative:
