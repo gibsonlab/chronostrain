@@ -14,8 +14,12 @@ import ot
 from Bio import SeqIO
 from tqdm import tqdm
 
+import chronostrain.config
 from chronostrain.database import StrainDatabase
 from chronostrain import cfg
+
+logger = chronostrain.config.create_logger
+device = torch.device("cuda:0")
 
 
 def read_depth_dirs(base_dir: Path) -> Iterator[Tuple[int, Path]]:
@@ -70,7 +74,7 @@ def parse_hamming(multi_align_path: Path, index_df: pd.DataFrame) -> Tuple[List[
         strain_ids.append(strain_id)
         aligned_seqs.append(str(record.seq))
 
-    print("Found {} strains.".format(len(strain_ids)))
+    logger.info("Found {} strains.".format(len(strain_ids)))
     matrix = np.zeros(
         shape=(len(strain_ids), len(strain_ids)),
         dtype=float
@@ -101,7 +105,7 @@ def strip_suffixes(strain_id_string: str):
 def parse_chronostrain_estimate(db: StrainDatabase,
                                 ground_truth: pd.DataFrame,
                                 strain_ids: List[str],
-                                output_dir: Path) -> np.ndarray:
+                                output_dir: Path) -> torch.Tensor:
     samples = torch.load(output_dir / 'samples.pt')
     strains = db.all_strains()
 
@@ -120,23 +124,22 @@ def parse_chronostrain_estimate(db: StrainDatabase,
         ))
 
     inferred_abundances = torch.softmax(samples, dim=2)
-    median_abundances = np.median(inferred_abundances.cpu().numpy(), axis=1)
-
-    estimate = np.zeros(shape=(len(time_points), len(strain_ids)), dtype=float)
+    n_samples = samples.size(1)
+    estimate = torch.zeros(size=(len(time_points), n_samples, len(strain_ids)), dtype=torch.float, device=device)
     strain_indices = {sid: i for i, sid in enumerate(strain_ids)}
     for db_idx, strain in enumerate(strains):
         s_idx = strain_indices[strain.id]
-        estimate[:, s_idx] = median_abundances[:, db_idx]
+        estimate[:, :, s_idx] = inferred_abundances[:, :, db_idx]
     return estimate
 
 
 def parse_strainest_estimate(ground_truth: pd.DataFrame,
                              strain_ids: List[str],
-                             output_dir: Path) -> np.ndarray:
+                             output_dir: Path) -> torch.Tensor:
     time_points = sorted(pd.unique(ground_truth['T']))
     strain_indices = {sid: i for i, sid in enumerate(strain_ids)}
 
-    est_rel_abunds = np.zeros(shape=(len(time_points), len(strain_ids)), dtype=float)
+    est_rel_abunds = torch.zeros(size=(len(time_points), len(strain_ids)), dtype=torch.float, device=device)
     for t_idx, t in enumerate(time_points):
         output_path = output_dir / f"abund_{t_idx}.txt"
         with open(output_path, 'rt') as f:
@@ -149,15 +152,24 @@ def parse_strainest_estimate(ground_truth: pd.DataFrame,
                 strain_id, abund = line.rstrip().split('\t')
                 strain_id = strip_suffixes(strain_id)
                 abund = float(abund)
-                strain_idx = strain_indices[strain_id]
-                est_rel_abunds[t_idx][strain_idx] = abund
+                try:
+                    strain_idx = strain_indices[strain_id]
+                    est_rel_abunds[t_idx][strain_idx] = abund
+                except KeyError as e:
+                    continue
 
+    # Renormalize.
+    row_sum = torch.sum(est_rel_abunds, dim=1, keepdim=True)
+    support = torch.where(row_sum > 0)[0]
+    zeros = torch.where(row_sum == 0)[0]
+    est_rel_abunds[support, :] = est_rel_abunds[support, :] / row_sum[support]
+    est_rel_abunds[zeros, :] = 1 / len(strain_ids)
     return est_rel_abunds
 
 
-def wasserstein_error(abundance_est: np.ndarray, truth_df: pd.DataFrame, strain_distances: np.ndarray, strain_ids: List[str]) -> float:
+def wasserstein_error(abundance_est: torch.Tensor, truth_df: pd.DataFrame, strain_distances: torch.Tensor, strain_ids: List[str]) -> torch.Tensor:
     time_points = sorted(pd.unique(truth_df['T']))
-    ground_truth = np.zeros(shape=(len(time_points), len(strain_ids)), dtype=float)
+    ground_truth = torch.zeros(size=(len(time_points), len(strain_ids)), dtype=torch.float, device=device)
 
     t_idxs = {t: t_idx for t_idx, t in enumerate(time_points)}
     strain_idxs = {sid: i for i, sid in enumerate(strain_ids)}
@@ -167,28 +179,38 @@ def wasserstein_error(abundance_est: np.ndarray, truth_df: pd.DataFrame, strain_
         t_idx = t_idxs[row['T']]
         ground_truth[t_idx, s_idx] = row['RelAbund']
 
-    return sum(
-        compute_wasserstein(ground_truth[t_idx], abundance_est[t_idx], strain_distances, verbose=False)
-        for t_idx in range(len(time_points))
-    )
+    if len(abundance_est.shape) == 2:
+        answers = torch.cat([
+            compute_wasserstein(ground_truth[t_idx], abundance_est[t_idx], strain_distances)
+            for t_idx in range(len(time_points))
+        ], dim=0)
+        return answers.sum()
+    elif len(abundance_est.shape) == 3:
+        w_errors = torch.cat([
+            compute_wasserstein(ground_truth[t_idx], torch.transpose(abundance_est[t_idx, :, ], 0, 1), strain_distances)
+            for t_idx in range(len(time_points))
+        ], dim=0)
+        return w_errors.sum(dim=0)
+    else:
+        raise ValueError("Cannot handle abundance estimate matrices of dimension != (2 or 3).")
 
 
 def compute_wasserstein(
-        abund1: np.ndarray,
-        abund2: np.ndarray,
-        distance_matrix: np.ndarray,
-        verbose: bool = False
-) -> float:
-    """Computes the wasserstein distance. A simple wrapper around `ot.sinkhorn` call with default lambda value."""
-    lambd = 1e-3
-    coupling = ot.sinkhorn(
-        abund1,
-        abund2,
+        src_histogram: torch.Tensor,
+        tgt_histogram: torch.Tensor,
+        distance_matrix: torch.Tensor
+) -> torch.Tensor:
+    """Computes the wasserstein distance. A simple wrapper around `ot.sinkhorn` call with default regularization value."""
+    wasserstein = ot.sinkhorn(
+        src_histogram,
+        tgt_histogram,
         distance_matrix,
-        lambd,
-        verbose=verbose
+        verbose=False,
+        reg=1e-2,
+        method='sinkhorn_log',
+        numItermax=50
     )
-    return np.sum(coupling * distance_matrix).item()
+    return wasserstein
 
 
 def all_ecoli_strain_ids(index_path: Path) -> List[str]:
@@ -227,7 +249,7 @@ def main():
             strain_ids = pickle.load(f)
             distances = pickle.load(f)
     except BaseException:
-        print("Parsing hamming distances.")
+        logger.info("Parsing hamming distances.")
         strain_ids, distances = parse_hamming(Path(args.alignment_file), index_df)
         with open(dists_path, 'wb') as f:
             pickle.dump(strain_ids, f)
@@ -237,36 +259,43 @@ def main():
     df_entries = []
     for read_depth, read_depth_dir in read_depth_dirs(base_dir):
         for trial_num, trial_dir in trial_dirs(read_depth_dir):
-            print(f"Handling read depth {read_depth}, trial {trial_num}")
+            logger.info(f"Handling read depth {read_depth}, trial {trial_num}")
 
             # =========== Chronostrain
             try:
-                chronostrain_estimate = parse_chronostrain_estimate(chronostrain_db, ground_truth, strain_ids, trial_dir / 'output' / 'chronostrain')
-                df_entries.append({
-                    'ReadDepth': read_depth,
-                    'TrialNum': trial_num,
-                    'Method': 'Chronostrain',
-                    'Error': wasserstein_error(chronostrain_estimate, ground_truth, distances, strain_ids)
-                })
+                logger.info("Computing chronostrain error...")
+                chronostrain_estimate_samples = parse_chronostrain_estimate(chronostrain_db, ground_truth, strain_ids,
+                                                                            trial_dir / 'output' / 'chronostrain')
+                errors = wasserstein_error(chronostrain_estimate_samples, ground_truth, distances, strain_ids)
+                for sample_idx in range(len(errors)):
+                    df_entries.append({
+                        'ReadDepth': read_depth,
+                        'TrialNum': trial_num,
+                        'SampleIdx': sample_idx,
+                        'Method': 'Chronostrain',
+                        'Error': errors[sample_idx]
+                    })
             except FileNotFoundError:
-                print("Skipping Chronostrain output.")
+                logger.info("Skipping Chronostrain output.")
 
             # =========== StrainEst
             try:
-                strainest_estimate = parse_strainest_estimate(ground_truth, strain_ids, trial_dir / 'output' / 'strainest')
+                strainest_estimate = parse_strainest_estimate(ground_truth, strain_ids,
+                                                              trial_dir / 'output' / 'strainest')
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
+                    'SampleIdx': 0,
                     'Method': 'StrainEst',
-                    'Error': wasserstein_error(strainest_estimate, ground_truth, distances, strain_ids)
+                    'Error': wasserstein_error(strainest_estimate, ground_truth, distances, strain_ids).item()
                 })
             except FileNotFoundError:
-                print("Skipping StrainEst output.")
+                logger.info("Skipping StrainEst output.")
 
     out_path = out_dir / 'summary.csv'
     summary_df = pd.DataFrame(df_entries)
     summary_df.to_csv(out_path, index=False)
-    print(f"[*] Saved results to {out_path}.")
+    logger.info(f"[*] Saved results to {out_path}.")
 
     plot_path = out_path.parent / "plot.pdf"
     fig, ax = plt.subplots(1, 1, figsize=(16, 10))
@@ -279,7 +308,7 @@ def main():
     )
 
     plt.savefig(plot_path)
-    print(f"[*] Saved plot to {plot_path}.")
+    logger.info(f"[*] Saved plot to {plot_path}.")
 
 
 if __name__ == "__main__":

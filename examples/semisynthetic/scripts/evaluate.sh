@@ -2,7 +2,8 @@
 set -e
 source settings.sh
 
-
+log_dir=${DATA_DIR}/summary
+export CHRONOSTRAIN_LOG_FILEPATH="${log_dir}/evaluate.log"
 export CHRONOSTRAIN_CACHE_DIR=.
 python ${BASE_DIR}/helpers/evaluate.py \
 -b ${DATA_DIR} \
