@@ -14,11 +14,11 @@ import ot
 from Bio import SeqIO
 from tqdm import tqdm
 
-import chronostrain.config
+from chronostrain.config import create_logger
 from chronostrain.database import StrainDatabase
 from chronostrain import cfg
 
-logger = chronostrain.config.create_logger
+logger = create_logger("chronostrain.evaluate")
 device = torch.device("cuda:0")
 
 
