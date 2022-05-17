@@ -181,13 +181,14 @@ def compute_wasserstein(
 ) -> float:
     """Computes the wasserstein distance. A simple wrapper around `ot.sinkhorn` call with default lambda value."""
     lambd = 1e-3
-    return ot.sinkhorn(
+    coupling = ot.sinkhorn(
         abund1,
         abund2,
         distance_matrix,
         lambd,
         verbose=verbose
     )
+    return np.sum(coupling * distance_matrix).item()
 
 
 def all_ecoli_strain_ids(index_path: Path) -> List[str]:
