@@ -208,7 +208,7 @@ def compute_wasserstein(
         verbose=False,
         reg=1e-2,
         method='sinkhorn_log',
-        numItermax=50
+        numItermax=100
     )
     return wasserstein
 
