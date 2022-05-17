@@ -20,10 +20,13 @@ snv_clust_file=${STRAINEST_DB_DIR}/snvs_clust.txt
 histogram=${STRAINEST_DB_DIR}/histogram.pdf
 clusters_file=${STRAINEST_DB_DIR}/clusters.txt
 alignment_clust_fasta=${STRAINEST_DB_DIR}/aln_clust.fasta
-strainest snpclust ${snv_file} ${snv_dist_file} ${histogram}
+strainest snpdist ${snv_file} ${snv_dist_file} ${histogram}
 strainest snpclust ${snv_file} ${snv_dist_file} ${snv_clust_file} ${clusters_file}
+
+cluster_seq_paths=$(python ${BASE_DIR}/helpers/parse_strainest_clusters.py --clusters_file ${clusters_file} | paste -s -d " ")
 strainest mapgenomes ${cluster_seq_paths} ${STRAIN_REP_FASTA} ${alignment_clust_fasta}
 
 # Step 4: Build bowtie2 index.
 cd ${STRAINEST_DB_DIR}
-bowtie2-build ${alignment_clust_fasta} $STRAINEST_BT2_DB
+bowtie2-build ${alignment_clust_fasta} $STRAINEST_BT2_DB   # NOTE: this is for clustered analysis.
+#bowtie2-build ${alignment_fasta} $STRAINEST_BT2_DB   # NOTE: Use if unclustered analysis is desired.
