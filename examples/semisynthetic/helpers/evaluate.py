@@ -186,7 +186,7 @@ def wasserstein_error(abundance_est: torch.Tensor, truth_df: pd.DataFrame, strai
         ], dim=0)
         return answers.sum()
     elif len(abundance_est.shape) == 3:
-        w_errors = torch.cat([
+        w_errors = torch.stack([
             compute_wasserstein(ground_truth[t_idx], torch.transpose(abundance_est[t_idx, :, ], 0, 1), strain_distances)
             for t_idx in range(len(time_points))
         ], dim=0)
