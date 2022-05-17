@@ -267,7 +267,10 @@ def main():
                 logger.info("Computing chronostrain error...")
                 chronostrain_estimate_samples = parse_chronostrain_estimate(chronostrain_db, ground_truth, strain_ids,
                                                                             trial_dir / 'output' / 'chronostrain')
-                errors = wasserstein_error(chronostrain_estimate_samples, ground_truth, distances, strain_ids)
+                errors = wasserstein_error(
+                    chronostrain_estimate_samples[:, :30, :],
+                    ground_truth, distances, strain_ids
+                )
                 for sample_idx in range(len(errors)):
                     df_entries.append({
                         'ReadDepth': read_depth,
