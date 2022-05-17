@@ -167,6 +167,41 @@ def parse_strainest_estimate(ground_truth: pd.DataFrame,
     return est_rel_abunds
 
 
+def parse_straingst_estimate(
+        ground_truth: pd.DataFrame,
+        strain_ids: List[str],
+        output_dir: Path
+) -> torch.Tensor:
+    time_points = sorted(pd.unique(ground_truth['T']))
+    strain_indices = {strain_id: s_idx for s_idx, strain_id in enumerate(strain_ids)}
+
+    est_rel_abunds = torch.zeros(size=(len(time_points), len(strain_ids)), dtype=torch.float, device=device)
+    for t_idx, t in enumerate(time_points):
+        output_path = output_dir / f"output_mash_{t_idx}.tsv"
+        if not output_path.exists():
+            continue
+        with open(output_path, 'r') as tsv_file:
+            reader = csv.reader(tsv_file, delimiter='\t')
+            _ = next(reader)
+            _ = next(reader)
+            line3 = next(reader)
+            assert line3[0] == 'i'
+
+            for row in reader:
+                strain_id = row[1]
+                strain_idx = strain_indices[strain_id]
+                rel_abund = float(row[11]) / 100.0
+                est_rel_abunds[t_idx][strain_idx] = rel_abund
+
+    # Renormalize.
+    row_sum = torch.sum(est_rel_abunds, dim=1, keepdim=True)
+    support = torch.where(row_sum > 0)[0]
+    zeros = torch.where(row_sum == 0)[0]
+    est_rel_abunds[support, :] = est_rel_abunds[support, :] / row_sum[support]
+    est_rel_abunds[zeros, :] = 1 / len(strain_ids)
+    return est_rel_abunds
+
+
 def wasserstein_error(abundance_est: torch.Tensor, truth_df: pd.DataFrame, strain_distances: torch.Tensor, strain_ids: List[str]) -> torch.Tensor:
     time_points = sorted(pd.unique(truth_df['T']))
     ground_truth = torch.zeros(size=(len(time_points), len(strain_ids)), dtype=torch.float, device=device)
@@ -298,6 +333,22 @@ def main():
                 })
             except FileNotFoundError:
                 logger.info("Skipping StrainEst output.")
+
+            # =========== StrainGST
+            try:
+                straingst_estimate = parse_straingst_estimate(ground_truth, strain_ids,
+                                                              trial_dir / 'output' / 'straingst')
+                error = wasserstein_error(straingst_estimate, ground_truth, distances, strain_ids).item()
+                logger.info("StrainGST Error: {}".format(error))
+                df_entries.append({
+                    'ReadDepth': read_depth,
+                    'TrialNum': trial_num,
+                    'SampleIdx': 0,
+                    'Method': 'StrainGST',
+                    'Error': error
+                })
+            except FileNotFoundError:
+                logger.info("Skipping StrainGST output.")
 
     out_path = out_dir / 'summary.csv'
     summary_df = pd.DataFrame(df_entries)
