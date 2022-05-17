@@ -181,7 +181,7 @@ def wasserstein_error(abundance_est: torch.Tensor, truth_df: pd.DataFrame, strai
 
     if len(abundance_est.shape) == 2:
         answers = torch.cat([
-            compute_wasserstein(ground_truth[t_idx], abundance_est[t_idx], strain_distances)
+            compute_wasserstein(ground_truth[t_idx], abundance_est[t_idx].unsqueeze(1), strain_distances)
             for t_idx in range(len(time_points))
         ], dim=0)
         return answers.sum()
