@@ -189,6 +189,7 @@ def parse_straingst_estimate(
 
             for row in reader:
                 strain_id = row[1]
+                strain_id = strip_suffixes(strain_id)
                 strain_idx = strain_indices[strain_id]
                 rel_abund = float(row[11]) / 100.0
                 est_rel_abunds[t_idx][strain_idx] = rel_abund
