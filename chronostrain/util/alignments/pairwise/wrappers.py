@@ -95,7 +95,8 @@ class BwaAligner(AbstractPairwiseAligner):
     def post_process(self, sam_path: Path, output_path: Path, id_suffix: str):
         with open(sam_path, 'r') as in_f, open(output_path, 'w') as out_f:
             # only keep mapped reads.
-            for line in cull_repetitive_templates(mapped_only(skip_headers(in_f))):
+            # for line in cull_repetitive_templates(mapped_only(skip_headers(in_f))):
+            for line in mapped_only(skip_headers(in_f)):
                 tokens = line.rstrip().split('\t')
 
                 # BWA-MEM idiosyncracy: aligner removes the paired-end identifiers '/1', '/2'.
