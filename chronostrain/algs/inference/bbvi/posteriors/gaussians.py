@@ -12,6 +12,9 @@ from chronostrain.config import cfg, create_logger
 logger = create_logger(__name__)
 
 
+INIT_SCALE = 100.0
+
+
 class GaussianPosteriorFullCorrelation(AbstractReparametrizedPosterior):
     def __init__(self, num_strains: int, num_times: int):
         """
@@ -29,7 +32,7 @@ class GaussianPosteriorFullCorrelation(AbstractReparametrizedPosterior):
             device=cfg.torch_cfg.device
         )
         # torch.nn.init.eye_(self.reparam_network.weight)
-        init_diag(self.reparam_network.weight, scale=1.0)
+        init_diag(self.reparam_network.weight, scale=INIT_SCALE)
         self.parameters = list(self.reparam_network.parameters())
         self.standard_normal = Normal(
             loc=torch.tensor(0.0, device=cfg.torch_cfg.device),
@@ -95,7 +98,7 @@ class GaussianPosteriorStrainCorrelation(AbstractReparametrizedPosterior):
                 bias=True,
                 device=cfg.torch_cfg.device
             )
-            init_diag(linear_layer.weight, scale=1.0)
+            init_diag(linear_layer.weight, scale=INIT_SCALE)
             torch.nn.init.constant_(linear_layer.bias, 0)
             self.reparam_networks.append(linear_layer)
 
@@ -186,7 +189,7 @@ class GaussianPosteriorTimeCorrelation(AbstractReparametrizedPosterior):
                 bias=True,
                 device=cfg.torch_cfg.device
             )
-            init_diag(linear_layer.weight, scale=1.0)
+            init_diag(linear_layer.weight, scale=INIT_SCALE)
             torch.nn.init.constant_(linear_layer.bias, 0)
             self.reparam_networks[s_idx] = linear_layer
         self.parameters = []
