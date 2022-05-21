@@ -186,12 +186,13 @@ class GenerativeModel:
             [
                 self.dt(t_idx)
                 for t_idx in range(1, self.num_times())
-            ]
+            ],
+            device=cfg.torch_cfg.device
         ).pow(-0.5)
         diffs = (X[1:, :, ] - X[:-1, :, ]) * dt_sqrt_inverse.unsqueeze(1).unsqueeze(2)
 
         log_likelihood_rest = JeffreysGaussian(
-            mean=torch.zeros(n_samples, collapsed_size, dtype=cfg.torch_cfg.default_dtype)
+            mean=torch.zeros(n_samples, collapsed_size, dtype=cfg.torch_cfg.default_dtype, device=cfg.torch_cfg.device)
         ).log_likelihood(
             x=diffs.transpose(0, 1).reshape(n_samples, collapsed_size)
         )
