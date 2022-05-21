@@ -160,6 +160,8 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
 
     def advance_epoch(self):
         for t_idx in range(self.model.num_times()):
+            print(self.batches[t_idx])
+            print(self.strain_read_lls[t_idx])
             self.batches[t_idx] = list(divide_columns_into_batches(self.strain_read_lls[t_idx], self.read_batch_size))
 
     def solve(self,
