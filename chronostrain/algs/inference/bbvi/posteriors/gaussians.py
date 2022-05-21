@@ -63,6 +63,8 @@ class GaussianPosteriorFullCorrelation(AbstractReparametrizedPosterior):
 
     def reparametrized_sample_log_likelihoods(self, samples: torch.Tensor):
         w = self.reparam_network.cholesky_part
+        num_samples = samples.shape[1]
+        samples = samples.transpose(0, 1).view(num_samples, self.num_times * self.num_strains)
         try:
             return torch.distributions.MultivariateNormal(
                 loc=self.reparam_network.bias,
@@ -77,6 +79,10 @@ class GaussianPosteriorFullCorrelation(AbstractReparametrizedPosterior):
             r, c = samples.size()
             samples = samples.view(r, 1, c)
         return super().log_likelihood(samples)
+
+    def save(self, path: Path):
+        logger.warn("save() not implemented for full correlation posterior.")
+        pass
 
 
 class GaussianPosteriorStrainCorrelation(AbstractReparametrizedPosterior):
