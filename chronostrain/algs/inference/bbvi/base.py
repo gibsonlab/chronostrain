@@ -117,4 +117,5 @@ class AbstractBBVI(ABC):
             # Save float value for callbacks.
             elbo_value += elbo_chunk.item()
         optimizer.step()
+        print(f"ELBO: {elbo_value}")
         return elbo_value
