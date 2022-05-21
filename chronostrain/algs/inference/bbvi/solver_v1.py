@@ -152,7 +152,6 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
         for t_idx in range(self.model.num_times()):
             # log_y_t = log_softmax(x_samples, t=t_idx)
             log_y_t = log_spherical(x_samples, t=t_idx)
-            print("# NANs: {}".format(torch.sum(torch.isnan(log_y_t))))
             data_sz_t = self.strain_read_lls[t_idx].shape[1]
             for batch_lls in self.batches[t_idx]:
                 batch_sz = batch_lls.shape[1]

@@ -13,12 +13,6 @@ def log_softmax(x_samples: torch.Tensor, t: int) -> torch.Tensor:
 
 def log_spherical(x_samples: torch.Tensor, t: int) -> torch.Tensor:
     # x_samples: (T x N x S) tensor.
-    print("DEBUG")
-    print(x_samples[t].shape)
-    print(x_samples[t])
-    print(torch.log(torch.abs(x_samples[t])))
-    print(torch.log(torch.pow(x_samples[t], 2).sum(dim=-1, keepdim=True)))
-    exit(1)
     return 2 * torch.log(torch.abs(x_samples[t])) - torch.log(torch.pow(x_samples[t], 2).sum(dim=-1, keepdim=True))
 
 
