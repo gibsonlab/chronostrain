@@ -34,6 +34,7 @@ class AbstractBBVI(ABC):
 
         logger.info("Starting ELBO optimization.")
         for epoch in range(1, num_epochs + 1, 1):
+            self.advance_epoch()
             epoch_elbo = 0.0
             time_est.stopwatch_click()
             for it in range(1, iters + 1, 1):
@@ -81,6 +82,14 @@ class AbstractBBVI(ABC):
             logger.debug(
                 "BBVI CPU memory usage -- [Not implemented]"
             )
+
+    @abstractmethod
+    def advance_epoch(self):
+        """
+        Do any pre-processing required for a new epoch (e.g. mini-batch data).
+        Called at the start of every epoch, including the first one.
+        """
+        pass
 
     @property
     def trainable_params(self) -> List[Parameter]:

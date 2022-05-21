@@ -1,6 +1,5 @@
 from typing import List, Iterator, Optional, Callable
 
-import numpy as np
 import torch
 
 from chronostrain.database import StrainDatabase
@@ -9,21 +8,28 @@ from chronostrain.model.io import TimeSeriesReads
 
 from chronostrain.config import cfg, create_logger
 from chronostrain.util.math import log_spspmm_exp
-from chronostrain.util.sparse.sliceable import ColumnSectionedSparseMatrix, RowSectionedSparseMatrix
+from chronostrain.util.sparse.sliceable import ColumnSectionedSparseMatrix
 from .. import AbstractModelSolver
 from .base import AbstractBBVI
 from .posteriors import *
-from .util import log_softmax, LogMMExpModel
+from .util import log_softmax
 
 logger = create_logger(__name__)
 
 
-def divide_columns_into_batches(x: torch.Tensor, read_batch_size: int):
-    columns = torch.randperm(x.shape[1], device=cfg.torch_cfg.device)
-    for i in range(int(np.ceil(x.shape[1] / read_batch_size))):
-        left_idx = i * read_batch_size
-        right_idx = min(x.shape[1], (i + 1) * read_batch_size)
-        yield x[:, columns[left_idx:right_idx]]
+def divide_columns_into_batches(x: torch.Tensor, batch_size: int):
+    permutation = torch.randperm(x.shape[1], device=cfg.torch_cfg.device)
+    for i in range(0, x.shape[1], batch_size):
+        indices = permutation[i:i+batch_size]
+        yield x[:, indices]
+
+
+def log_matmul_exp(x_samples: torch.Tensor, read_lls_batch: torch.Tensor) -> torch.Tensor:
+    return torch.logsumexp(
+        x_samples.unsqueeze(2) + read_lls_batch.unsqueeze(0),  # (N x S) @ (S x R_batch)
+        dim=1,
+        keepdim=False
+    )
 
 
 class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
@@ -31,6 +37,7 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
     A basic implementation of BBVI estimating the posterior p(X|R), with fragments
     F marginalized out.
     """
+
     def __init__(self,
                  model: GenerativeModel,
                  data: TimeSeriesReads,
@@ -47,6 +54,7 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
             num_cores=num_cores
         )
 
+        self.read_batch_size = read_batch_size
         self.correlation_type = correlation_type
         if correlation_type == "time":
             posterior = GaussianPosteriorTimeCorrelation(
@@ -77,11 +85,10 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
             raise NotImplementedError("BBVI only supports sparse data structures.")
 
         # (S x R) matrices: Contains P(R = r | S = s) for each read r, strain s.
-        self.strain_read_ll_model_batches: List[List[LogMMExpModel]] = [
+        self.strain_read_lls: List[torch.Tensor] = []
+        self.batches: List[List[torch.Tensor]] = [
             [] for _ in range(model.num_times())
         ]
-
-        self.data_sizes = [0 for _ in range(model.num_times())]
 
         # Precompute this (only possible in V1).
         logger.debug("Precomputing likelihood products.")
@@ -106,17 +113,7 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
                     [self.data[t_idx][int(i)].id for i in bad_indices]
                 ))
                 strain_read_lls_t = strain_read_lls_t[:, good_indices]
-
-            self.data_sizes[t_idx] = len(good_indices)
-            for batch_matrix in divide_columns_into_batches(strain_read_lls_t, read_batch_size):
-                self.strain_read_ll_model_batches[t_idx].append(
-                    LogMMExpModel(batch_matrix)
-                )
-            logger.debug("Divided t = {} read-likelihood matrices into {} batches of {}.".format(
-                t_idx,
-                len(self.strain_read_ll_model_batches[t_idx]),
-                read_batch_size
-            ))
+                self.strain_read_lls.append(strain_read_lls_t)
 
     def elbo(self,
              x_samples: torch.Tensor,
@@ -153,13 +150,17 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
         # ======== E[log P(R|X)] = E[log Σ_S P(R|S)P(S|X)]
         for t_idx in range(self.model.num_times()):
             log_softmax_xt = log_softmax(x_samples, t=t_idx)
-            for batch_model in self.strain_read_ll_model_batches[t_idx]:
-                batch_sz = batch_model.A.shape[1]
+            data_sz_t = self.strain_read_lls[t_idx].shape[1]
+            for batch_lls in self.batches[t_idx]:
+                batch_sz = batch_lls.shape[1]
                 yield (
-                        (1 / n_samples) * torch.sum(batch_model.forward(log_softmax_xt))
-                        + (batch_sz / self.data_sizes[t_idx]) * latent_part
+                        (1 / n_samples) * torch.sum(log_matmul_exp(log_softmax_xt, batch_lls))
+                        + (batch_sz / data_sz_t) * latent_part
                 )
 
+    def advance_epoch(self):
+        for t_idx in range(self.model.num_times()):
+            self.batches[t_idx] = list(divide_columns_into_batches(self.strain_read_lls[t_idx], self.read_batch_size))
 
     def solve(self,
               optimizer: torch.optim.Optimizer,
