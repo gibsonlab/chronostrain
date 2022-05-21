@@ -22,6 +22,7 @@ class GaussianPosteriorFullCorrelation(AbstractReparametrizedPosterior):
         1) Parametrize the (T x S) trajectory as a (TS)-dimensional Gaussian.
         2) Parametrize F_1, ..., F_T as independent (but not identical) categorical RVs (for each read).
         """
+        logger.info("Initializing Fully joint posterior")
         self.num_strains = num_strains
         self.num_times = num_times
 
@@ -86,6 +87,7 @@ class GaussianPosteriorStrainCorrelation(AbstractReparametrizedPosterior):
         2) Parametrize F_1, ..., F_T as independent (but not identical) categorical RVs (for each read).
         :param model: The generative model to use.
         """
+        logger.info("Initializing Time-factorized (strain-correlated) posterior")
         self.num_strains = num_strains
         self.num_times = num_times
 
@@ -186,7 +188,7 @@ class GaussianPosteriorTimeCorrelation(AbstractReparametrizedPosterior):
         1) Parametrize X_1, X_2, ..., X_S as independent T-dimensional gaussians (one per strain).
         2) Parametrize F_1, ..., F_T as independent (but not identical) categorical RVs (for each read).
         """
-        # Check: might need this to be a matrix, not a vector.
+        logger.info("Initializing Strain-factorized (time-correlated) posterior")
         self.num_times = num_times
         self.num_strains = num_strains
 
