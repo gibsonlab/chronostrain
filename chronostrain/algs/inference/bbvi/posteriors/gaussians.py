@@ -190,7 +190,7 @@ class GaussianPosteriorTimeCorrelation(AbstractReparametrizedPosterior):
                 device=cfg.torch_cfg.device
             )
             init_diag(linear_layer.weight, scale=INIT_SCALE)
-            torch.nn.init.constant_(linear_layer.bias, 0)
+            torch.nn.init.constant_(linear_layer.bias, 1.0)
             self.reparam_networks[s_idx] = linear_layer
         self.parameters = []
         for network in self.reparam_networks.values():
