@@ -139,18 +139,20 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
         To save memory on larger frag spaces, split the ELBO up into several pieces.
         """
         n_samples = x_samples.size()[1]
-        # ======== -log Q(X), monte-carlo
-        yield posterior_sample_lls.sum() * (-1 / n_samples)
-
-        # ======== log P(X)
-        model_gaussian_log_likelihoods = self.model.log_likelihood_x(X=x_samples)
-        yield model_gaussian_log_likelihoods.sum() * (1 / n_samples)
 
         # ======== log P(R|X) = log Σ_S P(R|S)P(S|X)
         for t_idx in range(self.model.num_times()):
             log_softmax_xt = log_softmax(x_samples, t=t_idx)
             for batch_model in self.strain_read_ll_model_batches[t_idx]:
                 yield (1 / n_samples) * torch.sum(batch_model.forward(log_softmax_xt))
+
+        # ======== -log Q(X), monte-carlo
+        entropic = posterior_sample_lls.sum() * (-1 / n_samples)
+
+        # ======== log P(X)
+        model_gaussian_log_likelihoods = self.model.log_likelihood_x(X=x_samples)
+        model_ll = model_gaussian_log_likelihoods.sum() * (1 / n_samples)
+        yield entropic + model_ll
 
     def solve(self,
               optimizer: torch.optim.Optimizer,
