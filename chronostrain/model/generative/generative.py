@@ -106,7 +106,7 @@ class GenerativeModel:
         if len(X.size()) == 2:
             r, c = X.size()
             X = X.view(r, 1, c)
-        return self.log_likelihood_x_sics_prior(X)
+        return self.log_likelihood_x_jeffreys_prior(X)
 
     def log_likelihood_x_halfcauchy_prior(self, X: torch.Tensor) -> torch.Tensor:
         """
@@ -235,8 +235,7 @@ class GenerativeModel:
             scale = self.tau_scale
             dt = self.dt(t_idx)
 
-        # return SICSGaussian(mean=center, dof=dof, scale=scale).log_likelihood(x=X, t=dt)
-        return JeffreysGaussian(mean=center).log_likelihood(x=X)
+        return SICSGaussian(mean=center, dof=dof, scale=scale).log_likelihood(x=X, t=dt)
 
     def sample_abundances_and_reads(
             self,
