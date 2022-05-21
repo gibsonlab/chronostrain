@@ -81,6 +81,8 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
             [] for _ in range(model.num_times())
         ]
 
+        self.data_sizes = [0 for _ in range(model.num_times())]
+
         # Precompute this (only possible in V1).
         logger.debug("Precomputing likelihood products.")
         for t_idx in range(model.num_times()):
@@ -105,6 +107,7 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
                 ))
                 strain_read_lls_t = strain_read_lls_t[:, good_indices]
 
+            self.data_sizes[t_idx] = len(good_indices)
             for batch_matrix in divide_columns_into_batches(strain_read_lls_t, read_batch_size):
                 self.strain_read_ll_model_batches[t_idx].append(
                     LogMMExpModel(batch_matrix)
@@ -139,20 +142,22 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
         To save memory on larger frag spaces, split the ELBO up into several pieces.
         """
         n_samples = x_samples.size()[1]
+        # ======== E[-log Q(X)], monte-carlo
+        entropic = posterior_sample_lls.sum() * (-1 / n_samples)
 
-        # ======== log P(R|X) = log Σ_S P(R|S)P(S|X)
+        # ======== E[log P(X)]
+        model_gaussian_log_likelihoods = self.model.log_likelihood_x(X=x_samples)
+        model_ll = model_gaussian_log_likelihoods.sum() * (1 / n_samples)
+        external_part = entropic + model_ll
+
+        # ======== E[log P(R|X)] = E[log Σ_S P(R|S)P(S|X)]
         for t_idx in range(self.model.num_times()):
             log_softmax_xt = log_softmax(x_samples, t=t_idx)
             for batch_model in self.strain_read_ll_model_batches[t_idx]:
-                yield (1 / n_samples) * torch.sum(batch_model.forward(log_softmax_xt))
+                batch_sz = batch_model.A.shape[1]
+                print("(t = {}, batch size = {})".format(t_idx, batch_sz))
+                yield (1 / n_samples) * torch.sum(batch_model.forward(log_softmax_xt)) + (batch_sz / self.data_sizes[t_idx]) * external_part
 
-        # ======== -log Q(X), monte-carlo
-        entropic = posterior_sample_lls.sum() * (-1 / n_samples)
-
-        # ======== log P(X)
-        model_gaussian_log_likelihoods = self.model.log_likelihood_x(X=x_samples)
-        model_ll = model_gaussian_log_likelihoods.sum() * (1 / n_samples)
-        yield entropic + model_ll
 
     def solve(self,
               optimizer: torch.optim.Optimizer,
