@@ -140,6 +140,21 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
         To save memory on larger frag spaces, split the ELBO up into several pieces.
         """
         n_samples = x_samples.size()[1]
+
+        # ======== E[log P(R|X)] = E[log Σ_S P(R|S)P(S|X)]
+        for t_idx in range(self.model.num_times()):
+            # log_y_t = log_softmax(x_samples, t=t_idx)  # (Softmax vs Radial)
+            log_y_t = log_spherical(x_samples, t=t_idx)
+
+            # data_sz_t = self.strain_read_lls[t_idx].shape[1]
+            for batch_lls in self.batches[t_idx]:
+                # batch_sz = batch_lls.shape[1]
+                yield (1 / n_samples) * torch.sum(log_matmul_exp(log_y_t, batch_lls))
+                # yield (
+                #         (1 / n_samples) * torch.sum(log_matmul_exp(log_y_t, batch_lls))
+                #         + (batch_sz / data_sz_t) * latent_part
+                # )
+
         # ======== E[-log Q(X)], monte-carlo
         entropic = posterior_sample_lls.sum() * (-1 / n_samples)
 
@@ -147,18 +162,7 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
         model_gaussian_log_likelihoods = self.model.log_likelihood_x(X=x_samples)
         model_ll = model_gaussian_log_likelihoods.sum() * (1 / n_samples)
         latent_part = entropic + model_ll
-
-        # ======== E[log P(R|X)] = E[log Σ_S P(R|S)P(S|X)]
-        for t_idx in range(self.model.num_times()):
-            # log_y_t = log_softmax(x_samples, t=t_idx)
-            log_y_t = log_spherical(x_samples, t=t_idx)
-            data_sz_t = self.strain_read_lls[t_idx].shape[1]
-            for batch_lls in self.batches[t_idx]:
-                batch_sz = batch_lls.shape[1]
-                yield (
-                        (1 / n_samples) * torch.sum(log_matmul_exp(log_y_t, batch_lls))
-                        + (batch_sz / data_sz_t) * latent_part
-                )
+        yield latent_part
 
     def advance_epoch(self):
         for t_idx in range(self.model.num_times()):

@@ -26,7 +26,9 @@ def create_model(population: Population,
     :param db: A Strain database instance.
     :return A Generative model object.
     """
-    mu = torch.zeros(population.num_strains(), device=cfg.torch_cfg.device)
+    # NOTE: (Softmax vs Radial): zeros for softmax, ones for radial (to resolve signs)
+    # mu = torch.zeros(population.num_strains(), device=cfg.torch_cfg.device)
+    mu = torch.ones(population.num_strains(), device=cfg.torch_cfg.device)
 
     if disable_quality:
         logger.info("Flag --disable_quality turned on; Quality scores are diabled. Initializing NoiselessErrorModel.")

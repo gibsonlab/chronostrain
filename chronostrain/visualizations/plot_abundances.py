@@ -205,8 +205,8 @@ def plot_posterior_abundances(
         truth_strain_id_to_idx = {}
 
     # Convert gaussians to rel abundances.
-    # abundance_samples = softmax(posterior_samples, axis=2)
-    squared_samples = np.power(posterior_samples)
+    # abundance_samples = softmax(posterior_samples, axis=2)  # (Softmax vs Radial)
+    squared_samples = np.power(posterior_samples, 2)
     abundance_samples = squared_samples / squared_samples.sum(axis=2, keepdims=True)
 
     fig, ax = plt.subplots(1, 1, figsize=(width, height))
