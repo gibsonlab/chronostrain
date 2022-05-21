@@ -12,7 +12,7 @@ from chronostrain.util.sparse.sliceable import ColumnSectionedSparseMatrix
 from .. import AbstractModelSolver
 from .base import AbstractBBVI
 from .posteriors import *
-from .util import log_softmax
+from .util import log_softmax, log_spherical
 
 logger = create_logger(__name__)
 
@@ -150,12 +150,13 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
 
         # ======== E[log P(R|X)] = E[log Σ_S P(R|S)P(S|X)]
         for t_idx in range(self.model.num_times()):
-            log_softmax_xt = log_softmax(x_samples, t=t_idx)
+            # log_y_t = log_softmax(x_samples, t=t_idx)
+            log_y_t = log_spherical(x_samples, t=t_idx)
             data_sz_t = self.strain_read_lls[t_idx].shape[1]
             for batch_lls in self.batches[t_idx]:
                 batch_sz = batch_lls.shape[1]
                 yield (
-                        (1 / n_samples) * torch.sum(log_matmul_exp(log_softmax_xt, batch_lls))
+                        (1 / n_samples) * torch.sum(log_matmul_exp(log_y_t, batch_lls))
                         + (batch_sz / data_sz_t) * latent_part
                 )
 

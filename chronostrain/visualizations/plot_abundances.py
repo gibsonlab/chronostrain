@@ -2,8 +2,6 @@ from pathlib import Path
 from typing import List, Optional
 
 import matplotlib.pyplot as plt
-import matplotlib.cm as mplcm
-import matplotlib.colors as colors
 from matplotlib.lines import Line2D
 import numpy as np
 import seaborn as sns
@@ -12,7 +10,6 @@ import pandas as pd
 from chronostrain.model import StrainVariant
 from chronostrain.model.bacteria import Population
 from chronostrain.model.io import load_abundances
-from scipy.special import softmax
 
 
 def plot_abundances_comparison(
@@ -208,7 +205,9 @@ def plot_posterior_abundances(
         truth_strain_id_to_idx = {}
 
     # Convert gaussians to rel abundances.
-    abundance_samples = softmax(posterior_samples, axis=2)
+    # abundance_samples = softmax(posterior_samples, axis=2)
+    squared_samples = np.power(posterior_samples)
+    abundance_samples = squared_samples / squared_samples.sum(axis=2, keepdims=True)
 
     fig, ax = plt.subplots(1, 1, figsize=(width, height))
     legend_elements = []

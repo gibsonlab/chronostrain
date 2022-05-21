@@ -11,6 +11,11 @@ def log_softmax(x_samples: torch.Tensor, t: int) -> torch.Tensor:
     return x_samples[t] - torch.logsumexp(x_samples[t], dim=1, keepdim=True)
 
 
+def log_spherical(x_samples: torch.Tensor, t: int) -> torch.Tensor:
+    # x_samples: (T x N x S) tensor.
+    return 2 * torch.log(x_samples[t]) - torch.log(x_samples[t].sum(dim=-1, keepdim=True))
+
+
 class LogMMExpModel(torch.nn.Module):
     """
     Represents a Module which represents
