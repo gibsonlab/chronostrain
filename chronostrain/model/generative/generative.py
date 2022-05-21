@@ -235,7 +235,8 @@ class GenerativeModel:
             scale = self.tau_scale
             dt = self.dt(t_idx)
 
-        return SICSGaussian(mean=center, dof=dof, scale=scale).log_likelihood(x=X, t=dt)
+        # return SICSGaussian(mean=center, dof=dof, scale=scale).log_likelihood(x=X, t=dt)
+        return JeffreysGaussian(mean=center).log_likelihood(x=X)
 
     def sample_abundances_and_reads(
             self,

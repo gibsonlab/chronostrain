@@ -6,6 +6,7 @@ from matplotlib.lines import Line2D
 import numpy as np
 import seaborn as sns
 import pandas as pd
+from scipy.special import softmax
 
 from chronostrain.model import StrainVariant
 from chronostrain.model.bacteria import Population
@@ -205,9 +206,9 @@ def plot_posterior_abundances(
         truth_strain_id_to_idx = {}
 
     # Convert gaussians to rel abundances.
-    # abundance_samples = softmax(posterior_samples, axis=2)  # (Softmax vs Radial)
-    squared_samples = np.power(posterior_samples, 2)
-    abundance_samples = squared_samples / squared_samples.sum(axis=2, keepdims=True)
+    abundance_samples = softmax(posterior_samples, axis=2)  # (Softmax vs Radial)
+    # squared_samples = np.power(posterior_samples, 2)
+    # abundance_samples = squared_samples / squared_samples.sum(axis=2, keepdims=True)
 
     fig, ax = plt.subplots(1, 1, figsize=(width, height))
     legend_elements = []
