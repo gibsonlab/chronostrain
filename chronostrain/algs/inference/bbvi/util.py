@@ -11,9 +11,9 @@ def log_softmax(x_samples: torch.Tensor, t: int) -> torch.Tensor:
     return x_samples[t] - torch.logsumexp(x_samples[t], dim=1, keepdim=True)
 
 
-def log_spherical(x_samples: torch.Tensor, t: int) -> torch.Tensor:
+def log_spherical(x_samples: torch.Tensor, t: int, eps=1e-30) -> torch.Tensor:
     # x_samples: (T x N x S) tensor.
-    square = torch.pow(x_samples[t], 2)
+    square = torch.pow(x_samples[t], 2) + eps
     return torch.log(square) - torch.log(square.sum(dim=-1, keepdim=True))
 
 

@@ -27,8 +27,7 @@ def create_model(population: Population,
     :return A Generative model object.
     """
     # NOTE: (Softmax vs Radial): zeros for softmax, ones for radial (to resolve signs)
-    # mu = torch.zeros(population.num_strains(), device=cfg.torch_cfg.device)
-    mu = 10 * torch.ones(population.num_strains(), device=cfg.torch_cfg.device)
+    mu = torch.zeros(population.num_strains(), device=cfg.torch_cfg.device)
 
     if disable_quality:
         logger.info("Flag --disable_quality turned on; Quality scores are diabled. Initializing NoiselessErrorModel.")
