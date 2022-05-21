@@ -12,7 +12,7 @@ from chronostrain.config import cfg, create_logger
 logger = create_logger(__name__)
 
 
-INIT_SCALE = 100.0
+INIT_SCALE = 1.0
 
 
 class GaussianPosteriorFullCorrelation(AbstractReparametrizedPosterior):
