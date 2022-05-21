@@ -168,6 +168,16 @@ class GaussianPosteriorStrainCorrelation(AbstractReparametrizedPosterior):
             samples = samples.view(r, 1, c)
         return super().log_likelihood(samples)
 
+    def save(self, path: Path):
+        params = {}
+        for t_idx in range(self.num_times):
+            linear_layer = self.reparam_networks[t_idx]
+            params[t_idx] = {
+                "weight": linear_layer.weight.detach(),
+                "bias": linear_layer.bias.detach()
+            }
+        torch.save(params, path)
+
 
 class GaussianPosteriorTimeCorrelation(AbstractReparametrizedPosterior):
     def __init__(self, num_strains: int, num_times: int):
