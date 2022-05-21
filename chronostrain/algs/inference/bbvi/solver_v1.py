@@ -113,7 +113,8 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
                     [self.data[t_idx][int(i)].id for i in bad_indices]
                 ))
                 strain_read_lls_t = strain_read_lls_t[:, good_indices]
-                self.strain_read_lls.append(strain_read_lls_t)
+
+            self.strain_read_lls.append(strain_read_lls_t)
 
     def elbo(self,
              x_samples: torch.Tensor,
@@ -160,8 +161,6 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
 
     def advance_epoch(self):
         for t_idx in range(self.model.num_times()):
-            print(self.batches[t_idx])
-            print(self.strain_read_lls[t_idx])
             self.batches[t_idx] = list(divide_columns_into_batches(self.strain_read_lls[t_idx], self.read_batch_size))
 
     def solve(self,
