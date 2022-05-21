@@ -37,7 +37,7 @@ python $PROJECT_DIR/scripts/run_bbvi.py \
 --epochs $CHRONOSTRAIN_NUM_EPOCHS \
 --decay_lr $CHRONOSTRAIN_DECAY_LR \
 --lr_patience 10 \
---min_lr 1e-4 \
+--min_lr 1e-6 \
 --learning_rate $CHRONOSTRAIN_LR \
 --num_samples $CHRONOSTRAIN_NUM_SAMPLES \
 --read_batch_size $CHRONOSTRAIN_READ_BATCH_SZ \
