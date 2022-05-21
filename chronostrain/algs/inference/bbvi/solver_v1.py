@@ -148,15 +148,17 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
         # ======== E[log P(X)]
         model_gaussian_log_likelihoods = self.model.log_likelihood_x(X=x_samples)
         model_ll = model_gaussian_log_likelihoods.sum() * (1 / n_samples)
-        external_part = entropic + model_ll
+        latent_part = entropic + model_ll
 
         # ======== E[log P(R|X)] = E[log Σ_S P(R|S)P(S|X)]
         for t_idx in range(self.model.num_times()):
             log_softmax_xt = log_softmax(x_samples, t=t_idx)
             for batch_model in self.strain_read_ll_model_batches[t_idx]:
                 batch_sz = batch_model.A.shape[1]
-                print("(t = {}, batch size = {})".format(t_idx, batch_sz))
-                yield (1 / n_samples) * torch.sum(batch_model.forward(log_softmax_xt)) + (batch_sz / self.data_sizes[t_idx]) * external_part
+                yield (
+                        (1 / n_samples) * torch.sum(batch_model.forward(log_softmax_xt))
+                        + (batch_sz / self.data_sizes[t_idx]) * latent_part
+                )
 
 
     def solve(self,
