@@ -38,10 +38,10 @@ export CHRONOSTRAIN_NUM_ITERS=50
 export CHRONOSTRAIN_NUM_SAMPLES=200
 export CHRONOSTRAIN_READ_BATCH_SZ=2500
 export CHRONOSTRAIN_NUM_EPOCHS=150
-export CHRONOSTRAIN_DECAY_LR=0.1
+export CHRONOSTRAIN_DECAY_LR=0.25
 export CHRONOSTRAIN_LR=0.05
 export CHRONOSTRAIN_LR_PATIENCE=10
-export CHRONOSTRAIN_MIN_LR=1e-6
+export CHRONOSTRAIN_MIN_LR=1e-4
 export CHRONOSTRAIN_OUTPUT_FILENAME="abundances.out"
 
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)
