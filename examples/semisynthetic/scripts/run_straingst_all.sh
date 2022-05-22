@@ -4,7 +4,7 @@ source settings.sh
 
 
 mode=$1
-echo "[*] Running StrainGST batch on mode ${mode}"
+echo "[*] Running StrainGST batch on mode \"${mode}\""
 
 cd ${BASE_DIR}/scripts
 for n_reads in 10000 25000 50000 75000 100000; do

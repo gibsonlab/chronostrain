@@ -29,7 +29,7 @@ fi
 if [[ "$mode" == "chromosome" ]]
 then
 	straingst_db=${STRAINGST_CHROMOSOME_DB_HDF5}
-elif [[ "$mode" == "markers" ]]
+elif [[ "$mode" == "marker" ]]
 then
 	straingst_db=${STRAINGST_MARKER_DB_HDF5}
 else
