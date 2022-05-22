@@ -3,6 +3,7 @@ export PROJECT_DIR="/home/bromii/chronostrain"
 export BASE_DIR="${PROJECT_DIR}/examples/semisynthetic"
 export DATA_DIR="/mnt/e/semisynthetic_data"
 export CHRONOSTRAIN_DB_DIR="/mnt/d/chronostrain/umb_database"
+export CHRONOSTRAIN_CACHE_DIR="${DATA_DIR}/cache"  # Default for all scripts; specify per script if desired!
 export MISC_DB_DIR="/mnt/d/chronostrain/semisynthetic"
 
 # ==================== Read sampling settings
