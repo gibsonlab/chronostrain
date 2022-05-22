@@ -3,19 +3,39 @@ set -e
 source settings.sh
 
 
-mkdir -p ${STRAINGST_DB_DIR}
-cd ${STRAINGST_DB_DIR}
+# ================= Database using complete genomes
+mkdir -p ${STRAINGST_DB_DIR}/full_genome
+cd ${STRAINGST_DB_DIR}/full_genome
 
 python ${BASE_DIR}/helpers/list_strain_paths.py -j ${CHRONOSTRAIN_DB_JSON} -i $REFSEQ_INDEX \
 | while read strain_seq; do
-	base_name="$(basename -- $strain_seq)"
-	echo "Kmerizing ${base_name}"
+	base_name="${f%.chrom.fna}"
+	echo "Kmerizing ${base_name} chromosomes..."
 	strain_kmers="${base_name}.hdf5"
 	straingst kmerize -o $strain_kmers $strain_seq
 done
 
 all_strain_kmers=""
-for f in *.fna.hdf5; do
+for f in *.hdf5; do
 	all_strain_kmers="${all_strain_kmers} ${f}"
 done
-straingst createdb -o ${STRAINGST_DB_HDF5} ${all_strain_kmers}
+straingst createdb -o ${STRAINGST_CHROMOSOME_DB_HDF5} ${all_strain_kmers}
+
+
+# ================= Database using marker sequences
+mkdir -p ${STRAINGST_DB_DIR}/markers
+cd ${STRAINGST_DB_DIR}/markers
+
+python ${BASE_DIR}/helpers/chronostrain_markers_to_fasta.py -o .
+for f in *.markers.fasta; do
+	base_name="${f%.markers.fasta}"
+	echo "Kmerizing $base_name markers..."
+	strain_kmers="${base_name}.hdf5"
+	straingst kmerize -o $strain_kmers $f
+done
+
+all_strain_kmers=""
+for f in *.hdf5; do
+	all_strain_kmers="${all_strain_kmers} ${f}"
+done
+straingst createdb -o ${STRAINGST_MARKER_DB_HDF5} ${all_strain_kmers}

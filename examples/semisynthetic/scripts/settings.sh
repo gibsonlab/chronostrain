@@ -24,7 +24,8 @@ export READ_PROFILE_PATH="${BASE_DIR}/files/HiSeqReference"
 
 # ================= StrainGST settings
 export STRAINGST_DB_DIR=${MISC_DB_DIR}/straingst
-export STRAINGST_DB_HDF5=${STRAINGST_DB_DIR}/database.hdf5
+export STRAINGST_CHROMOSOME_DB_HDF5=${STRAINGST_DB_DIR}/chromosome_db.hdf5
+export STRAINGST_MARKER_DB_HDF5=${STRAINGST_DB_DIR}/marker_db.hdf5
 
 # ================= StrainEst settings
 export STRAIN_REP_FASTA=/mnt/e/ref_genomes/human_readable/refseq/bacteria/Escherichia/coli/K-12_MG1655/NZ_CP010438.1.chrom.fna

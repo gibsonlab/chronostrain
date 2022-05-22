@@ -8,7 +8,7 @@ import pandas as pd
 from multiprocessing.dummy import Pool
 from typing import Tuple, Dict, List
 
-from chronostrain.config import create_logger, cfg
+from chronostrain.config import create_logger
 from chronostrain.util.external.art import art_illumina
 
 from random import seed, randint
@@ -88,7 +88,6 @@ def sample_read_counts(n_reads: int, rel_abund: Dict[str, float]) -> Dict[str, i
 
 def main():
     args = parse_args()
-
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
