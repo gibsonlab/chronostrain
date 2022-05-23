@@ -207,11 +207,10 @@ def parse_straingst_estimate(
 
 def wasserstein_error(abundance_est: torch.Tensor, truth_df: pd.DataFrame, strain_distances: torch.Tensor, strain_ids: List[str]) -> torch.Tensor:
     time_points = sorted(pd.unique(truth_df['T']))
-    ground_truth = torch.zeros(size=(len(time_points), len(strain_ids)), dtype=torch.float, device=device)
-
     t_idxs = {t: t_idx for t_idx, t in enumerate(time_points)}
     strain_idxs = {sid: i for i, sid in enumerate(strain_ids)}
 
+    ground_truth = torch.zeros(size=(len(time_points), len(strain_ids)), dtype=torch.float, device=device)
     for _, row in truth_df.iterrows():
         s_idx = strain_idxs[row['Strain']]
         t_idx = t_idxs[row['T']]
@@ -259,17 +258,27 @@ def all_ecoli_strain_ids(index_path: Path) -> List[str]:
     ]))
 
 
-def plot_result(out_path: Path, ground_truth: pd.DataFrame, samples: torch.Tensor, strain_ordering: List[str]):
+def plot_result(out_path: Path, truth_df: pd.DataFrame, samples: torch.Tensor, strain_ordering: List[str]):
     fig, ax = plt.subplots(1, 1, figsize=(16, 10))
     viridis = matplotlib.cm.get_cmap('viridis', len(strain_ordering))
     cmap = viridis(np.linspace(0, 1, len(strain_ordering)))
 
     q_lower = 0.025
     q_upper = 0.975
-    t = sorted(float(x) for x in pd.unique(ground_truth['T']))
+    t = sorted(float(x) for x in pd.unique(truth_df['T']))
+    time_points = sorted(pd.unique(truth_df['T']))
+    t_idxs = {t: t_idx for t_idx, t in enumerate(time_points)}
+    strain_idxs = {sid: i for i, sid in enumerate(strain_ordering)}
+    ground_truth = torch.zeros(size=(len(time_points), len(strain_ordering)), dtype=torch.float, device=device)
+    for _, row in truth_df.iterrows():
+        s_idx = strain_idxs[row['Strain']]
+        t_idx = t_idxs[row['T']]
+        ground_truth[t_idx, s_idx] = row['RelAbund']
+
     if len(samples.shape) == 3:
         for s_idx, strain_id in enumerate(strain_ordering):
             traj = samples[:, :, s_idx]
+            truth_traj = ground_truth[:, s_idx]
             lower = torch.quantile(traj, q_lower, dim=1).cpu().numpy()
             upper = torch.quantile(traj, q_upper, dim=1).cpu().numpy()
             median = torch.median(traj, dim=1).values.cpu().numpy()
@@ -277,11 +286,14 @@ def plot_result(out_path: Path, ground_truth: pd.DataFrame, samples: torch.Tenso
             color = cmap[s_idx]
             ax.fill_between(t, lower, upper, alpha=0.3, color=color)
             ax.plot(t, median, color=color)
+            ax.plot(t, truth_traj, color=color, linestyle='dashed')
     elif len(samples.shape) == 2:
         for s_idx, strain_id in enumerate(strain_ordering):
             traj = samples[:, s_idx].cpu().numpy()
+            truth_traj = ground_truth[:, s_idx]
             color = cmap[s_idx]
             ax.plot(t, traj, color=color)
+            ax.plot(t, truth_traj, color=color, linestyle='dashed')
     else:
         raise RuntimeError(f"Can't plot samples of dimension {len(samples.shape)}")
     plt.savefig(out_path)
