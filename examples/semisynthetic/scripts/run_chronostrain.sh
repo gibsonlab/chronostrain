@@ -5,6 +5,7 @@ source settings.sh
 # ============ Requires arguments:
 n_reads=$1
 trial=$2
+pass=$3
 
 if [ -z "$n_reads" ]
 then
@@ -28,8 +29,8 @@ mkdir -p $log_dir
 export CHRONOSTRAIN_LOG_FILEPATH="${log_dir}/chronostrain.log"
 export CHRONOSTRAIN_CACHE_DIR="${trial_dir}/cache"
 
-echo "[*] Running Chronostrain inference (pass=${pass}) for n_reads: ${n_reads}, trial: ${trial}"
 if [ "$pass" == "1" ]; then
+	echo "[*] Running Chronostrain inference (Default mode) for n_reads: ${n_reads}, trial: ${trial}"
 	python $PROJECT_DIR/scripts/run_bbvi.py \
 	--reads_input "${read_dir}/filtered/filtered_input_files.csv" \
 	--out_dir ${output_dir} \
@@ -45,6 +46,7 @@ if [ "$pass" == "1" ]; then
 	--plot_format "pdf" \
 	--plot_elbo
 elif [ "pass" == "2" ]; then
+	echo "[*] Running Chronostrain inference (Second Pass) for n_reads: ${n_reads}, trial: ${trial}"
 	python $PROJECT_DIR/scripts/run_bbvi.py \
 	--reads_input "${read_dir}/filtered/filtered_input_files.csv" \
 	--out_dir ${output_dir} \
