@@ -275,7 +275,7 @@ def plot_result(out_path: Path, ground_truth: pd.DataFrame, samples: torch.Tenso
 
         color = cmap[s_idx]
         ax.fill_between(t, lower, upper, alpha=0.3, color=color)
-        ax.lineplot(t, median, color=color)
+        ax.plot(t, median, color=color)
     plt.savefig(out_path)
 
 
