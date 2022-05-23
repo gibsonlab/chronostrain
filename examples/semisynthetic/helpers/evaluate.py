@@ -267,15 +267,23 @@ def plot_result(out_path: Path, ground_truth: pd.DataFrame, samples: torch.Tenso
     q_lower = 0.025
     q_upper = 0.975
     t = sorted(float(x) for x in pd.unique(ground_truth['T']))
-    for s_idx, strain_id in enumerate(strain_ordering):
-        traj = samples[:, :, s_idx]
-        lower = torch.quantile(traj, q_lower, dim=1).cpu().numpy()
-        upper = torch.quantile(traj, q_upper, dim=1).cpu().numpy()
-        median = torch.median(traj, dim=1).values.cpu().numpy()
+    if len(samples.shape) == 3:
+        for s_idx, strain_id in enumerate(strain_ordering):
+            traj = samples[:, :, s_idx]
+            lower = torch.quantile(traj, q_lower, dim=1).cpu().numpy()
+            upper = torch.quantile(traj, q_upper, dim=1).cpu().numpy()
+            median = torch.median(traj, dim=1).values.cpu().numpy()
 
-        color = cmap[s_idx]
-        ax.fill_between(t, lower, upper, alpha=0.3, color=color)
-        ax.plot(t, median, color=color)
+            color = cmap[s_idx]
+            ax.fill_between(t, lower, upper, alpha=0.3, color=color)
+            ax.plot(t, median, color=color)
+    elif len(samples.shape) == 2:
+        for s_idx, strain_id in enumerate(strain_ordering):
+            traj = samples[:, s_idx].cpu().numpy()
+            color = cmap[s_idx]
+            ax.plot(t, traj, color=color)
+    else:
+        raise RuntimeError(f"Can't plot samples of dimension {len(samples.shape)}")
     plt.savefig(out_path)
 
 
