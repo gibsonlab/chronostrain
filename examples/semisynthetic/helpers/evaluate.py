@@ -170,14 +170,15 @@ def parse_strainest_estimate(ground_truth: pd.DataFrame,
 def parse_straingst_estimate(
         ground_truth: pd.DataFrame,
         strain_ids: List[str],
-        output_dir: Path
+        output_dir: Path,
+        mode: str
 ) -> torch.Tensor:
     time_points = sorted(pd.unique(ground_truth['T']))
     strain_indices = {strain_id: s_idx for s_idx, strain_id in enumerate(strain_ids)}
 
     est_rel_abunds = torch.zeros(size=(len(time_points), len(strain_ids)), dtype=torch.float, device=device)
     for t_idx, t in enumerate(time_points):
-        output_path = output_dir / f"output_mash_{t_idx}.tsv"
+        output_path = output_dir / mode / f"output_mash_{t_idx}.tsv"
         if not output_path.exists():
             continue
         with open(output_path, 'r') as tsv_file:
@@ -335,21 +336,39 @@ def main():
             except FileNotFoundError:
                 logger.info("Skipping StrainEst output.")
 
-            # =========== StrainGST
+            # =========== StrainGST (whole genome)
             try:
                 straingst_estimate = parse_straingst_estimate(ground_truth, strain_ids,
-                                                              trial_dir / 'output' / 'straingst')
+                                                              trial_dir / 'output' / 'straingst',
+                                                              mode='chromosome')
                 error = wasserstein_error(straingst_estimate, ground_truth, distances, strain_ids).item()
                 logger.info("StrainGST Error: {}".format(error))
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
                     'SampleIdx': 0,
-                    'Method': 'StrainGST',
+                    'Method': 'StrainGST (Whole-Genome)',
                     'Error': error
                 })
             except FileNotFoundError:
-                logger.info("Skipping StrainGST output.")
+                logger.info("Skipping StrainGST (whole-genome) output.")
+
+            # =========== StrainGST (markers)
+            try:
+                straingst_estimate = parse_straingst_estimate(ground_truth, strain_ids,
+                                                              trial_dir / 'output' / 'straingst',
+                                                              mode='markers')
+                error = wasserstein_error(straingst_estimate, ground_truth, distances, strain_ids).item()
+                logger.info("StrainGST Error: {}".format(error))
+                df_entries.append({
+                    'ReadDepth': read_depth,
+                    'TrialNum': trial_num,
+                    'SampleIdx': 0,
+                    'Method': 'StrainGST (Markers)',
+                    'Error': error
+                })
+            except FileNotFoundError:
+                logger.info("Skipping StrainGST (markers) output.")
 
     out_path = out_dir / 'summary.csv'
     summary_df = pd.DataFrame(df_entries)
