@@ -8,6 +8,7 @@ import csv
 import numpy as np
 import pandas as pd
 import torch
+import matplotlib
 import matplotlib.pyplot as plt
 import seaborn as sb
 import ot
@@ -258,6 +259,26 @@ def all_ecoli_strain_ids(index_path: Path) -> List[str]:
     ]))
 
 
+def plot_result(out_path: Path, ground_truth: pd.DataFrame, samples: torch.Tensor, strain_ordering: List[str]):
+    fig, ax = plt.subplots(1, 1, figsize=(16, 10))
+    viridis = matplotlib.cm.get_cmap('viridis', 12)
+    cmap = viridis(np.linspace(0, 1, 12))
+
+    q_lower = 0.025
+    q_upper = 0.975
+    t = sorted(float(x) for x in torch.unique(ground_truth['T']))
+    for s_idx, strain_id in enumerate(strain_ordering):
+        traj = samples[:, :, s_idx]
+        lower = torch.quantile(traj, q_lower, dim=1).cpu().numpy()
+        upper = torch.quantile(traj, q_upper, dim=1).cpu().numpy()
+        median = torch.median(traj, dim=1).values.cpu().numpy()
+
+        color = cmap[s_idx]
+        ax.fill_between(t, lower, upper, alpha=0.3, color=color)
+        ax.lineplot(t, median, color=color)
+    plt.savefig(out_path)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument('-b', '--base_data_dir', type=str, required=True)
@@ -298,6 +319,8 @@ def main():
     for read_depth, read_depth_dir in read_depth_dirs(base_dir):
         for trial_num, trial_dir in trial_dirs(read_depth_dir):
             logger.info(f"Handling read depth {read_depth}, trial {trial_num}")
+            plot_dir = trial_dir / 'output' / 'plots'
+            plot_dir.mkdir(exist_ok=True, parents=True)
 
             # =========== Chronostrain
             try:
@@ -315,8 +338,10 @@ def main():
                         'TrialNum': trial_num,
                         'SampleIdx': sample_idx,
                         'Method': 'Chronostrain',
-                        'Error': errors[sample_idx]
+                        'Error': errors[sample_idx].item()
                     })
+
+                plot_result(plot_dir / 'chronostrain.pdf', ground_truth, chronostrain_estimate_samples, strain_ids)
             except FileNotFoundError:
                 logger.info("Skipping Chronostrain output.")
 
@@ -333,6 +358,8 @@ def main():
                     'Method': 'StrainEst',
                     'Error': error
                 })
+
+                plot_result(plot_dir / 'strainest.pdf', ground_truth, strainest_estimate, strain_ids)
             except FileNotFoundError:
                 logger.info("Skipping StrainEst output.")
 
@@ -350,6 +377,8 @@ def main():
                     'Method': 'StrainGST (Whole-Genome)',
                     'Error': error
                 })
+
+                plot_result(plot_dir / 'straingst_whole.pdf', ground_truth, straingst_estimate, strain_ids)
             except FileNotFoundError:
                 logger.info("Skipping StrainGST (whole-genome) output.")
 
@@ -367,6 +396,8 @@ def main():
                     'Method': 'StrainGST (Markers)',
                     'Error': error
                 })
+
+                plot_result(plot_dir / 'straingst_marker.pdf', ground_truth, straingst_estimate, strain_ids)
             except FileNotFoundError:
                 logger.info("Skipping StrainGST (markers) output.")
 
