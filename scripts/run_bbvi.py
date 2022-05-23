@@ -119,6 +119,12 @@ def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase, mode: st
 
 
 def second_pass_strain_subset(db: StrainDatabase, pass1_samples_path: Path) -> List[Strain]:
+    if not pass1_samples_path.exists():
+        raise FileNotFoundError(
+            f"Initial chronostrain run `{pass1_samples_path}` not found. "
+            "Make sure that the first run has finished and that out_dir is pointing to the right directory."
+        )
+
     abundance_samples = torch.softmax(torch.load(pass1_samples_path), dim=2)
     quantile_lower = torch.quantile(abundance_samples, q=0.001, dim=1)
     filtered_strain_idx = torch.nonzero(
