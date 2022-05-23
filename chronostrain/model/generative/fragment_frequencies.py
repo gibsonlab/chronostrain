@@ -34,7 +34,7 @@ class FragmentFrequencyComputer(object):
         cache = ComputationCache(
             CacheTag(
                 markers=self.db.multifasta_file,
-                fragments=fragments
+                strains=population.strains
             )
         )
 
