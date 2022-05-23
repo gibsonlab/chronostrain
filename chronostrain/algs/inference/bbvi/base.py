@@ -1,6 +1,7 @@
 from abc import abstractmethod, ABC
 from typing import Optional, List, Callable, Iterator
 
+import numpy as np
 import torch
 from torch.nn import Parameter
 
@@ -35,7 +36,7 @@ class AbstractBBVI(ABC):
         logger.info("Starting ELBO optimization.")
         for epoch in range(1, num_epochs + 1, 1):
             self.advance_epoch()
-            epoch_elbo = 0.0
+            epoch_elbos = []
             time_est.stopwatch_click()
             for it in range(1, iters + 1, 1):
                 reparam_samples = self.posterior.reparametrized_sample(
@@ -44,10 +45,14 @@ class AbstractBBVI(ABC):
                 reparam_lls = self.posterior.reparametrized_sample_log_likelihoods(reparam_samples)
 
                 elbo_value = self.optimize_step(reparam_samples, reparam_lls, optimizer)
-                epoch_elbo += elbo_value
+                epoch_elbos.append(elbo_value)
 
             # ===========  End of epoch
-            epoch_elbo /= iters
+            # numerically safe calculation (for large ELBO loss)
+            epoch_elbos = np.array(epoch_elbos)
+            offset = np.min(epoch_elbos)
+            epoch_elbo_avg = np.mean(epoch_elbos - offset) + offset
+
             if callbacks is not None:
                 for callback in callbacks:
                     callback(epoch, reparam_samples, elbo_value)
@@ -59,12 +64,12 @@ class AbstractBBVI(ABC):
                 "Epoch {epoch} | time left: {t:.2f} min. | Average ELBO = {elbo:.2f} | LR = {lr}".format(
                     epoch=epoch,
                     t=time_est.time_left() / 60000,
-                    elbo=epoch_elbo,
+                    elbo=epoch_elbo_avg,
                     lr=optimizer.param_groups[-1]['lr']
                 )
             )
 
-            lr_scheduler.step(epoch_elbo)
+            lr_scheduler.step(epoch_elbo_avg)
             if optimizer.param_groups[-1]['lr'] < min_lr:
                 logger.info("Stopping criteria met after {} epochs.".format(epoch))
                 break
