@@ -81,7 +81,7 @@ class FragmentFrequencyComputer(object):
                             population: Population,
                             bwa_fastmap_output_path: Path
                             ) -> Union[RowSectionedSparseMatrix, torch.Tensor]:
-        self.search(fragments, bwa_fastmap_output_path, max_num_hits=10 * population.num_strains())
+        self.search(fragments, bwa_fastmap_output_path, max_num_hits=10 * self.db.num_strains())
         return self.construct_matrix(
             fragments,
             population,
