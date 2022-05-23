@@ -278,7 +278,7 @@ def plot_result(out_path: Path, truth_df: pd.DataFrame, samples: torch.Tensor, s
     if len(samples.shape) == 3:
         for s_idx, strain_id in enumerate(strain_ordering):
             traj = samples[:, :, s_idx]
-            truth_traj = ground_truth[:, s_idx]
+            truth_traj = ground_truth[:, s_idx].cpu().numpy()
             lower = torch.quantile(traj, q_lower, dim=1).cpu().numpy()
             upper = torch.quantile(traj, q_upper, dim=1).cpu().numpy()
             median = torch.median(traj, dim=1).values.cpu().numpy()
@@ -290,7 +290,7 @@ def plot_result(out_path: Path, truth_df: pd.DataFrame, samples: torch.Tensor, s
     elif len(samples.shape) == 2:
         for s_idx, strain_id in enumerate(strain_ordering):
             traj = samples[:, s_idx].cpu().numpy()
-            truth_traj = ground_truth[:, s_idx]
+            truth_traj = ground_truth[:, s_idx].cpu().numpy()
             color = cmap[s_idx]
             ax.plot(t, traj, color=color)
             ax.plot(t, truth_traj, color=color, linestyle='dashed')
