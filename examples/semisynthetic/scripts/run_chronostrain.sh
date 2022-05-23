@@ -45,7 +45,7 @@ if [ "$pass" == "1" ]; then
 	--read_batch_size $CHRONOSTRAIN_READ_BATCH_SZ \
 	--plot_format "pdf" \
 	--plot_elbo
-elif [ "pass" == "2" ]; then
+elif [ "$pass" == "2" ]; then
 	echo "[*] Running Chronostrain inference (Second Pass) for n_reads: ${n_reads}, trial: ${trial}"
 	python $PROJECT_DIR/scripts/run_bbvi.py \
 	--reads_input "${read_dir}/filtered/filtered_input_files.csv" \
