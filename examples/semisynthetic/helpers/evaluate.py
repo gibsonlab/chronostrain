@@ -261,7 +261,7 @@ def all_ecoli_strain_ids(index_path: Path) -> List[str]:
 
 def plot_result(out_path: Path, ground_truth: pd.DataFrame, samples: torch.Tensor, strain_ordering: List[str]):
     fig, ax = plt.subplots(1, 1, figsize=(16, 10))
-    viridis = matplotlib.cm.get_cmap('viridis', 12)
+    viridis = matplotlib.cm.get_cmap('viridis', len(strain_ordering))
     cmap = viridis(np.linspace(0, 1, 12))
 
     q_lower = 0.025
