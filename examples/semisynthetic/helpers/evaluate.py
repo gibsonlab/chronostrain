@@ -266,7 +266,7 @@ def plot_result(out_path: Path, ground_truth: pd.DataFrame, samples: torch.Tenso
 
     q_lower = 0.025
     q_upper = 0.975
-    t = sorted(float(x) for x in torch.unique(ground_truth['T']))
+    t = sorted(float(x) for x in pd.unique(ground_truth['T']))
     for s_idx, strain_id in enumerate(strain_ordering):
         traj = samples[:, :, s_idx]
         lower = torch.quantile(traj, q_lower, dim=1).cpu().numpy()
