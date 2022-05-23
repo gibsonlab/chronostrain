@@ -4,13 +4,15 @@
 """
 import argparse
 from pathlib import Path
+from typing import List
+import torch
 
 from chronostrain.algs.subroutines.cache import ReadsComputationCache
 from chronostrain import cfg, create_logger
 import chronostrain.visualizations as viz
 from chronostrain.algs.subroutines.alignments import CachedReadMultipleAlignments, CachedReadPairwiseAlignments
 from chronostrain.database import StrainDatabase
-from chronostrain.model import Population, FragmentSpace
+from chronostrain.model import Population, FragmentSpace, Strain
 from chronostrain.model.io import TimeSeriesReads
 
 from helpers import *
@@ -56,6 +58,12 @@ def parse_args():
                         help='<Optional> The CSV file path containing the ground truth relative abundances for each '
                              'strain by time point. For benchmarking.')
 
+    # Arguments for second-pass mode.
+    parser.add_argument('--second_pass', action='store_true',
+                        help='If flag is set, then initializes BBVI in "second-pass" mode. Automatically searches'
+                             'for a chronostrain posterior approximation using the full DB, restricts to the set of '
+                             'strains that are 99.9% confident to be greater than 1/<db size> and re-runs inference.')
+
     # Optional output params
     parser.add_argument('--num_posterior_samples', required=False, type=int, default=5000,
                         help='<Optional> If using a variational method, specify the number of '
@@ -64,8 +72,6 @@ def parse_args():
                         help='If flag is set, then outputs plots of the ELBO history (if using BBVI).')
     parser.add_argument('--draw_training_history', action="store_true",
                         help='If flag is set, then outputs an animation of the BBVI training history.')
-    parser.add_argument('--save_fragment_probs', action="store_true",
-                        help='If flag is set, then save posterior fragment probabilities for valid reads.')
     parser.add_argument('--plot_format', required=False, type=str, default="pdf")
     parser.add_argument('--single_ended', action='store_true')
 
@@ -112,23 +118,64 @@ def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase, mode: st
     return fragment_space
 
 
+def second_pass_strain_subset(db: StrainDatabase, pass1_samples_path: Path) -> List[Strain]:
+    abundance_samples = torch.softmax(torch.load(pass1_samples_path), dim=2)
+    quantile_lower = torch.quantile(abundance_samples, q=0.001, dim=1)
+    filtered_strain_idx = torch.nonzero(
+        torch.sum(quantile_lower > 1 / db.num_strains(), dim=0),
+        as_tuple=True
+    )[0]
+
+    all_strains = db.all_strains()
+    return [all_strains[i] for i in filtered_strain_idx]
+
+
 def main():
     logger.info("Pipeline for inference started.")
     args = parse_args()
     initialize_seed(args.seed)
 
-    # ==== Create database instance.
+    # ============ Create database instance.
     db = cfg.database_cfg.get_database()
 
-    # ==== Parse input reads.
+    # ============ Prepare for algorithm output.
+    out_dir = Path(args.out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    if not out_dir.is_dir():
+        raise RuntimeError("Filesystem error: out_dir argument points to something other than a directory.")
+
+    if args.true_abundance_path is not None:
+        true_abundance_path = Path(args.true_abundance_path)
+    else:
+        true_abundance_path = None
+
+    if args.second_pass:
+        elbo_path = out_dir / "elbo.pass2.{}".format(args.plot_format)
+        animation_path = out_dir / "training.pass2.gif"
+        plot_path = out_dir / "plot.pass2.{}".format(args.plot_format)
+        samples_path = out_dir / "samples.pass2.pt"
+        samples_path_pass1 = out_dir / "samples.pt"
+        strains_path = out_dir / "strains.pass2.txt"
+        model_out_path = out_dir / "posterior.pass2.pt"
+
+        strain_subset = second_pass_strain_subset(db, samples_path_pass1)
+        population = Population(strains=strain_subset)
+    else:
+        elbo_path = out_dir / "elbo.{}".format(args.plot_format)
+        animation_path = out_dir / "training.gif"
+        plot_path = out_dir / "plot.{}".format(args.plot_format)
+        samples_path = out_dir / "samples.pt"
+        strains_path = out_dir / "strains.txt"
+        model_out_path = out_dir / "posterior.pt"
+
+        population = Population(strains=db.all_strains())
+
+    # ============ Parse input reads.
     logger.info("Loading time-series read files.")
     reads = TimeSeriesReads.load_from_csv(
         Path(args.reads_input),
     )
     time_points = [time_slice.time_point for time_slice in reads]
-
-    # ==== Load Population instance from database info
-    population = Population(strains=db.all_strains())
     fragments = load_fragments(reads, db)
 
     # ============ Create model instance
@@ -147,17 +194,6 @@ def main():
     2) 'bbvi' runs black-box VI and saves the learned posterior parametrization (as tensors).
     More methods to be potentially added for experimentation.
     """
-
-    # ============ Prepare for algorithm output.
-    out_dir = Path(args.out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    if not out_dir.is_dir():
-        raise RuntimeError("Filesystem error: out_dir argument points to something other than a directory.")
-
-    if args.true_abundance_path is not None:
-        true_abundance_path = Path(args.true_abundance_path)
-    else:
-        true_abundance_path = None
 
     solver, posterior, elbo_history, (uppers, lowers, medians) = perform_bbvi(
         db=db,
@@ -179,24 +215,17 @@ def main():
     if args.plot_elbo:
         viz.plot_elbo_history(
             elbos=elbo_history,
-            out_path=out_dir / "elbo.{}".format(args.plot_format),
+            out_path=elbo_path,
             plot_format=args.plot_format
         )
 
     if args.draw_training_history:
         viz.plot_training_animation(
             model=model,
-            out_path=out_dir / "training.gif",
+            out_path=animation_path,
             upper_quantiles=uppers,
             lower_quantiles=lowers,
             medians=medians
-        )
-
-    if args.save_fragment_probs:
-        viz.save_frag_probabilities(
-            reads=reads,
-            solver=solver,
-            out_path=out_dir / "reads_to_frags.csv"
         )
 
     # ==== Plot the posterior.
@@ -204,16 +233,20 @@ def main():
         times=model.times,
         population=model.bacteria_pop,
         posterior=posterior,
-        plot_path=out_dir / "plot.{}".format(args.plot_format),
-        samples_path=out_dir / "samples.pt",
+        plot_path=plot_path,
+        samples_path=samples_path,
         plot_format=args.plot_format,
         ground_truth_path=true_abundance_path,
         num_samples=args.num_posterior_samples,
         draw_legend=True
     )
 
+    # ==== Output strain ordering.
+    with open(strains_path, "w") as f:
+        for strain in population.strains:
+            print(strain.id, file=f)
+
     # ==== Save the posterior distribution.
-    model_out_path = out_dir / "posterior.pt"
     posterior.save(model_out_path)
     logger.debug(f"Saved model to `{model_out_path}`.")
 
