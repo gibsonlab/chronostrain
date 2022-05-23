@@ -212,7 +212,7 @@ def main():
         lr_patience=args.lr_patience,
         learning_rate=args.learning_rate,
         num_samples=args.num_samples,
-        correlation_type='time',
+        correlation_type='strain',
         save_elbo_history=args.plot_elbo,
         save_training_history=args.draw_training_history,
         read_batch_size=args.read_batch_size,
