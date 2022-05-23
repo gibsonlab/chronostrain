@@ -214,7 +214,10 @@ class SparseFragmentFrequencyComputer(FragmentFrequencyComputer):
                 hits_per_strain[hit_strain].append((hit_marker, hit_pos))
 
             for strain, hits in hits_per_strain.items():
-                strain_indices.append(population.strain_index(strain))
+                try:
+                    strain_indices.append(population.strain_index(strain))
+                except KeyError:
+                    continue
                 frag_indices.append(fragment.index)
                 matrix_values.append(self.frag_log_ll(fragment, strain, hits))
         return RowSectionedSparseMatrix(
