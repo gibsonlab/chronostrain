@@ -149,6 +149,7 @@ class BowtieAligner(AbstractPairwiseAligner):
                  num_threads: int,
                  num_reseeds: int,
                  score_min_fn: str,
+                 score_match_bonus: int,
                  score_mismatch_penalty: Tuple[int, int],
                  score_read_gap_penalty: Tuple[int, int],
                  score_ref_gap_penalty: Tuple[int, int],
@@ -163,6 +164,7 @@ class BowtieAligner(AbstractPairwiseAligner):
         # Alignment params
         self.num_reseeds = num_reseeds
         self.score_min_fn = score_min_fn
+        self.score_match_bonus = score_match_bonus
         self.score_mismatch_penalty = score_mismatch_penalty
         self.score_read_gap_penalty = score_read_gap_penalty
         self.score_ref_gap_penalty = score_ref_gap_penalty
@@ -206,6 +208,7 @@ class BowtieAligner(AbstractPairwiseAligner):
             effort_seed_ext_failures=30,  # -D 30
             local=False,
             effort_num_reseeds=self.num_reseeds,
+            score_match_bonus=self.score_match_bonus,
             score_min_fn=self.score_min_fn,
             score_mismatch_penalty=self.score_mismatch_penalty,
             score_read_gap_penalty=self.score_read_gap_penalty,

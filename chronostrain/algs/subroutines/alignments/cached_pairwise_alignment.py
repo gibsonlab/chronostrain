@@ -86,6 +86,7 @@ class CachedReadPairwiseAlignments(object):
                 report_all_alignments=True,
                 num_reseeds=22,
                 score_min_fn=bt2_func_constant(const=-500),
+                score_match_bonus=2,
                 score_mismatch_penalty=np.floor(
                     [np.log(3) + 4 * np.log(10), 0]
                 ).astype(int),
