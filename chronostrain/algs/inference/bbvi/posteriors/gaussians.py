@@ -46,6 +46,12 @@ class GaussianPosteriorFullCorrelation(AbstractReparametrizedPosterior):
     def mean(self) -> torch.Tensor:
         return self.reparam_network.bias.detach()
 
+    def entropy(self) -> torch.Tensor:
+        return torch.distributions.MultivariateNormal(
+            loc=self.reparam_network.bias,
+            scale_tril=self.reparam_network.cholesky_part
+        ).entropy()
+
     def reparametrized_sample(self, num_samples=1) -> torch.Tensor:
         std_gaussian_samples = self.standard_normal.sample(
             sample_shape=(num_samples, self.num_times * self.num_strains)
@@ -135,6 +141,16 @@ class GaussianPosteriorStrainCorrelation(AbstractReparametrizedPosterior):
             for t in range(self.num_times)
         ], dim=0)
 
+    def entropy(self) -> torch.Tensor:
+        parts = [
+            torch.distributions.MultivariateNormal(
+                loc=net.bias,
+                scale_tril=net.cholesky_part
+            ).entropy()
+            for net in self.reparam_networks
+        ]
+        return torch.sum(torch.stack(parts))
+
     def reparametrized_sample(self,
                               num_samples=1,
                               output_log_likelihoods=False,
@@ -166,10 +182,9 @@ class GaussianPosteriorStrainCorrelation(AbstractReparametrizedPosterior):
             samples_t = samples[t]
             linear = self.reparam_networks[t]
             try:
-                w = linear.cholesky_part
                 log_likelihood_t = torch.distributions.MultivariateNormal(
                     loc=linear.bias,
-                    scale_tril=w
+                    scale_tril=linear.cholesky_part
                 ).log_prob(samples_t)
             except ValueError:
                 logger.error(f"Problem while computing log MV log-likelihood of time index {t}.")
@@ -206,7 +221,7 @@ class GaussianPosteriorTimeCorrelation(AbstractReparametrizedPosterior):
         self.num_strains = num_strains
 
         # ========== Reparametrization network (standard Gaussians -> nonstandard Gaussians)
-        self.reparam_networks: Dict[int, torch.nn.Module] = dict()
+        self.reparam_networks: List[torch.nn.Module] = []
 
         for s_idx in range(self.num_strains):
             linear_layer = TrilLinear(
@@ -215,10 +230,10 @@ class GaussianPosteriorTimeCorrelation(AbstractReparametrizedPosterior):
                 device=cfg.torch_cfg.device
             )
             init_diag(linear_layer.weight, scale=INIT_SCALE)  # diagonal matrix (with scaling)
-            torch.nn.init.constant_(linear_layer.bias, 1.0)  # all ones vector
-            self.reparam_networks[s_idx] = linear_layer
+            torch.nn.init.constant_(linear_layer.bias, 0.0)
+            self.reparam_networks.append(linear_layer)
         self.parameters = []
-        for network in self.reparam_networks.values():
+        for network in self.reparam_networks:
             self.parameters += network.parameters()
 
         self.standard_normal = Normal(
@@ -231,9 +246,19 @@ class GaussianPosteriorTimeCorrelation(AbstractReparametrizedPosterior):
 
     def mean(self) -> torch.Tensor:
         return torch.stack([
-            self.reparam_networks[s].bias.detach()
-            for s in range(self.num_strains)
+            net.bias.detach()
+            for net in self.reparam_networks
         ], dim=1)
+
+    def entropy(self) -> torch.Tensor:
+        parts = [
+            torch.distributions.MultivariateNormal(
+                loc=net.bias,
+                scale_tril=net.cholesky_part
+            ).entropy()
+            for net in self.reparam_networks
+        ]
+        return torch.sum(torch.stack(parts))
 
     def reparametrized_sample(self,
                               num_samples=1,

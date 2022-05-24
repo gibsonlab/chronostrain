@@ -23,6 +23,10 @@ class AbstractReparametrizedPosterior(AbstractPosterior, ABC):
         pass
 
     @abstractmethod
+    def entropy(self) -> torch.Tensor:
+        pass
+
+    @abstractmethod
     def reparametrized_sample(self, num_samples: int) -> torch.Tensor:
         pass
 

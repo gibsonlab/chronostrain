@@ -156,7 +156,8 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
                 # )
 
         # ======== E[-log Q(X)], monte-carlo
-        entropic = posterior_sample_lls.sum() * (-1 / n_samples)
+        # entropic = posterior_sample_lls.sum() * (-1 / n_samples)
+        entropic = self.posterior.entropy()
 
         # ======== E[log P(X)]
         model_gaussian_log_likelihoods = self.model.log_likelihood_x(X=x_samples)
