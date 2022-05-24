@@ -85,7 +85,8 @@ class Filter(object):
                 int(-insertion_ll / np.log(2))
             ),
             clip_penalty=5,
-            score_threshold=50   # Corresponds to log_2(eps) > -100
+            score_threshold=50,   # Corresponds to log_2(eps) > -100
+            bwa_command='bwa'
         ).align(query_path=read_file, output_path=sam_path, read_type=read_type)
         self._apply_helper(sam_path, metadata_path, out_path, quality_format)
 
