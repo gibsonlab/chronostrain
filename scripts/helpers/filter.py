@@ -95,8 +95,9 @@ class Filter(object):
             index_basepath=self.db.multifasta_file.parent,
             index_basename=self.db.multifasta_file.stem,
             num_threads=self.num_threads,
-            report_all_alignments=True,
-            num_reseeds=22,
+            report_all_alignments=False,
+            num_report_alignments=3,
+            num_reseeds=4,
             score_min_fn=bt2_func_constant(const=-500),
             score_match_bonus=2,
             score_mismatch_penalty=np.floor(
