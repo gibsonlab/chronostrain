@@ -188,8 +188,8 @@ class BowtieAligner(AbstractPairwiseAligner):
             ))
 
     def align(self, query_path: Path, output_path: Path, read_type: ReadType):
-        return self.align_end_to_end(query_path, output_path)
-        # return self.align_local(query_path, output_path)
+        # return self.align_end_to_end(query_path, output_path)
+        return self.align_local(query_path, output_path)
 
     def align_end_to_end(self, query_path: Path, output_path: Path):
         bowtie2(
@@ -216,29 +216,29 @@ class BowtieAligner(AbstractPairwiseAligner):
             sam_suppress_noalign=True
         )
 
-    # def align_local(self, query_path: Path, output_path: Path):
-    #     # This implements the --very-sensitive-local setting with more extensive seeding.
-    #     #-D 20 -R 3 -N 0 -L 20 -i S,1,0.50
-    #     bowtie2(
-    #         index_basepath=self.index_basepath,
-    #         index_basename=self.index_basename,
-    #         unpaired_reads=query_path,
-    #         out_path=output_path,
-    #         quality_format=self.quality_format,
-    #         report_k_alignments=self.num_report_alignments,
-    #         report_all_alignments=self.report_all_alignments,
-    #         num_threads=self.num_threads,
-    #         aln_seed_num_mismatches=0,
-    #         aln_seed_len=20,  # -L 20
-    #         aln_seed_interval_fn=bt2_func_constant(7),
-    #         aln_gbar=1,
-    #         effort_seed_ext_failures=30,  # -D 30
-    #         local=True,
-    #         effort_num_reseeds=self.num_reseeds,  # -R 3
-    #         score_min_fn=self.score_min_fn,
-    #         score_match_bonus=self.score_match_bonus,
-    #         score_mismatch_penalty=self.score_mismatch_penalty,
-    #         score_read_gap_penalty=self.score_read_gap_penalty,
-    #         score_ref_gap_penalty=self.score_ref_gap_penalty,
-    #         sam_suppress_noalign=True
-    #     )
+    def align_local(self, query_path: Path, output_path: Path):
+        # This implements the --very-sensitive-local setting with more extensive seeding.
+        #-D 20 -R 3 -N 0 -L 20 -i S,1,0.50
+        bowtie2(
+            index_basepath=self.index_basepath,
+            index_basename=self.index_basename,
+            unpaired_reads=query_path,
+            out_path=output_path,
+            quality_format=self.quality_format,
+            report_k_alignments=self.num_report_alignments,
+            report_all_alignments=self.report_all_alignments,
+            num_threads=self.num_threads,
+            aln_seed_num_mismatches=0,
+            aln_seed_len=17,  # -L 17
+            aln_seed_interval_fn=bt2_func_constant(7),
+            aln_gbar=1,
+            effort_seed_ext_failures=30,  # -D 30
+            local=True,
+            effort_num_reseeds=self.num_reseeds,  # -R 3
+            score_min_fn=self.score_min_fn,
+            score_match_bonus=self.score_match_bonus,
+            score_mismatch_penalty=self.score_mismatch_penalty,
+            score_read_gap_penalty=self.score_read_gap_penalty,
+            score_ref_gap_penalty=self.score_ref_gap_penalty,
+            sam_suppress_noalign=True
+        )
