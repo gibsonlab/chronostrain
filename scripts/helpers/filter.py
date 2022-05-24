@@ -10,7 +10,7 @@ from chronostrain.database import StrainDatabase
 from chronostrain.model.io import parse_read_type
 from chronostrain.util.alignments.sam import SamFile
 from chronostrain.util.external import call_command
-from chronostrain.util.alignments.pairwise import parse_alignments, BwaAligner, SequenceReadPairwiseAlignment
+from chronostrain.util.alignments.pairwise import parse_alignments, BwaAligner, BowtieAligner, SequenceReadPairwiseAlignment
 from chronostrain.config import cfg, create_logger
 from chronostrain.util.sequences import nucleotide_GAP_z4
 
@@ -69,24 +69,45 @@ class Filter(object):
         else:
             raise ValueError(f"Unrecognized read type `{read_type}`.")
 
-        BwaAligner(
+        # BwaAligner(
+        #     reference_path=self.db.multifasta_file,
+        #     min_seed_len=15,
+        #     reseed_ratio=1,  # default; smaller = slower but more alignments.
+        #     bandwidth=10,
+        #     num_threads=self.num_threads,
+        #     report_all_alignments=False,
+        #     match_score=2,  # log likelihood ratio log_2(4p)
+        #     mismatch_penalty=5,  # Assume quality score of 20, log likelihood ratio log_2(4 * error * <3/4>)
+        #     off_diag_dropoff=100,  # default
+        #     gap_open_penalty=(0, 0),
+        #     gap_extend_penalty=(
+        #         int(-deletion_ll / np.log(2)),
+        #         int(-insertion_ll / np.log(2))
+        #     ),
+        #     clip_penalty=5,
+        #     score_threshold=50,   # Corresponds to log_2(eps) > -100
+        #     bwa_command='bwa'
+        # ).align(query_path=read_file, output_path=sam_path, read_type=read_type)
+
+        from chronostrain.util.external import bt2_func_constant
+        BowtieAligner(
             reference_path=self.db.multifasta_file,
-            min_seed_len=15,
-            reseed_ratio=1,  # default; smaller = slower but more alignments.
-            bandwidth=10,
+            index_basepath=self.db.multifasta_file.parent,
+            index_basename=self.db.multifasta_file.stem,
             num_threads=self.num_threads,
-            report_all_alignments=False,
-            match_score=2,  # log likelihood ratio log_2(4p)
-            mismatch_penalty=5,  # Assume quality score of 20, log likelihood ratio log_2(4 * error * <3/4>)
-            off_diag_dropoff=100,  # default
-            gap_open_penalty=(0, 0),
-            gap_extend_penalty=(
-                int(-deletion_ll / np.log(2)),
-                int(-insertion_ll / np.log(2))
-            ),
-            clip_penalty=5,
-            score_threshold=50,   # Corresponds to log_2(eps) > -100
-            bwa_command='bwa'
+            report_all_alignments=True,
+            num_reseeds=22,
+            score_min_fn=bt2_func_constant(const=-500),
+            score_match_bonus=2,
+            score_mismatch_penalty=np.floor(
+                [5, 0]
+            ).astype(int),
+            score_read_gap_penalty=np.floor(
+                [0, int(-deletion_ll / np.log(2))]
+            ).astype(int),
+            score_ref_gap_penalty=np.floor(
+                [0, int(-insertion_ll / np.log(2))]
+            ).astype(int)
         ).align(query_path=read_file, output_path=sam_path, read_type=read_type)
         self._apply_helper(sam_path, metadata_path, out_path, quality_format)
 
