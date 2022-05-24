@@ -212,6 +212,22 @@ def parse_straingst_estimate(
     return est_rel_abunds
 
 
+def l2_error(abundance_est: torch.Tensor, truth_df: pd.DataFrame, strain_ids: List[str]) -> torch.Tensor:
+    time_points = sorted(pd.unique(truth_df['T']))
+    t_idxs = {t: t_idx for t_idx, t in enumerate(time_points)}
+    strain_idxs = {sid: i for i, sid in enumerate(strain_ids)}
+
+    ground_truth = torch.zeros(size=(len(time_points), len(strain_ids)), dtype=torch.float, device=device)
+    for _, row in truth_df.iterrows():
+        s_idx = strain_idxs[row['Strain']]
+        t_idx = t_idxs[row['T']]
+        ground_truth[t_idx, s_idx] = row['RelAbund']
+
+    if len(abundance_est.shape) == 3:
+        abundance_est = torch.median(abundance_est, dim=1).values
+    return torch.sum(torch.square(ground_truth - abundance_est))
+
+
 def wasserstein_error(abundance_est: torch.Tensor, truth_df: pd.DataFrame, strain_distances: torch.Tensor, strain_ids: List[str]) -> torch.Tensor:
     time_points = sorted(pd.unique(truth_df['T']))
     t_idxs = {t: t_idx for t_idx, t in enumerate(time_points)}
@@ -355,19 +371,18 @@ def main():
                 chronostrain_estimate_samples = parse_chronostrain_estimate(chronostrain_db, ground_truth, strain_ids,
                                                                             trial_dir / 'output' / 'chronostrain',
                                                                             second_pass=False)
-                errors = wasserstein_error(
-                    chronostrain_estimate_samples[:, :30, :],
-                    ground_truth, distances, strain_ids
-                )
-                logger.info("Chronostrain median error: {}".format(errors.median()))
-                for sample_idx in range(len(errors)):
-                    df_entries.append({
-                        'ReadDepth': read_depth,
-                        'TrialNum': trial_num,
-                        'SampleIdx': sample_idx,
-                        'Method': 'Chronostrain',
-                        'Error': errors[sample_idx].item()
-                    })
+                # errors = wasserstein_error(
+                #     chronostrain_estimate_samples[:, :30, :],
+                #     ground_truth, distances, strain_ids
+                # )
+                error = l2_error(chronostrain_estimate_samples, ground_truth, strain_ids).item()
+                logger.info("Chronostrain error of median: {}".format(error))
+                df_entries.append({
+                    'ReadDepth': read_depth,
+                    'TrialNum': trial_num,
+                    'Method': 'Chronostrain',
+                    'Error': error
+                })
 
                 plot_result(plot_dir / 'chronostrain.pdf', ground_truth, chronostrain_estimate_samples, strain_ids)
             except FileNotFoundError:
@@ -380,6 +395,14 @@ def main():
                                                                             strain_ids,
                                                                             trial_dir / 'output' / 'chronostrain',
                                                                             second_pass=True)
+                error = l2_error(chronostrain_estimate_samples, ground_truth, strain_ids).item()
+                logger.info("Chronostrain (2nd pass) error of median: {}".format(error))
+                df_entries.append({
+                    'ReadDepth': read_depth,
+                    'TrialNum': trial_num,
+                    'Method': 'Chronostrain (2nd pass)',
+                    'Error': error
+                })
                 plot_result(plot_dir / 'chronostrain.pass2.pdf', ground_truth, chronostrain_estimate_samples, strain_ids)
             except FileNotFoundError:
                 logger.info("Skipping Chronostrain (2nd pass) output.")
@@ -388,16 +411,15 @@ def main():
             try:
                 strainest_estimate = parse_strainest_estimate(ground_truth, strain_ids,
                                                               trial_dir / 'output' / 'strainest')
-                error = wasserstein_error(strainest_estimate, ground_truth, distances, strain_ids).item()
+                # error = wasserstein_error(strainest_estimate, ground_truth, distances, strain_ids).item()
+                error = l2_error(strainest_estimate, ground_truth, strain_ids).item()
                 logger.info("StrainEst Error: {}".format(error))
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
-                    'SampleIdx': 0,
                     'Method': 'StrainEst',
                     'Error': error
                 })
-
                 plot_result(plot_dir / 'strainest.pdf', ground_truth, strainest_estimate, strain_ids)
             except FileNotFoundError:
                 logger.info("Skipping StrainEst output.")
@@ -407,16 +429,15 @@ def main():
                 straingst_estimate = parse_straingst_estimate(ground_truth, strain_ids,
                                                               trial_dir / 'output' / 'straingst',
                                                               mode='chromosome')
-                error = wasserstein_error(straingst_estimate, ground_truth, distances, strain_ids).item()
+                # error = wasserstein_error(straingst_estimate, ground_truth, distances, strain_ids).item()
+                error = l2_error(straingst_estimate, ground_truth, strain_ids).item()
                 logger.info("StrainGST Error: {}".format(error))
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
-                    'SampleIdx': 0,
                     'Method': 'StrainGST (Whole-Genome)',
                     'Error': error
                 })
-
                 plot_result(plot_dir / 'straingst_whole.pdf', ground_truth, straingst_estimate, strain_ids)
             except FileNotFoundError:
                 logger.info("Skipping StrainGST (whole-genome) output.")
@@ -426,16 +447,15 @@ def main():
                 straingst_estimate = parse_straingst_estimate(ground_truth, strain_ids,
                                                               trial_dir / 'output' / 'straingst',
                                                               mode='markers')
-                error = wasserstein_error(straingst_estimate, ground_truth, distances, strain_ids).item()
+                # error = wasserstein_error(straingst_estimate, ground_truth, distances, strain_ids).item()
+                error = l2_error(straingst_estimate, ground_truth, strain_ids).item()
                 logger.info("StrainGST Error: {}".format(error))
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
-                    'SampleIdx': 0,
                     'Method': 'StrainGST (Markers)',
                     'Error': error
                 })
-
                 plot_result(plot_dir / 'straingst_marker.pdf', ground_truth, straingst_estimate, strain_ids)
             except FileNotFoundError:
                 logger.info("Skipping StrainGST (markers) output.")
