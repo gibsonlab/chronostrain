@@ -106,21 +106,28 @@ def strip_suffixes(strain_id_string: str):
 def parse_chronostrain_estimate(db: StrainDatabase,
                                 ground_truth: pd.DataFrame,
                                 strain_ids: List[str],
-                                output_dir: Path) -> torch.Tensor:
-    samples = torch.load(output_dir / 'samples.pt')
-    strains = db.all_strains()
+                                output_dir: Path,
+                                second_pass: bool) -> torch.Tensor:
+    if not second_pass:
+        samples = torch.load(output_dir / 'samples.pt')
+        db_strains = [s.id for s in db.all_strains()]
+    else:
+        samples = torch.load(output_dir / 'samples.pass2.pt')
+        db_strains = []
+        with open(output_dir / 'strains.pass2.txt', 'r') as strain_file:
+            for line in strain_file:
+                db_strains.append(line.strip())
 
     time_points = sorted(pd.unique(ground_truth['T']))
-
     if samples.shape[0] != len(time_points):
         raise RuntimeError("Number of time points ({}) in ground truth don't match sampled time points ({}).".format(
             len(time_points),
             samples.shape[0]
         ))
 
-    if samples.shape[2] != len(strains):
+    if samples.shape[2] != len(db_strains):
         raise RuntimeError("Number of strains ({}) in database don't match sampled strain counts ({}).".format(
-            len(strains),
+            len(db_strains),
             samples.shape[2]
         ))
 
@@ -128,8 +135,8 @@ def parse_chronostrain_estimate(db: StrainDatabase,
     n_samples = samples.size(1)
     estimate = torch.zeros(size=(len(time_points), n_samples, len(strain_ids)), dtype=torch.float, device=device)
     strain_indices = {sid: i for i, sid in enumerate(strain_ids)}
-    for db_idx, strain in enumerate(strains):
-        s_idx = strain_indices[strain.id]
+    for db_idx, strain_id in enumerate(db_strains):
+        s_idx = strain_indices[strain_id]
         estimate[:, :, s_idx] = inferred_abundances[:, :, db_idx]
     return estimate
 
@@ -346,7 +353,8 @@ def main():
             try:
                 logger.info("Computing chronostrain error...")
                 chronostrain_estimate_samples = parse_chronostrain_estimate(chronostrain_db, ground_truth, strain_ids,
-                                                                            trial_dir / 'output' / 'chronostrain')
+                                                                            trial_dir / 'output' / 'chronostrain',
+                                                                            second_pass=False)
                 errors = wasserstein_error(
                     chronostrain_estimate_samples[:, :30, :],
                     ground_truth, distances, strain_ids
@@ -364,6 +372,17 @@ def main():
                 plot_result(plot_dir / 'chronostrain.pdf', ground_truth, chronostrain_estimate_samples, strain_ids)
             except FileNotFoundError:
                 logger.info("Skipping Chronostrain output.")
+
+            # =========== Chronostrain (Second pass)
+            try:
+                logger.info("Computing chronostrain (2nd pass) error...")
+                chronostrain_estimate_samples = parse_chronostrain_estimate(chronostrain_db, ground_truth,
+                                                                            strain_ids,
+                                                                            trial_dir / 'output' / 'chronostrain',
+                                                                            second_pass=True)
+                plot_result(plot_dir / 'chronostrain.pass2.pdf', ground_truth, chronostrain_estimate_samples, strain_ids)
+            except FileNotFoundError:
+                logger.info("Skipping Chronostrain (2nd pass) output.")
 
             # =========== StrainEst
             try:
