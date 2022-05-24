@@ -98,7 +98,7 @@ class Filter(object):
             report_all_alignments=False,
             num_report_alignments=3,
             num_reseeds=4,
-            score_min_fn=bt2_func_constant(const=-500),
+            score_min_fn=bt2_func_constant(const=50),
             score_match_bonus=2,
             score_mismatch_penalty=np.floor(
                 [5, 0]

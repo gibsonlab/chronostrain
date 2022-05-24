@@ -85,16 +85,16 @@ class CachedReadPairwiseAlignments(object):
                 num_threads=self.num_cores,
                 report_all_alignments=True,
                 num_reseeds=22,
-                score_min_fn=bt2_func_constant(const=-500),
+                score_min_fn=bt2_func_constant(const=50),
                 score_match_bonus=2,
                 score_mismatch_penalty=np.floor(
-                    [np.log(3) + 4 * np.log(10), 0]
+                    [5, 0]
                 ).astype(int),
                 score_read_gap_penalty=np.floor(
-                    [0, -cfg.model_cfg.get_float("INSERTION_LL_1")]
+                    [0, int(-cfg.model_cfg.get_float("DELETION_LL_1") / np.log(2))]
                 ).astype(int),
                 score_ref_gap_penalty=np.floor(
-                    [0, -cfg.model_cfg.get_float("DELETION_LL_1")]
+                    [0, int(-cfg.model_cfg.get_float("INSERTION_LL_1") / np.log(2))]
                 ).astype(int)
             )
         else:
