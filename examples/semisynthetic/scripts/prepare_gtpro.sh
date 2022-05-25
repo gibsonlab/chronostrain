@@ -23,6 +23,7 @@ done
 cd ..
 
 # Extract core snps.
-out_dir=.
-${CALLM_BIN} genomes --fna-dir ${fasta_dir} --out-dir ${out_dir} --threads ${N_CORES}
-${GT_PRO_BIN} build --in tag_paths.list --out . --dbname ecoli_db --threads ${N_CORES}
+callm_out_dir=callm
+mkdir -p ${callm_out_dir}
+${CALLM_BIN} genomes --fna-dir ${fasta_dir} --out-dir ${callm_out_dir} --threads ${N_CORES}
+${GT_PRO_BIN} build --in ${callm_out_dir}/tag_paths.list --out ./ecoli_db --dbname ecoli_db --threads ${N_CORES}
