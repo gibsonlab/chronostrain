@@ -5,7 +5,7 @@ source settings.sh
 cd ${GT_PRO_DB_DIR}
 
 # Make fasta directory, fill it with relevant genomes
-fasta_dir=fastas
+fasta_dir=genomes
 mkdir -p $fasta_dir
 cd $fasta_dir
 python ${BASE_DIR}/helpers/list_strain_paths.py -j ${CHRONOSTRAIN_DB_JSON} -i $REFSEQ_INDEX \
@@ -25,3 +25,4 @@ cd ..
 # Extract core snps.
 out_dir=.
 ${CALLM_BIN} genomes --fna-dir ${fasta_dir} --out-dir ${out_dir} --threads ${N_CORES}
+${GT_PRO_BIN} build --in tag_paths.list --out . --dbname ecoli_db --threads ${N_CORES}
