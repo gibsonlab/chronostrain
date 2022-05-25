@@ -29,4 +29,5 @@ ${CALLM_BIN} genomes --fna-dir ${fasta_dir} --out-dir ${species_dir} --threads $
 rm -rf ${species_dir}/temp
 
 echo "./ecoli" > build.list
+mv ecoli/tag_msa.fna ecoli/msa.fa
 ${GT_PRO_BIN} build --in ./build.list --out ./ecoli_db --dbname ecoli_db --threads ${N_CORES}
