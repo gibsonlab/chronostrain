@@ -34,8 +34,10 @@ export STRAINEST_DB_DIR=${MISC_DB_DIR}/strainest
 export STRAINEST_BT2_DB=ecoli_db
 
 # ================= StrainFacts+gt-pro settings
+export CALLM_BIN=/home/bromii/CallM/CallM
 export GT_PRO_BIN=/home/bromii/gt-pro/GT_Pro
-export GT_PRO_DB=/mnt/e/gt-pro_db/20190723_881species
+export GT_PRO_DB_DIR=/mnt/e/gt-pro_db
+export GT_PRO_DB=${GT_PRO_DB_DIR}/20190723_881species
 
 # ========= Chronostrain settings
 export INFERENCE_SEED=31415

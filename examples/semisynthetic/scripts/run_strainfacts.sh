@@ -37,4 +37,4 @@ ${read_dir}/0_reads_1.fq.gz ${read_dir}/0_reads_2.fq.gz \
 ${read_dir}/1_reads_1.fq.gz ${read_dir}/1_reads_2.fq.gz \
 ${read_dir}/2_reads_1.fq.gz ${read_dir}/2_reads_2.fq.gz \
 ${read_dir}/3_reads_1.fq.gz ${read_dir}/3_reads_2.fq.gz \
-${read_dir}/4_reads_1.fq.gz ${read_dir}/4_reads_2.fq.gz \
+${read_dir}/4_reads_1.fq.gz ${read_dir}/4_reads_2.fq.gz
