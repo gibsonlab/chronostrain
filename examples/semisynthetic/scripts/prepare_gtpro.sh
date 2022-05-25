@@ -12,8 +12,13 @@ python ${BASE_DIR}/helpers/list_strain_paths.py -j ${CHRONOSTRAIN_DB_JSON} -i $R
 | while read strain_seq; do
 	base_name="$(basename -- $strain_seq)"
 	base_name="${base_name%.chrom.fna}"
-	echo "[*] Linking $base_name (file: ${strain_seq})"
-	ln -s $strain_seq $base_name.fna
+	sym_link="${base_name}.fna"
+	if [ -L ${sym_link} ]; then
+		echo "[*] Symbolic link ${sym_link} already found."
+	else
+		echo "[*] Linking $base_name (file: ${strain_seq})"
+		ln -s $strain_seq ${sym_link}
+	fi
 done
 cd ..
 
