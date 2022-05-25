@@ -30,11 +30,11 @@ cd ${output_dir}
 # Run metagenotyping
 $GT_PRO_BIN genotype \
 -d ${GT_PRO_DB} \
+-t ${N_CORES} \
+-o ${output_dir}/%{in} \
+-f \
 ${read_dir}/0_reads_1.fq.gz ${read_dir}/0_reads_2.fq.gz \
 ${read_dir}/1_reads_1.fq.gz ${read_dir}/1_reads_2.fq.gz \
 ${read_dir}/2_reads_1.fq.gz ${read_dir}/2_reads_2.fq.gz \
 ${read_dir}/3_reads_1.fq.gz ${read_dir}/3_reads_2.fq.gz \
 ${read_dir}/4_reads_1.fq.gz ${read_dir}/4_reads_2.fq.gz \
--t ${N_CORES} \
--o ${output_dir}/all_reads \
--f
