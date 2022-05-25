@@ -24,4 +24,4 @@ cd ..
 
 # Extract core snps.
 out_dir=.
-${CALLM_BIN} genomes --fna-dir ${fasta_dir} --out-dir ${out_dir}
+${CALLM_BIN} genomes --fna-dir ${fasta_dir} --out-dir ${out_dir} --threads ${N_CORES}
