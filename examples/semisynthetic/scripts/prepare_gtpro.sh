@@ -26,7 +26,7 @@ cd ${GT_PRO_DB_DIR}
 
 # Extract core snps.
 ${CALLM_BIN} genomes --fna-dir ${fasta_dir} --out-dir ${species_dir} --threads ${N_CORES}
-rm -rf temp
+rm -rf ${species_dir}/temp
 
 echo "./ecoli" > build.list
 ${GT_PRO_BIN} build --in ./build.list --out ./ecoli_db --dbname ecoli_db --threads ${N_CORES}
