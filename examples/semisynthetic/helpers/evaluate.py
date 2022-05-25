@@ -210,7 +210,7 @@ def parse_straingst_estimate(
     return est_rel_abunds
 
 
-def hellinger_error(abundance_est: torch.Tensor, truth_df: pd.DataFrame, strain_ids: List[str]) -> torch.Tensor:
+def error_metric(abundance_est: torch.Tensor, truth_df: pd.DataFrame, strain_ids: List[str]) -> torch.Tensor:
     time_points = sorted(pd.unique(truth_df['T']))
     t_idxs = {t: t_idx for t_idx, t in enumerate(time_points)}
     strain_idxs = {sid: i for i, sid in enumerate(strain_ids)}
@@ -223,11 +223,9 @@ def hellinger_error(abundance_est: torch.Tensor, truth_df: pd.DataFrame, strain_
 
     if len(abundance_est.shape) == 3:
         abundance_est = torch.median(abundance_est, dim=1).values
-    timeseries_hellingers = torch.sqrt(0.5 * torch.sum(
-        torch.square(torch.sqrt(ground_truth) - torch.sqrt(abundance_est)),
-        dim=1
+    return torch.sqrt(torch.sum(
+        torch.square(ground_truth - abundance_est)
     ))
-    return torch.sum(timeseries_hellingers)
 
 
 def wasserstein_error(abundance_est: torch.Tensor, truth_df: pd.DataFrame, strain_distances: torch.Tensor, strain_ids: List[str]) -> torch.Tensor:
@@ -377,7 +375,7 @@ def main():
                 #     chronostrain_estimate_samples[:, :30, :],
                 #     ground_truth, distances, strain_ids
                 # )
-                error = hellinger_error(chronostrain_estimate_samples, ground_truth, strain_ids).item()
+                error = error_metric(chronostrain_estimate_samples, ground_truth, strain_ids).item()
                 logger.info("Chronostrain error of median: {}".format(error))
                 df_entries.append({
                     'ReadDepth': read_depth,
@@ -397,7 +395,7 @@ def main():
                                                                             strain_ids,
                                                                             trial_dir / 'output' / 'chronostrain',
                                                                             second_pass=True)
-                error = hellinger_error(chronostrain_estimate_samples, ground_truth, strain_ids).item()
+                error = error_metric(chronostrain_estimate_samples, ground_truth, strain_ids).item()
                 logger.info("Chronostrain (2nd pass) error of median: {}".format(error))
                 df_entries.append({
                     'ReadDepth': read_depth,
@@ -414,7 +412,7 @@ def main():
                 strainest_estimate = parse_strainest_estimate(ground_truth, strain_ids,
                                                               trial_dir / 'output' / 'strainest')
                 # error = wasserstein_error(strainest_estimate, ground_truth, distances, strain_ids).item()
-                error = hellinger_error(strainest_estimate, ground_truth, strain_ids).item()
+                error = error_metric(strainest_estimate, ground_truth, strain_ids).item()
                 logger.info("StrainEst Error: {}".format(error))
                 df_entries.append({
                     'ReadDepth': read_depth,
@@ -432,7 +430,7 @@ def main():
                                                               trial_dir / 'output' / 'straingst',
                                                               mode='chromosome')
                 # error = wasserstein_error(straingst_estimate, ground_truth, distances, strain_ids).item()
-                error = hellinger_error(straingst_estimate, ground_truth, strain_ids).item()
+                error = error_metric(straingst_estimate, ground_truth, strain_ids).item()
                 logger.info("StrainGST Error: {}".format(error))
                 df_entries.append({
                     'ReadDepth': read_depth,
@@ -450,7 +448,7 @@ def main():
                                                               trial_dir / 'output' / 'straingst',
                                                               mode='markers')
                 # error = wasserstein_error(straingst_estimate, ground_truth, distances, strain_ids).item()
-                error = hellinger_error(straingst_estimate, ground_truth, strain_ids).item()
+                error = error_metric(straingst_estimate, ground_truth, strain_ids).item()
                 logger.info("StrainGST Error: {}".format(error))
                 df_entries.append({
                     'ReadDepth': read_depth,
