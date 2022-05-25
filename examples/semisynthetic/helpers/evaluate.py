@@ -187,8 +187,6 @@ def parse_straingst_estimate(
     est_rel_abunds = torch.zeros(size=(len(time_points), len(strain_ids)), dtype=torch.float, device=device)
     for t_idx, t in enumerate(time_points):
         output_path = output_dir / mode / f"output_mash_{t_idx}.tsv"
-        if not output_path.exists():
-            continue
         with open(output_path, 'r') as tsv_file:
             reader = csv.reader(tsv_file, delimiter='\t')
             _ = next(reader)

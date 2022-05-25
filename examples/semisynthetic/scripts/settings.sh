@@ -33,6 +33,10 @@ export STRAIN_REP_FASTA=/mnt/e/ref_genomes/human_readable/refseq/bacteria/Escher
 export STRAINEST_DB_DIR=${MISC_DB_DIR}/strainest
 export STRAINEST_BT2_DB=ecoli_db
 
+# ================= StrainFacts+gt-pro settings
+export GT_PRO_BIN=/home/bromii/gt-pro/GT_Pro
+export GT_PRO_DB=/mnt/e/gt-pro_db/20190723_881species
+
 # ========= Chronostrain settings
 export INFERENCE_SEED=31415
 export CHRONOSTRAIN_NUM_ITERS=50
