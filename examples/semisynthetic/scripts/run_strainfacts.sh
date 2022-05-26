@@ -29,6 +29,10 @@ cd ${output_dir}
 
 
 # Run metagenotyping
+mg_prefix="mg_all"
+metagenotype_all="${mg_prefix}.tsv"
+> $metagenotype_all  # Clear file incase it exists.
+
 for t_idx in 0 1 2 3 4; do
 	echo "[*] Running 'GT_Pro genotype' for timepoint ${t_idx}..."
 	concat_reads=${t_idx}_reads.fq.gz
@@ -42,6 +46,16 @@ for t_idx in 0 1 2 3 4; do
 	metagenotype="${t_idx}_reads_1.tsv"
 	rm $concat_reads
 	pigz -d ${metagenotype}.gz
+	GT_Pro parse --dict ${GT_PRO_DB_DIR}/${GT_PRO_DB_NAME}/${GT_PRO_DB_NAME}.snp_dict.noheader.tsv --in $metagenotype \
+	| awk -v t="${t_idx}" '{ print t "\t" $0; }' >> $metagenotype_all
 done
 
-#sfacts load --gtpro-metagenotype ${}
+sfacts load --gtpro-metagenotype ${metagenotype_all} $mg_prefix
+sfacts fit \
+--device cuda \
+--precision 32 \
+--num_strains 4 \
+--random-seed 0 \
+--optimizer-learning-rate 0.05 \
+--min-optimizer-learning-rate 1e-06 \
+${mg_prefix}.mgen.nc ${mg_prefix}.world.nc
