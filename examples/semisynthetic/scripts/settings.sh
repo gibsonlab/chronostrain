@@ -34,10 +34,11 @@ export STRAINEST_DB_DIR=${MISC_DB_DIR}/strainest
 export STRAINEST_BT2_DB=ecoli_db
 
 # ================= StrainFacts+gt-pro settings
-export CALLM_BIN=/home/bromii/CallM/CallM
-export GT_PRO_BIN=/home/bromii/gt-pro/GT_Pro
+export CALLM_BIN_DIR=/home/bromii/CallM
+export KMC_BIN_DIR=/home/bromii/KMC/bin
+export GT_PRO_BIN_DIR=/home/bromii/gt-pro
 export GT_PRO_DB_DIR=/mnt/e/gt-pro_db
-export GT_PRO_DB=${GT_PRO_DB_DIR}/20190723_881species
+export GT_PRO_DB=${GT_PRO_DB_DIR}/ecoli
 
 # ========= Chronostrain settings
 export INFERENCE_SEED=31415
@@ -52,7 +53,6 @@ export CHRONOSTRAIN_MIN_LR=1e-4
 export CHRONOSTRAIN_OUTPUT_FILENAME="abundances.out"
 
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)
-#export CHRONOSTRAIN_DB_JSON="${BASE_DIR}/files/database.json"
 export REFSEQ_INDEX="/mnt/e/ref_genomes/index.tsv"
 export CHRONOSTRAIN_DB_JSON="${DATA_DIR}/database.json"
 export MULTIFASTA_FILE="ecoli_only.fasta"

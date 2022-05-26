@@ -2,6 +2,12 @@
 set -e
 source settings.sh
 
+
+export PATH=${PATH}:${KMC_BIN_DIR}:${CALLM_BIN_DIR}:${GT_PRO_BIN_DIR}
+check_program kmc_dump
+check_program CallM
+check_program GT_Pro
+
 cd ${GT_PRO_DB_DIR}
 
 # Make fasta directory, fill it with relevant genomes
@@ -25,9 +31,10 @@ done
 cd ${GT_PRO_DB_DIR}
 
 # Extract core snps.
-${CALLM_BIN} genomes --fna-dir ${fasta_dir} --out-dir ${species_dir} --threads ${N_CORES}
+CallM genomes --fna-dir ${fasta_dir} --out-dir ${species_dir} --threads ${N_CORES}
 rm -rf ${species_dir}/temp
 
 echo "./ecoli" > build.list
 mv ecoli/tag_msa.fna ecoli/msa.fa
-${GT_PRO_BIN} build --in ./build.list --out ./ecoli_db --dbname ecoli_db --threads ${N_CORES}
+export PATH=$PATH:${KMC_BIN_DIR}
+GT_Pro build --in ./build.list --out ./ecoli_db --dbname ecoli_db --threads ${N_CORES} --overwrite
