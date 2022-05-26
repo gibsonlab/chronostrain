@@ -37,4 +37,4 @@ rm -rf ${species_dir}/temp
 echo "./ecoli" > build.list
 mv ecoli/tag_msa.fna ecoli/msa.fa
 export PATH=$PATH:${KMC_BIN_DIR}
-GT_Pro build --in ./build.list --out ./ecoli_db --dbname ecoli_db --threads ${N_CORES} --overwrite
+GT_Pro build --in ./build.list --out . --dbname ${GT_PRO_DB_NAME} --threads ${N_CORES} --overwrite
