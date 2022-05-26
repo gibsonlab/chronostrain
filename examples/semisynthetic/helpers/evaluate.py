@@ -11,7 +11,6 @@ import torch
 import matplotlib
 import matplotlib.pyplot as plt
 import seaborn as sb
-import ot
 from Bio import SeqIO
 from tqdm import tqdm
 
@@ -210,67 +209,93 @@ def parse_straingst_estimate(
     return est_rel_abunds
 
 
-def error_metric(abundance_est: torch.Tensor, truth_df: pd.DataFrame, strain_ids: List[str]) -> torch.Tensor:
+def parse_strainfacts_estimate(
+        truth_df: pd.DataFrame,
+        output_dir: Path
+) -> Tuple[torch.Tensor, float]:
+    time_points = sorted(pd.unique(truth_df['T']))
+    strains = list(pd.unique(truth_df['Strain']))
+    ground_truth = extract_ground_truth_array(truth_df, strains)
+
+    est_rel_abunds = torch.zeros(size=(len(time_points), len(strains)), dtype=torch.float, device=device)
+    with open(output_dir / 'result_community.tsv', 'r') as f:
+        for line in f:
+            if line.startswith("sample"):
+                continue
+
+            t_idx, s_idx, abnd = line.rstrip().split('\t')
+            if s_idx >= len(strains):
+                raise ValueError("Didn't expect more than {} strains in output of StrainFacts.".format(len(strains)))
+            est_rel_abunds[t_idx, s_idx] = float(abnd)
+
+    # Compute minimal permutation.
+    minimal_error = float("inf")
+    best_perm = tuple(range(len(strains)))
+    for perm in itertools.permutations(list(range(len(strains)))):
+        permuted_est = est_rel_abunds[:, perm]
+        perm_error = error_metric(permuted_est, ground_truth)
+        if perm_error < best_perm:
+            minimal_error = perm_error
+            best_perm = perm
+    return est_rel_abunds[:, best_perm], minimal_error
+
+
+def extract_ground_truth_array(truth_df: pd.DataFrame, strain_ids: List[str]) -> torch.Tensor:
     time_points = sorted(pd.unique(truth_df['T']))
     t_idxs = {t: t_idx for t_idx, t in enumerate(time_points)}
     strain_idxs = {sid: i for i, sid in enumerate(strain_ids)}
-
     ground_truth = torch.zeros(size=(len(time_points), len(strain_ids)), dtype=torch.float, device=device)
     for _, row in truth_df.iterrows():
         s_idx = strain_idxs[row['Strain']]
         t_idx = t_idxs[row['T']]
         ground_truth[t_idx, s_idx] = row['RelAbund']
+    return ground_truth
 
+
+def error_metric(abundance_est: torch.Tensor, truth: torch.Tensor) -> torch.Tensor:
     if len(abundance_est.shape) == 3:
         abundance_est = torch.median(abundance_est, dim=1).values
     return torch.sqrt(torch.sum(
-        torch.square(ground_truth - abundance_est)
+        torch.square(truth - abundance_est)
     ))
 
 
-def wasserstein_error(abundance_est: torch.Tensor, truth_df: pd.DataFrame, strain_distances: torch.Tensor, strain_ids: List[str]) -> torch.Tensor:
-    time_points = sorted(pd.unique(truth_df['T']))
-    t_idxs = {t: t_idx for t_idx, t in enumerate(time_points)}
-    strain_idxs = {sid: i for i, sid in enumerate(strain_ids)}
-
-    ground_truth = torch.zeros(size=(len(time_points), len(strain_ids)), dtype=torch.float, device=device)
-    for _, row in truth_df.iterrows():
-        s_idx = strain_idxs[row['Strain']]
-        t_idx = t_idxs[row['T']]
-        ground_truth[t_idx, s_idx] = row['RelAbund']
-
-    if len(abundance_est.shape) == 2:
-        answers = torch.cat([
-            compute_wasserstein(ground_truth[t_idx], abundance_est[t_idx].unsqueeze(1), strain_distances)
-            for t_idx in range(len(time_points))
-        ], dim=0)
-        return answers.sum()
-    elif len(abundance_est.shape) == 3:
-        w_errors = torch.stack([
-            compute_wasserstein(ground_truth[t_idx], torch.transpose(abundance_est[t_idx, :, ], 0, 1), strain_distances)
-            for t_idx in range(len(time_points))
-        ], dim=0)
-        return w_errors.sum(dim=0)
-    else:
-        raise ValueError("Cannot handle abundance estimate matrices of dimension != (2 or 3).")
+# def wasserstein_error(abundance_est: torch.Tensor, truth_df: pd.DataFrame, strain_distances: torch.Tensor, strain_ids: List[str]) -> torch.Tensor:
+#     time_points = sorted(pd.unique(truth_df['T']))
+#     ground_truth = extract_ground_truth_array(truth_df, strain_ids)
+#
+#     if len(abundance_est.shape) == 2:
+#         answers = torch.cat([
+#             compute_wasserstein(ground_truth[t_idx], abundance_est[t_idx].unsqueeze(1), strain_distances)
+#             for t_idx in range(len(time_points))
+#         ], dim=0)
+#         return answers.sum()
+#     elif len(abundance_est.shape) == 3:
+#         w_errors = torch.stack([
+#             compute_wasserstein(ground_truth[t_idx], torch.transpose(abundance_est[t_idx, :, ], 0, 1), strain_distances)
+#             for t_idx in range(len(time_points))
+#         ], dim=0)
+#         return w_errors.sum(dim=0)
+#     else:
+#         raise ValueError("Cannot handle abundance estimate matrices of dimension != (2 or 3).")
 
 
-def compute_wasserstein(
-        src_histogram: torch.Tensor,
-        tgt_histogram: torch.Tensor,
-        distance_matrix: torch.Tensor
-) -> torch.Tensor:
-    """Computes the wasserstein distance. A simple wrapper around `ot.sinkhorn` call with default regularization value."""
-    wasserstein = ot.sinkhorn(
-        src_histogram,
-        tgt_histogram,
-        distance_matrix,
-        verbose=False,
-        reg=1e-2,
-        method='sinkhorn_log',
-        numItermax=500
-    )
-    return wasserstein
+# def compute_wasserstein(
+#         src_histogram: torch.Tensor,
+#         tgt_histogram: torch.Tensor,
+#         distance_matrix: torch.Tensor
+# ) -> torch.Tensor:
+#     """Computes the wasserstein distance. A simple wrapper around `ot.sinkhorn` call with default regularization value."""
+#     wasserstein = ot.sinkhorn(
+#         src_histogram,
+#         tgt_histogram,
+#         distance_matrix,
+#         verbose=False,
+#         reg=1e-2,
+#         method='sinkhorn_log',
+#         numItermax=500
+#     )
+#     return wasserstein
 
 
 def all_ecoli_strain_ids(index_path: Path) -> List[str]:
@@ -359,6 +384,7 @@ def main():
 
     # search through all of the read depths.
     df_entries = []
+    truth_tensor = extract_ground_truth_array(ground_truth, strain_ids)
     for read_depth, read_depth_dir in read_depth_dirs(base_dir):
         for trial_num, trial_dir in trial_dirs(read_depth_dir):
             logger.info(f"Handling read depth {read_depth}, trial {trial_num}")
@@ -375,7 +401,7 @@ def main():
                 #     chronostrain_estimate_samples[:, :30, :],
                 #     ground_truth, distances, strain_ids
                 # )
-                error = error_metric(chronostrain_estimate_samples, ground_truth, strain_ids).item()
+                error = error_metric(chronostrain_estimate_samples, truth_tensor).item()
                 logger.info("Chronostrain error of median: {}".format(error))
                 df_entries.append({
                     'ReadDepth': read_depth,
@@ -384,7 +410,7 @@ def main():
                     'Error': error
                 })
 
-                plot_result(plot_dir / 'chronostrain.pdf', ground_truth, chronostrain_estimate_samples, strain_ids)
+                # plot_result(plot_dir / 'chronostrain.pdf', ground_truth, chronostrain_estimate_samples, strain_ids)
             except FileNotFoundError:
                 logger.info("Skipping Chronostrain output.")
 
@@ -395,7 +421,7 @@ def main():
                                                                             strain_ids,
                                                                             trial_dir / 'output' / 'chronostrain',
                                                                             second_pass=True)
-                error = error_metric(chronostrain_estimate_samples, ground_truth, strain_ids).item()
+                error = error_metric(chronostrain_estimate_samples, truth_tensor).item()
                 logger.info("Chronostrain (2nd pass) error of median: {}".format(error))
                 df_entries.append({
                     'ReadDepth': read_depth,
@@ -403,7 +429,7 @@ def main():
                     'Method': 'Chronostrain (2nd pass)',
                     'Error': error
                 })
-                plot_result(plot_dir / 'chronostrain.pass2.pdf', ground_truth, chronostrain_estimate_samples, strain_ids)
+                # plot_result(plot_dir / 'chronostrain.pass2.pdf', ground_truth, chronostrain_estimate_samples, strain_ids)
             except FileNotFoundError:
                 logger.info("Skipping Chronostrain (2nd pass) output.")
 
@@ -412,7 +438,7 @@ def main():
                 strainest_estimate = parse_strainest_estimate(ground_truth, strain_ids,
                                                               trial_dir / 'output' / 'strainest')
                 # error = wasserstein_error(strainest_estimate, ground_truth, distances, strain_ids).item()
-                error = error_metric(strainest_estimate, ground_truth, strain_ids).item()
+                error = error_metric(strainest_estimate, truth_tensor).item()
                 logger.info("StrainEst Error: {}".format(error))
                 df_entries.append({
                     'ReadDepth': read_depth,
@@ -420,7 +446,7 @@ def main():
                     'Method': 'StrainEst',
                     'Error': error
                 })
-                plot_result(plot_dir / 'strainest.pdf', ground_truth, strainest_estimate, strain_ids)
+                # plot_result(plot_dir / 'strainest.pdf', ground_truth, strainest_estimate, strain_ids)
             except FileNotFoundError:
                 logger.info("Skipping StrainEst output.")
 
@@ -430,7 +456,7 @@ def main():
                                                               trial_dir / 'output' / 'straingst',
                                                               mode='chromosome')
                 # error = wasserstein_error(straingst_estimate, ground_truth, distances, strain_ids).item()
-                error = error_metric(straingst_estimate, ground_truth, strain_ids).item()
+                error = error_metric(straingst_estimate, truth_tensor).item()
                 logger.info("StrainGST Error: {}".format(error))
                 df_entries.append({
                     'ReadDepth': read_depth,
@@ -438,7 +464,7 @@ def main():
                     'Method': 'StrainGST (Whole-Genome)',
                     'Error': error
                 })
-                plot_result(plot_dir / 'straingst_whole.pdf', ground_truth, straingst_estimate, strain_ids)
+                # plot_result(plot_dir / 'straingst_whole.pdf', ground_truth, straingst_estimate, strain_ids)
             except FileNotFoundError:
                 logger.info("Skipping StrainGST (whole-genome) output.")
 
@@ -448,7 +474,7 @@ def main():
                                                               trial_dir / 'output' / 'straingst',
                                                               mode='markers')
                 # error = wasserstein_error(straingst_estimate, ground_truth, distances, strain_ids).item()
-                error = error_metric(straingst_estimate, ground_truth, strain_ids).item()
+                error = error_metric(straingst_estimate, truth_tensor).item()
                 logger.info("StrainGST Error: {}".format(error))
                 df_entries.append({
                     'ReadDepth': read_depth,
@@ -456,9 +482,24 @@ def main():
                     'Method': 'StrainGST (Markers)',
                     'Error': error
                 })
-                plot_result(plot_dir / 'straingst_marker.pdf', ground_truth, straingst_estimate, strain_ids)
+                # plot_result(plot_dir / 'straingst_marker.pdf', ground_truth, straingst_estimate, strain_ids)
             except FileNotFoundError:
                 logger.info("Skipping StrainGST (markers) output.")
+
+            # =========== StrainFacts
+            try:
+                strainfacts_estimate, error = parse_strainfacts_estimate(ground_truth,
+                                                                         trial_dir / 'output' / 'strainfacts')
+                logger.info("StrainFacts Error: {}".format(error))
+                df_entries.append({
+                    'ReadDepth': read_depth,
+                    'TrialNum': trial_num,
+                    'Method': 'StrainFacts',
+                    'Error': error
+                })
+                # plot_result(plot_dir / 'strainfacts.pdf', ground_truth, strainfacts_estimate, strain_ids)
+            except FileNotFoundError:
+                logger.info("Skipping StrainFacts output.")
 
     out_path = out_dir / 'summary.csv'
     summary_df = pd.DataFrame(df_entries)
