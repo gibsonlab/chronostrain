@@ -35,7 +35,7 @@ metagenotype_all="${mg_prefix}.tsv"
 
 for t_idx in 0 1 2 3 4; do
 	echo "[*] Running 'GT_Pro genotype' for timepoint ${t_idx}..."
-	concat_reads=${t_idx}_reads.fq.gz
+	concat_reads=${t_idx}_reads.fq
 	> $concat_reads
 	pigz -dck ${read_dir}/${t_idx}_reads_1.fq.gz >> $concat_reads
 	pigz -dck ${read_dir}/${t_idx}_reads_2.fq.gz >> $concat_reads
