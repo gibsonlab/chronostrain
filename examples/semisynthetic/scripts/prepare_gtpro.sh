@@ -37,4 +37,6 @@ rm -rf ${species_dir}/temp
 echo "./ecoli" > build.list
 mv ecoli/tag_msa.fna ecoli/msa.fa
 export PATH=$PATH:${KMC_BIN_DIR}
+sample_fastq=${DATA_DIR}/reads_100000/trial_1/reads/0_reads_1.fq.gz
 GT_Pro build --in ./build.list --out . --dbname ${GT_PRO_DB_NAME} --threads ${N_CORES} --overwrite
+GT_Pro optimize -d ./ecoli_db -i $sample_fastq
