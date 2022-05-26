@@ -62,7 +62,7 @@ sfacts load --gtpro-metagenotype ${metagenotype_all} ${mg_prefix}.mgen.nc
 sfacts fit \
 --device cuda \
 --precision 32 \
---num_strains 4 \
+--num-strains 4 \
 --random-seed 0 \
 --optimizer-learning-rate 0.05 \
 --min-optimizer-learning-rate 1e-06 \
