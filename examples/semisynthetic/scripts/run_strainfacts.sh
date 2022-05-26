@@ -41,7 +41,7 @@ done
 echo "[*] Running 'GT_Pro genotype'..."
 GT_Pro genotype -f \
 -d ${GT_PRO_DB_DIR}/${GT_PRO_DB_NAME}/${GT_PRO_DB_NAME} \
--t 1 \
+-t ${N_CORES} \
 -o ${output_dir}/%{n}_reads \
 0_reads.fq 1_reads.fq 2_reads.fq 3_reads.fq 4_reads.fq
 
