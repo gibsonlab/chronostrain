@@ -64,9 +64,12 @@ sfacts fit \
 --precision 32 \
 --num-strains 4 \
 --random-seed 0 \
+--no-jit \
 --optimizer-learning-rate 0.05 \
 --min-optimizer-learning-rate 1e-06 \
 ${mg_prefix}.mgen.nc ${mg_prefix}.world.nc
+
+sfacts dump ${mg_prefix}.world.nc --genotype result_genotypes.tsv --community result_community.tsv
 
 echo "[*] Cleaning up..."
 rm *.fq
