@@ -38,7 +38,7 @@ for t_idx in 0 1 2 3 4; do
 done
 
 
-echo "[*] Running 'GT_Pro genotype' for timepoint ${t_idx}..."
+echo "[*] Running 'GT_Pro genotype'..."
 GT_Pro genotype -f \
 -d ${GT_PRO_DB_DIR}/${GT_PRO_DB_NAME}/${GT_PRO_DB_NAME} \
 -t 1 \
