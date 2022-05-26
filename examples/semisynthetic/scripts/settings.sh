@@ -9,7 +9,7 @@ export MISC_DB_DIR="/mnt/d/chronostrain/semisynthetic"
 # ==================== Read sampling settings
 export N_TRIALS=20
 export READ_LEN=150
-export N_CORES=4
+export N_CORES=8
 export BACKGROUND_N_READS=1000000
 
 export RELATIVE_GROUND_TRUTH="${BASE_DIR}/files/ground_truth.csv"
