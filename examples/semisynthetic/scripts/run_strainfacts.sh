@@ -53,9 +53,8 @@ metagenotype_all="${mg_prefix}.tsv"
 
 for t_idx in 0 1 2 3 4; do
 	metagenotype="${t_idx}_reads.tsv"
-	pigz -d ${metagenotype}.gz
 	GT_Pro parse --dict ${GT_PRO_DB_DIR}/${GT_PRO_DB_NAME}/${GT_PRO_DB_NAME}.snp_dict.noheader.tsv --in $metagenotype \
-	| awk -v t="${t_idx}" '{ print t "\t" $0; }' >> $metagenotype_all
+	| awk -v t="${t_idx}" '{if (NR!=1) {print t "\t" $0;}}' >> $metagenotype_all
 done
 
 echo "[*] Running StrainFacts on GT_Pro output..."
