@@ -9,7 +9,8 @@ cd ${STRAINGST_DB_DIR}/full_genome
 
 python ${BASE_DIR}/helpers/list_strain_paths.py -j ${CHRONOSTRAIN_DB_JSON} -i $REFSEQ_INDEX \
 | while read strain_seq; do
-	base_name="${f%.chrom.fna}"
+	base_name="$(basename -- $strain_seq)"
+	base_name="${base_name%.chrom.fna}"
 	echo "Kmerizing ${base_name} chromosomes..."
 	strain_kmers="${base_name}.hdf5"
 	straingst kmerize -o $strain_kmers $strain_seq
