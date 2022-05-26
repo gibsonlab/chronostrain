@@ -38,7 +38,7 @@ export CALLM_BIN_DIR=/home/bromii/CallM
 export KMC_BIN_DIR=/home/bromii/KMC/bin
 export GT_PRO_BIN_DIR=/home/bromii/gt-pro
 export GT_PRO_DB_DIR=/mnt/e/gt-pro_db
-export GT_PRO_DB_NAME=ecoli_db
+export GT_PRO_DB_NAME=ecoli_db/ecoli_db
 
 # ========= Chronostrain settings
 export INFERENCE_SEED=31415

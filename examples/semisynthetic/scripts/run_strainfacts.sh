@@ -30,7 +30,7 @@ cd ${output_dir}
 
 # Run metagenotyping
 GT_Pro genotype \
--d ${GT_PRO_DB} \
+-d ${GT_PRO_DB_DIR}/${GT_PRO_DB_NAME} \
 -t ${N_CORES} \
 -o ${output_dir}/%{in} \
 -f \
