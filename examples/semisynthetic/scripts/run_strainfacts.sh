@@ -58,6 +58,7 @@ for t_idx in 0 1 2 3 4; do
 	| awk -v t="${t_idx}" '{ print t "\t" $0; }' >> $metagenotype_all
 done
 
+echo "[*] Running StrainFacts on GT_Pro output..."
 sfacts load --gtpro-metagenotype ${metagenotype_all} $mg_prefix
 sfacts fit \
 --device cuda \
