@@ -41,6 +41,9 @@ export PATH=$PATH:${KMC_BIN_DIR}
 echo "[*] invoking GT_Pro build."
 GT_Pro build --in ./build.list --out ${GT_PRO_DB_NAME} --dbname ${GT_PRO_DB_NAME} --threads ${N_CORES} --overwrite
 
+# Remove the header line (otherwise GT_Pro parse breaks.)
+tail -n +1 ${GT_PRO_DB_NAME}/${GT_PRO_DB_NAME}.snp_dict.tsv > ${GT_PRO_DB_NAME}/${GT_PRO_DB_NAME}.snp_dict.noheader.tsv
+
 echo "[*] invoking GT_Pro optimize."
 sample_fastq=${DATA_DIR}/reads_100000/trial_1/reads/0_reads_1.fq.gz
 GT_Pro optimize -d ./${GT_PRO_DB_NAME}/${GT_PRO_DB_NAME} -i $sample_fastq

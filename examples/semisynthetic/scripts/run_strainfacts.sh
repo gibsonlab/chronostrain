@@ -31,8 +31,17 @@ cd ${output_dir}
 # Run metagenotyping
 for t_idx in 0 1 2 3 4; do
 	echo "[*] Running 'GT_Pro genotype' for timepoint ${t_idx}..."
-	GT_Pro genotype -f -d ${GT_PRO_DB_DIR}/${GT_PRO_DB_NAME}/${GT_PRO_DB_NAME} -t ${N_CORES} -o ${output_dir}/${t_idx}_reads_1 ${read_dir}/${t_idx}_reads_1.fq.gz
-	GT_Pro genotype -f -d ${GT_PRO_DB_DIR}/${GT_PRO_DB_NAME}/${GT_PRO_DB_NAME} -t ${N_CORES} -o ${output_dir}/${t_idx}_reads_2 ${read_dir}/${t_idx}_reads_2.fq.gz
+	concat_reads=${t_idx}_reads.fq.gz
+	cat ${read_dir}/${t_idx}_reads_1.fq.gz ${read_dir}/${t_idx}_reads_2.fq.gz > $concat_reads
+	GT_Pro genotype -f \
+	-d ${GT_PRO_DB_DIR}/${GT_PRO_DB_NAME}/${GT_PRO_DB_NAME} \
+	-t ${N_CORES} \
+	-o ${output_dir}/${t_idx}_reads_1 \
+	$concat_reads
+
+	metagenotype="${t_idx}_reads_1.tsv"
+	rm $concat_reads
+	pigz -d ${metagenotype}.gz
 done
 
 #sfacts load --gtpro-metagenotype ${}
