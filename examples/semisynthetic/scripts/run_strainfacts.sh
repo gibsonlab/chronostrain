@@ -58,7 +58,7 @@ for t_idx in 0 1 2 3 4; do
 done
 
 echo "[*] Running StrainFacts on GT_Pro output..."
-sfacts load --gtpro-metagenotype ${metagenotype_all} $mg_prefix
+sfacts load --gtpro-metagenotype ${metagenotype_all} ${mg_prefix}.mgen.nc
 sfacts fit \
 --device cuda \
 --precision 32 \
