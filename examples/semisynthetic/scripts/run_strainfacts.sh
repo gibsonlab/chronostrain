@@ -29,13 +29,10 @@ cd ${output_dir}
 
 
 # Run metagenotyping
-GT_Pro genotype \
--d ${GT_PRO_DB_DIR}/${GT_PRO_DB_NAME}/${GT_PRO_DB_NAME} \
--t ${N_CORES} \
--o ${output_dir}/%{in} \
--f \
-${read_dir}/0_reads_1.fq.gz ${read_dir}/0_reads_2.fq.gz \
-${read_dir}/1_reads_1.fq.gz ${read_dir}/1_reads_2.fq.gz \
-${read_dir}/2_reads_1.fq.gz ${read_dir}/2_reads_2.fq.gz \
-${read_dir}/3_reads_1.fq.gz ${read_dir}/3_reads_2.fq.gz \
-${read_dir}/4_reads_1.fq.gz ${read_dir}/4_reads_2.fq.gz
+for t_idx in 0 1 2 3 4; do
+	echo "[*] Running 'GT_Pro genotype' for timepoint ${t_idx}..."
+	GT_Pro genotype -f -d ${GT_PRO_DB_DIR}/${GT_PRO_DB_NAME}/${GT_PRO_DB_NAME} -t ${N_CORES} -o ${output_dir}/${t_idx}_reads_1 ${read_dir}/${t_idx}_reads_1.fq.gz
+	GT_Pro genotype -f -d ${GT_PRO_DB_DIR}/${GT_PRO_DB_NAME}/${GT_PRO_DB_NAME} -t ${N_CORES} -o ${output_dir}/${t_idx}_reads_2 ${read_dir}/${t_idx}_reads_2.fq.gz
+done
+
+#sfacts load --gtpro-metagenotype ${}
