@@ -2,6 +2,7 @@
 set -e
 source settings.sh
 
+export PATH=${PATH}:${GT_PRO_BIN_DIR}
 n_reads=$1
 trial=$2
 
@@ -28,7 +29,7 @@ cd ${output_dir}
 
 
 # Run metagenotyping
-$GT_PRO_BIN genotype \
+GT_Pro genotype \
 -d ${GT_PRO_DB} \
 -t ${N_CORES} \
 -o ${output_dir}/%{in} \
