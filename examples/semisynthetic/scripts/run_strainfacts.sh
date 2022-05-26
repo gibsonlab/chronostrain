@@ -30,16 +30,13 @@ cd ${output_dir}
 
 # Run metagenotyping
 echo "[*] Preparing GT_Pro inputs..."
-mg_prefix="mg_all"
-metagenotype_all="${mg_prefix}.tsv"
-> $metagenotype_all  # Clear file incase it exists.
-
 for t_idx in 0 1 2 3 4; do
 	concat_reads=${t_idx}_reads.fq
 	> $concat_reads
 	pigz -dck ${read_dir}/${t_idx}_reads_1.fq.gz >> $concat_reads
 	pigz -dck ${read_dir}/${t_idx}_reads_2.fq.gz >> $concat_reads
 done
+
 
 echo "[*] Running 'GT_Pro genotype' for timepoint ${t_idx}..."
 GT_Pro genotype -f \
@@ -48,7 +45,12 @@ GT_Pro genotype -f \
 -o ${output_dir}/%{n}_reads.tsv \
 0_reads.fq 1_reads.fq 2_reads.fq 3_reads.fq 4_reads.fq
 
+
 echo "[*] Parsing GT_Pro outputs..."
+mg_prefix="mg_all"
+metagenotype_all="${mg_prefix}.tsv"
+> $metagenotype_all  # Clear file incase it exists.
+
 for t_idx in 0 1 2 3 4; do
 	metagenotype="${t_idx}_reads.tsv"
 	pigz -d ${metagenotype}.gz
