@@ -51,6 +51,5 @@ sfacts fit \
 --min-optimizer-learning-rate 1e-06 \
 --max-iter 1_000_000 --lag1 50 --lag2 100 \
 ${mg_prefix}.mgen.nc ${mg_prefix}.world.nc
---min-optimizer-learning-rate 1e-06 \
 
 sfacts dump ${mg_prefix}.world.nc --genotype result_genotypes.tsv --community result_community.tsv
