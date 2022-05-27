@@ -30,7 +30,6 @@ cd ${output_dir}
 mg_prefix="mg_all"
 metagenotype_all="${mg_prefix}.tsv"
 
-echo "[*] Running StrainFacts on GT_Pro output..."
 sfacts load --gtpro-metagenotype ${metagenotype_all} ${mg_prefix}.mgen.nc
 sfacts fit \
 --device cuda \

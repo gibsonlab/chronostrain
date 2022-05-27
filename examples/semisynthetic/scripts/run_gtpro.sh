@@ -22,7 +22,7 @@ trial_dir=$(get_trial_dir $n_reads $trial)
 read_dir=${trial_dir}/reads
 output_dir=${trial_dir}/output/strainfacts
 
-echo "[*] Running StrainFacts inference for n_reads: ${n_reads}, trial: ${trial}"
+echo "[*] Running GTPro metagenotyping for n_reads: ${n_reads}, trial: ${trial}"
 
 mkdir -p ${output_dir}
 cd ${output_dir}
