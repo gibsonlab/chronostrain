@@ -224,9 +224,11 @@ def parse_strainfacts_estimate(
                 continue
 
             t_idx, s_idx, abnd = line.rstrip().split('\t')
+            s_idx = int(s_idx)
+            abnd = float(abnd)
             if s_idx >= len(strains):
                 raise ValueError("Didn't expect more than {} strains in output of StrainFacts.".format(len(strains)))
-            est_rel_abunds[t_idx, s_idx] = float(abnd)
+            est_rel_abunds[t_idx, s_idx] = abnd
 
     # Compute minimal permutation.
     minimal_error = float("inf")
