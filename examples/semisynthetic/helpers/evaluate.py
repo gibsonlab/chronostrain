@@ -236,8 +236,8 @@ def parse_strainfacts_estimate(
     best_perm = tuple(range(len(strains)))
     for perm in itertools.permutations(list(range(len(strains)))):
         permuted_est = est_rel_abunds[:, perm]
-        perm_error = error_metric(permuted_est, ground_truth)
-        if perm_error < best_perm:
+        perm_error = error_metric(permuted_est, ground_truth).item()
+        if perm_error < minimal_error:
             minimal_error = perm_error
             best_perm = perm
     return est_rel_abunds[:, best_perm], minimal_error
