@@ -393,7 +393,6 @@ def main():
 
             # =========== Chronostrain
             try:
-                logger.info("Computing chronostrain error...")
                 chronostrain_estimate_samples = parse_chronostrain_estimate(chronostrain_db, ground_truth, strain_ids,
                                                                             trial_dir / 'output' / 'chronostrain',
                                                                             second_pass=False)
@@ -416,7 +415,6 @@ def main():
 
             # =========== Chronostrain (Second pass)
             try:
-                logger.info("Computing chronostrain (2nd pass) error...")
                 chronostrain_estimate_samples = parse_chronostrain_estimate(chronostrain_db, ground_truth,
                                                                             strain_ids,
                                                                             trial_dir / 'output' / 'chronostrain',
