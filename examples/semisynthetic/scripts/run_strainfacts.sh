@@ -28,34 +28,43 @@ mkdir -p ${output_dir}
 cd ${output_dir}
 
 
-# Run metagenotyping
-echo "[*] Preparing GT_Pro inputs..."
-for t_idx in 0 1 2 3 4; do
-	concat_reads=${t_idx}_reads.fq
-	> $concat_reads
-	pigz -dck ${read_dir}/${t_idx}_reads_1.fq.gz >> $concat_reads
-	pigz -dck ${read_dir}/${t_idx}_reads_2.fq.gz >> $concat_reads
-done
-
-
-echo "[*] Running 'GT_Pro genotype'..."
-GT_Pro genotype -f \
--d ${GT_PRO_DB_DIR}/${GT_PRO_DB_NAME}/${GT_PRO_DB_NAME} \
--t ${N_CORES} \
--o ${output_dir}/%{n}_reads \
-0_reads.fq 1_reads.fq 2_reads.fq 3_reads.fq 4_reads.fq
-
-
-echo "[*] Parsing GT_Pro outputs..."
 mg_prefix="mg_all"
 metagenotype_all="${mg_prefix}.tsv"
-> $metagenotype_all  # Clear file incase it exists.
 
-for t_idx in 0 1 2 3 4; do
-	metagenotype="${t_idx}_reads.tsv"
-	GT_Pro parse --dict ${GT_PRO_DB_DIR}/${GT_PRO_DB_NAME}/${GT_PRO_DB_NAME}.snp_dict.noheader.tsv --in $metagenotype \
-	| awk -v t="${t_idx}" '{if (NR!=1) {print t "\t" $0;}}' >> $metagenotype_all
-done
+
+if [ ! -f $metagenotype_all ]; then
+	# Run metagenotyping
+	echo "[*] Preparing GT_Pro inputs..."
+	for t_idx in 0 1 2 3 4; do
+		concat_reads=${t_idx}_reads.fq
+		> $concat_reads
+		pigz -dck ${read_dir}/${t_idx}_reads_1.fq.gz >> $concat_reads
+		pigz -dck ${read_dir}/${t_idx}_reads_2.fq.gz >> $concat_reads
+	done
+
+
+	echo "[*] Running 'GT_Pro genotype'..."
+	GT_Pro genotype -f \
+	-d ${GT_PRO_DB_DIR}/${GT_PRO_DB_NAME}/${GT_PRO_DB_NAME} \
+	-t ${N_CORES} \
+	-o ${output_dir}/%{n}_reads \
+	0_reads.fq 1_reads.fq 2_reads.fq 3_reads.fq 4_reads.fq
+
+
+	echo "[*] Parsing GT_Pro outputs..."
+	> $metagenotype_all  # Clear file incase it exists.
+
+	for t_idx in 0 1 2 3 4; do
+		metagenotype="${t_idx}_reads.tsv"
+		GT_Pro parse --dict ${GT_PRO_DB_DIR}/${GT_PRO_DB_NAME}/${GT_PRO_DB_NAME}.snp_dict.noheader.tsv --in $metagenotype \
+		| awk -v t="${t_idx}" '{if (NR!=1) {print t "\t" $0;}}' >> $metagenotype_all
+	done
+
+	echo "[*] Cleaning up..."
+	rm *.fq
+else
+	echo "[*] Metagenotype file ${metagenotype_all} already found!"
+fi
 
 echo "[*] Running StrainFacts on GT_Pro output..."
 sfacts load --gtpro-metagenotype ${metagenotype_all} ${mg_prefix}.mgen.nc
@@ -65,11 +74,20 @@ sfacts fit \
 --num-strains 4 \
 --random-seed 0 \
 --no-jit \
+--model-structure model1 \
+--hyperparameters gamma_hyper=1e-10 \
+--hyperparameters pi_hyper=0.3 \
+--hyperparameters rho_hyper=0.5 \
+--hyperparameters alpha_hyper_mean=10.0 \
+--hyperparameters alpha_hyper_scale=1e-06 \
+--anneal-hyperparameters gamma_hyper=1.0 \
+--anneal-hyperparameters rho_hyper=5.0 \
+--anneal-hyperparameters pi_hyper=1.0 \
+--anneal-steps 10000 --anneal-wait 2000 \
 --optimizer-learning-rate 0.05 \
 --min-optimizer-learning-rate 1e-06 \
+--max-iter 1_000_000 --lag1 50 --lag2 100 \
 ${mg_prefix}.mgen.nc ${mg_prefix}.world.nc
+--min-optimizer-learning-rate 1e-06 \
 
 sfacts dump ${mg_prefix}.world.nc --genotype result_genotypes.tsv --community result_community.tsv
-
-echo "[*] Cleaning up..."
-rm *.fq
