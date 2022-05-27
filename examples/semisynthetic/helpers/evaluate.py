@@ -224,6 +224,7 @@ def parse_strainfacts_estimate(
                 continue
 
             t_idx, s_idx, abnd = line.rstrip().split('\t')
+            t_idx = int(t_idx)
             s_idx = int(s_idx)
             abnd = float(abnd)
             if s_idx >= len(strains):
