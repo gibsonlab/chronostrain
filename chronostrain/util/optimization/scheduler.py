@@ -58,7 +58,6 @@ class ReduceLROnPlateauLast(object):
         current = float(metrics)
 
         if self.is_better(current, self.prev):
-            self.prev = current
             self.num_bad_epochs = 0
         else:
             self.num_bad_epochs += 1
@@ -71,6 +70,8 @@ class ReduceLROnPlateauLast(object):
             self._reduce_lr()
             self.cooldown_counter = self.cooldown
             self.num_bad_epochs = 0
+
+        self.prev = current
 
     def _reduce_lr(self):
         for i, param_group in enumerate(self.optimizer.param_groups):
