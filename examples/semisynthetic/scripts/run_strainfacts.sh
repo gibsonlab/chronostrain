@@ -38,7 +38,6 @@ sfacts fit \
 --precision 32 \
 --random-seed 0 \
 --num-strains 4 \
---nmf-init \
 --num-positions 5000 \
 --hyperparameters gamma_hyper=1e-10 \
 --hyperparameters pi_hyper=0.3 \
