@@ -5,7 +5,6 @@ source settings.sh
 # ============ Requires arguments:
 n_reads=$1
 trial=$2
-pass=$3
 
 if [ -z "$n_reads" ]
 then
@@ -28,42 +27,20 @@ log_dir=${trial_dir}/logs
 mkdir -p $log_dir
 export CHRONOSTRAIN_CACHE_DIR="${trial_dir}/cache"
 
-if [ "$pass" == "1" ]; then
-	export CHRONOSTRAIN_LOG_FILEPATH="${log_dir}/chronostrain.log"
-	echo "[*] Running Chronostrain inference (Default mode) for n_reads: ${n_reads}, trial: ${trial}"
-	python $PROJECT_DIR/scripts/run_bbvi.py \
-	--reads_input "${read_dir}/filtered/filtered_input_files.csv" \
-	--out_dir ${output_dir} \
-	--seed ${INFERENCE_SEED} \
-	--iters $CHRONOSTRAIN_NUM_ITERS \
-	--epochs $CHRONOSTRAIN_NUM_EPOCHS \
-	--decay_lr $CHRONOSTRAIN_DECAY_LR \
-	--lr_patience ${CHRONOSTRAIN_LR_PATIENCE} \
-	--min_lr ${CHRONOSTRAIN_MIN_LR} \
-	--learning_rate $CHRONOSTRAIN_LR \
-	--num_samples $CHRONOSTRAIN_NUM_SAMPLES \
-	--read_batch_size $CHRONOSTRAIN_READ_BATCH_SZ \
-	--plot_format "pdf" \
-	--plot_elbo
-elif [ "$pass" == "2" ]; then
-	export CHRONOSTRAIN_LOG_FILEPATH="${log_dir}/chronostrain.pass2.log"
-	echo "[*] Running Chronostrain inference (Second Pass) for n_reads: ${n_reads}, trial: ${trial}"
-	python $PROJECT_DIR/scripts/run_bbvi.py \
-	--reads_input "${read_dir}/filtered/filtered_input_files.csv" \
-	--out_dir ${output_dir} \
-	--seed ${INFERENCE_SEED} \
-	--iters $CHRONOSTRAIN_NUM_ITERS \
-	--epochs $CHRONOSTRAIN_NUM_EPOCHS \
-	--decay_lr $CHRONOSTRAIN_DECAY_LR \
-	--lr_patience ${CHRONOSTRAIN_LR_PATIENCE} \
-	--min_lr ${CHRONOSTRAIN_MIN_LR} \
-	--learning_rate $CHRONOSTRAIN_LR \
-	--num_samples $CHRONOSTRAIN_NUM_SAMPLES \
-	--read_batch_size $CHRONOSTRAIN_READ_BATCH_SZ \
-	--plot_format "pdf" \
-	--plot_elbo \
-	--second_pass
-else
-	echo "Unknown pass argument \"${pass}\""
-	exit 1
-fi
+export CHRONOSTRAIN_LOG_FILEPATH="${log_dir}/chronostrain.log"
+echo "[*] Running Chronostrain inference for n_reads: ${n_reads}, trial: ${trial}"
+python $PROJECT_DIR/scripts/run_bbvi.py \
+--reads_input "${read_dir}/filtered/filtered_input_files.csv" \
+--out_dir ${output_dir} \
+--correlation_mode "strain" \
+--seed ${INFERENCE_SEED} \
+--iters $CHRONOSTRAIN_NUM_ITERS \
+--epochs $CHRONOSTRAIN_NUM_EPOCHS \
+--decay_lr $CHRONOSTRAIN_DECAY_LR \
+--lr_patience ${CHRONOSTRAIN_LR_PATIENCE} \
+--min_lr ${CHRONOSTRAIN_MIN_LR} \
+--learning_rate $CHRONOSTRAIN_LR \
+--num_samples $CHRONOSTRAIN_NUM_SAMPLES \
+--read_batch_size $CHRONOSTRAIN_READ_BATCH_SZ \
+--plot_format "pdf" \
+--plot_elbo
