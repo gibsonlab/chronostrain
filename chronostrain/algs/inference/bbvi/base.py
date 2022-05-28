@@ -3,7 +3,6 @@ from typing import Optional, List, Callable, Iterator
 
 import numpy as np
 import torch
-from torch.nn import Parameter
 
 from chronostrain import create_logger
 from chronostrain.algs.inference.bbvi.posteriors.base import AbstractReparametrizedPosterior
