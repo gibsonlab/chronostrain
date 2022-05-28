@@ -79,7 +79,9 @@ def perform_bbvi(
         optimizer,
         factor=lr_decay_factor,
         patience=lr_patience,
-        mode='max'  # track ELBO and decrease LR when it stops increasing.
+        threshold=1e-4,
+        threshold_mode='rel',
+        mode='min'  # track (-ELBO) and decrease LR when it stops decreasing.
     )
 
     start_time = time.time()

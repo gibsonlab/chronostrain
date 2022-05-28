@@ -46,10 +46,13 @@ def parse_args():
                         help='<Optional> Stop the algorithm when the LR is below this threshold. (Default: 1e-4)')
     parser.add_argument('-lr', '--learning_rate', required=False, type=float, default=0.05,
                         help='<Optional> The learning rate to use for the optimizer. (Default: 0.05.)')
-    parser.add_argument('--num_samples', required=False, type=int, default=100,
+    parser.add_argument('-n', '--num_samples', required=False, type=int, default=100,
                         help='<Optional> The number of samples to use for monte-carlo estimation of gradients.')
-    parser.add_argument('--read_batch_size', required=False, type=int, default=5000,
+    parser.add_argument('-b', '--read_batch_size', required=False, type=int, default=5000,
                         help='<Optional> The size of matrices to divide into batches across reads. (Default: 5000)')
+    parser.add_argument('-c', '--correlation_mode', required=False, type=str, default='full',
+                        help='<Optional> The correlation mode for the posterior. Options are "full", "strain", and "time".'
+                             'For example, "strain" means that the abundance posteriors will be correlated over strains, and factorized across time.')
 
     # Optional input params
     parser.add_argument('-s', '--seed', required=False, type=int, default=31415,
@@ -212,7 +215,7 @@ def main():
         lr_patience=args.lr_patience,
         learning_rate=args.learning_rate,
         num_samples=args.num_samples,
-        correlation_type='strain',
+        correlation_type=args.correlation_mode,
         save_elbo_history=args.plot_elbo,
         save_training_history=args.draw_training_history,
         read_batch_size=args.read_batch_size,

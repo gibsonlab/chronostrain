@@ -67,7 +67,7 @@ class AbstractBBVI(ABC):
                 )
             )
 
-            lr_scheduler.step(epoch_elbo_avg)
+            lr_scheduler.step(-epoch_elbo_avg)
             if optimizer.param_groups[-1]['lr'] < min_lr:
                 logger.info("Stopping criteria met after {} epochs.".format(epoch))
                 break
