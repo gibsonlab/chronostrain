@@ -163,7 +163,7 @@ def main():
         animation_path = out_dir / "training.pass2.gif"
         plot_path = out_dir / "plot.pass2.{}".format(args.plot_format)
         samples_path = out_dir / "samples.pass2.pt"
-        samples_path_pass1 = out_dir / "samples.pt"
+        samples_path_pass1 = out_dir / "samples.pass2.pt"
         strains_path = out_dir / "strains.pass2.txt"
         model_out_path = out_dir / "posterior.pass2.pt"
 

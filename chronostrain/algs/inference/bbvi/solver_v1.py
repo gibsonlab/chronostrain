@@ -12,7 +12,7 @@ from chronostrain.util.sparse.sliceable import ColumnSectionedSparseMatrix
 from .. import AbstractModelSolver
 from .base import AbstractBBVI
 from .posteriors import *
-from .util import log_softmax, log_spherical
+from .util import log_softmax
 
 logger = create_logger(__name__)
 

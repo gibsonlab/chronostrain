@@ -1,12 +1,12 @@
 import time
 from pathlib import Path
-from typing import Optional, Callable
+from typing import Optional
 
 import numpy as np
 import torch
 from torch import softmax
 
-from chronostrain.algs import BBVISolverV1, BBVISolverV2, EMSolver
+from chronostrain.algs import BBVISolverV1, EMSolver
 from chronostrain.database import StrainDatabase
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads, save_abundances
@@ -48,7 +48,7 @@ def perform_bbvi(
     elbo_history = []
 
     if save_training_history:
-        def anim_callback(epoch, x_samples, elbo):
+        def anim_callback(x_samples, uppers_buf, lowers_buf, medians_buf):
             # Plot BBVI posterior.
             abund_samples = softmax(x_samples, dim=2).cpu().detach().numpy()
             for s_idx in range(model.num_strains()):
@@ -56,16 +56,16 @@ def perform_bbvi(
                 upper_quantile = np.quantile(traj_samples, q=0.975, axis=1)
                 lower_quantile = np.quantile(traj_samples, q=0.025, axis=1)
                 median = np.quantile(traj_samples, q=0.5, axis=1)
-                uppers[s_idx].append(upper_quantile)
-                lowers[s_idx].append(lower_quantile)
-                medians[s_idx].append(median)
+                uppers_buf[s_idx].append(upper_quantile)
+                lowers_buf[s_idx].append(lower_quantile)
+                medians_buf[s_idx].append(median)
 
-        callbacks.append(anim_callback)
+        callbacks.append(lambda epoch, x_samples, elbo: anim_callback(x_samples, uppers, lowers, medians))
 
     if save_elbo_history:
-        def elbo_callback(epoch, x_samples, elbo):
-            elbo_history.append(elbo)
-        callbacks.append(elbo_callback)
+        def elbo_callback(elbo, elbo_buf):
+            elbo_buf.append(elbo)
+        callbacks.append(lambda epoch, x_samples, elbo: elbo_callback(elbo, elbo_history))
 
     start_time = time.time()
     solver.solve(
