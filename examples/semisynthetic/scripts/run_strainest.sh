@@ -61,7 +61,7 @@ strainest est \
 ${STRAINEST_DB_DIR}/snvs_all.txt \
 ${sorted_bam_file} \
 ./ \
--t ${N_CORES} \
+-t 1 \
 -p 0 \
 -a 1
 
