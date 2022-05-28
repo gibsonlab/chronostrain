@@ -151,12 +151,13 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
 
             for batch_lls in self.batches[t_idx]:
                 batch_ratio = batch_lls.shape[1] / self.total_reads
-                # ======== H(Q) = E_Q[-log Q(X)]
+
+                # # ======== H(Q) = E_Q[-log Q(X)]
                 entropic = batch_ratio * self.posterior.entropy()
 
                 # ======== E[log P(X)]
                 model_gaussian_log_likelihoods = self.model.log_likelihood_x(X=x_samples)
-                model_ll = batch_ratio * torch.sum((1 / n_samples) * model_gaussian_log_likelihoods)
+                model_ll = batch_ratio * torch.mean(model_gaussian_log_likelihoods)
 
                 yield torch.sum(
                     (1 / n_samples) * log_matmul_exp(log_y_t, batch_lls)
@@ -177,10 +178,21 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
               lr_patience: int = 10,
               callbacks: Optional[List[Callable[[int, torch.Tensor, float], None]]] = None):
         """Idea: To encourage exploration, optimize in two rounds: Mean and Mean+Variance."""
-        logger.debug("Using two-round training strategy.")
+        logger.debug("Using three-round training strategy.")
+
+        def do_optimize(opt, sched):
+            self.optimize(
+                optimizer=opt,
+                lr_scheduler=sched,
+                iters=iters,
+                num_epochs=num_epochs,
+                num_samples=num_samples,
+                min_lr=min_lr,
+                callbacks=callbacks
+            )
 
         # Round 1: mean only
-        logger.debug("Training round #1 of 2.")
+        logger.debug("Training round #1 of 3.")
         optimizer_args['params'] = self.posterior.trainable_mean_parameters()
         optimizer = optimizer_class(**optimizer_args)
         lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
@@ -191,18 +203,24 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
             threshold_mode='rel',
             mode='min'  # track (-ELBO) and decrease LR when it stops decreasing.
         )
-        self.optimize(
-            optimizer=optimizer,
-            lr_scheduler=lr_scheduler,
-            iters=iters,
-            num_epochs=num_epochs,
-            num_samples=num_samples,
-            min_lr=min_lr,
-            callbacks=callbacks
-        )
+        do_optimize(optimizer, lr_scheduler)
 
-        # Round 2:
-        logger.debug("Training round #2 of 2.")
+        # Round 2: variance only
+        logger.debug("Training round #2 of 3.")
+        optimizer_args['params'] = self.posterior.trainable_variance_parameters()
+        optimizer = optimizer_class(**optimizer_args)
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            factor=lr_decay_factor,
+            patience=lr_patience,
+            threshold=1e-4,
+            threshold_mode='rel',
+            mode='min'  # track (-ELBO) and decrease LR when it stops decreasing.
+        )
+        do_optimize(optimizer, lr_scheduler)
+
+        # Round 3: all parameters.
+        logger.debug("Training round #3 of 3.")
         optimizer_args['params'] = self.posterior.trainable_parameters()
         optimizer = optimizer_class(**optimizer_args)
         lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
@@ -213,12 +231,4 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
             threshold_mode='rel',
             mode='min'  # track (-ELBO) and decrease LR when it stops decreasing.
         )
-        self.optimize(
-            optimizer=optimizer,
-            lr_scheduler=lr_scheduler,
-            iters=iters,
-            num_epochs=num_epochs,
-            num_samples=num_samples,
-            min_lr=min_lr,
-            callbacks=callbacks
-        )
+        do_optimize(optimizer, lr_scheduler)
