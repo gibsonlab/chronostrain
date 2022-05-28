@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 
 from chronostrain import logger
-from chronostrain.algs import AbstractPosterior, BBVISolverV2
+from chronostrain.algs import AbstractPosterior, BBVISolver
 from chronostrain.model import Population
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
@@ -122,32 +122,3 @@ def plot_bbvi_posterior(times: List[float],
     )
 
     logger.info("Posterior abundance plot saved to {}.".format(plot_path))
-
-
-def save_frag_probabilities(
-        reads: TimeSeriesReads,
-        solver: BBVISolverV2,
-        out_path: Path
-):
-    df_entries = []
-    for t_idx, reads_t in enumerate(reads):
-        # Some reads got trimmed, take that into account by asking data_likelihoods about what the "true" index is.
-        for r_idx, read in reads_t:
-            for fragment, frag_prob in solver.fragment_posterior.top_fragments(t_idx, r_idx, top=5):
-                if frag_prob < 0.05:
-                    continue
-                df_entries.append({
-                    "time_idx": t_idx,
-                    "read_idx": r_idx,
-                    "read_id": read.id,
-                    "frag_seq": fragment.nucleotide_content(),
-                    "frag_prob": frag_prob,
-                    "frag_metadata": fragment.metadata,
-                })
-
-    import pandas as pd
-    pd.DataFrame(df_entries).set_index(["time_idx", "read_idx"]).to_csv(str(out_path), mode="w")
-    logger.info("Saved read-to-fragment likelihoods to {} [{}].".format(
-        out_path,
-        filesystem.convert_size(out_path.stat().st_size)
-    ))

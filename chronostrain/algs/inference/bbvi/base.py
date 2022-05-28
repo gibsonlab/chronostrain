@@ -41,9 +41,8 @@ class AbstractBBVI(ABC):
                 reparam_samples = self.posterior.reparametrized_sample(
                     num_samples=num_samples
                 )
-                reparam_lls = self.posterior.reparametrized_sample_log_likelihoods(reparam_samples)
 
-                elbo_value = self.optimize_step(reparam_samples, reparam_lls, optimizer)
+                elbo_value = self.optimize_step(reparam_samples, optimizer)
                 epoch_elbos.append(elbo_value)
 
             # ===========  End of epoch
@@ -94,7 +93,7 @@ class AbstractBBVI(ABC):
         pass
 
     @abstractmethod
-    def elbo(self, samples: torch.Tensor, posterior_sample_lls: torch.Tensor) -> Iterator[torch.Tensor]:
+    def elbo(self, samples: torch.Tensor) -> Iterator[torch.Tensor]:
         """
         :return: The ELBO value, logically separated into `batches` if necessary.
         In implementations, save memory by yielding batches instead of returning a list.
@@ -102,12 +101,11 @@ class AbstractBBVI(ABC):
         pass
 
     def optimize_step(self, samples: torch.Tensor,
-                      posterior_sample_lls: torch.Tensor,
                       optimizer: torch.optim.Optimizer) -> float:
         optimizer.zero_grad()
 
         elbo_value = 0.0
-        for elbo_chunk in self.elbo(samples, posterior_sample_lls):
+        for elbo_chunk in self.elbo(samples):
             # Save float value for callbacks.
             elbo_value += elbo_chunk.item()
 

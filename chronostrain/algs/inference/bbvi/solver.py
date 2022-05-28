@@ -34,7 +34,7 @@ def log_matmul_exp(x_samples: torch.Tensor, read_lls_batch: torch.Tensor) -> tor
     )
 
 
-class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
+class BBVISolver(AbstractModelSolver, AbstractBBVI):
     """
     A basic implementation of BBVI estimating the posterior p(X|R), with fragments
     F marginalized out.
@@ -121,8 +121,7 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
             self.strain_read_lls.append(strain_read_lls_t)
 
     def elbo(self,
-             x_samples: torch.Tensor,
-             posterior_sample_lls: torch.Tensor
+             x_samples: torch.Tensor
              ) -> Iterator[torch.Tensor]:
         """
         Computes the monte-carlo approximation to the ELBO objective, holding the read-to-fragment posteriors fixed.
@@ -132,8 +131,6 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
                 = E_{X~Q}(log P(X) + P(R|X)) - E_{X~Qx}(log Q(X))
 
         :param x_samples: A (T x N x S) tensor, where T = # of timepoints, N = # of samples, S = # of strains.
-        :param posterior_sample_lls: A length-N (one-dimensional) tensor of the joint log-likelihood
-            each (T x S) slice.
         :return: An estimate of the ELBO, using the provided samples via the above formula.
         """
 
@@ -206,30 +203,30 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
         )
         do_optimize(optimizer, lr_scheduler)
 
-        # # Round 2: variance only
-        # logger.debug("Training round #2 of 3.")
-        # optimizer_args['params'] = self.posterior.trainable_variance_parameters()
-        # optimizer = optimizer_class(**optimizer_args)
-        # lr_scheduler = ReduceLROnPlateauLast(
-        #     optimizer,
-        #     factor=lr_decay_factor,
-        #     patience=lr_patience,
-        #     threshold=1e-4,
-        #     threshold_mode='rel',
-        #     mode='min'  # track (-ELBO) and decrease LR when it stops decreasing.
-        # )
-        # do_optimize(optimizer, lr_scheduler)
-        #
-        # # Round 3: all parameters.
-        # logger.debug("Training round #3 of 3.")
-        # optimizer_args['params'] = self.posterior.trainable_parameters()
-        # optimizer = optimizer_class(**optimizer_args)
-        # lr_scheduler = ReduceLROnPlateauLast(
-        #     optimizer,
-        #     factor=lr_decay_factor,
-        #     patience=lr_patience,
-        #     threshold=1e-4,
-        #     threshold_mode='rel',
-        #     mode='min'  # track (-ELBO) and decrease LR when it stops decreasing.
-        # )
-        # do_optimize(optimizer, lr_scheduler)
+        # Round 2: variance only
+        logger.debug("Training round #2 of 3.")
+        optimizer_args['params'] = self.posterior.trainable_variance_parameters()
+        optimizer = optimizer_class(**optimizer_args)
+        lr_scheduler = ReduceLROnPlateauLast(
+            optimizer,
+            factor=lr_decay_factor,
+            patience=lr_patience,
+            threshold=1e-4,
+            threshold_mode='rel',
+            mode='min'  # track (-ELBO) and decrease LR when it stops decreasing.
+        )
+        do_optimize(optimizer, lr_scheduler)
+
+        # Round 3: all parameters.
+        logger.debug("Training round #3 of 3.")
+        optimizer_args['params'] = self.posterior.trainable_parameters()
+        optimizer = optimizer_class(**optimizer_args)
+        lr_scheduler = ReduceLROnPlateauLast(
+            optimizer,
+            factor=lr_decay_factor,
+            patience=lr_patience,
+            threshold=1e-4,
+            threshold_mode='rel',
+            mode='min'  # track (-ELBO) and decrease LR when it stops decreasing.
+        )
+        do_optimize(optimizer, lr_scheduler)

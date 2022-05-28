@@ -34,9 +34,7 @@ class TrilLinear(torch.nn.Linear):
 
     @property
     def cholesky_part(self) -> torch.Tensor:
-        x = torch.tril(self.weight, diagonal=-1)
-        x[range(self.n_features), range(self.n_features)] = torch.exp(torch.diag(self.weight))
-        return x
+        return torch.tril(self.weight, diagonal=-1) + torch.diag(torch.exp(torch.diag(self.weight)))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return functional.linear(x, self.cholesky_part, self.bias)

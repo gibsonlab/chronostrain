@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from torch import softmax
 
-from chronostrain.algs import BBVISolverV1, EMSolver
+from chronostrain.algs import BBVISolver, EMSolver
 from chronostrain.database import StrainDatabase
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads, save_abundances
@@ -33,7 +33,7 @@ def perform_bbvi(
 ):
 
     # ==== Run the solver.
-    solver = BBVISolverV1(
+    solver = BBVISolver(
         model=model,
         data=reads,
         correlation_type=correlation_type,
