@@ -147,19 +147,17 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
 
             data_sz_t = self.strain_read_lls[t_idx].shape[1]
             for batch_lls in self.batches[t_idx]:
+                batch_sz = batch_lls.shape[1]
                 # ======== E[-log Q(X)], monte-carlo
-                entropic = self.posterior.entropy()
-                # entropic = torch.sum(-(1 / n_samples) * posterior_sample_lls)
+                entropic = (batch_sz / data_sz_t) * self.posterior.entropy()
 
                 # ======== E[log P(X)]
                 model_gaussian_log_likelihoods = self.model.log_likelihood_x(X=x_samples)
                 model_ll = torch.sum((1 / n_samples) * model_gaussian_log_likelihoods)
-                latent_part = entropic + model_ll
 
-                batch_sz = batch_lls.shape[1]
                 yield torch.sum(
                     (1 / n_samples) * log_matmul_exp(log_y_t, batch_lls)
-                ) + (batch_sz / data_sz_t) * latent_part
+                ) + model_ll + entropic
 
     def advance_epoch(self):
         for t_idx in range(self.model.num_times()):
