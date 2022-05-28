@@ -32,8 +32,9 @@ class GaussianPosteriorFullCorrelation(AbstractReparametrizedPosterior):
             bias=True,
             device=cfg.torch_cfg.device
         )
-        # torch.nn.init.eye_(self.reparam_network.weight)
         init_diag(self.reparam_network.weight, scale=INIT_SCALE)
+        torch.nn.init.constant_(self.reparam_network.bias, 0)
+
         self.parameters = list(self.reparam_network.parameters())
         self.standard_normal = Normal(
             loc=torch.tensor(0.0, device=cfg.torch_cfg.device),
