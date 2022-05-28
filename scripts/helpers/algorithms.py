@@ -78,7 +78,8 @@ def perform_bbvi(
     lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer,
         factor=lr_decay_factor,
-        patience=lr_patience
+        patience=lr_patience,
+        mode='max'  # track ELBO and decrease LR when it stops increasing.
     )
 
     start_time = time.time()

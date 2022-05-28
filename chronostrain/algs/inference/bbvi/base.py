@@ -49,9 +49,7 @@ class AbstractBBVI(ABC):
 
             # ===========  End of epoch
             # numerically safe calculation (for large ELBO loss)
-            epoch_elbos = np.array(epoch_elbos)
-            offset = np.min(epoch_elbos)
-            epoch_elbo_avg = np.mean(epoch_elbos - offset) + offset
+            epoch_elbo_avg = np.mean(epoch_elbos)
 
             if callbacks is not None:
                 for callback in callbacks:
@@ -115,11 +113,11 @@ class AbstractBBVI(ABC):
 
         elbo_value = 0.0
         for elbo_chunk in self.elbo(samples, posterior_sample_lls):
+            # Save float value for callbacks.
+            elbo_value += elbo_chunk.item()
+
             # Maximize ELBO by minimizing (-ELBO).
             elbo_loss_chunk = -elbo_chunk
             elbo_loss_chunk.backward(retain_graph=True)
-
-            # Save float value for callbacks.
-            elbo_value += elbo_chunk.item()
         optimizer.step()
         return elbo_value
