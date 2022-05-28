@@ -31,16 +31,10 @@ class TrilLinear(torch.nn.Linear):
             dtype=dtype
         )
         self.n_features = n_features
-        print("[TODO] REIMPLEMENT forward() properly after confirmed working.")
 
     @property
     def cholesky_part(self) -> torch.Tensor:
         return torch.tril(self.weight, diagonal=-1) + torch.diag(torch.exp(torch.diag(self.weight)))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Note: for some reason, manually doing linear operation A @ x + b helps FullCorrelation model learn biases.
-        Using the built-in 'functional.linear' call makes biases not move much, if at all.
-        """
-        return torch.mm(x, torch.transpose(self.cholesky_part, 0, 1)) + self.bias.unsqueeze(0)
-        # return functional.linear(x, self.cholesky_part, self.bias)
+        return functional.linear(x, self.cholesky_part, self.bias)

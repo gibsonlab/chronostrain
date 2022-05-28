@@ -108,7 +108,10 @@ class BBVISolver(AbstractModelSolver, AbstractBBVI):
             )  # (S x R)
 
             # Locate and filter out reads with no good alignments.
-            bad_indices = set(float(x.cpu()) for x in torch.where(torch.sum(~torch.isinf(strain_read_lls_t), dim=0) == 0)[0])
+            bad_indices = set(
+                float(x.cpu())
+                for x in torch.where(torch.sum(~torch.isinf(strain_read_lls_t), dim=0) == 0)[0]
+            )
             good_indices = [i for i in range(data_ll_t.shape[1]) if i not in bad_indices]
             if len(bad_indices) > 0:
                 logger.warning("(t = {}) Found {} reads without good alignments: {}".format(
@@ -216,8 +219,8 @@ class BBVISolver(AbstractModelSolver, AbstractBBVI):
         #     mode='min'  # track (-ELBO) and decrease LR when it stops decreasing.
         # )
         # do_optimize(optimizer, lr_scheduler)
-        #
-        # # Round 3: all parameters.
+
+        # Round 3: all parameters. TODO test just "round 3" next.
         # logger.debug("Training round #3 of 3.")
         # optimizer_args['params'] = self.posterior.trainable_parameters()
         # optimizer = optimizer_class(**optimizer_args)
