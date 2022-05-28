@@ -94,8 +94,19 @@ class GaussianPosteriorFullCorrelation(AbstractReparametrizedPosterior):
         return super().log_likelihood(samples)
 
     def save(self, path: Path):
-        logger.warn("save() not implemented for full correlation posterior.")
-        pass
+        params = {
+            "weight": self.reparam_network.weight.detach(),
+            "bias": self.reparam_network.bias.detach()
+        }
+        torch.save(params, path)
+
+    @staticmethod
+    def load(path: Path, num_strains: int, num_times: int) -> 'GaussianPosteriorFullCorrelation':
+        posterior = GaussianPosteriorFullCorrelation(num_strains, num_times)
+        params = torch.load(path)
+        posterior.reparam_network.weight = torch.nn.Parameter(params['weight'])
+        posterior.reparam_network.bias = torch.nn.Parameter(params['bias'])
+        return posterior
 
 
 class GaussianPosteriorStrainCorrelation(AbstractReparametrizedPosterior):
