@@ -147,13 +147,13 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
 
             data_sz_t = self.strain_read_lls[t_idx].shape[1]
             for batch_lls in self.batches[t_idx]:
-                batch_sz = batch_lls.shape[1]
+                batch_ratio = batch_lls.shape[1] / data_sz_t
                 # ======== E[-log Q(X)], monte-carlo
-                entropic = (batch_sz / data_sz_t) * self.posterior.entropy()
+                entropic = batch_ratio * self.posterior.entropy()
 
                 # ======== E[log P(X)]
                 model_gaussian_log_likelihoods = self.model.log_likelihood_x(X=x_samples)
-                model_ll = (batch_sz / data_sz_t) * torch.sum((1 / n_samples) * model_gaussian_log_likelihoods)
+                model_ll = batch_ratio * torch.sum((1 / n_samples) * model_gaussian_log_likelihoods)
 
                 yield torch.sum(
                     (1 / n_samples) * log_matmul_exp(log_y_t, batch_lls)
