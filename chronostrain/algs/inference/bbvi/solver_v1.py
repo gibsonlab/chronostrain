@@ -1,5 +1,6 @@
 from typing import List, Iterator, Optional, Callable, Type, Dict, Any
 
+import numpy as np
 import torch
 
 from chronostrain.database import StrainDatabase
@@ -144,12 +145,13 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
         n_samples = x_samples.size()[1]
 
         # ======== E[log P(R|X)] = E[log Σ_S P(R|S)P(S|X)]
-        for t_idx in range(self.model.num_times()):
+        time_opt_ordering = np.random.permutation(list(range(self.model.num_times())))
+        for t_idx in time_opt_ordering:
             log_y_t = log_softmax(x_samples, t=t_idx)  # (Softmax vs Radial)
 
             for batch_lls in self.batches[t_idx]:
                 batch_ratio = batch_lls.shape[1] / self.total_reads
-                # ======== E[-log Q(X)], monte-carlo
+                # ======== H(Q) = E_Q[-log Q(X)]
                 entropic = batch_ratio * self.posterior.entropy()
 
                 # ======== E[log P(X)]
