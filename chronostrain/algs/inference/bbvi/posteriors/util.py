@@ -38,6 +38,6 @@ class TrilLinear(torch.nn.Linear):
         return torch.tril(self.weight, diagonal=-1) + torch.diag(torch.exp(torch.diag(self.weight)))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        print(self.cholesky_part)
-        return torch.mm(x, torch.transpose(self.cholesky_part, 0, 1)) + self.bias.unsqueeze(0)
+        return x + self.bias.unsqueeze(0)
+        # return torch.mm(x, torch.transpose(self.cholesky_part, 0, 1)) + self.bias.unsqueeze(0)
         # return functional.linear(x, self.cholesky_part, self.bias)
