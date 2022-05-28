@@ -193,18 +193,18 @@ class BBVISolver(AbstractModelSolver, AbstractBBVI):
             )
 
         # Round 1: mean only
-        # logger.debug("Training round #1 of 3.")
-        # optimizer_args['params'] = self.posterior.trainable_mean_parameters()
-        # optimizer = optimizer_class(**optimizer_args)
-        # lr_scheduler = ReduceLROnPlateauLast(
-        #     optimizer,
-        #     factor=lr_decay_factor,
-        #     patience=lr_patience,
-        #     threshold=1e-4,
-        #     threshold_mode='rel',
-        #     mode='min'  # track (-ELBO) and decrease LR when it stops decreasing.
-        # )
-        # do_optimize(optimizer, lr_scheduler)
+        logger.debug("Training round #1 of 3.")
+        optimizer_args['params'] = self.posterior.trainable_mean_parameters()
+        optimizer = optimizer_class(**optimizer_args)
+        lr_scheduler = ReduceLROnPlateauLast(
+            optimizer,
+            factor=lr_decay_factor,
+            patience=lr_patience,
+            threshold=1e-4,
+            threshold_mode='rel',
+            mode='min'  # track (-ELBO) and decrease LR when it stops decreasing.
+        )
+        do_optimize(optimizer, lr_scheduler)
 
         # # Round 2: variance only
         # logger.debug("Training round #2 of 3.")
