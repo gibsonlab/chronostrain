@@ -63,7 +63,7 @@ ${sorted_bam_file} \
 ./ \
 -t 1 \
 -p 0 \
--a 1
+-a 2
 
 # Clean up
 echo "[*] Cleaning up..."
