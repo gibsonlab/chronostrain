@@ -1,6 +1,7 @@
 from pathlib import Path
-from typing import Union, Tuple, Dict, List
+from typing import Union, Tuple, List
 
+import numpy as np
 import torch
 from torch.distributions import Normal
 from torch.nn import Parameter
@@ -27,12 +28,13 @@ class GaussianPosteriorFullCorrelation(AbstractReparametrizedPosterior):
         self.num_times = num_times
 
         # ========== Reparametrization network (standard Gaussians -> nonstandard Gaussians)
+        n_features = self.num_times * self.num_strains
         self.reparam_network = TrilLinear(
-            n_features=self.num_times * self.num_strains,
+            n_features=n_features,
             bias=True,
             device=cfg.torch_cfg.device
         )
-        init_diag(self.reparam_network.weight, scale=INIT_SCALE)
+        init_diag(self.reparam_network.weight, scale=INIT_SCALE / np.sqrt(n_features))
         torch.nn.init.constant_(self.reparam_network.bias, 0)
 
         self.parameters = list(self.reparam_network.parameters())
@@ -102,7 +104,6 @@ class GaussianPosteriorStrainCorrelation(AbstractReparametrizedPosterior):
         Mean-field assumption:
         1) Parametrize X_1, ..., X_T as independent S-dimensional gaussians.
         2) Parametrize F_1, ..., F_T as independent (but not identical) categorical RVs (for each read).
-        :param model: The generative model to use.
         """
         logger.info("Initializing Time-factorized (strain-correlated) posterior")
         self.num_strains = num_strains
@@ -112,12 +113,13 @@ class GaussianPosteriorStrainCorrelation(AbstractReparametrizedPosterior):
         self.reparam_networks = []
 
         for _ in range(self.num_times):
+            n_features = self.num_strains
             linear_layer = TrilLinear(
-                n_features=self.num_strains,
+                n_features=n_features,
                 bias=True,
                 device=cfg.torch_cfg.device
             )
-            init_diag(linear_layer.weight, scale=INIT_SCALE)
+            init_diag(linear_layer.weight, scale=INIT_SCALE / np.sqrt(n_features))
             torch.nn.init.constant_(linear_layer.bias, 0)
             self.reparam_networks.append(linear_layer)
 
@@ -226,12 +228,13 @@ class GaussianPosteriorTimeCorrelation(AbstractReparametrizedPosterior):
         self.reparam_networks: List[torch.nn.Module] = []
 
         for s_idx in range(self.num_strains):
+            n_features = self.num_times
             linear_layer = TrilLinear(
-                n_features=self.num_times,
+                n_features=n_features,
                 bias=True,
                 device=cfg.torch_cfg.device
             )
-            init_diag(linear_layer.weight, scale=INIT_SCALE)  # diagonal matrix (with scaling)
+            init_diag(linear_layer.weight, scale=INIT_SCALE / np.sqrt(n_features))  # diagonal matrix (with scaling)
             torch.nn.init.constant_(linear_layer.bias, 0.0)
             self.reparam_networks.append(linear_layer)
         self.parameters = []
