@@ -34,7 +34,7 @@ class GaussianPosteriorFullCorrelation(AbstractReparametrizedPosterior):
             bias=True,
             device=cfg.torch_cfg.device
         )
-        init_diag(self.reparam_network.weight, scale=INIT_SCALE / np.sqrt(n_features))
+        init_diag(self.reparam_network.weight, scale=np.log(INIT_SCALE / np.sqrt(n_features)))
         torch.nn.init.constant_(self.reparam_network.bias, 0)
 
         self.parameters = list(self.reparam_network.parameters())
@@ -119,7 +119,7 @@ class GaussianPosteriorStrainCorrelation(AbstractReparametrizedPosterior):
                 bias=True,
                 device=cfg.torch_cfg.device
             )
-            init_diag(linear_layer.weight, scale=INIT_SCALE / np.sqrt(n_features))
+            init_diag(linear_layer.weight, scale=np.log(INIT_SCALE / np.sqrt(n_features)))
             torch.nn.init.constant_(linear_layer.bias, 0)
             self.reparam_networks.append(linear_layer)
 
@@ -234,7 +234,7 @@ class GaussianPosteriorTimeCorrelation(AbstractReparametrizedPosterior):
                 bias=True,
                 device=cfg.torch_cfg.device
             )
-            init_diag(linear_layer.weight, scale=INIT_SCALE / np.sqrt(n_features))  # diagonal matrix (with scaling)
+            init_diag(linear_layer.weight, scale=np.log(INIT_SCALE / np.sqrt(n_features)))  # diagonal matrix (with scaling)
             torch.nn.init.constant_(linear_layer.bias, 0.0)
             self.reparam_networks.append(linear_layer)
         self.parameters = []
