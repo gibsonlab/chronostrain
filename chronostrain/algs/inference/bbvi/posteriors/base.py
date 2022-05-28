@@ -14,8 +14,15 @@ class AbstractReparametrizedPosterior(AbstractPosterior, ABC):
     def log_likelihood(self, samples: torch.Tensor) -> float:
         return self.reparametrized_sample_log_likelihoods(samples).detach()
 
-    @abstractmethod
     def trainable_parameters(self) -> List[Parameter]:
+        return self.trainable_mean_parameters() + self.trainable_variance_parameters()
+
+    @abstractmethod
+    def trainable_mean_parameters(self) -> List[Parameter]:
+        pass
+
+    @abstractmethod
+    def trainable_variance_parameters(self) -> List[Parameter]:
         pass
 
     @abstractmethod

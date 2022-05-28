@@ -94,10 +94,6 @@ class AbstractBBVI(ABC):
         """
         pass
 
-    @property
-    def trainable_params(self) -> List[Parameter]:
-        return self.posterior.trainable_parameters()
-
     @abstractmethod
     def elbo(self, samples: torch.Tensor, posterior_sample_lls: torch.Tensor) -> Iterator[torch.Tensor]:
         """

@@ -1,4 +1,4 @@
-from typing import List, Iterator, Optional, Callable
+from typing import List, Iterator, Optional, Callable, Type, Dict, Any
 
 import torch
 
@@ -165,13 +165,52 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
             self.batches[t_idx] = list(divide_columns_into_batches(self.strain_read_lls[t_idx], self.read_batch_size))
 
     def solve(self,
-              optimizer: torch.optim.Optimizer,
-              lr_scheduler,
+              optimizer_class: Type[torch.optim.Optimizer],
+              optimizer_args: Dict[str, Any],
               num_epochs: int = 1,
               iters: int = 4000,
               num_samples: int = 8000,
               min_lr: float = 1e-4,
+              lr_decay_factor: float = 0.25,
+              lr_patience: int = 10,
               callbacks: Optional[List[Callable[[int, torch.Tensor, float], None]]] = None):
+        """Idea: To encourage exploration, optimize in two rounds: Mean and Mean+Variance."""
+        logger.debug("Using two-round training strategy.")
+
+        # Round 1: mean only
+        logger.debug("Training round #1 of 2.")
+        optimizer_args['params'] = self.posterior.trainable_mean_parameters()
+        optimizer = optimizer_class(**optimizer_args)
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            factor=lr_decay_factor,
+            patience=lr_patience,
+            threshold=1e-4,
+            threshold_mode='rel',
+            mode='min'  # track (-ELBO) and decrease LR when it stops decreasing.
+        )
+        self.optimize(
+            optimizer=optimizer,
+            lr_scheduler=lr_scheduler,
+            iters=iters,
+            num_epochs=num_epochs,
+            num_samples=num_samples,
+            min_lr=min_lr,
+            callbacks=callbacks
+        )
+
+        # Round 2:
+        logger.debug("Training round #2 of 2.")
+        optimizer_args['params'] = self.posterior.trainable_parameters()
+        optimizer = optimizer_class(**optimizer_args)
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            factor=lr_decay_factor,
+            patience=lr_patience,
+            threshold=1e-4,
+            threshold_mode='rel',
+            mode='min'  # track (-ELBO) and decrease LR when it stops decreasing.
+        )
         self.optimize(
             optimizer=optimizer,
             lr_scheduler=lr_scheduler,

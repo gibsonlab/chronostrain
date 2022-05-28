@@ -34,20 +34,20 @@ def parse_args():
     # Optional BBVI params
     parser.add_argument('--iters', required=False, type=int, default=50,
                         help='<Optional> The number of iterations to run per epoch. (Default: 50)')
-    parser.add_argument('--epochs', required=False, type=int, default=8,
-                        help='<Optional> The number of epochs. (Default: 8)')
+    parser.add_argument('--epochs', required=False, type=int, default=100,
+                        help='<Optional> The number of epochs. (Default: 100)')
     parser.add_argument('--decay_lr', required=False, type=float, default=0.25,
                         help='<Optional> The multiplicative factor to apply to the learning rate based on '
                              'ReduceLROnPlateau criterion. (Default: 0.25)')
-    parser.add_argument('--lr_patience', required=False, type=int, default=5,
+    parser.add_argument('--lr_patience', required=False, type=int, default=10,
                         help='<Optional> The `patience` parameter that specifies how many epochs to tolerate '
-                             'no observed improvements before decaying lr. (Default: 5)')
+                             'no observed improvements before decaying lr. (Default: 10)')
     parser.add_argument('--min_lr', required=False, type=float, default=1e-4,
                         help='<Optional> Stop the algorithm when the LR is below this threshold. (Default: 1e-4)')
     parser.add_argument('-lr', '--learning_rate', required=False, type=float, default=0.05,
                         help='<Optional> The learning rate to use for the optimizer. (Default: 0.05.)')
     parser.add_argument('-n', '--num_samples', required=False, type=int, default=100,
-                        help='<Optional> The number of samples to use for monte-carlo estimation of gradients.')
+                        help='<Optional> The number of samples to use for monte-carlo estimation of gradients. (Default: 100)')
     parser.add_argument('-b', '--read_batch_size', required=False, type=int, default=5000,
                         help='<Optional> The size of matrices to divide into batches across reads. (Default: 5000)')
     parser.add_argument('-c', '--correlation_mode', required=False, type=str, default='full',

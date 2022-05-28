@@ -41,8 +41,13 @@ class GaussianPosteriorFullCorrelation(AbstractReparametrizedPosterior):
             scale=torch.tensor(1.0, device=cfg.torch_cfg.device)
         )
 
-    def trainable_parameters(self) -> List[Parameter]:
-        return self.parameters
+    def trainable_mean_parameters(self) -> List[Parameter]:
+        assert isinstance(self.reparam_network.bias, Parameter)
+        return [self.reparam_network.bias]
+
+    def trainable_variance_parameters(self) -> List[Parameter]:
+        assert isinstance(self.reparam_network.weight, Parameter)
+        return [self.reparam_network.weight]
 
     def mean(self) -> torch.Tensor:
         return self.reparam_network.bias.detach()
@@ -125,8 +130,12 @@ class GaussianPosteriorStrainCorrelation(AbstractReparametrizedPosterior):
             scale=torch.tensor(1.0, device=cfg.torch_cfg.device)
         )
 
-    def trainable_parameters(self) -> List[Parameter]:
-        return self.parameters
+    def trainable_mean_parameters(self) -> List[Parameter]:
+        return [m.bias for m in self.reparam_networks]
+
+    def trainable_variance_parameters(self) -> List[Parameter]:
+        # noinspection PyTypeChecker
+        return [m.weight for m in self.reparam_networks]
 
     def mean(self) -> torch.Tensor:
         return torch.stack([
@@ -234,8 +243,12 @@ class GaussianPosteriorTimeCorrelation(AbstractReparametrizedPosterior):
             scale=torch.tensor(1.0, device=cfg.torch_cfg.device)
         )
 
-    def trainable_parameters(self) -> List[Parameter]:
-        return self.parameters
+    def trainable_mean_parameters(self) -> List[Parameter]:
+        return [m.bias for m in self.reparam_networks]
+
+    def trainable_variance_parameters(self) -> List[Parameter]:
+        # noinspection PyTypeChecker
+        return [m.weight for m in self.reparam_networks]
 
     def mean(self) -> torch.Tensor:
         return torch.stack([

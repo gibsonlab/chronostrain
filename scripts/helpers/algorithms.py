@@ -67,31 +67,16 @@ def perform_bbvi(
             elbo_history.append(elbo)
         callbacks.append(elbo_callback)
 
-    optimizer = torch.optim.Adam(
-        lr=learning_rate,
-        betas=(0.9, 0.999),
-        eps=1e-7,
-        weight_decay=0.0,
-        params=solver.trainable_params
-    )
-
-    lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer,
-        factor=lr_decay_factor,
-        patience=lr_patience,
-        threshold=1e-4,
-        threshold_mode='rel',
-        mode='min'  # track (-ELBO) and decrease LR when it stops decreasing.
-    )
-
     start_time = time.time()
     solver.solve(
-        optimizer=optimizer,
-        lr_scheduler=lr_scheduler,
+        optimizer_class=torch.optim.Adam,
+        optimizer_args={'lr': learning_rate, 'betas': (0.9, 0.999), 'eps': 1e-7, 'weight_decay': 0.0},
         iters=iters,
         num_epochs=num_epochs,
         num_samples=num_samples,
         min_lr=min_lr,
+        lr_decay_factor=lr_decay_factor,
+        lr_patience=lr_patience,
         callbacks=callbacks
     )
     end_time = time.time()
