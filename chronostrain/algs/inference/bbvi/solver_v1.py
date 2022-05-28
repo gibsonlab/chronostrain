@@ -152,7 +152,7 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
 
                 # ======== E[log P(X)]
                 model_gaussian_log_likelihoods = self.model.log_likelihood_x(X=x_samples)
-                model_ll = model_gaussian_log_likelihoods.sum() * (1 / n_samples)
+                model_ll = torch.sum((1 / n_samples) * model_gaussian_log_likelihoods)
                 latent_part = entropic + model_ll
 
                 batch_sz = batch_lls.shape[1]
