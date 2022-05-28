@@ -199,7 +199,8 @@ class BBVISolver(AbstractModelSolver, AbstractBBVI):
         lr_scheduler = ReduceLROnPlateauLast(
             optimizer,
             factor=lr_decay_factor,
-            patience=lr_patience,
+            patience_horizon=lr_patience,
+            patience_ratio=0.5,
             threshold=1e-4,
             threshold_mode='rel',
             mode='min'  # track (-ELBO) and decrease LR when it stops decreasing.
@@ -213,8 +214,9 @@ class BBVISolver(AbstractModelSolver, AbstractBBVI):
         lr_scheduler = ReduceLROnPlateauLast(
             optimizer,
             factor=lr_decay_factor,
-            patience=lr_patience,
-            threshold=1e-4,
+            patience_horizon=lr_patience,
+            patience_ratio=0.5,
+            threshold=1e-2,
             threshold_mode='rel',
             mode='min'  # track (-ELBO) and decrease LR when it stops decreasing.
         )
@@ -227,8 +229,9 @@ class BBVISolver(AbstractModelSolver, AbstractBBVI):
         lr_scheduler = ReduceLROnPlateauLast(
             optimizer,
             factor=lr_decay_factor,
-            patience=lr_patience,
-            threshold=1e-4,
+            patience_horizon=lr_patience,
+            patience_ratio=0.5,
+            threshold=1e-2,
             threshold_mode='rel',
             mode='min'  # track (-ELBO) and decrease LR when it stops decreasing.
         )

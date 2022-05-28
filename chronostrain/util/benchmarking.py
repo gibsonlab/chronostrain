@@ -22,8 +22,8 @@ class CyclicBuffer:
         if capacity == 0:
             raise ValueError("Buffer size must be nonzero.")
         self.capacity = capacity
-        self.size = 0
         self.buf = [0] * capacity
+        self.size = 0
         self.total = 0
         self.next_idx = 0
 
@@ -41,6 +41,11 @@ class CyclicBuffer:
 
     def mean(self):
         return self.total / self.size
+
+    def clear(self):
+        self.total = 0
+        self.size = 0
+        self.next_idx = 0
 
 
 class RuntimeEstimator:

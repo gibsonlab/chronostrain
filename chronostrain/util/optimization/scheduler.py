@@ -1,6 +1,8 @@
 from torch._six import inf
 from torch.optim.optimizer import Optimizer
 
+from chronostrain.util.benchmarking import CyclicBuffer
+
 
 class ReduceLROnPlateauLast(object):
     """
@@ -9,7 +11,7 @@ class ReduceLROnPlateauLast(object):
     (To better allow the objective to explore/possibly make the objective temporarily worse in favor of finding a "better" solution.)
     """
 
-    def __init__(self, optimizer, mode='min', factor=0.1, patience=10,
+    def __init__(self, optimizer, mode='min', factor=0.1, patience_ratio=0.5, patience_horizon=10,
                  threshold=1e-4, threshold_mode='rel', cooldown=0,
                  min_lr=0, eps=1e-8, verbose=False):
 
@@ -31,7 +33,6 @@ class ReduceLROnPlateauLast(object):
         else:
             self.min_lrs = [min_lr] * len(optimizer.param_groups)
 
-        self.patience = patience
         self.verbose = verbose
         self.cooldown = cooldown
         self.cooldown_counter = 0
@@ -39,7 +40,8 @@ class ReduceLROnPlateauLast(object):
         self.threshold = threshold
         self.threshold_mode = threshold_mode
         self.prev = None
-        self.num_bad_epochs = None
+        self.bad_epochs = CyclicBuffer(capacity=patience_horizon)
+        self.patience_ratio = patience_ratio
         self.mode_worse = None  # the worse value for the chosen mode
         self.eps = eps
         self.last_epoch = 0
@@ -51,25 +53,25 @@ class ReduceLROnPlateauLast(object):
         """Resets num_bad_epochs counter and cooldown counter."""
         self.prev = self.mode_worse
         self.cooldown_counter = 0
-        self.num_bad_epochs = 0
+        self.bad_epochs.clear()
 
     def step(self, metrics):
         # convert `metrics` to float, in case it's a zero-dim Tensor
         current = float(metrics)
 
         if self.is_better(current, self.prev):
-            self.num_bad_epochs = 0
+            self.bad_epochs.push(0)
         else:
-            self.num_bad_epochs += 1
+            self.bad_epochs.push(1)
 
         if self.in_cooldown:
             self.cooldown_counter -= 1
-            self.num_bad_epochs = 0  # ignore any bad epochs in cooldown
+            self.bad_epochs.clear()  # ignore any bad epochs in cooldown
 
-        if self.num_bad_epochs > self.patience:
+        if self.bad_epochs.mean() > self.patience_ratio:
             self._reduce_lr()
             self.cooldown_counter = self.cooldown
-            self.num_bad_epochs = 0
+            self.bad_epochs.clear()
 
         self.prev = current
 
