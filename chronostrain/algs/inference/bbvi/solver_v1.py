@@ -89,11 +89,13 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
         self.batches: List[List[torch.Tensor]] = [
             [] for _ in range(model.num_times())
         ]
+        self.total_reads: int = 0
 
         # Precompute this (only possible in V1).
         logger.debug("Precomputing likelihood products.")
         for t_idx in range(model.num_times()):
             data_ll_t = self.data_likelihoods.matrices[t_idx]  # F_ x R
+            self.total_reads += data_ll_t.shape[1]
 
             projector = self.data_likelihoods.projectors[t_idx]
             strain_read_lls_t = log_spspmm_exp(
@@ -145,9 +147,8 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
         for t_idx in range(self.model.num_times()):
             log_y_t = log_softmax(x_samples, t=t_idx)  # (Softmax vs Radial)
 
-            data_sz_t = self.strain_read_lls[t_idx].shape[1]
             for batch_lls in self.batches[t_idx]:
-                batch_ratio = batch_lls.shape[1] / data_sz_t
+                batch_ratio = batch_lls.shape[1] / self.total_reads
                 # ======== E[-log Q(X)], monte-carlo
                 entropic = batch_ratio * self.posterior.entropy()
 
