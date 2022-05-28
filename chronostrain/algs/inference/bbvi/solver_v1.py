@@ -145,18 +145,20 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
         for t_idx in range(self.model.num_times()):
             log_y_t = log_softmax(x_samples, t=t_idx)  # (Softmax vs Radial)
 
-            # data_sz_t = self.strain_read_lls[t_idx].shape[1]
+            data_sz_t = self.strain_read_lls[t_idx].shape[1]
             for batch_lls in self.batches[t_idx]:
-                yield (1 / n_samples) * torch.sum(log_matmul_exp(log_y_t, batch_lls))
+                # ======== E[-log Q(X)], monte-carlo
+                entropic = self.posterior.entropy()
 
-        # ======== E[-log Q(X)], monte-carlo
-        entropic = self.posterior.entropy()
+                # ======== E[log P(X)]
+                model_gaussian_log_likelihoods = self.model.log_likelihood_x(X=x_samples)
+                model_ll = model_gaussian_log_likelihoods.sum() * (1 / n_samples)
+                latent_part = entropic + model_ll
 
-        # ======== E[log P(X)]
-        model_gaussian_log_likelihoods = self.model.log_likelihood_x(X=x_samples)
-        model_ll = model_gaussian_log_likelihoods.sum() * (1 / n_samples)
-        latent_part = entropic + model_ll
-        yield latent_part
+                batch_sz = batch_lls.shape[1]
+                yield torch.sum(
+                    (1 / n_samples) * log_matmul_exp(log_y_t, batch_lls)
+                ) + (batch_sz / data_sz_t) * latent_part
 
     def advance_epoch(self):
         for t_idx in range(self.model.num_times()):
