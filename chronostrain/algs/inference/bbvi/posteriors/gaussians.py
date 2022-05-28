@@ -95,8 +95,8 @@ class GaussianPosteriorFullCorrelation(AbstractReparametrizedPosterior):
 
     def save(self, path: Path):
         params = {
-            "weight": self.reparam_network.weight.detach(),
-            "bias": self.reparam_network.bias.detach()
+            "weight": self.reparam_network.weight.detach().cpu(),
+            "bias": self.reparam_network.bias.detach().cpu()
         }
         torch.save(params, path)
 
@@ -218,8 +218,8 @@ class GaussianPosteriorStrainCorrelation(AbstractReparametrizedPosterior):
         for t_idx in range(self.num_times):
             linear_layer = self.reparam_networks[t_idx]
             params[t_idx] = {
-                "weight": linear_layer.weight.detach(),
-                "bias": linear_layer.bias.detach()
+                "weight": linear_layer.weight.detach().cpu(),
+                "bias": linear_layer.bias.detach().cpu()
             }
         torch.save(params, path)
 
@@ -332,8 +332,8 @@ class GaussianPosteriorTimeCorrelation(AbstractReparametrizedPosterior):
         for s_idx in range(self.num_strains):
             linear_layer = self.reparam_networks[s_idx]
             params[s_idx] = {
-                "weight": linear_layer.weight.detach(),
-                "bias": linear_layer.bias.detach()
+                "weight": linear_layer.weight.detach().cpu(),
+                "bias": linear_layer.bias.detach().cpu()
             }
         torch.save(params, path)
 

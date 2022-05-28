@@ -100,7 +100,7 @@ def plot_bbvi_posterior(times: List[float],
     logger.info("Generating plot of posterior.")
 
     # Generate and save posterior samples.
-    samples = posterior.sample(num_samples)
+    samples = posterior.sample(num_samples).detach().cpu()
     torch.save(samples, samples_path)
     logger.info("Posterior samples saved to {}. [{}]".format(
         samples_path,
