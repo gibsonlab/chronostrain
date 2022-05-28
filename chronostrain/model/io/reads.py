@@ -193,16 +193,14 @@ class TimeSeriesReads(object):
 
     @staticmethod
     def load(time_points: List[float],
-             sources: List[List[TimeSliceReadSource]],
-             t_offset: float = 1000.0) -> 'TimeSeriesReads':
-        logger.debug("TODO propagate change t_offset!")
+             sources: List[List[TimeSliceReadSource]]) -> 'TimeSeriesReads':
         if len(time_points) != len(sources):
             raise ValueError("Number of time points ({}) do not match number of read sources. ({})".format(
                 len(time_points), len(sources)
             ))
 
         return TimeSeriesReads([
-            TimeSliceReads.load(t + t_offset, src_t)
+            TimeSliceReads.load(t, src_t)
             for t, src_t in zip(time_points, sources)
         ])
 
