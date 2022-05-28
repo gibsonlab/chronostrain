@@ -71,14 +71,6 @@ class GaussianPosteriorFullCorrelation(AbstractReparametrizedPosterior):
         num_samples = samples.shape[1]
         samples = samples.transpose(0, 1).view(num_samples, self.num_times * self.num_strains)
         try:
-            print(samples.shape)
-            ll = torch.distributions.MultivariateNormal(
-                loc=self.reparam_network.bias,
-                scale_tril=self.reparam_network.cholesky_part
-            ).log_prob(samples)
-            print(ll.shape)
-            print(ll)
-
             return torch.distributions.MultivariateNormal(
                 loc=self.reparam_network.bias,
                 scale_tril=self.reparam_network.cholesky_part
