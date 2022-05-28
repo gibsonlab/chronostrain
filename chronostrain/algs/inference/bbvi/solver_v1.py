@@ -9,6 +9,7 @@ from chronostrain.model.io import TimeSeriesReads
 
 from chronostrain.config import cfg, create_logger
 from chronostrain.util.math import log_spspmm_exp
+from chronostrain.util.optimization import ReduceLROnPlateauLast
 from chronostrain.util.sparse.sliceable import ColumnSectionedSparseMatrix
 from .. import AbstractModelSolver
 from .base import AbstractBBVI
@@ -195,7 +196,7 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
         logger.debug("Training round #1 of 3.")
         optimizer_args['params'] = self.posterior.trainable_mean_parameters()
         optimizer = optimizer_class(**optimizer_args)
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        lr_scheduler = ReduceLROnPlateauLast(
             optimizer,
             factor=lr_decay_factor,
             patience=lr_patience,
@@ -209,7 +210,7 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
         logger.debug("Training round #2 of 3.")
         optimizer_args['params'] = self.posterior.trainable_variance_parameters()
         optimizer = optimizer_class(**optimizer_args)
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        lr_scheduler = ReduceLROnPlateauLast(
             optimizer,
             factor=lr_decay_factor,
             patience=lr_patience,
@@ -223,7 +224,7 @@ class BBVISolverV1(AbstractModelSolver, AbstractBBVI):
         logger.debug("Training round #3 of 3.")
         optimizer_args['params'] = self.posterior.trainable_parameters()
         optimizer = optimizer_class(**optimizer_args)
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        lr_scheduler = ReduceLROnPlateauLast(
             optimizer,
             factor=lr_decay_factor,
             patience=lr_patience,
