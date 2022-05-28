@@ -192,7 +192,6 @@ class BBVISolver(AbstractModelSolver, AbstractBBVI):
         # Round 1: mean only
         logger.debug("Training round #1 of 3.")
         optimizer_args['params'] = self.posterior.trainable_mean_parameters()
-        optimizer_args['lr'] = 0.1
         optimizer = optimizer_class(**optimizer_args)
         lr_scheduler = ReduceLROnPlateauLast(
             optimizer,
