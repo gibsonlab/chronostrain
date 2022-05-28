@@ -63,7 +63,7 @@ ${sorted_bam_file} \
 ./ \
 -t ${N_CORES} \
 -p 0 \
--a 2
+-a 1
 
 # Clean up
 echo "[*] Cleaning up..."
