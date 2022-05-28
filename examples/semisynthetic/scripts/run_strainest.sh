@@ -57,7 +57,13 @@ samtools index ${sorted_bam_file}
 
 # Run StrainEst
 echo "[*] Running StrainEst..."
-strainest est ${STRAINEST_DB_DIR}/snvs_all.txt ${sorted_bam_file} ./ -t 1
+strainest est \
+${STRAINEST_DB_DIR}/snvs_all.txt \
+${sorted_bam_file} \
+./ \
+-t ${N_CORES} \
+-p 0 \
+-a 2
 
 # Clean up
 echo "[*] Cleaning up..."

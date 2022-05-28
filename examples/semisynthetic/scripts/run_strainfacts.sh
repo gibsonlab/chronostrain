@@ -32,12 +32,14 @@ metagenotype_all="${mg_prefix}.tsv"
 
 sfacts load --gtpro-metagenotype ${metagenotype_all} ${mg_prefix}.mgen.nc
 sfacts fit \
+-m ssdd3_with_error  \
+--verbose \
 --device cuda \
 --precision 32 \
---num-strains 4 \
 --random-seed 0 \
---no-jit \
---model-structure model1 \
+--num-strains 4 \
+--nmf-init \
+--num-positions 5000 \
 --hyperparameters gamma_hyper=1e-10 \
 --hyperparameters pi_hyper=0.3 \
 --hyperparameters rho_hyper=0.5 \
