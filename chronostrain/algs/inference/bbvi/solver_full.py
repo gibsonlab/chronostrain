@@ -8,6 +8,7 @@ import numpy as np
 import scipy
 import scipy.special, scipy.stats
 import torch
+from tqdm import tqdm
 
 from chronostrain.database import StrainDatabase
 from chronostrain.model.generative import GenerativeModel
@@ -98,8 +99,7 @@ class BBVISolverFullPosterior(AbstractModelSolver):
         temp_dir.mkdir(exist_ok=True, parents=True)
         log_importance_weights = []
         num_batches = int(np.ceil(num_importance_samples / batch_size))
-        for batch_idx in range(num_batches):
-            logger.debug(f"Sampling batch {batch_idx + 1} of {num_batches}...")
+        for batch_idx in tqdm(range(num_batches), desc="Batched sampling"):
             batch_start_idx = batch_idx * batch_size
             this_batch_sz = min(num_importance_samples - batch_start_idx, batch_size)
             batch_weights = self.sample_batch(this_batch_sz, batch_idx, temp_dir)
@@ -116,6 +116,7 @@ class BBVISolverFullPosterior(AbstractModelSolver):
             logger.warning("Pareto k-hat estimate exceeds safe threshold (0.7). "
                            "Gradient estimates may have been unreliable in this regime.")
 
+        logger.debug("Computing importance-weighted mean and covariances.")
         mean, cov = self.estimate_mean_and_covar(temp_dir, num_batches, log_smoothed_weights)
         self.posterior = GaussianPosteriorFullCorrelation(
             self.model.num_strains(), self.model.num_times(),
@@ -124,7 +125,7 @@ class BBVISolverFullPosterior(AbstractModelSolver):
         )
         self.log_smoothed_weights = log_smoothed_weights
         self.k_hat = k_hat
-        logger.debug("Finished computing importance-weighted mean/covariance.")
+        logger.debug("Finished computing full posterior estimate.")
 
     def estimate_mean_and_covar(self, batch_dir: Path, num_batches: int, log_importance_weights: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         gaussian_dim = self.model.num_times() * self.model.num_strains()
@@ -132,7 +133,7 @@ class BBVISolverFullPosterior(AbstractModelSolver):
         cov_estimate = np.zeros(shape=(gaussian_dim, gaussian_dim), dtype=np.float)
 
         batch_start_idx = 0
-        for batch_idx in range(num_batches):
+        for batch_idx in tqdm(range(num_batches), desc="Importance sampling estimator"):
             # Load the batch
             samples = np.load(str(self.get_batch_path(batch_dir, batch_idx)))  # (N_batch) x (TS)
             batch_sz = samples.shape[0]
