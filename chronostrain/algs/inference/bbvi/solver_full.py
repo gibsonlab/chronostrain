@@ -1,7 +1,5 @@
 from typing import List, Optional, Callable, Type, Dict, Any
 
-import numba
-import numpy as np
 import scipy.special
 import torch
 
@@ -10,10 +8,10 @@ from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
 
 from chronostrain.config import create_logger
+from chronostrain.util.math.psis import psis_smooth_ratios
 
 from .. import AbstractModelSolver
-from .posteriors import *
-from .util import log_softmax, log_matmul_exp, psis_smooth_ratios
+from .util import log_softmax, log_matmul_exp
 from .solver import BBVISolver
 from ..vi import GaussianPosteriorFullCorrelation
 
@@ -38,6 +36,8 @@ class BBVISolverFullPosterior(AbstractModelSolver):
             correlation_type=partial_correlation_type
         )
         self.posterior: GaussianPosteriorFullCorrelation = None
+        self.log_smoothed_ratios: torch.Tensor = None
+        self.k_hat: float = float('inf')
 
     def prior_ll(self, x_samples: torch.Tensor) -> torch.Tensor:
         return self.model.log_likelihood_x(X=x_samples).detach()
@@ -99,6 +99,8 @@ class BBVISolverFullPosterior(AbstractModelSolver):
         log_importance_ratios = log_importance_ratios.cpu().numpy()
         log_importance_ratios = log_importance_ratios - scipy.special.logsumexp(log_importance_ratios)
         log_smoothed_ratios, k_hat = psis_smooth_ratios(log_importance_ratios)
+        log_smoothed_ratios = torch.tensor(log_smoothed_ratios, device=x_samples.device)
+
         logger.debug(f"Estimated Pareto k-hat: {k_hat}")
         if k_hat > 0.7:
             # Extremely large number of MCMC samples are needed for stable gradient estimates!
@@ -111,18 +113,18 @@ class BBVISolverFullPosterior(AbstractModelSolver):
 
         posterior_mean = torch.sum(
             x_samples * torch.exp(
-                torch.unsqueeze(torch.tensor(log_smoothed_ratios, device=x_samples.device), dim=1)
+                torch.unsqueeze(log_smoothed_ratios, dim=1)
             ),
             dim=0
         )
-        posterior_var_scaling = torch.tensor(
-            x_samples * torch.unsqueeze(
-                torch.exp(0.5 * torch.tensor(log_smoothed_ratios, device=x_samples.device)),
-                dim=1  # (N x 1)
-            ),
-            device=x_samples.device
+        posterior_var_scaling = x_samples * torch.unsqueeze(
+            torch.exp(0.5 * log_smoothed_ratios),
+            dim=1  # (N x 1)
         )
         self.posterior = GaussianPosteriorFullCorrelation(
             self.model.num_strains(), self.model.num_times(), posterior_mean, posterior_var_scaling
         )
+
+        self.log_smoothed_ratios = log_smoothed_ratios
+        self.k_hat = k_hat
         logger.debug("Finished computing importance-weighted mean/covariance.")

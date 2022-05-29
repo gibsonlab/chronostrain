@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import List
+from typing import List, Iterator
 
 from chronostrain.model import Marker, Strain
 from .base import AbstractStrainDatabaseBackend
@@ -14,14 +14,15 @@ class DictionaryBackend(AbstractStrainDatabaseBackend):
         self.markers_to_strains = {}
         self.markers_by_name = defaultdict(list)
 
-    def add_strain(self, strain: Strain):
-        self.strains[strain.id] = strain
-        for marker in strain.markers:
-            self.markers[marker.id] = marker
-            if not (marker.id in self.markers_to_strains):
-                self.markers_to_strains[marker.id] = []
-            self.markers_to_strains[marker.id].append(strain)
-            self.markers_by_name[marker.name].append(marker)
+    def add_strains(self, strains: Iterator[Strain]):
+        for strain in strains:
+            self.strains[strain.id] = strain
+            for marker in strain.markers:
+                self.markers[marker.id] = marker
+                if not (marker.id in self.markers_to_strains):
+                    self.markers_to_strains[marker.id] = []
+                self.markers_to_strains[marker.id].append(strain)
+                self.markers_by_name[marker.name].append(marker)
 
     def get_strain(self, strain_id: str) -> Strain:
         try:

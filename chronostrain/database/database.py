@@ -26,8 +26,7 @@ class StrainDatabase(object):
         logger.debug("Initializing db backend `{}`".format(self.backend.__class__.__name__))
 
         start = time.time()
-        for strain in parser.strains():
-            backend.add_strain(strain)
+        backend.add_strains(parser.strains())
         logger.info("Loaded {} strains in {:.1f} minutes.".format(
             self.backend.num_strains(),
             (time.time() - start) / 60.0
