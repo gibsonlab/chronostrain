@@ -43,6 +43,7 @@ class CyclicBuffer:
         return self.total / self.size
 
     def clear(self):
+        self.buf = [0] * self.capacity
         self.total = 0
         self.size = 0
         self.next_idx = 0
