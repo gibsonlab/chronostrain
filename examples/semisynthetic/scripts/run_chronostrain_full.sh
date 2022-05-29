@@ -27,7 +27,7 @@ log_dir=${trial_dir}/logs
 mkdir -p $log_dir
 export CHRONOSTRAIN_CACHE_DIR="${trial_dir}/cache"
 
-export CHRONOSTRAIN_LOG_FILEPATH="${log_dir}/chronostrain.log"
+export CHRONOSTRAIN_LOG_FILEPATH="${log_dir}/chronostrain_full.log"
 echo "[*] Running Chronostrain inference for n_reads: ${n_reads}, trial: ${trial}"
 python $PROJECT_DIR/scripts/run_bbvi.py \
 --reads_input "${read_dir}/filtered/filtered_input_files.csv" \
