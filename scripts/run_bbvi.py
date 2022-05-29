@@ -55,8 +55,9 @@ def parse_args():
                              'and "time". For example, "strain" means that the abundance posteriors will be correlated '
                              'over strains, and factorized across time.')
     parser.add_argument('--full_corr_num_importance_samples', required=False, type=int, default=50000,
-                        help='<Required, in full correlation mode> The number of importance samples to use to '
-                             'estimate the full posterior covariance/mean.')
+                        help='<Optional> The number of importance samples to use to '
+                             'estimate the full posterior covariance/mean.'
+                             'Only used if `--correlation_mode` is set to `full`.')
 
     # Optional input params
     parser.add_argument('-s', '--seed', required=False, type=int, default=31415,
