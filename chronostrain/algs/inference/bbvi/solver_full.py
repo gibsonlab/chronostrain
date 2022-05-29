@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import List, Optional, Callable, Type, Dict, Any, Tuple
 
+import math
 import numba
 from numba import njit, prange
 
@@ -191,7 +192,7 @@ def weighted_cov(x: np.ndarray, log_w: np.ndarray) -> np.ndarray:
     estimate = np.zeros((x.shape[1], x.shape[1]), dtype=numba.float64)
     for n in range(x.shape[0]):
         deviation = x[n, :] - x_mean  # n-th sample deviation X_n - X_mean
-        weight = np.exp(log_w[n])
+        weight = math.exp(log_w[n])
         for i in range(estimate.shape[0]):
             for j in range(estimate.shape[1]):
                 estimate[i, j] += weight * deviation[i] * deviation[j]
