@@ -152,10 +152,10 @@ class BBVISolverFullPosterior(AbstractModelSolver):
 
     def sample_batch(self, batch_size: int, batch_idx: int, batch_dir: Path) -> np.ndarray:
         # (T x N x S)
-        x_samples = self.partial_solver.posterior.reparametrized_sample(num_samples=batch_size).detach()
+        x_samples = self.partial_solver.posterior.sample(num_samples=batch_size)
 
         # length N
-        approx_posterior_ll = self.partial_solver.posterior.reparametrized_sample_log_likelihoods(x_samples).detach()
+        approx_posterior_ll = self.partial_solver.posterior.log_likelihood(x_samples)
         forward_ll = self.prior_ll(x_samples).detach() + self.data_ll(x_samples).detach()
         log_importance_ratios = forward_ll - approx_posterior_ll
 
@@ -175,7 +175,7 @@ def weighted_mean(x: np.ndarray, log_w: np.ndarray) -> np.ndarray:
     return np.sum(x * np.expand_dims(np.exp(log_w), axis=1), axis=0)
 
 
-@njit(parallel=True)
+@njit(parallel=False)
 def weighted_cov(x: np.ndarray, log_w: np.ndarray) -> np.ndarray:
     """
     :param x: (N x D) 2-dimensional array.
@@ -184,12 +184,12 @@ def weighted_cov(x: np.ndarray, log_w: np.ndarray) -> np.ndarray:
     """
     # Compute the column-wise mean
     x_mean = []
-    for c in prange(x.shape[1]):
+    for c in range(x.shape[1]):
         x_mean.append(x[:, c].mean())
     x_mean = np.array(x_mean)
 
     estimate = np.zeros((x.shape[1], x.shape[1]), dtype=numba.float64)
-    for n in prange(x.shape[0]):
+    for n in range(x.shape[0]):
         deviation = x[n, :] - x_mean  # n-th sample deviation X_n - X_mean
         estimate += np.exp(log_w[n]) * np.outer(deviation, deviation)
     return estimate
