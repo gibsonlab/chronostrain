@@ -2,5 +2,6 @@ from .inference import AbstractModelSolver, \
     EMSolver, \
     AbstractPosterior, \
     AbstractBBVI, \
-    BBVISolver
+    BBVISolver, \
+    BBVISolverFullPosterior
 from .variants import GloppVariantSolver, GloppExhaustiveVariantSolver

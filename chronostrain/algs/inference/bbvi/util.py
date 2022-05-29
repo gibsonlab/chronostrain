@@ -1,7 +1,7 @@
-from typing import List
+from typing import List, Tuple
 
 import numpy as np
-import scipy.stats
+import scipy.stats, scipy.special
 import torch
 import torch_scatter
 
@@ -135,49 +135,71 @@ class LogMMExpDenseSPModel_Async(torch.nn.Module):
         return maximums + sumexp_offset.log()
 
 
-def psis_smooth_ratios(raw_ratios: torch.Tensor) -> torch.Tensor:
+def psis_smooth_ratios(log_raw_ratios: np.ndarray, k_min: float = 1/3) -> Tuple[np.ndarray, float]:
     """
     Based on citation:
     2019 Vehtari, Simpson, Gelman, Yao, Gabry. 'Pareto Smoothed Importance Sampling'
 
-    :param raw_ratios:
-    :return:
+    Parts of code lifted from authors' original implementation.
+    (https://github.com/avehtari/PSIS/blob/master/py/psis.py)
+
+    :param log_raw_ratios:
+    :param k_min: Reweighting does not happen if the empirical Pareto k-hat does not exceed this value.
+    :return: A pair of values:
+    1) Pareto-smoothed estimation (log-)weights, to be used in importance sampling calculation.
+    2) the estimated Pareto distribution's empirical k (k-hat).
     """
-    sorted_ = torch.sort(raw_ratios)
-    wts, src_indices = sorted_.values, sorted_.indices
-    max_raw_wt = wts[-1]
+    n = len(log_raw_ratios)
+    if n <= 1:
+        raise ValueError("More than one log-weight needed.")
 
-    S = len(raw_ratios)
-    if S > 225:
-        M = int(3 * np.sqrt(S))
-    else:
-        M = S // 5
+    # allocate new array for output
+    sort_idxs = np.argsort(log_raw_ratios)
+    wts = np.copy(log_raw_ratios)
 
-    # Estimate Pareto distribution parameters.
-    cut_point = wts[M - 2]
-    k_est, sigma_est = fit_pareto(wts[-M:])
+    # precalculate constants
+    cutoff_idx = -int(np.ceil(min(0.2 * n, 3 * np.sqrt(n)))) - 1
 
-    # Regularization from appendix C
-    k_est = (M * k_est + 5) / (M + 10)
-
-    # Fill in the values.
-    z = np.arange(1., float(M) + 1)
-    pareto_icdf = scipy.stats.genpareto.ppf(
-        (z - 0.5) / M,
-        c=k_est,
-        loc=cut_point,
-        scale=sigma_est
+    # divide log weights into body and right tail
+    log_cutoff_value = max(
+        wts[sort_idxs[cutoff_idx]],
+        np.log(np.finfo(float).tiny)  # smallest possible value
     )
+    cutoff_value = np.exp(log_cutoff_value)
 
-    wts[(M-1):] = torch.min(
-        torch.tensor(pareto_icdf, device=wts.device),
-        max_raw_wt
-    )
+    tailinds, = np.where(wts > log_cutoff_value)
+    tail_sz = len(tailinds)
 
-    # Now, un-sort in the original order.
-    reordered_smoothed_ratios = torch.empty(size=wts.size(), dtype=wts.dtype, device=wts.device)
-    reordered_smoothed_ratios[src_indices] = wts
-    return reordered_smoothed_ratios
+    if tail_sz <= 4:
+        raise RuntimeError("Not enough tail samples to perform this estimate.")
+
+    tail_wts = wts[tailinds]
+    k_est, sigma_est = fit_pareto(tail_wts, loc=cutoff_value)
+
+    # Only smooth if long-tailed.
+    if k_est >= k_min:
+        # compute ordered statistic for the fit
+        sti = np.arange(0.5, tail_sz)
+        sti /= tail_sz
+
+        # Smoothing formula (inverse-cdf of gen. pareto)
+        qq = scipy.stats.genpareto.ppf(
+            sti,
+            c=k_est,
+            scale=sigma_est
+        ) + cutoff_value
+        np.log(qq, out=qq)
+
+        # place the smoothed tail into the output array
+        tail_ordering = np.argsort(tail_wts)
+        wts[tailinds[tail_ordering]] = qq
+
+        # truncate smoothed values to the largest raw (log-)weight 0
+        wts[wts > 0] = 0
+
+    # renormalize weights
+    wts -= scipy.special.logsumexp(wts)
+    return wts, k_est
 
 
 if __name__ == "__main__":

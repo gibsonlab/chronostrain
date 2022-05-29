@@ -40,7 +40,7 @@ class BBVISolver(AbstractModelSolver, AbstractBBVI):
                  num_cores: int = 1,
                  correlation_type: str = "time",
                  precomputed_data_likelihoods: Optional[DataLikelihoods] = None):
-        logger.info("Initializing V1 solver (Marginalized posterior X)")
+        logger.info("Initializing mean-field solver (Marginalized posterior, q(X))")
         AbstractModelSolver.__init__(
             self,
             model,
@@ -49,7 +49,6 @@ class BBVISolver(AbstractModelSolver, AbstractBBVI):
             num_cores=num_cores,
             precomputed_data_likelihoods=precomputed_data_likelihoods
         )
-
         self.read_batch_size = read_batch_size
         self.correlation_type = correlation_type
         if correlation_type == "time":
@@ -63,7 +62,7 @@ class BBVISolver(AbstractModelSolver, AbstractBBVI):
                 num_times=model.num_times()
             )
         elif correlation_type == "full":
-            posterior = GaussianPosteriorFullCorrelation(
+            posterior = GaussianPosteriorFullReparametrizedCorrelation(
                 num_strains=model.num_strains(),
                 num_times=model.num_times()
             )

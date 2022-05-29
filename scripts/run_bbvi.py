@@ -51,8 +51,12 @@ def parse_args():
     parser.add_argument('-b', '--read_batch_size', required=False, type=int, default=5000,
                         help='<Optional> The size of matrices to divide into batches across reads. (Default: 5000)')
     parser.add_argument('-c', '--correlation_mode', required=False, type=str, default='full',
-                        help='<Optional> The correlation mode for the posterior. Options are "full", "strain", and "time".'
-                             'For example, "strain" means that the abundance posteriors will be correlated over strains, and factorized across time.')
+                        help='<Optional> The correlation mode for the posterior. Options are "full", "strain", '
+                             'and "time". For example, "strain" means that the abundance posteriors will be correlated '
+                             'over strains, and factorized across time.')
+    parser.add_argument('--full_corr_num_importance_samples', required=False, type=int, default=50000,
+                        help='<Required, in full correlation mode> The number of importance samples to use to '
+                             'estimate the full posterior covariance/mean.')
 
     # Optional input params
     parser.add_argument('-s', '--seed', required=False, type=int, default=31415,
@@ -204,22 +208,41 @@ def main():
     More methods to be potentially added for experimentation.
     """
 
-    solver, posterior, elbo_history, (uppers, lowers, medians) = perform_bbvi(
-        db=db,
-        model=model,
-        reads=reads,
-        num_epochs=args.epochs,
-        iters=args.iters,
-        min_lr=args.min_lr,
-        lr_decay_factor=args.decay_lr,
-        lr_patience=args.lr_patience,
-        learning_rate=args.learning_rate,
-        num_samples=args.num_samples,
-        correlation_type=args.correlation_mode,
-        save_elbo_history=args.plot_elbo,
-        save_training_history=args.draw_training_history,
-        read_batch_size=args.read_batch_size,
-    )
+    if args.correlation_mode == 'full':
+        solver, posterior, elbo_history, (uppers, lowers, medians) = perform_bbvi_full_correlation(
+            db=db,
+            model=model,
+            reads=reads,
+            num_epochs=args.epochs,
+            iters=args.iters,
+            min_lr=args.min_lr,
+            lr_decay_factor=args.decay_lr,
+            lr_patience=args.lr_patience,
+            learning_rate=args.learning_rate,
+            num_samples=args.num_samples,
+            num_importance_samples=args.full_corr_num_importance_samples,
+            partial_correlation_type='strain',
+            save_elbo_history=args.plot_elbo,
+            save_training_history=args.draw_training_history,
+            read_batch_size=args.read_batch_size,
+        )
+    else:
+        solver, posterior, elbo_history, (uppers, lowers, medians) = perform_bbvi(
+            db=db,
+            model=model,
+            reads=reads,
+            num_epochs=args.epochs,
+            iters=args.iters,
+            min_lr=args.min_lr,
+            lr_decay_factor=args.decay_lr,
+            lr_patience=args.lr_patience,
+            learning_rate=args.learning_rate,
+            num_samples=args.num_samples,
+            correlation_type=args.correlation_mode,
+            save_elbo_history=args.plot_elbo,
+            save_training_history=args.draw_training_history,
+            read_batch_size=args.read_batch_size,
+        )
 
     if args.plot_elbo:
         viz.plot_elbo_history(

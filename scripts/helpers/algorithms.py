@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from torch import softmax
 
-from chronostrain.algs import BBVISolver, EMSolver
+from chronostrain.algs import BBVISolver, BBVISolverFullPosterior, EMSolver
 from chronostrain.database import StrainDatabase
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads, save_abundances
@@ -31,8 +31,11 @@ def perform_bbvi(
         save_elbo_history: bool = False,
         save_training_history: bool = False
 ):
-
     # ==== Run the solver.
+    if correlation_type == 'full':
+        logger.warning("Encountered `full` correlation type argument; "
+                       "learning this posterior may lead to unstable/unreliable results. "
+                       "Consider directly invoking `perform_bbvi_full_correlation` instead.")
     solver = BBVISolver(
         model=model,
         data=reads,
@@ -74,6 +77,79 @@ def perform_bbvi(
         iters=iters,
         num_epochs=num_epochs,
         num_samples=num_samples,
+        min_lr=min_lr,
+        lr_decay_factor=lr_decay_factor,
+        lr_patience=lr_patience,
+        callbacks=callbacks
+    )
+    end_time = time.time()
+    logger.debug("Finished inference in {} sec.".format(
+        (end_time - start_time)
+    ))
+
+    posterior = solver.posterior
+    return solver, posterior, elbo_history, (uppers, lowers, medians)
+
+
+def perform_bbvi_full_correlation(
+        db: StrainDatabase,
+        model: GenerativeModel,
+        reads: TimeSeriesReads,
+        num_epochs: int,
+        lr_decay_factor: float,
+        lr_patience: int,
+        iters: int,
+        learning_rate: float,
+        num_samples: int,
+        num_importance_samples: int,
+        min_lr: float = 1e-4,
+        read_batch_size: int = 5000,
+        partial_correlation_type: str = "strain",
+        save_elbo_history: bool = False,
+        save_training_history: bool = False):
+    solver = BBVISolverFullPosterior(
+        model=model,
+        data=reads,
+        partial_correlation_type=partial_correlation_type,
+        db=db,
+        read_batch_size=read_batch_size
+    )
+
+    callbacks = []
+    uppers = [[] for _ in range(model.num_strains())]
+    lowers = [[] for _ in range(model.num_strains())]
+    medians = [[] for _ in range(model.num_strains())]
+    elbo_history = []
+
+    if save_training_history:
+        def anim_callback(x_samples, uppers_buf, lowers_buf, medians_buf):
+            # Plot BBVI posterior.
+            abund_samples = softmax(x_samples, dim=2).cpu().detach().numpy()
+            for s_idx in range(model.num_strains()):
+                traj_samples = abund_samples[:, :, s_idx]  # (T x N)
+                upper_quantile = np.quantile(traj_samples, q=0.975, axis=1)
+                lower_quantile = np.quantile(traj_samples, q=0.025, axis=1)
+                median = np.quantile(traj_samples, q=0.5, axis=1)
+                uppers_buf[s_idx].append(upper_quantile)
+                lowers_buf[s_idx].append(lower_quantile)
+                medians_buf[s_idx].append(median)
+
+        callbacks.append(lambda epoch, x_samples, elbo: anim_callback(x_samples, uppers, lowers, medians))
+
+    if save_elbo_history:
+        def elbo_callback(elbo, elbo_buf):
+            elbo_buf.append(elbo)
+
+        callbacks.append(lambda epoch, x_samples, elbo: elbo_callback(elbo, elbo_history))
+
+    start_time = time.time()
+    solver.solve(
+        optimizer_class=torch.optim.Adam,
+        optimizer_args={'lr': learning_rate, 'betas': (0.9, 0.999), 'eps': 1e-7, 'weight_decay': 0.0},
+        iters=iters,
+        num_epochs=num_epochs,
+        num_bbvi_samples=num_samples,
+        num_importance_samples=num_importance_samples,
         min_lr=min_lr,
         lr_decay_factor=lr_decay_factor,
         lr_patience=lr_patience,

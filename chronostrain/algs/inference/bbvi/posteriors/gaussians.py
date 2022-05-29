@@ -16,7 +16,7 @@ logger = create_logger(__name__)
 INIT_SCALE = 1.0
 
 
-class GaussianPosteriorFullCorrelation(AbstractReparametrizedPosterior):
+class GaussianPosteriorFullReparametrizedCorrelation(AbstractReparametrizedPosterior):
     def __init__(self, num_strains: int, num_times: int):
         """
         Mean-field assumption:
@@ -101,8 +101,8 @@ class GaussianPosteriorFullCorrelation(AbstractReparametrizedPosterior):
         torch.save(params, path)
 
     @staticmethod
-    def load(path: Path, num_strains: int, num_times: int) -> 'GaussianPosteriorFullCorrelation':
-        posterior = GaussianPosteriorFullCorrelation(num_strains, num_times)
+    def load(path: Path, num_strains: int, num_times: int) -> 'GaussianPosteriorFullReparametrizedCorrelation':
+        posterior = GaussianPosteriorFullReparametrizedCorrelation(num_strains, num_times)
         params = torch.load(path)
         posterior.reparam_network.weight = torch.nn.Parameter(params['weight'])
         posterior.reparam_network.bias = torch.nn.Parameter(params['bias'])
