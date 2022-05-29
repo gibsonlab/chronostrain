@@ -9,6 +9,7 @@ import numpy as np
 import scipy
 import scipy.special, scipy.stats
 import torch
+from torch.distributions import Normal
 from tqdm import tqdm
 
 from chronostrain.database import StrainDatabase
@@ -141,7 +142,7 @@ class BBVISolverFullPosterior(AbstractModelSolver):
             batch_log_weights = log_importance_weights[batch_start_idx:batch_start_idx + batch_sz]
 
             mean_estimate += weighted_mean(samples, batch_log_weights)
-            cov_estimate += weighted_cov(samples, batch_log_weights)
+            cov_estimate += weighted_cov(samples, batch_log_weights, eps=1e-6)
 
             # Prepare for next iteration
             batch_start_idx += batch_sz
@@ -177,7 +178,7 @@ def weighted_mean(x: np.ndarray, log_w: np.ndarray) -> np.ndarray:
 
 
 @njit(parallel=False)
-def weighted_cov(x: np.ndarray, log_w: np.ndarray) -> np.ndarray:
+def weighted_cov(x: np.ndarray, log_w: np.ndarray, eps: float) -> np.ndarray:
     """
     :param x: (N x D) 2-dimensional array.
     :param log_w: length-N array of log-weights.
@@ -222,11 +223,17 @@ class GaussianPosteriorFullCorrelation(AbstractPosterior):
         self.num_times = num_times
         self.torch_device = torch_device
 
-        # Often times, these matrices will be close to singular (variance shrinks as we obtain more samples).
-        self.gaussian = scipy.stats.multivariate_normal(mean=bias, cov=cov, allow_singular=True)
+        self.bias = bias
+        w, v = scipy.linalg.eigh(cov)
+        self.linear = np.transpose(v * np.expand_dims(np.sqrt(w), axis=0))
+        self.standard_normal = Normal(
+            loc=torch.tensor(0.0, device=cfg.torch_cfg.device),
+            scale=torch.tensor(1.0, device=cfg.torch_cfg.device)
+        )
 
     def sample(self, num_samples: int = 1) -> torch.Tensor:
-        samples = torch.tensor(self.gaussian.rvs(size=num_samples))  # N x TS
+        samples = self.standard_normal.sample(sample_shape=(num_samples, self.num_times * self.num_strains))  # N x TS
+        samples = samples @ self.linear + self.bias
 
         # Re-shape N x (TS) into (T x N x S).
         return torch.transpose(
@@ -235,14 +242,14 @@ class GaussianPosteriorFullCorrelation(AbstractPosterior):
         )
 
     def mean(self) -> torch.Tensor:
-        return torch.tensor(self.gaussian.mean, device=self.torch_device)
+        return torch.Tensor(self.bias, device=cfg.torch_cfg.device)
 
     def log_likelihood(self, x: torch.Tensor) -> float:
-        return self.gaussian.logpdf(x)
+        raise ValueError("Not implemented for Full posterior (due to numerical instability with singular covariances)")
 
     def save(self, target_path: Path):
         np.savez(
             str(target_path),
-            mean=self.gaussian.mean,
-            cov=self.gaussian.cov
+            bias=self.bias,
+            linear=self.linear
         )
