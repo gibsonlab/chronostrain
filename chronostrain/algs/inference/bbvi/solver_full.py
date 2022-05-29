@@ -223,9 +223,17 @@ class GaussianPosteriorFullCorrelation(AbstractPosterior):
         self.num_times = num_times
         self.torch_device = torch_device
 
-        self.bias = bias
+        self.bias = torch.tensor(bias, device=cfg.torch_cfg.device)
         w, v = scipy.linalg.eigh(cov)
-        self.linear = np.transpose(v * np.expand_dims(np.sqrt(w), axis=0))
+
+        neg_locs = np.where(w < 0)[0]
+        nonneg_locs = np.where(w >= 0)[0]
+        if len(neg_locs) > 0:
+            print("Found negative eigenvalues: {}".format(w[neg_locs]))
+            w = w[nonneg_locs]
+            v = v[:, nonneg_locs]
+
+        self.linear = torch.tensor(v * np.expand_dims(np.sqrt(w), axis=0), device=cfg.torch_cfg.device)
         self.standard_normal = Normal(
             loc=torch.tensor(0.0, device=cfg.torch_cfg.device),
             scale=torch.tensor(1.0, device=cfg.torch_cfg.device)
