@@ -104,6 +104,8 @@ class AbstractBBVI(ABC):
                       optimizer: torch.optim.Optimizer) -> float:
         optimizer.zero_grad()
         elbo_value = 0.0
+
+        # Accumulate overall gradient estimator in batches.
         for elbo_chunk in self.elbo(samples):
             # Save float value for callbacks.
             elbo_value += elbo_chunk.item()
@@ -112,6 +114,6 @@ class AbstractBBVI(ABC):
             elbo_loss_chunk = -elbo_chunk
             elbo_loss_chunk.backward(retain_graph=True)
 
-        # Use the accumulated gradient to udpate.
+        # Use the accumulated gradient to update.
         optimizer.step()
         return elbo_value

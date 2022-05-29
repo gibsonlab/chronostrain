@@ -1,6 +1,5 @@
 from typing import List, Iterator, Optional, Callable, Type, Dict, Any
 
-import numpy as np
 import torch
 
 from chronostrain.database import StrainDatabase
@@ -151,9 +150,8 @@ class BBVISolver(AbstractModelSolver, AbstractBBVI):
         for t_idx in list(range(self.model.num_times())):
             log_y_t = log_softmax(x_samples, t=t_idx)
             for batch_lls in self.batches[t_idx]:
-                yield torch.sum(
-                    (1 / n_samples) * log_matmul_exp(log_y_t, batch_lls)
-                )
+                # Average of (N x R_batch) entries, we only want to divide by 1/N
+                yield batch_lls.shape[1] * torch.mean(log_matmul_exp(log_y_t, batch_lls))
 
     def advance_epoch(self):
         for t_idx in range(self.model.num_times()):
@@ -169,20 +167,6 @@ class BBVISolver(AbstractModelSolver, AbstractBBVI):
               lr_decay_factor: float = 0.25,
               lr_patience: int = 10,
               callbacks: Optional[List[Callable[[int, torch.Tensor, float], None]]] = None):
-        """Idea: To encourage exploration, optimize in two rounds: Mean and Mean+Variance."""
-        # logger.debug("Using three-round training strategy.")
-
-        def do_optimize(opt, sched):
-            self.optimize(
-                optimizer=opt,
-                lr_scheduler=sched,
-                iters=iters,
-                num_epochs=num_epochs,
-                num_samples=num_samples,
-                min_lr=min_lr,
-                callbacks=callbacks
-            )
-
         optimizer_args['params'] = self.posterior.trainable_parameters()
         optimizer = optimizer_class(**optimizer_args)
         lr_scheduler = ReduceLROnPlateauLast(
@@ -190,8 +174,16 @@ class BBVISolver(AbstractModelSolver, AbstractBBVI):
             factor=lr_decay_factor,
             patience_horizon=lr_patience,
             patience_ratio=0.5,
-            threshold=1e-2,
+            threshold=1e-4,
             threshold_mode='rel',
             mode='min'  # track (-ELBO) and decrease LR when it stops decreasing.
         )
-        do_optimize(optimizer, lr_scheduler)
+        self.optimize(
+            optimizer=optimizer,
+            lr_scheduler=lr_scheduler,
+            iters=iters,
+            num_epochs=num_epochs,
+            num_samples=num_samples,
+            min_lr=min_lr,
+            callbacks=callbacks
+        )
