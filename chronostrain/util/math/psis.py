@@ -48,7 +48,7 @@ def psis_smooth_ratios(log_raw_ratios: np.ndarray, k_min: float = 1/3) -> Tuple[
     k_est, sigma_est = fit_pareto(np.exp(tail_wts), loc=cutoff_value)
 
     # Regularization from Appendix C of paper
-    k_est = (tail_sz * k_est + 5) / (tail_sz + 10)
+    # k_est = (tail_sz * k_est + 5) / (tail_sz + 10)
 
     # Only smooth if long-tailed.
     if k_est >= k_min:

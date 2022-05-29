@@ -1,4 +1,5 @@
 from typing import List
+import numpy as np
 import torch
 
 from chronostrain import cfg, logger
@@ -9,6 +10,7 @@ from chronostrain.model.generative import GenerativeModel
 
 def initialize_seed(seed: int):
     torch.manual_seed(seed)
+    np.random.seed(seed)
 
 
 def create_model(population: Population,

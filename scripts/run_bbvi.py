@@ -226,12 +226,14 @@ def main():
             save_elbo_history=args.plot_elbo,
             save_training_history=args.draw_training_history,
             read_batch_size=args.read_batch_size,
+            temp_dir=out_dir / "temp"
         )
 
-        importance_weights = solver.log_smoothed_ratios
+        import numpy as np
+        import matplotlib.pyplot as plt
+        importance_weights = np.exp(solver.log_smoothed_weights)
         weights_path = out_dir / f'importance_weights.{args.plot_format}'
 
-        import matplotlib.pyplot as plt
         plt.hist(importance_weights, bins=50)
         plt.title("PSIS-reweighted importance weights (k_hat = {})".format(
             solver.k_hat

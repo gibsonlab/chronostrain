@@ -1,19 +1,25 @@
-from typing import List, Optional, Callable, Type, Dict, Any
+from pathlib import Path
+from typing import List, Optional, Callable, Type, Dict, Any, Tuple
 
-import scipy.special
+import numba
+from numba import njit, prange
+
+import numpy as np
+import scipy
+import scipy.special, scipy.stats
 import torch
 
 from chronostrain.database import StrainDatabase
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
 
-from chronostrain.config import create_logger
+from chronostrain.config import create_logger, cfg
 from chronostrain.util.math.psis import psis_smooth_ratios
 
 from .. import AbstractModelSolver
 from .util import log_softmax, log_matmul_exp
 from .solver import BBVISolver
-from ..vi import GaussianPosteriorFullCorrelation
+from ..vi import AbstractPosterior
 
 logger = create_logger(__name__)
 
@@ -36,7 +42,7 @@ class BBVISolverFullPosterior(AbstractModelSolver):
             correlation_type=partial_correlation_type
         )
         self.posterior: GaussianPosteriorFullCorrelation = None
-        self.log_smoothed_ratios: torch.Tensor = None
+        self.log_smoothed_weights: torch.Tensor = None
         self.k_hat: float = float('inf')
 
     def prior_ll(self, x_samples: torch.Tensor) -> torch.Tensor:
@@ -54,10 +60,12 @@ class BBVISolverFullPosterior(AbstractModelSolver):
     def solve(self,
               optimizer_class: Type[torch.optim.Optimizer],
               optimizer_args: Dict[str, Any],
+              temp_dir: Path,
               num_epochs: int = 1,
               iters: int = 4000,
               num_bbvi_samples: int = 500,
               num_importance_samples: int = 5000,
+              batch_size: int = 1000,
               min_lr: float = 1e-4,
               lr_decay_factor: float = 0.25,
               lr_patience: int = 10,
@@ -65,6 +73,7 @@ class BBVISolverFullPosterior(AbstractModelSolver):
         """
         :param optimizer_class:
         :param optimizer_args:
+        :param temp_dir: A directory to save temporary files to (for batch sampling).
         :param num_epochs:
         :param iters:
         :param num_bbvi_samples:
@@ -75,7 +84,6 @@ class BBVISolverFullPosterior(AbstractModelSolver):
         :param callbacks:
         :return:
         """
-
         """First, solve using the mean-field factorized posteriors."""
         self.partial_solver.solve(
             optimizer_class, optimizer_args,
@@ -87,19 +95,20 @@ class BBVISolverFullPosterior(AbstractModelSolver):
         """Next, estimate the true posterior covariance."""
         logger.debug("Performing importance-weighted estimation of parameters from learned posterior.")
 
-        # (T x N x S)
-        x_samples = self.partial_solver.posterior.reparametrized_sample(num_samples=num_importance_samples).detach()
-
-        # length N
-        approx_posterior_ll = self.partial_solver.posterior.reparametrized_sample_log_likelihoods(x_samples).detach()
-        forward_ll = self.prior_ll(x_samples).detach() + self.data_ll(x_samples).detach()
+        temp_dir.mkdir(exist_ok=True, parents=True)
+        log_importance_weights = []
+        num_batches = int(np.ceil(num_importance_samples / batch_size))
+        for batch_idx in range(num_batches):
+            logger.debug(f"Sampling batch {batch_idx + 1} of {num_batches}...")
+            batch_start_idx = batch_idx * batch_size
+            this_batch_sz = min(num_importance_samples - batch_start_idx, batch_size)
+            batch_weights = self.sample_batch(this_batch_sz, batch_idx, temp_dir)
+            log_importance_weights.append(batch_weights)
 
         # normalize (we don't know normalization constant of true posterior).
-        log_importance_ratios = forward_ll - approx_posterior_ll
-        log_importance_ratios = log_importance_ratios.cpu().numpy()
-        log_importance_ratios = log_importance_ratios - scipy.special.logsumexp(log_importance_ratios)
-        log_smoothed_ratios, k_hat = psis_smooth_ratios(log_importance_ratios)
-        log_smoothed_ratios = torch.tensor(log_smoothed_ratios, device=x_samples.device)
+        log_importance_weights = np.concatenate(log_importance_weights)
+        log_importance_weights = log_importance_weights - scipy.special.logsumexp(log_importance_weights)
+        log_smoothed_weights, k_hat = psis_smooth_ratios(log_importance_weights)
 
         logger.debug(f"Estimated Pareto k-hat: {k_hat}")
         if k_hat > 0.7:
@@ -107,24 +116,130 @@ class BBVISolverFullPosterior(AbstractModelSolver):
             logger.warning("Pareto k-hat estimate exceeds safe threshold (0.7). "
                            "Gradient estimates may have been unreliable in this regime.")
 
-        # Importance sampling of mean and covariance matrix.
-        total_sz = self.model.num_times() * self.model.num_strains()
-        x_samples = x_samples.transpose(0, 1).reshape(num_importance_samples, total_sz)  # N x (TS)
-
-        posterior_mean = torch.sum(
-            x_samples * torch.exp(
-                torch.unsqueeze(log_smoothed_ratios, dim=1)
-            ),
-            dim=0
-        )
-        posterior_var_scaling = x_samples * torch.unsqueeze(
-            torch.exp(0.5 * log_smoothed_ratios),
-            dim=1  # (N x 1)
-        )
+        mean, cov = self.estimate_mean_and_covar(temp_dir, num_batches, log_smoothed_weights)
         self.posterior = GaussianPosteriorFullCorrelation(
-            self.model.num_strains(), self.model.num_times(), posterior_mean, posterior_var_scaling
+            self.model.num_strains(), self.model.num_times(),
+            mean, cov,
+            torch_device=cfg.torch_cfg.device
         )
-
-        self.log_smoothed_ratios = log_smoothed_ratios
+        self.log_smoothed_weights = log_smoothed_weights
         self.k_hat = k_hat
         logger.debug("Finished computing importance-weighted mean/covariance.")
+
+    def estimate_mean_and_covar(self, batch_dir: Path, num_batches: int, log_importance_weights: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        gaussian_dim = self.model.num_times() * self.model.num_strains()
+        mean_estimate = np.zeros(shape=gaussian_dim, dtype=np.float)
+        cov_estimate = np.zeros(shape=(gaussian_dim, gaussian_dim), dtype=np.float)
+
+        batch_start_idx = 0
+        for batch_idx in range(num_batches):
+            # Load the batch
+            samples = np.load(str(self.get_batch_path(batch_dir, batch_idx)))  # (N_batch) x (TS)
+            batch_sz = samples.shape[0]
+            batch_log_weights = log_importance_weights[batch_start_idx:batch_start_idx + batch_sz]
+
+            mean_estimate += weighted_mean(samples, batch_log_weights)
+            cov_estimate += weighted_cov(samples, batch_log_weights)
+
+            # Prepare for next iteration
+            batch_start_idx += batch_sz
+        return mean_estimate, cov_estimate
+
+    @staticmethod
+    def get_batch_path(batch_dir: Path, batch_idx: int) -> Path:
+        return batch_dir / f'FULL_COVAR_samples_batch_{batch_idx}.npy'
+
+    def sample_batch(self, batch_size: int, batch_idx: int, batch_dir: Path) -> np.ndarray:
+        # (T x N x S)
+        x_samples = self.partial_solver.posterior.reparametrized_sample(num_samples=batch_size).detach()
+
+        # length N
+        approx_posterior_ll = self.partial_solver.posterior.reparametrized_sample_log_likelihoods(x_samples).detach()
+        forward_ll = self.prior_ll(x_samples).detach() + self.data_ll(x_samples).detach()
+        log_importance_ratios = forward_ll - approx_posterior_ll
+
+        np.save(
+            str(self.get_batch_path(batch_dir, batch_idx)),
+            torch.transpose(x_samples, 0, 1).reshape(batch_size, self.model.num_times() * self.model.num_strains()).cpu().numpy()
+        )
+        return log_importance_ratios.cpu().numpy()
+
+
+def weighted_mean(x: np.ndarray, log_w: np.ndarray) -> np.ndarray:
+    """
+    :param x: (N x D) 2-dimensional array.
+    :param log_w: length-N array of log-weights.
+    :return:
+    """
+    return np.sum(x * np.expand_dims(np.exp(log_w), axis=1), axis=0)
+
+
+@njit(parallel=True)
+def weighted_cov(x: np.ndarray, log_w: np.ndarray) -> np.ndarray:
+    """
+    :param x: (N x D) 2-dimensional array.
+    :param log_w: length-N array of log-weights.
+    :return:
+    """
+    # Compute the column-wise mean
+    x_mean = []
+    for c in prange(x.shape[1]):
+        x_mean.append(x[:, c].mean())
+    x_mean = np.array(x_mean)
+
+    estimate = np.zeros((x.shape[1], x.shape[1]), dtype=numba.float64)
+    for n in prange(x.shape[0]):
+        deviation = x[n, :] - x_mean  # n-th sample deviation X_n - X_mean
+        estimate += np.exp(log_w[n]) * np.outer(deviation, deviation)
+    return estimate
+
+
+class GaussianPosteriorFullCorrelation(AbstractPosterior):
+    """
+    A basic implementation, which specifies a bias vector `b` and linear transformation `A`.
+    Samples using the reparametrization x = Az + b, where z is a vector of standard Gaussians, so that x has covariance
+    (A.T)(A) and mean b.
+    """
+
+    def __init__(self, num_strains: int, num_times: int, bias: np.ndarray, cov: np.ndarray, torch_device):
+        if len(bias) != num_strains * num_times:
+            raise ValueError(
+                "Expected `mean` argument to be of length {} ({} strains x {} timepoints), but got {}.".format(
+                    num_strains * num_times,
+                    num_strains,
+                    num_times,
+                    len(bias)
+                )
+            )
+        self.num_strains = num_strains
+        self.num_times = num_times
+        self.torch_device = torch_device
+
+        # Often times, these matrices will be close to singular (variance shrinks as we obtain more samples).
+        self.gaussian = scipy.stats.multivariate_normal(
+            mean=bias,
+            cov=cov,
+            allow_singular=True
+        )
+
+    def sample(self, num_samples: int = 1) -> torch.Tensor:
+        samples = torch.tensor(self.gaussian.rvs(size=num_samples))  # N x TS
+
+        # Re-shape N x (TS) into (T x N x S).
+        return torch.transpose(
+            samples.reshape(num_samples, self.num_times, self.num_strains),
+            0, 1
+        )
+
+    def mean(self) -> torch.Tensor:
+        return torch.tensor(self.gaussian.mean, device=self.torch_device)
+
+    def log_likelihood(self, x: torch.Tensor) -> float:
+        return self.gaussian.logpdf(x)
+
+    def save(self, target_path: Path):
+        np.savez(
+            str(target_path),
+            mean=self.gaussian.mean,
+            cov=self.gaussian.cov
+        )

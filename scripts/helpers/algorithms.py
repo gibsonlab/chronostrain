@@ -102,6 +102,7 @@ def perform_bbvi_full_correlation(
         learning_rate: float,
         num_samples: int,
         num_importance_samples: int,
+        temp_dir: Path,
         min_lr: float = 1e-4,
         read_batch_size: int = 5000,
         partial_correlation_type: str = "strain",
@@ -153,7 +154,8 @@ def perform_bbvi_full_correlation(
         min_lr=min_lr,
         lr_decay_factor=lr_decay_factor,
         lr_patience=lr_patience,
-        callbacks=callbacks
+        callbacks=callbacks,
+        temp_dir=temp_dir
     )
     end_time = time.time()
     logger.debug("Finished inference in {} sec.".format(
