@@ -113,9 +113,9 @@ class BBVISolverFullPosterior(AbstractModelSolver):
 
         logger.debug(f"Estimated Pareto k-hat: {k_hat}")
         if k_hat > 0.7:
-            # Extremely large number of MCMC samples are needed for stable gradient estimates!
+            # Extremely large number of samples are needed for stable gradient estimates!
             logger.warning("Pareto k-hat estimate exceeds safe threshold (0.7). "
-                           "Gradient estimates may have been unreliable in this regime.")
+                           "Estimates may be unreliable in this regime.")
 
         logger.debug("Computing importance-weighted mean and covariances.")
         mean, cov = self.estimate_mean_and_covar(temp_dir, num_batches, log_smoothed_weights)
@@ -193,6 +193,8 @@ def weighted_cov(x: np.ndarray, log_w: np.ndarray) -> np.ndarray:
     for n in range(x.shape[0]):
         deviation = x[n, :] - x_mean  # n-th sample deviation X_n - X_mean
         weight = math.exp(log_w[n])
+        if weight < 0:
+            print("Found negative weight: ", weight)
         for i in range(estimate.shape[0]):
             for j in range(estimate.shape[1]):
                 estimate[i, j] += weight * deviation[i] * deviation[j]
