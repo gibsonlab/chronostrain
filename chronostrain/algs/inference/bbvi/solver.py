@@ -14,7 +14,8 @@ from chronostrain.util.sparse.sliceable import ColumnSectionedSparseMatrix
 from .. import AbstractModelSolver
 from .base import AbstractBBVI
 from .posteriors import *
-from .util import log_softmax
+from .util import log_softmax, log_matmul_exp
+from ...subroutines.likelihoods import DataLikelihoods
 
 logger = create_logger(__name__)
 
@@ -24,14 +25,6 @@ def divide_columns_into_batches(x: torch.Tensor, batch_size: int):
     for i in range(0, x.shape[1], batch_size):
         indices = permutation[i:i+batch_size]
         yield x[:, indices]
-
-
-def log_matmul_exp(x_samples: torch.Tensor, read_lls_batch: torch.Tensor) -> torch.Tensor:
-    return torch.logsumexp(
-        x_samples.unsqueeze(2) + read_lls_batch.unsqueeze(0),  # (N x S) @ (S x R_batch)
-        dim=1,
-        keepdim=False
-    )
 
 
 class BBVISolver(AbstractModelSolver, AbstractBBVI):
@@ -46,14 +39,16 @@ class BBVISolver(AbstractModelSolver, AbstractBBVI):
                  db: StrainDatabase,
                  read_batch_size: int = 5000,
                  num_cores: int = 1,
-                 correlation_type: str = "time"):
+                 correlation_type: str = "time",
+                 precomputed_data_likelihoods: Optional[DataLikelihoods] = None):
         logger.info("Initializing V1 solver (Marginalized posterior X)")
         AbstractModelSolver.__init__(
             self,
             model,
             data,
             db,
-            num_cores=num_cores
+            num_cores=num_cores,
+            precomputed_data_likelihoods=precomputed_data_likelihoods
         )
 
         self.read_batch_size = read_batch_size
@@ -69,6 +64,7 @@ class BBVISolver(AbstractModelSolver, AbstractBBVI):
                 num_times=model.num_times()
             )
         elif correlation_type == "full":
+            logger.warning("Full correlation posterior for this solver may result in biased/unstable estimates.")
             posterior = GaussianPosteriorFullCorrelation(
                 num_strains=model.num_strains(),
                 num_times=model.num_times()
@@ -145,24 +141,23 @@ class BBVISolver(AbstractModelSolver, AbstractBBVI):
         """
         n_samples = x_samples.size()[1]
 
+        # ======== H(Q) = E_Q[-log Q(X)]
+        entropic = self.posterior.entropy()
+
+        # ======== E[log P(X)]
+        model_gaussian_log_likelihoods = self.model.log_likelihood_x(X=x_samples)
+        model_ll = torch.mean(model_gaussian_log_likelihoods)
+        yield entropic + model_ll
+
         # ======== E[log P(R|X)] = E[log Σ_S P(R|S)P(S|X)]
         time_opt_ordering = np.random.permutation(list(range(self.model.num_times())))
         for t_idx in time_opt_ordering:
-            log_y_t = log_softmax(x_samples, t=t_idx)  # (Softmax vs Radial)
-
+            log_y_t = log_softmax(x_samples, t=t_idx)
             for batch_lls in self.batches[t_idx]:
-                batch_ratio = batch_lls.shape[1] / self.total_reads
-
-                # # ======== H(Q) = E_Q[-log Q(X)]
-                entropic = batch_ratio * self.posterior.entropy()
-
-                # ======== E[log P(X)]
-                model_gaussian_log_likelihoods = self.model.log_likelihood_x(X=x_samples)
-                model_ll = batch_ratio * torch.mean(model_gaussian_log_likelihoods)
-
+                # batch_ratio = batch_lls.shape[1] / self.total_reads
                 yield torch.sum(
                     (1 / n_samples) * log_matmul_exp(log_y_t, batch_lls)
-                ) + model_ll + entropic
+                )
 
     def advance_epoch(self):
         for t_idx in range(self.model.num_times()):

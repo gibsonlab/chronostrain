@@ -1,7 +1,11 @@
 from typing import List
 
+import numpy as np
+import scipy.stats
 import torch
 import torch_scatter
+
+from chronostrain.util.math import fit_pareto
 from chronostrain.util.sparse import SparseMatrix, RowSectionedSparseMatrix
 from chronostrain.util.sparse.sliceable import BBVIOptimizedSparseMatrix
 
@@ -20,6 +24,14 @@ def log_spherical(x_samples: torch.Tensor, t: int, eps=1e-30) -> torch.Tensor:
 def log_taylor(x_samples: torch.Tensor, t: int) -> torch.Tensor:
     exp_taylor = 1 + x_samples[t] + 0.5 * torch.pow(x_samples[t], 2)
     return torch.log(exp_taylor) - torch.log(exp_taylor.sum(dim=-1, keepdim=True))
+
+
+def log_matmul_exp(x_samples: torch.Tensor, read_lls_batch: torch.Tensor) -> torch.Tensor:
+    return torch.logsumexp(
+        x_samples.unsqueeze(2) + read_lls_batch.unsqueeze(0),  # (N x S) @ (S x R_batch)
+        dim=1,
+        keepdim=False
+    )
 
 
 class LogMMExpModel(torch.nn.Module):
@@ -121,6 +133,51 @@ class LogMMExpDenseSPModel_Async(torch.nn.Module):
             reduce='sum'
         )
         return maximums + sumexp_offset.log()
+
+
+def psis_smooth_ratios(raw_ratios: torch.Tensor) -> torch.Tensor:
+    """
+    Based on citation:
+    2019 Vehtari, Simpson, Gelman, Yao, Gabry. 'Pareto Smoothed Importance Sampling'
+
+    :param raw_ratios:
+    :return:
+    """
+    sorted_ = torch.sort(raw_ratios)
+    wts, src_indices = sorted_.values, sorted_.indices
+    max_raw_wt = wts[-1]
+
+    S = len(raw_ratios)
+    if S > 225:
+        M = int(3 * np.sqrt(S))
+    else:
+        M = S // 5
+
+    # Estimate Pareto distribution parameters.
+    cut_point = wts[M - 2]
+    k_est, sigma_est = fit_pareto(wts[-M:])
+
+    # Regularization from appendix C
+    k_est = (M * k_est + 5) / (M + 10)
+
+    # Fill in the values.
+    z = np.arange(1., float(M) + 1)
+    pareto_icdf = scipy.stats.genpareto.ppf(
+        (z - 0.5) / M,
+        c=k_est,
+        loc=cut_point,
+        scale=sigma_est
+    )
+
+    wts[(M-1):] = torch.min(
+        torch.tensor(pareto_icdf, device=wts.device),
+        max_raw_wt
+    )
+
+    # Now, un-sort in the original order.
+    reordered_smoothed_ratios = torch.empty(size=wts.size(), dtype=wts.dtype, device=wts.device)
+    reordered_smoothed_ratios[src_indices] = wts
+    return reordered_smoothed_ratios
 
 
 if __name__ == "__main__":
