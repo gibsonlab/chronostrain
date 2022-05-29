@@ -261,8 +261,10 @@ class GaussianPosteriorFullCorrelation(AbstractPosterior):
         raise ValueError("Not implemented for Full posterior (due to numerical instability with singular covariances)")
 
     def save(self, target_path: Path):
-        np.savez(
-            str(target_path),
-            bias=self.bias,
-            linear=self.linear
+        torch.save(
+            {
+                'bias': self.bias,
+                'linear': self.linear
+            },
+            target_path
         )
