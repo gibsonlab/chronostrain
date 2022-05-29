@@ -3,7 +3,7 @@ from typing import List, Optional, Callable, Type, Dict, Any, Tuple
 
 import math
 import numba
-from numba import njit, prange
+from numba import njit
 
 import numpy as np
 import scipy
@@ -229,7 +229,7 @@ class GaussianPosteriorFullCorrelation(AbstractPosterior):
         neg_locs = np.where(eigvals < 0)[0]
         nonneg_locs = np.where(eigvals >= 0)[0]
         if len(neg_locs) > 0:
-            print("Found negative eigenvalues: {}".format(w[neg_locs]))
+            print("Found negative eigenvalues: {}".format(eigvals[neg_locs]))
             eigvals = eigvals[nonneg_locs]
             eigvecs = eigvecs[:, nonneg_locs]
 
