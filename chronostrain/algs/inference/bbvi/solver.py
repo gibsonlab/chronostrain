@@ -64,7 +64,6 @@ class BBVISolver(AbstractModelSolver, AbstractBBVI):
                 num_times=model.num_times()
             )
         elif correlation_type == "full":
-            logger.warning("Full correlation posterior for this solver may result in biased/unstable estimates.")
             posterior = GaussianPosteriorFullCorrelation(
                 num_strains=model.num_strains(),
                 num_times=model.num_times()
@@ -142,19 +141,16 @@ class BBVISolver(AbstractModelSolver, AbstractBBVI):
         n_samples = x_samples.size()[1]
 
         # ======== H(Q) = E_Q[-log Q(X)]
-        entropic = self.posterior.entropy()
+        yield self.posterior.entropy()
 
         # ======== E[log P(X)]
         model_gaussian_log_likelihoods = self.model.log_likelihood_x(X=x_samples)
-        model_ll = torch.mean(model_gaussian_log_likelihoods)
-        yield entropic + model_ll
+        yield torch.mean(model_gaussian_log_likelihoods)
 
         # ======== E[log P(R|X)] = E[log Σ_S P(R|S)P(S|X)]
-        time_opt_ordering = np.random.permutation(list(range(self.model.num_times())))
-        for t_idx in time_opt_ordering:
+        for t_idx in list(range(self.model.num_times())):
             log_y_t = log_softmax(x_samples, t=t_idx)
             for batch_lls in self.batches[t_idx]:
-                # batch_ratio = batch_lls.shape[1] / self.total_reads
                 yield torch.sum(
                     (1 / n_samples) * log_matmul_exp(log_y_t, batch_lls)
                 )
@@ -187,38 +183,6 @@ class BBVISolver(AbstractModelSolver, AbstractBBVI):
                 callbacks=callbacks
             )
 
-        # # Round 1: mean only
-        # logger.debug("Training round #1 of 3.")
-        # optimizer_args['params'] = self.posterior.trainable_mean_parameters()
-        # optimizer = optimizer_class(**optimizer_args)
-        # lr_scheduler = ReduceLROnPlateauLast(
-        #     optimizer,
-        #     factor=lr_decay_factor,
-        #     patience_horizon=lr_patience,
-        #     patience_ratio=0.5,
-        #     threshold=1e-4,
-        #     threshold_mode='rel',
-        #     mode='min'  # track (-ELBO) and decrease LR when it stops decreasing.
-        # )
-        # do_optimize(optimizer, lr_scheduler)
-        #
-        # # # Round 2: variance only
-        # logger.debug("Training round #2 of 3.")
-        # optimizer_args['params'] = self.posterior.trainable_variance_parameters()
-        # optimizer = optimizer_class(**optimizer_args)
-        # lr_scheduler = ReduceLROnPlateauLast(
-        #     optimizer,
-        #     factor=lr_decay_factor,
-        #     patience_horizon=lr_patience,
-        #     patience_ratio=0.5,
-        #     threshold=1e-2,
-        #     threshold_mode='rel',
-        #     mode='min'  # track (-ELBO) and decrease LR when it stops decreasing.
-        # )
-        # do_optimize(optimizer, lr_scheduler)
-
-        # Round 3: all parameters. TODO test just "round 3" next.
-        logger.debug("Training round #3 of 3.")
         optimizer_args['params'] = self.posterior.trainable_parameters()
         optimizer = optimizer_class(**optimizer_args)
         lr_scheduler = ReduceLROnPlateauLast(

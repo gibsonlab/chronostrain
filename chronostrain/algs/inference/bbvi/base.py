@@ -103,14 +103,15 @@ class AbstractBBVI(ABC):
     def optimize_step(self, samples: torch.Tensor,
                       optimizer: torch.optim.Optimizer) -> float:
         optimizer.zero_grad()
-
         elbo_value = 0.0
         for elbo_chunk in self.elbo(samples):
             # Save float value for callbacks.
             elbo_value += elbo_chunk.item()
 
-            # Maximize ELBO by minimizing (-ELBO).
+            # Gradient accumulation: Maximize ELBO by minimizing (-ELBO) over this chunk.
             elbo_loss_chunk = -elbo_chunk
             elbo_loss_chunk.backward(retain_graph=True)
+
+        # Use the accumulated gradient to udpate.
         optimizer.step()
         return elbo_value
