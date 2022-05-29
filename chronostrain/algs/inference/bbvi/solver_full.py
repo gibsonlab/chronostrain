@@ -224,24 +224,29 @@ class GaussianPosteriorFullCorrelation(AbstractPosterior):
         self.torch_device = torch_device
 
         self.bias = torch.tensor(bias, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype)
-        w, v = scipy.linalg.eigh(cov)
+        eigvals, eigvecs = scipy.linalg.eigh(cov)
 
-        neg_locs = np.where(w < 0)[0]
-        nonneg_locs = np.where(w >= 0)[0]
+        neg_locs = np.where(eigvals < 0)[0]
+        nonneg_locs = np.where(eigvals >= 0)[0]
         if len(neg_locs) > 0:
             print("Found negative eigenvalues: {}".format(w[neg_locs]))
-            w = w[nonneg_locs]
-            v = v[:, nonneg_locs]
+            eigvals = eigvals[nonneg_locs]
+            eigvecs = eigvecs[:, nonneg_locs]
 
-        self.linear = torch.tensor(v * np.expand_dims(np.sqrt(w), axis=0), device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype)
+        self.rank = len(eigvals)
+        self.linear = torch.tensor(
+            eigvecs * np.expand_dims(np.sqrt(eigvals), axis=0),
+            device=cfg.torch_cfg.device,
+            dtype=cfg.torch_cfg.default_dtype
+        )  # (TS x k)
         self.standard_normal = Normal(
             loc=torch.tensor(0.0, device=cfg.torch_cfg.device),
             scale=torch.tensor(1.0, device=cfg.torch_cfg.device)
         )
 
     def sample(self, num_samples: int = 1) -> torch.Tensor:
-        samples = self.standard_normal.sample(sample_shape=(num_samples, self.num_times * self.num_strains))  # N x TS
-        samples = samples @ self.linear + self.bias
+        samples = self.standard_normal.sample(sample_shape=(num_samples, self.rank))  # N x k
+        samples = samples @ torch.transpose(self.linear, 0, 1) + self.bias  # (N x k) @ (k x TS) + (TS)
 
         # Re-shape N x (TS) into (T x N x S).
         return torch.transpose(
