@@ -191,7 +191,10 @@ def weighted_cov(x: np.ndarray, log_w: np.ndarray) -> np.ndarray:
     estimate = np.zeros((x.shape[1], x.shape[1]), dtype=numba.float64)
     for n in range(x.shape[0]):
         deviation = x[n, :] - x_mean  # n-th sample deviation X_n - X_mean
-        estimate += np.exp(log_w[n]) * np.outer(deviation, deviation)
+        weight = np.exp(log_w[n])
+        for i in range(estimate.shape[0]):
+            for j in range(estimate.shape[1]):
+                estimate[i, j] += weight * deviation[i] * deviation[j]
     return estimate
 
 
@@ -217,11 +220,7 @@ class GaussianPosteriorFullCorrelation(AbstractPosterior):
         self.torch_device = torch_device
 
         # Often times, these matrices will be close to singular (variance shrinks as we obtain more samples).
-        self.gaussian = scipy.stats.multivariate_normal(
-            mean=bias,
-            cov=cov,
-            allow_singular=True
-        )
+        self.gaussian = scipy.stats.multivariate_normal(mean=bias, cov=cov, allow_singular=True)
 
     def sample(self, num_samples: int = 1) -> torch.Tensor:
         samples = torch.tensor(self.gaussian.rvs(size=num_samples))  # N x TS
