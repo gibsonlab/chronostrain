@@ -32,10 +32,7 @@ def psis_smooth_ratios(log_raw_ratios: np.ndarray, k_min: float = 1/3) -> Tuple[
     cutoff_idx = -int(np.ceil(min(0.2 * n, 3 * np.sqrt(n)))) - 1
 
     # divide log weights into body and right tail
-    log_cutoff_value = max(
-        wts[sort_idxs[cutoff_idx]],
-        np.log(np.finfo(float).tiny)  # smallest possible value
-    )
+    log_cutoff_value = wts[sort_idxs[cutoff_idx]]
     cutoff_value = np.exp(log_cutoff_value)
 
     tailinds, = np.where(wts > log_cutoff_value)
