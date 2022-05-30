@@ -194,8 +194,6 @@ def weighted_cov(x: np.ndarray, log_w: np.ndarray, eps: float) -> np.ndarray:
     for n in range(x.shape[0]):
         deviation = x[n, :] - x_mean  # n-th sample deviation X_n - X_mean
         weight = math.exp(log_w[n])
-        if weight < 0:
-            print("Found negative weight: ", weight)
         for i in range(estimate.shape[0]):
             for j in range(estimate.shape[1]):
                 estimate[i, j] += weight * deviation[i] * deviation[j]
@@ -229,7 +227,9 @@ class GaussianPosteriorFullCorrelation(AbstractPosterior):
         neg_locs = np.where(eigvals < 0)[0]
         nonneg_locs = np.where(eigvals >= 0)[0]
         if len(neg_locs) > 0:
-            print("Found negative eigenvalues: {}".format(eigvals[neg_locs]))
+            logger.debug("Negative eigenvalues: {} out of {}".format(
+                len(neg_locs), len(eigvals)
+            ))
             eigvals = eigvals[nonneg_locs]
             eigvecs = eigvecs[:, nonneg_locs]
 
