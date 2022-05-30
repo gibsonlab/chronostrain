@@ -47,4 +47,5 @@ python $PROJECT_DIR/scripts/run_bbvi.py \
 --plot_format "pdf" \
 --plot_elbo
 
+echo "[*] Cleaning up."
 rm -rf ${output_dir}/temp
