@@ -2,7 +2,6 @@ import itertools
 from pathlib import Path
 from typing import List, Iterator, Tuple
 import argparse
-import pickle
 
 import csv
 import numpy as np
@@ -105,17 +104,9 @@ def strip_suffixes(strain_id_string: str):
 def parse_chronostrain_estimate(db: StrainDatabase,
                                 ground_truth: pd.DataFrame,
                                 strain_ids: List[str],
-                                output_dir: Path,
-                                second_pass: bool) -> torch.Tensor:
-    if not second_pass:
-        samples = torch.load(output_dir / 'samples.pt')
-        db_strains = [s.id for s in db.all_strains()]
-    else:
-        samples = torch.load(output_dir / 'samples.pass2.pt')
-        db_strains = []
-        with open(output_dir / 'strains.pass2.txt', 'r') as strain_file:
-            for line in strain_file:
-                db_strains.append(line.strip())
+                                output_dir: Path) -> torch.Tensor:
+    samples = torch.load(output_dir / 'samples.pt')
+    db_strains = [s.id for s in db.all_strains()]
 
     time_points = sorted(pd.unique(ground_truth['T']))
     if samples.shape[0] != len(time_points):
@@ -372,18 +363,25 @@ def main():
     chronostrain_db = cfg.database_cfg.get_database()
     out_dir.mkdir(exist_ok=True, parents=True)
 
-    dists_path = out_dir / 'strain_distances.pkl'
-    try:
-        with open(dists_path, 'rb') as f:
-            strain_ids = pickle.load(f)
-            distances = torch.tensor(pickle.load(f), device=device)
-    except BaseException:
-        logger.info("Parsing hamming distances.")
-        strain_ids, distances = parse_hamming(Path(args.alignment_file), index_df)
-        distances = torch.tensor(distances, device=device)
-        with open(dists_path, 'wb') as f:
-            pickle.dump(strain_ids, f)
-            pickle.dump(distances, f)
+    strain_ids = list(pd.unique(
+        index_df.loc[
+            index_df['Species'] == 'coli',
+            'Accession'
+        ]
+    ))
+
+    # dists_path = out_dir / 'strain_distances.pkl'
+    # try:
+    #     with open(dists_path, 'rb') as f:
+    #         strain_ids = pickle.load(f)
+    #         distances = torch.tensor(pickle.load(f), device=device)
+    # except BaseException:
+    #     logger.info("Parsing hamming distances.")
+    #     strain_ids, distances = parse_hamming(Path(args.alignment_file), index_df)
+    #     distances = torch.tensor(distances, device=device)
+    #     with open(dists_path, 'wb') as f:
+    #         pickle.dump(strain_ids, f)
+    #         pickle.dump(distances, f)
 
     # search through all of the read depths.
     df_entries = []
@@ -397,8 +395,7 @@ def main():
             # =========== Chronostrain
             try:
                 chronostrain_estimate_samples = parse_chronostrain_estimate(chronostrain_db, ground_truth, strain_ids,
-                                                                            trial_dir / 'output' / 'chronostrain',
-                                                                            second_pass=False)
+                                                                            trial_dir / 'output' / 'chronostrain')
                 # errors = wasserstein_error(
                 #     chronostrain_estimate_samples[:, :30, :],
                 #     ground_truth, distances, strain_ids
@@ -416,23 +413,22 @@ def main():
             except FileNotFoundError:
                 logger.info("Skipping Chronostrain output.")
 
-            # =========== Chronostrain (Second pass)
+            # =========== Chronostrain (Full Correlation)
             try:
                 chronostrain_estimate_samples = parse_chronostrain_estimate(chronostrain_db, ground_truth,
                                                                             strain_ids,
-                                                                            trial_dir / 'output' / 'chronostrain',
-                                                                            second_pass=True)
+                                                                            trial_dir / 'output' / 'chronostrain_full')
                 error = error_metric(chronostrain_estimate_samples, truth_tensor).item()
-                logger.info("Chronostrain (2nd pass) error of median: {}".format(error))
+                logger.info("Chronostrain (Full Correlation) error of median: {}".format(error))
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
-                    'Method': 'Chronostrain (2nd pass)',
+                    'Method': 'Chronostrain (Full Corr.)',
                     'Error': error
                 })
                 # plot_result(plot_dir / 'chronostrain.pass2.pdf', ground_truth, chronostrain_estimate_samples, strain_ids)
             except FileNotFoundError:
-                logger.info("Skipping Chronostrain (2nd pass) output.")
+                logger.info("Skipping Chronostrain (Full Corr.) output.")
 
             # =========== StrainEst
             try:
