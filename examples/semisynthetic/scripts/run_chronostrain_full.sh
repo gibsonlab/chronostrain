@@ -46,3 +46,5 @@ python $PROJECT_DIR/scripts/run_bbvi.py \
 --full_corr_importance_batch_size 500 \
 --plot_format "pdf" \
 --plot_elbo
+
+rm -rf ${output_dir}/temp
