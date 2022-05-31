@@ -116,7 +116,7 @@ class BBVISolverFullPosterior(AbstractModelSolver):
         if k_hat > 0.7:
             # Extremely large number of samples are needed for stable gradient estimates!
             logger.warning("Pareto k-hat estimate exceeds safe threshold (0.7). "
-                           "Estimates may be unreliable in this regime.")
+                           "Estimates may be biased/overfit to the data.")
 
         logger.debug("Computing importance-weighted mean and covariances.")
         mean, cov = self.estimate_mean_and_covar(temp_dir, num_batches, log_smoothed_weights)
