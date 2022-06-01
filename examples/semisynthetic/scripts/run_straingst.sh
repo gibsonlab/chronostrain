@@ -42,11 +42,14 @@ trial_dir=$(get_trial_dir $n_reads $trial)
 read_dir=${trial_dir}/reads
 output_dir=${trial_dir}/output/straingst
 
-echo "[*] Running inference for n_reads: ${n_reads}, trial: ${trial}, timepoint #${time_point}"
-
 mkdir -p ${output_dir}
-read_kmers=${output_dir}/reads.hdf5
 
+
+echo "[*] Running inference for n_reads: ${n_reads}, trial: ${trial}, timepoint #${time_point}"
+start_time=$(date +%s%N)  # nanoseconds
+
+
+read_kmers=${output_dir}/reads.hdf5
 reads_1="${read_dir}/${time_point}_reads_1.fq.gz"
 reads_2="${read_dir}/${time_point}_reads_2.fq.gz"
 
@@ -59,6 +62,13 @@ straingst run \
 -o ${output_dir}/${mode}/output_mash_${time_point}.tsv \
 ${straingst_db} \
 ${read_kmers}
+
+# ====== Record runtime
+end_time=$(date +%s%N)
+elapsed_time=$(( $(($end_time-$start_time)) / 1000000 ))
+runtime_file=${trial_dir}/straingst_runtime.txt
+echo "${elapsed_time}" > $runtime_file
+
 
 echo "[*] Cleaning up."
 rm ${read_kmers}

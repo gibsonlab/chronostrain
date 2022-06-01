@@ -43,6 +43,8 @@ done
 
 
 echo "[*] Running 'GT_Pro genotype'..."
+start_time=$(date +%s%N)  # nanoseconds
+
 GT_Pro genotype -f \
 -d ${GT_PRO_DB_DIR}/${GT_PRO_DB_NAME}/${GT_PRO_DB_NAME} \
 -t ${N_CORES} \
@@ -58,6 +60,12 @@ for t_idx in 0 1 2 3 4; do
 	GT_Pro parse --dict ${GT_PRO_DB_DIR}/${GT_PRO_DB_NAME}/${GT_PRO_DB_NAME}.snp_dict.noheader.tsv --in $metagenotype \
 	| awk -v t="${t_idx}" '{if (NR!=1) {print t "\t" $0;}}' >> $metagenotype_all
 done
+
+# ====== Record runtime
+end_time=$(date +%s%N)
+elapsed_time=$(( $(($end_time-$start_time)) / 1000000 ))
+runtime_file=${trial_dir}/gtpro_runtime.txt
+echo "${elapsed_time}" > $runtime_file
 
 echo "[*] Cleaning up..."
 rm *.fq

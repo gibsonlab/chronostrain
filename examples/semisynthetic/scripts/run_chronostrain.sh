@@ -26,9 +26,11 @@ log_dir=${trial_dir}/logs
 
 mkdir -p $log_dir
 export CHRONOSTRAIN_CACHE_DIR="${trial_dir}/cache"
-
 export CHRONOSTRAIN_LOG_FILEPATH="${log_dir}/chronostrain.log"
+
 echo "[*] Running Chronostrain inference for n_reads: ${n_reads}, trial: ${trial}"
+start_time=$(date +%s%N)  # nanoseconds
+
 python $PROJECT_DIR/scripts/run_bbvi.py \
 --reads_input "${read_dir}/filtered/filtered_input_files.csv" \
 --out_dir ${output_dir} \
@@ -44,3 +46,10 @@ python $PROJECT_DIR/scripts/run_bbvi.py \
 --read_batch_size $CHRONOSTRAIN_READ_BATCH_SZ \
 --plot_format "pdf" \
 --plot_elbo
+
+
+# ====== Record runtime
+end_time=$(date +%s%N)
+elapsed_time=$(( $(($end_time-$start_time)) / 1000000 ))
+runtime_file=${trial_dir}/chronostrain_runtime.txt
+echo "${elapsed_time}" > $runtime_file

@@ -29,9 +29,17 @@ export CHRONOSTRAIN_LOG_FILEPATH="${log_dir}/filter.log"
 export CHRONOSTRAIN_CACHE_DIR="${trial_dir}/cache"
 
 echo "[*] Filtering reads for n_reads: ${n_reads}, trial: ${trial}"
+start_time=$(date +%s%N)  # nanoseconds
+
 python $PROJECT_DIR/scripts/filter_timeseries.py \
 --reads_input "${read_dir}/input_files.csv" \
 -o "${read_dir}/filtered/" \
 --frac_identity_threshold 0.975 \
 --error_threshold 1.0 \
 --num_threads 4
+
+# ====== Record runtime
+end_time=$(date +%s%N)
+elapsed_time=$(( $(($end_time-$start_time)) / 1000000 ))
+runtime_file=${trial_dir}/chronostrain_filter_runtime.txt
+echo "${elapsed_time}" > $runtime_file

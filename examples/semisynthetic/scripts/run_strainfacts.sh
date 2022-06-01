@@ -21,11 +21,12 @@ trial_dir=$(get_trial_dir $n_reads $trial)
 read_dir=${trial_dir}/reads
 output_dir=${trial_dir}/output/strainfacts
 
-echo "[*] Running StrainFacts inference for n_reads: ${n_reads}, trial: ${trial}"
-
 mkdir -p ${output_dir}
 cd ${output_dir}
 
+
+echo "[*] Running StrainFacts inference for n_reads: ${n_reads}, trial: ${trial}"
+start_time=$(date +%s%N)  # nanoseconds
 
 mg_prefix="mg_all"
 metagenotype_all="${mg_prefix}.tsv"
@@ -54,3 +55,9 @@ sfacts fit \
 ${mg_prefix}.mgen.nc ${mg_prefix}.world.nc
 
 sfacts dump ${mg_prefix}.world.nc --genotype result_genotypes.tsv --community result_community.tsv
+
+# ====== Record runtime
+end_time=$(date +%s%N)
+elapsed_time=$(( $(($end_time-$start_time)) / 1000000 ))
+runtime_file=${trial_dir}/strainfacts_runtime.txt
+echo "${elapsed_time}" > $runtime_file

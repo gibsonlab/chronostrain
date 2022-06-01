@@ -28,10 +28,12 @@ trial_dir=$(get_trial_dir $n_reads $trial)
 read_dir=${trial_dir}/reads
 output_dir=${trial_dir}/output/strainest
 
-echo "[*] Running inference for n_reads: ${n_reads}, trial: ${trial}, timepoint #${time_point}"
-
 mkdir -p ${output_dir}
 cd ${output_dir}
+
+
+echo "[*] Running inference for n_reads: ${n_reads}, trial: ${trial}, timepoint #${time_point}"
+start_time=$(date +%s%N)  # nanoseconds
 
 reads_1="${read_dir}/${time_point}_reads_1.fq.gz"
 reads_2="${read_dir}/${time_point}_reads_2.fq.gz"
@@ -64,6 +66,12 @@ ${sorted_bam_file} \
 -t 1 \
 -p 0 \
 -a 2
+
+# ====== Record runtime
+end_time=$(date +%s%N)
+elapsed_time=$(( $(($end_time-$start_time)) / 1000000 ))
+runtime_file=${trial_dir}/strainest_runtime.txt
+echo "${elapsed_time}" > $runtime_file
 
 # Clean up
 echo "[*] Cleaning up..."
