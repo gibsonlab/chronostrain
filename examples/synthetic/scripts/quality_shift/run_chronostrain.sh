@@ -29,7 +29,7 @@ export CHRONOSTRAIN_LOG_FILEPATH="${log_dir}/chronostrain.log"
 export CHRONOSTRAIN_CACHE_DIR="${trial_dir}/cache"
 
 echo "[*] Running Chronostrain inference for q_shift: ${q_shift}, trial: ${trial}"
-python $PROJECT_DIR/scripts/run_bbvi.py \
+python $PROJECT_DIR/scripts/run_advi.py \
 --reads_input "${read_dir}/filtered/filtered_input_files.csv" \
 --out_dir ${output_dir} \
 --seed ${INFERENCE_SEED} \

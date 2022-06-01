@@ -21,13 +21,13 @@ from chronostrain.util.math.psis import psis_smooth_ratios
 
 from .. import AbstractModelSolver
 from .util import log_softmax, log_matmul_exp
-from .solver import BBVISolver
+from .solver import ADVISolver
 from ..vi import AbstractPosterior
 
 logger = create_logger(__name__)
 
 
-class BBVISolverFullPosterior(AbstractModelSolver):
+class ADVISolverFullPosterior(AbstractModelSolver):
 
     def __init__(self,
                  model: GenerativeModel,
@@ -36,11 +36,11 @@ class BBVISolverFullPosterior(AbstractModelSolver):
                  read_batch_size: int = 5000,
                  num_cores: int = 1,
                  partial_correlation_type: str = 'strain'):
-        logger.info("Initializing full correlation solver (BBVI + Importance weighted estimation)")
+        logger.info("Initializing full correlation solver (ADVI + Importance weighted estimation)")
         AbstractModelSolver.__init__(
             self, model, data, db, num_cores=num_cores
         )
-        self.partial_solver = BBVISolver(
+        self.partial_solver = ADVISolver(
             model, data, db, read_batch_size, num_cores,
             correlation_type=partial_correlation_type
         )

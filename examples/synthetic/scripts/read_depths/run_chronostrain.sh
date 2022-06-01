@@ -31,7 +31,7 @@ export CHRONOSTRAIN_CACHE_DIR="${trial_dir}/cache"
 
 echo "[*] Running Chronostrain inference (pass=${pass}) for n_reads: ${n_reads}, trial: ${trial}"
 if [ "$pass" == "1" ]; then
-	python $PROJECT_DIR/scripts/run_bbvi.py \
+	python $PROJECT_DIR/scripts/run_advi.py \
 	--reads_input "${read_dir}/filtered/filtered_input_files.csv" \
 	--out_dir ${output_dir} \
 	--seed ${INFERENCE_SEED} \
@@ -46,7 +46,7 @@ if [ "$pass" == "1" ]; then
 	--plot_format "pdf" \
 	--plot_elbo
 elif [ "pass" == "2" ]; then
-	python $PROJECT_DIR/scripts/run_bbvi.py \
+	python $PROJECT_DIR/scripts/run_advi.py \
 	--reads_input "${read_dir}/filtered/filtered_input_files.csv" \
 	--out_dir ${output_dir} \
 	--seed ${INFERENCE_SEED} \

@@ -31,7 +31,7 @@ export CHRONOSTRAIN_LOG_FILEPATH="${log_dir}/chronostrain.log"
 echo "[*] Running Chronostrain inference for n_reads: ${n_reads}, trial: ${trial}"
 start_time=$(date +%s%N)  # nanoseconds
 
-python $PROJECT_DIR/scripts/run_bbvi.py \
+python $PROJECT_DIR/scripts/run_advi.py \
 --reads_input "${read_dir}/filtered/filtered_input_files.csv" \
 --out_dir ${output_dir} \
 --correlation_mode "strain" \

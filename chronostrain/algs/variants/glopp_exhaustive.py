@@ -14,7 +14,7 @@ from chronostrain.model import AbstractMarkerVariant, StrainVariant
 from .base import FloppMarkerVariant, FloppStrainVariant
 from ...model import Marker
 from ...model.io import TimeSeriesReads
-from .meta import ExhaustiveVariantBBVISolver
+from .meta import ExhaustiveVariantADVISolver
 from ...util.flopp import FloppMarkerAssembly, FloppMarkerContig
 
 logger = create_logger(__name__)
@@ -36,7 +36,7 @@ class GloppContigStrandSpecification(object):
                ">"
 
 
-class GloppExhaustiveVariantSolver(ExhaustiveVariantBBVISolver):
+class GloppExhaustiveVariantSolver(ExhaustiveVariantADVISolver):
     def __init__(self,
                  db: StrainDatabase,
                  reads: TimeSeriesReads,

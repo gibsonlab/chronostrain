@@ -29,7 +29,7 @@ export CHRONOSTRAIN_CACHE_DIR="${trial_dir}/cache"
 
 export CHRONOSTRAIN_LOG_FILEPATH="${log_dir}/chronostrain_full.log"
 echo "[*] Running Chronostrain inference for n_reads: ${n_reads}, trial: ${trial}"
-python $PROJECT_DIR/scripts/run_bbvi.py \
+python $PROJECT_DIR/scripts/run_advi.py \
 --reads_input "${read_dir}/filtered/filtered_input_files.csv" \
 --out_dir ${output_dir} \
 --correlation_mode "full" \

@@ -11,9 +11,9 @@ from chronostrain.util.benchmarking import RuntimeEstimator
 logger = create_logger(__name__)
 
 
-class AbstractBBVI(ABC):
+class AbstractADVI(ABC):
     """
-    An abstraction of a black-box VI implementation.
+    An abstraction of the autograd-driven (black-box) VI implementation.
     """
 
     def __init__(self, posterior: AbstractReparametrizedPosterior, device: torch.device):
@@ -75,13 +75,13 @@ class AbstractBBVI(ABC):
 
         if self.device == torch.device("cuda"):
             logger.info(
-                "BBVI CUDA memory -- [MaxAlloc: {} MiB]".format(
+                "ADVI CUDA memory -- [MaxAlloc: {} MiB]".format(
                     torch.cuda.max_memory_allocated(self.device) / 1048576
                 )
             )
         else:
             logger.debug(
-                "BBVI CPU memory usage -- [Not implemented]"
+                "ADVI CPU memory usage -- [Not implemented]"
             )
 
     @abstractmethod

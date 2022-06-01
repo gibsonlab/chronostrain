@@ -13,7 +13,7 @@ do
     export CHRONOSTRAIN_LOG_FILEPATH="${LOGDIR}/chronostrain_${umb_id}.log"
 
     cd $PROJECT_DIR/scripts
-    python run_bbvi.py \
+    python run_advi.py \
     --reads_input "${READS_DIR}/${umb_id}_filtered/filtered_${umb_id}_inputs.csv" \
     --out_dir $CHRONOSTRAIN_OUTPUT_DIR/${umb_id} \
     --seed $SEED \

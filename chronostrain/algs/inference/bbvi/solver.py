@@ -11,7 +11,7 @@ from chronostrain.util.math import log_spspmm_exp
 from chronostrain.util.optimization import ReduceLROnPlateauLast
 from chronostrain.util.sparse.sliceable import ColumnSectionedSparseMatrix
 from .. import AbstractModelSolver
-from .base import AbstractBBVI
+from .base import AbstractADVI
 from .posteriors import *
 from .util import log_softmax, log_matmul_exp
 from ...subroutines.likelihoods import DataLikelihoods
@@ -26,9 +26,9 @@ def divide_columns_into_batches(x: torch.Tensor, batch_size: int):
         yield x[:, indices]
 
 
-class BBVISolver(AbstractModelSolver, AbstractBBVI):
+class ADVISolver(AbstractModelSolver, AbstractADVI):
     """
-    A basic implementation of BBVI estimating the posterior p(X|R), with fragments
+    A basic implementation of ADVI estimating the posterior p(X|R), with fragments
     F marginalized out.
     """
 
@@ -69,15 +69,15 @@ class BBVISolver(AbstractModelSolver, AbstractBBVI):
         else:
             raise ValueError("Unrecognized `correlation_type` argument {}.".format(correlation_type))
 
-        AbstractBBVI.__init__(
+        AbstractADVI.__init__(
             self,
             posterior,
             device=cfg.torch_cfg.device
         )
 
-        logger.debug("Initializing BBVI data structures.")
+        logger.debug("Initializing ADVI data structures.")
         if not cfg.model_cfg.use_sparse:
-            raise NotImplementedError("BBVI only supports sparse data structures.")
+            raise NotImplementedError("ADVI only supports sparse data structures.")
 
         # (S x R) matrices: Contains P(R = r | S = s) for each read r, strain s.
         self.strain_read_lls: List[torch.Tensor] = []

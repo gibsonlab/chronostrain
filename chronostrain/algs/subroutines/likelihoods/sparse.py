@@ -14,7 +14,7 @@ from chronostrain.util.sparse import SparseMatrix, ColumnSectionedSparseMatrix
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.config import cfg
 from chronostrain.model.generative import GenerativeModel
-from chronostrain.util.sparse.sliceable import BBVIOptimizedSparseMatrix, RowSectionedSparseMatrix
+from chronostrain.util.sparse.sliceable import ADVIOptimizedSparseMatrix, RowSectionedSparseMatrix
 
 from .base import DataLikelihoods, AbstractLogLikelihoodComputer
 from ..alignments import CachedReadMultipleAlignments, CachedReadPairwiseAlignments
@@ -78,7 +78,7 @@ class SparseDataLikelihoods(DataLikelihoods):
             self.projectors.append(projector)
             self.supported_frags.append(row_support)
 
-    def sparse_matrices(self) -> Iterator[BBVIOptimizedSparseMatrix]:
+    def sparse_matrices(self) -> Iterator[ADVIOptimizedSparseMatrix]:
         yield from self.matrices
 
     def _likelihood_computer(self) -> AbstractLogLikelihoodComputer:

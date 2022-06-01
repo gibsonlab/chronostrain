@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 
 from chronostrain import logger
-from chronostrain.algs import AbstractPosterior, BBVISolver
+from chronostrain.algs import AbstractPosterior, ADVISolver
 from chronostrain.model import Population
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
@@ -29,7 +29,7 @@ def plot_elbo_history(
     ax.set_ylabel("ELBO")
     plt.savefig(out_path, format=plot_format)
 
-    logger.info("Saved BBVI ELBO history plot to {}.".format(out_path))
+    logger.info("Saved ADVI ELBO history plot to {}.".format(out_path))
 
 
 def plot_training_animation(
@@ -82,7 +82,7 @@ def plot_training_animation(
     anim = animation.FuncAnimation(fig, animate, init_func=init, frames=n_frames, interval=1, blit=True)
     anim.save(str(out_path), writer=backend_writer)
 
-    logger.info("Saved BBVI training history to {}.".format(out_path))
+    logger.info("Saved ADVI training history to {}.".format(out_path))
 
 
 def plot_bbvi_posterior(times: List[float],

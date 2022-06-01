@@ -16,7 +16,7 @@ from chronostrain.model import Population, FragmentSpace, Strain
 from chronostrain.model.io import TimeSeriesReads
 
 from helpers import *
-logger = create_logger("chronostrain.run_bbvi")
+logger = create_logger("chronostrain.run_advi")
 
 
 def parse_args():
@@ -31,7 +31,7 @@ def parse_args():
     parser.add_argument('-o', '--out_dir', required=True, type=str,
                         help='<Required> The file path to save learned outputs to.')
 
-    # Optional BBVI params
+    # Optional ADVI params
     parser.add_argument('--iters', required=False, type=int, default=50,
                         help='<Optional> The number of iterations to run per epoch. (Default: 50)')
     parser.add_argument('--epochs', required=False, type=int, default=500,
@@ -72,7 +72,7 @@ def parse_args():
 
     # Arguments for second-pass mode.
     parser.add_argument('--second_pass', action='store_true',
-                        help='If flag is set, then initializes BBVI in "second-pass" mode. Automatically searches'
+                        help='If flag is set, then initializes ADVI in "second-pass" mode. Automatically searches'
                              'for a chronostrain posterior approximation using the full DB, restricts to the set of '
                              'strains that are 99.9% confident to be greater than 1/<db size> and re-runs inference.')
 
@@ -81,9 +81,9 @@ def parse_args():
                         help='<Optional> If using a variational method, specify the number of '
                              'samples to generate as output.')
     parser.add_argument('--plot_elbo', action="store_true",
-                        help='If flag is set, then outputs plots of the ELBO history (if using BBVI).')
+                        help='If flag is set, then outputs plots of the ELBO history (if using ADVI).')
     parser.add_argument('--draw_training_history', action="store_true",
-                        help='If flag is set, then outputs an animation of the BBVI training history.')
+                        help='If flag is set, then outputs an animation of the ADVI training history.')
     parser.add_argument('--plot_format', required=False, type=str, default="pdf")
     parser.add_argument('--single_ended', action='store_true')
 

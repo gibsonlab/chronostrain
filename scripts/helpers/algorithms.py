@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from torch import softmax
 
-from chronostrain.algs import BBVISolver, BBVISolverFullPosterior, EMSolver
+from chronostrain.algs import ADVISolver, ADVISolverFullPosterior, EMSolver
 from chronostrain.database import StrainDatabase
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads, save_abundances
@@ -36,7 +36,7 @@ def perform_bbvi(
         logger.warning("Encountered `full` correlation type argument; "
                        "learning this posterior may lead to unstable/unreliable results. "
                        "Consider directly invoking `perform_bbvi_full_correlation` instead.")
-    solver = BBVISolver(
+    solver = ADVISolver(
         model=model,
         data=reads,
         correlation_type=correlation_type,
@@ -52,7 +52,7 @@ def perform_bbvi(
 
     if save_training_history:
         def anim_callback(x_samples, uppers_buf, lowers_buf, medians_buf):
-            # Plot BBVI posterior.
+            # Plot VI posterior.
             abund_samples = softmax(x_samples, dim=2).cpu().detach().numpy()
             for s_idx in range(model.num_strains()):
                 traj_samples = abund_samples[:, :, s_idx]  # (T x N)
@@ -109,7 +109,7 @@ def perform_bbvi_full_correlation(
         partial_correlation_type: str = "strain",
         save_elbo_history: bool = False,
         save_training_history: bool = False):
-    solver = BBVISolverFullPosterior(
+    solver = ADVISolverFullPosterior(
         model=model,
         data=reads,
         partial_correlation_type=partial_correlation_type,
@@ -125,7 +125,7 @@ def perform_bbvi_full_correlation(
 
     if save_training_history:
         def anim_callback(x_samples, uppers_buf, lowers_buf, medians_buf):
-            # Plot BBVI posterior.
+            # Plot VI posterior.
             abund_samples = softmax(x_samples, dim=2).cpu().detach().numpy()
             for s_idx in range(model.num_strains()):
                 traj_samples = abund_samples[:, :, s_idx]  # (T x N)

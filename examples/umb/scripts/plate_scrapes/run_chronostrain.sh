@@ -21,7 +21,7 @@ do
 	export CHRONOSTRAIN_LOG_FILEPATH="${LOGDIR}/chronostrain_${sample_name}.log"
 
 	cd $PROJECT_DIR/scripts
-	python run_bbvi.py \
+	python run_advi.py \
 	--reads_input "${READS_DIR}/${sample_name}_filtered/filtered_${sample_name}.csv" \
 	--out_dir $CHRONOSTRAIN_OUTPUT_DIR/${sample_name} \
 	--seed $SEED \

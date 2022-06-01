@@ -4,7 +4,7 @@ import torch
 import torch_scatter
 
 from chronostrain.util.sparse import SparseMatrix, RowSectionedSparseMatrix
-from chronostrain.util.sparse.sliceable import BBVIOptimizedSparseMatrix
+from chronostrain.util.sparse.sliceable import ADVIOptimizedSparseMatrix
 
 
 def log_softmax(x_samples: torch.Tensor, t: int) -> torch.Tensor:
@@ -108,8 +108,8 @@ class LogMMExpDenseSPModel_Async(torch.nn.Module):
     """
     def __init__(self, sparse_right_matrix: SparseMatrix, row_chunk_size: int = 100):
         super().__init__()
-        if not isinstance(sparse_right_matrix, BBVIOptimizedSparseMatrix):
-            self.A = BBVIOptimizedSparseMatrix.optimize_from_sparse_matrix(
+        if not isinstance(sparse_right_matrix, ADVIOptimizedSparseMatrix):
+            self.A = ADVIOptimizedSparseMatrix.optimize_from_sparse_matrix(
                 sparse_right_matrix,
                 row_chunk_size=row_chunk_size
             )

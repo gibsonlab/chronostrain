@@ -1,7 +1,7 @@
 """
 vi.py
 This is the second-order approximation solution for VI derived in a previous writeup.
-(Note: doesn't work as well as mean-field BBVI.)
+(Note: doesn't work as well as mean-field ADVI.)
 """
 from abc import ABCMeta, abstractmethod
 from pathlib import Path

@@ -14,7 +14,7 @@ do
     export CHRONOSTRAIN_LOG_FILEPATH="${LOGDIR}/chronostrain_${patient}.log"
 
     cd $PROJECT_DIR/scripts
-    python run_bbvi.py \
+    python run_advi.py \
            --reads_input "${READS_DIR}/${patient}/filtered/${index_filename}" \
            --out_dir $CHRONOSTRAIN_OUTPUT_DIR/${patient} \
            --seed $SEED \
