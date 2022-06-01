@@ -70,7 +70,7 @@ ${sorted_bam_file} \
 # ====== Record runtime
 end_time=$(date +%s%N)
 elapsed_time=$(( $(($end_time-$start_time)) / 1000000 ))
-runtime_file=${trial_dir}/strainest_runtime.txt
+runtime_file=${trial_dir}/strainest_runtime.${time_point}.txt
 echo "${elapsed_time}" > $runtime_file
 
 # Clean up
