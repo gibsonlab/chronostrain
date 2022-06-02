@@ -41,5 +41,5 @@ python $PROJECT_DIR/scripts/filter_timeseries.py \
 # ====== Record runtime
 end_time=$(date +%s%N)
 elapsed_time=$(( $(($end_time-$start_time)) / 1000000 ))
-runtime_file=${trial_dir}/chronostrain_filter_runtime.txt
+runtime_file=${trial_dir}/output/chronostrain_filter_runtime.txt
 echo "${elapsed_time}" > $runtime_file

@@ -64,7 +64,7 @@ done
 # ====== Record runtime
 end_time=$(date +%s%N)
 elapsed_time=$(( $(($end_time-$start_time)) / 1000000 ))
-runtime_file=${trial_dir}/gtpro_runtime.txt
+runtime_file=${trial_dir}/output/gtpro_runtime.txt
 echo "${elapsed_time}" > $runtime_file
 
 echo "[*] Cleaning up..."

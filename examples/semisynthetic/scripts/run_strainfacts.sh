@@ -59,5 +59,5 @@ sfacts dump ${mg_prefix}.world.nc --genotype result_genotypes.tsv --community re
 # ====== Record runtime
 end_time=$(date +%s%N)
 elapsed_time=$(( $(($end_time-$start_time)) / 1000000 ))
-runtime_file=${trial_dir}/strainfacts_runtime.txt
+runtime_file=${trial_dir}/output/strainfacts_runtime.txt
 echo "${elapsed_time}" > $runtime_file
