@@ -32,5 +32,7 @@ strainest mapgenomes ${cluster_seq_paths} ${STRAIN_REP_FASTA} ${alignment_clust_
 # Step 4: Build bowtie2 index.
 cd ${STRAINEST_DB_DIR}
 echo "[*] Building bowtie2 index..."
-bowtie2-build ${alignment_clust_fasta} $STRAINEST_BT2_DB   # NOTE: this is for clustered analysis.
-#bowtie2-build ${alignment_fasta} $STRAINEST_BT2_DB   # NOTE: Use if unclustered analysis is desired.
+mkdir -p clustered
+mkdir -p unclustered
+bowtie2-build ${alignment_clust_fasta} clustered/$STRAINEST_BT2_DB   # NOTE: this is for clustered analysis.
+bowtie2-build ${alignment_fasta} unclustered/$STRAINEST_BT2_DB   # NOTE: Use if unclustered analysis is desired.

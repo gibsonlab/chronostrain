@@ -46,7 +46,7 @@ sorted_bam_file="reads_${time_point}.sorted.bam"
 echo "[*] Running alignment..."
 bowtie2 \
 --very-fast --no-unal --quiet \
--x ${STRAINEST_DB_DIR}/${STRAINEST_BT2_DB} \
+-x ${STRAINEST_DB_DIR}/clustered/${STRAINEST_BT2_DB} \
 -1 ${reads_1} \
 -2 ${reads_2} \
 -S ${sam_file}
