@@ -11,6 +11,7 @@ for umb_id in UMB05 UMB08 UMB11 UMB12 UMB15 UMB18 UMB20 UMB23 UMB24
 do
     echo "Running inference on ${umb_id}."
     export CHRONOSTRAIN_LOG_FILEPATH="${LOGDIR}/chronostrain_${umb_id}.log"
+		export CHRONOSTRAIN_CACHE_DIR="$CHRONOSTRAIN_OUTPUT_DIR/${umb_id}/cache"
 
     cd $PROJECT_DIR/scripts
     python run_advi.py \
