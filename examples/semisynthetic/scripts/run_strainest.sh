@@ -60,12 +60,10 @@ samtools index ${sorted_bam_file}
 # Run StrainEst
 echo "[*] Running StrainEst..."
 strainest est \
-${STRAINEST_DB_DIR}/snvs_all.txt \
+${STRAINEST_DB_DIR}/snvs_clust.txt \
 ${sorted_bam_file} \
 ./ \
--t 1 \
--p 0 \
--a 2
+-t 1
 
 # ====== Record runtime
 end_time=$(date +%s%N)
