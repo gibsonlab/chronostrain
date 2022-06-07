@@ -134,7 +134,7 @@ def main():
         write_strain_to_disk(strain, out_path)
 
     logger.info("Solving using Black-Box Variational Inference.")
-    solver, posterior, elbo_history, (uppers, lowers, medians) = perform_bbvi(
+    solver, posterior, elbo_history, (uppers, lowers, medians) = perform_advi(
         db=db,
         model=model,
         reads=reads,
@@ -164,7 +164,7 @@ def main():
         )
 
     # ==== Finally, plot the posterior.
-    viz.plot_bbvi_posterior(
+    viz.plot_vi_posterior(
         times=model.times,
         population=model.bacteria_pop,
         posterior=posterior,

@@ -72,31 +72,30 @@ def hellinger_error(abundance_est: np.ndarray, ground_truth: pd.DataFrame) -> fl
     ])
     return np.sqrt(np.square(np.sqrt(abundance_est) - np.sqrt(ground_truth)).sum(axis=1)).mean(axis=0) / np.sqrt(2)
 
+
 def parse_chronostrain_error(db: StrainDatabase, ground_truth: pd.DataFrame, output_dir: Path) -> float:
-    samples = torch.load(output_dir / 'samples.pt')
+    abundance_samples = torch.load(output_dir / 'samples.pt')
     strains = db.all_strains()
 
     time_points = sorted(pd.unique(ground_truth['T']))
 
-    if samples.shape[0] != len(time_points):
+    if abundance_samples.shape[0] != len(time_points):
         raise RuntimeError("Number of time points ({}) in ground truth don't match sampled time points ({}).".format(
             len(time_points),
-            samples.shape[0]
+            abundance_samples.shape[0]
         ))
 
-    if samples.shape[2] != len(strains):
+    if abundance_samples.shape[2] != len(strains):
         raise RuntimeError("Number of strains ({}) in database don't match sampled strain counts ({}).".format(
             len(strains),
-            samples.shape[2]
+            abundance_samples.shape[2]
         ))
 
-    inferred_abundances = torch.softmax(samples, dim=2)
-
     # hellingers = torch.square(
-    #     torch.sqrt(torch.softmax(samples, dim=2)) - torch.unsqueeze(torch.sqrt(ground_truth_tensor), 1)
+    #     torch.sqrt(samples, dim=2) - torch.unsqueeze(torch.sqrt(ground_truth_tensor), 1)
     # ).sum(dim=2).sqrt().mean(dim=0)  # Average hellinger distance across time, for each sample.
     # return torch.median(hellingers).item() / np.sqrt(2)
-    median_abundances = np.median(inferred_abundances.numpy(), axis=1)
+    median_abundances = np.median(abundance_samples.numpy(), axis=1)
     return hellinger_error(median_abundances, ground_truth)
 
 

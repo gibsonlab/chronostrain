@@ -21,7 +21,7 @@ from chronostrain.util.math.psis import psis_smooth_ratios
 
 from .. import AbstractModelSolver
 from .util import log_softmax, log_matmul_exp
-from .solver import ADVISolver
+from .solver_gaussian import ADVIGaussianSolver
 from ..vi import AbstractPosterior
 
 logger = create_logger(__name__)
@@ -40,7 +40,7 @@ class ADVISolverFullPosterior(AbstractModelSolver):
         AbstractModelSolver.__init__(
             self, model, data, db, num_cores=num_cores
         )
-        self.partial_solver = ADVISolver(
+        self.partial_solver = ADVIGaussianSolver(
             model, data, db, read_batch_size, num_cores,
             correlation_type=partial_correlation_type
         )
@@ -249,10 +249,10 @@ class GaussianPosteriorFullCorrelation(AbstractPosterior):
         samples = samples @ torch.transpose(self.linear, 0, 1) + self.bias  # (N x k) @ (k x TS) + (TS)
 
         # Re-shape N x (TS) into (T x N x S).
-        return torch.transpose(
+        return torch.softmax(torch.transpose(
             samples.reshape(num_samples, self.num_times, self.num_strains),
             0, 1
-        )
+        ), dim=2)
 
     def mean(self) -> torch.Tensor:
         return torch.Tensor(self.bias, device=cfg.torch_cfg.device)

@@ -105,29 +105,28 @@ def parse_chronostrain_estimate(db: StrainDatabase,
                                 ground_truth: pd.DataFrame,
                                 strain_ids: List[str],
                                 output_dir: Path) -> torch.Tensor:
-    samples = torch.load(output_dir / 'samples.pt')
+    abundance_samples = torch.load(output_dir / 'samples.pt')
     db_strains = [s.id for s in db.all_strains()]
 
     time_points = sorted(pd.unique(ground_truth['T']))
-    if samples.shape[0] != len(time_points):
+    if abundance_samples.shape[0] != len(time_points):
         raise RuntimeError("Number of time points ({}) in ground truth don't match sampled time points ({}).".format(
             len(time_points),
-            samples.shape[0]
+            abundance_samples.shape[0]
         ))
 
-    if samples.shape[2] != len(db_strains):
+    if abundance_samples.shape[2] != len(db_strains):
         raise RuntimeError("Number of strains ({}) in database don't match sampled strain counts ({}).".format(
             len(db_strains),
-            samples.shape[2]
+            abundance_samples.shape[2]
         ))
 
-    inferred_abundances = torch.softmax(samples, dim=2)
-    n_samples = samples.size(1)
+    n_samples = abundance_samples.size(1)
     estimate = torch.zeros(size=(len(time_points), n_samples, len(strain_ids)), dtype=torch.float, device=device)
     strain_indices = {sid: i for i, sid in enumerate(strain_ids)}
     for db_idx, strain_id in enumerate(db_strains):
         s_idx = strain_indices[strain_id]
-        estimate[:, :, s_idx] = inferred_abundances[:, :, db_idx]
+        estimate[:, :, s_idx] = abundance_samples[:, :, db_idx]
     return estimate
 
 

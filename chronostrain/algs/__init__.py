@@ -2,6 +2,7 @@ from .inference import AbstractModelSolver, \
     EMSolver, \
     AbstractPosterior, \
     AbstractADVI, \
-    ADVISolver, \
-    ADVISolverFullPosterior
+    ADVIGaussianSolver, \
+    ADVISolverFullPosterior, \
+    ADVIDirichletSolver
 from .variants import GloppVariantSolver, GloppExhaustiveVariantSolver

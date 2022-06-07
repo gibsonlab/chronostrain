@@ -1,12 +1,22 @@
 from abc import abstractmethod, ABC
-from typing import Optional, List, Callable, Iterator
+from typing import Optional, List, Callable, Iterator, Type, Dict, Any
 
 import numpy as np
 import torch
 
-from chronostrain import create_logger
-from chronostrain.algs.inference.bbvi.posteriors.base import AbstractReparametrizedPosterior
+from chronostrain.algs.subroutines.likelihoods import DataLikelihoods
+from chronostrain.database import StrainDatabase
+from chronostrain.model.generative import GenerativeModel
+from chronostrain.model.io import TimeSeriesReads
+from chronostrain.config import cfg, create_logger
 from chronostrain.util.benchmarking import RuntimeEstimator
+from chronostrain.util.math import log_spspmm_exp
+from chronostrain.util.optimization import ReduceLROnPlateauLast
+from chronostrain.util.sparse import ColumnSectionedSparseMatrix
+
+from .. import AbstractModelSolver
+from .posteriors.base import AbstractReparametrizedPosterior
+from .util import divide_columns_into_batches, log_matmul_exp, log_softmax
 
 logger = create_logger(__name__)
 
@@ -117,3 +127,149 @@ class AbstractADVI(ABC):
         # Use the accumulated gradient to update.
         optimizer.step()
         return elbo_value
+
+
+class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
+    """
+    A basic implementation of ADVI estimating the posterior p(X|R), with fragments
+    F marginalized out.
+    """
+
+    def __init__(self,
+                 model: GenerativeModel,
+                 data: TimeSeriesReads,
+                 db: StrainDatabase,
+                 posterior: AbstractReparametrizedPosterior,
+                 read_batch_size: int = 5000,
+                 num_cores: int = 1,
+                 precomputed_data_likelihoods: Optional[DataLikelihoods] = None):
+        AbstractModelSolver.__init__(
+            self,
+            model,
+            data,
+            db,
+            num_cores=num_cores,
+            precomputed_data_likelihoods=precomputed_data_likelihoods
+        )
+        self.read_batch_size = read_batch_size
+
+        AbstractADVI.__init__(
+            self,
+            posterior,
+            device=cfg.torch_cfg.device
+        )
+
+        logger.debug("Initializing ADVI data structures.")
+        if not cfg.model_cfg.use_sparse:
+            raise NotImplementedError("ADVI only supports sparse data structures.")
+
+        # (S x R) matrices: Contains P(R = r | S = s) for each read r, strain s.
+        self.strain_read_lls: List[torch.Tensor] = []
+        self.batches: List[List[torch.Tensor]] = [
+            [] for _ in range(model.num_times())
+        ]
+        self.total_reads: int = 0
+
+        # Precompute this (only possible in V1).
+        logger.debug("Precomputing likelihood products.")
+        for t_idx in range(model.num_times()):
+            data_ll_t = self.data_likelihoods.matrices[t_idx]  # F_ x R
+            self.total_reads += data_ll_t.shape[1]
+
+            projector = self.data_likelihoods.projectors[t_idx]
+            strain_read_lls_t = log_spspmm_exp(
+                ColumnSectionedSparseMatrix.from_sparse_matrix(
+                    projector.sparse_mul(self.model.fragment_frequencies_sparse).t()
+                ),  # (S x F_), note the transpose!
+                data_ll_t  # (F_ x R)
+            )  # (S x R)
+
+            # Locate and filter out reads with no good alignments.
+            bad_indices = set(
+                float(x.cpu())
+                for x in torch.where(torch.sum(~torch.isinf(strain_read_lls_t), dim=0) == 0)[0]
+            )
+            good_indices = [i for i in range(data_ll_t.shape[1]) if i not in bad_indices]
+            if len(bad_indices) > 0:
+                logger.warning("(t = {}) Found {} reads without good alignments: {}".format(
+                    t_idx,
+                    len(bad_indices),
+                    [self.data[t_idx][int(i)].id for i in bad_indices]
+                ))
+                strain_read_lls_t = strain_read_lls_t[:, good_indices]
+
+            self.strain_read_lls.append(strain_read_lls_t)
+
+    def advance_epoch(self):
+        for t_idx in range(self.model.num_times()):
+            self.batches[t_idx] = list(divide_columns_into_batches(self.strain_read_lls[t_idx], self.read_batch_size))
+
+    def solve(self,
+              optimizer_class: Type[torch.optim.Optimizer],
+              optimizer_args: Dict[str, Any],
+              num_epochs: int = 1,
+              iters: int = 4000,
+              num_samples: int = 8000,
+              min_lr: float = 1e-4,
+              lr_decay_factor: float = 0.25,
+              lr_patience: int = 10,
+              callbacks: Optional[List[Callable[[int, torch.Tensor, float], None]]] = None):
+        optimizer_args['params'] = self.posterior.trainable_parameters()
+        optimizer = optimizer_class(**optimizer_args)
+        lr_scheduler = ReduceLROnPlateauLast(
+            optimizer,
+            factor=lr_decay_factor,
+            patience_horizon=lr_patience,
+            patience_ratio=0.5,
+            threshold=1e-4,
+            threshold_mode='rel',
+            mode='min'  # track (-ELBO) and decrease LR when it stops decreasing.
+        )
+        self.optimize(
+            optimizer=optimizer,
+            lr_scheduler=lr_scheduler,
+            iters=iters,
+            num_epochs=num_epochs,
+            num_samples=num_samples,
+            min_lr=min_lr,
+            callbacks=callbacks
+        )
+        self.diagnostic()
+
+    @abstractmethod
+    def data_ll(self, samples: torch.Tensor) -> torch.Tensor:
+        pass
+
+    @abstractmethod
+    def model_ll(self, samples: torch.Tensor) -> torch.Tensor:
+        pass
+
+    def diagnostic(self, num_importance_samples: int = 10000, batch_size: int = 500):
+        import numpy as np
+        import scipy.special
+        from chronostrain.util.math import psis_smooth_ratios
+
+        log_importance_weights = []
+        num_batches = int(np.ceil(num_importance_samples / batch_size))
+        for batch_idx in range(num_batches):
+            batch_start_idx = batch_idx * batch_size
+            this_batch_sz = min(num_importance_samples - batch_start_idx, batch_size)
+            batch_samples = self.posterior.reparametrized_sample(num_samples=this_batch_sz)
+            approx_posterior_ll = self.posterior.log_likelihood(batch_samples).detach()
+            log_importance_ratios = (
+                    self.model_ll(batch_samples).detach()
+                    + self.data_ll(batch_samples).detach()
+                    - approx_posterior_ll
+            )
+            log_importance_weights.append(log_importance_ratios.cpu().numpy())
+
+        # normalize (we don't know normalization constant of true posterior).
+        log_importance_weights = np.concatenate(log_importance_weights)
+        log_importance_weights = log_importance_weights - scipy.special.logsumexp(log_importance_weights)
+        log_smoothed_weights, k_hat = psis_smooth_ratios(log_importance_weights)
+
+        logger.debug(f"Estimated Pareto k-hat: {k_hat}")
+        if k_hat > 0.7:
+            # Extremely large number of samples are needed for stable gradient estimates!
+            logger.warning("Pareto k-hat estimate exceeds safe threshold (0.7). "
+                           "Estimates may be biased/overfit to the data.")

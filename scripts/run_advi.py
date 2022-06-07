@@ -4,8 +4,6 @@
 """
 import argparse
 from pathlib import Path
-from typing import List
-import torch
 
 from chronostrain.algs.subroutines.cache import ReadsComputationCache
 from chronostrain import cfg, create_logger
@@ -70,12 +68,6 @@ def parse_args():
                         help='<Optional> The CSV file path containing the ground truth relative abundances for each '
                              'strain by time point. For benchmarking.')
 
-    # Arguments for second-pass mode.
-    parser.add_argument('--second_pass', action='store_true',
-                        help='If flag is set, then initializes ADVI in "second-pass" mode. Automatically searches'
-                             'for a chronostrain posterior approximation using the full DB, restricts to the set of '
-                             'strains that are 99.9% confident to be greater than 1/<db size> and re-runs inference.')
-
     # Optional output params
     parser.add_argument('--num_posterior_samples', required=False, type=int, default=5000,
                         help='<Optional> If using a variational method, specify the number of '
@@ -130,24 +122,6 @@ def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase, mode: st
     return fragment_space
 
 
-def second_pass_strain_subset(db: StrainDatabase, pass1_samples_path: Path) -> List[Strain]:
-    if not pass1_samples_path.exists():
-        raise FileNotFoundError(
-            f"Initial chronostrain run `{pass1_samples_path}` not found. "
-            "Make sure that the first run has finished and that out_dir is pointing to the right directory."
-        )
-
-    abundance_samples = torch.softmax(torch.load(pass1_samples_path), dim=2)
-    quantile_lower = torch.quantile(abundance_samples, q=0.001, dim=1)
-    filtered_strain_idx = torch.nonzero(
-        torch.sum(quantile_lower > 1 / db.num_strains(), dim=0),
-        as_tuple=True
-    )[0]
-
-    all_strains = db.all_strains()
-    return [all_strains[i] for i in filtered_strain_idx]
-
-
 def main():
     logger.info("Pipeline for inference started.")
     args = parse_args()
@@ -167,26 +141,14 @@ def main():
     else:
         true_abundance_path = None
 
-    if args.second_pass:
-        elbo_path = out_dir / "elbo.pass2.{}".format(args.plot_format)
-        animation_path = out_dir / "training.pass2.gif"
-        plot_path = out_dir / "plot.pass2.{}".format(args.plot_format)
-        samples_path = out_dir / "samples.pass2.pt"
-        samples_path_pass1 = out_dir / "samples.pass2.pt"
-        strains_path = out_dir / "strains.pass2.txt"
-        model_out_path = out_dir / "posterior.pass2.pt"
+    elbo_path = out_dir / "elbo.{}".format(args.plot_format)
+    animation_path = out_dir / "training.gif"
+    plot_path = out_dir / "plot.{}".format(args.plot_format)
+    samples_path = out_dir / "samples.pt"
+    strains_path = out_dir / "strains.txt"
+    model_out_path = out_dir / "posterior.pt"
 
-        strain_subset = second_pass_strain_subset(db, samples_path_pass1)
-        population = Population(strains=strain_subset)
-    else:
-        elbo_path = out_dir / "elbo.{}".format(args.plot_format)
-        animation_path = out_dir / "training.gif"
-        plot_path = out_dir / "plot.{}".format(args.plot_format)
-        samples_path = out_dir / "samples.pt"
-        strains_path = out_dir / "strains.txt"
-        model_out_path = out_dir / "posterior.pt"
-
-        population = Population(strains=db.all_strains())
+    population = Population(strains=db.all_strains())
 
     # ============ Parse input reads.
     logger.info("Loading time-series read files.")
@@ -206,61 +168,22 @@ def main():
         pair_ended=not args.single_ended
     )
 
-    """
-    Perform inference using the chosen method. Available choices: 'em', 'bbvi'.
-    1) 'em' runs Expectation-Maximization. Saves the learned abundances and plots them.
-    2) 'bbvi' runs black-box VI and saves the learned posterior parametrization (as tensors).
-    More methods to be potentially added for experimentation.
-    """
-
-    if args.correlation_mode == 'full':
-        solver, posterior, elbo_history, (uppers, lowers, medians) = perform_bbvi_full_correlation(
-            db=db,
-            model=model,
-            reads=reads,
-            num_epochs=args.epochs,
-            iters=args.iters,
-            min_lr=args.min_lr,
-            lr_decay_factor=args.decay_lr,
-            lr_patience=args.lr_patience,
-            learning_rate=args.learning_rate,
-            num_samples=args.num_samples,
-            num_importance_samples=args.full_corr_num_importance_samples,
-            importance_batch_size=args.full_corr_importance_batch_size,
-            partial_correlation_type='strain',
-            save_elbo_history=args.plot_elbo,
-            save_training_history=args.draw_training_history,
-            read_batch_size=args.read_batch_size,
-            temp_dir=out_dir / "temp"
-        )
-
-        import numpy as np
-        import matplotlib.pyplot as plt
-        importance_weights = np.exp(solver.log_smoothed_weights)
-        weights_path = out_dir / f'importance_weights.{args.plot_format}'
-
-        plt.hist(importance_weights, bins=50)
-        plt.title("PSIS-reweighted importance weights (k_hat = {})".format(
-            solver.k_hat
-        ))
-        plt.savefig(weights_path, format=args.plot_format)
-    else:
-        solver, posterior, elbo_history, (uppers, lowers, medians) = perform_bbvi(
-            db=db,
-            model=model,
-            reads=reads,
-            num_epochs=args.epochs,
-            iters=args.iters,
-            min_lr=args.min_lr,
-            lr_decay_factor=args.decay_lr,
-            lr_patience=args.lr_patience,
-            learning_rate=args.learning_rate,
-            num_samples=args.num_samples,
-            correlation_type=args.correlation_mode,
-            save_elbo_history=args.plot_elbo,
-            save_training_history=args.draw_training_history,
-            read_batch_size=args.read_batch_size,
-        )
+    solver, posterior, elbo_history, (uppers, lowers, medians) = perform_advi(
+        db=db,
+        model=model,
+        reads=reads,
+        num_epochs=args.epochs,
+        iters=args.iters,
+        min_lr=args.min_lr,
+        lr_decay_factor=args.decay_lr,
+        lr_patience=args.lr_patience,
+        learning_rate=args.learning_rate,
+        num_samples=args.num_samples,
+        correlation_type=args.correlation_mode,
+        save_elbo_history=args.plot_elbo,
+        save_training_history=args.draw_training_history,
+        read_batch_size=args.read_batch_size,
+    )
 
     if args.plot_elbo:
         viz.plot_elbo_history(
@@ -279,7 +202,7 @@ def main():
         )
 
     # ==== Plot the posterior.
-    viz.plot_bbvi_posterior(
+    viz.plot_vi_posterior(
         times=model.times,
         population=model.bacteria_pop,
         posterior=posterior,

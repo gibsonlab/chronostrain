@@ -4,9 +4,8 @@ from typing import Optional
 
 import numpy as np
 import torch
-from torch import softmax
 
-from chronostrain.algs import ADVISolver, ADVISolverFullPosterior, EMSolver
+from chronostrain.algs import *
 from chronostrain.database import StrainDatabase
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads, save_abundances
@@ -15,7 +14,7 @@ from chronostrain.visualizations import plot_abundances, plot_abundances_compari
 from chronostrain import logger
 
 
-def perform_bbvi(
+def perform_advi(
         db: StrainDatabase,
         model: GenerativeModel,
         reads: TimeSeriesReads,
@@ -35,14 +34,22 @@ def perform_bbvi(
     if correlation_type == 'full':
         logger.warning("Encountered `full` correlation type argument; "
                        "learning this posterior may lead to unstable/unreliable results. "
-                       "Consider directly invoking `perform_bbvi_full_correlation` instead.")
-    solver = ADVISolver(
-        model=model,
-        data=reads,
-        correlation_type=correlation_type,
-        db=db,
-        read_batch_size=read_batch_size
-    )
+                       "Consider directly invoking `perform_advi_full_correlation` instead.")
+    if correlation_type == 'dirichlet':
+        solver = ADVIDirichletSolver(
+            model=model,
+            data=reads,
+            db=db,
+            read_batch_size=read_batch_size
+        )
+    else:
+        solver = ADVIGaussianSolver(
+            model=model,
+            data=reads,
+            correlation_type=correlation_type,
+            db=db,
+            read_batch_size=read_batch_size
+        )
 
     callbacks = []
     uppers = [[] for _ in range(model.num_strains())]
@@ -53,7 +60,7 @@ def perform_bbvi(
     if save_training_history:
         def anim_callback(x_samples, uppers_buf, lowers_buf, medians_buf):
             # Plot VI posterior.
-            abund_samples = softmax(x_samples, dim=2).cpu().detach().numpy()
+            abund_samples = x_samples.cpu().detach().numpy()
             for s_idx in range(model.num_strains()):
                 traj_samples = abund_samples[:, :, s_idx]  # (T x N)
                 upper_quantile = np.quantile(traj_samples, q=0.975, axis=1)
@@ -91,7 +98,7 @@ def perform_bbvi(
     return solver, posterior, elbo_history, (uppers, lowers, medians)
 
 
-def perform_bbvi_full_correlation(
+def perform_advi_full_correlation(
         db: StrainDatabase,
         model: GenerativeModel,
         reads: TimeSeriesReads,
@@ -126,7 +133,7 @@ def perform_bbvi_full_correlation(
     if save_training_history:
         def anim_callback(x_samples, uppers_buf, lowers_buf, medians_buf):
             # Plot VI posterior.
-            abund_samples = softmax(x_samples, dim=2).cpu().detach().numpy()
+            abund_samples = x_samples.cpu().detach().numpy()
             for s_idx in range(model.num_strains()):
                 traj_samples = abund_samples[:, :, s_idx]  # (T x N)
                 upper_quantile = np.quantile(traj_samples, q=0.975, axis=1)

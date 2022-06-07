@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 
 from chronostrain import logger
-from chronostrain.algs import AbstractPosterior, ADVISolver
+from chronostrain.algs import AbstractPosterior, ADVIGaussianSolver
 from chronostrain.model import Population
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
@@ -85,18 +85,18 @@ def plot_training_animation(
     logger.info("Saved ADVI training history to {}.".format(out_path))
 
 
-def plot_bbvi_posterior(times: List[float],
-                        population: Population,
-                        posterior: AbstractPosterior,
-                        plot_path: Path,
-                        samples_path: Path,
-                        plot_format: str,
-                        ground_truth_path: Optional[Path] = None,
-                        draw_legend: bool = False,
-                        num_samples: int = 10000,
-                        width: int = 16,
-                        height: int = 10,
-                        title: str = "Posterior relative abundances"):
+def plot_vi_posterior(times: List[float],
+                      population: Population,
+                      posterior: AbstractPosterior,
+                      plot_path: Path,
+                      samples_path: Path,
+                      plot_format: str,
+                      ground_truth_path: Optional[Path] = None,
+                      draw_legend: bool = False,
+                      num_samples: int = 10000,
+                      width: int = 16,
+                      height: int = 10,
+                      title: str = "Posterior relative abundances"):
     logger.info("Generating plot of posterior.")
 
     # Generate and save posterior samples.

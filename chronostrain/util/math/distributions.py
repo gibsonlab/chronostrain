@@ -94,6 +94,11 @@ class JeffreysGaussian(object):
 
         a = torch.tensor(self.gaussian_dim)
         b = torch.sum(torch.pow(x - mu, 2), dim=gaussian_axis)
+
+        """
+        Note: In theory, there is an extra factor of (a/2) * log(2 * pi). 
+        We omit this due to extra overhead; it makes no difference in the autograd calculations.
+        """
         return -ScaleInverseChiSquared.sics_log_constant(dof=a, scale=(1/a) * b)
 
 

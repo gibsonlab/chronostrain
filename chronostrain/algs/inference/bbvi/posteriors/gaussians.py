@@ -1,3 +1,4 @@
+from abc import ABC
 from pathlib import Path
 from typing import Union, Tuple, List
 
@@ -16,7 +17,15 @@ logger = create_logger(__name__)
 INIT_SCALE = 1.0
 
 
-class GaussianPosteriorFullReparametrizedCorrelation(AbstractReparametrizedPosterior):
+class ReparametrizedGaussianPosterior(AbstractReparametrizedPosterior, ABC):
+    def sample(self, num_samples: int = 1) -> torch.Tensor:
+        return torch.softmax(
+            self.reparametrized_sample(num_samples=num_samples).detach(),
+            dim=2
+        )
+
+
+class GaussianPosteriorFullReparametrizedCorrelation(ReparametrizedGaussianPosterior):
     def __init__(self, num_strains: int, num_times: int):
         """
         Mean-field assumption:
@@ -42,6 +51,9 @@ class GaussianPosteriorFullReparametrizedCorrelation(AbstractReparametrizedPoste
             loc=torch.tensor(0.0, device=cfg.torch_cfg.device),
             scale=torch.tensor(1.0, device=cfg.torch_cfg.device)
         )
+
+    def trainable_parameters(self) -> List[Parameter]:
+        return self.trainable_mean_parameters() + self.trainable_variance_parameters()
 
     def trainable_mean_parameters(self) -> List[Parameter]:
         assert isinstance(self.reparam_network.bias, Parameter)
@@ -75,7 +87,7 @@ class GaussianPosteriorFullReparametrizedCorrelation(AbstractReparametrizedPoste
             num_samples, self.num_times, self.num_strains
         ).transpose(0, 1)
 
-    def reparametrized_sample_log_likelihoods(self, samples: torch.Tensor):
+    def log_likelihood(self, samples: torch.Tensor):
         num_samples = samples.shape[1]
         samples = samples.transpose(0, 1).view(num_samples, self.num_times * self.num_strains)
         try:
@@ -86,12 +98,6 @@ class GaussianPosteriorFullReparametrizedCorrelation(AbstractReparametrizedPoste
         except ValueError:
             logger.error(f"Problem while computing log MV log-likelihood.")
             raise
-
-    def log_likelihood(self, samples: torch.Tensor) -> float:
-        if len(samples.size()) == 2:
-            r, c = samples.size()
-            samples = samples.view(r, 1, c)
-        return super().log_likelihood(samples)
 
     def save(self, path: Path):
         params = {
@@ -109,7 +115,7 @@ class GaussianPosteriorFullReparametrizedCorrelation(AbstractReparametrizedPoste
         return posterior
 
 
-class GaussianPosteriorStrainCorrelation(AbstractReparametrizedPosterior):
+class GaussianPosteriorStrainCorrelation(ReparametrizedGaussianPosterior):
     def __init__(self, num_strains: int, num_times: int):
         """
         Mean-field assumption:
@@ -143,6 +149,9 @@ class GaussianPosteriorStrainCorrelation(AbstractReparametrizedPosterior):
             scale=torch.tensor(1.0, device=cfg.torch_cfg.device)
         )
 
+    def trainable_parameters(self) -> List[Parameter]:
+        return self.trainable_mean_parameters() + self.trainable_variance_parameters()
+
     def trainable_mean_parameters(self) -> List[Parameter]:
         return [m.bias for m in self.reparam_networks]
 
@@ -168,8 +177,6 @@ class GaussianPosteriorStrainCorrelation(AbstractReparametrizedPosterior):
 
     def reparametrized_sample(self,
                               num_samples=1,
-                              output_log_likelihoods=False,
-                              detach_grad=False
                               ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         std_gaussian_samples = self.standard_normal.sample(
             sample_shape=(self.num_times, num_samples, self.num_strains)
@@ -181,15 +188,9 @@ class GaussianPosteriorStrainCorrelation(AbstractReparametrizedPosterior):
             for t in range(self.num_times)
         ], dim=0)  # (T x N x S)
 
-        if detach_grad:
-            samples = samples.detach()
+        return samples
 
-        if output_log_likelihoods:
-            return samples, self.reparametrized_sample_log_likelihoods(samples)
-        else:
-            return samples
-
-    def reparametrized_sample_log_likelihoods(self, samples: torch.Tensor):
+    def log_likelihood(self, samples: torch.Tensor):
         # input is (T x N x S)
         n_samples = samples.size()[1]
         ans = torch.zeros(size=(n_samples,), requires_grad=True, device=cfg.torch_cfg.device)
@@ -207,12 +208,6 @@ class GaussianPosteriorStrainCorrelation(AbstractReparametrizedPosterior):
             ans = ans + log_likelihood_t
         return ans
 
-    def log_likelihood(self, samples: torch.Tensor) -> float:
-        if len(samples.size()) == 2:
-            r, c = samples.size()
-            samples = samples.view(r, 1, c)
-        return super().log_likelihood(samples)
-
     def save(self, path: Path):
         params = {}
         for t_idx in range(self.num_times):
@@ -224,7 +219,7 @@ class GaussianPosteriorStrainCorrelation(AbstractReparametrizedPosterior):
         torch.save(params, path)
 
 
-class GaussianPosteriorTimeCorrelation(AbstractReparametrizedPosterior):
+class GaussianPosteriorTimeCorrelation(ReparametrizedGaussianPosterior):
     def __init__(self, num_strains: int, num_times: int):
         """
         Mean-field assumption:
@@ -257,6 +252,9 @@ class GaussianPosteriorTimeCorrelation(AbstractReparametrizedPosterior):
             scale=torch.tensor(1.0, device=cfg.torch_cfg.device)
         )
 
+    def trainable_parameters(self) -> List[Parameter]:
+        return self.trainable_mean_parameters() + self.trainable_variance_parameters()
+
     def trainable_mean_parameters(self) -> List[Parameter]:
         return [m.bias for m in self.reparam_networks]
 
@@ -281,9 +279,7 @@ class GaussianPosteriorTimeCorrelation(AbstractReparametrizedPosterior):
         return torch.sum(torch.stack(parts))
 
     def reparametrized_sample(self,
-                              num_samples=1,
-                              output_log_likelihoods=False,
-                              detach_grad=False
+                              num_samples=1
                               ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         std_gaussian_samples = self.standard_normal.sample(
             sample_shape=(self.num_strains, num_samples, self.num_times),
@@ -295,15 +291,9 @@ class GaussianPosteriorTimeCorrelation(AbstractReparametrizedPosterior):
             for s_idx in range(self.num_strains)
         ], dim=0)
 
-        if detach_grad:
-            samples = samples.detach()
+        return samples.transpose(0, 2)
 
-        if output_log_likelihoods:
-            return samples.transpose(0, 2), self.reparametrized_sample_log_likelihoods(samples)
-        else:
-            return samples.transpose(0, 2)
-
-    def reparametrized_sample_log_likelihoods(self, samples: torch.Tensor):
+    def log_likelihood(self, samples: torch.Tensor):
         n_samples = samples.size()[1]
         ans = torch.zeros(size=(n_samples,), requires_grad=True, device=cfg.torch_cfg.device)
         for s in range(self.num_strains):
@@ -320,12 +310,6 @@ class GaussianPosteriorTimeCorrelation(AbstractReparametrizedPosterior):
                 raise
             ans = ans + log_likelihood_s
         return ans
-
-    def log_likelihood(self, samples: torch.Tensor) -> float:
-        if len(samples.size()) == 2:
-            r, c = samples.size()
-            samples = samples.view(r, 1, c)
-        return super().log_likelihood(samples)
 
     def save(self, path: Path):
         params = {}

@@ -5,6 +5,7 @@ import torch_scatter
 
 from chronostrain.util.sparse import SparseMatrix, RowSectionedSparseMatrix
 from chronostrain.util.sparse.sliceable import ADVIOptimizedSparseMatrix
+from chronostrain.config import cfg
 
 
 def log_softmax(x_samples: torch.Tensor, t: int) -> torch.Tensor:
@@ -29,6 +30,13 @@ def log_matmul_exp(x_samples: torch.Tensor, read_lls_batch: torch.Tensor) -> tor
         dim=1,
         keepdim=False
     )
+
+
+def divide_columns_into_batches(x: torch.Tensor, batch_size: int):
+    permutation = torch.randperm(x.shape[1], device=cfg.torch_cfg.device)
+    for i in range(0, x.shape[1], batch_size):
+        indices = permutation[i:i+batch_size]
+        yield x[:, indices]
 
 
 class LogMMExpModel(torch.nn.Module):

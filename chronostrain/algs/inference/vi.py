@@ -16,7 +16,7 @@ class AbstractPosterior(metaclass=ABCMeta):
         """
         Returns a sample from this posterior distribution.
         :param num_samples: the number of samples (N).
-        :return: A time-indexed (T x N x S) abundance tensor.
+        :return: A time-indexed, simplex-valued (T x N x S) abundance tensor.
         """
         pass
 

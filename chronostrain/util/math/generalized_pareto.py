@@ -25,6 +25,10 @@ def fit_pareto(x: np.ndarray, loc: float) -> Tuple[float, float]:
     b = np.sum(b * w)
     k_est = float(np.mean(np.log(1 - b * x)))  # note: original paper has this sign flipped by convention.
     sigma_est = float(-k_est / b)
+
+    # Regularization from Appendix C of paper
+    k_est = (n * k_est + 5) / (n + 10)
+
     return k_est, sigma_est
 
 
