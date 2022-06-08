@@ -71,7 +71,7 @@ class ReparametrizedDirichletPosterior(AbstractReparametrizedPosterior):
 
         self.radial_networks = []
         for s_idx in range(num_strains):
-            radial = torch.nn.Linear(num_times, num_times)
+            radial = torch.nn.Linear(num_times, num_times, device=cfg.torch_cfg.device)
             geotorch.sphere(radial, "weight", embedded=True)
             with torch.no_grad():
                 radial.weight = torch.nn.init.eye_(radial.weight)
