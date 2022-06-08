@@ -70,7 +70,7 @@ class ReparametrizedDirichletPosterior(AbstractReparametrizedPosterior):
         )
 
     def trainable_parameters(self) -> List[torch.nn.Parameter]:
-        return [self.log_concentrations, self.radial_network.weights]
+        return [self.log_concentrations] + list(self.radial_network.parameters())
 
     def mean(self) -> torch.Tensor:
         return torch.exp(
