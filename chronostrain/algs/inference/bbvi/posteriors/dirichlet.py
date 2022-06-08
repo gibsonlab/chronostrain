@@ -45,7 +45,7 @@ class ReparametrizedDirichletPosterior(AbstractReparametrizedPosterior):
         self.num_times = num_times
 
         self.log_concentrations = torch.nn.Parameter(
-            np.log(0.5) + torch.zeros(
+            torch.zeros(
                 self.num_times, self.num_strains,
                 device=cfg.torch_cfg.device
             ),
@@ -120,6 +120,7 @@ class ReparametrizedDirichletPosterior(AbstractReparametrizedPosterior):
             sample_shape=(self.num_strains, num_samples, self.num_times)
         )
         mean, scaling = self.gaussian_approximation()
+        print(scaling)
 
         # (S x N x T) @@ (S x T* x T) -> (S x N x T)   T*: radially normalized
         rotated = self.radial_network.forward(std_gaussian_samples).transpose(0, 2)
