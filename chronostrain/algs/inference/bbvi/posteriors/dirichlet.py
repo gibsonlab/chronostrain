@@ -29,13 +29,6 @@ class BatchLinearTranspose(torch.nn.Module):
             torch.empty(n_batches, out_features, in_features, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype)
         )
 
-        with torch.no_grad():
-            e = torch.stack([
-                torch.eye(out_features, in_features, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype)
-                for _ in range(n_batches)
-            ], dim=0)
-            self.radial_network.weights = self.radial_network.weights.copy_(e)
-
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return torch.bmm(x, self.weights.transpose(1, 2))
 
