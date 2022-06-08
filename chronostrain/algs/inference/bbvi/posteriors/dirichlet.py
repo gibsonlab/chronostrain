@@ -67,7 +67,7 @@ class ReparametrizedDirichletPosterior(AbstractReparametrizedPosterior):
         )
 
     def trainable_parameters(self) -> List[torch.nn.Parameter]:
-        return [self.log_concentrations]
+        return [self.log_concentrations] + list(self.radial_network.parameters())
 
     def mean(self) -> torch.Tensor:
         return torch.exp(
@@ -103,24 +103,24 @@ class ReparametrizedDirichletPosterior(AbstractReparametrizedPosterior):
         :param num_samples:
         :return:
         """
-        std_gaussian_samples = self.standard_normal.sample(
-            sample_shape=(self.num_times, num_samples, self.num_strains)
-        )
-        mean, scaling = self.gaussian_approximation()
-        return log_softmax(
-            torch.unsqueeze(mean, 1) + torch.unsqueeze(scaling, 1) * std_gaussian_samples
-        )
-
         # std_gaussian_samples = self.standard_normal.sample(
-        #     sample_shape=(self.num_strains, num_samples, self.num_times)
+        #     sample_shape=(self.num_times, num_samples, self.num_strains)
         # )
         # mean, scaling = self.gaussian_approximation()
-        #
-        # # (S x N x T) @@ (S x T* x T) -> (S x N x T)   T*: radially normalized
-        # rotated = self.radial_network.forward(std_gaussian_samples).transpose(0, 2)  # T x N x S
         # return log_softmax(
-        #     torch.unsqueeze(mean, 1) + torch.unsqueeze(scaling, 1) * rotated
+        #     torch.unsqueeze(mean, 1) + torch.unsqueeze(scaling, 1) * std_gaussian_samples
         # )
+
+        std_gaussian_samples = self.standard_normal.sample(
+            sample_shape=(self.num_strains, num_samples, self.num_times)
+        )
+        mean, scaling = self.gaussian_approximation()
+
+        # (S x N x T) @@ (S x T* x T) -> (S x N x T)   T*: radially normalized
+        rotated = self.radial_network.forward(std_gaussian_samples).transpose(0, 2)  # T x N x S
+        return log_softmax(
+            torch.unsqueeze(mean, 1) + torch.unsqueeze(scaling, 1) * rotated
+        )
 
     def reparametrized_sample_icdf(self, num_samples: int) -> torch.Tensor:
         """
