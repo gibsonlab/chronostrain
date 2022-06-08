@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Tuple, List
 
+import numpy as np
 import torch
 import torch.nn.functional
 from torch.distributions import Dirichlet, Normal, Uniform
@@ -51,7 +52,7 @@ class ReparametrizedDirichletPosterior(AbstractReparametrizedPosterior):
         self.num_times = num_times
 
         self.log_concentrations = torch.nn.Parameter(
-            torch.ones(
+            np.log(0.5) + torch.zeros(
                 self.num_times, self.num_strains,
                 device=cfg.torch_cfg.device
             ),
