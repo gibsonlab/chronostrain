@@ -45,7 +45,7 @@ class ReparametrizedDirichletPosterior(AbstractReparametrizedPosterior):
         self.num_times = num_times
 
         self.log_concentrations = torch.nn.Parameter(
-            np.log(0.01) + torch.zeros(
+            np.log(0.00001) + torch.zeros(
                 self.num_times, self.num_strains,
                 device=cfg.torch_cfg.device
             ),
@@ -91,7 +91,6 @@ class ReparametrizedDirichletPosterior(AbstractReparametrizedPosterior):
         :return: The (T x S) mean and (T x S) standard deviation parameters.
         """
         mean = self.log_concentrations - torch.mean(self.log_concentrations, dim=1, keepdim=True)
-        print(mean)
 
         # Approximation uses diagonal covariance.
         inv_conc = torch.exp(-self.log_concentrations)
