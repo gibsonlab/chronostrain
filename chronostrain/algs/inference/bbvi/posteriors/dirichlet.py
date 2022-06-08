@@ -122,7 +122,7 @@ class ReparametrizedDirichletPosterior(AbstractReparametrizedPosterior):
         mean, scaling = self.gaussian_approximation()
 
         # (S x N x T) @@ (S x T* x T) -> (S x N x T)   T*: radially normalized
-        rotated = torch.bmm(std_gaussian_samples, self.radial_weights).transpose(0, 2)
+        rotated = self.radial_network.forward(std_gaussian_samples).transpose(0, 2)
         return log_softmax(
             torch.unsqueeze(mean, 1) + torch.unsqueeze(scaling, 1) * rotated
         )
