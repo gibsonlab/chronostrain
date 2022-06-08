@@ -8,6 +8,8 @@ from torch.nn import Parameter
 from .base import AbstractReparametrizedPosterior
 
 from chronostrain.config import cfg, create_logger
+from ..util import log_softmax
+
 logger = create_logger(__name__)
 
 
@@ -66,21 +68,25 @@ class ReparametrizedDirichletPosterior(AbstractReparametrizedPosterior):
     def reparametrized_sample(self,
                               num_samples=1
                               ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+        """
+        Return dirichlet samples (in log-simplex space).
+        :param num_samples:
+        :return:
+        """
         std_gaussian_samples = self.standard_normal.sample(
             sample_shape=(self.num_times, num_samples, self.num_strains)
         )
         mean, scaling = self.gaussian_approximation()
-        return torch.softmax(
+        return log_softmax(
             torch.unsqueeze(mean, 1) + torch.unsqueeze(scaling, 1) * std_gaussian_samples,
-            dim=2
         )
 
     def sample(self, num_samples: int = 1) -> torch.Tensor:
-        return self.reparametrized_sample(num_samples=num_samples).detach()
+        return torch.exp(self.reparametrized_sample(num_samples=num_samples).detach())
 
-    def log_likelihood(self, dirichlet_samples: torch.Tensor):
+    def log_likelihood(self, log_dirichlet_samples: torch.Tensor):
         # WARNING: Not to be used for autograd in ADVI!
-        return Dirichlet(self.concentrations).log_prob(dirichlet_samples.transpose(0, 1)).sum(dim=1)
+        return Dirichlet(self.concentrations).log_prob(torch.exp(log_dirichlet_samples).transpose(0, 1)).sum(dim=1)
 
     def save(self, path: Path):
         torch.save(self.concentrations.detach().cpu(), path)

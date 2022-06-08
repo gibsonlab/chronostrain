@@ -9,7 +9,7 @@ from chronostrain.model.io import TimeSeriesReads
 
 from chronostrain.config import create_logger
 from .base import AbstractADVISolver
-from .util import log_softmax, log_matmul_exp
+from .util import log_softmax_t, log_matmul_exp
 from ...subroutines.likelihoods import DataLikelihoods
 from .posteriors import ReparametrizedDirichletPosterior
 
@@ -41,7 +41,7 @@ class ADVIDirichletSolver(AbstractADVISolver):
         )
 
     def elbo(self,
-             dirichlet_samples: torch.Tensor
+             log_dirichlet_samples: torch.Tensor
              ) -> Iterator[torch.Tensor]:
         """
         Computes the ADVI approximation to the ELBO objective, holding the read-to-fragment posteriors
@@ -52,7 +52,7 @@ class ADVIDirichletSolver(AbstractADVISolver):
                 = E_{X~Q}(log P(X) + P(R|X)) - E_{X~Qx}(log Q(X))
                 = E_{X~Q}(log P(X) + P(R|X)) + H(Q)
 
-        :param x_samples: A (T x N x S) tensor, where T = # of timepoints, N = # of samples, S = # of strains.
+        :param log_dirichlet_samples: A (T x N x S) tensor, where T = # of timepoints, N = # of samples, S = # of strains.
         :return: An estimate of the ELBO, using the provided samples via the above formula.
         """
 
@@ -66,28 +66,25 @@ class ADVIDirichletSolver(AbstractADVISolver):
         yield self.posterior.entropy()
 
         # ======== E[log P(X)]
-        yield torch.mean(self.model_ll_with_grad(dirichlet_samples))
+        yield torch.mean(self.model_ll_with_grad(log_dirichlet_samples))
 
         # ======== E[log P(R|X)] = E[log Σ_S P(R|S)P(S|X)]
         for t_idx in np.random.permutation(self.model.num_times()):
-            log_y_t = torch.log(dirichlet_samples[t_idx])
             for batch_lls in self.batches[t_idx]:
                 # Average of (N x R_batch) entries, we only want to divide by 1/N and not 1/(N*R_batch)
-                yield batch_lls.shape[1] * torch.mean(log_matmul_exp(log_y_t, batch_lls))
+                yield batch_lls.shape[1] * torch.mean(log_matmul_exp(log_dirichlet_samples[t_idx], batch_lls))
 
-    def data_ll(self, x_samples: torch.Tensor) -> torch.Tensor:
-        ans = torch.zeros(size=(x_samples.shape[1],), device=x_samples.device)
+    def data_ll(self, log_dirichlet_samples: torch.Tensor) -> torch.Tensor:
+        ans = torch.zeros(size=(log_dirichlet_samples.shape[1],), device=log_dirichlet_samples.device)
         for t_idx in range(self.model.num_times()):
-            log_y_t = log_softmax(x_samples, t=t_idx)
             for batch_lls in self.batches[t_idx]:
-                batch_matrix = log_matmul_exp(log_y_t, batch_lls).detach()
+                batch_matrix = log_matmul_exp(log_dirichlet_samples[t_idx], batch_lls).detach()
                 ans = ans + torch.sum(batch_matrix, dim=1)
         return ans
 
-    def model_ll_with_grad(self, dirichlet_samples: torch.Tensor) -> torch.Tensor:
-        log_y = torch.log(dirichlet_samples)
-        x = log_y[:, :, :-1] - log_y[:, :, -1].unsqueeze(2)
+    def model_ll_with_grad(self, log_dirichlet_samples: torch.Tensor) -> torch.Tensor:
+        x = log_dirichlet_samples[:, :, :-1] - log_dirichlet_samples[:, :, -1].unsqueeze(2)
         return self.model.log_likelihood_x(X=x)
 
-    def model_ll(self, dirichlet_samples: torch.Tensor) -> torch.Tensor:
-        return self.model_ll_with_grad(dirichlet_samples).detach()
+    def model_ll(self, log_dirichlet_samples: torch.Tensor) -> torch.Tensor:
+        return self.model_ll_with_grad(log_dirichlet_samples.detach())

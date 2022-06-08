@@ -20,7 +20,7 @@ from chronostrain.config import create_logger, cfg
 from chronostrain.util.math.psis import psis_smooth_ratios
 
 from .. import AbstractModelSolver
-from .util import log_softmax, log_matmul_exp
+from .util import log_softmax_t, log_matmul_exp
 from .solver_gaussian import ADVIGaussianSolver
 from ..vi import AbstractPosterior
 
@@ -54,7 +54,7 @@ class ADVISolverFullPosterior(AbstractModelSolver):
     def data_ll(self, x_samples: torch.Tensor) -> torch.Tensor:
         ans = torch.zeros(size=(x_samples.shape[1],), device=x_samples.device)
         for t_idx in range(self.model.num_times()):
-            log_y_t = log_softmax(x_samples, t=t_idx)
+            log_y_t = log_softmax_t(x_samples, t=t_idx)
             for batch_lls in self.partial_solver.batches[t_idx]:
                 batch_matrix = log_matmul_exp(log_y_t, batch_lls).detach()
                 ans = ans + torch.sum(batch_matrix, dim=1)

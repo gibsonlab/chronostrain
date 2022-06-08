@@ -8,9 +8,13 @@ from chronostrain.util.sparse.sliceable import ADVIOptimizedSparseMatrix
 from chronostrain.config import cfg
 
 
-def log_softmax(x_samples: torch.Tensor, t: int) -> torch.Tensor:
+def log_softmax_t(x_samples: torch.Tensor, t: int) -> torch.Tensor:
     # x_samples: (T x N x S) tensor.
     return x_samples[t] - torch.logsumexp(x_samples[t], dim=1, keepdim=True)
+
+
+def log_softmax(x_samples: torch.Tensor) -> torch.Tensor:
+    return x_samples - torch.logsumexp(x_samples, dim=-1, keepdim=True)
 
 
 def log_spherical(x_samples: torch.Tensor, t: int, eps=1e-30) -> torch.Tensor:

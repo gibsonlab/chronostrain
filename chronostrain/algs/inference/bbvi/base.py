@@ -16,7 +16,7 @@ from chronostrain.util.sparse import ColumnSectionedSparseMatrix
 
 from .. import AbstractModelSolver
 from .posteriors.base import AbstractReparametrizedPosterior
-from .util import divide_columns_into_batches, log_matmul_exp, log_softmax
+from .util import divide_columns_into_batches
 
 logger = create_logger(__name__)
 
@@ -245,7 +245,6 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
         pass
 
     def diagnostic(self, num_importance_samples: int = 10000, batch_size: int = 500):
-        import numpy as np
         import scipy.special
         from chronostrain.util.math import psis_smooth_ratios
 
