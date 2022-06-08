@@ -1,15 +1,37 @@
 from pathlib import Path
 from typing import Tuple, List
 
+import numpy as np
 import torch
+import torch.nn.functional
 from torch.distributions import Dirichlet, Normal, Uniform
-from torch.nn import Parameter
+import geotorch
 
 from chronostrain.config import cfg, create_logger
 from ..util import log_softmax
 from .base import AbstractReparametrizedPosterior
 
 logger = create_logger(__name__)
+
+
+class BatchLinearTranspose(torch.nn.Module):
+    """
+    Applies a linear transformation to the incoming data: :math:`y = xA + b`.
+    Differs from base Linear module, which applies y = xA^T + b.
+    Created to reinforce column-wise radial constraint.
+
+    weight: the learnable weights of the module of shape (in_features) x (out_features).
+    """
+
+    def __init__(self, in_features: int, out_features: int, n_batches: int):
+        super().__init__()
+        self.weights = torch.nn.Parameter(
+            (1 / np.sqrt(in_features))
+            * torch.ones(n_batches, out_features, in_features, device=cfg.torch_cfg.device)
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return torch.bmm(x, self.weights.transpose(1, 2))
 
 
 class ReparametrizedDirichletPosterior(AbstractReparametrizedPosterior):
@@ -31,6 +53,10 @@ class ReparametrizedDirichletPosterior(AbstractReparametrizedPosterior):
             requires_grad=True
         )
 
+        self.radial_network = BatchLinearTranspose(num_times, num_times, num_strains)
+        geotorch.sphere(self.radial_network, "weights", embedded=True)
+        self.radial_network.weight = torch.nn.init.constant_(self.radial_network.weights, 1 / np.sqrt(num_times))
+
         self.standard_normal = Normal(
             loc=torch.tensor(0.0, device=cfg.torch_cfg.device),
             scale=torch.tensor(1.0, device=cfg.torch_cfg.device)
@@ -40,7 +66,7 @@ class ReparametrizedDirichletPosterior(AbstractReparametrizedPosterior):
             high=torch.tensor(1.0, device=cfg.torch_cfg.device)
         )
 
-    def trainable_parameters(self) -> List[Parameter]:
+    def trainable_parameters(self) -> List[torch.nn.Parameter]:
         return [self.log_concentrations]
 
     def mean(self) -> torch.Tensor:
@@ -77,12 +103,23 @@ class ReparametrizedDirichletPosterior(AbstractReparametrizedPosterior):
         :param num_samples:
         :return:
         """
+        # std_gaussian_samples = self.standard_normal.sample(
+        #     sample_shape=(self.num_times, num_samples, self.num_strains)
+        # )
+        # mean, scaling = self.gaussian_approximation()
+        # return log_softmax(
+        #     torch.unsqueeze(mean, 1) + torch.unsqueeze(scaling, 1) * std_gaussian_samples
+        # )
+
         std_gaussian_samples = self.standard_normal.sample(
-            sample_shape=(self.num_times, num_samples, self.num_strains)
+            sample_shape=(self.num_strains, num_samples, self.num_times)
         )
         mean, scaling = self.gaussian_approximation()
+
+        # (S x N x T) @@ (S x T* x T) -> (S x N x T)   T*: radially normalized
+        rotated = self.radial_network.forward(std_gaussian_samples).transpose(0, 2)  # T x N x S
         return log_softmax(
-            torch.unsqueeze(mean, 1) + torch.unsqueeze(scaling, 1) * std_gaussian_samples
+            torch.unsqueeze(mean, 1) + torch.unsqueeze(scaling, 1) * rotated
         )
 
     def reparametrized_sample_icdf(self, num_samples: int) -> torch.Tensor:
