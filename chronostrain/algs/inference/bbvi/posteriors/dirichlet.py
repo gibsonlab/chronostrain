@@ -76,6 +76,7 @@ class ReparametrizedDirichletPosterior(AbstractReparametrizedPosterior):
             with torch.no_grad():
                 radial.weight = torch.nn.init.eye_(radial.weight)
             self.radial_networks.append(radial)
+        self.radial_weights = torch.stack([r.weight for r in self.radial_networks], dim=0).transpose(1, 2)  # (S x T* x T)
 
         self.standard_normal = Normal(
             loc=torch.tensor(0.0, device=cfg.torch_cfg.device),
@@ -140,13 +141,8 @@ class ReparametrizedDirichletPosterior(AbstractReparametrizedPosterior):
         )
         mean, scaling = self.gaussian_approximation()
 
-        rotated = torch.stack([
-            self.radial_networks[s_idx].forward(std_gaussian_samples[s_idx])
-            for s_idx in range(self.num_strains)
-        ], dim=0).transpose(0, 2)  # (S x N x T)
-
         # (S x N x T) @@ (S x T* x T) -> (S x N x T)   T*: radially normalized
-        # rotated = self.radial_network.forward(std_gaussian_samples).transpose(0, 2)  # T x N x S
+        rotated = torch.bmm(std_gaussian_samples, self.radial_weights).transpose(0, 2)
         return log_softmax(
             torch.unsqueeze(mean, 1) + torch.unsqueeze(scaling, 1) * rotated
         )
