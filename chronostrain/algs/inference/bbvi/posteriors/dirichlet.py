@@ -29,6 +29,13 @@ class BatchLinearTranspose(torch.nn.Module):
             torch.empty(n_batches, out_features, in_features, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype)
         )
 
+        with torch.no_grad():
+            e = torch.stack([
+                torch.eye(out_features, in_features, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype)
+                for _ in range(n_batches)
+            ], dim=0)
+            self.radial_network.weights = self.radial_network.weights.copy_(e)
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return torch.bmm(x, self.weights.transpose(1, 2))
 
@@ -52,17 +59,23 @@ class ReparametrizedDirichletPosterior(AbstractReparametrizedPosterior):
             requires_grad=True
         )
 
-        self.radial_network = BatchLinearTranspose(num_times, num_times, num_strains)
-        geotorch.sphere(self.radial_network, "weights", embedded=True)
-        # self.radial_network.weight = torch.nn.init.constant_(self.radial_network.weights, 1 / np.sqrt(num_times))
-        with torch.no_grad():
-            e = torch.stack([
-                torch.eye(num_times, num_times, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype)
-                for _ in range(num_strains)
-            ], dim=0)
-            self.radial_network.weights = self.radial_network.weights.copy_(e)
+        # self.radial_network = BatchLinearTranspose(num_times, num_times, num_strains)
+        # geotorch.sphere(self.radial_network, "weights", embedded=True)
+        # # self.radial_network.weight = torch.nn.init.constant_(self.radial_network.weights, 1 / np.sqrt(num_times))
+        # with torch.no_grad():
+        #     e = torch.stack([
+        #         torch.eye(num_times, num_times, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype)
+        #         for _ in range(num_strains)
+        #     ], dim=0)
+        #     self.radial_network.weights = self.radial_network.weights.copy_(e)
 
-        print(self.radial_network.weights)
+        self.radial_networks = []
+        for s_idx in range(num_strains):
+            radial = torch.nn.Linear(num_times, num_times)
+            geotorch.sphere(radial, "weights", embedded=True)
+            with torch.no_grad():
+                radial.weights = torch.nn.init.eye_(radial.weights)
+            self.radial_networks.append(radial)
 
         self.standard_normal = Normal(
             loc=torch.tensor(0.0, device=cfg.torch_cfg.device),
@@ -74,7 +87,11 @@ class ReparametrizedDirichletPosterior(AbstractReparametrizedPosterior):
         )
 
     def trainable_parameters(self) -> List[torch.nn.Parameter]:
-        return [self.log_concentrations] + list(self.radial_network.parameters())
+        p = [self.log_concentrations]
+        for n in self.radial_networks:
+            for param in n.parameters():
+                p.append(param)
+        return p
 
     def mean(self) -> torch.Tensor:
         return torch.exp(
@@ -123,8 +140,13 @@ class ReparametrizedDirichletPosterior(AbstractReparametrizedPosterior):
         )
         mean, scaling = self.gaussian_approximation()
 
+        rotated = torch.stack([
+            self.radial_networks[s_idx].forward(std_gaussian_samples[s_idx])
+            for s_idx in range(self.num_strains)
+        ], dim=0).transpose(0, 2)  # (S x N x T)
+
         # (S x N x T) @@ (S x T* x T) -> (S x N x T)   T*: radially normalized
-        rotated = self.radial_network.forward(std_gaussian_samples).transpose(0, 2)  # T x N x S
+        # rotated = self.radial_network.forward(std_gaussian_samples).transpose(0, 2)  # T x N x S
         return log_softmax(
             torch.unsqueeze(mean, 1) + torch.unsqueeze(scaling, 1) * rotated
         )
