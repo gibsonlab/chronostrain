@@ -86,7 +86,7 @@ class ADVIDirichletSolver(AbstractADVISolver):
 
     def model_ll_with_grad(self, dirichlet_samples: torch.Tensor) -> torch.Tensor:
         log_y = torch.log(dirichlet_samples)
-        x = log_y[:, :, :-1] + log_y[:, :, -1].unsqueeze(2)
+        x = log_y[:, :, :-1] - log_y[:, :, -1].unsqueeze(2)
         return self.model.log_likelihood_x(X=x)
 
     def model_ll(self, dirichlet_samples: torch.Tensor) -> torch.Tensor:

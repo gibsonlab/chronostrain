@@ -70,11 +70,10 @@ class ReparametrizedDirichletPosterior(AbstractReparametrizedPosterior):
             sample_shape=(self.num_times, num_samples, self.num_strains)
         )
         mean, scaling = self.gaussian_approximation()
-        s = torch.softmax(
+        return torch.softmax(
             torch.unsqueeze(mean, 1) + torch.unsqueeze(scaling, 1) * std_gaussian_samples,
             dim=2
         )
-        return s
 
     def sample(self, num_samples: int = 1) -> torch.Tensor:
         return self.reparametrized_sample(num_samples=num_samples).detach()
