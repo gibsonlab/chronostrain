@@ -1,7 +1,6 @@
 from pathlib import Path
 from typing import Tuple, List
 
-import numpy as np
 import torch
 import torch.nn.functional
 from torch.distributions import Dirichlet, Normal, Uniform
@@ -59,24 +58,15 @@ class ReparametrizedDirichletPosterior(AbstractReparametrizedPosterior):
             requires_grad=True
         )
 
-        # self.radial_network = BatchLinearTranspose(num_times, num_times, num_strains)
-        # geotorch.sphere(self.radial_network, "weights", embedded=True)
-        # # self.radial_network.weight = torch.nn.init.constant_(self.radial_network.weights, 1 / np.sqrt(num_times))
-        # with torch.no_grad():
-        #     e = torch.stack([
-        #         torch.eye(num_times, num_times, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype)
-        #         for _ in range(num_strains)
-        #     ], dim=0)
-        #     self.radial_network.weights = self.radial_network.weights.copy_(e)
-
-        self.radial_networks = []
-        for s_idx in range(num_strains):
-            radial = torch.nn.Linear(num_times, num_times, device=cfg.torch_cfg.device)
-            geotorch.sphere(radial, "weight", embedded=True)
-            with torch.no_grad():
-                radial.weight = torch.nn.init.eye_(radial.weight)
-            self.radial_networks.append(radial)
-        self.radial_weights = torch.stack([r.weight for r in self.radial_networks], dim=0).transpose(1, 2)  # (S x T* x T)
+        self.radial_network = BatchLinearTranspose(num_times, num_times, num_strains)
+        geotorch.sphere(self.radial_network, "weights")
+        # self.radial_network.weight = torch.nn.init.constant_(self.radial_network.weights, 1 / np.sqrt(num_times))
+        with torch.no_grad():
+            e = torch.stack([
+                torch.eye(num_times, num_times, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype)
+                for _ in range(num_strains)
+            ], dim=0)
+            self.radial_network.weights = self.radial_network.weights.copy_(e)
 
         self.standard_normal = Normal(
             loc=torch.tensor(0.0, device=cfg.torch_cfg.device),
@@ -88,11 +78,7 @@ class ReparametrizedDirichletPosterior(AbstractReparametrizedPosterior):
         )
 
     def trainable_parameters(self) -> List[torch.nn.Parameter]:
-        p = [self.log_concentrations]
-        for n in self.radial_networks:
-            for param in n.parameters():
-                p.append(param)
-        return p
+        return [self.log_concentrations] + list(self.radial_network.parameters())
 
     def mean(self) -> torch.Tensor:
         return torch.exp(
