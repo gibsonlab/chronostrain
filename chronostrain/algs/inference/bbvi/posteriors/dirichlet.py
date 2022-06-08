@@ -1,14 +1,13 @@
 from pathlib import Path
-from typing import Union, Tuple, List
+from typing import Tuple, List
 
 import torch
-from torch.distributions import Dirichlet, Normal
+from torch.distributions import Dirichlet, Normal, Uniform
 from torch.nn import Parameter
-
-from .base import AbstractReparametrizedPosterior
 
 from chronostrain.config import cfg, create_logger
 from ..util import log_softmax
+from .base import AbstractReparametrizedPosterior
 
 logger = create_logger(__name__)
 
@@ -24,7 +23,7 @@ class ReparametrizedDirichletPosterior(AbstractReparametrizedPosterior):
         self.num_strains = num_strains
         self.num_times = num_times
 
-        self.concentrations = torch.nn.Parameter(
+        self.log_concentrations = torch.nn.Parameter(
             torch.ones(
                 self.num_times, self.num_strains,
                 device=cfg.torch_cfg.device
@@ -36,15 +35,21 @@ class ReparametrizedDirichletPosterior(AbstractReparametrizedPosterior):
             loc=torch.tensor(0.0, device=cfg.torch_cfg.device),
             scale=torch.tensor(1.0, device=cfg.torch_cfg.device)
         )
+        self.standard_uniform = Uniform(
+            low=torch.tensor(0.0, device=cfg.torch_cfg.device),
+            high=torch.tensor(1.0, device=cfg.torch_cfg.device)
+        )
 
     def trainable_parameters(self) -> List[Parameter]:
-        return [self.concentrations]
+        return [self.log_concentrations]
 
     def mean(self) -> torch.Tensor:
-        return torch.detach(self.concentrations / torch.sum(self.concentrations, dim=1, keepdim=True))
+        return torch.exp(
+            self.log_concentrations - torch.logsumexp(self.log_concentrations, dim=1, keepdim=True)
+        )
 
     def entropy(self) -> torch.Tensor:
-        return Dirichlet(self.concentrations).entropy().sum()
+        return Dirichlet(torch.exp(self.log_concentrations)).entropy().sum()
 
     def gaussian_approximation(self) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -54,22 +59,21 @@ class ReparametrizedDirichletPosterior(AbstractReparametrizedPosterior):
 
         :return: The (T x S) mean and (T x S) standard deviation parameters.
         """
-        mean = torch.log(self.concentrations) - (1 / self.num_strains) * torch.sum(self.concentrations, dim=1, keepdim=True)
-
-        inv_conc = torch.reciprocal(self.concentrations)
+        mean = self.log_concentrations - torch.mean(self.log_concentrations, dim=1, keepdim=True)
 
         # Approximation uses diagonal covariance.
+        inv_conc = torch.exp(-self.log_concentrations)
         scaling = torch.sqrt(
             (1 - (2 / self.num_strains)) * inv_conc
-            + (1 / self.num_strains ** 2) * torch.sum(inv_conc, dim=1, keepdim=True)
+            + (1 / self.num_strains) * torch.mean(inv_conc, dim=1, keepdim=True)
         )
         return mean, scaling
 
-    def reparametrized_sample(self,
-                              num_samples=1
-                              ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+    def reparametrized_sample_gaussian(self,
+                                       num_samples=1
+                                       ) -> torch.Tensor:
         """
-        Return dirichlet samples (in log-simplex space).
+        Return dirichlet samples (in log-simplex space) using the laplace gaussian-softmax approximation.
         :param num_samples:
         :return:
         """
@@ -78,21 +82,36 @@ class ReparametrizedDirichletPosterior(AbstractReparametrizedPosterior):
         )
         mean, scaling = self.gaussian_approximation()
         return log_softmax(
-            torch.unsqueeze(mean, 1) + torch.unsqueeze(scaling, 1) * std_gaussian_samples,
+            torch.unsqueeze(mean, 1) + torch.unsqueeze(scaling, 1) * std_gaussian_samples
         )
+
+    def reparametrized_sample_icdf(self, num_samples: int) -> torch.Tensor:
+        """
+        Return dirichlet samples (in log-simplex space) using the approximate inverse-gamma CDF.
+        :param num_samples:
+        :return:
+        """
+        u = self.standard_uniform.sample(sample_shape=(self.num_times, num_samples, self.num_strains))
+        log_alpha = self.log_concentrations.unsqueeze(1)
+        alpha = torch.exp(log_alpha)
+        log_diricihlet = torch.reciprocal(alpha) * (torch.log(u) + log_alpha + torch.lgamma(alpha))
+        return log_diricihlet - torch.logsumexp(log_diricihlet, dim=-1, keepdim=True)
+
+    def reparametrized_sample(self, num_samples: int) -> torch.Tensor:
+        return self.reparametrized_sample_gaussian(num_samples)
 
     def sample(self, num_samples: int = 1) -> torch.Tensor:
         return torch.exp(self.reparametrized_sample(num_samples=num_samples).detach())
 
     def log_likelihood(self, log_dirichlet_samples: torch.Tensor):
         # WARNING: Not to be used for autograd in ADVI!
-        return Dirichlet(self.concentrations).log_prob(torch.exp(log_dirichlet_samples).transpose(0, 1)).sum(dim=1)
+        return Dirichlet(torch.exp(self.log_concentrations)).log_prob(torch.exp(log_dirichlet_samples).transpose(0, 1)).sum(dim=1)
 
     def save(self, path: Path):
-        torch.save(self.concentrations.detach().cpu(), path)
+        torch.save(self.log_concentrations.detach().cpu(), path)
 
     @staticmethod
-    def load(path: Path, num_strains: int, num_times: int) -> 'ReparametrizedDirichletSolver':
+    def load(path: Path, num_strains: int, num_times: int) -> 'ReparametrizedDirichletPosterior':
         posterior = ReparametrizedDirichletPosterior(num_strains, num_times)
         concs = torch.load(path)
         assert isinstance(concs, torch.Tensor)

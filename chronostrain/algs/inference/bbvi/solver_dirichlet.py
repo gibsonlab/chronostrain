@@ -9,7 +9,7 @@ from chronostrain.model.io import TimeSeriesReads
 
 from chronostrain.config import create_logger
 from .base import AbstractADVISolver
-from .util import log_softmax_t, log_matmul_exp
+from .util import log_matmul_exp
 from ...subroutines.likelihoods import DataLikelihoods
 from .posteriors import ReparametrizedDirichletPosterior
 

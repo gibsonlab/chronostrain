@@ -248,6 +248,8 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
         import scipy.special
         from chronostrain.util.math import psis_smooth_ratios
 
+        logger.debug("Running diagnostic...")
+
         log_importance_weights = []
         num_batches = int(np.ceil(num_importance_samples / batch_size))
         for batch_idx in range(num_batches):
@@ -270,5 +272,5 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
         logger.debug(f"Estimated Pareto k-hat: {k_hat}")
         if k_hat > 0.7:
             # Extremely large number of samples are needed for stable gradient estimates!
-            logger.warning("Pareto k-hat estimate exceeds safe threshold (0.7). "
-                           "Estimates may be biased/overfit to the data.")
+            logger.warning(f"Pareto k-hat estimate ({k_hat}) exceeds safe threshold (0.7). "
+                           "Estimates may be biased/overfit to the variational family.")
