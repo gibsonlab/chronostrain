@@ -26,8 +26,7 @@ class BatchLinearTranspose(torch.nn.Module):
     def __init__(self, in_features: int, out_features: int, n_batches: int):
         super().__init__()
         self.weights = torch.nn.Parameter(
-            (1 / np.sqrt(in_features))
-            * torch.ones(n_batches, out_features, in_features, device=cfg.torch_cfg.device)
+            torch.empty(n_batches, out_features, in_features, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype)
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -58,7 +57,7 @@ class ReparametrizedDirichletPosterior(AbstractReparametrizedPosterior):
         # self.radial_network.weight = torch.nn.init.constant_(self.radial_network.weights, 1 / np.sqrt(num_times))
         with torch.no_grad():
             for s_idx in range(num_strains):
-                torch.eye(num_times, num_times, out=self.radial_network.weights[s_idx], requires_grad=True)
+                torch.nn.init.eye_(self.radial_network.weights[s_idx])
 
         self.standard_normal = Normal(
             loc=torch.tensor(0.0, device=cfg.torch_cfg.device),
