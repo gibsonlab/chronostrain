@@ -4,20 +4,25 @@ from typing import Optional
 
 import numpy as np
 import torch
-
 from chronostrain.algs import *
 from chronostrain.database import StrainDatabase
+from chronostrain.model import Population, FragmentSpace
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads, save_abundances
 from chronostrain.visualizations import plot_abundances, plot_abundances_comparison
 
-from chronostrain import logger
+from chronostrain.config import cfg, create_logger
+from .initialization import create_model
+
+logger = create_logger("chronostrain.helpers.algorithms")
 
 
 def perform_advi(
         db: StrainDatabase,
-        model: GenerativeModel,
+        population: Population,
+        fragments: FragmentSpace,
         reads: TimeSeriesReads,
+        paired_end: bool,
         num_epochs: int,
         lr_decay_factor: float,
         lr_patience: int,
@@ -35,7 +40,18 @@ def perform_advi(
         logger.warning("Encountered `full` correlation type argument; "
                        "learning this posterior may lead to unstable/unreliable results. "
                        "Consider directly invoking `perform_advi_full_correlation` instead.")
+
+    time_points = [time_slice.time_point for time_slice in reads]
     if correlation_type == 'dirichlet':
+        model = create_model(
+            population=population,
+            mean=torch.zeros(population.num_strains() - 1, device=cfg.torch_cfg.device),
+            fragments=fragments,
+            time_points=time_points,
+            disable_quality=not cfg.model_cfg.use_quality_scores,
+            db=db,
+            pair_ended=paired_end
+        )
         solver = ADVIDirichletSolver(
             model=model,
             data=reads,
@@ -43,6 +59,15 @@ def perform_advi(
             read_batch_size=read_batch_size
         )
     else:
+        model = create_model(
+            population=population,
+            mean=torch.zeros(population.num_strains(), device=cfg.torch_cfg.device),
+            fragments=fragments,
+            time_points=time_points,
+            disable_quality=not cfg.model_cfg.use_quality_scores,
+            db=db,
+            pair_ended=paired_end
+        )
         solver = ADVIGaussianSolver(
             model=model,
             data=reads,

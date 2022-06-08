@@ -5,12 +5,13 @@
 import argparse
 from pathlib import Path
 
+import torch
 from chronostrain.algs.subroutines.cache import ReadsComputationCache
 from chronostrain import cfg, create_logger
 import chronostrain.visualizations as viz
 from chronostrain.algs.subroutines.alignments import CachedReadMultipleAlignments, CachedReadPairwiseAlignments
 from chronostrain.database import StrainDatabase
-from chronostrain.model import Population, FragmentSpace, Strain
+from chronostrain.model import Population, FragmentSpace
 from chronostrain.model.io import TimeSeriesReads
 
 from helpers import *
@@ -155,23 +156,15 @@ def main():
     reads = TimeSeriesReads.load_from_csv(
         Path(args.reads_input),
     )
-    time_points = [time_slice.time_point for time_slice in reads]
     fragments = load_fragments(reads, db)
 
     # ============ Create model instance
-    model = create_model(
-        population=population,
-        fragments=fragments,
-        time_points=time_points,
-        disable_quality=not cfg.model_cfg.use_quality_scores,
-        db=db,
-        pair_ended=not args.single_ended
-    )
-
     solver, posterior, elbo_history, (uppers, lowers, medians) = perform_advi(
         db=db,
-        model=model,
+        population=population,
+        fragments=fragments,
         reads=reads,
+        paired_end=not args.single_ended,
         num_epochs=args.epochs,
         iters=args.iters,
         min_lr=args.min_lr,
@@ -194,7 +187,7 @@ def main():
 
     if args.draw_training_history:
         viz.plot_training_animation(
-            model=model,
+            model=solver.model,
             out_path=animation_path,
             upper_quantiles=uppers,
             lower_quantiles=lowers,
@@ -203,8 +196,8 @@ def main():
 
     # ==== Plot the posterior.
     viz.plot_vi_posterior(
-        times=model.times,
-        population=model.bacteria_pop,
+        times=solver.model.times,
+        population=population,
         posterior=posterior,
         plot_path=plot_path,
         samples_path=samples_path,

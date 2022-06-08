@@ -14,6 +14,7 @@ def initialize_seed(seed: int):
 
 
 def create_model(population: Population,
+                 mean: torch.Tensor,
                  fragments: FragmentSpace,
                  time_points: List[float],
                  disable_quality: bool,
@@ -21,15 +22,15 @@ def create_model(population: Population,
                  pair_ended: bool = True) -> GenerativeModel:
     """
     Simple wrapper for creating a generative model.
+    :param mean: The prior mean for the underlying gaussian process.
     :param population: The bacteria population.
     :param fragments: The collection of fragments coming from the population.
     :param time_points: List of time points for which samples are taken from.
     :param disable_quality: A flag to indicate whether or not to use NoiselessErrorModel.
     :param db: A Strain database instance.
+    :param pair_ended: Indicates whether the read model is paired-end or single-ended.
     :return A Generative model object.
     """
-    mu = torch.zeros(population.num_strains(), device=cfg.torch_cfg.device)
-
     if disable_quality:
         logger.info("Flag --disable_quality turned on; Quality scores are diabled. Initializing NoiselessErrorModel.")
         error_model = NoiselessErrorModel(mismatch_likelihood=0.)
@@ -49,7 +50,7 @@ def create_model(population: Population,
     model = GenerativeModel(
         bacteria_pop=population,
         times=time_points,
-        mu=mu,
+        mu=mean,
         tau_1_dof=cfg.model_cfg.sics_dof_1,
         tau_1_scale=cfg.model_cfg.sics_scale_1,
         tau_dof=cfg.model_cfg.sics_dof,
