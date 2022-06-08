@@ -55,7 +55,10 @@ class ReparametrizedDirichletPosterior(AbstractReparametrizedPosterior):
 
         self.radial_network = BatchLinearTranspose(num_times, num_times, num_strains)
         geotorch.sphere(self.radial_network, "weights", embedded=True)
-        self.radial_network.weight = torch.nn.init.constant_(self.radial_network.weights, 1 / np.sqrt(num_times))
+        # self.radial_network.weight = torch.nn.init.constant_(self.radial_network.weights, 1 / np.sqrt(num_times))
+        with torch.no_grad():
+            for s_idx in range(num_strains):
+                torch.eye(num_times, num_times, out=self.radial_network.weights[s_idx], requires_grad=True)
 
         self.standard_normal = Normal(
             loc=torch.tensor(0.0, device=cfg.torch_cfg.device),
