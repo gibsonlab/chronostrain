@@ -34,7 +34,7 @@ start_time=$(date +%s%N)  # nanoseconds
 python $PROJECT_DIR/scripts/run_advi.py \
 --reads_input "${read_dir}/filtered/filtered_input_files.csv" \
 --out_dir ${output_dir}/strain_corr \
---correlation_mode "strain" \
+--correlation_mode "full" \
 --seed ${INFERENCE_SEED} \
 --iters $CHRONOSTRAIN_NUM_ITERS \
 --epochs $CHRONOSTRAIN_NUM_EPOCHS \
@@ -53,21 +53,3 @@ end_time=$(date +%s%N)
 elapsed_time=$(( $(($end_time-$start_time)) / 1000000 ))
 runtime_file=${trial_dir}/output/chronostrain_runtime.txt
 echo "${elapsed_time}" > $runtime_file
-
-
-# now run the faster(?) algorithm of interest (use cache)
-python $PROJECT_DIR/scripts/run_advi.py \
---reads_input "${read_dir}/filtered/filtered_input_files.csv" \
---out_dir ${output_dir}/dirichlet_corr \
---correlation_mode "dirichlet" \
---seed ${INFERENCE_SEED} \
---iters $CHRONOSTRAIN_NUM_ITERS \
---epochs $CHRONOSTRAIN_NUM_EPOCHS \
---decay_lr $CHRONOSTRAIN_DECAY_LR \
---lr_patience ${CHRONOSTRAIN_LR_PATIENCE} \
---min_lr ${CHRONOSTRAIN_MIN_LR} \
---learning_rate $CHRONOSTRAIN_LR \
---num_samples $CHRONOSTRAIN_NUM_SAMPLES \
---read_batch_size $CHRONOSTRAIN_READ_BATCH_SZ \
---plot_format "pdf" \
---plot_elbo

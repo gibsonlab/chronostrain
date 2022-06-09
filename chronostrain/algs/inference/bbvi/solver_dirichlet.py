@@ -62,17 +62,22 @@ class ADVIDirichletSolver(AbstractADVISolver):
 
         To save memory on larger frag spaces, split the ELBO up into several pieces.
         """
-        # ======== H(Q) = E_Q[-log Q(X)]
-        yield self.posterior.entropy()
-
-        # ======== E[log P(X)]
-        yield torch.mean(self.model_ll_with_grad(log_dirichlet_samples))
+        # # ======== H(Q) = E_Q[-log Q(X)]
+        # yield self.posterior.entropy()
+        #
+        # # ======== E[log P(X)]
+        # yield torch.mean(self.model_ll_with_grad(log_dirichlet_samples))
 
         # ======== E[log P(R|X)] = E[log Σ_S P(R|S)P(S|X)]
         for t_idx in np.random.permutation(self.model.num_times()):
             for batch_lls in self.batches[t_idx]:
+                batch_wt = batch_lls.shape[1] / self.total_reads
+                entropy = self.posterior.entropy()
+                prior = torch.mean(self.model_ll_with_grad(log_dirichlet_samples))
+
                 # Average of (N x R_batch) entries, we only want to divide by 1/N and not 1/(N*R_batch)
-                yield batch_lls.shape[1] * torch.mean(log_matmul_exp(log_dirichlet_samples[t_idx], batch_lls))
+                data_ll = batch_lls.shape[1] * torch.mean(log_matmul_exp(log_dirichlet_samples[t_idx], batch_lls))
+                yield data_ll + batch_wt * (entropy + prior)
 
     def data_ll(self, log_dirichlet_samples: torch.Tensor) -> torch.Tensor:
         ans = torch.zeros(size=(log_dirichlet_samples.shape[1],), device=log_dirichlet_samples.device)
