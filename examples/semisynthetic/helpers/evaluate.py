@@ -394,7 +394,7 @@ def main():
             # =========== Chronostrain
             try:
                 chronostrain_estimate_samples = parse_chronostrain_estimate(chronostrain_db, ground_truth, strain_ids,
-                                                                            trial_dir / 'output' / 'chronostrain')
+                                                                            trial_dir / 'output' / 'chronostrain' / 'full_corr')
                 # errors = wasserstein_error(
                 #     chronostrain_estimate_samples[:, :30, :],
                 #     ground_truth, distances, strain_ids
@@ -411,23 +411,6 @@ def main():
                 # plot_result(plot_dir / 'chronostrain.pdf', ground_truth, chronostrain_estimate_samples, strain_ids)
             except FileNotFoundError:
                 logger.info("Skipping Chronostrain output.")
-
-            # =========== Chronostrain (Full Correlation)
-            try:
-                chronostrain_estimate_samples = parse_chronostrain_estimate(chronostrain_db, ground_truth,
-                                                                            strain_ids,
-                                                                            trial_dir / 'output' / 'chronostrain_full')
-                error = error_metric(chronostrain_estimate_samples, truth_tensor).item()
-                logger.info("Chronostrain (Full Correlation) error of median: {}".format(error))
-                df_entries.append({
-                    'ReadDepth': read_depth,
-                    'TrialNum': trial_num,
-                    'Method': 'Chronostrain (Full Corr.)',
-                    'Error': error
-                })
-                # plot_result(plot_dir / 'chronostrain.pass2.pdf', ground_truth, chronostrain_estimate_samples, strain_ids)
-            except FileNotFoundError:
-                logger.info("Skipping Chronostrain (Full Corr.) output.")
 
             # =========== StrainEst
             try:

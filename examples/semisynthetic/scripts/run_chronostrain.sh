@@ -33,7 +33,7 @@ start_time=$(date +%s%N)  # nanoseconds
 
 python $PROJECT_DIR/scripts/run_advi.py \
 --reads_input "${read_dir}/filtered/filtered_input_files.csv" \
---out_dir ${output_dir}/strain_corr \
+--out_dir ${output_dir}/full_corr \
 --correlation_mode "full" \
 --seed ${INFERENCE_SEED} \
 --iters $CHRONOSTRAIN_NUM_ITERS \
