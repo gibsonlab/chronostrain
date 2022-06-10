@@ -351,17 +351,11 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main():
-    args = parse_args()
-    base_dir = Path(args.base_data_dir)
-    out_dir = Path(args.out_dir)
-
-    # Necessary precomputation.
-    ground_truth = load_ground_truth(Path(args.ground_truth_path))
-    index_df = pd.read_csv(args.index_path, sep='\t')
-    chronostrain_db = cfg.database_cfg.get_database()
-    out_dir.mkdir(exist_ok=True, parents=True)
-
+def evaluate_errors(index_df: pd.DataFrame,
+                    ground_truth: pd.DataFrame,
+                    result_base_dir: Path,
+                    chronostrain_db: StrainDatabase,
+                    out_dir: Path):
     strain_ids = list(pd.unique(
         index_df.loc[
             index_df['Species'] == 'coli',
@@ -369,23 +363,10 @@ def main():
         ]
     ))
 
-    # dists_path = out_dir / 'strain_distances.pkl'
-    # try:
-    #     with open(dists_path, 'rb') as f:
-    #         strain_ids = pickle.load(f)
-    #         distances = torch.tensor(pickle.load(f), device=device)
-    # except BaseException:
-    #     logger.info("Parsing hamming distances.")
-    #     strain_ids, distances = parse_hamming(Path(args.alignment_file), index_df)
-    #     distances = torch.tensor(distances, device=device)
-    #     with open(dists_path, 'wb') as f:
-    #         pickle.dump(strain_ids, f)
-    #         pickle.dump(distances, f)
-
     # search through all of the read depths.
     df_entries = []
     truth_tensor = extract_ground_truth_array(ground_truth, strain_ids)
-    for read_depth, read_depth_dir in read_depth_dirs(base_dir):
+    for read_depth, read_depth_dir in read_depth_dirs(result_base_dir):
         for trial_num, trial_dir in trial_dirs(read_depth_dir):
             logger.info(f"Handling read depth {read_depth}, trial {trial_num}")
             plot_dir = trial_dir / 'output' / 'plots'
@@ -480,23 +461,76 @@ def main():
             except FileNotFoundError:
                 logger.info("Skipping StrainFacts output.")
 
-    out_path = out_dir / 'summary.csv'
-    summary_df = pd.DataFrame(df_entries)
-    summary_df.to_csv(out_path, index=False)
-    logger.info(f"[*] Saved results to {out_path}.")
+    return pd.DataFrame(df_entries)
 
-    plot_path = out_path.parent / "plot.pdf"
-    fig, ax = plt.subplots(1, 1, figsize=(16, 10))
-    sb.boxplot(
-        data=summary_df,
-        x='ReadDepth',
-        hue='Method',
-        y='Error',
-        ax=ax
+
+def evaluate_runtimes(result_base_dir: Path, out_dir: Path):
+    df_entries = []
+
+    for read_depth, read_depth_dir in read_depth_dirs(result_base_dir):
+        for trial_num, trial_dir in trial_dirs(read_depth_dir):
+            def parse_runtime_file(_method_name: str, _method_part: str, _time_point: str, _runtime_file: str):
+                runtime_path = trial_dir / "output" / _runtime_file
+                if runtime_path.exists():
+                    with open(runtime_path, 'rt') as f:
+                        duration = int(next(iter(f)))
+                        df_entries.append({
+                            'Method': _method_name,
+                            'MethodPart': _method_part,
+                            'ReadDepth': read_depth,
+                            'Trial': trial_num,
+                            'Timepoint': _time_point,
+                            'Duration': duration
+                        })
+                else:
+                    logger.debug(f"Skipping {runtime_path}")
+
+            logger.info(f"Handling read depth {read_depth}, trial {trial_num}")
+            parse_runtime_file('Chronostrain', 'Filter', 'all', 'chronostrain_filter_runtime.txt')
+            parse_runtime_file('Chronostrain', 'Inference', 'all', 'chronostrain_runtime.txt')
+            parse_runtime_file('StrainGST', 'all', '0', 'straingst_runtime.0.chromosome.txt')
+            parse_runtime_file('StrainGST', 'all', '1', 'straingst_runtime.1.chromosome.txt')
+            parse_runtime_file('StrainGST', 'all', '2', 'straingst_runtime.2.chromosome.txt')
+            parse_runtime_file('StrainGST', 'all', '3', 'straingst_runtime.3.chromosome.txt')
+            parse_runtime_file('StrainGST', 'all', '4', 'straingst_runtime.4.chromosome.txt')
+            parse_runtime_file('StrainFacts', 'GTPro', 'all', 'gtpro_runtime.txt')
+            parse_runtime_file('StrainFacts', 'Inference', 'all', 'strainfacts_runtime.txt')
+            parse_runtime_file('StrainEst', 'Inference', '0', 'strainest_runtime.0.txt')
+            parse_runtime_file('StrainEst', 'Inference', '1', 'strainest_runtime.1.txt')
+            parse_runtime_file('StrainEst', 'Inference', '2', 'strainest_runtime.2.txt')
+            parse_runtime_file('StrainEst', 'Inference', '3', 'strainest_runtime.3.txt')
+            parse_runtime_file('StrainEst', 'Inference', '4', 'strainest_runtime.4.txt')
+    return pd.DataFrame(df_entries)
+
+
+def main():
+    args = parse_args()
+    result_base_dir = Path(args.base_data_dir)
+    out_dir = Path(args.out_dir)
+
+    # Necessary precomputation.
+    ground_truth = load_ground_truth(Path(args.ground_truth_path))
+    index_df = pd.read_csv(args.index_path, sep='\t')
+    chronostrain_db = cfg.database_cfg.get_database()
+    out_dir.mkdir(exist_ok=True, parents=True)
+
+    logger.info("Evaluating error metrics.")
+    summary_df = evaluate_errors(
+        index_df,
+        ground_truth,
+        result_base_dir,
+        chronostrain_db,
+        out_dir
     )
+    out_path = out_dir / 'summary.csv'
+    summary_df.to_csv(out_path, index=False)
+    logger.info(f"[*] Saved error metrics to {out_path}.")
 
-    plt.savefig(plot_path)
-    logger.info(f"[*] Saved plot to {plot_path}.")
+    logger.info("Evaluating runtimes.")
+    runtime_df = evaluate_runtimes(result_base_dir, out_dir)
+    out_path = out_dir / 'runtime.csv'
+    runtime_df.to_csv(out_path, index=False)
+    logger.info(f"[*] Saved error metrics to {out_path}.")
 
 
 if __name__ == "__main__":
