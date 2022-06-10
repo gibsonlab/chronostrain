@@ -2,6 +2,12 @@
 set -e
 source settings.sh
 
+
+check_program bowtie2
+check_program samtools
+check_program strainest
+
+
 n_reads=$1
 trial=$2
 time_point=$3
