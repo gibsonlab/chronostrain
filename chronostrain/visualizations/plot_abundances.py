@@ -222,7 +222,8 @@ def plot_posterior_abundances(
             times=times,
             abundances=true_trajectory,
             ax=ax,
-            thickness=thickness
+            linestyle='--',
+            thickness=thickness * 2
         )
         ground_truth_colors[truth_strain_id] = color
 
@@ -294,6 +295,10 @@ def render_posterior_abundances(
     else:
         ax.plot(times, median, linestyle='--', marker='x', linewidth=thickness, color=color)
 
+    # Plot subsampled trajectories.
+    for i in range(0, traj_samples.shape[1], 1000):
+        ax.plot(times, traj_samples[:, i], linestyle='-', marker='o', linewidth=thickness, color=color)
+
     # Fill between the quantiles.
     for q_idx, (q, q_val) in enumerate(zip(quantiles, quantile_values)):
         if q < 0.5:
@@ -318,13 +323,14 @@ def render_single_abundance_trajectory(
         abundances: np.ndarray,
         ax,
         thickness: float,
+        linestyle: str = '-',
         color: Optional = None
 ):
     if color is None:
-        line, = ax.plot(times, abundances, linestyle='-', marker='o', linewidth=thickness)
+        line, = ax.plot(times, abundances, linestyle=linestyle, marker='o', linewidth=thickness)
         color = line.get_color()
     else:
-        ax.plot(times, abundances, linestyle='-', marker='o', color=color, linewidth=thickness)
+        ax.plot(times, abundances, linestyle=linestyle, marker='o', color=color, linewidth=thickness)
     return color
 
 

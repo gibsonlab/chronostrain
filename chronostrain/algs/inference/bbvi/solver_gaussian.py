@@ -80,19 +80,16 @@ class ADVIGaussianSolver(AbstractADVISolver):
 
         To save memory on larger frag spaces, split the ELBO up into several pieces.
         """
-        # ======== H(Q) = E_Q[-log Q(X)]
-        yield self.posterior.entropy()
-
-        # ======== E[log P(X)]
-        model_gaussian_log_likelihoods = self.model.log_likelihood_x(X=x_samples)
-        yield torch.mean(model_gaussian_log_likelihoods)
 
         # ======== E[log P(R|X)] = E[log Σ_S P(R|S)P(S|X)]
         for t_idx in np.random.permutation(self.model.num_times()):
             log_y_t = log_softmax_t(x_samples, t=t_idx)
             for batch_lls in self.batches[t_idx]:
+                wt = batch_lls.shape[1] / self.total_reads
+
                 # Average of (N x R_batch) entries, we only want to divide by 1/N and not 1/(N*R_batch)
-                yield batch_lls.shape[1] * torch.mean(log_matmul_exp(log_y_t, batch_lls))
+                data_ll = batch_lls.shape[1] * torch.mean(log_matmul_exp(log_y_t, batch_lls))
+                yield data_ll + wt * (self.posterior.entropy() + self.model.log_likelihood_x(X=x_samples).mean())
 
     def data_ll(self, x_samples: torch.Tensor) -> torch.Tensor:
         ans = torch.zeros(size=(x_samples.shape[1],), device=x_samples.device)
@@ -105,3 +102,55 @@ class ADVIGaussianSolver(AbstractADVISolver):
 
     def model_ll(self, x_samples: torch.Tensor):
         return self.model.log_likelihood_x(X=x_samples).detach()
+
+    def solve(self,
+              optimizer_class,
+              optimizer_args,
+              num_epochs: int = 1,
+              iters: int = 4000,
+              num_samples: int = 8000,
+              min_lr: float = 1e-4,
+              lr_decay_factor: float = 0.25,
+              lr_patience: int = 10,
+              callbacks = None):
+        from chronostrain.util.optimization import ReduceLROnPlateauLast
+        from chronostrain.algs.inference.bbvi.posteriors.gaussians import GaussianPosteriorFullReparametrizedCorrelation
+
+        def _optimize(params):
+            optimizer_args['params'] = params
+            optimizer = optimizer_class(**optimizer_args)
+            lr_scheduler = ReduceLROnPlateauLast(
+                optimizer,
+                factor=lr_decay_factor,
+                patience_horizon=lr_patience,
+                patience_ratio=0.5,
+                threshold=1e-4,
+                threshold_mode='rel',
+                mode='min'  # track (-ELBO) and decrease LR when it stops decreasing.
+            )
+            self.optimize(
+                optimizer=optimizer,
+                lr_scheduler=lr_scheduler,
+                iters=iters,
+                num_epochs=num_epochs,
+                num_samples=num_samples,
+                min_lr=min_lr,
+                callbacks=callbacks
+            )
+            self.diagnostic()
+
+        assert isinstance(self.posterior, GaussianPosteriorFullReparametrizedCorrelation)
+        _optimize(self.posterior.trainable_mean_parameters())
+        _A = self.posterior.left_linear_transform()
+        print(_A)
+        print(_A @ _A.transpose(0, 1))
+
+        _optimize(self.posterior.trainable_variance_parameters())
+        _A = self.posterior.left_linear_transform()
+        print(_A)
+        print(_A @ _A.transpose(0, 1))
+
+        _optimize(self.posterior.trainable_parameters())
+        _A = self.posterior.left_linear_transform()
+        print(_A)
+        print(_A @ _A.transpose(0, 1))

@@ -36,11 +36,6 @@ def perform_advi(
         save_training_history: bool = False
 ):
     # ==== Run the solver.
-    if correlation_type == 'full':
-        logger.warning("Encountered `full` correlation type argument; "
-                       "learning this posterior may lead to unstable/unreliable results. "
-                       "Consider directly invoking `perform_advi_full_correlation` instead.")
-
     time_points = [time_slice.time_point for time_slice in reads]
     if correlation_type == 'dirichlet':
         model = create_model(

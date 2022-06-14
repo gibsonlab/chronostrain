@@ -5,7 +5,6 @@ import numpy as np
 import torch
 import torch.nn.functional
 from torch.distributions import Dirichlet, Normal, Uniform
-import geotorch
 
 from chronostrain.config import cfg, create_logger
 from ..util import log_softmax
@@ -52,14 +51,14 @@ class ReparametrizedDirichletPosterior(AbstractReparametrizedPosterior):
             requires_grad=True
         )
 
-        self.radial_network = BatchLinearTranspose(num_times, num_times, num_strains)
-        geotorch.sphere(self.radial_network, "weights")
-        with torch.no_grad():
-            e = torch.stack([
-                torch.eye(num_times, num_times, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype)
-                for _ in range(num_strains)
-            ], dim=0)
-            self.radial_network.weights = self.radial_network.weights.copy_(e)
+        # self.radial_network = BatchLinear(num_times, num_times, num_strains, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype)
+        # geotorch.sphere(self.radial_network, "weights")
+        # with torch.no_grad():
+        #     e = torch.stack([
+        #         torch.eye(num_times, num_times, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype)
+        #         for _ in range(num_strains)
+        #     ], dim=0)
+        #     self.radial_network.weights = self.radial_network.weights.copy_(e)
 
         self.standard_normal = Normal(
             loc=torch.tensor(0.0, device=cfg.torch_cfg.device),
@@ -71,7 +70,7 @@ class ReparametrizedDirichletPosterior(AbstractReparametrizedPosterior):
         )
 
     def trainable_parameters(self) -> List[torch.nn.Parameter]:
-        return [self.log_concentrations] + list(self.radial_network.parameters())
+        return [self.log_concentrations]# + list(self.radial_network.parameters())
 
     def mean(self) -> torch.Tensor:
         return torch.exp(
@@ -116,15 +115,19 @@ class ReparametrizedDirichletPosterior(AbstractReparametrizedPosterior):
         # )
 
         std_gaussian_samples = self.standard_normal.sample(
-            sample_shape=(self.num_strains, num_samples, self.num_times)
+            sample_shape=(self.num_times, num_samples, self.num_strains)
         )
         mean, scaling = self.gaussian_approximation()
 
-        # (S x N x T) @@ (S x T* x T) -> (S x N x T)   T*: radially normalized
-        rotated = self.radial_network.forward(std_gaussian_samples).transpose(0, 2)
         return log_softmax(
-            torch.unsqueeze(mean, 1) + torch.unsqueeze(scaling, 1) * rotated
+            torch.unsqueeze(mean, 1) + torch.unsqueeze(scaling, 1) * std_gaussian_samples
         )
+
+        # (S x N x T) @@ (S x T* x T) -> (S x N x T)   T*: radially normalized
+        #rotated = self.radial_network.forward(std_gaussian_samples).transpose(0, 2)
+        # return log_softmax(
+        #     torch.unsqueeze(mean, 1) + torch.unsqueeze(scaling, 1) * rotated
+        # )
 
     def reparametrized_sample_icdf(self, num_samples: int) -> torch.Tensor:
         """
