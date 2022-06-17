@@ -37,8 +37,21 @@ echo "[*] Preparing GT_Pro inputs..."
 for t_idx in 0 1 2 3 4; do
 	concat_reads=${t_idx}_reads.fq
 	> $concat_reads
-	pigz -dck ${read_dir}/${t_idx}_reads_1.fq.gz >> $concat_reads
-	pigz -dck ${read_dir}/${t_idx}_reads_2.fq.gz >> $concat_reads
+
+#	pigz -dck ${read_dir}/${t_idx}_reads_1.fq.gz >> $concat_reads
+#	pigz -dck ${read_dir}/${t_idx}_reads_2.fq.gz >> $concat_reads
+
+	pigz -dck ${read_dir}/${t_idx}_NZ_CP069709.1_1.fq.gz >> $concat_reads
+	pigz -dck ${read_dir}/${t_idx}_NZ_CP069709.1_2.fq.gz >> $concat_reads
+
+	pigz -dck ${read_dir}/${t_idx}_NZ_CP076645.1_1.fq.gz >> $concat_reads
+	pigz -dck ${read_dir}/${t_idx}_NZ_CP076645.1_2.fq.gz >> $concat_reads
+
+	pigz -dck ${read_dir}/${t_idx}_NZ_CP026399.1_1.fq.gz >> $concat_reads
+	pigz -dck ${read_dir}/${t_idx}_NZ_CP026399.1_2.fq.gz >> $concat_reads
+
+	pigz -dck ${read_dir}/${t_idx}_NZ_LR134247.1_1.fq.gz >> $concat_reads
+	pigz -dck ${read_dir}/${t_idx}_NZ_LR134247.1_2.fq.gz >> $concat_reads
 done
 
 
@@ -64,7 +77,7 @@ done
 # ====== Record runtime
 end_time=$(date +%s%N)
 elapsed_time=$(( $(($end_time-$start_time)) / 1000000 ))
-runtime_file=${trial_dir}/output/gtpro_runtime.txt
+runtime_file=${trial_dir}/output/gtpro_filtered_runtime.txt
 echo "${elapsed_time}" > $runtime_file
 
 echo "[*] Cleaning up..."
