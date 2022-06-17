@@ -41,17 +41,17 @@ for t_idx in 0 1 2 3 4; do
 #	pigz -dck ${read_dir}/${t_idx}_reads_1.fq.gz >> $concat_reads
 #	pigz -dck ${read_dir}/${t_idx}_reads_2.fq.gz >> $concat_reads
 
-	pigz -dck ${read_dir}/${t_idx}_NZ_CP069709.1_1.fq.gz >> $concat_reads
-	pigz -dck ${read_dir}/${t_idx}_NZ_CP069709.1_2.fq.gz >> $concat_reads
+	cat ${read_dir}/${t_idx}_NZ_CP069709.1_1.fq >> $concat_reads
+	cat ${read_dir}/${t_idx}_NZ_CP069709.1_2.fq >> $concat_reads
 
-	pigz -dck ${read_dir}/${t_idx}_NZ_CP076645.1_1.fq.gz >> $concat_reads
-	pigz -dck ${read_dir}/${t_idx}_NZ_CP076645.1_2.fq.gz >> $concat_reads
+	cat ${read_dir}/${t_idx}_NZ_CP076645.1_1.fq >> $concat_reads
+	cat ${read_dir}/${t_idx}_NZ_CP076645.1_2.fq >> $concat_reads
 
-	pigz -dck ${read_dir}/${t_idx}_NZ_CP026399.1_1.fq.gz >> $concat_reads
-	pigz -dck ${read_dir}/${t_idx}_NZ_CP026399.1_2.fq.gz >> $concat_reads
+	cat ${read_dir}/${t_idx}_NZ_CP026399.1_1.fq >> $concat_reads
+	cat ${read_dir}/${t_idx}_NZ_CP026399.1_2.fq >> $concat_reads
 
-	pigz -dck ${read_dir}/${t_idx}_NZ_LR134247.1_1.fq.gz >> $concat_reads
-	pigz -dck ${read_dir}/${t_idx}_NZ_LR134247.1_2.fq.gz >> $concat_reads
+	cat ${read_dir}/${t_idx}_NZ_LR134247.1_1.fq >> $concat_reads
+	cat ${read_dir}/${t_idx}_NZ_LR134247.1_2.fq >> $concat_reads
 done
 
 
