@@ -37,9 +37,99 @@ class GaussianPosteriorFullReparametrizedCorrelation(ReparametrizedGaussianPoste
         self.num_strains = num_strains
         self.num_times = num_times
 
+        # ========== Reparametrization network (standard Gaussians -> nonstandard Gaussians)
+        n_features = self.num_times * self.num_strains
+        self.reparam_network = TrilLinear(
+            n_features=n_features,
+            bias=True,
+            device=cfg.torch_cfg.device
+        )
+        init_diag(self.reparam_network.weight, scale=np.log(INIT_SCALE))
+        torch.nn.init.constant_(self.reparam_network.bias, 0)
+
+        self.parameters = list(self.reparam_network.parameters())
+        self.standard_normal = Normal(
+            loc=torch.tensor(0.0, device=cfg.torch_cfg.device),
+            scale=torch.tensor(1.0, device=cfg.torch_cfg.device)
+        )
+
+    def trainable_parameters(self) -> List[Parameter]:
+        return self.trainable_mean_parameters() + self.trainable_variance_parameters()
+
+    def trainable_mean_parameters(self) -> List[Parameter]:
+        assert isinstance(self.reparam_network.bias, Parameter)
+        return [self.reparam_network.bias]
+
+    def trainable_variance_parameters(self) -> List[Parameter]:
+        assert isinstance(self.reparam_network.weight, Parameter)
+        return [self.reparam_network.weight]
+
+    def mean(self) -> torch.Tensor:
+        return self.reparam_network.bias.detach()
+
+    def entropy(self) -> torch.Tensor:
+        return torch.distributions.MultivariateNormal(
+            loc=self.reparam_network.bias,
+            scale_tril=self.reparam_network.cholesky_part
+        ).entropy()
+
+    def reparametrized_sample(self, num_samples=1) -> torch.Tensor:
+        std_gaussian_samples = self.standard_normal.sample(
+            sample_shape=(num_samples, self.num_times * self.num_strains)
+        )
+
+        """
+        Reparametrization: x = a + bz, z ~ N(0,1).
+        When computing log-likelihood p(x; a,b), it is important to keep a,b differentiable. e.g.
+        output logp = f(a+bz; a, b) where f is the gaussian density N(a,b).
+        """
+        samples = self.reparam_network.forward(std_gaussian_samples)
+        return samples.view(
+            num_samples, self.num_times, self.num_strains
+        ).transpose(0, 1)
+
+    def log_likelihood(self, samples: torch.Tensor):
+        num_samples = samples.shape[1]
+        samples = samples.transpose(0, 1).view(num_samples, self.num_times * self.num_strains)
+        try:
+            return torch.distributions.MultivariateNormal(
+                loc=self.reparam_network.bias,
+                scale_tril=self.reparam_network.cholesky_part
+            ).log_prob(samples)
+        except ValueError:
+            logger.error(f"Problem while computing log MV log-likelihood.")
+            raise
+
+    def save(self, path: Path):
+        params = {
+            "weight": self.reparam_network.weight.detach().cpu(),
+            "bias": self.reparam_network.bias.detach().cpu()
+        }
+        torch.save(params, path)
+
+    @staticmethod
+    def load(path: Path, num_strains: int, num_times: int) -> 'GaussianPosteriorFullReparametrizedCorrelation':
+        posterior = GaussianPosteriorFullReparametrizedCorrelation(num_strains, num_times)
+        params = torch.load(path)
+        posterior.reparam_network.weight = torch.nn.Parameter(params['weight'])
+        posterior.reparam_network.bias = torch.nn.Parameter(params['bias'])
+        return posterior
+
+
+class GaussianPosteriorAutoregressiveReparametrizedCorrelation(ReparametrizedGaussianPosterior):
+    def __init__(self, num_strains: int, num_times: int):
+        """
+        Mean-field assumption:
+        1) Parametrize the (T x S) trajectory as a (TS)-dimensional Gaussian.
+        2) Parametrize F_1, ..., F_T as independent (but not identical) categorical RVs (for each read).
+        """
+        logger.info("Initializing Fully joint posterior (Autoregressive AR(1) Blocks)")
+        self.num_strains = num_strains
+        self.num_times = num_times
+
         self.bias = torch.nn.Parameter(torch.zeros(num_times, num_strains, device=cfg.torch_cfg.device), requires_grad=True)
         self.strain_corrs = BatchedTrilLinear(num_strains, num_strains, n_batches=num_times)
-        self.time_corrs_sub = torch.nn.Parameter(0.5 * torch.ones(num_strains, num_times - 1, device=cfg.torch_cfg.device), requires_grad=True)
+        self.time_corrs_sub = torch.nn.Parameter(torch.ones(num_strains, num_times - 1, device=cfg.torch_cfg.device), requires_grad=True)
         self.time_corrs_diag = torch.nn.Parameter(torch.zeros(num_strains, num_times, device=cfg.torch_cfg.device), requires_grad=True)
         with torch.no_grad():
             self.strain_corrs.weights.copy_(
@@ -59,13 +149,14 @@ class GaussianPosteriorFullReparametrizedCorrelation(ReparametrizedGaussianPoste
         return [self.bias]
 
     def trainable_variance_parameters(self) -> List[Parameter]:
-        return [self.time_corrs_diag, self.time_corrs_sub, self.strain_corrs.weights]
+        return [self.time_corrs_diag, self.time_corrs_sub] + list(self.strain_corrs.parameters())
 
     def mean(self) -> torch.Tensor:
         return self.bias.detach()
 
     def entropy(self) -> torch.Tensor:
         # note: diagonal entries are already in log-space.
+        # The factor (1/2) in "det(Sigma)/2" is already included here, since these matrices are square roots.
         return self.strain_corrs.weights.diagonal(dim1=-2, dim2=-1).sum() + self.time_corrs_diag.sum()
 
     def test_reparametrization_equivalence(self, num_samples: int = 100, tol: float = 1e-6):
@@ -99,7 +190,7 @@ class GaussianPosteriorFullReparametrizedCorrelation(ReparametrizedGaussianPoste
     def reparam_slow(self, z: torch.Tensor) -> torch.Tensor:
         """
         :param z: (N x (TS)) tensor.
-        :return: Reparametrized samples.
+        :return: Reparametrized (T x N x S) samples.
         """
         _A = self.left_linear_transform()
 
@@ -111,6 +202,7 @@ class GaussianPosteriorFullReparametrizedCorrelation(ReparametrizedGaussianPoste
     def reparam_fast(self, z: torch.Tensor) -> torch.Tensor:
         """
         :param z: (N x (TS)) tensor.
+        :return: Reparametrized (T x N x S) samples.
         """
         n = z.shape[0]
         x = self.strain_corrs.forward(z).reshape(n, self.num_times, self.num_strains)  # N x T x S
@@ -145,12 +237,8 @@ class GaussianPosteriorFullReparametrizedCorrelation(ReparametrizedGaussianPoste
         logger.warning("model-specific save() not yet implemented for {}.".format(self.__class__.__name__))
 
     @staticmethod
-    def load(path: Path, num_strains: int, num_times: int) -> 'GaussianPosteriorFullReparametrizedCorrelation':
-        posterior = GaussianPosteriorFullReparametrizedCorrelation(num_strains, num_times)
-        params = torch.load(path)
-        posterior.reparam_network.weight = torch.nn.Parameter(params['weight'])
-        posterior.reparam_network.bias = torch.nn.Parameter(params['bias'])
-        return posterior
+    def load(path: Path, num_strains: int, num_times: int) -> 'GaussianPosteriorBlockReparametrizedCorrelation':
+        raise NotImplementedError()
 
 
 class GaussianPosteriorStrainCorrelation(ReparametrizedGaussianPosterior):

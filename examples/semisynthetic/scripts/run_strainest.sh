@@ -69,7 +69,9 @@ strainest est \
 ${STRAINEST_DB_DIR}/snvs_clust.txt \
 ${sorted_bam_file} \
 ./ \
--t 1
+-t 1 \
+-p 0 \
+-a 2
 
 # ====== Record runtime
 end_time=$(date +%s%N)

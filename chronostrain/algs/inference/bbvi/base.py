@@ -221,7 +221,7 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
             factor=lr_decay_factor,
             patience_horizon=lr_patience,
             patience_ratio=0.5,
-            threshold=1e-4,
+            threshold=1e-6,
             threshold_mode='rel',
             mode='min'  # track (-ELBO) and decrease LR when it stops decreasing.
         )
@@ -255,7 +255,7 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
         for batch_idx in range(num_batches):
             batch_start_idx = batch_idx * batch_size
             this_batch_sz = min(num_importance_samples - batch_start_idx, batch_size)
-            batch_samples = self.posterior.reparametrized_sample(num_samples=this_batch_sz)
+            batch_samples = self.posterior.reparametrized_sample(num_samples=this_batch_sz).detach()
             approx_posterior_ll = self.posterior.log_likelihood(batch_samples).detach()
             log_importance_ratios = (
                     self.model_ll(batch_samples).detach()
