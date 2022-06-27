@@ -33,7 +33,7 @@ fi
 
 if [ "$sensitivity" != "sensitive" ] || [ "$sensitivity" != "default" ]
 then
-	echo "Invalid value for parameter 'sensitivity' (options: sensitive/default)."
+	echo "Invalid value for parameter 'sensitivity' (got: ${sensitivity}) (options: sensitive/default)."
 	exit 1
 fi
 
