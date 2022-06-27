@@ -33,7 +33,8 @@ fi
 
 if [ "$sensitivity" != "sensitive" ] || [ "$sensitivity" != "default" ]
 then
-	echo "Invalid value for parameter 'sensitivity'."
+	echo "Invalid value for parameter 'sensitivity' (options: sensitive/default)."
+	exit 1
 fi
 
 trial_dir=$(get_trial_dir $n_reads $trial)
