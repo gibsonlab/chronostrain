@@ -132,13 +132,14 @@ def parse_chronostrain_estimate(db: StrainDatabase,
 
 def parse_strainest_estimate(ground_truth: pd.DataFrame,
                              strain_ids: List[str],
+                             sensitivity: str,
                              output_dir: Path) -> torch.Tensor:
     time_points = sorted(pd.unique(ground_truth['T']))
     strain_indices = {sid: i for i, sid in enumerate(strain_ids)}
 
     est_rel_abunds = torch.zeros(size=(len(time_points), len(strain_ids)), dtype=torch.float, device=device)
     for t_idx, t in enumerate(time_points):
-        output_path = output_dir / f"abund_{t_idx}.txt"
+        output_path = output_dir / f"abund_{t_idx}.{sensitivity}.txt"
         with open(output_path, 'rt') as f:
             lines = iter(f)
             header_line = next(lines)
@@ -393,22 +394,40 @@ def evaluate_errors(index_df: pd.DataFrame,
             except FileNotFoundError:
                 logger.info("Skipping Chronostrain output.")
 
-            # =========== StrainEst
+            # =========== StrainEst (Sensitive)
+            try:
+                strainest_sens_estimate = parse_strainest_estimate(ground_truth, strain_ids,
+                                                                   'sensitive',
+                                                                   trial_dir / 'output' / 'strainest')
+                # error = wasserstein_error(strainest_estimate, ground_truth, distances, strain_ids).item()
+                error = error_metric(strainest_sens_estimate, truth_tensor).item()
+                logger.info("StrainEst Error: {}".format(error))
+                df_entries.append({
+                    'ReadDepth': read_depth,
+                    'TrialNum': trial_num,
+                    'Method': 'StrainEst (Sensitive)',
+                    'Error': error
+                })
+                # plot_result(plot_dir / 'strainest.pdf', ground_truth, strainest_estimate, strain_ids)
+            except FileNotFoundError:
+                logger.info("Skipping StrainEst (Sensitive) output.")
+
+            # =========== StrainEst (Default)
             try:
                 strainest_estimate = parse_strainest_estimate(ground_truth, strain_ids,
-                                                              trial_dir / 'output' / 'strainest')
-                # error = wasserstein_error(strainest_estimate, ground_truth, distances, strain_ids).item()
+                                                                   'default',
+                                                                   trial_dir / 'output' / 'strainest')
                 error = error_metric(strainest_estimate, truth_tensor).item()
                 logger.info("StrainEst Error: {}".format(error))
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
-                    'Method': 'StrainEst',
+                    'Method': 'StrainEst (Default)',
                     'Error': error
                 })
                 # plot_result(plot_dir / 'strainest.pdf', ground_truth, strainest_estimate, strain_ids)
             except FileNotFoundError:
-                logger.info("Skipping StrainEst output.")
+                logger.info("Skipping StrainEst (Sensitive) output.")
 
             # =========== StrainGST (whole genome)
             try:
@@ -464,7 +483,7 @@ def evaluate_errors(index_df: pd.DataFrame,
     return pd.DataFrame(df_entries)
 
 
-def evaluate_runtimes(result_base_dir: Path, out_dir: Path):
+def evaluate_runtimes(result_base_dir: Path):
     df_entries = []
 
     for read_depth, read_depth_dir in read_depth_dirs(result_base_dir):
@@ -495,11 +514,16 @@ def evaluate_runtimes(result_base_dir: Path, out_dir: Path):
             parse_runtime_file('StrainGST', 'all', '4', 'straingst_runtime.4.chromosome.txt')
             parse_runtime_file('StrainFacts', 'GTPro', 'all', 'gtpro_runtime.txt')
             parse_runtime_file('StrainFacts', 'Inference', 'all', 'strainfacts_runtime.txt')
-            parse_runtime_file('StrainEst', 'Inference', '0', 'strainest_runtime.0.txt')
-            parse_runtime_file('StrainEst', 'Inference', '1', 'strainest_runtime.1.txt')
-            parse_runtime_file('StrainEst', 'Inference', '2', 'strainest_runtime.2.txt')
-            parse_runtime_file('StrainEst', 'Inference', '3', 'strainest_runtime.3.txt')
-            parse_runtime_file('StrainEst', 'Inference', '4', 'strainest_runtime.4.txt')
+            parse_runtime_file('StrainEst (Sensitive)', 'Inference', '0', 'strainest_runtime.sensitive.0.txt')
+            parse_runtime_file('StrainEst (Sensitive)', 'Inference', '1', 'strainest_runtime.sensitive.1.txt')
+            parse_runtime_file('StrainEst (Sensitive)', 'Inference', '2', 'strainest_runtime.sensitive.2.txt')
+            parse_runtime_file('StrainEst (Sensitive)', 'Inference', '3', 'strainest_runtime.sensitive.3.txt')
+            parse_runtime_file('StrainEst (Sensitive)', 'Inference', '4', 'strainest_runtime.sensitive.4.txt')
+            parse_runtime_file('StrainEst (Default)', 'Inference', '0', 'strainest_runtime.default.0.txt')
+            parse_runtime_file('StrainEst (Default)', 'Inference', '1', 'strainest_runtime.default.1.txt')
+            parse_runtime_file('StrainEst (Default)', 'Inference', '2', 'strainest_runtime.default.2.txt')
+            parse_runtime_file('StrainEst (Default)', 'Inference', '3', 'strainest_runtime.default.3.txt')
+            parse_runtime_file('StrainEst (Default)', 'Inference', '4', 'strainest_runtime.default.4.txt')
     return pd.DataFrame(df_entries)
 
 
@@ -527,7 +551,7 @@ def main():
     logger.info(f"[*] Saved error metrics to {out_path}.")
 
     logger.info("Evaluating runtimes.")
-    runtime_df = evaluate_runtimes(result_base_dir, out_dir)
+    runtime_df = evaluate_runtimes(result_base_dir)
     out_path = out_dir / 'runtime.csv'
     runtime_df.to_csv(out_path, index=False)
     logger.info(f"[*] Saved error metrics to {out_path}.")

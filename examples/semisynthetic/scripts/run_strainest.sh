@@ -91,7 +91,7 @@ fi
 # ====== Record runtime
 end_time=$(date +%s%N)
 elapsed_time=$(( $(($end_time-$start_time)) / 1000000 ))
-runtime_file=${trial_dir}/output/strainest_runtime.${time_point}.txt
+runtime_file=${trial_dir}/output/strainest_runtime.${sensitivity}.${time_point}.txt
 echo "${elapsed_time}" > $runtime_file
 
 # Clean up
