@@ -9,7 +9,6 @@ import pandas as pd
 import torch
 import matplotlib
 import matplotlib.pyplot as plt
-import seaborn as sb
 from Bio import SeqIO
 from tqdm import tqdm
 
@@ -203,7 +202,7 @@ def parse_straingst_estimate(
 def parse_strainfacts_estimate(
         truth_df: pd.DataFrame,
         output_dir: Path
-) -> Tuple[torch.Tensor, float]:
+) -> torch.Tensor:
     time_points = sorted(pd.unique(truth_df['T']))
     strains = list(pd.unique(truth_df['Strain']))
     ground_truth = extract_ground_truth_array(truth_df, strains)
@@ -227,11 +226,11 @@ def parse_strainfacts_estimate(
     best_perm = tuple(range(len(strains)))
     for perm in itertools.permutations(list(range(len(strains)))):
         permuted_est = est_rel_abunds[:, perm]
-        perm_error = error_metric(permuted_est, ground_truth).item()
+        perm_error, _, _ = error_metric(permuted_est, ground_truth)
         if perm_error < minimal_error:
             minimal_error = perm_error
             best_perm = perm
-    return est_rel_abunds[:, best_perm], minimal_error
+    return est_rel_abunds[:, best_perm]
 
 
 def extract_ground_truth_array(truth_df: pd.DataFrame, strain_ids: List[str]) -> torch.Tensor:
@@ -246,12 +245,28 @@ def extract_ground_truth_array(truth_df: pd.DataFrame, strain_ids: List[str]) ->
     return ground_truth
 
 
-def error_metric(abundance_est: torch.Tensor, truth: torch.Tensor) -> torch.Tensor:
+def error_metric(abundance_est: torch.Tensor, truth: torch.Tensor) -> Tuple[float, float, float]:
     if len(abundance_est.shape) == 3:
         abundance_est = torch.median(abundance_est, dim=1).values
-    return torch.sqrt(torch.sum(
+
+    _T = abundance_est.shape[0]
+    _S = abundance_est.shape[1]
+
+    l2_error = torch.sqrt(torch.sum(
         torch.square(truth - abundance_est)
     ))
+
+    # Generate indicators for each threshold
+    pred_indicators = torch.ge(abundance_est, torch.tensor(1 / _S))
+    true_indicators = torch.ge(truth, torch.tensor(0.))
+
+    true_positives = torch.sum(pred_indicators & true_indicators)
+    true_negatives = torch.sum(torch.logical_not(pred_indicators) & torch.logical_not(true_indicators))
+
+    sensitivity = true_positives / torch.sum(true_indicators)
+    specificity = true_negatives / torch.sum(torch.logical_not(true_indicators))
+
+    return l2_error.item(), sensitivity.item(), specificity.item()
 
 
 # def wasserstein_error(abundance_est: torch.Tensor, truth_df: pd.DataFrame, strain_distances: torch.Tensor, strain_ids: List[str]) -> torch.Tensor:
@@ -381,13 +396,15 @@ def evaluate_errors(index_df: pd.DataFrame,
                 #     chronostrain_estimate_samples[:, :30, :],
                 #     ground_truth, distances, strain_ids
                 # )
-                error = error_metric(chronostrain_estimate_samples, truth_tensor).item()
+                error, sens, spec = error_metric(chronostrain_estimate_samples, truth_tensor)
                 logger.info("Chronostrain error of median: {}".format(error))
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
                     'Method': 'Chronostrain',
-                    'Error': error
+                    'Error': error,
+                    'Sens': sens,
+                    'Spec': spec
                 })
 
                 # plot_result(plot_dir / 'chronostrain.pdf', ground_truth, chronostrain_estimate_samples, strain_ids)
@@ -400,13 +417,15 @@ def evaluate_errors(index_df: pd.DataFrame,
                                                                    'sensitive',
                                                                    trial_dir / 'output' / 'strainest')
                 # error = wasserstein_error(strainest_estimate, ground_truth, distances, strain_ids).item()
-                error = error_metric(strainest_sens_estimate, truth_tensor).item()
+                error, sens, spec = error_metric(strainest_sens_estimate, truth_tensor)
                 logger.info("StrainEst Error: {}".format(error))
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
                     'Method': 'StrainEst (Sensitive)',
-                    'Error': error
+                    'Error': error,
+                    'Sens': sens,
+                    'Spec': spec
                 })
                 # plot_result(plot_dir / 'strainest.pdf', ground_truth, strainest_estimate, strain_ids)
             except FileNotFoundError:
@@ -417,13 +436,15 @@ def evaluate_errors(index_df: pd.DataFrame,
                 strainest_estimate = parse_strainest_estimate(ground_truth, strain_ids,
                                                                    'default',
                                                                    trial_dir / 'output' / 'strainest')
-                error = error_metric(strainest_estimate, truth_tensor).item()
+                error, sens, spec = error_metric(strainest_estimate, truth_tensor)
                 logger.info("StrainEst Error: {}".format(error))
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
                     'Method': 'StrainEst (Default)',
-                    'Error': error
+                    'Error': error,
+                    'Sens': sens,
+                    'Spec': spec
                 })
                 # plot_result(plot_dir / 'strainest.pdf', ground_truth, strainest_estimate, strain_ids)
             except FileNotFoundError:
@@ -435,13 +456,15 @@ def evaluate_errors(index_df: pd.DataFrame,
                                                               trial_dir / 'output' / 'straingst',
                                                               mode='chromosome')
                 # error = wasserstein_error(straingst_estimate, ground_truth, distances, strain_ids).item()
-                error = error_metric(straingst_estimate, truth_tensor).item()
+                error, sens, spec = error_metric(straingst_estimate, truth_tensor)
                 logger.info("StrainGST Error: {}".format(error))
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
                     'Method': 'StrainGST (Whole-Genome)',
-                    'Error': error
+                    'Error': error,
+                    'Sens': sens,
+                    'Spec': spec
                 })
                 # plot_result(plot_dir / 'straingst_whole.pdf', ground_truth, straingst_estimate, strain_ids)
             except FileNotFoundError:
@@ -453,13 +476,15 @@ def evaluate_errors(index_df: pd.DataFrame,
                                                               trial_dir / 'output' / 'straingst',
                                                               mode='markers')
                 # error = wasserstein_error(straingst_estimate, ground_truth, distances, strain_ids).item()
-                error = error_metric(straingst_estimate, truth_tensor).item()
+                error, sens, spec = error_metric(straingst_estimate, truth_tensor)
                 logger.info("StrainGST Error: {}".format(error))
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
                     'Method': 'StrainGST (Markers)',
-                    'Error': error
+                    'Error': error,
+                    'Sens': sens,
+                    'Spec': spec
                 })
                 # plot_result(plot_dir / 'straingst_marker.pdf', ground_truth, straingst_estimate, strain_ids)
             except FileNotFoundError:
@@ -467,14 +492,17 @@ def evaluate_errors(index_df: pd.DataFrame,
 
             # =========== StrainFacts
             try:
-                strainfacts_estimate, error = parse_strainfacts_estimate(ground_truth,
-                                                                         trial_dir / 'output' / 'strainfacts')
+                strainfacts_estimate = parse_strainfacts_estimate(ground_truth,
+                                                                  trial_dir / 'output' / 'strainfacts')
+                error, sens, spec = error_metric(strainfacts_estimate, truth_tensor)
                 logger.info("StrainFacts Error: {}".format(error))
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
                     'Method': 'StrainFacts',
-                    'Error': error
+                    'Error': error,
+                    'Sens': sens,
+                    'Spec': spec
                 })
                 # plot_result(plot_dir / 'strainfacts.pdf', ground_truth, strainfacts_estimate, strain_ids)
             except FileNotFoundError:
