@@ -499,6 +499,7 @@ def evaluate_errors(index_df: pd.DataFrame,
             # =========== StrainFacts
             try:
                 strainfacts_estimate = parse_strainfacts_estimate(ground_truth,
+                                                                  strain_ids,
                                                                   trial_dir / 'output' / 'strainfacts')
                 error, sens, spec = error_metric(strainfacts_estimate, truth_tensor)
                 logger.info("StrainFacts Error: {}".format(error))
