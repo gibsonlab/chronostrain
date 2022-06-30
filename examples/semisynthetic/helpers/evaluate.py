@@ -264,7 +264,7 @@ def error_metric(abundance_est: torch.Tensor, truth: torch.Tensor) -> Tuple[floa
 
     # Generate indicators for each threshold
     pred_indicators = torch.ge(abundance_est, torch.tensor(1 / _S))
-    true_indicators = torch.ge(truth, torch.tensor(0.))
+    true_indicators = torch.gt(truth, torch.tensor(0.))
 
     true_positives = torch.sum(pred_indicators & true_indicators)
     true_negatives = torch.sum(torch.logical_not(pred_indicators) & torch.logical_not(true_indicators))
