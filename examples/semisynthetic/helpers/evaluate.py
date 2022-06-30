@@ -201,13 +201,14 @@ def parse_straingst_estimate(
 
 def parse_strainfacts_estimate(
         truth_df: pd.DataFrame,
+        strain_ids: List[str],
         output_dir: Path
 ) -> torch.Tensor:
     time_points = sorted(pd.unique(truth_df['T']))
-    strains = list(pd.unique(truth_df['Strain']))
-    ground_truth = extract_ground_truth_array(truth_df, strains)
+    supported_strains = list(pd.unique(truth_df['Strain']))
+    ground_truth = extract_ground_truth_array(truth_df, supported_strains)
 
-    est_rel_abunds = torch.zeros(size=(len(time_points), len(strains)), dtype=torch.float, device=device)
+    est_rel_abunds = torch.zeros(size=(len(time_points), len(supported_strains)), dtype=torch.float, device=device)
     with open(output_dir / 'result_community.tsv', 'r') as f:
         for line in f:
             if line.startswith("sample"):
@@ -217,20 +218,25 @@ def parse_strainfacts_estimate(
             t_idx = int(t_idx)
             s_idx = int(s_idx)
             abnd = float(abnd)
-            if s_idx >= len(strains):
-                raise ValueError("Didn't expect more than {} strains in output of StrainFacts.".format(len(strains)))
+            if s_idx >= len(supported_strains):
+                raise ValueError("Didn't expect more than {} strains in output of StrainFacts.".format(len(supported_strains)))
             est_rel_abunds[t_idx, s_idx] = abnd
 
     # Compute minimal permutation.
     minimal_error = float("inf")
-    best_perm = tuple(range(len(strains)))
-    for perm in itertools.permutations(list(range(len(strains)))):
+    best_perm = tuple(range(len(supported_strains)))
+    for perm in itertools.permutations(list(range(len(supported_strains)))):
         permuted_est = est_rel_abunds[:, perm]
         perm_error, _, _ = error_metric(permuted_est, ground_truth)
         if perm_error < minimal_error:
             minimal_error = perm_error
             best_perm = perm
-    return est_rel_abunds[:, best_perm]
+
+    all_idxs = {s: i for i, s in enumerate(strain_ids)}
+    support_idx = [all_idxs[s] for s in supported_strains]
+    full_est = torch.zeros(size=(len(time_points), len(strain_ids)), dtype=torch.float, device=device)
+    full_est[:, support_idx] = est_rel_abunds[:, best_perm]
+    return full_est
 
 
 def extract_ground_truth_array(truth_df: pd.DataFrame, strain_ids: List[str]) -> torch.Tensor:
