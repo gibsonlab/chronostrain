@@ -266,13 +266,13 @@ def error_metric(abundance_est: torch.Tensor, truth: torch.Tensor) -> Tuple[floa
     pred_indicators = torch.ge(abundance_est, torch.tensor(1 / _S))
     true_indicators = torch.gt(truth, torch.tensor(0.))
 
-    true_positives = torch.sum(pred_indicators & true_indicators)
-    true_negatives = torch.sum(torch.logical_not(pred_indicators) & torch.logical_not(true_indicators))
+    true_positives = torch.sum(pred_indicators & true_indicators, dim=0)
+    true_negatives = torch.sum(torch.logical_not(pred_indicators) & torch.logical_not(true_indicators), dim=0)
 
-    sensitivity = true_positives / torch.sum(true_indicators)
-    specificity = true_negatives / torch.sum(torch.logical_not(true_indicators))
+    sensitivity = true_positives / torch.sum(true_indicators, dim=0)
+    specificity = true_negatives / torch.sum(torch.logical_not(true_indicators), dim=0)
 
-    return l2_error.item(), sensitivity.item(), specificity.item()
+    return l2_error.item(), torch.mean(sensitivity).item(), torch.mean(specificity).item()
 
 
 # def wasserstein_error(abundance_est: torch.Tensor, truth_df: pd.DataFrame, strain_distances: torch.Tensor, strain_ids: List[str]) -> torch.Tensor:
