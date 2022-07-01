@@ -274,7 +274,7 @@ def error_metric(abundance_est: torch.Tensor, truth: torch.Tensor) -> Tuple[floa
 
     # Total mass of the 4 top abundant strains
     k = 4
-    top_k_mass = torch.sum(torch.sort(abundance_est, dim=1)[0][:, :k])
+    top_k_mass = torch.sum(torch.sort(abundance_est, dim=1)[0][:, -k:])
 
     return l2_error.item(), torch.mean(sensitivity).item(), torch.mean(specificity).item(), torch.mean(top_k_mass).item()
 
