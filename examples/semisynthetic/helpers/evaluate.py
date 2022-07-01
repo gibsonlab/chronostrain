@@ -266,11 +266,11 @@ def error_metric(abundance_est: torch.Tensor, truth: torch.Tensor) -> Tuple[floa
     pred_indicators = torch.ge(abundance_est, torch.tensor(1 / _S))
     true_indicators = torch.gt(truth, torch.tensor(0.))
 
-    true_positives = torch.sum(pred_indicators & true_indicators, dim=0)
-    true_negatives = torch.sum(torch.logical_not(pred_indicators) & torch.logical_not(true_indicators), dim=0)
+    true_positives = torch.sum(pred_indicators & true_indicators, dim=1)
+    true_negatives = torch.sum(torch.logical_not(pred_indicators) & torch.logical_not(true_indicators), dim=1)
 
-    sensitivity = true_positives / torch.sum(true_indicators, dim=0)
-    specificity = true_negatives / torch.sum(torch.logical_not(true_indicators), dim=0)
+    sensitivity = true_positives / torch.sum(true_indicators, dim=1)
+    specificity = true_negatives / torch.sum(torch.logical_not(true_indicators), dim=1)
 
     return l2_error.item(), torch.mean(sensitivity).item(), torch.mean(specificity).item()
 
