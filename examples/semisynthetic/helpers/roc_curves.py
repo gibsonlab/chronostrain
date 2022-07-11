@@ -238,8 +238,8 @@ def evaluate_sensitivities(index_df: pd.DataFrame,
                 df_entries.append(df_entry('StrainEst', read_depth, trial_num, 1.0, 1.0))
                 for fpr, tpr in zip(fprs, tprs):
                     df_entries.append(df_entry('StrainEst', read_depth, trial_num, fpr, tpr))
-            except FileNotFoundError:
-                logger.info("Skipping StrainEst (Sensitive) output.")
+            except FileNotFoundError as e:
+                logger.info(f"Skipping StrainEst output (Couldn't find {e.filename})")
     df = pd.DataFrame(df_entries).groupby(['ReadDepth', 'TrialNum', 'Method', 'FPR']).max().reset_index()
     return df
 
