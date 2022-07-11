@@ -262,7 +262,7 @@ def main():
         result_base_dir,
         chronostrain_db
     )
-    out_path = out_dir / 'summary.csv'
+    out_path = out_dir / 'roc.csv'
     summary_df.to_csv(out_path, index=False)
     logger.info(f"[*] Saved error metrics to {out_path}.")
 
