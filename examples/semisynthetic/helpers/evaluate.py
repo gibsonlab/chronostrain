@@ -227,7 +227,7 @@ def parse_strainfacts_estimate(
     best_perm = tuple(range(len(supported_strains)))
     for perm in itertools.permutations(list(range(len(supported_strains)))):
         permuted_est = est_rel_abunds[:, perm]
-        perm_error, _, _, _ = error_metric(permuted_est, ground_truth)
+        perm_error = error_metric(permuted_est, ground_truth)
         if perm_error < minimal_error:
             minimal_error = perm_error
             best_perm = perm
@@ -251,7 +251,7 @@ def extract_ground_truth_array(truth_df: pd.DataFrame, strain_ids: List[str]) ->
     return ground_truth
 
 
-def error_metric(abundance_est: torch.Tensor, truth: torch.Tensor) -> Tuple[float, float, float, float]:
+def error_metric(abundance_est: torch.Tensor, truth: torch.Tensor) -> float:
     if len(abundance_est.shape) == 3:
         abundance_est = torch.median(abundance_est, dim=1).values
 
@@ -261,22 +261,7 @@ def error_metric(abundance_est: torch.Tensor, truth: torch.Tensor) -> Tuple[floa
     l2_error = torch.sqrt(torch.sum(
         torch.square(truth - abundance_est)
     ))
-
-    # Generate indicators for each threshold
-    pred_indicators = torch.ge(abundance_est, torch.tensor(1 / _S))
-    true_indicators = torch.gt(truth, torch.tensor(0.))
-
-    true_positives = torch.sum(pred_indicators & true_indicators, dim=1)
-    true_negatives = torch.sum(torch.logical_not(pred_indicators) & torch.logical_not(true_indicators), dim=1)
-
-    sensitivity = true_positives / torch.sum(true_indicators, dim=1)
-    specificity = true_negatives / torch.sum(torch.logical_not(true_indicators), dim=1)
-
-    # Total mass of the 4 top abundant strains
-    k = 4
-    top_k_mass = torch.sum(torch.sort(abundance_est, dim=1)[0][:, -k:])
-
-    return l2_error.item(), torch.mean(sensitivity).item(), torch.mean(specificity).item(), torch.mean(top_k_mass).item()
+    return l2_error.item()
 
 
 # def wasserstein_error(abundance_est: torch.Tensor, truth_df: pd.DataFrame, strain_distances: torch.Tensor, strain_ids: List[str]) -> torch.Tensor:
@@ -373,15 +358,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('-a', '--alignment_file', type=str, required=True)
     parser.add_argument('-o', '--out_dir', type=str, required=True)
     parser.add_argument('-g', '--ground_truth_path', type=str, required=True)
-    parser.add_argument('-v', '--verbose', action='store_true')
     return parser.parse_args()
 
 
 def evaluate_errors(index_df: pd.DataFrame,
                     ground_truth: pd.DataFrame,
                     result_base_dir: Path,
-                    chronostrain_db: StrainDatabase,
-                    out_dir: Path):
+                    chronostrain_db: StrainDatabase) -> pd.DataFrame:
     strain_ids = list(pd.unique(
         index_df.loc[
             index_df['Species'] == 'coli',
@@ -406,16 +389,13 @@ def evaluate_errors(index_df: pd.DataFrame,
                 #     chronostrain_estimate_samples[:, :30, :],
                 #     ground_truth, distances, strain_ids
                 # )
-                error, sens, spec, topk = error_metric(chronostrain_estimate_samples, truth_tensor)
+                error = error_metric(chronostrain_estimate_samples, truth_tensor)
                 logger.info("Chronostrain error of median: {}".format(error))
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
                     'Method': 'Chronostrain',
-                    'Error': error,
-                    'Sens': sens,
-                    'Spec': spec,
-                    'Topk': topk
+                    'Error': error
                 })
 
                 # plot_result(plot_dir / 'chronostrain.pdf', ground_truth, chronostrain_estimate_samples, strain_ids)
@@ -428,16 +408,13 @@ def evaluate_errors(index_df: pd.DataFrame,
                                                                    'sensitive',
                                                                    trial_dir / 'output' / 'strainest')
                 # error = wasserstein_error(strainest_estimate, ground_truth, distances, strain_ids).item()
-                error, sens, spec, topk = error_metric(strainest_sens_estimate, truth_tensor)
+                error = error_metric(strainest_sens_estimate, truth_tensor)
                 logger.info("StrainEst Error: {}".format(error))
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
                     'Method': 'StrainEst (Sensitive)',
-                    'Error': error,
-                    'Sens': sens,
-                    'Spec': spec,
-                    'Topk': topk
+                    'Error': error
                 })
                 # plot_result(plot_dir / 'strainest.pdf', ground_truth, strainest_estimate, strain_ids)
             except FileNotFoundError:
@@ -448,16 +425,13 @@ def evaluate_errors(index_df: pd.DataFrame,
                 strainest_estimate = parse_strainest_estimate(ground_truth, strain_ids,
                                                                    'default',
                                                                    trial_dir / 'output' / 'strainest')
-                error, sens, spec, topk = error_metric(strainest_estimate, truth_tensor)
+                error = error_metric(strainest_estimate, truth_tensor)
                 logger.info("StrainEst Error: {}".format(error))
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
                     'Method': 'StrainEst (Default)',
-                    'Error': error,
-                    'Sens': sens,
-                    'Spec': spec,
-                    'Topk': topk
+                    'Error': error
                 })
                 # plot_result(plot_dir / 'strainest.pdf', ground_truth, strainest_estimate, strain_ids)
             except FileNotFoundError:
@@ -469,57 +443,48 @@ def evaluate_errors(index_df: pd.DataFrame,
                                                               trial_dir / 'output' / 'straingst',
                                                               mode='chromosome')
                 # error = wasserstein_error(straingst_estimate, ground_truth, distances, strain_ids).item()
-                error, sens, spec, topk = error_metric(straingst_estimate, truth_tensor)
+                error = error_metric(straingst_estimate, truth_tensor)
                 logger.info("StrainGST Error: {}".format(error))
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
-                    'Method': 'StrainGST (Whole-Genome)',
-                    'Error': error,
-                    'Sens': sens,
-                    'Spec': spec,
-                    'Topk': topk
+                    'Method': 'StrainGST',
+                    'Error': error
                 })
                 # plot_result(plot_dir / 'straingst_whole.pdf', ground_truth, straingst_estimate, strain_ids)
             except FileNotFoundError:
-                logger.info("Skipping StrainGST (whole-genome) output.")
+                logger.info("Skipping StrainGST output.")
 
-            # =========== StrainGST (markers)
-            try:
-                straingst_estimate = parse_straingst_estimate(ground_truth, strain_ids,
-                                                              trial_dir / 'output' / 'straingst',
-                                                              mode='markers')
-                # error = wasserstein_error(straingst_estimate, ground_truth, distances, strain_ids).item()
-                error, sens, spec, topk = error_metric(straingst_estimate, truth_tensor)
-                logger.info("StrainGST Error: {}".format(error))
-                df_entries.append({
-                    'ReadDepth': read_depth,
-                    'TrialNum': trial_num,
-                    'Method': 'StrainGST (Markers)',
-                    'Error': error,
-                    'Sens': sens,
-                    'Spec': spec,
-                    'Topk': topk
-                })
-                # plot_result(plot_dir / 'straingst_marker.pdf', ground_truth, straingst_estimate, strain_ids)
-            except FileNotFoundError:
-                logger.info("Skipping StrainGST (markers) output.")
+            # # =========== StrainGST (markers)
+            # try:
+            #     straingst_estimate = parse_straingst_estimate(ground_truth, strain_ids,
+            #                                                   trial_dir / 'output' / 'straingst',
+            #                                                   mode='markers')
+            #     # error = wasserstein_error(straingst_estimate, ground_truth, distances, strain_ids).item()
+            #     error = error_metric(straingst_estimate, truth_tensor)
+            #     logger.info("StrainGST Error: {}".format(error))
+            #     df_entries.append({
+            #         'ReadDepth': read_depth,
+            #         'TrialNum': trial_num,
+            #         'Method': 'StrainGST (Markers)',
+            #         'Error': error
+            #     })
+            #     # plot_result(plot_dir / 'straingst_marker.pdf', ground_truth, straingst_estimate, strain_ids)
+            # except FileNotFoundError:
+            #     logger.info("Skipping StrainGST (markers) output.")
 
             # =========== StrainFacts
             try:
                 strainfacts_estimate = parse_strainfacts_estimate(ground_truth,
                                                                   strain_ids,
                                                                   trial_dir / 'output' / 'strainfacts')
-                error, sens, spec, topk = error_metric(strainfacts_estimate, truth_tensor)
+                error = error_metric(strainfacts_estimate, truth_tensor)
                 logger.info("StrainFacts Error: {}".format(error))
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
                     'Method': 'StrainFacts',
-                    'Error': error,
-                    'Sens': sens,
-                    'Spec': spec,
-                    'Topk': topk
+                    'Error': error
                 })
                 # plot_result(plot_dir / 'strainfacts.pdf', ground_truth, strainfacts_estimate, strain_ids)
             except FileNotFoundError:
@@ -599,7 +564,7 @@ def main():
     runtime_df = evaluate_runtimes(result_base_dir)
     out_path = out_dir / 'runtime.csv'
     runtime_df.to_csv(out_path, index=False)
-    logger.info(f"[*] Saved error metrics to {out_path}.")
+    logger.info(f"[*] Saved runtime summaries to {out_path}.")
 
 
 if __name__ == "__main__":
