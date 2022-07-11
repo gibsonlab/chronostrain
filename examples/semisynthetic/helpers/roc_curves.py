@@ -145,7 +145,7 @@ def df_entry(method_name: str, read_depth: int, trial_num: int, fpr: float, tpr:
 
 def chronostrain_roc(abundance_est: torch.Tensor, truth: torch.Tensor, strains: List[str]) -> Tuple[np.ndarray, np.ndarray]:
     lb = 1 / len(strains)
-    quantiles = np.linspace(0, 1, 1000)  # length Q
+    quantiles = np.linspace(0, 1, 100)  # length Q
     abundance_est = abundance_est.cpu().numpy()  # T x N x S
 
     pred_indicators = np.quantile(abundance_est, quantiles, axis=0) > lb  # Q x T x S
