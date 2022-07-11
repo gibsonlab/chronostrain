@@ -255,7 +255,7 @@ def main():
     chronostrain_db = cfg.database_cfg.get_database()
     out_dir.mkdir(exist_ok=True, parents=True)
 
-    logger.info("Evaluating error metrics.")
+    logger.info("Evaluating Sensitivity.")
     summary_df = evaluate_sensitivities(
         index_df,
         ground_truth,
@@ -264,7 +264,7 @@ def main():
     )
     out_path = out_dir / 'roc.csv'
     summary_df.to_csv(out_path, index=False)
-    logger.info(f"[*] Saved error metrics to {out_path}.")
+    logger.info(f"[*] Saved ROC to {out_path}.")
 
 
 if __name__ == "__main__":
