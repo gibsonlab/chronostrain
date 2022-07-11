@@ -146,10 +146,10 @@ def df_entry(method_name: str, read_depth: int, trial_num: int, fpr: float, tpr:
 def chronostrain_roc(abundance_est: torch.Tensor, truth: torch.Tensor, strains: List[str]) -> Tuple[np.ndarray, np.ndarray]:
     lb = 1 / len(strains)
     quantiles = np.linspace(0, 1, 1000)  # length Q
-    abundance_est = abundance_est.cpu().to_numpy()  # T x N x S
+    abundance_est = abundance_est.cpu().numpy()  # T x N x S
 
     pred_indicators = np.quantile(abundance_est, quantiles) > lb  # Q x T x S
-    true_indicators = torch.gt(truth, torch.tensor(0.)).cpu().to_numpy()  # T x S
+    true_indicators = torch.gt(truth, torch.tensor(0.)).cpu().numpy()  # T x S
 
     true_positives = np.logical_and(pred_indicators, true_indicators)  # Q x T x S
     true_negatives = np.logical_and(np.logical_not(pred_indicators), np.logical_not(true_indicators))  # Q x T x S
@@ -161,8 +161,8 @@ def chronostrain_roc(abundance_est: torch.Tensor, truth: torch.Tensor, strains: 
 
 
 def strainest_roc(abundance_est: torch.Tensor, truth: torch.Tensor) -> Tuple[np.ndarray, np.ndarray]:
-    pred_indicators = torch.gt(abundance_est, torch.tensor(0.)).cpu().to_numpy()
-    true_indicators = torch.gt(truth, torch.tensor(0.)).cpu().to_numpy()
+    pred_indicators = torch.gt(abundance_est, torch.tensor(0.)).cpu().numpy()
+    true_indicators = torch.gt(truth, torch.tensor(0.)).cpu().numpy()
 
     true_positives = np.logical_and(pred_indicators, true_indicators)  # Q x T x S
     true_negatives = np.logical_and(np.logical_not(pred_indicators), np.logical_not(true_indicators))  # Q x T x S
