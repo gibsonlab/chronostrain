@@ -553,8 +553,7 @@ def main():
         index_df,
         ground_truth,
         result_base_dir,
-        chronostrain_db,
-        out_dir
+        chronostrain_db
     )
     out_path = out_dir / 'summary.csv'
     summary_df.to_csv(out_path, index=False)
