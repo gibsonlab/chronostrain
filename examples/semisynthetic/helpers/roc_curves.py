@@ -148,7 +148,7 @@ def chronostrain_roc(abundance_est: torch.Tensor, truth: torch.Tensor, strains: 
     quantiles = np.linspace(0, 1, 1000)  # length Q
     abundance_est = abundance_est.cpu().numpy()  # T x N x S
 
-    pred_indicators = np.quantile(abundance_est, quantiles) > lb  # Q x T x S
+    pred_indicators = np.quantile(abundance_est, quantiles, axis=0) > lb  # Q x T x S
     true_indicators = torch.gt(truth, torch.tensor(0.)).cpu().numpy()  # T x S
 
     true_positives = np.logical_and(pred_indicators, true_indicators)  # Q x T x S
