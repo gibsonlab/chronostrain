@@ -179,6 +179,9 @@ class GenerativeModel:
         """
         log_likelihood_first = JeffreysGaussian(mean=self.mu).log_likelihood(x=X[0, :, :])
 
+        if self.num_times() == 1:
+            return log_likelihood_first
+
         n_samples = X.size()[1]
         n_strains = X.size()[2]
         collapsed_size = (self.num_times() - 1) * n_strains
