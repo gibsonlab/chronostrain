@@ -194,12 +194,7 @@ def evaluate_sensitivities(index_df: pd.DataFrame,
                            ground_truth: pd.DataFrame,
                            result_base_dir: Path,
                            chronostrain_db: StrainDatabase) -> pd.DataFrame:
-    strain_ids = list(pd.unique(
-        index_df.loc[
-            index_df['Species'] == 'coli',
-            'Accession'
-        ]
-    ))
+    strain_ids = [strain.id for strain in chronostrain_db.all_strains()]
 
     # search through all of the read depths.
     df_entries = []
