@@ -25,11 +25,12 @@ do
 	--reads_input "${READS_DIR}/${sample_name}_filtered/filtered_${sample_name}.csv" \
 	--out_dir $CHRONOSTRAIN_OUTPUT_DIR/${sample_name} \
 	--seed $SEED \
+	--correlation_mode $CHRONOSTRAIN_CORR_MODE \
 	--iters $CHRONOSTRAIN_NUM_ITERS \
 	--epochs $CHRONOSTRAIN_NUM_EPOCHS \
 	--decay_lr $CHRONOSTRAIN_DECAY_LR \
-	--lr_patience 5 \
-	--min_lr 1e-4 \
+	--lr_patience $CHRONOSTRAIN_LR_PATIENCE \
+  --min_lr $CHRONOSTRAIN_MIN_LR \
 	--learning_rate $CHRONOSTRAIN_LR \
 	--num_samples $CHRONOSTRAIN_NUM_SAMPLES \
 	--read_batch_size $CHRONOSTRAIN_READ_BATCH_SZ \

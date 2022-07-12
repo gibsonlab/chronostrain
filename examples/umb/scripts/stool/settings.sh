@@ -24,15 +24,15 @@ export NEXTERA_ADAPTER_PATH="/home/bromii/anaconda3/envs/chronostrain/share/trim
 export TRIMMOMATIC_DIR="/home/bromii/anaconda3/envs/chronostrain/share/trimmomatic-0.39-2"
 
 # ========= Chronostrain settings
-export CHRONOSTRAIN_CORR_MODE='strain'
+export CHRONOSTRAIN_CORR_MODE='full'
+export CHRONOSTRAIN_NUM_EPOCHS=1000
 export CHRONOSTRAIN_NUM_ITERS=50
 export CHRONOSTRAIN_NUM_SAMPLES=200
 export CHRONOSTRAIN_READ_BATCH_SZ=2500
-export CHRONOSTRAIN_NUM_EPOCHS=150
-export CHRONOSTRAIN_LR_PATIENCE=2
+export CHRONOSTRAIN_LR_PATIENCE=5
 export CHRONOSTRAIN_MIN_LR=1e-4
 export CHRONOSTRAIN_DECAY_LR=0.25
-export CHRONOSTRAIN_LR=0.05
+export CHRONOSTRAIN_LR=0.01
 export CHRONOSTRAIN_OUTPUT_FILENAME="abundances.out"
 
 export CHRONOSTRAIN_DB_JSON_ALL="${CHRONOSTRAIN_DB_DIR}/database_all.json"
