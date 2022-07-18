@@ -53,10 +53,10 @@ mkdir -p "${SAMPLES_DIR}/kneaddata"
 			continue
 		fi
 
-		if [[ "${exp_group}" != "Test" ]]; then
-			echo "Skipping ${sample_name}. (is not test group)"
-			continue
-		fi
+#		if [[ "${exp_group}" != "Test" ]]; then
+#			echo "Skipping ${sample_name}. (is not test group)"
+#			continue
+#		fi
 
 		echo "[*] -=-=-=-=-=-=-=-= Handling ${sra_id} (${sample_name}). =-=-=-=-=-=-=-=-"
 
