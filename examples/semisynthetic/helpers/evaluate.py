@@ -303,7 +303,7 @@ def dominance_switch_error(abundance_est: torch.Tensor, truth: torch.Tensor, str
     est_ = torch.gt(abundance_est[:, sidx1], abundance_est[:, sidx2])
     truth_ = torch.gt(truth[:, sidx1], truth[:, sidx2])
     switch_errors = torch.not_equal(est_, truth_)
-    return torch.mean(switch_errors).item()
+    return switch_errors.float().mean().item()
 
 
 # def wasserstein_error(abundance_est: torch.Tensor, truth_df: pd.DataFrame, strain_distances: torch.Tensor, strain_ids: List[str]) -> torch.Tensor:
