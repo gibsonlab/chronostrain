@@ -252,8 +252,7 @@ def extract_ground_truth_array(truth_df: pd.DataFrame, strain_ids: List[str]) ->
 
 
 def error_metric(abundance_est: torch.Tensor, truth: torch.Tensor) -> float:
-    if len(abundance_est.shape) == 3:
-        abundance_est = torch.median(abundance_est, dim=1).values
+    assert len(abundance_est.shape) == 2
 
     _T = abundance_est.shape[0]
     _S = abundance_est.shape[1]
@@ -262,6 +261,38 @@ def error_metric(abundance_est: torch.Tensor, truth: torch.Tensor) -> float:
         torch.square(truth - abundance_est)
     ))
     return l2_error.item()
+
+
+def engraftment_ratio(presence: torch.Tensor) -> float:
+    """
+    :param presence: (T x S) Tensor of boolean values.
+    :return:
+    """
+    t1 = presence[:-1]
+    t2 = presence[1:]
+    return torch.sum(torch.logical_and(t1, t2)).item() / torch.sum(t1).item()
+
+
+def clearance_ratio(presence: torch.Tensor) -> float:
+    """
+    :param presence: (T x S) Tensor of boolean values.
+    :return:
+    """
+    return engraftment_ratio(torch.logical_not(presence))
+
+
+def chronostrain_presence(abundance_est: torch.Tensor, q: float = 0.95) -> torch.Tensor:
+    """
+    :param abundance_est: (T x N x S) tensor of abundance samples.
+    :param q: the quantile to compute.
+    :return:
+    """
+    lb = 1 / abundance_est.shape[-1]
+    return torch.quantile(abundance_est, q, dim=1) > lb
+
+
+def other_method_presence(abundance_est: torch.Tensor) -> torch.Tensor:
+    return abundance_est != 0
 
 
 # def wasserstein_error(abundance_est: torch.Tensor, truth_df: pd.DataFrame, strain_distances: torch.Tensor, strain_ids: List[str]) -> torch.Tensor:
@@ -372,6 +403,9 @@ def evaluate_errors(index_df: pd.DataFrame,
         ]
     ))
 
+    def engraftment_clearance(pres: torch.Tensor) -> Tuple[float, float]:
+        return engraftment_ratio(pres), clearance_ratio(pres)
+
     # search through all of the read depths.
     df_entries = []
     truth_tensor = extract_ground_truth_array(ground_truth, strain_ids)
@@ -389,13 +423,18 @@ def evaluate_errors(index_df: pd.DataFrame,
                 #     chronostrain_estimate_samples[:, :30, :],
                 #     ground_truth, distances, strain_ids
                 # )
-                error = error_metric(chronostrain_estimate_samples, truth_tensor)
-                logger.info("Chronostrain error of median: {}".format(error))
+                error = error_metric(torch.median(chronostrain_estimate_samples, dim=1).values, truth_tensor)
+                engraftment, clearance = engraftment_clearance(chronostrain_presence(chronostrain_estimate_samples))
+
+                logger.info("Chronostrain: err = {}, engraft = {}, clear = {}".format(error, engraftment, clearance))
+
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
                     'Method': 'Chronostrain',
-                    'Error': error
+                    'Error': error,
+                    'Engraftment': engraftment,
+                    'Clearance': clearance
                 })
 
                 # plot_result(plot_dir / 'chronostrain.pdf', ground_truth, chronostrain_estimate_samples, strain_ids)
@@ -409,12 +448,15 @@ def evaluate_errors(index_df: pd.DataFrame,
                                                                    trial_dir / 'output' / 'strainest')
                 # error = wasserstein_error(strainest_estimate, ground_truth, distances, strain_ids).item()
                 error = error_metric(strainest_sens_estimate, truth_tensor)
-                logger.info("StrainEst Error: {}".format(error))
+                engraftment, clearance = engraftment_clearance(other_method_presence(strainest_sens_estimate))
+                logger.info("StrainEst (Sens) err = {}, engraft = {}, clear = {}".format(error, engraftment, clearance))
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
                     'Method': 'StrainEst (Sensitive)',
-                    'Error': error
+                    'Error': error,
+                    'Engraftment': engraftment,
+                    'Clearance': clearance
                 })
                 # plot_result(plot_dir / 'strainest.pdf', ground_truth, strainest_estimate, strain_ids)
             except FileNotFoundError:
@@ -426,12 +468,15 @@ def evaluate_errors(index_df: pd.DataFrame,
                                                                    'default',
                                                                    trial_dir / 'output' / 'strainest')
                 error = error_metric(strainest_estimate, truth_tensor)
-                logger.info("StrainEst Error: {}".format(error))
+                engraftment, clearance = engraftment_clearance(other_method_presence(strainest_estimate))
+                logger.info("StrainEst (Default) err = {}, engraft = {}, clear = {}".format(error, engraftment, clearance))
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
                     'Method': 'StrainEst (Default)',
-                    'Error': error
+                    'Error': error,
+                    'Engraftment': engraftment,
+                    'Clearance': clearance
                 })
                 # plot_result(plot_dir / 'strainest.pdf', ground_truth, strainest_estimate, strain_ids)
             except FileNotFoundError:
@@ -444,12 +489,15 @@ def evaluate_errors(index_df: pd.DataFrame,
                                                               mode='chromosome')
                 # error = wasserstein_error(straingst_estimate, ground_truth, distances, strain_ids).item()
                 error = error_metric(straingst_estimate, truth_tensor)
-                logger.info("StrainGST Error: {}".format(error))
+                engraftment, clearance = engraftment_clearance(other_method_presence(straingst_estimate))
+                logger.info("StrainGST err = {}, engraft = {}, clear = {}".format(error, engraftment, clearance))
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
                     'Method': 'StrainGST',
-                    'Error': error
+                    'Error': error,
+                    'Engraftment': engraftment,
+                    'Clearance': clearance
                 })
                 # plot_result(plot_dir / 'straingst_whole.pdf', ground_truth, straingst_estimate, strain_ids)
             except FileNotFoundError:
@@ -484,7 +532,9 @@ def evaluate_errors(index_df: pd.DataFrame,
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
                     'Method': 'StrainFacts',
-                    'Error': error
+                    'Error': error,
+                    'Engraftment': 1.0,
+                    'Clearance': 1.0
                 })
                 # plot_result(plot_dir / 'strainfacts.pdf', ground_truth, strainfacts_estimate, strain_ids)
             except FileNotFoundError:
