@@ -312,7 +312,9 @@ def dominance_error(abundance_est: torch.Tensor, truth: torch.Tensor, strain_ids
 
     _est = dominance_coeff(abundance_est[:, sidx1], abundance_est[:, sidx2])
     _truth = dominance_coeff(truth[:, sidx1], truth[:, sidx2])
-    return torch.exp(dominance_coeff(_est, _truth).log().mean()).item()
+    return torch.exp(
+        torch.mean(torch.log(_est) - torch.log(_truth))
+    ).item()  # geometric mean
 
 
 # def wasserstein_error(abundance_est: torch.Tensor, truth_df: pd.DataFrame, strain_distances: torch.Tensor, strain_ids: List[str]) -> torch.Tensor:
