@@ -270,7 +270,10 @@ def engraftment_ratio(presence: torch.Tensor) -> float:
     """
     t1 = presence[:-1]
     t2 = presence[1:]
-    return torch.sum(torch.logical_and(t1, t2)).item() / torch.sum(t1).item()
+    if torch.sum(t1).item() == 0:
+        return 1.0
+    else:
+        return torch.sum(torch.logical_and(t1, t2)).item() / torch.sum(t1).item()
 
 
 def clearance_ratio(presence: torch.Tensor) -> float:
