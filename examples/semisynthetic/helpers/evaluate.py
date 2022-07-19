@@ -462,7 +462,7 @@ def evaluate_errors(index_df: pd.DataFrame,
                 # error = wasserstein_error(strainest_estimate, ground_truth, distances, strain_ids).item()
                 error = error_metric(strainest_sens_estimate, truth_tensor)
                 engraftment, clearance = engraftment_clearance(other_method_presence(strainest_sens_estimate))
-                switch_err = dominance_switch_error(torch.median(strainest_sens_estimate, dim=1).values, truth_tensor, strain_ids, "NZ_CP069709.1", "NZ_CP076645.1")
+                switch_err = dominance_switch_error(strainest_sens_estimate, truth_tensor, strain_ids, "NZ_CP069709.1", "NZ_CP076645.1")
 
                 logger.info("StrainEst (Sens) err = {}, engraft = {}, clear = {}".format(error, engraftment, clearance))
                 df_entries.append({
@@ -485,7 +485,7 @@ def evaluate_errors(index_df: pd.DataFrame,
                                                               trial_dir / 'output' / 'strainest')
                 error = error_metric(strainest_estimate, truth_tensor)
                 engraftment, clearance = engraftment_clearance(other_method_presence(strainest_estimate))
-                switch_err = dominance_switch_error(torch.median(strainest_estimate, dim=1).values, truth_tensor, strain_ids, "NZ_CP069709.1", "NZ_CP076645.1")
+                switch_err = dominance_switch_error(strainest_estimate, truth_tensor, strain_ids, "NZ_CP069709.1", "NZ_CP076645.1")
 
                 logger.info("StrainEst (Default) err = {}, engraft = {}, clear = {}".format(error, engraftment, clearance))
                 df_entries.append({
@@ -509,7 +509,7 @@ def evaluate_errors(index_df: pd.DataFrame,
                 # error = wasserstein_error(straingst_estimate, ground_truth, distances, strain_ids).item()
                 error = error_metric(straingst_estimate, truth_tensor)
                 engraftment, clearance = engraftment_clearance(other_method_presence(straingst_estimate))
-                switch_err = dominance_switch_error(torch.median(straingst_estimate, dim=1).values, truth_tensor, strain_ids, "NZ_CP069709.1", "NZ_CP076645.1")
+                switch_err = dominance_switch_error(straingst_estimate, truth_tensor, strain_ids, "NZ_CP069709.1", "NZ_CP076645.1")
                 logger.info("StrainGST err = {}, engraft = {}, clear = {}".format(error, engraftment, clearance))
                 df_entries.append({
                     'ReadDepth': read_depth,
