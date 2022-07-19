@@ -298,6 +298,16 @@ def other_method_presence(abundance_est: torch.Tensor) -> torch.Tensor:
     return abundance_est != 0
 
 
+def dominance_switch_error(abundance_est: torch.Tensor, truth: torch.Tensor, strain_ids: List[str], strain1: str, strain2: str) -> float:
+    idxs = {sid: i for i, sid in enumerate(strain_ids)}
+    sidx1 = idxs[strain1]
+    sidx2 = idxs[strain2]
+    est_ = torch.gt(abundance_est[:, sidx1], abundance_est[:, sidx2])
+    truth_ = torch.gt(truth[:, sidx1], truth[:, sidx2])
+    switch_errors = torch.not_equal(est_, truth_)
+    return torch.mean(switch_errors).item()
+
+
 # def wasserstein_error(abundance_est: torch.Tensor, truth_df: pd.DataFrame, strain_distances: torch.Tensor, strain_ids: List[str]) -> torch.Tensor:
 #     time_points = sorted(pd.unique(truth_df['T']))
 #     ground_truth = extract_ground_truth_array(truth_df, strain_ids)
@@ -428,6 +438,7 @@ def evaluate_errors(index_df: pd.DataFrame,
                 # )
                 error = error_metric(torch.median(chronostrain_estimate_samples, dim=1).values, truth_tensor)
                 engraftment, clearance = engraftment_clearance(chronostrain_presence(chronostrain_estimate_samples))
+                switch_err = dominance_switch_error(torch.median(chronostrain_estimate_samples, dim=1).values, truth_tensor, strain_ids, "NZ_CP069709.1", "NZ_CP076645.1")
 
                 logger.info("Chronostrain: err = {}, engraft = {}, clear = {}".format(error, engraftment, clearance))
 
@@ -437,7 +448,8 @@ def evaluate_errors(index_df: pd.DataFrame,
                     'Method': 'Chronostrain',
                     'Error': error,
                     'Engraftment': engraftment,
-                    'Clearance': clearance
+                    'Clearance': clearance,
+                    'Switch': switch_err
                 })
 
                 # plot_result(plot_dir / 'chronostrain.pdf', ground_truth, chronostrain_estimate_samples, strain_ids)
@@ -452,6 +464,8 @@ def evaluate_errors(index_df: pd.DataFrame,
                 # error = wasserstein_error(strainest_estimate, ground_truth, distances, strain_ids).item()
                 error = error_metric(strainest_sens_estimate, truth_tensor)
                 engraftment, clearance = engraftment_clearance(other_method_presence(strainest_sens_estimate))
+                switch_err = dominance_switch_error(torch.median(strainest_sens_estimate, dim=1).values, truth_tensor, strain_ids, "NZ_CP069709.1", "NZ_CP076645.1")
+
                 logger.info("StrainEst (Sens) err = {}, engraft = {}, clear = {}".format(error, engraftment, clearance))
                 df_entries.append({
                     'ReadDepth': read_depth,
@@ -459,7 +473,8 @@ def evaluate_errors(index_df: pd.DataFrame,
                     'Method': 'StrainEst (Sensitive)',
                     'Error': error,
                     'Engraftment': engraftment,
-                    'Clearance': clearance
+                    'Clearance': clearance,
+                    'Switch': switch_err
                 })
                 # plot_result(plot_dir / 'strainest.pdf', ground_truth, strainest_estimate, strain_ids)
             except FileNotFoundError:
@@ -468,10 +483,12 @@ def evaluate_errors(index_df: pd.DataFrame,
             # =========== StrainEst (Default)
             try:
                 strainest_estimate = parse_strainest_estimate(ground_truth, strain_ids,
-                                                                   'default',
-                                                                   trial_dir / 'output' / 'strainest')
+                                                              'default',
+                                                              trial_dir / 'output' / 'strainest')
                 error = error_metric(strainest_estimate, truth_tensor)
                 engraftment, clearance = engraftment_clearance(other_method_presence(strainest_estimate))
+                switch_err = dominance_switch_error(torch.median(strainest_estimate, dim=1).values, truth_tensor, strain_ids, "NZ_CP069709.1", "NZ_CP076645.1")
+
                 logger.info("StrainEst (Default) err = {}, engraft = {}, clear = {}".format(error, engraftment, clearance))
                 df_entries.append({
                     'ReadDepth': read_depth,
@@ -479,11 +496,12 @@ def evaluate_errors(index_df: pd.DataFrame,
                     'Method': 'StrainEst (Default)',
                     'Error': error,
                     'Engraftment': engraftment,
-                    'Clearance': clearance
+                    'Clearance': clearance,
+                    'Switch': switch_err
                 })
                 # plot_result(plot_dir / 'strainest.pdf', ground_truth, strainest_estimate, strain_ids)
             except FileNotFoundError:
-                logger.info("Skipping StrainEst (Sensitive) output.")
+                logger.info("Skipping StrainEst (Default) output.")
 
             # =========== StrainGST (whole genome)
             try:
@@ -493,6 +511,7 @@ def evaluate_errors(index_df: pd.DataFrame,
                 # error = wasserstein_error(straingst_estimate, ground_truth, distances, strain_ids).item()
                 error = error_metric(straingst_estimate, truth_tensor)
                 engraftment, clearance = engraftment_clearance(other_method_presence(straingst_estimate))
+                switch_err = dominance_switch_error(torch.median(straingst_estimate, dim=1).values, truth_tensor, strain_ids, "NZ_CP069709.1", "NZ_CP076645.1")
                 logger.info("StrainGST err = {}, engraft = {}, clear = {}".format(error, engraftment, clearance))
                 df_entries.append({
                     'ReadDepth': read_depth,
@@ -500,7 +519,8 @@ def evaluate_errors(index_df: pd.DataFrame,
                     'Method': 'StrainGST',
                     'Error': error,
                     'Engraftment': engraftment,
-                    'Clearance': clearance
+                    'Clearance': clearance,
+                    'Switch': switch_err
                 })
                 # plot_result(plot_dir / 'straingst_whole.pdf', ground_truth, straingst_estimate, strain_ids)
             except FileNotFoundError:
@@ -536,8 +556,9 @@ def evaluate_errors(index_df: pd.DataFrame,
                     'TrialNum': trial_num,
                     'Method': 'StrainFacts',
                     'Error': error,
-                    'Engraftment': 1.0,
-                    'Clearance': 1.0
+                    'Engraftment': float('inf'),
+                    'Clearance': float('inf'),
+                    'Switch': float('inf')
                 })
                 # plot_result(plot_dir / 'strainfacts.pdf', ground_truth, strainfacts_estimate, strain_ids)
             except FileNotFoundError:
