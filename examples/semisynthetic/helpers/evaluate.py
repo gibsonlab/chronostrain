@@ -257,10 +257,8 @@ def error_metric(abundance_est: torch.Tensor, truth: torch.Tensor) -> float:
     _T = abundance_est.shape[0]
     _S = abundance_est.shape[1]
 
-    l2_error = torch.sqrt(torch.sum(
-        torch.square(truth - abundance_est)
-    ))
-    return l2_error.item()
+    l1_error = torch.sum(torch.abs(truth - abundance_est))
+    return l1_error.item()
 
 
 def engraftment_ratio(presence: torch.Tensor) -> float:
