@@ -296,13 +296,14 @@ def other_method_presence(abundance_est: torch.Tensor) -> torch.Tensor:
     return abundance_est != 0
 
 
-def dominance_coeff(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+def dominance_coeff(x: torch.Tensor, y: torch.Tensor, eps: float = 1e-10) -> torch.Tensor:
     """
     :param x: a 1-d Tensor of values.
     :param y: a 1-d Tensor of values of the same size as x.
+    :param eps: A padding value to prevent division by zeroes.
     :return: the entrywise dominance coefficient log(x) - log(y).
     """
-    return torch.divide(x, y)
+    return torch.divide(x + eps, y + eps)
 
 
 def dominance_error(abundance_est: torch.Tensor, truth: torch.Tensor, strain_ids: List[str], strain1: str, strain2: str) -> float:
@@ -310,11 +311,10 @@ def dominance_error(abundance_est: torch.Tensor, truth: torch.Tensor, strain_ids
     sidx1 = idxs[strain1]
     sidx2 = idxs[strain2]
 
-    eps = 1e-10
     _est = dominance_coeff(abundance_est[:, sidx1], abundance_est[:, sidx2])
     _truth = dominance_coeff(truth[:, sidx1], truth[:, sidx2])
     return torch.exp(
-        torch.mean(torch.log(_est + eps) - torch.log(_truth + eps))
+        torch.mean(torch.log(_est) - torch.log(_truth))
     ).item()  # geometric mean
 
 
