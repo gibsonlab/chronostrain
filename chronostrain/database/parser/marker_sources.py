@@ -165,8 +165,6 @@ class CachedMarkerSource(MarkerSource):
         self._seq_len = self.get_seq_len()
 
     def get_seq_len(self) -> int:
-        print("HASDFSADF!")
-        exit(3)
         p = self.strain_assembly_dir / "length.txt"
         if p.exists():
             with open(p, 'rt') as f:
@@ -230,8 +228,6 @@ class CachedMarkerSource(MarkerSource):
             start_pos: int, end_pos: int, from_negative_strand: bool
     ) -> Marker:
         marker_filepath = self.get_marker_filepath(marker_id)
-        print(marker_filepath)
-        print(marker_filepath.exists())
         if marker_filepath.exists():
             return self.load_from_disk(marker_id, marker_name, is_canonical, marker_filepath)
         else:
