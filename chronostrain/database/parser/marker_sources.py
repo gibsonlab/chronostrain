@@ -209,6 +209,8 @@ class CachedMarkerSource(MarkerSource):
             start_pos: int, end_pos: int, from_negative_strand: bool
     ) -> Marker:
         marker_filepath = self.get_marker_filepath(marker_id)
+        print(marker_filepath)
+        print(marker_filepath.exists())
         if marker_filepath.exists():
             return self.load_from_disk(marker_id, marker_name, is_canonical, marker_filepath)
         else:
