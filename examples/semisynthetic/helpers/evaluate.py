@@ -310,10 +310,11 @@ def dominance_error(abundance_est: torch.Tensor, truth: torch.Tensor, strain_ids
     sidx1 = idxs[strain1]
     sidx2 = idxs[strain2]
 
+    eps = 1e-10
     _est = dominance_coeff(abundance_est[:, sidx1], abundance_est[:, sidx2])
     _truth = dominance_coeff(truth[:, sidx1], truth[:, sidx2])
     return torch.exp(
-        torch.mean(torch.log(_est) - torch.log(_truth))
+        torch.mean(torch.log(_est + eps) - torch.log(_truth + eps))
     ).item()  # geometric mean
 
 
