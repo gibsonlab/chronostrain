@@ -13,6 +13,10 @@ mkdir -p ${BACKGROUND_FASTQ_DIR}
 
 while IFS=, read -r tidx t sra_id
 do
+	if [[ "$tidx" == "TIDX" ]]; then
+		continue
+	fi
+
 	fq1="${BACKGROUND_FASTQ_DIR}/${tidx}_background_1.fq"
 	fq2="${BACKGROUND_FASTQ_DIR}/${tidx}_background_2.fq"
 
