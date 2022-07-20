@@ -16,10 +16,10 @@ mkdir -p ${BACKGROUND_FASTQ_DIR}
 download_sra()
 {
 	sra_id=$1
-	fq1=$2
-	fq2=$3
+	gz1=$2
+	gz2=$3
 
-	if [[ -f $fq1 && -f $fq2 ]]; then
+	if [[ -f $gz1 && -f $gz2 ]]; then
 		echo "[*] Target files for ${sra_id} already exist."
 	else
 		sra_fq1="${sra_id}_1.fastq"
@@ -42,16 +42,16 @@ download_sra()
 		-t ${FASTERQ_TMP_DIR} \
 		"${SRA_PREFETCH_DIR}/${sra_id}/${sra_id}.sra"
 
-		mv ${sra_fq1} ${fq1}
-		mv ${sra_fq2} ${fq2}
+		pigz -c ${sra_fq1} > ${gz1}
+		pigz -c ${sra_fq2} > ${gz2}
 	fi
 }
 
 
 run_trimmomatic()
 {
-	fq_file_1=$1
-	fq_file_2=$2
+	gz_file_1=$1
+	gz_file_2=$2
 	prefix=$3
 	out_dir=$4
 
@@ -67,10 +67,16 @@ run_trimmomatic()
 	then
 		echo "[*] Processed outputs already found!"
 	else
+		tmp_file_1="${out_dir}/${prefix}_1.fastq"
+		tmp_file_2="${out_dir}/${prefix}_2.fastq"
+		echo "[*] Decompressing to temporary output."
+		pigz -dck ${gz_file_1} > $tmp_file_1
+		pigz -dck ${gz_file_2} > $tmp_file_2
+
 		echo "[*] Invoking kneaddata."
 		kneaddata \
-		--input1 ${fq_file_1} \
-		--input2 ${fq_file_2} \
+		--input1 ${gz_file_1} \
+		--input2 ${gz_file_2} \
 		--reference-db ${KNEADDATA_DB_DIR} \
 		--output ${out_dir} \
 		--trimmomatic-options "ILLUMINACLIP:${NEXTERA_ADAPTER_PATH}:2:30:10:2 LEADING:10 TRAILING:10 MINLEN:35" \
@@ -96,10 +102,10 @@ do
 	mkdir -p $raw_sample_dir
 	mkdir -p $trimmomatic_outdir
 
-	raw_fq1=${raw_sample_dir}/${sra_id}_1.fq
-	raw_fq2=${raw_sample_dir}/${sra_id}_2.fq
-	download_sra $sra_id $raw_fq1 $raw_fq2
-	run_trimmomatic $raw_fq1 $raw_fq2 $sra_id $trimmomatic_outdir
+	raw_gz1=${raw_sample_dir}/${sra_id}_1.fq.gz
+	raw_gz2=${raw_sample_dir}/${sra_id}_2.fq.gz
+	download_sra $sra_id $raw_gz1 $raw_gz2
+	run_trimmomatic $raw_gz1 $raw_gz2 $sra_id $trimmomatic_outdir
 
 	trimmed_1_unpaired="${trimmomatic_outdir}/${sra_id}_1.unmatched.fq"
 	trimmed_1_paired="${trimmomatic_outdir}/${sra_id}_1.paired.fq"

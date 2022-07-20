@@ -15,8 +15,8 @@ export BACKGROUND_N_READS=1000000
 export RELATIVE_GROUND_TRUTH="${BASE_DIR}/files/ground_truth.csv"
 export BACKGROUND_CSV="${BASE_DIR}/files/background.csv"
 export BACKGROUND_FASTQ_DIR="${DATA_DIR}/background"
-export SRA_PREFETCH_DIR="${DATA_DIR}/prefetch"
-export FASTERQ_TMP_DIR="${DATA_DIR}/fasterq-tmp"
+export SRA_PREFETCH_DIR="${BACKGROUND_FASTQ_DIR}/prefetch"
+export FASTERQ_TMP_DIR="${BACKGROUND_FASTQ_DIR}/fasterq-tmp"
 
 # ART specification
 export READ_PROFILE_PATH="${BASE_DIR}/files/HiSeqReference"
