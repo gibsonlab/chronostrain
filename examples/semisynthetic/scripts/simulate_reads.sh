@@ -11,23 +11,21 @@ check_program 'seqtk'
 # First, download the background samples.
 mkdir -p ${BACKGROUND_FASTQ_DIR}
 
-while IFS=, read -r tidx t sra_id num_background
-do
-	if [[ "$tidx" == "TIDX" ]]; then
-		continue
-	fi
 
-	fq1="${BACKGROUND_FASTQ_DIR}/${tidx}_background_1.fq"
-	fq2="${BACKGROUND_FASTQ_DIR}/${tidx}_background_2.fq"
+# ============ Function definitions
+download_sra()
+{
+	sra_id=$1
+	fq1=$2
+	fq2=$3
 
 	if [[ -f $fq1 && -f $fq2 ]]; then
 		echo "[*] Target files for ${sra_id} already exist."
 	else
-		sra_fq1="${BACKGROUND_FASTQ_DIR}/${sra_id}_1.fastq"
-		sra_fq2="${BACKGROUND_FASTQ_DIR}/${sra_id}_2.fastq"
+		sra_fq1="${sra_id}_1.fastq"
+		sra_fq2="${sra_id}_2.fastq"
 
 		echo "[*] Downloading ${sra_id}."
-		cd ${BACKGROUND_FASTQ_DIR}
 
 		# Prefetch
 		echo "[*] Prefetching..."
@@ -43,14 +41,73 @@ do
 		--force \
 		-t ${FASTERQ_TMP_DIR} \
 		"${SRA_PREFETCH_DIR}/${sra_id}/${sra_id}.sra"
-		cd -
 
 		mv ${sra_fq1} ${fq1}
 		mv ${sra_fq2} ${fq2}
 	fi
+}
+
+
+run_trimmomatic()
+{
+	fq_file_1=$1
+	fq_file_2=$2
+	prefix=$3
+	out_dir=$4
+
+	# Target fastq files.
+	mkdir -p $out_dir
+
+	if [ -f "${trimmed_1_paired_gz}" ] && [ -f "${trimmed_2_paired_gz}" ]
+	then
+		echo "[*] Processed outputs already found!"
+	else
+		echo "[*] Invoking kneaddata."
+		kneaddata \
+		--input1 ${fq_file_1} \
+		--input2 ${fq_file_2} \
+		--reference-db ${KNEADDATA_DB_DIR} \
+		--output ${kneaddata_output_dir} \
+		--trimmomatic-options "ILLUMINACLIP:${NEXTERA_ADAPTER_PATH}:2:30:10:2 LEADING:10 TRAILING:10 MINLEN:35" \
+		--threads 8 \
+		--quality-scores phred33 \
+		--bypass-trf \
+		--trimmomatic ${TRIMMOMATIC_DIR} \
+		--output-prefix ${sra_id}
+	fi
+}
+
+
+# =============== Download background samples & preprocess them
+cd ${BACKGROUND_FASTQ_DIR}
+while IFS=, read -r tidx t sra_id num_background
+do
+	if [[ "$tidx" == "TIDX" ]]; then
+		continue
+	fi
+
+	raw_sample_dir="raw"
+	trimmomatic_outdir="trimmomatic"
+	mkdir -p $raw_sample_dir
+	mkdir -p $trimmomatic_outdir
+
+	prefix="${tidx}_background"
+
+	raw_fq1=${raw_sample_dir}/${prefix}_1.fq
+	raw_fq2=${raw_sample_dir}/${prefix}_2.fq
+	download_sra $sra_id $raw_fq1 $raw_fq2
+	run_trimmomatic $raw_fq1 $raw_fq2 $prefix $trimmomatic_outdir
+
+	trimmed_1_unpaired="${trimmomatic_outdir}/${prefix}_1.unmatched.fq"
+	trimmed_1_paired="${trimmomatic_outdir}/${prefix}_1.paired.fq"
+	trimmed_2_unpaired="${trimmomatic_outdir}/${prefix}_2.unmatched.fq"
+	trimmed_2_paired="${trimmomatic_outdir}/${prefix}_2.paired.fq"
+	cat $trimmed_1_unpaired $trimmed_1_paired > $prefix_1.fq
+	cat $trimmed_2_unpaired $trimmed_2_paired > $prefix_2.fq
 done < ${BACKGROUND_CSV}
 
 
+# =============== Sample synthetic reads
 for n_reads in 5000 10000 25000 50000 75000 100000
 do
 	for (( trial = 1; trial < ${N_TRIALS}+1; trial++ ));
