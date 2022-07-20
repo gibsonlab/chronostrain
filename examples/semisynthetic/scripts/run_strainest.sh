@@ -87,7 +87,7 @@ samtools index ${sorted_bam_file}
 echo "[*] Running StrainEst... ($sensitivity)"
 if [ "$sensitivity" == "sensitive" ]; then
 	strainest est \
-	${STRAINEST_DB_DIR}/snvs_clust.txt \
+	${STRAINEST_DB_DIR}/snvs_all.txt \
 	${sorted_bam_file} \
 	./ \
 	-t 1 \
@@ -95,7 +95,7 @@ if [ "$sensitivity" == "sensitive" ]; then
 	-a
 else
 	strainest est \
-	${STRAINEST_DB_DIR}/snvs_clust.txt \
+	${STRAINEST_DB_DIR}/snvs_all.txt \
 	${sorted_bam_file} \
 	./ \
 	-t 1
