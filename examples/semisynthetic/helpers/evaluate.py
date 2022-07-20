@@ -462,7 +462,7 @@ def evaluate_errors(index_df: pd.DataFrame,
                     'Dominance': dom_err
                 })
 
-                # plot_result(plot_dir / 'chronostrain.pdf', ground_truth, chronostrain_estimate_samples, strain_ids)
+                plot_result(plot_dir / 'chronostrain.pdf', ground_truth, chronostrain_estimate_samples, strain_ids)
             except FileNotFoundError:
                 logger.info("Skipping Chronostrain output.")
 
@@ -486,7 +486,7 @@ def evaluate_errors(index_df: pd.DataFrame,
                     'Clearance': clearance,
                     'Dominance': dom_err
                 })
-                # plot_result(plot_dir / 'strainest.pdf', ground_truth, strainest_estimate, strain_ids)
+                plot_result(plot_dir / 'strainest.sensitive.pdf', ground_truth, strainest_sens_estimate, strain_ids)
             except FileNotFoundError:
                 logger.info("Skipping StrainEst (Sensitive) output.")
 
@@ -509,7 +509,7 @@ def evaluate_errors(index_df: pd.DataFrame,
                     'Clearance': clearance,
                     'Dominance': dom_err
                 })
-                # plot_result(plot_dir / 'strainest.pdf', ground_truth, strainest_estimate, strain_ids)
+                plot_result(plot_dir / 'strainest.default.pdf', ground_truth, strainest_estimate, strain_ids)
             except FileNotFoundError:
                 logger.info("Skipping StrainEst (Default) output.")
 
@@ -532,7 +532,7 @@ def evaluate_errors(index_df: pd.DataFrame,
                     'Clearance': clearance,
                     'Dominance': dom_err
                 })
-                # plot_result(plot_dir / 'straingst_whole.pdf', ground_truth, straingst_estimate, strain_ids)
+                plot_result(plot_dir / 'straingst.pdf', ground_truth, straingst_estimate, strain_ids)
             except FileNotFoundError:
                 logger.info("Skipping StrainGST output.")
 
