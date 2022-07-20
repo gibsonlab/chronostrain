@@ -58,10 +58,10 @@ run_trimmomatic()
 	# Target fastq files.
 	mkdir -p $out_dir
 
-	trimmed_1_unpaired="${out_dir}/${prefix}_1.unmatched.fq"
-	trimmed_1_paired="${out_dir}/${prefix}_1.paired.fq"
-	trimmed_2_unpaired="${out_dir}/${prefix}_2.unmatched.fq"
-	trimmed_2_paired="${out_dir}/${prefix}_2.paired.fq"
+	trimmed_1_unpaired="${out_dir}/${prefix}_unmatched_1.fq"
+	trimmed_1_paired="${out_dir}/${prefix}_paired_1.fq"
+	trimmed_2_unpaired="${out_dir}/${prefix}_unmatched_2.fq"
+	trimmed_2_paired="${out_dir}/${prefix}_paired_2.fq"
 
 	if [ -f "${trimmed_1_paired}" ] && [ -f "${trimmed_2_paired}" ]
 	then
