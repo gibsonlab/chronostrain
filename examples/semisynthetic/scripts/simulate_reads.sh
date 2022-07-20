@@ -91,23 +91,22 @@ do
 		continue
 	fi
 
-	prefix="${tidx}_background"
 	raw_sample_dir="raw"
-	trimmomatic_outdir="trimmomatic/${prefix}"
+	trimmomatic_outdir="trimmomatic/${sra_id}"
 	mkdir -p $raw_sample_dir
 	mkdir -p $trimmomatic_outdir
 
-	raw_fq1=${raw_sample_dir}/${prefix}_1.fq
-	raw_fq2=${raw_sample_dir}/${prefix}_2.fq
+	raw_fq1=${raw_sample_dir}/${sra_id}_1.fq
+	raw_fq2=${raw_sample_dir}/${sra_id}_2.fq
 	download_sra $sra_id $raw_fq1 $raw_fq2
-	run_trimmomatic $raw_fq1 $raw_fq2 $prefix $trimmomatic_outdir
+	run_trimmomatic $raw_fq1 $raw_fq2 $sra_id $trimmomatic_outdir
 
-	trimmed_1_unpaired="${trimmomatic_outdir}/${prefix}_1.unmatched.fq"
-	trimmed_1_paired="${trimmomatic_outdir}/${prefix}_1.paired.fq"
-	trimmed_2_unpaired="${trimmomatic_outdir}/${prefix}_2.unmatched.fq"
-	trimmed_2_paired="${trimmomatic_outdir}/${prefix}_2.paired.fq"
-	cat $trimmed_1_unpaired $trimmed_1_paired > $prefix_1.fq
-	cat $trimmed_2_unpaired $trimmed_2_paired > $prefix_2.fq
+	trimmed_1_unpaired="${trimmomatic_outdir}/${sra_id}_1.unmatched.fq"
+	trimmed_1_paired="${trimmomatic_outdir}/${sra_id}_1.paired.fq"
+	trimmed_2_unpaired="${trimmomatic_outdir}/${sra_id}_2.unmatched.fq"
+	trimmed_2_paired="${trimmomatic_outdir}/${sra_id}_2.paired.fq"
+	cat $trimmed_1_unpaired $trimmed_1_paired > ${tidx}_background_1.fq
+	cat $trimmed_2_unpaired $trimmed_2_paired > ${tidx}_background_2.fq
 done < ${BACKGROUND_CSV}
 
 
