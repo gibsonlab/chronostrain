@@ -21,19 +21,35 @@ fi
 # ============ script body:
 trial_dir=$(get_trial_dir $n_reads $trial)
 read_dir=${trial_dir}/reads
-log_dir=${trial_dir}/logs
+output_dir=${trial_dir}/output/chronostrain
 
-mkdir -p $log_dir
+mkdir -p $output_dir
 mkdir -p $read_dir
-export CHRONOSTRAIN_LOG_FILEPATH="${log_dir}/filter.log"
+export CHRONOSTRAIN_LOG_FILEPATH="${output_dir}/filter.log"
 export CHRONOSTRAIN_CACHE_DIR="${trial_dir}/cache"
 
-echo "[*] Filtering reads for n_reads: ${n_reads}, trial: ${trial}"
+
+echo "[*] Preparing input for n_reads: ${n_reads}, trial: ${trial}"
+reads_csv="${output_dir}/input_files.csv"
+>$reads_csv
+{
+	read
+	while IFS=, read -r tidx t sra n_background
+	do
+		echo "${t},${n_reads},${read_dir}/${tidx}_sim_1.fq,paired_1,fastq" >> $reads_csv
+		echo "${t},${n_reads},${read_dir}/${tidx}_sim_2.fq,paired_2,fastq" >> $reads_csv
+		echo "${t},${n_background},${BACKGROUND_FASTQ_DIR}/${tidx}_background_1.fq,paired_1,fastq" >> $reads_csv
+		echo "${t},${n_background},${BACKGROUND_FASTQ_DIR}/${tidx}_background_2.fq,paired_2,fastq" >> $reads_csv
+	done
+} < $BACKGROUND_CSV
+
+
+echo "[*] Filtering reads..."
 start_time=$(date +%s%N)  # nanoseconds
 
 python $PROJECT_DIR/scripts/filter_timeseries.py \
---reads_input "${read_dir}/input_files.csv" \
--o "${read_dir}/filtered/" \
+--reads_input ${reads_csv} \
+-o "${output_dir}/filtered/" \
 --frac_identity_threshold 0.975 \
 --error_threshold 1.0 \
 --num_threads 4

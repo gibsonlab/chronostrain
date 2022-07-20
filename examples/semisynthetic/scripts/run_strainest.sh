@@ -45,11 +45,24 @@ mkdir -p ${output_dir}
 cd ${output_dir}
 
 
+# ========== Create inputs. (clean up later)
+reads_1="${output_dir}/${time_point}_reads_1.fq.gz"
+reads_2="${output_dir}/${time_point}_reads_2.fq.gz"
+
+cat \
+${read_dir}/${time_point}_sim_1.fq \
+${BACKGROUND_FASTQ_DIR}/${time_point}_background_1.fq \
+| pigz -cf > $reads_1
+
+cat \
+${read_dir}/${time_point}_sim_2.fq \
+${BACKGROUND_FASTQ_DIR}/${time_point}_background_2.fq \
+| pigz -cf > $reads_2
+
+
+# ========== Run
 echo "[*] Running inference for n_reads: ${n_reads}, trial: ${trial}, timepoint #${time_point}"
 start_time=$(date +%s%N)  # nanoseconds
-
-reads_1="${read_dir}/${time_point}_reads_1.fq.gz"
-reads_2="${read_dir}/${time_point}_reads_2.fq.gz"
 
 # Perform bowtie2 alignment
 sam_file="reads_${time_point}.sam"
@@ -94,8 +107,10 @@ elapsed_time=$(( $(($end_time-$start_time)) / 1000000 ))
 runtime_file=${trial_dir}/output/strainest_runtime.${sensitivity}.${time_point}.txt
 echo "${elapsed_time}" > $runtime_file
 
-# Clean up
+# ========== Clean up
 echo "[*] Cleaning up..."
+rm ${reads_1}
+rm ${reads_2}
 rm ${sam_file}
 rm ${bam_file}
 rm ${sorted_bam_file}

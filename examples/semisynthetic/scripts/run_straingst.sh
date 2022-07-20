@@ -37,7 +37,6 @@ else
 	exit 1
 fi
 
-# ============ script body:
 trial_dir=$(get_trial_dir $n_reads $trial)
 read_dir=${trial_dir}/reads
 output_dir=${trial_dir}/output/straingst
@@ -45,16 +44,21 @@ output_dir=${trial_dir}/output/straingst
 mkdir -p ${output_dir}
 
 
+# ========== Run
 echo "[*] Running inference for n_reads: ${n_reads}, trial: ${trial}, timepoint #${time_point}"
 start_time=$(date +%s%N)  # nanoseconds
-
-
 read_kmers=${output_dir}/reads.hdf5
-reads_1="${read_dir}/${time_point}_reads_1.fq.gz"
-reads_2="${read_dir}/${time_point}_reads_2.fq.gz"
+
 
 echo "[*] Kmerizing..."
-straingst kmerize -k 23 -o ${read_kmers} ${reads_1} ${reads_2}
+straingst kmerize \
+-k 23 \
+-o ${read_kmers} \
+${read_dir}/${time_point}_sim_1.fq \
+${BACKGROUND_FASTQ_DIR}/${time_point}_background_1.fq \
+${read_dir}/${time_point}_sim_2.fq \
+${BACKGROUND_FASTQ_DIR}/${time_point}_background_2.fq
+
 
 echo "[*] Running StrainGST."
 mkdir -p ${output_dir}/${mode}

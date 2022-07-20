@@ -8,28 +8,43 @@ check_program 'prefetch'
 check_program 'fasterq-dump'
 check_program 'seqtk'
 
-# First, download the background sample.
-if [[ -f $BACKGROUND_FQ_1 && -f $BACKGROUND_FQ_2 ]]; then
-	echo "[*] Target files for ${BACKGROUND_SRA_ID} already exist."
-else
-	mkdir -p ${BACKGROUND_FASTQ_DIR}
-	cd ${BACKGROUND_FASTQ_DIR}
+# First, download the background samples.
+mkdir -p ${BACKGROUND_FASTQ_DIR}
 
-	# Prefetch
-	echo "[*] Prefetching..."
-	prefetch --output-directory $SRA_PREFETCH_DIR --progress --verify yes $BACKGROUND_SRA_ID
+while IFS=, read -r tidx t sra_id
+do
+	fq1="${BACKGROUND_FASTQ_DIR}/${tidx}_background_1.fq"
+	fq2="${BACKGROUND_FASTQ_DIR}/${tidx}_background_2.fq"
 
-	# Fasterq-dump
-	echo "[*] Invoking fasterq-dump..."
-	fasterq-dump \
-	--progress \
-	--outdir . \
-	--skip-technical \
-	--print-read-nr \
-	--force \
-	-t ${FASTERQ_TMP_DIR} \
-	"${SRA_PREFETCH_DIR}/${BACKGROUND_SRA_ID}/${BACKGROUND_SRA_ID}.sra"
-fi
+	if [[ -f $fq1 && -f $fq2 ]]; then
+		echo "[*] Target files for ${sra_id} already exist."
+	else
+		sra_fq1="${BACKGROUND_FASTQ_DIR}/${sra_id}_1.fastq"
+		sra_fq2="${BACKGROUND_FASTQ_DIR}/${sra_id}_2.fastq"
+
+		echo "[*] Downloading ${sra_id}."
+		cd ${BACKGROUND_FASTQ_DIR}
+
+		# Prefetch
+		echo "[*] Prefetching..."
+		prefetch --output-directory $SRA_PREFETCH_DIR --progress --verify yes $sra_id
+
+		# Fasterq-dump
+		echo "[*] Invoking fasterq-dump..."
+		fasterq-dump \
+		--progress \
+		--outdir . \
+		--skip-technical \
+		--print-read-nr \
+		--force \
+		-t ${FASTERQ_TMP_DIR} \
+		"${SRA_PREFETCH_DIR}/${sra_id}/${sra_id}.sra"
+		cd -
+
+		mv ${sra_fq1} ${fq1}
+		mv ${sra_fq2} ${fq2}
+	fi
+done < ${BACKGROUND_CSV}
 
 
 for n_reads in 5000 10000 25000 50000 75000 100000
@@ -53,8 +68,6 @@ do
 		--out_dir $read_dir \
 		--abundance_path $RELATIVE_GROUND_TRUTH \
 		--index_path ${REFSEQ_INDEX} \
-		--background_samples $BACKGROUND_FQ_1 $BACKGROUND_FQ_2 \
-		--background_read_counts ${BACKGROUND_N_READS} \
 		--num_reads $n_reads \
 		--profiles $READ_PROFILE_PATH $READ_PROFILE_PATH \
 		--read_len $READ_LEN \

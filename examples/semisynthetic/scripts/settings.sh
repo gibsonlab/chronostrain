@@ -13,10 +13,8 @@ export N_CORES=8
 export BACKGROUND_N_READS=1000000
 
 export RELATIVE_GROUND_TRUTH="${BASE_DIR}/files/ground_truth.csv"
-export BACKGROUND_SRA_ID="SRR061229"
+export BACKGROUND_CSV="${BASE_DIR}/files/background.csv"
 export BACKGROUND_FASTQ_DIR="${DATA_DIR}/background"
-export BACKGROUND_FQ_1="${BACKGROUND_FASTQ_DIR}/${BACKGROUND_SRA_ID}_1.fastq"
-export BACKGROUND_FQ_2="${BACKGROUND_FASTQ_DIR}/${BACKGROUND_SRA_ID}_2.fastq"
 export SRA_PREFETCH_DIR="${DATA_DIR}/prefetch"
 export FASTERQ_TMP_DIR="${DATA_DIR}/fasterq-tmp"
 

@@ -1,5 +1,4 @@
 import argparse
-import os
 import random
 import csv
 from pathlib import Path
@@ -28,11 +27,7 @@ def parse_args():
     parser.add_argument('-i', '--index_path', dest='index_path', required=True, type=str,
                         help='<Required> The path to the RefSeq index TSV file.')
     parser.add_argument('-n', '--num_reads', dest='num_reads', required=True, type=int,
-                        help='<Required> The number of reads to sample per time point..')
-    parser.add_argument('-bs', '--background_samples', dest='background_samples', required=True, type=str, nargs=2,
-                        help='<Required> The forward/reverse fastq files for the background metagenomic samples.')
-    parser.add_argument('-bc', '--background_read_counts', dest='background_read_counts', required=True, type=int,
-                        help='<Required> The number of background reads to sample.')
+                        help='<Required> The number of synthetic reads to sample per time point.')
     parser.add_argument('-p', '--profiles', dest='profiles', required=True, nargs=2,
                         help='<Required> A pair of read profiles for paired-end reads. '
                              'The first profile is for the forward strand and the second profile is for the reverse.')
@@ -123,48 +118,44 @@ def main():
         n_cores=args.num_cores
     )
 
-    index_entries += sample_background_reads(
-        time_points=time_points,
-        background_read_counts=args.background_read_counts,
-        reads1=Path(args.background_samples[0]),
-        reads2=Path(args.background_samples[1]),
-        out_dir=out_dir,
-        seed=master_seed
-    )
-
-    create_index_file(time_points, out_dir, index_path, index_entries)
-
-    logger.info("Sampled reads to {}".format(args.out_dir))
+    concatenate_files(time_points, index_entries, out_dir)
+    logger.info("Sampled reads to {}".format(out_dir))
 
 
-def create_index_file(time_points: List[float], out_dir: Path, index_path: Path, entries: List[Tuple[float, int, Path, Path]]):
-    with open(index_path, 'w') as index_file:
-        for t_idx, t in enumerate(time_points):
-            entries_t = [entry for entry in entries if entry[0] == t]
+def concatenate_files(time_points: List[float], index_entries: List[Tuple[float, int, Path, Path]], out_dir: Path):
+    for t_idx, t in enumerate(time_points):
+        reads1_all = out_dir / f"{t_idx}_sim_1.fq"
+        reads2_all = out_dir / f"{t_idx}_sim_2.fq"
 
-            # First, combine the read files.
-            logger.info(f"Concatenating timepoint t = {t}...")
-            reads1_all = out_dir / f"{t_idx}_reads_1.fq.gz"
-            reads2_all = out_dir / f"{t_idx}_reads_2.fq.gz"
-            n_reads = sum(entry[1] for entry in entries_t)
+        with open(reads1_all, 'wt') as out_r1, open(reads2_all, 'wt') as out_r2:
+            for entry in index_entries:
+                if entry[0] != t:
+                    continue
 
-            files1 = []
-            files2 = []
-            for _, _, reads1, reads2 in entries_t:
-                files1.append(reads1)
-                files2.append(reads2)
+                reads1 = entry[2]
+                reads2 = entry[3]
+                with open(reads1, 'rt') as in_r1:
+                    for line in in_r1:
+                        out_r1.write(line)
+                with open(reads2, 'rt') as in_r2:
+                    for line in in_r2:
+                        out_r2.write(line)
+                reads1.unlink()
+                reads2.unlink()
 
-            os.system('cat {} | pigz -cf > {}'.format(
-                ' '.join(str(f) for f in files1),
-                str(reads1_all)
-            ))
-            os.system('cat {} | pigz -cf > {}'.format(
-                ' '.join(str(f) for f in files2),
-                str(reads2_all)
-            ))
 
-            print(f'{t},{n_reads},{reads1_all},paired_1,fastq', file=index_file)
-            print(f'{t},{n_reads},{reads2_all},paired_2,fastq', file=index_file)
+# def create_index_file(time_points: List[float], index_path: Path, entries: List[Tuple[float, int, Path, Path]]):
+#     with open(index_path, 'w') as index_file:
+#         for t_idx, t in enumerate(time_points):
+#             for entry in entries:
+#                 if entry[0] != t:
+#                     continue
+#
+#                 n_reads = entry[1]
+#                 reads1 = entry[2]
+#                 reads2 = entry[3]
+#                 print(f'{t},{n_reads},{reads1},paired_1,fastq', file=index_file)
+#                 print(f'{t},{n_reads},{reads2},paired_2,fastq', file=index_file)
 
 
 def parse_abundance_profile(abundance_path: str) -> List[Tuple[float, Dict]]:
@@ -272,29 +263,6 @@ def sample_reads_from_rel_abundances(
     else:
         raise ValueError("# cores must be positive. Got: {}".format(n_cores))
 
-    return index_entries
-
-
-def sample_background_reads(
-        time_points: List[float],
-        background_read_counts: int,
-        reads1: Path,
-        reads2: Path,
-        out_dir: Path,
-        seed: Seed
-) -> List[Tuple[float, int, Path, Path]]:
-    logger.info("Sampling background reads...")
-    index_entries = []
-    for t_idx, time_point in enumerate(time_points):
-        sample_seed = seed.next_value()
-        sampled_reads1 = out_dir / f'{t_idx}_background_1.fq'
-        sampled_reads2 = out_dir / f'{t_idx}_background_2.fq'
-        os.system(f'seqtk sample -s {sample_seed} {reads1} {background_read_counts} > {sampled_reads1}')
-        os.system(f'seqtk sample -s {sample_seed} {reads2} {background_read_counts} > {sampled_reads2}')
-
-        index_entries.append(
-            (time_point, background_read_counts, sampled_reads1, sampled_reads2)
-        )
     return index_entries
 
 
