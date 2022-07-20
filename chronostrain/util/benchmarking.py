@@ -48,6 +48,14 @@ class CyclicBuffer:
         self.size = 0
         self.next_idx = 0
 
+    def __repr__(self):
+        return "[{}]".format(
+            ", ".join(
+                f'*{x}' if i == self.next_idx else f'{x}'
+                for i, x in enumerate(self.buf)
+            )
+        )
+
 
 class RuntimeEstimator:
     """
