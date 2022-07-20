@@ -102,8 +102,8 @@ do
 	mkdir -p $raw_sample_dir
 	mkdir -p $trimmomatic_outdir
 
-	raw_gz1=${raw_sample_dir}/${sra_id}_1.fq.gz
-	raw_gz2=${raw_sample_dir}/${sra_id}_2.fq.gz
+	raw_gz1=${raw_sample_dir}/${sra_id}_1.fastq.gz
+	raw_gz2=${raw_sample_dir}/${sra_id}_2.fastq.gz
 	download_sra $sra_id $raw_gz1 $raw_gz2
 	run_trimmomatic $raw_gz1 $raw_gz2 $sra_id $trimmomatic_outdir
 
