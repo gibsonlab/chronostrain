@@ -91,12 +91,11 @@ do
 		continue
 	fi
 
+	prefix="${tidx}_background"
 	raw_sample_dir="raw"
-	trimmomatic_outdir="trimmomatic"
+	trimmomatic_outdir="trimmomatic/${prefix}"
 	mkdir -p $raw_sample_dir
 	mkdir -p $trimmomatic_outdir
-
-	prefix="${tidx}_background"
 
 	raw_fq1=${raw_sample_dir}/${prefix}_1.fq
 	raw_fq2=${raw_sample_dir}/${prefix}_2.fq
