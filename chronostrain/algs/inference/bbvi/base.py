@@ -220,7 +220,7 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
             optimizer,
             factor=lr_decay_factor,
             patience_horizon=lr_patience,
-            patience_ratio=0.5,
+            patience_ratio=0.75,
             threshold=1e-6,
             threshold_mode='rel',
             mode='min'  # track (-ELBO) and decrease LR when it stops decreasing.
