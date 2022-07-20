@@ -58,7 +58,12 @@ run_trimmomatic()
 	# Target fastq files.
 	mkdir -p $out_dir
 
-	if [ -f "${trimmed_1_paired_gz}" ] && [ -f "${trimmed_2_paired_gz}" ]
+	trimmed_1_unpaired="${out_dir}/${prefix}_1.unmatched.fq"
+	trimmed_1_paired="${out_dir}/${prefix}_1.paired.fq"
+	trimmed_2_unpaired="${out_dir}/${prefix}_2.unmatched.fq"
+	trimmed_2_paired="${out_dir}/${prefix}_2.paired.fq"
+
+	if [ -f "${trimmed_1_paired}" ] && [ -f "${trimmed_2_paired}" ]
 	then
 		echo "[*] Processed outputs already found!"
 	else
@@ -67,13 +72,13 @@ run_trimmomatic()
 		--input1 ${fq_file_1} \
 		--input2 ${fq_file_2} \
 		--reference-db ${KNEADDATA_DB_DIR} \
-		--output ${kneaddata_output_dir} \
+		--output ${out_dir} \
 		--trimmomatic-options "ILLUMINACLIP:${NEXTERA_ADAPTER_PATH}:2:30:10:2 LEADING:10 TRAILING:10 MINLEN:35" \
 		--threads 8 \
 		--quality-scores phred33 \
 		--bypass-trf \
 		--trimmomatic ${TRIMMOMATIC_DIR} \
-		--output-prefix ${sra_id}
+		--output-prefix ${prefix}
 	fi
 }
 

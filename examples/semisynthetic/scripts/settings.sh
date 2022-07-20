@@ -21,6 +21,11 @@ export FASTERQ_TMP_DIR="${DATA_DIR}/fasterq-tmp"
 # ART specification
 export READ_PROFILE_PATH="${BASE_DIR}/files/HiSeqReference"
 
+# ========= Kneaddata
+export KNEADDATA_DB_DIR="/mnt/d/kneaddata_db"
+export NEXTERA_ADAPTER_PATH="/home/bromii/anaconda3/envs/chronostrain/share/trimmomatic/adapters/NexteraPE-PE.fa"
+export TRIMMOMATIC_DIR="/home/bromii/anaconda3/envs/chronostrain/share/trimmomatic-0.39-2"
+
 # ================= StrainGST settings
 export STRAINGST_DB_DIR=${MISC_DB_DIR}/straingst
 export STRAINGST_CHROMOSOME_DB_HDF5=${STRAINGST_DB_DIR}/chromosome_db.hdf5
