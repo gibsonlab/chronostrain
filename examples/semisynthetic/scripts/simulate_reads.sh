@@ -58,14 +58,12 @@ run_trimmomatic()
 	# Target fastq files.
 	mkdir -p $out_dir
 
-	trimmed_1_unpaired="${out_dir}/${prefix}_unmatched_1.fastq"
 	trimmed_1_paired="${out_dir}/${prefix}_paired_1.fastq"
-	trimmed_2_unpaired="${out_dir}/${prefix}_unmatched_2.fastq"
 	trimmed_2_paired="${out_dir}/${prefix}_paired_2.fastq"
 
 	if [ -f "${trimmed_1_paired}" ] && [ -f "${trimmed_2_paired}" ]
 	then
-		echo "[*] Processed outputs already found!"
+		echo "[*] Trimmomatic outputs already found!"
 	else
 		tmp_file_1="${out_dir}/${prefix}_1.fastq"
 		tmp_file_2="${out_dir}/${prefix}_2.fastq"
@@ -107,10 +105,10 @@ do
 	download_sra $sra_id $raw_gz1 $raw_gz2
 	run_trimmomatic $raw_gz1 $raw_gz2 $sra_id $trimmomatic_outdir
 
-	trimmed_1_unpaired="${trimmomatic_outdir}/${sra_id}_1.unmatched.fastq"
-	trimmed_1_paired="${trimmomatic_outdir}/${sra_id}_1.paired.fastq"
-	trimmed_2_unpaired="${trimmomatic_outdir}/${sra_id}_2.unmatched.fastq"
-	trimmed_2_paired="${trimmomatic_outdir}/${sra_id}_2.paired.fastq"
+	trimmed_1_unpaired="${trimmomatic_outdir}/${sra_id}_unmatched_1.fastq"
+	trimmed_1_paired="${trimmomatic_outdir}/${sra_id}_paired_1.fastq"
+	trimmed_2_unpaired="${trimmomatic_outdir}/${sra_id}_unmatched_2.fastq"
+	trimmed_2_paired="${trimmomatic_outdir}/${sra_id}_paired_2.fastq"
 	cat $trimmed_1_unpaired $trimmed_1_paired > ${tidx}_background_1.fq
 	cat $trimmed_2_unpaired $trimmed_2_paired > ${tidx}_background_2.fq
 done < ${BACKGROUND_CSV}
