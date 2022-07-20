@@ -11,7 +11,7 @@ check_program 'seqtk'
 # First, download the background samples.
 mkdir -p ${BACKGROUND_FASTQ_DIR}
 
-while IFS=, read -r tidx t sra_id
+while IFS=, read -r tidx t sra_id num_background
 do
 	if [[ "$tidx" == "TIDX" ]]; then
 		continue
