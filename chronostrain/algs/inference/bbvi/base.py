@@ -219,10 +219,11 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
         lr_scheduler = ReduceLROnPlateauLast(
             optimizer,
             factor=lr_decay_factor,
-            patience_horizon=lr_patience,
+            patience_horizon=5,
             patience_ratio=0.5,
             threshold=1e-4,
             threshold_mode='rel',
+            cooldown=lr_patience,
             mode='min'  # track (-ELBO) and decrease LR when it stops decreasing.
         )
         self.optimize(

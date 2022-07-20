@@ -59,14 +59,13 @@ class ReduceLROnPlateauLast(object):
         # convert `metrics` to float, in case it's a zero-dim Tensor
         current = float(metrics)
 
-        if self.is_better(current, self.prev):
-            self.bad_epochs.push(0)
-        else:
-            self.bad_epochs.push(1)
-
         if self.in_cooldown:
             self.cooldown_counter -= 1
-            self.bad_epochs.clear()  # ignore any bad epochs in cooldown
+        else:
+            if self.is_better(current, self.prev):
+                self.bad_epochs.push(0)
+            else:
+                self.bad_epochs.push(1)
 
         if self.bad_epochs.size == self.bad_epochs.capacity and self.bad_epochs.mean() >= self.patience_ratio:
             self._reduce_lr()
