@@ -29,16 +29,11 @@ mkdir -p ${FASTERQ_TMP_DIR}
 			continue
 		fi
 
-		if [[ "${exp_group}" != "Test" ]]; then
-			echo "Skipping ${sample_name}. (is not test group)"
-			continue
-		fi
-
 		# Target fastq files.
 		gz_file_1="${SAMPLES_DIR}/${sra_id}_1.fastq.gz"
 		gz_file_2="${SAMPLES_DIR}/${sra_id}_2.fastq.gz"
 		if [[ -f $gz_file_1 && -f $gz_file_2 ]]; then
-			echo "[*] Target files for ${sra_id} already exist."
+			echo "[*] Target files for ${sra_id} (${umb_id}) already exist."
 			continue
 		fi
 
