@@ -47,6 +47,7 @@ cd ${output_dir}
 
 
 # ========== Create inputs. (clean up later)
+echo "[*] Preparing StrainEST inputs for n_reads: ${n_reads}, trial: ${trial}, timepoint #${time_point}"
 reads_1="${output_dir}/${time_point}_reads_1.fq.gz"
 reads_2="${output_dir}/${time_point}_reads_2.fq.gz"
 
