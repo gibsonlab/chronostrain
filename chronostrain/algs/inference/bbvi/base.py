@@ -3,6 +3,7 @@ from typing import Optional, List, Callable, Iterator, Type, Dict, Any
 
 import numpy as np
 import torch
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from chronostrain.algs.subroutines.likelihoods import DataLikelihoods
 from chronostrain.database import StrainDatabase
@@ -216,14 +217,12 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
               callbacks: Optional[List[Callable[[int, torch.Tensor, float], None]]] = None):
         optimizer_args['params'] = self.posterior.trainable_parameters()
         optimizer = optimizer_class(**optimizer_args)
-        lr_scheduler = ReduceLROnPlateauLast(
+        lr_scheduler = ReduceLROnPlateau(
             optimizer,
             factor=lr_decay_factor,
-            patience_horizon=5,
-            patience_ratio=0.5,
             threshold=1e-4,
             threshold_mode='rel',
-            cooldown=lr_patience,
+            patience=lr_patience,
             mode='min'  # track (-ELBO) and decrease LR when it stops decreasing.
         )
         self.optimize(
