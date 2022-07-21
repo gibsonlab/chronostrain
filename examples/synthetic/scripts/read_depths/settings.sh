@@ -1,5 +1,5 @@
 # Modify these before running.
-export PROJECT_DIR="/home/bromii/chronostrain"
+export PROJECT_DIR="/home/lactis/chronostrain"
 export BASE_DIR="${PROJECT_DIR}/examples/synthetic"
 export DATA_DIR="/mnt/e/synthetic_data"
 export CHRONOSTRAIN_DB_DIR="/mnt/e/chronostrain/synthetic/database"
@@ -24,8 +24,8 @@ export STRAINEST_DB_DIR=${CHRONOSTRAIN_DB_DIR}/strainest
 export STRAINEST_BOWTIE2_DB_NAME='bt2_strains'
 
 # ================= ConStrains settings
-export CONSTRAINS_DIR=/home/bromii/constrains
-export METAPHLAN2_DIR=/home/bromii/MetaPhlAn2
+export CONSTRAINS_DIR=/home/lactis/constrains
+export METAPHLAN2_DIR=/home/lactis/MetaPhlAn2
 export METAPHLAN3_DB_DIR=${CHRONOSTRAIN_DB_DIR}/metaphlan3
 
 # ========= Chronostrain settings

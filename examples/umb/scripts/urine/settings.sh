@@ -1,5 +1,5 @@
 # Modify these before running.
-export PROJECT_DIR="/home/bromii/chronostrain"
+export PROJECT_DIR="/home/lactis/chronostrain"
 export BASE_DIR="${PROJECT_DIR}/examples/umb"
 export DATA_DIR="/mnt/e/umb_data"
 export OUTPUT_DIR="/mnt/e/chronostrain/umb_urine"
@@ -20,8 +20,8 @@ export FASTERQ_TMP_DIR="${DATA_DIR}/fasterq-tmp"
 
 # ========= Kneaddata
 export KNEADDATA_DB_DIR="/mnt/e/kneaddata_db"
-export NEXTERA_ADAPTER_PATH="/home/bromii/anaconda3/envs/chronostrain/share/trimmomatic/adapters/NexteraPE-PE.fa"
-export TRIMMOMATIC_DIR="/home/bromii/anaconda3/envs/chronostrain/share/trimmomatic-0.39-2"
+export NEXTERA_ADAPTER_PATH="/home/lactis/anaconda3/envs/chronostrain/share/trimmomatic/adapters/NexteraPE-PE.fa"
+export TRIMMOMATIC_DIR="/home/lactis/anaconda3/envs/chronostrain/share/trimmomatic-0.39-2"
 
 # ========= Chronostrain settings
 export CHRONOSTRAIN_CORR_MODE='full'

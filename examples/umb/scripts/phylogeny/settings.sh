@@ -1,5 +1,5 @@
 # Modify these before running.
-export PROJECT_DIR="/home/bromii/chronostrain"
+export PROJECT_DIR="/home/lactis/chronostrain"
 export BASE_DIR="${PROJECT_DIR}/examples/umb"
 export NCBI_REFSEQ_DIR="/mnt/e/ref_genomes"
 

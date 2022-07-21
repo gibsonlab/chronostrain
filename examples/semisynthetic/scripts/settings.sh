@@ -1,5 +1,5 @@
 # Modify these before running.
-export PROJECT_DIR="/home/bromii/chronostrain"
+export PROJECT_DIR="/home/lactis/chronostrain"
 export BASE_DIR="${PROJECT_DIR}/examples/semisynthetic"
 export DATA_DIR="/mnt/e/semisynthetic_data"
 export CHRONOSTRAIN_DB_DIR="/mnt/e/chronostrain/umb_database"
@@ -23,8 +23,8 @@ export READ_PROFILE_PATH="${BASE_DIR}/files/HiSeqReference"
 
 # ========= Kneaddata
 export KNEADDATA_DB_DIR="/mnt/e/kneaddata_db"
-export NEXTERA_ADAPTER_PATH="/home/bromii/anaconda3/envs/chronostrain/share/trimmomatic/adapters/NexteraPE-PE.fa"
-export TRIMMOMATIC_DIR="/home/bromii/anaconda3/envs/chronostrain/share/trimmomatic-0.39-2"
+export NEXTERA_ADAPTER_PATH="/home/lactis/anaconda3/envs/chronostrain/share/trimmomatic/adapters/NexteraPE-PE.fa"
+export TRIMMOMATIC_DIR="/home/lactis/anaconda3/envs/chronostrain/share/trimmomatic-0.39-2"
 
 # ================= StrainGST settings
 export STRAINGST_DB_DIR=${MISC_DB_DIR}/straingst
@@ -37,9 +37,9 @@ export STRAINEST_DB_DIR=${MISC_DB_DIR}/strainest
 export STRAINEST_BT2_DB=ecoli_db
 
 # ================= StrainFacts+gt-pro settings
-export CALLM_BIN_DIR=/home/bromii/CallM
-export KMC_BIN_DIR=/home/bromii/KMC/bin
-export GT_PRO_BIN_DIR=/home/bromii/gt-pro
+export CALLM_BIN_DIR=/home/lactis/CallM
+export KMC_BIN_DIR=/home/lactis/KMC/bin
+export GT_PRO_BIN_DIR=/home/lactis/gt-pro
 export GT_PRO_DB_DIR=/mnt/e/gt-pro_db
 export GT_PRO_DB_NAME=ecoli_db
 

@@ -1,5 +1,5 @@
 # Modify these before running.
-export PROJECT_DIR="/home/bromii/chronostrain"
+export PROJECT_DIR="/home/lactis/chronostrain"
 export BASE_DIR="${PROJECT_DIR}/examples/synthetic"
 export DATA_DIR="/mnt/e/synthetic_data_qshift"
 export CHRONOSTRAIN_DB_DIR="/mnt/e/chronostrain/synthetic/database"

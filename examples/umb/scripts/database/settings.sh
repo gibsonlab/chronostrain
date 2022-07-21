@@ -1,5 +1,5 @@
 # Modify these before running.
-export PROJECT_DIR="/home/bromii/chronostrain"
+export PROJECT_DIR="/home/lactis/chronostrain"
 export BASE_DIR="${PROJECT_DIR}/examples/umb"
 export DATA_DIR="/mnt/e/umb_data"
 export LOGDIR="/mnt/e/chronostrain/umb_database/logs"
