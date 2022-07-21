@@ -6,6 +6,7 @@ source settings.sh
 check_program bowtie2
 check_program samtools
 check_program strainest
+check_program pigz
 
 
 n_reads=$1
