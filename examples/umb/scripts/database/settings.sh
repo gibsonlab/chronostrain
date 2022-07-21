@@ -2,8 +2,8 @@
 export PROJECT_DIR="/home/bromii/chronostrain"
 export BASE_DIR="${PROJECT_DIR}/examples/umb"
 export DATA_DIR="/mnt/e/umb_data"
-export LOGDIR="/mnt/d/chronostrain/umb_database/logs"
-export CHRONOSTRAIN_DB_DIR="/mnt/d/chronostrain/umb_database"
+export LOGDIR="/mnt/e/chronostrain/umb_database/logs"
+export CHRONOSTRAIN_DB_DIR="/mnt/e/chronostrain/umb_database"
 
 # ======== Location of this file.
 export SETTINGS_PATH="${BASE_DIR}/scripts/settings.sh"

@@ -2,9 +2,9 @@
 export PROJECT_DIR="/home/bromii/chronostrain"
 export BASE_DIR="${PROJECT_DIR}/examples/semisynthetic"
 export DATA_DIR="/mnt/e/semisynthetic_data"
-export CHRONOSTRAIN_DB_DIR="/mnt/d/chronostrain/umb_database"
+export CHRONOSTRAIN_DB_DIR="/mnt/e/chronostrain/umb_database"
 export CHRONOSTRAIN_CACHE_DIR="${DATA_DIR}/cache"  # Default for all scripts; specify per script if desired!
-export MISC_DB_DIR="/mnt/d/chronostrain/semisynthetic"
+export MISC_DB_DIR="/mnt/e/chronostrain/semisynthetic"
 
 # ==================== Read sampling settings
 export N_TRIALS=10
@@ -22,7 +22,7 @@ export FASTERQ_TMP_DIR="${BACKGROUND_FASTQ_DIR}/fasterq-tmp"
 export READ_PROFILE_PATH="${BASE_DIR}/files/HiSeqReference"
 
 # ========= Kneaddata
-export KNEADDATA_DB_DIR="/mnt/d/kneaddata_db"
+export KNEADDATA_DB_DIR="/mnt/e/kneaddata_db"
 export NEXTERA_ADAPTER_PATH="/home/bromii/anaconda3/envs/chronostrain/share/trimmomatic/adapters/NexteraPE-PE.fa"
 export TRIMMOMATIC_DIR="/home/bromii/anaconda3/envs/chronostrain/share/trimmomatic-0.39-2"
 

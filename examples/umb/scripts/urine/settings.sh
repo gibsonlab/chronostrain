@@ -2,8 +2,8 @@
 export PROJECT_DIR="/home/bromii/chronostrain"
 export BASE_DIR="${PROJECT_DIR}/examples/umb"
 export DATA_DIR="/mnt/e/umb_data"
-export OUTPUT_DIR="/mnt/d/chronostrain/umb_urine"
-export CHRONOSTRAIN_DB_DIR="/mnt/d/chronostrain/umb_database"
+export OUTPUT_DIR="/mnt/e/chronostrain/umb_urine"
+export CHRONOSTRAIN_DB_DIR="/mnt/e/chronostrain/umb_database"
 export SAMPLES_DIR="${DATA_DIR}/samples_urine"
 export LOGDIR="${OUTPUT_DIR}/logs"
 
@@ -19,7 +19,7 @@ export SRA_PREFETCH_DIR="${DATA_DIR}/prefetch"
 export FASTERQ_TMP_DIR="${DATA_DIR}/fasterq-tmp"
 
 # ========= Kneaddata
-export KNEADDATA_DB_DIR="/mnt/d/kneaddata_db"
+export KNEADDATA_DB_DIR="/mnt/e/kneaddata_db"
 export NEXTERA_ADAPTER_PATH="/home/bromii/anaconda3/envs/chronostrain/share/trimmomatic/adapters/NexteraPE-PE.fa"
 export TRIMMOMATIC_DIR="/home/bromii/anaconda3/envs/chronostrain/share/trimmomatic-0.39-2"
 

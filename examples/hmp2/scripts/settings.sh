@@ -11,7 +11,7 @@ export NCBI_REFSEQ_DIR="${CHRONOSTRAIN_DATA_DIR}/ref_genomes"
 export REFSEQ_ALIGN_PATH="${CHRONOSTRAIN_DATA_DIR}/strain_alignments/concatenation.fasta"
 
 # ========= (Metaphlan-specific configuration.)
-export METAPHLAN_PKL_PATH=/mnt/d/metaphlan/mpa_v30_CHOCOPhlAn_201901.pkl
+export METAPHLAN_PKL_PATH=/mnt/e/metaphlan/mpa_v30_CHOCOPhlAn_201901.pkl
 
 # Location for reads and outputs.
 export OUTPUT_DIR="${CHRONOSTRAIN_DATA_DIR}/output"
@@ -31,7 +31,7 @@ export SAMPLES_DIR="${CHRONOSTRAIN_DATA_DIR}/samples"
 export HMP2_CSV_PATH="${SAMPLES_DIR}/hmp2_metadata.csv"
 
 # ========= Kneaddata
-export KNEADDATA_DB_DIR="/mnt/d/kneaddata_db"
+export KNEADDATA_DB_DIR="/mnt/e/kneaddata_db"
 export NEXTERA_ADAPTER_PATH="/PHShome/yk847/.conda/envs/chronostrain/share/trimmomatic/adapters/NexteraPE-PE.fa"
 export TRIMMOMATIC_DIR="/PHShome/yk847/.conda/envs/chronostrain/share/trimmomatic-0.39-2"
 

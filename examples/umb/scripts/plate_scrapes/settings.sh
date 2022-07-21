@@ -2,8 +2,8 @@
 export PROJECT_DIR="/home/bromii/chronostrain"
 export BASE_DIR="${PROJECT_DIR}/examples/umb"
 export DATA_DIR="/mnt/e/umb_data"
-export OUTPUT_DIR="/mnt/d/chronostrain/umb_plate_scrapes"
-export CHRONOSTRAIN_DB_DIR="/mnt/d/chronostrain/umb_database"
+export OUTPUT_DIR="/mnt/e/chronostrain/umb_plate_scrapes"
+export CHRONOSTRAIN_DB_DIR="/mnt/e/chronostrain/umb_database"
 export LOGDIR="${OUTPUT_DIR}/logs"
 export SAMPLES_DIR="/mnt/e/umb_data/plate_scrapes"
 

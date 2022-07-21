@@ -2,7 +2,7 @@
 export PROJECT_DIR="/home/bromii/chronostrain"
 export BASE_DIR="${PROJECT_DIR}/examples/synthetic"
 export DATA_DIR="/mnt/e/synthetic_data"
-export CHRONOSTRAIN_DB_DIR="/mnt/d/chronostrain/synthetic/database"
+export CHRONOSTRAIN_DB_DIR="/mnt/e/chronostrain/synthetic/database"
 
 # ==================== Read sampling settings
 export N_TRIALS=20

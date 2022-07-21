@@ -3,9 +3,9 @@ export PROJECT_DIR="/home/bromii/chronostrain"
 export BASE_DIR="${PROJECT_DIR}/examples/umb"
 export NCBI_REFSEQ_DIR="/mnt/e/ref_genomes"
 
-export PHYLOGENY_OUTPUT_DIR="/mnt/d/chronostrain/phylogeny"
-export LOGDIR="/mnt/d/chronostrain/phylogeny/logs"
-export CHRONOSTRAIN_DB_DIR="/mnt/d/chronostrain/umb_database"
+export PHYLOGENY_OUTPUT_DIR="/mnt/e/chronostrain/phylogeny"
+export LOGDIR="/mnt/e/chronostrain/phylogeny/logs"
+export CHRONOSTRAIN_DB_DIR="/mnt/e/chronostrain/umb_database"
 export REFSEQ_ALIGN_PATH="${CHRONOSTRAIN_DB_DIR}/strain_alignments/concatenation.fasta"
 
 # ======== Location of this file.
