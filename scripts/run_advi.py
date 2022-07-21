@@ -5,7 +5,6 @@
 import argparse
 from pathlib import Path
 
-import torch
 from chronostrain.algs.subroutines.cache import ReadsComputationCache
 from chronostrain import cfg, create_logger
 import chronostrain.visualizations as viz
@@ -33,21 +32,21 @@ def parse_args():
     # Optional ADVI params
     parser.add_argument('--iters', required=False, type=int, default=50,
                         help='<Optional> The number of iterations to run per epoch. (Default: 50)')
-    parser.add_argument('--epochs', required=False, type=int, default=500,
+    parser.add_argument('--epochs', required=False, type=int, default=1000,
                         help='<Optional> The number of epochs. (Default: 500)')
     parser.add_argument('--decay_lr', required=False, type=float, default=0.25,
                         help='<Optional> The multiplicative factor to apply to the learning rate based on '
                              'ReduceLROnPlateau criterion. (Default: 0.25)')
-    parser.add_argument('--lr_patience', required=False, type=int, default=10,
+    parser.add_argument('--lr_patience', required=False, type=int, default=5,
                         help='<Optional> The `patience` parameter that specifies how many epochs to tolerate '
-                             'no observed improvements before decaying lr. (Default: 10)')
-    parser.add_argument('--min_lr', required=False, type=float, default=1e-4,
+                             'no observed improvements before decaying lr. (Default: 5)')
+    parser.add_argument('--min_lr', required=False, type=float, default=1e-5,
                         help='<Optional> Stop the algorithm when the LR is below this threshold. (Default: 1e-4)')
     parser.add_argument('-lr', '--learning_rate', required=False, type=float, default=0.01,
                         help='<Optional> The learning rate to use for the optimizer. (Default: 0.01.)')
-    parser.add_argument('-n', '--num_samples', required=False, type=int, default=100,
+    parser.add_argument('-n', '--num_samples', required=False, type=int, default=200,
                         help='<Optional> The number of samples to use for monte-carlo estimation of gradients. (Default: 100)')
-    parser.add_argument('-b', '--read_batch_size', required=False, type=int, default=5000,
+    parser.add_argument('-b', '--read_batch_size', required=False, type=int, default=2500,
                         help='<Optional> The size of matrices to divide into batches across reads. (Default: 5000)')
     parser.add_argument('-c', '--correlation_mode', required=False, type=str, default='full',
                         help='<Optional> The correlation mode for the posterior. Options are "full", "strain", '

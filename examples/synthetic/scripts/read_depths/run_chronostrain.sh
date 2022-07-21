@@ -5,7 +5,6 @@ source settings.sh
 # ============ Requires arguments:
 n_reads=$1
 trial=$2
-pass=$3
 
 if [ -z "$n_reads" ]
 then
@@ -29,39 +28,17 @@ mkdir -p $log_dir
 export CHRONOSTRAIN_LOG_FILEPATH="${log_dir}/chronostrain.log"
 export CHRONOSTRAIN_CACHE_DIR="${trial_dir}/cache"
 
-echo "[*] Running Chronostrain inference (pass=${pass}) for n_reads: ${n_reads}, trial: ${trial}"
-if [ "$pass" == "1" ]; then
-	python $PROJECT_DIR/scripts/run_advi.py \
-	--reads_input "${read_dir}/filtered/filtered_input_files.csv" \
-	--out_dir ${output_dir} \
-	--seed ${INFERENCE_SEED} \
-	--iters $CHRONOSTRAIN_NUM_ITERS \
-	--epochs $CHRONOSTRAIN_NUM_EPOCHS \
-	--decay_lr $CHRONOSTRAIN_DECAY_LR \
-	--lr_patience 10 \
-	--min_lr 1e-4 \
-	--learning_rate $CHRONOSTRAIN_LR \
-	--num_samples $CHRONOSTRAIN_NUM_SAMPLES \
-	--read_batch_size $CHRONOSTRAIN_READ_BATCH_SZ \
-	--plot_format "pdf" \
-	--plot_elbo
-elif [ "pass" == "2" ]; then
-	python $PROJECT_DIR/scripts/run_advi.py \
-	--reads_input "${read_dir}/filtered/filtered_input_files.csv" \
-	--out_dir ${output_dir} \
-	--seed ${INFERENCE_SEED} \
-	--iters $CHRONOSTRAIN_NUM_ITERS \
-	--epochs $CHRONOSTRAIN_NUM_EPOCHS \
-	--decay_lr $CHRONOSTRAIN_DECAY_LR \
-	--lr_patience 10 \
-	--min_lr 1e-4 \
-	--learning_rate $CHRONOSTRAIN_LR \
-	--num_samples $CHRONOSTRAIN_NUM_SAMPLES \
-	--read_batch_size $CHRONOSTRAIN_READ_BATCH_SZ \
-	--plot_format "pdf" \
-	--plot_elbo \
-	--second_pass
-else
-	echo "Unknown pass argument \"${pass}\""
-	exit 1
-fi
+python $PROJECT_DIR/scripts/run_advi.py \
+--reads_input "${read_dir}/filtered/filtered_input_files.csv" \
+--out_dir ${output_dir} \
+--seed ${INFERENCE_SEED} \
+--iters $CHRONOSTRAIN_NUM_ITERS \
+--epochs $CHRONOSTRAIN_NUM_EPOCHS \
+--decay_lr $CHRONOSTRAIN_DECAY_LR \
+--lr_patience $CHRONOSTRAIN_LR_PATIENCE \
+--min_lr $CHRONOSTRAIN_MIN_LR \
+--learning_rate $CHRONOSTRAIN_LR \
+--num_samples $CHRONOSTRAIN_NUM_SAMPLES \
+--read_batch_size $CHRONOSTRAIN_READ_BATCH_SZ \
+--plot_format "pdf" \
+--plot_elbo
