@@ -45,6 +45,12 @@ mkdir -p ${output_dir}
 
 
 # ========== Run
+runtime_file=${trial_dir}/output/straingst_runtime.${time_point}.${mode}.txt
+if [[ -f $runtime_file ]]; then
+	echo "[*] Skipping StrainGST run (n_reads: ${n_reads}, trial: ${trial}, timepoint #${time_point})"
+	exit 0
+fi
+
 echo "[*] Running inference for n_reads: ${n_reads}, trial: ${trial}, timepoint #${time_point}"
 start_time=$(date +%s%N)  # nanoseconds
 read_kmers=${output_dir}/reads.hdf5
@@ -70,7 +76,6 @@ ${read_kmers}
 # ====== Record runtime
 end_time=$(date +%s%N)
 elapsed_time=$(( $(($end_time-$start_time)) / 1000000 ))
-runtime_file=${trial_dir}/output/straingst_runtime.${time_point}.${mode}.txt
 echo "${elapsed_time}" > $runtime_file
 
 
