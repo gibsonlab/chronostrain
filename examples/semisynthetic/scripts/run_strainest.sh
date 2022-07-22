@@ -46,22 +46,6 @@ mkdir -p ${output_dir}
 cd ${output_dir}
 
 
-# ========== Create inputs. (clean up later)
-echo "[*] Preparing StrainEST inputs for n_reads: ${n_reads}, trial: ${trial}, timepoint #${time_point}"
-reads_1="${output_dir}/${time_point}_reads_1.fq.gz"
-reads_2="${output_dir}/${time_point}_reads_2.fq.gz"
-
-cat \
-${read_dir}/${time_point}_sim_1.fq \
-${BACKGROUND_FASTQ_DIR}/${time_point}_background_1.fq \
-| pigz -cf > $reads_1
-
-cat \
-${read_dir}/${time_point}_sim_2.fq \
-${BACKGROUND_FASTQ_DIR}/${time_point}_background_2.fq \
-| pigz -cf > $reads_2
-
-
 # ========== Run
 echo "[*] Running inference for n_reads: ${n_reads}, trial: ${trial}, timepoint #${time_point}"
 start_time=$(date +%s%N)  # nanoseconds
@@ -75,8 +59,10 @@ echo "[*] Running alignment..."
 bowtie2 \
 --very-fast --no-unal --quiet \
 -x ${STRAINEST_DB_DIR}/clustered/${STRAINEST_BT2_DB} \
--U ${reads_1} \
--U ${reads_2} \
+-U ${read_dir}/${time_point}_sim_1.fq \
+-U ${read_dir}/${time_point}_sim_2.fq \
+-U ${BACKGROUND_FASTQ_DIR}/${time_point}_background_1.fq \
+-U ${BACKGROUND_FASTQ_DIR}/${time_point}_background_2.fq \
 -S ${sam_file}
 
 # Invoke samtools
