@@ -18,14 +18,14 @@ logger = create_logger("chronostrain.plot_bbvi_samples")
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Render plot of BBVI samples.")
+    parser = argparse.ArgumentParser(description="Render plot of ADVI samples.")
 
     # Input specification.
     parser.add_argument('-r', '--reads_input', required=True, type=str,
                         help='<Required> Directory containing read files. The directory requires a `input_files.csv` '
                              'which contains information about the input reads and corresponding time points.')
     parser.add_argument('-s', '--samples_path', required=True, type=str,
-                        help='<Required> Path to BBVI posterior samples (pytorch tensor).')
+                        help='<Required> Path to ADVI posterior samples (pytorch tensor).')
     parser.add_argument('-o', '--out_path', required=True, type=str,
                         help='<Required> The target output path of the plot.')
 

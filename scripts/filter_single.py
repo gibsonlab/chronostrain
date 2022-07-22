@@ -20,6 +20,7 @@ def parse_args():
                         help='<Optional> The quality format of the input file. '
                              'Must be parsable by Bio.SeqIO. '
                              'Default: `fastq`')
+    parser.add_argument('--read_type', required=True, type=str)
 
     # Optional params.
     parser.add_argument('--min_read_len', required=False, type=int, default=35,
@@ -30,9 +31,10 @@ def parse_args():
                         default=0.1,
                         help='<Optional> The percent identity threshold at which to filter reads. Default: 0.1.')
     parser.add_argument('--error_threshold', required=False, type=float,
-                        default=10.0,
-                        help='<Optional> The maximum number of expected errors tolerated in order to pass filter.'
-                             'Default: 10.0')
+                        default=0.05,
+                        help='<Optional> The number of expected errors tolerated in order to pass filter, '
+                             'expressed as a ratio to the length of the read..'
+                             'Default: 0.05')
     parser.add_argument('--num_threads', required=False, type=int,
                         default=cfg.model_cfg.num_cores,
                         help='<Optional> Specifies the number of threads. Is passed to underlying alignment tools.')
@@ -49,7 +51,7 @@ def main():
     filter = Filter(
         db=db,
         min_read_len=args.min_read_len,
-        pct_identity_threshold=args.pct_identity_threshold,
+        frac_identity_threshold=args.frac_identity_threshold,
         error_threshold=args.error_threshold,
         num_threads=args.num_threads
     )
@@ -57,6 +59,7 @@ def main():
     filter.apply(
         Path(args.in_path),
         Path(args.out_path),
+        read_type=args.read_type,
         quality_format=args.quality_format
     )
 

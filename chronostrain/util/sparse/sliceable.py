@@ -104,7 +104,7 @@ class RowSectionedSparseMatrix(SparseMatrix):
         )
 
 
-class BBVIOptimizedSparseMatrix(RowSectionedSparseMatrix):
+class ADVIOptimizedSparseMatrix(RowSectionedSparseMatrix):
     def __init__(self,
                  indices: torch.Tensor,
                  values: torch.Tensor,
@@ -180,16 +180,16 @@ class BBVIOptimizedSparseMatrix(RowSectionedSparseMatrix):
             chunk.values = self.values[chunk_loc]
 
     @staticmethod
-    def optimize_from_sparse_matrix(x: SparseMatrix, row_chunk_size: int) -> 'BBVIOptimizedSparseMatrix':
-        return BBVIOptimizedSparseMatrix(
+    def optimize_from_sparse_matrix(x: SparseMatrix, row_chunk_size: int) -> 'ADVIOptimizedSparseMatrix':
+        return ADVIOptimizedSparseMatrix(
             indices=x.indices,
             values=x.values,
             dims=(x.rows, x.columns),
             row_chunk_size=row_chunk_size
         )
 
-    def copy_pattern(self) -> 'BBVIOptimizedSparseMatrix':
-        return BBVIOptimizedSparseMatrix(
+    def copy_pattern(self) -> 'ADVIOptimizedSparseMatrix':
+        return ADVIOptimizedSparseMatrix(
             indices=self.indices,
             values=torch.empty(self.values.shape, device=self.values.device, dtype=self.values.dtype),
             dims=(self.rows, self.columns),

@@ -1,4 +1,4 @@
 from .base import AbstractModelSolver
 from .em import EMSolver
-from .bbvi import AbstractBBVI, BBVISolverV1, BBVISolverV2
+from .bbvi import AbstractADVI, ADVIGaussianSolver, ADVISolverFullPosterior, ADVIDirichletSolver
 from .vi import AbstractPosterior

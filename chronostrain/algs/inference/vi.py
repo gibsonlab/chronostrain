@@ -1,12 +1,13 @@
 """
 vi.py
 This is the second-order approximation solution for VI derived in a previous writeup.
-(Note: doesn't work as well as mean-field BBVI.)
+(Note: doesn't work as well as mean-field ADVI.)
 """
-
-
 from abc import ABCMeta, abstractmethod
+from pathlib import Path
+
 import torch
+from torch.distributions import Normal
 
 
 class AbstractPosterior(metaclass=ABCMeta):
@@ -15,7 +16,7 @@ class AbstractPosterior(metaclass=ABCMeta):
         """
         Returns a sample from this posterior distribution.
         :param num_samples: the number of samples (N).
-        :return: A time-indexed (T x N x S) abundance tensor.
+        :return: A time-indexed, simplex-valued (T x N x S) abundance tensor.
         """
         pass
 
@@ -28,5 +29,9 @@ class AbstractPosterior(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def log_likelihood(self, x) -> float:
+    def log_likelihood(self, x: torch.Tensor) -> float:
+        pass
+
+    @abstractmethod
+    def save(self, target_path: Path):
         pass

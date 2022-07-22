@@ -18,6 +18,7 @@ _acgt_to_z4 = {
     "t": 3,
     "N": 4,  # Special character (unknown base)
     "n": 4,
+    chr(4): 4,  # Fallback error char for ssw-align
     "-": 5   # Special character (gap)
 }
 _z4_to_acgt = ["A", "C", "G", "T", "N", "-"]
@@ -36,7 +37,7 @@ def map_nucleotide_to_z4(nucleotide: str) -> int:
     try:
         return _acgt_to_z4[nucleotide]
     except KeyError:
-        raise UnknownNucleotideError(nucleotide)
+        raise UnknownNucleotideError(nucleotide) from None
 
 
 def map_z4_to_nucleotide(z4: int) -> str:
@@ -49,12 +50,7 @@ def nucleotides_to_z4(nucleotides: str) -> SeqType:
     :param nucleotides:
     :return:
     """
-    # Note: This is the fastest known version (despite the for loop), by an order of magnitude.
-    # Even faster than np.vectorize(_acgt_to_z4.get)(list(s)), or using numba.jit(nopython=True) with numba.typed.Dict.
-    z4seq = np.zeros(shape=len(nucleotides), dtype=NucleotideDtype)
-    for i, nucleotide in enumerate(nucleotides):
-        z4seq[i] = map_nucleotide_to_z4(nucleotide)
-    return z4seq
+    return np.fromiter((map_nucleotide_to_z4(x) for x in nucleotides), NucleotideDtype)
 
 
 def z4_to_nucleotides(z4seq: SeqType) -> str:

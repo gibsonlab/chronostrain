@@ -61,6 +61,10 @@ class TimeSliceReads(object):
         self.read_depth: int = read_depth
         self._ids_to_reads: Dict[str, SequenceRead] = {read.id: read for read in reads}
         self.sources = sources
+        if len(reads) == 0:
+            self.min_read_length = float('inf')
+        else:
+            self.min_read_length = min(len(read) for read in reads)
 
     def save(self, target_path: Path, quality_format: str = "fastq") -> int:
         """
@@ -96,6 +100,7 @@ class TimeSliceReads(object):
         """
         reads = []
         for src in sources:
+            n_reads_in_src = 0
             for record in read_seq_file(src.path, src.quality_format):
                 if (src.quality_format == "fastq") \
                         or (src.quality_format == "fastq-sanger") \
@@ -125,13 +130,17 @@ class TimeSliceReads(object):
                 else:
                     raise NotImplementedError("Unimplemented ReadType instantiation for `{}`".format(src.read_type))
                 reads.append(read)
+                n_reads_in_src += 1
 
-            logger.debug("Loaded {r} reads from fastQ file {f}. ({sz})".format(
-                r=len(reads),
-                f=src.path,
-                sz=convert_size(src.path.stat().st_size)
-            ))
+            logger.debug(
+                "Loaded {r} reads from fastQ file {f}. ({sz})".format(
+                    r=n_reads_in_src,
+                    f=src.path,
+                    sz=convert_size(src.path.stat().st_size)
+                )
+            )
 
+        logger.debug(f"(t = {time_point}) Loaded {len(reads)} reads from {len(sources)} fastQ files.")
         total_read_depth = sum(src.read_depth for src in sources)
         return TimeSliceReads(reads, time_point, total_read_depth, sources=sources)
 
@@ -164,6 +173,10 @@ class TimeSliceReads(object):
 class TimeSeriesReads(object):
     def __init__(self, time_slices: List[TimeSliceReads]):
         self.time_slices = time_slices
+
+    @property
+    def min_read_length(self) -> int:
+        return min(time_slice.min_read_length for time_slice in self.time_slices)
 
     def save(self, out_dir: Path):
         """

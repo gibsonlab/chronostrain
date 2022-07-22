@@ -34,42 +34,65 @@ def make_blast_db(
 
 def blastn(
         db_name: str,
-        db_dir: Path,
         query_fasta: Path,
-        evalue_max: float,
         out_path: Path,
+        db_dir: Optional[Path] = None,
+        evalue_max: Optional[float] = None,
+        perc_identity_cutoff: Optional[int] = None,
         out_fmt: Union[str, int] = 6,  # 6: TSV without comments
         max_target_seqs: Optional[int] = None,
+        num_alignments: Optional[int] = None,
+        num_descriptions: Optional[int] = None,
         max_hsps: Optional[int] = None,
-        num_threads: int = 1,
+        gi_list_path: Optional[Path] = None,
+        num_threads: Optional[int] = None,
         query_coverage_hsp_percentage: Optional[float] = None,
-        strand: str = 'both'
+        strand: str = 'both',
+        remote: bool = False,
+        entrez_query: Optional[str] = None
 ):
     params = [
         '-db', db_name,
-        '-num_threads', num_threads,
         '-query', query_fasta,
-        '-evalue', evalue_max,
         '-outfmt', out_fmt,
         '-out', out_path,
         '-strand', strand
     ]
 
+    if num_threads is not None:
+        params += ['-num_threads', num_threads]
+    if remote:
+        params.append('-remote')
+    if entrez_query is not None:
+        params += ['-entrez_query', f"\"{entrez_query}\""]
+    if perc_identity_cutoff is not None:
+        params += ['-perc_identity', perc_identity_cutoff]
+    if evalue_max is not None:
+        params += ['-evalue', evalue_max]
     if max_target_seqs is not None:
         params += ['-max_target_seqs', max_target_seqs]
+    if num_alignments is not None:
+        params += ['-num_alignments', num_alignments]
+    if num_descriptions is not None:
+        params += ['-num_descriptions', num_descriptions]
     if max_hsps is not None:
         params += ['-max_hsps', max_hsps]
     if query_coverage_hsp_percentage is not None:
         params += ['-qcov_hsp_perc', query_coverage_hsp_percentage]
+    if gi_list_path is not None:
+        params += ['-gilist', gi_list_path]
 
-    env = os.environ.copy()
-    env['BLASTDB'] = str(db_dir)
+    if db_dir is not None:
+        env = os.environ.copy()
+        env['BLASTDB'] = str(db_dir)
 
-    exit_code = call_command(
-        command='blastn',
-        args=params,
-        environment=env
-    )
+        exit_code = call_command(
+            command='blastn',
+            args=params,
+            environment=env
+        )
+    else:
+        exit_code = call_command(command='blastn', args=params)
     if exit_code != 0:
         raise CommandLineException('blastn', exit_code)
 

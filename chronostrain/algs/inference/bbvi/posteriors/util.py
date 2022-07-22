@@ -34,9 +34,32 @@ class TrilLinear(torch.nn.Linear):
 
     @property
     def cholesky_part(self) -> torch.Tensor:
-        x = torch.tril(self.weight, diagonal=-1)
-        x[range(self.n_features), range(self.n_features)] = torch.exp(torch.diag(self.weight))
-        return x
+        return torch.tril(self.weight, diagonal=-1) + torch.diag(torch.exp(torch.diag(self.weight)))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return functional.linear(x, self.cholesky_part, self.bias)
+
+
+class BatchedTrilLinear(torch.nn.Module):
+    """
+    Applies a batched linear transformation to the incoming data by block-diagonal transformation.
+    Amounts to a single (N x Bp) @ (Bp x Bq) -> (BN x q) multiplication
+    where N is the number of samples in the input, and B is the number of batches
+    (the input must be reshaped accordingly beforehand.)
+
+    weight: the learnable weights of the module of shape (in_features) x (out_features).
+    """
+
+    def __init__(self, in_features: int, out_features: int, n_batches: int, device=None, dtype=None):
+        super().__init__()
+        self.weights = torch.nn.Parameter(
+            torch.empty(n_batches, out_features, in_features, device=device, dtype=dtype)
+        )
+
+    @property
+    def cholesky_part(self) -> torch.Tensor:
+        w = torch.block_diag(*self.weights)
+        return torch.tril(w, diagonal=-1) + torch.diag(torch.exp(torch.diag(w)))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return torch.nn.functional.linear(x, self.cholesky_part)

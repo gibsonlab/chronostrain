@@ -34,7 +34,7 @@ class PhredErrorModel(AbstractErrorModel):
 
     # noinspection PyUnusedLocal
     def indel_ll(self, read: SequenceRead, insertions: np.ndarray, deletions: np.ndarray):
-        insertion_ll = np.sum(insertions) * self.insertion_error_ll
+        insertion_ll = np.sum(insertions) * (self.insertion_error_ll - np.log(4))
         deletion_ll = np.sum(deletions) * self.deletion_error_ll
         return insertion_ll + deletion_ll
 
@@ -57,7 +57,8 @@ class PhredErrorModel(AbstractErrorModel):
             read_qual = read_qual[::-1]
             read_seq = reverse_complement_seq(read_seq)
 
-        # take care of insertions/deletions/clipping.
+        # take care of insertions/deletions/clipping
+        # (NOTE: after reverse complement transformation of read, if necessary)
         _slice = slice(read_start_clip, len(read_seq) - read_end_clip)
         read_qual = read_qual[_slice][~insertions]
         read_seq = read_seq[_slice][~insertions]

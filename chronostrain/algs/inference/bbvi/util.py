@@ -1,13 +1,64 @@
 from typing import List
 
 import torch
+import torch_scatter
+
 from chronostrain.util.sparse import SparseMatrix, RowSectionedSparseMatrix
-from torch_scatter import scatter
+from chronostrain.util.sparse.sliceable import ADVIOptimizedSparseMatrix
+from chronostrain.config import cfg
 
 
-def log_softmax(x_samples: torch.Tensor, t: int) -> torch.Tensor:
+def log_softmax_t(x_samples: torch.Tensor, t: int) -> torch.Tensor:
     # x_samples: (T x N x S) tensor.
     return x_samples[t] - torch.logsumexp(x_samples[t], dim=1, keepdim=True)
+
+
+def log_softmax(x_samples: torch.Tensor) -> torch.Tensor:
+    return x_samples - torch.logsumexp(x_samples, dim=-1, keepdim=True)
+
+
+def log_spherical(x_samples: torch.Tensor, t: int, eps=1e-30) -> torch.Tensor:
+    # x_samples: (T x N x S) tensor.
+    square = torch.pow(x_samples[t], 2) + eps
+    return torch.log(square) - torch.log(square.sum(dim=-1, keepdim=True))
+
+
+def log_taylor(x_samples: torch.Tensor, t: int) -> torch.Tensor:
+    exp_taylor = 1 + x_samples[t] + 0.5 * torch.pow(x_samples[t], 2)
+    return torch.log(exp_taylor) - torch.log(exp_taylor.sum(dim=-1, keepdim=True))
+
+
+def log_matmul_exp(x_samples: torch.Tensor, read_lls_batch: torch.Tensor) -> torch.Tensor:
+    return torch.logsumexp(
+        x_samples.unsqueeze(2) + read_lls_batch.unsqueeze(0),  # (N x S) @ (S x R_batch)
+        dim=1,
+        keepdim=False
+    )
+
+
+def divide_columns_into_batches(x: torch.Tensor, batch_size: int):
+    permutation = torch.randperm(x.shape[1], device=cfg.torch_cfg.device)
+    for i in range(0, x.shape[1], batch_size):
+        indices = permutation[i:i+batch_size]
+        yield x[:, indices]
+
+
+class LogMMExpModel(torch.nn.Module):
+    """
+    Represents a Module which represents
+        f_A(X) = log_matmul_exp(X, A)
+    where A is a (D x E) dense matrix, and X is a (N x D) dense matrix.
+    """
+    def __init__(self, right_matrix: torch.Tensor):
+        super().__init__()
+        self.A: torch.Tensor = right_matrix
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return torch.logsumexp(
+            x.unsqueeze(2) + self.A.unsqueeze(0),
+            dim=1,
+            keepdim=False
+        )
 
 
 class LogMMExpDenseSPModel(torch.nn.Module):
@@ -61,21 +112,21 @@ class LogMMExpDenseSPModel(torch.nn.Module):
         return result
 
 
-from chronostrain.util.sparse.sliceable import BBVIOptimizedSparseMatrix
-import torch_scatter
-
 class LogMMExpDenseSPModel_Async(torch.nn.Module):
     """
     Represents a Module which represents
         f_A(X) = log_matmul_exp(X, A)
     where A is a (D x E) SparseMatrix, and X is an (N x D) matrix.
     """
-    def __init__(self, sparse_right_matrix: SparseMatrix):
+    def __init__(self, sparse_right_matrix: SparseMatrix, row_chunk_size: int = 100):
         super().__init__()
-        self.A = BBVIOptimizedSparseMatrix.optimize_from_sparse_matrix(
-            sparse_right_matrix,
-            row_chunk_size=2
-        )
+        if not isinstance(sparse_right_matrix, ADVIOptimizedSparseMatrix):
+            self.A = ADVIOptimizedSparseMatrix.optimize_from_sparse_matrix(
+                sparse_right_matrix,
+                row_chunk_size=row_chunk_size
+            )
+        else:
+            self.A = sparse_right_matrix
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         expansion = self.A.values.unsqueeze(0) + x[:, self.A.indices[0]]

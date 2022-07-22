@@ -1,42 +1,147 @@
 import time
 from pathlib import Path
-from typing import Optional, Callable
+from typing import Optional
 
 import numpy as np
 import torch
-from torch import softmax
-
-from chronostrain.algs import BBVISolverV1, BBVISolverV2, EMSolver
+from chronostrain.algs import *
 from chronostrain.database import StrainDatabase
-from chronostrain.model import GenerativeModel
+from chronostrain.model import Population, FragmentSpace
+from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads, save_abundances
 from chronostrain.visualizations import plot_abundances, plot_abundances_comparison
 
-from chronostrain import logger
+from chronostrain.config import cfg, create_logger
+from .initialization import create_model
+
+logger = create_logger("chronostrain.helpers.algorithms")
 
 
-def perform_bbvi(
+def perform_advi(
         db: StrainDatabase,
-        model: GenerativeModel,
+        population: Population,
+        fragments: FragmentSpace,
         reads: TimeSeriesReads,
+        paired_end: bool,
         num_epochs: int,
-        lr_lambda: Callable[[int], int],
+        lr_decay_factor: float,
+        lr_patience: int,
         iters: int,
         learning_rate: float,
         num_samples: int,
-        frag_chunk_sz: int = 100,
+        min_lr: float = 1e-4,
+        read_batch_size: int = 5000,
         correlation_type: str = "strain",
         save_elbo_history: bool = False,
         save_training_history: bool = False
 ):
-
     # ==== Run the solver.
-    solver = BBVISolverV1(
+    time_points = [time_slice.time_point for time_slice in reads]
+    if correlation_type == 'dirichlet':
+        model = create_model(
+            population=population,
+            mean=torch.zeros(population.num_strains() - 1, device=cfg.torch_cfg.device),
+            fragments=fragments,
+            time_points=time_points,
+            disable_quality=not cfg.model_cfg.use_quality_scores,
+            db=db,
+            pair_ended=paired_end
+        )
+        solver = ADVIDirichletSolver(
+            model=model,
+            data=reads,
+            db=db,
+            read_batch_size=read_batch_size
+        )
+    else:
+        model = create_model(
+            population=population,
+            mean=torch.zeros(population.num_strains(), device=cfg.torch_cfg.device),
+            fragments=fragments,
+            time_points=time_points,
+            disable_quality=not cfg.model_cfg.use_quality_scores,
+            db=db,
+            pair_ended=paired_end
+        )
+        solver = ADVIGaussianSolver(
+            model=model,
+            data=reads,
+            correlation_type=correlation_type,
+            db=db,
+            read_batch_size=read_batch_size
+        )
+
+    callbacks = []
+    uppers = [[] for _ in range(model.num_strains())]
+    lowers = [[] for _ in range(model.num_strains())]
+    medians = [[] for _ in range(model.num_strains())]
+    elbo_history = []
+
+    if save_training_history:
+        def anim_callback(x_samples, uppers_buf, lowers_buf, medians_buf):
+            # Plot VI posterior.
+            abund_samples = x_samples.cpu().detach().numpy()
+            for s_idx in range(model.num_strains()):
+                traj_samples = abund_samples[:, :, s_idx]  # (T x N)
+                upper_quantile = np.quantile(traj_samples, q=0.975, axis=1)
+                lower_quantile = np.quantile(traj_samples, q=0.025, axis=1)
+                median = np.quantile(traj_samples, q=0.5, axis=1)
+                uppers_buf[s_idx].append(upper_quantile)
+                lowers_buf[s_idx].append(lower_quantile)
+                medians_buf[s_idx].append(median)
+
+        callbacks.append(lambda epoch, x_samples, elbo: anim_callback(x_samples, uppers, lowers, medians))
+
+    if save_elbo_history:
+        def elbo_callback(elbo, elbo_buf):
+            elbo_buf.append(elbo)
+        callbacks.append(lambda epoch, x_samples, elbo: elbo_callback(elbo, elbo_history))
+
+    start_time = time.time()
+    solver.solve(
+        optimizer_class=torch.optim.Adam,
+        optimizer_args={'lr': learning_rate, 'betas': (0.9, 0.999), 'eps': 1e-7, 'weight_decay': 0.0},
+        iters=iters,
+        num_epochs=num_epochs,
+        num_samples=num_samples,
+        min_lr=min_lr,
+        lr_decay_factor=lr_decay_factor,
+        lr_patience=lr_patience,
+        callbacks=callbacks
+    )
+    end_time = time.time()
+    logger.debug("Finished inference in {} sec.".format(
+        (end_time - start_time)
+    ))
+
+    posterior = solver.posterior
+    return solver, posterior, elbo_history, (uppers, lowers, medians)
+
+
+def perform_advi_full_correlation(
+        db: StrainDatabase,
+        model: GenerativeModel,
+        reads: TimeSeriesReads,
+        num_epochs: int,
+        lr_decay_factor: float,
+        lr_patience: int,
+        iters: int,
+        learning_rate: float,
+        num_samples: int,
+        num_importance_samples: int,
+        importance_batch_size: int,
+        temp_dir: Path,
+        min_lr: float = 1e-4,
+        read_batch_size: int = 5000,
+        partial_correlation_type: str = "strain",
+        save_elbo_history: bool = False,
+        save_training_history: bool = False):
+    solver = ADVISolverFullPosterior(
         model=model,
         data=reads,
-        correlation_type=correlation_type,
+        partial_correlation_type=partial_correlation_type,
         db=db,
-        frag_chunk_size=frag_chunk_sz
+        read_batch_size=read_batch_size
     )
 
     callbacks = []
@@ -46,46 +151,40 @@ def perform_bbvi(
     elbo_history = []
 
     if save_training_history:
-        def anim_callback(epoch, x_samples, elbo):
-            # Plot BBVI posterior.
-            abund_samples = softmax(x_samples, dim=2).cpu().detach().numpy()
+        def anim_callback(x_samples, uppers_buf, lowers_buf, medians_buf):
+            # Plot VI posterior.
+            abund_samples = x_samples.cpu().detach().numpy()
             for s_idx in range(model.num_strains()):
                 traj_samples = abund_samples[:, :, s_idx]  # (T x N)
                 upper_quantile = np.quantile(traj_samples, q=0.975, axis=1)
                 lower_quantile = np.quantile(traj_samples, q=0.025, axis=1)
                 median = np.quantile(traj_samples, q=0.5, axis=1)
-                uppers[s_idx].append(upper_quantile)
-                lowers[s_idx].append(lower_quantile)
-                medians[s_idx].append(median)
+                uppers_buf[s_idx].append(upper_quantile)
+                lowers_buf[s_idx].append(lower_quantile)
+                medians_buf[s_idx].append(median)
 
-        callbacks.append(anim_callback)
+        callbacks.append(lambda epoch, x_samples, elbo: anim_callback(x_samples, uppers, lowers, medians))
 
     if save_elbo_history:
-        def elbo_callback(epoch, x_samples, elbo):
-            elbo_history.append(elbo)
-        callbacks.append(elbo_callback)
+        def elbo_callback(elbo, elbo_buf):
+            elbo_buf.append(elbo)
 
-    optimizer = torch.optim.Adam(
-        lr=learning_rate,
-        betas=(0.9, 0.999),
-        eps=1e-7,
-        weight_decay=0.0,
-        params=solver.trainable_params
-    )
-
-    lr_scheduler = torch.optim.lr_scheduler.LambdaLR(
-        optimizer,
-        lr_lambda=lr_lambda
-    )
+        callbacks.append(lambda epoch, x_samples, elbo: elbo_callback(elbo, elbo_history))
 
     start_time = time.time()
     solver.solve(
-        optimizer=optimizer,
-        lr_scheduler=lr_scheduler,
+        optimizer_class=torch.optim.Adam,
+        optimizer_args={'lr': learning_rate, 'betas': (0.9, 0.999), 'eps': 1e-7, 'weight_decay': 0.0},
         iters=iters,
         num_epochs=num_epochs,
-        num_samples=num_samples,
-        callbacks=callbacks
+        num_bbvi_samples=num_samples,
+        num_importance_samples=num_importance_samples,
+        batch_size=importance_batch_size,
+        min_lr=min_lr,
+        lr_decay_factor=lr_decay_factor,
+        lr_patience=lr_patience,
+        callbacks=callbacks,
+        temp_dir=temp_dir
     )
     end_time = time.time()
     logger.debug("Finished inference in {} sec.".format(

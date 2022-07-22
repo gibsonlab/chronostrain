@@ -8,223 +8,198 @@ Works in 3 steps:
 """
 import argparse
 from collections import defaultdict
-from dataclasses import dataclass
 from pathlib import Path
 import csv
 import json
-import pickle
-import bz2
+
 import pandas as pd
 
-from Bio import SeqIO
+from Bio import SeqIO, Entrez
 from Bio.SeqFeature import FeatureLocation
 from Bio.SeqRecord import SeqRecord
 from bioservices import UniProt
 
 from chronostrain.util.entrez import fetch_genbank
-from chronostrain.util.external import make_blast_db, blastn
+from chronostrain.util.external import blastn
 
-from typing import List, Set, Dict, Any, Tuple, Iterator
+from typing import List, Set, Dict, Any, Tuple, Iterator, Optional
 
 from chronostrain.util.io import read_seq_file
 from chronostrain import cfg, create_logger
-logger = create_logger("chronostrain.create_db_from_uniref")
+logger = create_logger("chronostrain.init_db")
 
 
 READ_LEN = 150
+Entrez.email = cfg.entrez_cfg.email
 
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Create chronostrain database file from specified gene_info_uniref marker CSV."
+        description="Create chronostrain database file from specified uniprot marker CSV."
     )
 
     # Input specification.
-    parser.add_argument('-m', '--metaphlan_pkl_path', required=True, type=str,
-                        help='<Required> The path to the metaphlan pickle database file.')
+    parser.add_argument('-u', '--uniprot_csv', required=False, type=str, default='',
+                        help='<Required> A path to a two-column CSV file (<UniprotID>, <ClusterName>) format specifying'
+                             'any desired additional genes not given by metaphlan.')
+    parser.add_argument('-g', '--genes_fasta', required=False, type=str, default='',
+                        help='<Optional> A path to a fasta file listing out genes. Each records ID must be the '
+                             'desired gene name.')
     parser.add_argument('-o', '--output_path', required=True, type=str,
                         help='<Required> The path to the target output chronostrain db json file.')
-    parser.add_argument('-r', '--refseq_dir', required=True, type=str,
-                        help='<Required> The strainGE database directory.')
+    parser.add_argument('-dbdir', '--blast_db_dir', required=True, type=str,
+                        help='<Required> The path to the blast database directory.')
+    parser.add_argument('-dbname', '--blast_db_name', required=True, type=str,
+                        help='<Required> The name of the BLAST database.')
+    parser.add_argument('-r', '--refseq_index', required=True, type=str,
+                        help='<Required> Path to the RefSeq index TSV file.')
 
     # Optional params
+    parser.add_argument('--min_pct_idty', required=False, type=int, default=75,
+                        help='<Optional> The percent identity threshold for BLAST. (default: 75)')
     parser.add_argument('--reference_accession', required=False, type=str,
                         default='U00096.3',
                         help='<Optional> The reference genome to use for pulling out annotated gene sequences.')
     return parser.parse_args()
 
 
-# ============================= Creation of database configuration (Indexing + partial JSON creation)
-def perform_indexing(refseq_dir: Path) -> pd.DataFrame:
-    df_entries = []
-
-    if not refseq_dir.is_dir():
-        raise RuntimeError(f"Provided path `{refseq_dir}` is not a directory.")
-    for genus_dir in (refseq_dir / "human_readable" / "refseq" / "bacteria").iterdir():
-        if not genus_dir.is_dir():
-            continue
-
-        genus = genus_dir.name
-        for species_dir in genus_dir.iterdir():
-            if not species_dir.is_dir():
-                continue
-
-            species = species_dir.name
-            logger.info(f"Searching through {genus} {species}...")
-
-            for strain_dir in species_dir.iterdir():
-                if not strain_dir.is_dir():
-                    continue
-
-                strain_name = strain_dir.name
-                target_files = list(strain_dir.glob("*_genomic.fna.gz"))
-
-                for fpath in target_files:
-                    if fpath.name.endswith('_cds_from_genomic.fna.gz'):
-                        continue
-
-                    if fpath.name.endswith('_rna_from_genomic.fna.gz'):
-                        continue
-
-                    for accession, chrom_path in extract_chromosomes(fpath):
-                        logger.debug("Found accession {} ({} {}, Strain `{}`)".format(
-                            accession,
-                            genus,
-                            species,
-                            strain_name
-                        ))
-                        df_entries.append({
-                            "Genus": genus,
-                            "Species": species,
-                            "Strain": strain_name,
-                            "Accession": accession,
-                            "SeqPath": chrom_path
-                        })
-    return pd.DataFrame(df_entries)
-
-
-def extract_chromosomes(path: Path) -> Iterator[Tuple[str, Path]]:
-    for record in read_seq_file(path, file_format='fasta'):
-        desc = record.description
-        accession = record.id.split(' ')[0]
-
-        if "plasmid" in desc or len(record.seq) < 500000:
-            continue
-        else:
-            chrom_path = path.parent / f"{accession}.chrom.fna"
-            SeqIO.write([record], chrom_path, "fasta")
-
-            yield accession, chrom_path
-
-
-# ============= Rest of initialization (Run BLAST)
-def create_chronostrain_db(
-        gene_paths: Dict[str, Path],
-        seq_index: pd.DataFrame,
-        output_path: Path
-) -> List[Dict[str, Any]]:
-    """
-    :param gene_paths:
-    :param seq_index: A DataFrame with five columns: "Genus", "Species", "Strain", "Accession", "SeqPath".
-    :param output_path:
-    :return:
-    """
-    data_dir: Path = cfg.database_cfg.data_dir
-
-    # ======== BLAST configuration
-    blast_db_dir = output_path.parent / "blast"
-    blast_db_name = "db_esch"
-    blast_db_title = "\"Escherichia (metaphlan markers, NCBI complete)\""
-    blast_fasta_path = blast_db_dir / "genomes.fasta"
-    blast_result_dir = output_path.parent / "blast_results"
-    logger.info("BLAST\n\tdatabase location: {}\n\tresults directory: {}".format(
-        str(blast_db_dir),
-        str(blast_result_dir)
-    ))
-
-    # ========= Initialize BLAST database.
-    blast_db_dir.mkdir(parents=True, exist_ok=True)
-    strain_fasta_files = []
-    strain_entries = []
-    for idx, row in seq_index.iterrows():
-        accession = row['Accession']
-        fasta_path = row['SeqPath']
-        strain_fasta_files.append(fasta_path)
-        strain_entries.append({
-            'genus': row['Genus'],
-            'species': row['Species'],
-            'strain': row['Strain'],
-            'accession': accession,
-            'source': 'fasta',
-            'markers': []
-        })
-
-        symlink_path = Path(data_dir / f"{accession}.fasta")
-        if symlink_path.exists():
-            logger.info(f"Path {symlink_path} already exists.")
-        else:
-            symlink_path.symlink_to(fasta_path)
-            logger.info(f"Symlink {symlink_path} -> {fasta_path}")
-
-    logger.info('Concatenating {} files.'.format(len(strain_fasta_files)))
-    with open(blast_fasta_path, 'w') as genome_fasta_file:
-        for fpath in strain_fasta_files:
-            with open(fpath, 'r') as in_file:
-                for line in in_file:
-                    genome_fasta_file.write(line)
-
-    make_blast_db(
-        blast_fasta_path, blast_db_dir, blast_db_name,
-        is_nucleotide=True, title=blast_db_title, parse_seqids=True
-    )
-
-    Path(blast_fasta_path).unlink()  # clean up large fasta file.
-
-    # Run BLAST to find marker genes.
-    blast_result_dir.mkdir(parents=True, exist_ok=True)
+# ===================================================== BEGIN Local resources
+def run_blast_local(db_dir: Path,
+                    db_name: str,
+                    result_dir: Path,
+                    gene_paths: Dict[str, Path],
+                    max_target_seqs: int,
+                    min_pct_idty: int,
+                    out_fmt: str) -> Dict[str, Path]:
+    # Run BLAST.
+    result_paths: Dict[str, Path] = {}
+    result_dir.mkdir(parents=True, exist_ok=True)
     for gene_name, ref_gene_path in gene_paths.items():
-        gene_already_found = False
         logger.info(f"Running blastn on {gene_name}.")
-        blast_result_path = blast_result_dir / f"{gene_name}.tsv"
+        blast_result_path = result_dir / f"{gene_name}.tsv"
         blastn(
-            db_name=blast_db_name,
-            db_dir=blast_db_dir,
+            db_name=db_name,
+            db_dir=db_dir,
             query_fasta=ref_gene_path,
-            evalue_max=1e-3,
+            perc_identity_cutoff=min_pct_idty,
             out_path=blast_result_path,
             num_threads=cfg.model_cfg.num_cores,
-            out_fmt="6 saccver sstart send qstart qend evalue bitscore pident gaps qcovhsp",
-            max_target_seqs=10 * seq_index.shape[0],  # A generous value, 10 hits per genome
+            out_fmt=out_fmt,
+            max_target_seqs=max_target_seqs,
             strand="both"
         )
+        result_paths[gene_name] = blast_result_path
+    return result_paths
+# ===================================================== END Local resources
+
+
+# ============= Rest of initialization
+def create_chronostrain_db(
+        blast_result_dir: Path,
+        strain_df: pd.DataFrame,
+        gene_paths: Dict[str, Path],
+        blast_db_dir: Path,
+        blast_db_name: str,
+        min_pct_idty: int,
+        num_ref_genomes: int
+) -> List[Dict[str, Any]]:
+    """
+    :return:
+    """
+
+    blast_results = run_blast_local(
+        db_dir=blast_db_dir,
+        db_name=blast_db_name,
+        result_dir=blast_result_dir,
+        gene_paths=gene_paths,
+        min_pct_idty=min_pct_idty,
+        max_target_seqs=10 * num_ref_genomes,
+        out_fmt=_BLAST_OUT_FMT
+    )
+
+    return create_strain_entries(blast_results, gene_paths, strain_df)
+
+
+def blank_strain_entry(strain_id: str, genus: str, species: str, name: str, accession: str):
+    return {
+        'id': strain_id,
+        'genus': genus,
+        'species': species,
+        'name': name,
+        'seqs': [{'accession': accession, 'seq_type': 'chromosome'}],
+        'markers': []
+    }
+
+
+def create_strain_entries(blast_results: Dict[str, Path], ref_gene_paths: Dict[str, Path], strain_df: pd.DataFrame):
+    strain_entries: Dict[str, Dict] = {}
+    seen_accessions: Set[str] = set()
+
+    # ===================== Parse BLAST hits.
+    for gene_name, blast_result_path in blast_results.items():
+        blast_hits = parse_blast_hits(blast_result_path)
+
+        # Parse the entries.
+        canonical_gene_found = False
+        ref_gene_path = ref_gene_paths[gene_name]
+        ref_gene_len = len(next(iter(read_seq_file(ref_gene_path, 'fasta'))).seq)
+        min_canonical_length = ref_gene_len * 0.95
 
         logger.debug(f"Parsing BLAST hits for gene `{gene_name}`.")
-        locations = parse_blast_hits(blast_result_path)
-        for strain_entry in strain_entries:
-            for blast_hit in locations[strain_entry['accession']]:
+        for subj_acc in blast_hits.keys():
+            # Create strain entries if they don't already exist.
+            if subj_acc not in seen_accessions:
+                seen_accessions.add(subj_acc)
+                strain_row = strain_df.loc[strain_df['Accession'] == subj_acc, ['Genus', 'Species', 'Strain']].head(1)
+                subj_genus = strain_row['Genus'].item()
+                subj_species = strain_row['Species'].item()
+                subj_strain_name = strain_row['Strain'].item()
+
+                strain_entries[subj_acc] = blank_strain_entry(
+                    strain_id=subj_acc,
+                    genus=subj_genus,
+                    species=subj_species,
+                    name=subj_strain_name,
+                    accession=subj_acc
+                )
+
+            if subj_acc not in strain_entries:
+                continue
+
+            strain_entry = strain_entries[subj_acc]
+            seq_accession = strain_entry['seqs'][0]['accession']
+            for blast_hit in blast_hits[seq_accession]:
+                is_canonical = (
+                        (blast_hit.subj_end - blast_hit.subj_start) >= min_canonical_length
+                        and
+                        not canonical_gene_found
+                )
+
                 gene_id = f"{gene_name}_BLASTIDX_{blast_hit.line_idx}"
                 strain_entry['markers'].append(
                     {
                         'id': gene_id,
                         'name': gene_name,
                         'type': 'subseq',
+                        'source': seq_accession,
                         'start': blast_hit.subj_start,
                         'end': blast_hit.subj_end,
                         'strand': blast_hit.strand,
-                        'canonical': not gene_already_found
+                        'canonical': is_canonical
                     }
                 )
-                gene_already_found = True
+                canonical_gene_found = canonical_gene_found or is_canonical
 
-    return prune_entries(strain_entries)
+    return prune_entries([entry for _, entry in strain_entries.items()])
 
 
 def prune_entries(strain_entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     for strain_entry in strain_entries:
-        logger.info("No markers found for "
-                    f"{strain_entry['genus']} {strain_entry['species']} "
-                    f"{strain_entry['strain']} "
-                    f"(Accession {strain_entry['accession']}).")
+        if len(strain_entry['markers']) == 0:
+            logger.info("No markers found for "
+                        f"{strain_entry['genus']} {strain_entry['species']} "
+                        f"{strain_entry['name']} "
+                        f"(ID {strain_entry['id']}).")
     return [
         strain_entry
         for strain_entry in strain_entries
@@ -232,20 +207,36 @@ def prune_entries(strain_entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     ]
 
 
-@dataclass
+_BLAST_OUT_FMT = "6 saccver sstart send slen qstart qend evalue pident gaps qcovhsp"
+
+
 class BlastHit(object):
-    line_idx: int
-    subj_accession: str
-    subj_start: int
-    subj_end: int
-    query_start: int
-    query_end: int
-    strand: str
-    evalue: float
-    bitscore: float
-    pct_identity: float
-    num_gaps: int
-    query_coverage_per_hsp: float
+    def __init__(self,
+                 line_idx: int,
+                 subj_accession: str,
+                 subj_start: int,
+                 subj_end: int,
+                 subj_len: int,
+                 query_start: int,
+                 query_end: int,
+                 strand: str,
+                 evalue: float,
+                 pct_identity: float,
+                 num_gaps: int,
+                 query_coverage_per_hsp: float,
+                 ):
+        self.line_idx = line_idx
+        self.subj_accession = subj_accession
+        self.subj_start = subj_start
+        self.subj_end = subj_end
+        self.subj_len = subj_len
+        self.query_start = query_start
+        self.query_end = query_end
+        self.strand = strand
+        self.evalue = evalue
+        self.pct_identity = pct_identity
+        self.num_gaps = num_gaps
+        self.query_coverage_per_hsp = query_coverage_per_hsp
 
 
 def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
@@ -253,114 +244,117 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
     with open(blast_result_path, "r") as f:
         blast_result_reader = csv.reader(f, delimiter='\t')
         for row_idx, row in enumerate(blast_result_reader):
-
-            subj_acc, subj_start, subj_end, qstart, qend, evalue, bitscore, pident, gaps, qcovhsp = row
+            subj_acc, subj_start, subj_end, subj_len, qstart, qend, evalue, pident, gaps, qcovhsp = row
 
             subj_start = int(subj_start)
             subj_end = int(subj_end)
+            subj_len = int(subj_len)
 
             if subj_start < subj_end:
-                start_pos = subj_start
-                end_pos = subj_end
+                subj_start_pos = subj_start
+                subj_end_pos = subj_end
                 strand = '+'
             else:
-                start_pos = subj_end
-                end_pos = subj_start
+                subj_start_pos = subj_end
+                subj_end_pos = subj_start
                 strand = '-'
 
-            if end_pos - start_pos + 1 < READ_LEN:
+            if subj_end_pos - subj_start_pos + 1 < READ_LEN:
                 continue
 
             accession_to_positions[subj_acc].append(
                 BlastHit(
-                    row_idx,
-                    subj_acc,
-                    start_pos,
-                    end_pos,
-                    int(qstart),
-                    int(qend),
-                    strand,
-                    float(evalue),
-                    float(bitscore),
-                    float(pident),
-                    int(gaps),
-                    float(qcovhsp)
+                    line_idx=row_idx,
+                    subj_accession=subj_acc,
+                    subj_start=subj_start_pos,
+                    subj_end=subj_end_pos,
+                    subj_len=subj_len,
+                    query_start=int(qstart),
+                    query_end=int(qend),
+                    strand=strand,
+                    evalue=float(evalue),
+                    pct_identity=float(pident),
+                    num_gaps=int(gaps),
+                    query_coverage_per_hsp=float(qcovhsp)
                 )
             )
     return accession_to_positions
 
 
 # ======================== Reference genome: pull from downloaded genbank file.
-def download_reference(accession: str, metaphlan_pkl_path: Path) -> Dict[str, Path]:
+def retrieve_reference(accession: str, uniprot_csv_path: Optional[Path], genes_path: Optional[Path]) -> Dict[str, Path]:
     logger.info(f"Downloading reference accession {accession}")
-    data_dir: Path = cfg.database_cfg.data_dir
-    gb_file = fetch_genbank(accession, data_dir)
+    target_dir = cfg.database_cfg.data_dir / "reference" / accession
+    target_dir.mkdir(exist_ok=True, parents=True)
 
-    clusters_already_found: Set[str] = set()
-    clusters_to_find: Set[str] = set()
-    genes_to_clusters: Dict[str, str] = {}
-
-    for cluster, cluster_genes in get_marker_genes(metaphlan_pkl_path):
-        clusters_to_find.add(cluster)
-        for gene in cluster_genes:
-            genes_to_clusters[gene.lower()] = cluster
-
-    chromosome_seq = next(SeqIO.parse(gb_file, "gb")).seq
     gene_paths: Dict[str, Path] = {}
 
-    for gb_gene_name, locus_tag, location in parse_genbank_genes(gb_file):
-        if gb_gene_name.lower() not in genes_to_clusters:
-            continue
-        if genes_to_clusters[gb_gene_name.lower()] not in clusters_to_find:
-            continue
+    # ========== Retrieve from Uniprot
+    if uniprot_csv_path is not None:
+        gb_file = fetch_genbank(accession, target_dir)
+        clusters_already_found: Set[str] = set()
+        clusters_to_find: Set[str] = set()
+        genes_to_clusters: Dict[str, str] = {}
 
-        found_cluster = genes_to_clusters[gb_gene_name.lower()]
-        logger.info(f"Found uniref cluster {found_cluster} for accession {accession} (name={gb_gene_name})")
+        for cluster, cluster_genes in get_uniprot_genes(uniprot_csv_path):
+            clusters_to_find.add(cluster)
+            for gene in cluster_genes:
+                genes_to_clusters[gene.lower()] = cluster
 
-        if found_cluster in clusters_already_found:
-            logger.warning(f"Multiple copies of {found_cluster} found in {accession}. Skipping second instance.")
-        else:
-            clusters_already_found.add(found_cluster)
-            clusters_to_find.remove(found_cluster)
+        chromosome_seq = next(SeqIO.parse(gb_file, "gb")).seq
 
-            gene_out_path = data_dir / f"REF_{accession}_{found_cluster}.fasta"
-            gene_seq = location.extract(chromosome_seq)
-            SeqIO.write(
-                SeqRecord(gene_seq, id=f"REF_GENE_{found_cluster}", description=f"{accession}_{str(location)}"),
-                gene_out_path,
-                "fasta"
+        for gb_gene_name, locus_tag, location in parse_genbank_genes(gb_file):
+            if gb_gene_name.lower() not in genes_to_clusters:
+                continue
+            if genes_to_clusters[gb_gene_name.lower()] not in clusters_to_find:
+                continue
+
+            found_cluster = genes_to_clusters[gb_gene_name.lower()]
+            logger.info(f"Found uniref cluster {found_cluster} for accession {accession} (name={gb_gene_name})")
+
+            if found_cluster in clusters_already_found:
+                logger.warning(f"Multiple copies of {found_cluster} found in {accession}. Skipping second instance.")
+            else:
+                clusters_already_found.add(found_cluster)
+                clusters_to_find.remove(found_cluster)
+
+                gene_out_path = target_dir / f"{found_cluster}_{accession}.fasta"
+                gene_seq = location.extract(chromosome_seq)
+                SeqIO.write(
+                    SeqRecord(gene_seq, id=f"REF_GENE_{found_cluster}", description=f"{accession}_{str(location)}"),
+                    gene_out_path,
+                    "fasta"
+                )
+                gene_paths[found_cluster] = gene_out_path
+
+        if len(clusters_to_find) > 0:
+            logger.info("Couldn't find uniprot genes {}.".format(
+                ",".join(clusters_to_find))
             )
-            gene_paths[found_cluster] = gene_out_path
+        logger.info(f"Finished parsing reference accession {accession}.")
 
-    if len(clusters_to_find) > 0:
-        logger.info("Couldn't find genes {}.".format(
-            ",".join(clusters_to_find))
-        )
+    # =========== Retrieve from Fasta
+    if genes_path is not None:
+        for record in SeqIO.parse(genes_path, 'fasta'):
+            gene_name = record.id
+            logger.info(f"Found FASTA record for gene `{gene_name}` ({record.description})")
+            gene_out_path = target_dir / f"{gene_name}.fasta"
+            SeqIO.write(record, gene_out_path, "fasta")
+            gene_paths[gene_name] = gene_out_path
 
-    logger.info(f"Finished parsing reference accession {accession}.")
     return gene_paths
 
 
-def metaphlan_markers(metaphlan_db: Dict, metaphlan_clade: str):
-    for marker_key, marker_entry in metaphlan_db['markers'].items():
-        if metaphlan_clade in marker_entry['taxon']:
-            yield marker_key
-
-
-def get_marker_genes(metaphlan_pkl_path: Path) -> Iterator[Tuple[str, List[str]]]:
-    db = pickle.load(bz2.open(metaphlan_pkl_path, 'r'))
+def get_uniprot_genes(uniprot_csv_path: Path) -> Iterator[Tuple[str, List[str]]]:
     u = UniProt()
 
     # for metaphlan_marker_id in metaphlan_markers(db, 'g__Escherichia'):
-    for metaphlan_marker_id in metaphlan_markers(db, 's__Escherichia_coli'):
-        tokens = metaphlan_marker_id.split('__')
-        uniprot_id = tokens[1]
-
+    for uniprot_id in parse_uniprot_csv(uniprot_csv_path):
         res = u.quick_search(uniprot_id)
 
         if uniprot_id not in res:
             logger.debug(
-                f"No result found for UniProt query `{uniprot_id}`, derived from metaphlan ID `{metaphlan_marker_id}`."
+                f"No result found for UniProt query `{uniprot_id}`."
             )
             continue
         else:
@@ -384,7 +378,7 @@ def parse_genbank_genes(gb_file: Path) -> Iterator[Tuple[str, str, FeatureLocati
 # ================= MAIN
 def print_summary(strain_entries: List[Dict[str, Any]], gene_paths: Dict[str, Path]):
     for strain_entry in strain_entries:
-        accession = strain_entry['accession']
+        seq_accession = strain_entry['seqs'][0]['accession']
         found_genes: Set[str] = set()
         for marker_entry in strain_entry['markers']:
             found_genes.add(marker_entry['name'])
@@ -392,32 +386,68 @@ def print_summary(strain_entries: List[Dict[str, Any]], gene_paths: Dict[str, Pa
         genes_not_found = set(gene_paths.keys()).difference(found_genes)
         if len(genes_not_found) > 0:
             logger.info("Accession {}, {} genes not found: [{}]".format(
-                accession,
+                seq_accession,
                 len(genes_not_found),
                 ', '.join(genes_not_found)
             ))
 
 
+def parse_uniprot_csv(csv_path: Path) -> Iterator[str]:
+    with open(csv_path, "r") as f:
+        for line in f:
+            if len(line.strip()) == 0:
+                continue
+
+            tokens = line.strip().split(",")
+            uniprot_id, cluster_name = tokens[0], tokens[1]
+
+            if uniprot_id == "UNIPROT_ID":
+                # Header line
+                continue
+
+            logger.debug(f"Yielding cluster `{cluster_name}`, uniprot ID `{uniprot_id}`")
+            yield uniprot_id
+
+
 def main():
     args = parse_args()
-    metaphlan_pkl_path = Path(args.metaphlan_pkl_path)
-    output_path = Path(args.output_path)
-    seq_dir = Path(args.refseq_dir)
 
-    # ================= Indexing of refseqs
-    logger.info(f"Indexing refseqs located in {seq_dir}")
-    seq_index = perform_indexing(seq_dir)
-    index_path = seq_dir / "index.tsv"
-    seq_index.to_csv(index_path, sep='\t')
-    logger.info(f"Wrote index to {str(index_path)}.")
+    if args.uniprot_csv == '' and args.genes_fasta == '':
+        print("Must specify at least one of --uniprot_path or --primers_path.")
+        exit(1)
+
+    if len(args.uniprot_csv) > 0:
+        uniprot_path = Path(args.uniprot_csv)
+    else:
+        uniprot_path = None
+
+    if len(args.genes_fasta) > 0:
+        genes_path = Path(args.genes_fasta)
+    else:
+        genes_path = None
+
+    output_path = Path(args.output_path)
 
     # ================= Pull out reference genes
     logger.info(f"Retrieving reference genes from {args.reference_accession}")
-    ref_gene_paths = download_reference(args.reference_accession, metaphlan_pkl_path)
+    ref_gene_paths = retrieve_reference(args.reference_accession, uniprot_path, genes_path)
+
+    refseq_index_df = pd.read_csv(Path(args.refseq_index), sep='\t')
 
     # ================= Compile into JSON.
     logger.info("Creating JSON entries.")
-    object_entries = create_chronostrain_db(ref_gene_paths, seq_index, output_path)
+    blast_result_dir = output_path.parent / "blast_results"
+    min_pct_idty = args.min_pct_idty
+
+    object_entries = create_chronostrain_db(
+        blast_result_dir=blast_result_dir,
+        strain_df=refseq_index_df,
+        gene_paths=ref_gene_paths,
+        blast_db_dir=Path(args.blast_db_dir),
+        blast_db_name=args.blast_db_name,
+        min_pct_idty=min_pct_idty,
+        num_ref_genomes=refseq_index_df.shape[0]
+    )
 
     print_summary(object_entries, ref_gene_paths)
     with open(output_path, 'w') as outfile:
@@ -426,4 +456,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except BaseException as e:
+        logger.exception(e)
+        raise

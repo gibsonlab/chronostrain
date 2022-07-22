@@ -45,9 +45,9 @@ def parse_args():
                         help='<Optional> The CSV file path containing the ground truth relative abundances for each '
                              'strain by time point. For benchmarking.')
     parser.add_argument('--iters', required=False, type=int, default=3000,
-                        help='<Optional> The number of iterations to run per BBVI instance.')
+                        help='<Optional> The number of iterations to run per ADVI instance.')
     parser.add_argument('--num_samples', required=False, type=int, default=100,
-                        help='<Optional> The number of monte-carlo samples for BBVI.')
+                        help='<Optional> The number of monte-carlo samples for ADVI.')
     parser.add_argument('-lr', '--learning_rate', required=False, type=float, default=1e-4,
                         help='<Optional> The learning rate to use for the optimizer, if using EM or VI. Default: 1e-4.')
     parser.add_argument('--num_posterior_samples', required=False, type=int, default=5000,
@@ -56,9 +56,9 @@ def parse_args():
     parser.add_argument('--save_fragment_probs', action="store_true",
                         help='If flag is set, then save posterior fragment probabilities for valid reads.')
     parser.add_argument('--draw_training_history', action="store_true",
-                        help='If flag is set, then outputs an animation of the BBVI training history.')
+                        help='If flag is set, then outputs an animation of the ADVI training history.')
     parser.add_argument('--plot_elbo', action="store_true",
-                        help='If flag is set, then outputs plots of the ELBO history (if using BBVI).')
+                        help='If flag is set, then outputs plots of the ELBO history (if using ADVI).')
     parser.add_argument('--plot_format', required=False, type=str, default="pdf")
 
     return parser.parse_args()
@@ -115,7 +115,7 @@ def main():
         write_strain_to_disk(strain, out_path)
 
     logger.info("Solving using Black-Box Variational Inference.")
-    solver, posterior, elbo_history, (uppers, lowers, medians) = perform_bbvi(
+    solver, posterior, elbo_history, (uppers, lowers, medians) = perform_advi(
         db=db,
         model=model,
         reads=reads,
@@ -145,7 +145,7 @@ def main():
         )
 
     # ==== Finally, plot the posterior.
-    viz.plot_bbvi_posterior(
+    viz.plot_vi_posterior(
         times=model.times,
         population=model.bacteria_pop,
         posterior=posterior,

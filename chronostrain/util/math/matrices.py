@@ -1,5 +1,10 @@
+import math
 from typing import List
 
+import numpy as np
+import numba
+import numba.cuda
+from numba.typed import List as nList
 import torch
 from chronostrain.util.sparse import ColumnSectionedSparseMatrix, RowSectionedSparseMatrix, SparseMatrix
 
@@ -203,68 +208,41 @@ def log_mm_exp_densesp(x: torch.Tensor, y: RowSectionedSparseMatrix) -> torch.Te
     )
 
 
-@torch.jit.script
-def spsp_outer_sum(x_indices: torch.Tensor,
-                   x_values: torch.Tensor,
-                   x_rows: int,
-                   x_target_locs: torch.Tensor,
-                   y_indices: torch.Tensor,
-                   y_values: torch.Tensor,
-                   y_cols: int,
-                   y_target_locs: torch.Tensor) -> torch.Tensor:
-    x_target_rows = x_indices[0, x_target_locs]  # Get the relevant row indices.
-    y_target_cols = y_indices[1, y_target_locs]
-
-    z = -float('inf') * torch.ones(
-        x_rows, y_cols,
-        device=x_values.device,
-        dtype=x_values.dtype
-    )
-
-    r, c = torch.meshgrid(x_target_rows, y_target_cols, indexing='ij')
-    z[r, c] = x_values[x_target_locs].view(-1, 1) + y_values[y_target_locs].view(1, -1)
-    return z
+@numba.njit
+def meshgrid2d(x, y):
+    xx = np.empty(shape=(x.size, y.size), dtype=x.dtype)
+    yy = np.empty(shape=(x.size, y.size), dtype=y.dtype)
+    for i in range(x.size):
+        for j in range(y.size):
+            xx[i, j] = x[i]
+            yy[i, j] = y[j]
+    return xx.flatten(), yy.flatten()
 
 
-@torch.jit.script
-def log_spspmm_exp_helper(x_indices: torch.Tensor,
-                          x_values: torch.Tensor,
-                          x_rows: int,
-                          x_cols: int,
-                          x_locs_per_col: List[torch.Tensor],
-                          y_indices: torch.Tensor,
-                          y_values: torch.Tensor,
-                          y_rows: int,
-                          y_cols: int,
-                          y_locs_per_row: List[torch.Tensor]) -> torch.Tensor:
-    assert x_cols == y_rows
+def log_spspmm_exp_helper(x_indices,
+                          x_values,
+                          x_locs_per_col,
+                          y_indices,
+                          y_values,
+                          y_locs_per_row,
+                          ans_buffer):
+    for l_idx in range(len(x_locs_per_col)):
+        target_x_locs = x_locs_per_col[l_idx]
+        target_y_locs = y_locs_per_row[l_idx]
+        for x_loc in target_x_locs:
+            for y_loc in target_y_locs:
+                r = x_indices[0, x_loc]
+                c = y_indices[1, y_loc]
 
-    ans = spsp_outer_sum(
-        x_indices,
-        x_values,
-        x_rows,
-        x_locs_per_col[0],
-        y_indices,
-        y_values,
-        y_cols,
-        y_locs_per_row[0]
-    )
-    for target_idx in range(1, x_cols):
-        next_sum = spsp_outer_sum(
-            x_indices,
-            x_values,
-            x_rows,
-            x_locs_per_col[target_idx],
-            y_indices,
-            y_values,
-            y_cols,
-            y_locs_per_row[target_idx],
-        )
-        ans = torch.logsumexp(
-            torch.stack([ans, next_sum], dim=0),
-            dim=0
-        )
-    return ans
+                A = ans_buffer[r, c]
+                B = x_values[x_loc] + y_values[y_loc]
+                C = max(A, B)
+                ans_buffer[r, c] = C + math.log(math.exp(A - C) + math.exp(B - C))
+                # ans_buffer[r, c] = np.logaddexp(, x_values[x_loc] + y_values[y_loc])
+
+
+log_spspmm_exp_helper_jit = numba.jit(log_spspmm_exp_helper, nopython=True)
+log_spspmm_exp_helper_cuda = numba.cuda.jit(log_spspmm_exp_helper)
 
 
 def log_spspmm_exp(x: ColumnSectionedSparseMatrix, y: RowSectionedSparseMatrix) -> torch.Tensor:
@@ -274,7 +252,50 @@ def log_spspmm_exp(x: ColumnSectionedSparseMatrix, y: RowSectionedSparseMatrix) 
     This implementation uses the identity (A + B)C = AC + BC, and uses a col-partitioning recursive strategy
     of depth log(n) to maintain O(mp) memory usage, where X is (m x n) and Y is (n x p).
     """
-    return log_spspmm_exp_helper(
-        x.indices, x.values, x.rows, x.columns, x.locs_per_column,
-        y.indices, y.values, y.rows, y.columns, y.locs_per_row
+    if x.columns != y.rows:
+        raise ValueError("Columns of x and rows of y must match. Instead got ({} x {}) @ ({} x {})".format(
+            x.rows, x.columns, y.rows, y.columns
+        ))
+
+    if x.rows == 0:
+        return torch.empty(0, y.columns, dtype=y.values.dtype, device=y.values.device)
+    elif y.columns == 0:
+        return torch.empty(x.rows, 0, dtype=x.values.dtype, device=y.values.device)
+    elif x.columns == 0 and y.rows == 0:
+        raise RuntimeError("Cannot apply operation to ({} x 0) @ (0 x {}) matrix.".format(
+            x.rows, y.columns
+        ))
+
+    """
+    https://numba.pydata.org/numba-doc/latest/reference/deprecation.html#deprecation-of-reflection-for-list-and-set-types
+    """
+    ans_buffer = np.full((x.rows, y.columns), np.NINF, float)
+
+    # TODO: do this directly on CUDA. (See note below)
+    """
+    Previously, ran into an issue where x_locs_per_row/y_locs_per_col (A list of
+    CUDA arrays) was not indexable. One needs to pre-allocate a large array, or find a different representation
+    in memory.
+    """
+    typed_x_locs = nList()
+    for loc in x.locs_per_column:
+        typed_x_locs.append(loc.cpu().numpy())
+    typed_y_locs = nList()
+    for loc in y.locs_per_row:
+        typed_y_locs.append(loc.cpu().numpy())
+    log_spspmm_exp_helper_jit(
+        x.indices.cpu().numpy(),
+        x.values.cpu().numpy(),
+        typed_x_locs,
+        y.indices.cpu().numpy(),
+        y.values.cpu().numpy(),
+        typed_y_locs,
+        ans_buffer
+    )
+
+    # Call jit-enabled helper
+    return torch.tensor(
+        ans_buffer,
+        dtype=x.values.dtype,
+        device=x.values.device
     )

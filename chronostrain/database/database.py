@@ -1,13 +1,14 @@
 import time
 from collections import defaultdict
 from pathlib import Path
-from typing import List, Union, Optional, Set
+from typing import List, Union, Set
+import pickle
 
 from Bio import SeqIO
 
 from chronostrain.model import Strain, Marker
-from .parser import AbstractDatabaseParser, JSONParser, CSVParser
-from .backend import AbstractStrainDatabaseBackend, DictionaryBackend, PandasAssistedBackend
+from .parser import AbstractDatabaseParser, JSONParser
+from .backend import AbstractStrainDatabaseBackend, PandasAssistedBackend
 from .error import QueryNotFoundError
 from .. import cfg, create_logger
 
@@ -22,12 +23,13 @@ class StrainDatabase(object):
                  force_refresh: bool = False):
         self.backend = backend
         self.marker_multifasta_file = cfg.database_cfg.data_dir / multifasta_filename
+        self.initialize(parser, force_refresh)
 
+    def initialize(self, parser: AbstractDatabaseParser, force_refresh: bool):
         logger.debug("Initializing db backend `{}`".format(self.backend.__class__.__name__))
 
         start = time.time()
-        for strain in parser.strains():
-            backend.add_strain(strain)
+        self.backend.add_strains(parser.strains())
         logger.info("Loaded {} strains in {:.1f} minutes.".format(
             self.backend.num_strains(),
             (time.time() - start) / 60.0
@@ -157,30 +159,37 @@ class JSONStrainDatabase(StrainDatabase):
                  entries_file: Union[str, Path],
                  marker_max_len: int,
                  force_refresh: bool = False,
-                 load_full_genomes: bool = False,
                  multifasta_filename: str = 'all_markers.fasta'):
         if isinstance(entries_file, str):
             entries_file = Path(entries_file)
+
+        self.entries_file = entries_file
+        self.pickle_path: Path = entries_file.with_suffix('.pkl')
         parser = JSONParser(entries_file,
                             marker_max_len,
-                            force_refresh,
-                            load_full_genomes=load_full_genomes)
+                            force_refresh)
         backend = PandasAssistedBackend()
         super().__init__(parser, backend, multifasta_filename=multifasta_filename)
 
+    def pickle_is_stale(self):
+        if not self.pickle_path.exists():
+            return True
+        else:
+            return self.entries_file.stat().st_mtime > self.pickle_path.stat().st_mtime
 
-class SimpleCSVStrainDatabase(StrainDatabase):
-    def __init__(self,
-                 entries_file: Union[str, Path],
-                 trim_debug: Optional[int] = None,
-                 force_refresh: bool = False,
-                 load_full_genomes: bool = False,
-                 multifasta_filename: str = 'all_markers.fasta'):
-        if isinstance(entries_file, str):
-            entries_file = Path(entries_file)
-        parser = CSVParser(entries_file,
-                           force_refresh,
-                           trim_debug,
-                           load_full_genomes=load_full_genomes)
-        backend = DictionaryBackend()
-        super().__init__(parser, backend, multifasta_filename=multifasta_filename)
+    def initialize(self, parser: AbstractDatabaseParser, force_refresh: bool):
+        if self.pickle_is_stale():
+            logger.debug("Populating database.")
+            super().initialize(parser, force_refresh)
+            self.save_to_disk()
+        else:
+            logger.debug(f"Loaded database from disk ({self.pickle_path}).")
+            self.load_from_disk()
+
+    def save_to_disk(self):
+        with open(self.pickle_path, 'wb') as f:
+            pickle.dump(self.backend, f)
+
+    def load_from_disk(self):
+        with open(self.pickle_path, 'rb') as f:
+            self.backend = pickle.load(f)

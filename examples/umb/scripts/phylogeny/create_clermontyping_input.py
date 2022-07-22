@@ -1,7 +1,9 @@
 import argparse
+import math
 from pathlib import Path
+from typing import List
 
-from chronostrain import cfg
+import pandas as pd
 
 
 def parse_args():
@@ -27,24 +29,41 @@ def bash_escape(x: str) -> str:
     return x.replace('(', '\\(').replace(')', '\\)').replace('\'', '\\\'')
 
 
+def fasta_batches(paths: List[Path], batch_sz: int) -> List[List[Path]]:
+    batches = []
+
+    n_batches = math.ceil(len(paths) / batch_sz)
+    for batch_idx in range(n_batches):
+        start = int(batch_idx * batch_sz)
+        end = int(min((batch_idx + 1) * batch_sz, len(paths)))
+        batches.append(paths[start:end])
+
+    return batches
+
+
 def main():
     args = parse_args()
-    script = "bash {clermon_script_path} --fasta {fasta_path} --name {analysis_name}"
+    seq_batch_size = 100
+    script = "bash {clermon_script_path} --fasta {fasta_path} --name {analysis_name}_{batch_idx}"
 
-    db = cfg.database_cfg.get_database()
-    fasta_paths = [strain.metadata.source_path for strain in db.all_strains()]
+    df = pd.read_csv(args.refseq_index, sep='\t')
+    fasta_paths = []
+    for idx, row in df.loc[df['Genus'] == 'Escherichia', :].iterrows():
+        fasta_paths.append(row['SeqPath'])
 
     output_path = Path(args.output_path)
     output_path.parent.mkdir(exist_ok=True, parents=True)
     with open(output_path, 'w') as f:
-        print(
-            script.format(
-                clermon_script_path=args.clermon_script_path,
-                fasta_path='@'.join(bash_escape(str(p)) for p in fasta_paths),
-                analysis_name=args.analysis_name
-            ),
-            file=f
-        )
+        for batch_idx, fasta_batch in enumerate(fasta_batches(fasta_paths, seq_batch_size)):
+            print(
+                script.format(
+                    clermon_script_path=args.clermon_script_path,
+                    fasta_path='@'.join(bash_escape(str(p)) for p in fasta_batch),
+                    analysis_name=args.analysis_name,
+                    batch_idx=batch_idx
+                ),
+                file=f
+            )
 
     print(f"Wrote script wrapper to {args.output_path}")
 

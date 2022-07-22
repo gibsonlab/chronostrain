@@ -10,6 +10,7 @@ import torch
 from typing import List, Tuple
 
 from chronostrain import logger, cfg
+from chronostrain.database import StrainDatabase
 from chronostrain.model import generative, reads, FragmentSpace, construct_fragment_space_uniform_length
 from chronostrain.model.bacteria import Population
 from chronostrain.model.io import TimeSeriesReads, save_abundances, load_abundances, TimeSliceReadSource, ReadType
@@ -48,6 +49,7 @@ def parse_args():
 
 
 def sample_reads(
+        db: StrainDatabase,
         population: Population,
         read_depths: List[int],
         fragments: FragmentSpace,
@@ -59,6 +61,7 @@ def sample_reads(
     Sample sequence reads from the generative model, using either a pre-specified abundance profile or using
     random samples.
 
+    :param db: StrainDatabase
     :param population: The population containing the Strain instances.
     :param read_depths: The read counts for each time point.
     :param fragments: The FragmentSpace instance representing all possible fragments representable by reads.
@@ -97,7 +100,9 @@ def sample_reads(
         fragments=fragments,
         frag_negbin_n=cfg.model_cfg.frag_len_negbin_n,
         frag_negbin_p=cfg.model_cfg.frag_len_negbin_p,
-        read_error_model=my_error_model
+        read_error_model=my_error_model,
+        min_overlap_ratio=cfg.model_cfg.min_overlap_ratio,
+        db=db
     )
 
     if len(read_depths) != len(time_points):
@@ -134,8 +139,14 @@ def save_index_csv(time_series: TimeSeriesReads, out_dir: str, out_filename: str
     # TODO: update this to fit new format.
     with open(Path(out_dir) / out_filename, "w") as f:
         for time_slice in time_series:
+            if len(time_slice.sources) > 0:
+                logger.warning(
+                    f"Found multiple sources for timepoint {time_slice.time_point}. "
+                    "Reads will only be saved to the first path."
+                )
+
             print(
-                f'"{time_slice.time_point}","{len(time_slice)}","{time_slice.src}"',
+                f'"{time_slice.time_point}","{len(time_slice)}","{time_slice.sources[0]}"',
                 file=f
             )
 
@@ -170,6 +181,7 @@ def main():
     # ========== Sample reads.
     logger.debug("Sampling reads...")
     abundances, sampled_reads = sample_reads(
+        db=database,
         population=population,
         read_depths=args.num_reads,
         abundances=abundances,

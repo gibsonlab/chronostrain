@@ -6,5 +6,6 @@ from .bowtie2 import bowtie2_build, bowtie2_inspect, bowtie2, \
 from .clustal_omega import clustal_omega
 from .mafft import mafft_fragment, mafft_global
 from .glopp import run_glopp, run_flopp
-from .samtools import sam_to_bam, bam_sort, merge
+from .samtools import sam_to_bam, bam_sort, merge, sam_mapped_only
 from .blast import make_blast_db, blastn, tblastn
+from .smith_waterman import ssw_align

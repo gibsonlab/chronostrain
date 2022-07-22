@@ -12,14 +12,14 @@ logger = create_logger(__name__)
 
 @dataclass
 class MarkerMetadata:
-    parent_accession: str
+    parent_strain: str
     file_path: Union[Path, None]
     
     def __repr__(self):
         if self.file_path is not None:
-            return "MarkerMetadata[{}:{}]".format(self.parent_accession, self.file_path)
+            return "MarkerMetadata[{}:{}]".format(self.parent_strain, self.file_path)
         else:
-            return "MarkerMetadata[{}]".format(self.parent_accession)
+            return "MarkerMetadata[{}]".format(self.parent_strain)
         
     def __str__(self):
         return self.__repr__()
@@ -27,10 +27,12 @@ class MarkerMetadata:
 
 @dataclass
 class StrainMetadata:
-    ncbi_accession: str
-    source_path: Path
+    chromosomes: List[str]
+    scaffolds: List[str]
     genus: str
     species: str
+    total_len: int
+    cluster: List[str]
 
 
 @dataclass
@@ -70,14 +72,14 @@ class Marker:
     def to_seqrecord(self, description: str = "") -> SeqRecord:
         return SeqRecord(
             Seq(self.nucleotide_seq),
-            id="{}|{}|{}".format(self.metadata.parent_accession, self.name, self.id),
+            id="{}|{}|{}".format(self.metadata.parent_strain, self.name, self.id),
             description=description
         )
 
     @staticmethod
     def parse_seqrecord_id(record_id: str) -> Tuple[str, str, str]:
-        parent_accession, name, marker_id = record_id.split("|")
-        return parent_accession, name, marker_id
+        parent_strain, name, marker_id = record_id.split("|")
+        return parent_strain, name, marker_id
 
 
 @dataclass
@@ -119,6 +121,7 @@ class Population:
             raise ValueError("All elements in strains must be Strain instances")
 
         self.strains = list(strains)  # A list of Strain objects.
+        self.strain_indices = {strain: s_idx for s_idx, strain in enumerate(self.strains)}
         self.all_markers = {
             marker
             for strain in strains
@@ -152,3 +155,9 @@ class Population:
 
     def contains_marker(self, marker: Marker) -> bool:
         return marker in self.all_markers
+
+    def strain_index(self, strain: Strain) -> int:
+        """
+        Return the relative index of the strain (useful for resolving matrix index positions)
+        """
+        return self.strain_indices[strain]

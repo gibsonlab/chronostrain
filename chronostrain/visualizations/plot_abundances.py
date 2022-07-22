@@ -2,8 +2,6 @@ from pathlib import Path
 from typing import List, Optional
 
 import matplotlib.pyplot as plt
-import matplotlib.cm as mplcm
-import matplotlib.colors as colors
 from matplotlib.lines import Line2D
 import numpy as np
 import seaborn as sns
@@ -12,7 +10,6 @@ import pandas as pd
 from chronostrain.model import StrainVariant
 from chronostrain.model.bacteria import Population
 from chronostrain.model.io import load_abundances
-from scipy.special import softmax
 
 
 def plot_abundances_comparison(
@@ -207,9 +204,6 @@ def plot_posterior_abundances(
     else:
         truth_strain_id_to_idx = {}
 
-    # Convert gaussians to rel abundances.
-    abundance_samples = softmax(posterior_samples, axis=2)
-
     fig, ax = plt.subplots(1, 1, figsize=(width, height))
     legend_elements = []
     plt.rcParams.update({'font.size': font_size})
@@ -228,7 +222,8 @@ def plot_posterior_abundances(
             times=times,
             abundances=true_trajectory,
             ax=ax,
-            thickness=thickness
+            linestyle='--',
+            thickness=thickness * 2
         )
         ground_truth_colors[truth_strain_id] = color
 
@@ -237,7 +232,7 @@ def plot_posterior_abundances(
 
     for s_idx, strain in enumerate(population.strains):
         # This is (T x N), for the particular strain.
-        traj_samples = abundance_samples[:, :, s_idx]
+        traj_samples = posterior_samples[:, :, s_idx]
 
         if isinstance(strain, StrainVariant):
             label = f"{s_idx}_{strain.base_strain}_variant"
@@ -300,6 +295,10 @@ def render_posterior_abundances(
     else:
         ax.plot(times, median, linestyle='--', marker='x', linewidth=thickness, color=color)
 
+    # Plot subsampled trajectories.
+    for i in range(0, traj_samples.shape[1], 1000):
+        ax.plot(times, traj_samples[:, i], linestyle='-', marker='o', linewidth=thickness, color=color)
+
     # Fill between the quantiles.
     for q_idx, (q, q_val) in enumerate(zip(quantiles, quantile_values)):
         if q < 0.5:
@@ -324,13 +323,14 @@ def render_single_abundance_trajectory(
         abundances: np.ndarray,
         ax,
         thickness: float,
+        linestyle: str = '-',
         color: Optional = None
 ):
     if color is None:
-        line, = ax.plot(times, abundances, linestyle='-', marker='o', linewidth=thickness)
+        line, = ax.plot(times, abundances, linestyle=linestyle, marker='o', linewidth=thickness)
         color = line.get_color()
     else:
-        ax.plot(times, abundances, linestyle='-', marker='o', color=color, linewidth=thickness)
+        ax.plot(times, abundances, linestyle=linestyle, marker='o', color=color, linewidth=thickness)
     return color
 
 

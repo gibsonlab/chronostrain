@@ -19,7 +19,7 @@ from chronostrain.model import AbstractMarkerVariant, StrainVariant
 from .base import FloppMarkerVariant, FloppStrainVariant
 from ...model import Marker
 from ...model.io import TimeSeriesReads
-from .meta import AbstractVariantBBVISolver
+from .meta import AbstractVariantADVISolver
 from ...util.flopp import FloppMarkerContig, FloppMarkerAssembly
 
 logger = create_logger(__name__)
@@ -70,7 +70,7 @@ def partial_corr_matrix(precision: np.ndarray):
     return -precision / diag / diag.transpose()
 
 
-class GloppVariantSolver(AbstractVariantBBVISolver):
+class GloppVariantSolver(AbstractVariantADVISolver):
     def __init__(self,
                  db: StrainDatabase,
                  reads: TimeSeriesReads,

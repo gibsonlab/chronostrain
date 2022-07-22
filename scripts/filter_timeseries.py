@@ -1,5 +1,6 @@
 import argparse
 import csv
+import re
 from pathlib import Path
 from typing import List, Tuple
 
@@ -10,7 +11,7 @@ logger = create_logger("chronostrain.filter_timeseries")
 
 
 def remove_suffixes(p: Path) -> Path:
-    while len(p.suffix) > 0:
+    while re.search(r'(\.zip)|(\.gz)|(\.bz2)|(\.fastq)|(\.fq)|(\.fasta)', p.suffix) is not None:
         p = p.with_suffix('')
     return p
 
@@ -32,13 +33,14 @@ def parse_args():
                         help='<Optional> Filters out a read if its length was less than the specified value '
                              '(helps reduce spurious alignments). Ideally, trimmomatic should have taken care '
                              'of this step already!')
-    parser.add_argument('--pct_identity_threshold', required=False, type=float,
+    parser.add_argument('--frac_identity_threshold', required=False, type=float,
                         default=0.1,
                         help='<Optional> The percent identity threshold at which to filter reads. Default: 0.1.')
     parser.add_argument('--error_threshold', required=False, type=float,
-                        default=10.0,
-                        help='<Optional> The maximum number of expected errors tolerated in order to pass filter.'
-                             'Default: 10.0')
+                        default=1.0,
+                        help='<Optional> The upper bound on the number of expected errors, expressed as a fraction '
+                             'of length of the read.'
+                             'Default: 1.0 (disabled)')
     parser.add_argument('--num_threads', required=False, type=int,
                         default=cfg.model_cfg.num_cores,
                         help='<Optional> Specifies the number of threads. Is passed to underlying alignment tools.')
@@ -86,7 +88,9 @@ def main():
         target_csv_path = out_dir / f"filtered_{Path(args.reads_input).name}"
     else:
         target_csv_path = out_dir / args.reads_output_filename
+
     logger.info(f"Target index file: {target_csv_path}")
+    target_csv_path.parent.mkdir(exist_ok=True, parents=True)
     with open(target_csv_path, 'w') as _:
         # Clear the file (Will append in a for loop).
         pass
@@ -95,13 +99,14 @@ def main():
     filter = Filter(
         db=db,
         min_read_len=args.min_read_len,
-        pct_identity_threshold=args.pct_identity_threshold,
+        frac_identity_threshold=args.frac_identity_threshold,
         error_threshold=args.error_threshold,
         num_threads=args.num_threads
     )
     for t, read_depth, read_path, read_type, qual_fmt in load_from_csv(Path(args.reads_input)):
+        logger.info(f"Applying filter to timepoint {t}, {str(read_path)}")
         out_path = out_dir / f"filtered_{remove_suffixes(read_path).name}.fastq"
-        filter.apply(read_path, out_path, quality_format=qual_fmt)
+        filter.apply(read_path, out_path, read_type, quality_format=qual_fmt)
         with open(target_csv_path, 'a') as target_csv:
             # Append to target CSV file.
             writer = csv.writer(target_csv, delimiter=',', quotechar='\"', quoting=csv.QUOTE_ALL)

@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Iterator
 import pandas as pd
 
 from chronostrain.model import Marker, Strain
@@ -21,21 +21,26 @@ class PandasAssistedBackend(AbstractStrainDatabaseBackend):
             'IsCanonical': pd.Series(dtype='bool')
         })
 
-    def add_strain(self, strain: Strain):
-        self.strains[strain.id] = strain
-        for marker in strain.markers:
-            self.markers[marker.id] = marker
+    def add_strains(self, strains: Iterator[Strain]):
+        strain_df_entries = []
+        marker_df_entries = []
+        for strain in strains:
+            self.strains[strain.id] = strain
+            for marker in strain.markers:
+                self.markers[marker.id] = marker
 
-            self.strain_df = self.strain_df.append({
-                'StrainId': strain.id,
-                'MarkerId': marker.id
-            }, ignore_index=True)
+                strain_df_entries.append({
+                    'StrainId': strain.id,
+                    'MarkerId': marker.id
+                })
 
-            self.marker_df = self.marker_df.append({
-                'MarkerId': marker.id,
-                'MarkerName': marker.name,
-                'IsCanonical': marker.is_canonical
-            }, ignore_index=True)
+                marker_df_entries.append({
+                    'MarkerId': marker.id,
+                    'MarkerName': marker.name,
+                    'IsCanonical': marker.is_canonical
+                })
+        self.strain_df = pd.concat([self.strain_df, pd.DataFrame(strain_df_entries)])
+        self.marker_df = pd.concat([self.marker_df, pd.DataFrame(marker_df_entries)])
 
     def get_strain(self, strain_id: str) -> Strain:
         try:

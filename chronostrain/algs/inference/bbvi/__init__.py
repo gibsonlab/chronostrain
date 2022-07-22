@@ -1,7 +1,5 @@
-from .base import AbstractBBVI
-from .posteriors import AbstractReparametrizedPosterior, \
-    GaussianPosteriorTimeCorrelation, \
-    GaussianPosteriorStrainCorrelation, \
-    GaussianPosteriorFullCorrelation
-from .solver_v1 import BBVISolverV1
-from .solver_v2 import BBVISolverV2
+from .base import AbstractADVI
+from .posteriors import *
+from .solver_gaussian import ADVIGaussianSolver
+from .solver_dirichlet import ADVIDirichletSolver
+from .solver_full import ADVISolverFullPosterior

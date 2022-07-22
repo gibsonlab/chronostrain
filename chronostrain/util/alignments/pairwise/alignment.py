@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Tuple, Dict, List, Iterator, Callable, Optional, Union
+from typing import Tuple, Dict, List, Iterator, Callable, Optional
 import numpy as np
 
 from chronostrain.database import StrainDatabase, QueryNotFoundError
@@ -16,7 +16,6 @@ class SequenceReadPairwiseAlignment(object):
     def __init__(self,
                  read: SequenceRead,
                  marker: Marker,
-                 fragment: SeqType,
                  aln_matrix: np.ndarray,
                  sam_path: Path,
                  sam_line_no: int,
@@ -24,19 +23,15 @@ class SequenceReadPairwiseAlignment(object):
                  read_end: int,
                  marker_start: int,
                  marker_end: int,
-                 hard_clip_start: float,
-                 hard_clip_end: float,
-                 soft_clip_start: float,
-                 soft_clip_end: float,
-                 num_aligned_bases: Optional[int],
-                 num_mismatches: Optional[int],
+                 hard_clip_start: int,
+                 hard_clip_end: int,
+                 soft_clip_start: int,
+                 soft_clip_end: int,
                  reverse_complemented: bool):
         """
         :param read: The SequenceRead instance.
         :param marker: The reference marker.
-        :param fragment: The sequence corresponding to the gapless marker fragment that the read mapped to.
-        :param aln_matrix: a 3xL matrix consisting of three rows: the gapped marker fragment, the gapped read seq,
-            and the gapped quality score vector (mirroring the second row).
+        :param aln_matrix: a 2xL matrix consisting of two rows: the gapped marker fragment, the gapped read seq.
         :param sam_path: The SAM file that this alignment was parsed from.
         :param sam_line_no: The line number of the samhandler.
         :param read_start: The left endpoint of the read at which alignment starts; inclusive.
@@ -48,7 +43,6 @@ class SequenceReadPairwiseAlignment(object):
         """
         self.read: SequenceRead = read
         self.marker: Marker = marker
-        self.marker_frag: SeqType = fragment
 
         self.aln_matrix: np.ndarray = aln_matrix
 
@@ -61,16 +55,18 @@ class SequenceReadPairwiseAlignment(object):
         self.marker_start: int = marker_start
         self.marker_end: int = marker_end
 
-        self.hard_clip_start = hard_clip_start  # the number of bases at the left end (5') that got hard clipped.
-        self.hard_clip_end = hard_clip_end  # the number of bases at the right end (3') that got hard clipped.
-        self.soft_clip_start = soft_clip_start  # the number of bases at the right end (5') that got soft clipped.
-        self.soft_clip_end = soft_clip_end  # the number of bases at the right end (3') that got soft clipped.
-
-        self.num_aligned_bases: Union[None, int] = num_aligned_bases
-        self.num_mismatches: Union[None, int] = num_mismatches
+        self.hard_clip_start: int = hard_clip_start  # the number of bases at the left end (5') that got hard clipped.
+        self.hard_clip_end: int = hard_clip_end  # the number of bases at the right end (3') that got hard clipped.
+        self.soft_clip_start: int = soft_clip_start  # the number of bases at the right end (5') that got soft clipped.
+        self.soft_clip_end: int = soft_clip_end  # the number of bases at the right end (3') that got soft clipped.
 
         # Indicates whether the read has been reverse complemented.
         self.reverse_complemented: bool = reverse_complemented
+
+    @property
+    def marker_frag(self) -> SeqType:
+        frag_with_gaps = self.aln_matrix[0]
+        return frag_with_gaps[frag_with_gaps != nucleotide_GAP_z4]
 
     @property
     def is_clipped(self) -> bool:
@@ -78,20 +74,36 @@ class SequenceReadPairwiseAlignment(object):
 
     @property
     def is_edge_mapped(self) -> bool:
-        if self.marker_start == 0:
-            return self.soft_clip_start > 0 or self.hard_clip_start > 0
-        elif self.marker_end == len(self.marker) - 1:
-            return self.soft_clip_end > 0 or self.hard_clip_end > 0
-        return False
+        return (self.marker_start == 0) or (self.marker_end == len(self.marker) - 1)
 
     @property
     def read_aligned_section(self) -> Tuple[SeqType, SeqType]:
         """
-        Returns the section of the read corresponding to matches/mismatches.
-        Specifically removes clipped edges. Optionally deletes insertions and/or deletions.
+        Returns the section of the read corresponding to the alignment.
         """
         section = slice(self.read_start, self.read_end + 1)
         return self.read.seq[section], self.read.quality[section]
+
+    @property
+    def num_aligned_bases(self) -> int:
+        m_bases, r_bases = np.not_equal(self.aln_matrix, nucleotide_GAP_z4)
+        return np.sum(np.logical_and(m_bases, r_bases)).item()
+
+    @property
+    def num_mismatches(self) -> int:
+        m_bases, r_bases = np.not_equal(self.aln_matrix, nucleotide_GAP_z4)
+        mismatches = np.not_equal(self.aln_matrix[0], self.aln_matrix[1])
+        return np.sum(
+            np.logical_and(
+                np.logical_and(m_bases, r_bases),
+                mismatches
+            )
+        ).item()
+
+    @property
+    def num_matches(self) -> int:
+        m_bases, r_bases = self.aln_matrix
+        return np.sum(np.equal(m_bases, r_bases)).item()
 
     def read_insertion_locs(self) -> np.ndarray:
         insertion_locs = np.equal(self.aln_matrix[0], nucleotide_GAP_z4)
@@ -177,8 +189,8 @@ def parse_line_into_alignment(sam_path: Path,
         soft_clip_end = cigar_els[-1].num
         cigar_els = cigar_els[:-1]
 
-    marker_start = samline.contig_map_idx
-    read_start = soft_clip_start + hard_clip_start
+    marker_start = samline.contig_map_idx  # first included index
+    read_start = soft_clip_start + hard_clip_start  # first included index
 
     # ============ Handle all intermediate elements.
     current_read_idx = read_start
@@ -211,24 +223,23 @@ def parse_line_into_alignment(sam_path: Path,
                 f"(Line {samline.lineno}, Cigar {samline.cigar})"
             )
 
-    read_end = current_read_idx - 1
-    marker_end = current_marker_idx - 1
+    read_end = current_read_idx - 1  # last included index
+    marker_end = current_marker_idx - 1  # last included index
     assert read_end >= read_start
     assert marker_end >= marker_start
 
-    alignment = np.stack([
-        np.concatenate(marker_tokens),
-        np.concatenate(read_tokens)
-    ], axis=0)  # matrix of characters and gaps showing the alignment. (third row shows quality scores of each base.)
+    marker_seq = np.concatenate(marker_tokens)
+    read_seq = np.concatenate(read_tokens)
 
-    frag = alignment[0]
-    fragment = frag[frag != nucleotide_GAP_z4]
+    """
+    Matrix of characters and gaps showing the alignment.
+    """
+    alignment = np.stack([marker_seq, read_seq], axis=0)
 
     # ============ Return the appropriate instance.
     return SequenceReadPairwiseAlignment(
         read,
         marker,
-        fragment,
         alignment,
         sam_path,
         samline.lineno,
@@ -240,24 +251,91 @@ def parse_line_into_alignment(sam_path: Path,
         hard_clip_end,
         soft_clip_start,
         soft_clip_end,
-        samline.num_aligned_bases,
-        samline.num_mismatches,
         samline.is_reverse_complemented
     )
 
 
+def reattach_clipped_bases_to_aln(aln: SequenceReadPairwiseAlignment):
+    """
+    For the special case where bases have been clipped but the mapping is not at the edge, append the rest of
+    the fragment.
+    """
+    is_left_edge_mapped = (aln.marker_start == 0)
+    is_right_edge_mapped = (aln.marker_end == len(aln.marker) - 1)
+    n_start_clip = min(aln.soft_clip_start + aln.hard_clip_start, aln.marker_start)
+
+    aligned_marker_seq = aln.aln_matrix[0]
+    aligned_read_seq = aln.aln_matrix[1]
+
+    if aln.reverse_complemented:
+        read_seq = reverse_complement_seq(aln.read.seq)
+    else:
+        read_seq = aln.read.seq
+
+    if not is_left_edge_mapped and n_start_clip > 0:
+        marker_prefix = aln.marker.seq[(aln.marker_start - n_start_clip):aln.marker_start]
+        aligned_marker_seq = np.concatenate([marker_prefix, aligned_marker_seq])
+
+        read_prefix = read_seq[(aln.read_start - n_start_clip):aln.read_start]
+        aligned_read_seq = np.concatenate([read_prefix, aligned_read_seq])
+        if aln.hard_clip_start > 0:
+            aln.hard_clip_start -= n_start_clip
+        elif aln.soft_clip_start > 0:
+            aln.soft_clip_start -= n_start_clip
+        aln.marker_start -= n_start_clip
+        aln.read_start -= n_start_clip
+
+    n_end_clip = min(aln.soft_clip_end + aln.hard_clip_end, len(aln.marker) - aln.marker_end - 1)
+    if not is_right_edge_mapped and n_end_clip > 0:
+        marker_suffix = aln.marker.seq[(aln.marker_end + 1):(aln.marker_end + 1 + n_end_clip)]
+        aligned_marker_seq = np.concatenate([aligned_marker_seq, marker_suffix])
+
+        read_suffix = read_seq[(aln.read_end + 1):(aln.read_end + 1 + n_end_clip)]
+        aligned_read_seq = np.concatenate([aligned_read_seq, read_suffix])
+        if aln.hard_clip_end > 0:
+            aln.hard_clip_end -= n_end_clip
+        elif aln.soft_clip_end > 0:
+            aln.soft_clip_end -= n_end_clip
+        aln.marker_end += n_end_clip
+        aln.read_end += n_end_clip
+
+    aln.aln_matrix = np.stack([aligned_marker_seq, aligned_read_seq], axis=0)
+
+
 def parse_alignments(sam_file: SamFile,
                      db: StrainDatabase,
-                     read_getter: Optional[Callable[[str], SequenceRead]] = None) -> Iterator[SequenceReadPairwiseAlignment]:
+                     read_getter: Optional[Callable[[str], SequenceRead]] = None,
+                     reattach_clipped_bases: bool = False,
+                     min_hit_ratio: float = 0.5,
+                     min_frag_len: int = 15) -> Iterator[SequenceReadPairwiseAlignment]:
     """
     A basic function which parses a SamFile instance and outputs a generator over alignments.
     :param sam_file: The Sam file to parse.
     :param db: The database to create.
     :param read_getter:
     """
-    for samline in sam_file.mapped_lines():
+    n_alns = sam_file.num_mapped_lines()
+    logger.debug(f"Parsing {n_alns} alignments from {sam_file.file_path.name}")
+    from tqdm import tqdm
+    for samline in tqdm(sam_file.mapped_lines(), total=n_alns):
         try:
-            yield parse_line_into_alignment(sam_file.file_path, samline, db, read_getter)
+            if read_getter is not None:
+                # Apply min_hit_ratio criterion.
+                if len(samline.read_seq) / len(read_getter(samline.readname)) <= min_hit_ratio:
+                    pass
+
+            aln = parse_line_into_alignment(sam_file.file_path,
+                                            samline,
+                                            db,
+                                            read_getter)
+
+            if reattach_clipped_bases:
+                reattach_clipped_bases_to_aln(aln)
+
+            if len(aln.marker_frag) < min_frag_len:
+                continue
+
+            yield aln
         except NotImplementedError as e:
             logger.warning(str(e))
 
@@ -265,7 +343,9 @@ def parse_alignments(sam_file: SamFile,
 def marker_categorized_alignments(sam_file: SamFile,
                                   db: StrainDatabase,
                                   read_getter: Callable[[str], SequenceRead],
-                                  ignore_edge_mapped_reads: bool = True
+                                  reattach_clipped_bases: bool = False,
+                                  min_hit_ratio: float = 0.5,
+                                  min_frag_len: int = 15,
                                   ) -> Dict[Marker, List[SequenceReadPairwiseAlignment]]:
     """
     Parses the input SamFile instance into a dictionary, mapping each marker to alignments that map to
@@ -278,11 +358,10 @@ def marker_categorized_alignments(sam_file: SamFile,
 
     for aln in parse_alignments(sam_file,
                                 db,
-                                read_getter=read_getter):
-        if ignore_edge_mapped_reads and aln.is_edge_mapped:
-            logger.debug(f"Ignoring alignment of read {aln.read.id} to marker {aln.marker.id} "
-                         f"({aln.sam_path.name}, Line {aln.sam_line_no}), which is edge-mapped.")
-            continue
+                                read_getter=read_getter,
+                                reattach_clipped_bases=reattach_clipped_bases,
+                                min_hit_ratio=min_hit_ratio,
+                                min_frag_len=min_frag_len):
         marker_alignments[aln.marker].append(aln)
 
     return marker_alignments

@@ -1,12 +1,12 @@
 from abc import abstractmethod
-from typing import List
+from typing import List, Iterator
 
 from chronostrain.model import Strain, Marker
 
 
 class AbstractStrainDatabaseBackend(object):
     @abstractmethod
-    def add_strain(self, strain: Strain):
+    def add_strains(self, strains: Iterator[Strain]):
         """
         Registers a strain into this database.
         """

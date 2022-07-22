@@ -7,8 +7,9 @@ import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 
 from chronostrain import logger
-from chronostrain.algs import AbstractPosterior, BBVISolverV2
-from chronostrain.model import GenerativeModel, Population
+from chronostrain.algs import AbstractPosterior, ADVIGaussianSolver
+from chronostrain.model import Population
+from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.util import filesystem
 
@@ -28,7 +29,7 @@ def plot_elbo_history(
     ax.set_ylabel("ELBO")
     plt.savefig(out_path, format=plot_format)
 
-    logger.info("Saved BBVI ELBO history plot to {}.".format(out_path))
+    logger.info("Saved ADVI ELBO history plot to {}.".format(out_path))
 
 
 def plot_training_animation(
@@ -81,25 +82,25 @@ def plot_training_animation(
     anim = animation.FuncAnimation(fig, animate, init_func=init, frames=n_frames, interval=1, blit=True)
     anim.save(str(out_path), writer=backend_writer)
 
-    logger.info("Saved BBVI training history to {}.".format(out_path))
+    logger.info("Saved ADVI training history to {}.".format(out_path))
 
 
-def plot_bbvi_posterior(times: List[float],
-                        population: Population,
-                        posterior: AbstractPosterior,
-                        plot_path: Path,
-                        samples_path: Path,
-                        plot_format: str,
-                        ground_truth_path: Optional[Path] = None,
-                        draw_legend: bool = False,
-                        num_samples: int = 10000,
-                        width: int = 16,
-                        height: int = 10,
-                        title: str = "Posterior relative abundances"):
+def plot_vi_posterior(times: List[float],
+                      population: Population,
+                      posterior: AbstractPosterior,
+                      plot_path: Path,
+                      samples_path: Path,
+                      plot_format: str,
+                      ground_truth_path: Optional[Path] = None,
+                      draw_legend: bool = False,
+                      num_samples: int = 10000,
+                      width: int = 16,
+                      height: int = 10,
+                      title: str = "Posterior relative abundances"):
     logger.info("Generating plot of posterior.")
 
     # Generate and save posterior samples.
-    samples = posterior.sample(num_samples)
+    samples = posterior.sample(num_samples).detach().cpu()
     torch.save(samples, samples_path)
     logger.info("Posterior samples saved to {}. [{}]".format(
         samples_path,
@@ -121,32 +122,3 @@ def plot_bbvi_posterior(times: List[float],
     )
 
     logger.info("Posterior abundance plot saved to {}.".format(plot_path))
-
-
-def save_frag_probabilities(
-        reads: TimeSeriesReads,
-        solver: BBVISolverV2,
-        out_path: Path
-):
-    df_entries = []
-    for t_idx, reads_t in enumerate(reads):
-        # Some reads got trimmed, take that into account by asking data_likelihoods about what the "true" index is.
-        for r_idx, read in reads_t:
-            for fragment, frag_prob in solver.fragment_posterior.top_fragments(t_idx, r_idx, top=5):
-                if frag_prob < 0.05:
-                    continue
-                df_entries.append({
-                    "time_idx": t_idx,
-                    "read_idx": r_idx,
-                    "read_id": read.id,
-                    "frag_seq": fragment.nucleotide_content(),
-                    "frag_prob": frag_prob,
-                    "frag_metadata": fragment.metadata,
-                })
-
-    import pandas as pd
-    pd.DataFrame(df_entries).set_index(["time_idx", "read_idx"]).to_csv(str(out_path), mode="w")
-    logger.info("Saved read-to-fragment likelihoods to {} [{}].".format(
-        out_path,
-        filesystem.convert_size(out_path.stat().st_size)
-    ))

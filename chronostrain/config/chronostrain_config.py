@@ -81,7 +81,7 @@ class DatabaseConfig(AbstractConfig):
             for key, value in database_kwargs.items()
         }
         self.class_name: str = self.get_str("DB_CLASS")
-        self.data_dir: Path = self.get_path("DATA_DIR")
+        self.data_dir: Path = self.get_path("DB_DATA_DIR")
         self.data_dir.mkdir(parents=True, exist_ok=True)
 
     def get_database(self, force_refresh: bool = False, **kwargs) -> "chronostrain.database.StrainDatabase":
@@ -117,6 +117,7 @@ class ModelConfig(AbstractConfig):
         self.use_sparse: bool = self.get_bool("SPARSE_MATRICES")
         self.frag_len_negbin_n: float = self.get_float("FRAG_LEN_NB_N")
         self.frag_len_negbin_p: float = self.get_float("FRAG_LEN_NB_P")
+        self.min_overlap_ratio: float = self.get_float("MIN_OVERLAP_RATIO")
 
 
 class TorchConfig(AbstractConfig):
@@ -136,9 +137,6 @@ class TorchConfig(AbstractConfig):
         "int64": torch.int64,
         "short": torch.short,
         "long": torch.long,
-        "complex32": torch.complex32,
-        "complex64": torch.complex64,
-        "complex128": torch.complex128,
         "cfloat": torch.cfloat,
         "cdouble": torch.cdouble,
         "quint8": torch.quint8,

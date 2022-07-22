@@ -10,11 +10,11 @@ from chronostrain.model import Fragment, Marker, SequenceRead, AbstractMarkerVar
 from chronostrain.util.alignments.multiple import MarkerMultipleFragmentAlignment
 from chronostrain.util.filesystem import convert_size
 from chronostrain.util.math import *
-from chronostrain.util.sparse import SparseMatrix, ColumnSectionedSparseMatrix, RowSectionedSparseMatrix
+from chronostrain.util.sparse import SparseMatrix, ColumnSectionedSparseMatrix
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.config import cfg
 from chronostrain.model.generative import GenerativeModel
-from chronostrain.util.sparse.sliceable import BBVIOptimizedSparseMatrix
+from chronostrain.util.sparse.sliceable import ADVIOptimizedSparseMatrix, RowSectionedSparseMatrix
 
 from .base import DataLikelihoods, AbstractLogLikelihoodComputer
 from ..alignments import CachedReadMultipleAlignments, CachedReadPairwiseAlignments
@@ -31,7 +31,6 @@ class SparseDataLikelihoods(DataLikelihoods):
             model: GenerativeModel,
             data: TimeSeriesReads,
             db: StrainDatabase,
-            frag_chunk_size: int = 5000,
             read_likelihood_lower_bound: float = 1e-30,
             num_cores: int = 1
     ):
@@ -43,13 +42,13 @@ class SparseDataLikelihoods(DataLikelihoods):
 
         # Delete empty rows (Fragments)
         for t_idx in range(self.model.num_times()):
-            F = self.matrices[t_idx].size()[0]
+            F, R = self.matrices[t_idx].size()
             row_support = self.matrices[t_idx].indices[0, :].unique(
                 sorted=True, return_inverse=False, return_counts=False
             )
             _F = len(row_support)
-            logger.debug("(t = {}) # of supported fragments: {} out of {} ({:.2e})".format(
-                t_idx, _F, F, _F / F
+            logger.debug("(t = {}) # of supported fragments: {} out of {} ({:.2e}) ({} reads)".format(
+                t_idx, _F, F, _F / F, len(data[t_idx])
             ))
 
             _support_indices = torch.tensor([
@@ -65,14 +64,21 @@ class SparseDataLikelihoods(DataLikelihoods):
                 dims=(_F, F)
             )
 
-            self.matrices[t_idx] = BBVIOptimizedSparseMatrix.optimize_from_sparse_matrix(
-                projector.sparse_mul(self.matrices[t_idx]),
-                row_chunk_size=frag_chunk_size
+            projected_indices = torch.stack([
+                torch.bucketize(self.matrices[t_idx].indices[0], row_support),
+                self.matrices[t_idx].indices[1]
+            ])  # Simply call bucketize() to project, faster than multiplying by the projector matrix.
+
+            self.matrices[t_idx] = RowSectionedSparseMatrix(
+                indices=projected_indices,
+                values=self.matrices[t_idx].values,
+                dims=(_F, R)
             )
+
             self.projectors.append(projector)
             self.supported_frags.append(row_support)
 
-    def sparse_matrices(self) -> Iterator[BBVIOptimizedSparseMatrix]:
+    def sparse_matrices(self) -> Iterator[ADVIOptimizedSparseMatrix]:
         yield from self.matrices
 
     def _likelihood_computer(self) -> AbstractLogLikelihoodComputer:
@@ -144,8 +150,8 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         # Now we provide a default one which uses multiple alignment.
         # See _compute_read_frag_alignments_pairwise for the defunct implementation.
 
-        return self._compute_read_frag_alignments_multiple(t_idx)
-        # return self._compute_read_frag_alignments_pairwise(t_idx)
+        # return self._compute_read_frag_alignments_multiple(t_idx)
+        return self._compute_read_frag_alignments_pairwise(t_idx)
 
     def read_frag_ll(self,
                      frag: Fragment,
@@ -170,89 +176,56 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         )
         return forward_ll - np.log(2)
 
-    # def _compute_read_frag_alignments_pairwise(self, t_idx: int) -> Dict[str, List[Tuple[Fragment, float]]]:
-    #     """
-    #     Iterate through the timepoint's SamHandler instances (if the reads of t_idx came from more than one path).
-    #     Each of these SamHandlers provides alignment information.
-    #     :param t_idx: the timepoint index to use.
-    #     :return: A defaultdict representing the map
-    #         (Read ID) -> {Fragments that the read aligns to}, {Frag->Read log likelihood}
-    #     """
-    #     read_to_fragments: Dict[str, List[Tuple[Fragment, float]]] = defaultdict(list)
-    #
-    #     """
-    #     Overall philosophy of this method: Keep things as simple as possible!
-    #     Assume that indels have either been taken care of, either by passing in:
-    #         1) appropriate MarkerVariant instances into the population, or
-    #         2) include a complete reference cohort of Markers into the reference db
-    #         (but this is infeasible, as it requires knowing the ground truth on real data!)
-    #
-    #     In particular, this means that we don't have to worry about indels.
-    #     """
-    #     logger.warning("_compute_read_frag_alignments_pairwise: Treating hard clipped reads the same as "
-    #                    "soft clipped reads. (Developer note: keep an eye on this)")
-    #     for base_marker, alns in self.pairwise_reference_alignments.alignments_by_marker_and_timepoint(t_idx).items():
-    #         for aln in alns:
-    #             if aln.is_edge_mapped or aln.is_clipped:
-    #                 logger.debug(f"Ignoring alignment of read {aln.read.id} to marker {aln.marker.id} "
-    #                              f"({aln.sam_path.name}, Line {aln.sam_line_no}), which is edge-mapped.")
-    #                 continue
-    #             # First, add the likelihood for the fragment for the aligned base marker.
-    #             if self.model.bacteria_pop.contains_marker(base_marker):
-    #                 marker_frag_seq = aln.marker_frag
-    #                 aln_insertion_locs = aln.read_insertion_locs()
-    #                 if aln.reverse_complemented:
-    #                     aln_insertion_locs = aln_insertion_locs[::-1]
-    #
-    #                 try:
-    #                     tgt_frag = self.model.fragments.get_fragment(marker_frag_seq)
-    #                     read_ll = self.read_frag_ll(
-    #                         frag=tgt_frag,
-    #                         read=aln.read,
-    #                         insertions=aln_insertion_locs,
-    #                         deletions=aln.marker_deletion_locs(),
-    #                         reverse_complemented=aln.reverse_complemented,
-    #                         start_clip=0,
-    #                         end_clip=0
-    #                     )
-    #                     read_to_fragments[aln.read.id].append((tgt_frag, read_ll))
-    #                 except KeyError:
-    #                     # Ignore these errors (see above note).
-    #                     pass
-    #
-    #             # Next, look up any variants of the base marker.
-    #             for variant in self.marker_variants_of(base_marker):
-    #                 v_marker_frag_seq, v_read_insertions, v_marker_deletions = variant.subseq_from_pairwise_aln(aln)
-    #                 if aln.read_start > 0 or aln.read_end < len(aln.read.seq) - 1:
-    #                     # Read only partially maps to marker (usually edge effect).
-    #                     logger.debug(
-    #                         f"Discarding alignment of read {aln.read.id} (length={len(aln.read.seq)}) "
-    #                         f"to marker {aln.marker.id}, alignment got clipped "
-    #                         f"(read_start = {aln.read_start}, read_end = {aln.read_end})"
-    #                     )
-    #                     continue
-    #
-    #                 variant_frag = self.model.fragments.get_fragment(v_marker_frag_seq)
-    #                 if aln.reverse_complemented:
-    #                     v_read_insertions = v_read_insertions[::-1]
-    #                 try:
-    #                     read_ll = self.read_frag_ll(
-    #                         read=aln.read,
-    #                         frag=variant_frag,
-    #                         insertions=v_read_insertions,
-    #                         deletions=v_marker_deletions,
-    #                         reverse_complemented=aln.reverse_complemented,
-    #                         start_clip=0,
-    #                         end_clip=0
-    #                     )
-    #                     read_to_fragments[aln.read.id].append((variant_frag, read_ll))
-    #                 except KeyError:
-    #                     logger.debug(
-    #                         f"Line {aln.sam_line_no} points to Read `{aln.read.id}`, "
-    #                         f"but encountered KeyError. (Sam = {aln.sam_path})"
-    #                     )
-    #                     raise
-    #     return read_to_fragments
+    def _compute_read_frag_alignments_pairwise(self, t_idx: int) -> Dict[str, List[Tuple[Fragment, float]]]:
+        """
+        Iterate through the timepoint's SamHandler instances (if the reads of t_idx came from more than one path).
+        Each of these SamHandlers provides alignment information.
+        :param t_idx: the timepoint index to use.
+        :return: A defaultdict representing the map
+            (Read ID) -> {Fragments that the read aligns to}, {Frag->Read log likelihood}
+        """
+        read_to_frag_likelihoods: Dict[str, List[Tuple[Fragment, float]]] = defaultdict(list)
+
+        """
+        Does NOT handle alignment of indels to indels! (e.g. for marker variant construction). By definition, 
+        that requires multiple alignment.
+        """
+        ll_threshold = -500
+        included_pairs: Set[str] = set()
+        def add_subseq_likelihood(subseq, read, insertions, deletions, revcomp, start_clip: int, end_clip: int):
+            frag = self.model.fragments.get_fragment(subseq)
+
+            pair_identifier = f"{read.id}->{frag.index}"
+            if pair_identifier in included_pairs:
+                return
+            else:
+                included_pairs.add(pair_identifier)
+
+            ll = self.read_frag_ll(
+                frag,
+                read,
+                insertions, deletions,
+                reverse_complemented=revcomp,
+                start_clip=start_clip,
+                end_clip=end_clip
+            )
+
+            if ll < ll_threshold:
+                return
+            read_to_frag_likelihoods[read.id].append((frag, ll))
+
+        for aln in self.pairwise_reference_alignments.alignments_by_timepoint(t_idx):
+            if self.model.bacteria_pop.contains_marker(aln.marker):
+                add_subseq_likelihood(
+                    aln.marker_frag,
+                    aln.read,
+                    aln.read_insertion_locs(),
+                    aln.marker_deletion_locs(),
+                    aln.reverse_complemented,
+                    aln.soft_clip_start + aln.hard_clip_start,
+                    aln.soft_clip_end + aln.hard_clip_end
+                )
+        return read_to_frag_likelihoods
 
     def _compute_read_frag_alignments_multiple(self, t_idx: int) -> Dict[str, List[Tuple[Fragment, float]]]:
         """

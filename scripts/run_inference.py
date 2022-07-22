@@ -59,11 +59,9 @@ def parse_args():
                         help='<Optional> If using a variational method, specify the number of '
                              'samples to generate as output.')
     parser.add_argument('--plot_elbo', action="store_true",
-                        help='If flag is set, then outputs plots of the ELBO history (if using BBVI).')
+                        help='If flag is set, then outputs plots of the ELBO history (if using ADVI).')
     parser.add_argument('--draw_training_history', action="store_true",
-                        help='If flag is set, then outputs an animation of the BBVI training history.')
-    parser.add_argument('--save_fragment_probs', action="store_true",
-                        help='If flag is set, then save posterior fragment probabilities for valid reads.')
+                        help='If flag is set, then outputs an animation of the ADVI training history.')
     parser.add_argument('--plot_format', required=False, type=str, default="pdf")
     parser.add_argument('--print_debug_every', required=False, type=int, default=50)
 
@@ -97,7 +95,7 @@ def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase) -> Fragm
 
 
 def main():
-    raise NotImplementedError("This script is deprecated. Use run_bbvi.py instead.")
+    raise NotImplementedError("This script is deprecated. Use run_advi.py instead.")
     logger.info("Pipeline for inference started.")
     args = parse_args()
     initialize_seed(args.seed)
@@ -161,7 +159,7 @@ def main():
         )
     elif args.method == 'bbvi':
         logger.info("Solving using Black-Box Variational Inference.")
-        solver, posterior, elbo_history, (uppers, lowers, medians) = perform_bbvi(
+        solver, posterior, elbo_history, (uppers, lowers, medians) = perform_advi(
             db=db,
             model=model,
             reads=reads,
@@ -192,15 +190,8 @@ def main():
                 medians=medians
             )
 
-        if args.save_fragment_probs:
-            viz.save_frag_probabilities(
-                reads=reads,
-                solver=solver,
-                out_path=out_dir / "reads_to_frags.csv"
-            )
-
         # ==== Finally, plot the posterior.
-        viz.plot_bbvi_posterior(
+        viz.plot_vi_posterior(
             times=model.times,
             population=model.bacteria_pop,
             posterior=posterior,

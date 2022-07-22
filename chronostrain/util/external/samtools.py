@@ -22,7 +22,8 @@ def sam_to_bam(
     params = [
         'view',
         '-S',
-        '-b', sam_path,
+        '-b',
+        sam_path,
         '-o', output_path
     ]
 
@@ -52,3 +53,14 @@ def merge(
     ]
 
     return _samtools(params + bam_paths)
+
+
+def sam_mapped_only(sam_path: Path, output_path: Path):
+    params = [
+        'view',
+        '-F', 4,
+        sam_path,
+        '-o', output_path
+    ]
+
+    return _samtools(params)

@@ -28,7 +28,7 @@ class MakeDirTimedRotatingFileHandler(logging.handlers.TimedRotatingFileHandler)
     """
     def __init__(self,
                  filename,
-                 when='h',
+                 when='D',
                  interval=1,
                  backupCount=0,
                  encoding=None,

@@ -1,21 +1,24 @@
 import csv
 from pathlib import Path
+import re
 
 import numpy as np
 from Bio import SeqIO
 from Bio.Seq import Seq
 
 from chronostrain.database import StrainDatabase
+from chronostrain.model.io import parse_read_type
 from chronostrain.util.alignments.sam import SamFile
 from chronostrain.util.external import call_command
-from chronostrain.util.alignments.pairwise import parse_alignments, BowtieAligner, SequenceReadPairwiseAlignment
+from chronostrain.util.alignments.pairwise import parse_alignments, BwaAligner, BowtieAligner, SequenceReadPairwiseAlignment
 from chronostrain.config import cfg, create_logger
+from chronostrain.util.sequences import nucleotide_GAP_z4
 
 logger = create_logger("chronostrain.filter")
 
 
 def remove_suffixes(p: Path) -> Path:
-    while len(p.suffix) > 0:
+    while re.search(r'(\.zip)|(\.gz)|(\.bz2)|(\.fastq)|(\.fq)|(\.fasta)', p.suffix) is not None:
         p = p.with_suffix('')
     return p
 
@@ -24,9 +27,9 @@ class Filter(object):
     def __init__(self,
                  db: StrainDatabase,
                  min_read_len: int,
-                 pct_identity_threshold: float,
-                 error_threshold: float,
-                 clip_fraction: float = 0.25,
+                 frac_identity_threshold: float,
+                 error_threshold: float = 1.0,
+                 min_hit_ratio: float = 0.5,
                  num_threads: int = 1):
         self.db = db
 
@@ -38,29 +41,76 @@ class Filter(object):
             self.reference_path = self.db.multifasta_file
 
         self.min_read_len = min_read_len
-        self.pct_identity_threshold = pct_identity_threshold
+        self.frac_identity_threshold = frac_identity_threshold
         self.error_threshold = error_threshold
-        self.clip_fraction = clip_fraction
+        self.min_hit_ratio = min_hit_ratio
         self.num_threads = num_threads
 
-    def apply(self, read_file: Path, out_path: Path, quality_format: str = 'fastq'):
+    def apply(self, read_file: Path, out_path: Path, read_type: str, quality_format: str = 'fastq'):
         out_path.parent.mkdir(parents=True, exist_ok=True)
         aligner_tmp_dir = out_path.parent / "tmp"
         aligner_tmp_dir.mkdir(exist_ok=True)
 
-        logger.info(f"Applying filter to {str(read_file)}")
         metadata_path = out_path.parent / f"{remove_suffixes(read_file).name}.metadata.tsv"
         sam_path = aligner_tmp_dir / f"{remove_suffixes(read_file).name}.sam"
 
-        BowtieAligner(
-            reference_path=self.reference_path,
-            index_basepath=self.reference_path.parent,
-            index_basename="markers",
-            num_threads=cfg.model_cfg.num_cores
-        ).align(query_path=read_file, output_path=sam_path)
-        self._apply_helper(sam_path, metadata_path, out_path, quality_format)
+        if read_type == "paired_1":
+            read_type = parse_read_type(read_type)
+            insertion_ll = cfg.model_cfg.get_float("INSERTION_LL_1")
+            deletion_ll = cfg.model_cfg.get_float("DELETION_LL_1")
+        elif read_type == "paired_2":
+            read_type = parse_read_type(read_type)
+            insertion_ll = cfg.model_cfg.get_float("INSERTION_LL_2")
+            deletion_ll = cfg.model_cfg.get_float("DELETION_LL_2")
+        elif read_type == "single":
+            read_type = parse_read_type(read_type)
+            insertion_ll = cfg.model_cfg.get_float("INSERTION_LL")
+            deletion_ll = cfg.model_cfg.get_float("DELETION_LL")
+        else:
+            raise ValueError(f"Unrecognized read type `{read_type}`.")
 
-        aligner_tmp_dir.rmdir()
+        BwaAligner(
+            reference_path=self.db.multifasta_file,
+            min_seed_len=15,
+            reseed_ratio=0.5,  # default; smaller = slower but more alignments.
+            bandwidth=10,
+            num_threads=self.num_threads,
+            report_all_alignments=False,
+            match_score=2,  # log likelihood ratio log_2(4p)
+            mismatch_penalty=5,  # Assume quality score of 20, log likelihood ratio log_2(4 * error * <3/4>)
+            off_diag_dropoff=100,  # default
+            gap_open_penalty=(0, 0),
+            gap_extend_penalty=(
+                int(-deletion_ll / np.log(2)),
+                int(-insertion_ll / np.log(2))
+            ),
+            clip_penalty=5,
+            score_threshold=50,
+            bwa_command='bwa-mem2'
+        ).align(query_path=read_file, output_path=sam_path, read_type=read_type)
+
+        # from chronostrain.util.external import bt2_func_constant
+        # BowtieAligner(
+        #     reference_path=self.db.multifasta_file,
+        #     index_basepath=self.db.multifasta_file.parent,
+        #     index_basename=self.db.multifasta_file.stem,
+        #     num_threads=self.num_threads,
+        #     report_all_alignments=False,
+        #     num_report_alignments=3,
+        #     num_reseeds=4,
+        #     score_min_fn=bt2_func_constant(const=50),
+        #     score_match_bonus=2,
+        #     score_mismatch_penalty=np.floor(
+        #         [5, 0]
+        #     ).astype(int),
+        #     score_read_gap_penalty=np.floor(
+        #         [0, int(-deletion_ll / np.log(2))]
+        #     ).astype(int),
+        #     score_ref_gap_penalty=np.floor(
+        #         [0, int(-insertion_ll / np.log(2))]
+        #     ).astype(int)
+        # ).align(query_path=read_file, output_path=sam_path, read_type=read_type)
+        self._apply_helper(sam_path, metadata_path, out_path, quality_format)
 
     def _apply_helper(
             self,
@@ -87,30 +137,46 @@ class Filter(object):
                 "IS_EDGE_MAPPED",
                 "READ_LEN",
                 "N_MISMATCHES",
-                "PCT_ID_ADJ"
+                "PCT_ID",
+                "EXP_ERRORS",
+                "START_CLIP",
+                "END_CLIP"
             ]
         )
 
         result_fq = open(result_fq_path, 'w')
         reads_already_passed = set()
 
-        logger.info(f"Reading: {sam_path.name}")
+        logger.debug(f"Reading: {sam_path.name}")
         for aln in parse_alignments(
-                SamFile(sam_path, quality_format), self.db
+                SamFile(sam_path, quality_format),
+                self.db,
+                reattach_clipped_bases=True,
+                min_hit_ratio=self.min_hit_ratio
         ):
             if aln.read.id in reads_already_passed:
                 # Read is already included in output file. Don't do anything.
                 continue
 
-            # Pass filter if quality is high enough, and entire read is mapped.
-            filter_edge_clip = self.filter_on_edge_clip(aln)
-            percent_identity_adjusted = self.adjusted_match_identity(aln)
+            # Pass filter if quality is high enough, and
+            # enough of the bases are mapped (if read maps to the edge of a marker).
+            filter_edge_clip = self.filter_on_ungapped_bases(aln)
+            frac_identity = aln.num_matches / len(aln.read)
+            aln_frac_identity = aln.num_matches / aln.aln_matrix.shape[1]
+            n_exp_errors = self.num_expected_errors(aln)
 
             passed_filter = (
-                    filter_edge_clip
-                    and len(aln.read) > self.min_read_len
-                    and percent_identity_adjusted > self.pct_identity_threshold
-                    and self.num_expected_errors(aln) < self.error_threshold
+                not aln.is_edge_mapped
+                and filter_edge_clip
+                and len(aln.read) > self.min_read_len
+                and frac_identity > self.frac_identity_threshold
+                and n_exp_errors < (self.error_threshold * len(aln.read))
+            ) or (
+                aln.is_edge_mapped
+                and filter_edge_clip
+                and len(aln.read) > self.min_read_len
+                and aln_frac_identity > self.frac_identity_threshold
+                and n_exp_errors < (self.error_threshold * len(aln.read))
             )
 
             # Write to metadata file.
@@ -125,7 +191,10 @@ class Filter(object):
                     int(aln.is_edge_mapped),
                     len(aln.read),
                     aln.num_mismatches,
-                    percent_identity_adjusted
+                    frac_identity * 100.0,
+                    n_exp_errors,
+                    aln.soft_clip_start + aln.hard_clip_start,
+                    aln.soft_clip_end + aln.hard_clip_end
                 ]
             )
 
@@ -141,54 +210,29 @@ class Filter(object):
                 )
                 record.letter_annotations["phred_quality"] = aln.read.quality
                 SeqIO.write(record, result_fq, "fastq")
-        logger.info(f"# passed reads: {len(reads_already_passed)}")
+        logger.debug(f"# passed reads: {len(reads_already_passed)}")
         result_metadata.close()
         result_fq.close()
 
-    def filter_on_edge_clip(self, aln: SequenceReadPairwiseAlignment):
-        if aln.is_edge_mapped:
-            # Fail if start and end are both soft clipped.
-            if (aln.soft_clip_start > 0 or aln.hard_clip_start > 0) and (
-                    aln.soft_clip_end > 0 or aln.hard_clip_end > 0):
-                return False
-
-            if aln.soft_clip_start > 0 or aln.hard_clip_start > 0:
-                return (
-                        (aln.soft_clip_start / len(aln.read)) < self.clip_fraction
-                        and (aln.hard_clip_start / len(aln.read)) < self.clip_fraction
-                )
-
-            if aln.soft_clip_end > 0 or aln.hard_clip_end > 0:
-                return (
-                        (aln.soft_clip_end / len(aln.read)) < self.clip_fraction
-                        and (aln.hard_clip_end / len(aln.read)) < self.clip_fraction
-                )
-        else:
-            return True
-
-    def adjusted_match_identity(self, aln: SequenceReadPairwiseAlignment):
-        """
-        Applies a filtering criteria for reads that continue in the pipeline.
-        Currently a simple threshold on percent identity, likely should be adjusted to maximize downstream sensitivity?
-        """
-        if aln.num_aligned_bases is None:
-            raise ValueError(f"Unknown num_aligned_bases from alignment of read `{aln.read.id}`")
-        if aln.num_mismatches is None:
-            raise ValueError(f"Unknown num_mismatches from alignment of read `{aln.read.id}`")
-
-        n_expected_errors = self.num_expected_errors(aln)
-        adjusted_pct_identity = self.clip_between(
-            1.0 - ((aln.num_mismatches - n_expected_errors) / (aln.num_aligned_bases - n_expected_errors)),
-            lower=0.0,
-            upper=1.0,
-        )
-
-        return adjusted_pct_identity
+    def filter_on_ungapped_bases(self, aln: SequenceReadPairwiseAlignment):
+        return np.sum(aln.aln_matrix[1] != nucleotide_GAP_z4) / len(aln.read) > self.min_hit_ratio
 
     @staticmethod
     def num_expected_errors(aln: SequenceReadPairwiseAlignment):
+        read_qual = aln.read.quality
+        if aln.reverse_complemented:
+            read_qual = read_qual[::-1]
+
+        read_start_clip = aln.soft_clip_start + aln.hard_clip_start
+        read_end_clip = aln.hard_clip_end + aln.soft_clip_end
+        _slice = slice(read_start_clip, len(read_qual) - read_end_clip)
+
+        marker_aln, read_aln = aln.aln_matrix[0], aln.aln_matrix[1]
+        insertion_locs = np.equal(marker_aln, nucleotide_GAP_z4)[read_aln != nucleotide_GAP_z4]
+        read_qual = read_qual[_slice][~insertion_locs]
+
         return np.sum(
-            np.power(10, -0.1 * aln.read.quality)
+            np.power(10, -0.1 * read_qual)
         )
 
     @staticmethod
