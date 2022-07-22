@@ -75,8 +75,8 @@ echo "[*] Running alignment..."
 bowtie2 \
 --very-fast --no-unal --quiet \
 -x ${STRAINEST_DB_DIR}/clustered/${STRAINEST_BT2_DB} \
--1 ${reads_1} \
--2 ${reads_2} \
+-U ${reads_1} \
+-U ${reads_2} \
 -S ${sam_file}
 
 # Invoke samtools
