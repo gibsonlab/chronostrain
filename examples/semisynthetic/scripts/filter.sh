@@ -22,11 +22,18 @@ fi
 trial_dir=$(get_trial_dir $n_reads $trial)
 read_dir=${trial_dir}/reads
 output_dir=${trial_dir}/output/chronostrain
+runtime_file=${trial_dir}/output/chronostrain_filter_runtime.txt
 
 mkdir -p $output_dir
 mkdir -p $read_dir
 export CHRONOSTRAIN_LOG_FILEPATH="${output_dir}/filter.log"
 export CHRONOSTRAIN_CACHE_DIR="${trial_dir}/cache"
+
+
+if [[ -f $runtime_file ]]; then
+	echo "[*] Skipping StrainGST run (n_reads: ${n_reads}, trial: ${trial}, timepoint #${time_point})"
+	exit 0
+fi
 
 
 echo "[*] Preparing input for n_reads: ${n_reads}, trial: ${trial}"
@@ -58,5 +65,4 @@ python $PROJECT_DIR/scripts/filter_timeseries.py \
 end_time=$(date +%s%N)
 elapsed_time=$(( $(($end_time-$start_time)) / 1000000 ))
 mkdir -p ${trial_dir}/output
-runtime_file=${trial_dir}/output/chronostrain_filter_runtime.txt
 echo "${elapsed_time}" > $runtime_file
