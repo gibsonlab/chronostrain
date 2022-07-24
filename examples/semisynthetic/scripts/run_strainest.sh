@@ -41,9 +41,16 @@ fi
 trial_dir=$(get_trial_dir $n_reads $trial)
 read_dir=${trial_dir}/reads
 output_dir=${trial_dir}/output/strainest
+runtime_file=${trial_dir}/output/strainest_runtime.${sensitivity}.${time_point}.txt
 
 mkdir -p ${output_dir}
 cd ${output_dir}
+
+
+if [[ -f $runtime_file ]]; then
+	echo "[*] Skipping Filter (n_reads: ${n_reads}, trial: ${trial}, timepoint #${time_point})"
+	exit 0
+fi
 
 
 # ========== Run
@@ -93,7 +100,6 @@ fi
 # ====== Record runtime
 end_time=$(date +%s%N)
 elapsed_time=$(( $(($end_time-$start_time)) / 1000000 ))
-runtime_file=${trial_dir}/output/strainest_runtime.${sensitivity}.${time_point}.txt
 echo "${elapsed_time}" > $runtime_file
 
 # ========== Clean up
