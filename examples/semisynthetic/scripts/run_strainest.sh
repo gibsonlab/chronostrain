@@ -58,6 +58,7 @@ sorted_bam_file="reads_${time_point}.sorted.bam"
 echo "[*] Running alignment..."
 bowtie2 \
 --very-fast --no-unal --quiet \
+-p 1 \
 -x ${STRAINEST_DB_DIR}/clustered/${STRAINEST_BT2_DB} \
 -U ${read_dir}/${time_point}_sim_1.fq \
 -U ${read_dir}/${time_point}_sim_2.fq \
