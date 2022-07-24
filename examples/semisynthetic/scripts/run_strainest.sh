@@ -98,8 +98,6 @@ echo "${elapsed_time}" > $runtime_file
 
 # ========== Clean up
 echo "[*] Cleaning up..."
-rm ${reads_1}
-rm ${reads_2}
 rm ${sam_file}
 rm ${bam_file}
 rm ${sorted_bam_file}
