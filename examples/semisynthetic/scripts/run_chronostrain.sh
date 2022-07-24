@@ -22,6 +22,12 @@ fi
 trial_dir=$(get_trial_dir $n_reads $trial)
 read_dir=${trial_dir}/reads
 output_dir=${trial_dir}/output/chronostrain
+runtime_file=${trial_dir}/output/chronostrain_runtime.txt
+
+if [[ -f $runtime_file ]]; then
+	echo "[*] Skipping Chronostrain Inference (n_reads: ${n_reads}, trial: ${trial})"
+	exit 0
+fi
 
 mkdir -p $output_dir
 export CHRONOSTRAIN_CACHE_DIR="${trial_dir}/cache"
@@ -50,5 +56,4 @@ python $PROJECT_DIR/scripts/run_advi.py \
 # ====== Record runtime
 end_time=$(date +%s%N)
 elapsed_time=$(( $(($end_time-$start_time)) / 1000000 ))
-runtime_file=${trial_dir}/output/chronostrain_runtime.txt
 echo "${elapsed_time}" > $runtime_file

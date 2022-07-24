@@ -31,7 +31,7 @@ export CHRONOSTRAIN_CACHE_DIR="${trial_dir}/cache"
 
 
 if [[ -f $runtime_file ]]; then
-	echo "[*] Skipping Filter (n_reads: ${n_reads}, trial: ${trial}, timepoint #${time_point})"
+	echo "[*] Skipping Filter (n_reads: ${n_reads}, trial: ${trial})"
 	exit 0
 fi
 
