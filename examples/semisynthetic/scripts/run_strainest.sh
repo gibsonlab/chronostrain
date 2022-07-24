@@ -48,7 +48,7 @@ cd ${output_dir}
 
 
 if [[ -f $runtime_file ]]; then
-	echo "[*] Skipping Filter (n_reads: ${n_reads}, trial: ${trial}, timepoint #${time_point})"
+	echo "[*] Skipping StrainEst run (n_reads: ${n_reads}, trial: ${trial}, timepoint #${time_point})"
 	exit 0
 fi
 
