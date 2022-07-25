@@ -415,23 +415,17 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def evaluate_errors(index_df: pd.DataFrame,
-                    ground_truth: pd.DataFrame,
+def evaluate_errors(ground_truth: pd.DataFrame,
                     result_base_dir: Path,
                     chronostrain_db: StrainDatabase) -> pd.DataFrame:
-    strain_ids = list(pd.unique(
-        index_df.loc[
-            index_df['Species'] == 'coli',
-            'Accession'
-        ]
-    ))
+    strain_ids = list(pd.unique(ground_truth.loc[ground_truth['RelAbund'] > 0, 'Strain']))
+    truth_tensor = extract_ground_truth_array(ground_truth, strain_ids)
 
     def engraftment_clearance(pres: torch.Tensor) -> Tuple[float, float]:
         return engraftment_ratio(pres), clearance_ratio(pres)
 
     # search through all of the read depths.
     df_entries = []
-    truth_tensor = extract_ground_truth_array(ground_truth, strain_ids)
     for read_depth, read_depth_dir in read_depth_dirs(result_base_dir):
         for trial_num, trial_dir in trial_dirs(read_depth_dir):
             logger.info(f"Handling read depth {read_depth}, trial {trial_num}")
