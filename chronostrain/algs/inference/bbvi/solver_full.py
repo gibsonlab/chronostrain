@@ -10,7 +10,6 @@ import scipy
 import scipy.special, scipy.stats
 import torch
 from torch.distributions import Normal
-from tqdm import tqdm
 
 from chronostrain.database import StrainDatabase
 from chronostrain.model.generative import GenerativeModel
@@ -101,6 +100,8 @@ class ADVISolverFullPosterior(AbstractModelSolver):
         temp_dir.mkdir(exist_ok=True, parents=True)
         log_importance_weights = []
         num_batches = int(np.ceil(num_importance_samples / batch_size))
+
+        from tqdm import tqdm
         for batch_idx in tqdm(range(num_batches), desc="Batched sampling"):
             batch_start_idx = batch_idx * batch_size
             this_batch_sz = min(num_importance_samples - batch_start_idx, batch_size)
@@ -135,6 +136,7 @@ class ADVISolverFullPosterior(AbstractModelSolver):
         cov_estimate = np.zeros(shape=(gaussian_dim, gaussian_dim), dtype=np.float)
 
         batch_start_idx = 0
+        from tqdm import tqdm
         for batch_idx in tqdm(range(num_batches), desc="Importance sampling estimator"):
             # Load the batch
             samples = np.load(str(self.get_batch_path(batch_dir, batch_idx)))  # (N_batch) x (TS)
