@@ -126,6 +126,10 @@ def parse_chronostrain_estimate(db: StrainDatabase,
     for db_idx, strain_id in enumerate(db_strains):
         s_idx = strain_indices[strain_id]
         estimate[:, :, s_idx] = abundance_samples[:, :, db_idx]
+
+    # Renormalize.
+    sums = torch.sum(estimate, dim=-1, keepdim=True)
+    estimate = estimate / sums
     return estimate
 
 
@@ -186,6 +190,10 @@ def parse_straingst_estimate(
             for row in reader:
                 strain_id = row[1]
                 strain_id = strip_suffixes(strain_id)
+
+                if strain_id not in strain_indices:
+                    continue
+
                 strain_idx = strain_indices[strain_id]
                 rel_abund = float(row[11]) / 100.0
                 est_rel_abunds[t_idx][strain_idx] = rel_abund
