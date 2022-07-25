@@ -629,7 +629,6 @@ def main():
 
     logger.info("Evaluating error metrics.")
     summary_df = evaluate_errors(
-        index_df,
         ground_truth,
         result_base_dir,
         chronostrain_db
