@@ -124,6 +124,8 @@ def parse_chronostrain_estimate(db: StrainDatabase,
     estimate = torch.zeros(size=(len(time_points), n_samples, len(strain_ids)), dtype=torch.float, device=device)
     strain_indices = {sid: i for i, sid in enumerate(strain_ids)}
     for db_idx, strain_id in enumerate(db_strains):
+        if strain_id not in s_idx:
+            continue
         s_idx = strain_indices[strain_id]
         estimate[:, :, s_idx] = abundance_samples[:, :, db_idx]
 
