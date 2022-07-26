@@ -443,7 +443,7 @@ def evaluate_errors(ground_truth: pd.DataFrame,
             # =========== Chronostrain
             try:
                 chronostrain_estimate_samples = parse_chronostrain_estimate(chronostrain_db, ground_truth, strain_ids,
-                                                                            trial_dir / 'output' / 'chronostrain' / 'full_corr')
+                                                                            trial_dir / 'output' / 'chronostrain')
                 # errors = wasserstein_error(
                 #     chronostrain_estimate_samples[:, :30, :],
                 #     ground_truth, distances, strain_ids
