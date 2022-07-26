@@ -413,6 +413,7 @@ def plot_result(out_path: Path, truth_df: pd.DataFrame, samples: torch.Tensor, s
     else:
         raise RuntimeError(f"Can't plot samples of dimension {len(samples.shape)}")
     plt.savefig(out_path)
+    plt.close(fig)
 
 
 def parse_args() -> argparse.Namespace:
