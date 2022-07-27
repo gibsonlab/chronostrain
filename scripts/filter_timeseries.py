@@ -170,8 +170,8 @@ def main():
         frac_identity_threshold=args.frac_identity_threshold,
         error_threshold=args.error_threshold
     )
-    for t, read_depth, read_path, read_type, qual_fmt in load_from_csv(Path(args.reads_input)):
-        read_type = parse_read_type(read_type)
+    for t, read_depth, read_path, read_type_str, qual_fmt in load_from_csv(Path(args.reads_input)):
+        read_type = parse_read_type(read_type_str)
         logger.info(f"Applying filter to timepoint {t}, {str(read_path)}")
 
         aligner = create_aligner(args.aligner, read_type, db, args.num_threads)
@@ -180,7 +180,7 @@ def main():
         with open(target_csv_path, 'a') as target_csv:
             # Append to target CSV file.
             writer = csv.writer(target_csv, delimiter=',', quotechar='\"', quoting=csv.QUOTE_ALL)
-            writer.writerow([t, read_depth, str(out_path), read_type, qual_fmt])
+            writer.writerow([t, read_depth, str(out_path), read_type_str, qual_fmt])
 
     logger.info("Finished filtering.")
 
