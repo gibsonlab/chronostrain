@@ -23,10 +23,16 @@ trial_dir=$(get_trial_dir $n_reads $trial)
 read_dir=${trial_dir}/reads
 output_dir=${trial_dir}/output/chronostrain
 runtime_file=${trial_dir}/output/chronostrain_runtime.txt
+filter_file=${trial_dir}/output/chronostrain_filter_runtime.txt
 
-if [[ -f $runtime_file ]]; then
+if [ -f $runtime_file ]; then
 	echo "[*] Skipping Chronostrain Inference (n_reads: ${n_reads}, trial: ${trial})"
 	exit 0
+fi
+
+if [ ! -f $filter_file ]; then
+	echo "[*] Filtered result not found."
+	exit 1
 fi
 
 mkdir -p $output_dir
