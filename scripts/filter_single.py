@@ -80,7 +80,7 @@ def create_aligner(aligner_type: str, read_type: ReadType, db: StrainDatabase) -
             score_threshold=50,
             bwa_command='bwa-mem2'
         )
-    else:
+    elif aligner_type == 'bowtie2':
         from chronostrain.util.external import bt2_func_constant
         return BowtieAligner(
             reference_path=db.multifasta_file,
@@ -104,6 +104,8 @@ def create_aligner(aligner_type: str, read_type: ReadType, db: StrainDatabase) -
                 [0, int(-insertion_ll / np.log(2))]
             ).astype(int)
         )
+    else:
+        raise ValueError(f"Unrecognized aligner `{aligner_type}`")
 
 
 def main():

@@ -59,7 +59,8 @@ python $PROJECT_DIR/scripts/filter_timeseries.py \
 -o "${output_dir}/filtered/" \
 --frac_identity_threshold 0.975 \
 --error_threshold 1.0 \
---num_threads $N_CORES
+--num_threads $N_CORES \
+--aligner bowtie2
 
 # ====== Record runtime
 end_time=$(date +%s%N)
