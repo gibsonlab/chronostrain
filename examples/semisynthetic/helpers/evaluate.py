@@ -128,10 +128,6 @@ def parse_chronostrain_estimate(db: StrainDatabase,
             continue
         s_idx = strain_indices[strain_id]
         estimate[:, :, s_idx] = abundance_samples[:, :, db_idx]
-
-    # Renormalize.
-    sums = torch.sum(estimate, dim=-1, keepdim=True)
-    estimate = estimate / sums
     return estimate
 
 
@@ -160,13 +156,6 @@ def parse_strainest_estimate(ground_truth: pd.DataFrame,
                     est_rel_abunds[t_idx][strain_idx] = abund
                 except KeyError as e:
                     continue
-
-    # Renormalize.
-    row_sum = torch.sum(est_rel_abunds, dim=1, keepdim=True)
-    support = torch.where(row_sum > 0)[0]
-    zeros = torch.where(row_sum == 0)[0]
-    est_rel_abunds[support, :] = est_rel_abunds[support, :] / row_sum[support]
-    est_rel_abunds[zeros, :] = 1 / len(strain_ids)
     return est_rel_abunds
 
 
@@ -199,13 +188,6 @@ def parse_straingst_estimate(
                 strain_idx = strain_indices[strain_id]
                 rel_abund = float(row[11]) / 100.0
                 est_rel_abunds[t_idx][strain_idx] = rel_abund
-
-    # Renormalize.
-    row_sum = torch.sum(est_rel_abunds, dim=1, keepdim=True)
-    support = torch.where(row_sum > 0)[0]
-    zeros = torch.where(row_sum == 0)[0]
-    est_rel_abunds[support, :] = est_rel_abunds[support, :] / row_sum[support]
-    est_rel_abunds[zeros, :] = 1 / len(strain_ids)
     return est_rel_abunds
 
 
@@ -263,11 +245,19 @@ def extract_ground_truth_array(truth_df: pd.DataFrame, strain_ids: List[str]) ->
 
 def error_metric(abundance_est: torch.Tensor, truth: torch.Tensor) -> float:
     assert len(abundance_est.shape) == 2
+    est = torch.clone(abundance_est)
 
-    _T = abundance_est.shape[0]
-    _S = abundance_est.shape[1]
+    # Renormalize.
+    row_sum = torch.sum(est, dim=1, keepdim=True)
+    support = torch.where(row_sum > 0)[0]
+    zeros = torch.where(row_sum == 0)[0]
+    est[support, :] = est[support, :] / row_sum[support]
+    est[zeros, :] = 1 / est.shape[1]  # rows with all zeros: set to uniform.
 
-    l1_error = torch.sum(torch.abs(truth - abundance_est))
+    _T = est.shape[0]
+    _S = est.shape[1]
+
+    l1_error = torch.sum(torch.abs(truth - est))
     return l1_error.item()
 
 
