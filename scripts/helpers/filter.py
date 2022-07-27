@@ -52,13 +52,12 @@ class Filter(object):
 
         metadata_path = out_path.parent / f"{remove_suffixes(read_file).name}.metadata.tsv"
         sam_path = aligner_tmp_dir / f"{remove_suffixes(read_file).name}.sam"
-        self._apply_helper(sam_path, metadata_path, out_path, quality_format)
-
         aligner.align(
             query_path=read_file,
             output_path=sam_path,
             read_type=read_type
         )
+        self._apply_helper(sam_path, metadata_path, out_path, quality_format)
 
     def _apply_helper(
             self,
