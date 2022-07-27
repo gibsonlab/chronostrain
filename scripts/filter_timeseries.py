@@ -3,8 +3,12 @@ import csv
 import re
 from pathlib import Path
 from typing import List, Tuple
+import numpy as np
 
 from chronostrain import create_logger, cfg
+from chronostrain.database import StrainDatabase
+from chronostrain.model.io import ReadType, parse_read_type
+from chronostrain.util.alignments.pairwise import BwaAligner, BowtieAligner, AbstractPairwiseAligner
 from helpers.filter import Filter
 
 logger = create_logger("chronostrain.filter_timeseries")
@@ -25,6 +29,9 @@ def parse_args():
     parser.add_argument('-o', '--out_dir', required=True, type=str,
                         help='<Required> The file path to save filtered output fastq files.')
 
+    parser.add_argument('--aligner', required=False, type=str,
+                        default='bwa',
+                        help='<Optional> Specify the aligner to use. (Options: bwa, bowtie2) (Default: bwa)')
     parser.add_argument('-ro', '--reads_output_filename', required=False, type=str,
                         default='',
                         help='<Optional> The filename of the target CSV file. If not specified, will default to'
@@ -77,6 +84,65 @@ def load_from_csv(csv_path: Path) -> List[Tuple[float, int, Path, str, str]]:
     return time_points
 
 
+def create_aligner(aligner_type: str, read_type: ReadType, db: StrainDatabase) -> AbstractPairwiseAligner:
+    if read_type == ReadType.PAIRED_END_1:
+        insertion_ll = cfg.model_cfg.get_float("INSERTION_LL_1")
+        deletion_ll = cfg.model_cfg.get_float("DELETION_LL_1")
+    elif read_type == ReadType.PAIRED_END_2:
+        insertion_ll = cfg.model_cfg.get_float("INSERTION_LL_2")
+        deletion_ll = cfg.model_cfg.get_float("DELETION_LL_2")
+    elif read_type == ReadType.SINGLE_END:
+        insertion_ll = cfg.model_cfg.get_float("INSERTION_LL")
+        deletion_ll = cfg.model_cfg.get_float("DELETION_LL")
+    else:
+        raise ValueError(f"Unrecognized read type `{read_type}`.")
+
+    if aligner_type == 'bwa':
+        return BwaAligner(
+            reference_path=db.multifasta_file,
+            min_seed_len=15,
+            reseed_ratio=0.5,  # default; smaller = slower but more alignments.
+            bandwidth=10,
+            num_threads=cfg.model_cfg.num_cores,
+            report_all_alignments=False,
+            match_score=2,  # log likelihood ratio log_2(4p)
+            mismatch_penalty=5,  # Assume quality score of 20, log likelihood ratio log_2(4 * error * <3/4>)
+            off_diag_dropoff=100,  # default
+            gap_open_penalty=(0, 0),
+            gap_extend_penalty=(
+                int(-deletion_ll / np.log(2)),
+                int(-insertion_ll / np.log(2))
+            ),
+            clip_penalty=5,
+            score_threshold=50,
+            bwa_command='bwa-mem2'
+        )
+    else:
+        from chronostrain.util.external import bt2_func_constant
+        return BowtieAligner(
+            reference_path=db.multifasta_file,
+            index_basepath=db.multifasta_file.parent,
+            index_basename=db.multifasta_file.stem,
+            num_threads=cfg.model_cfg.num_cores,
+            report_all_alignments=False,
+            seed_length=22,  # -L 22
+            seed_num_mismatches=0,  # -N 0
+            seed_extend_failures=5,  # -D 5
+            num_reseeds=1,  # -R 1
+            score_min_fn=bt2_func_constant(const=50),
+            score_match_bonus=2,
+            score_mismatch_penalty=np.floor(
+                [5, 5]
+            ).astype(int),
+            score_read_gap_penalty=np.floor(
+                [0, int(-deletion_ll / np.log(2))]
+            ).astype(int),
+            score_ref_gap_penalty=np.floor(
+                [0, int(-insertion_ll / np.log(2))]
+            ).astype(int)
+        )
+
+
 def main():
     args = parse_args()
     logger.info(f"Performing filtering to timeseries dataset `{args.reads_input}`.")
@@ -104,9 +170,12 @@ def main():
         num_threads=args.num_threads
     )
     for t, read_depth, read_path, read_type, qual_fmt in load_from_csv(Path(args.reads_input)):
+        read_type = parse_read_type(read_type)
         logger.info(f"Applying filter to timepoint {t}, {str(read_path)}")
+
+        aligner = create_aligner(args.aligner, read_type, db)
         out_path = out_dir / f"filtered_{remove_suffixes(read_path).name}.fastq"
-        filter.apply(read_path, out_path, read_type, quality_format=qual_fmt)
+        filter.apply(read_path, out_path, read_type, aligner, quality_format=qual_fmt)
         with open(target_csv_path, 'a') as target_csv:
             # Append to target CSV file.
             writer = csv.writer(target_csv, delimiter=',', quotechar='\"', quoting=csv.QUOTE_ALL)
