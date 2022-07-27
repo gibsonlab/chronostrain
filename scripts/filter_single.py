@@ -47,7 +47,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def create_aligner(aligner_type: str, read_type: ReadType, db: StrainDatabase) -> AbstractPairwiseAligner:
+def create_aligner(aligner_type: str, read_type: ReadType, db: StrainDatabase, num_threads: int) -> AbstractPairwiseAligner:
     if read_type == ReadType.PAIRED_END_1:
         insertion_ll = cfg.model_cfg.get_float("INSERTION_LL_1")
         deletion_ll = cfg.model_cfg.get_float("DELETION_LL_1")
@@ -86,7 +86,7 @@ def create_aligner(aligner_type: str, read_type: ReadType, db: StrainDatabase) -
             reference_path=db.multifasta_file,
             index_basepath=db.multifasta_file.parent,
             index_basename=db.multifasta_file.stem,
-            num_threads=cfg.model_cfg.num_cores,
+            num_threads=num_threads,
             report_all_alignments=False,
             seed_length=22,  # -L 22
             seed_num_mismatches=0,  # -N 0
@@ -119,12 +119,11 @@ def main():
         db=db,
         min_read_len=args.min_read_len,
         frac_identity_threshold=args.frac_identity_threshold,
-        error_threshold=args.error_threshold,
-        num_threads=args.num_threads
+        error_threshold=args.error_threshold
     )
 
     read_type = parse_read_type(args.read_type)
-    aligner = create_aligner(args.aligner, read_type, db)
+    aligner = create_aligner(args.aligner, read_type, db, args.num_threads)
     filter.apply(
         Path(args.in_path),
         Path(args.out_path),

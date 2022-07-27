@@ -84,7 +84,7 @@ def load_from_csv(csv_path: Path) -> List[Tuple[float, int, Path, str, str]]:
     return time_points
 
 
-def create_aligner(aligner_type: str, read_type: ReadType, db: StrainDatabase) -> AbstractPairwiseAligner:
+def create_aligner(aligner_type: str, read_type: ReadType, db: StrainDatabase, num_threads: int) -> AbstractPairwiseAligner:
     if read_type == ReadType.PAIRED_END_1:
         insertion_ll = cfg.model_cfg.get_float("INSERTION_LL_1")
         deletion_ll = cfg.model_cfg.get_float("DELETION_LL_1")
@@ -123,7 +123,7 @@ def create_aligner(aligner_type: str, read_type: ReadType, db: StrainDatabase) -
             reference_path=db.multifasta_file,
             index_basepath=db.multifasta_file.parent,
             index_basename=db.multifasta_file.stem,
-            num_threads=cfg.model_cfg.num_cores,
+            num_threads=num_threads,
             report_all_alignments=False,
             seed_length=22,  # -L 22
             seed_num_mismatches=0,  # -N 0
@@ -168,14 +168,13 @@ def main():
         db=db,
         min_read_len=args.min_read_len,
         frac_identity_threshold=args.frac_identity_threshold,
-        error_threshold=args.error_threshold,
-        num_threads=args.num_threads
+        error_threshold=args.error_threshold
     )
     for t, read_depth, read_path, read_type, qual_fmt in load_from_csv(Path(args.reads_input)):
         read_type = parse_read_type(read_type)
         logger.info(f"Applying filter to timepoint {t}, {str(read_path)}")
 
-        aligner = create_aligner(args.aligner, read_type, db)
+        aligner = create_aligner(args.aligner, read_type, db, args.num_threads)
         out_path = out_dir / f"filtered_{remove_suffixes(read_path).name}.fastq"
         filter.apply(read_path, out_path, read_type, aligner, quality_format=qual_fmt)
         with open(target_csv_path, 'a') as target_csv:
