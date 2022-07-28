@@ -300,6 +300,9 @@ def dominance_switch_ratio(abundance_est: torch.Tensor) -> float:
     """
     Calculate how often the dominant strain switches.
     """
+    if int(torch.sum(abundance_est == 0).item()) == (abundance_est.shape[0] * abundance_est.shape[1]):
+        return float(1.0)
+
     dom = torch.argmax(abundance_est, dim=1).cpu().numpy()
     num_switches = 0
     for i in range(len(dom) - 1):
