@@ -65,7 +65,7 @@ sorted_bam_file="reads_${time_point}.sorted.bam"
 echo "[*] Running alignment..."
 bowtie2 \
 --very-fast --no-unal --quiet \
--p 1 \
+-p ${N_CORES} \
 -x ${STRAINEST_DB_DIR}/clustered/${STRAINEST_BT2_DB} \
 -U ${read_dir}/${time_point}_sim_1.fq \
 -U ${read_dir}/${time_point}_sim_2.fq \
@@ -86,7 +86,7 @@ if [ "$sensitivity" == "sensitive" ]; then
 	${STRAINEST_DB_DIR}/snvs_all.txt \
 	${sorted_bam_file} \
 	./ \
-	-t 1 \
+	-t ${N_CORES} \
 	-p 0 \
 	-a
 else
@@ -94,7 +94,7 @@ else
 	${STRAINEST_DB_DIR}/snvs_all.txt \
 	${sorted_bam_file} \
 	./ \
-	-t 1
+	-t ${N_CORES}
 fi
 
 # ====== Record runtime
