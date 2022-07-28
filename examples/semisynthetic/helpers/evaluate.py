@@ -296,26 +296,40 @@ def other_method_presence(abundance_est: torch.Tensor) -> torch.Tensor:
     return abundance_est != 0
 
 
-def dominance_coeff(x: torch.Tensor, y: torch.Tensor, eps: float = 1e-10) -> torch.Tensor:
+def dominance_switch_ratio(abundance_est: torch.Tensor) -> float:
     """
-    :param x: a 1-d Tensor of values.
-    :param y: a 1-d Tensor of values of the same size as x.
-    :param eps: A padding value to prevent division by zeroes.
-    :return: the entrywise dominance coefficient log(x) - log(y).
+    Calculate how often the dominant strain switches.
     """
-    return torch.divide(x + eps, y + eps)
+    dom = torch.argmax(abundance_est, dim=1).cpu().numpy()
+    num_switches = 0
+    for i in range(len(dom) - 1):
+        switched = (dom[i] != dom[i+1])
+        if switched:
+            num_switches += 1
+    return num_switches / (len(dom) - 1)
 
 
-def dominance_error(abundance_est: torch.Tensor, truth: torch.Tensor, strain_ids: List[str], strain1: str, strain2: str) -> float:
-    idxs = {sid: i for i, sid in enumerate(strain_ids)}
-    sidx1 = idxs[strain1]
-    sidx2 = idxs[strain2]
 
-    _est = dominance_coeff(abundance_est[:, sidx1], abundance_est[:, sidx2])
-    _truth = dominance_coeff(truth[:, sidx1], truth[:, sidx2])
-    return torch.exp(
-        torch.mean(torch.log(_est) - torch.log(_truth))
-    ).item()  # geometric mean
+# def dominance_coeff(x: torch.Tensor, y: torch.Tensor, eps: float = 1e-10) -> torch.Tensor:
+#     """
+#     :param x: a 1-d Tensor of values.
+#     :param y: a 1-d Tensor of values of the same size as x.
+#     :param eps: A padding value to prevent division by zeroes.
+#     :return: the entrywise dominance coefficient log(x) - log(y).
+#     """
+#     return torch.divide(x + eps, y + eps)
+#
+#
+# def dominance_error(abundance_est: torch.Tensor, truth: torch.Tensor, strain_ids: List[str], strain1: str, strain2: str) -> float:
+#     idxs = {sid: i for i, sid in enumerate(strain_ids)}
+#     sidx1 = idxs[strain1]
+#     sidx2 = idxs[strain2]
+#
+#     _est = dominance_coeff(abundance_est[:, sidx1], abundance_est[:, sidx2])
+#     _truth = dominance_coeff(truth[:, sidx1], truth[:, sidx2])
+#     return torch.exp(
+#         torch.mean(torch.log(_est) - torch.log(_truth))
+#     ).item()  # geometric mean
 
 
 # def wasserstein_error(abundance_est: torch.Tensor, truth_df: pd.DataFrame, strain_distances: torch.Tensor, strain_ids: List[str]) -> torch.Tensor:
@@ -443,7 +457,7 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                 # )
                 error = error_metric(torch.median(chronostrain_estimate_samples, dim=1).values, truth_tensor)
                 engraftment, clearance = engraftment_clearance(chronostrain_presence(chronostrain_estimate_samples))
-                dom_err = dominance_error(torch.median(chronostrain_estimate_samples, dim=1).values, truth_tensor, strain_ids, "NZ_CP069709.1", "NZ_CP076645.1")
+                dom_err = dominance_switch_ratio(torch.median(chronostrain_estimate_samples, dim=1).values)
 
                 logger.info("Chronostrain: err = {}, engraft = {}, clear = {}".format(error, engraftment, clearance))
 
@@ -469,7 +483,7 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                 # error = wasserstein_error(strainest_estimate, ground_truth, distances, strain_ids).item()
                 error = error_metric(strainest_sens_estimate, truth_tensor)
                 engraftment, clearance = engraftment_clearance(other_method_presence(strainest_sens_estimate))
-                dom_err = dominance_error(strainest_sens_estimate, truth_tensor, strain_ids, "NZ_CP069709.1", "NZ_CP076645.1")
+                dom_err = dominance_switch_ratio(strainest_sens_estimate)
 
                 logger.info("StrainEst (Sens) err = {}, engraft = {}, clear = {}".format(error, engraftment, clearance))
                 df_entries.append({
@@ -492,7 +506,7 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                                                               trial_dir / 'output' / 'strainest')
                 error = error_metric(strainest_estimate, truth_tensor)
                 engraftment, clearance = engraftment_clearance(other_method_presence(strainest_estimate))
-                dom_err = dominance_error(strainest_estimate, truth_tensor, strain_ids, "NZ_CP069709.1", "NZ_CP076645.1")
+                dom_err = dominance_switch_ratio(strainest_estimate)
 
                 logger.info("StrainEst (Default) err = {}, engraft = {}, clear = {}".format(error, engraftment, clearance))
                 df_entries.append({
@@ -516,7 +530,7 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                 # error = wasserstein_error(straingst_estimate, ground_truth, distances, strain_ids).item()
                 error = error_metric(straingst_estimate, truth_tensor)
                 engraftment, clearance = engraftment_clearance(other_method_presence(straingst_estimate))
-                dom_err = dominance_error(straingst_estimate, truth_tensor, strain_ids, "NZ_CP069709.1", "NZ_CP076645.1")
+                dom_err = dominance_switch_ratio(straingst_estimate)
                 logger.info("StrainGST err = {}, engraft = {}, clear = {}".format(error, engraftment, clearance))
                 df_entries.append({
                     'ReadDepth': read_depth,
@@ -555,7 +569,6 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                                                                   strain_ids,
                                                                   trial_dir / 'output' / 'strainfacts')
                 error = error_metric(strainfacts_estimate, truth_tensor)
-                dom_err = dominance_error(strainfacts_estimate, truth_tensor, strain_ids, "NZ_CP069709.1", "NZ_CP076645.1")
                 logger.info("StrainFacts Error: {}".format(error))
                 df_entries.append({
                     'ReadDepth': read_depth,
@@ -564,7 +577,7 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                     'Error': error,
                     'Engraftment': float('inf'),
                     'Clearance': float('inf'),
-                    'Dominance': dom_err
+                    'Dominance': float('inf')
                 })
                 # plot_result(plot_dir / 'strainfacts.pdf', ground_truth, strainfacts_estimate, strain_ids)
             except FileNotFoundError:
