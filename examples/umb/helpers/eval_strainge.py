@@ -136,7 +136,8 @@ def evaluate_by_clades(strainge_output_dir: Path, clades: Dict[str, str], metada
 def divide_into_timeseries(timeseries: np.ndarray, strain_ids: List[str], clades: Dict[str, str]) -> Iterator[Tuple[str, np.ndarray]]:
     all_clades = set(clades.values())
     for this_clade in all_clades:
-        matching_strains = [i for i, s in enumerate(strain_ids) if clades[s] == this_clade]
+        # Note: if "s" is not in "clades", then it might not be ecoli.
+        matching_strains = [i for i, s in enumerate(strain_ids) if (s in clades and clades[s] == this_clade)]
         yield this_clade, timeseries[:, matching_strains]
 
 
