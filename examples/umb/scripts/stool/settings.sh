@@ -13,8 +13,10 @@ export SETTINGS_PATH="${BASE_DIR}/scripts/stool/settings.sh"
 # Location for reads and outputs.
 export READS_DIR="${OUTPUT_DIR}/reads"
 export CHRONOSTRAIN_OUTPUT_DIR="${OUTPUT_DIR}/output/chronostrain"
+export STRAINGE_OUTPUT_DIR="${OUTPUT_DIR}/output/strainge"
 
 # sratools prefetch/sample output directories.
+export SRA_CSV_PATH="${BASE_DIR}/files/umb_samples.csv"
 export SRA_PREFETCH_DIR="${DATA_DIR}/prefetch"
 export FASTERQ_TMP_DIR="${DATA_DIR}/fasterq-tmp"
 
@@ -40,6 +42,9 @@ export CHRONOSTRAIN_DB_JSON_ALL="${CHRONOSTRAIN_DB_DIR}/database_all.json"
 export CHRONOSTRAIN_DB_JSON_PRUNED="${CHRONOSTRAIN_DB_DIR}/database_pruned.json"
 export CHRONOSTRAIN_DB_JSON="${CHRONOSTRAIN_DB_JSON_PRUNED}"
 export MULTIFASTA_FILE="strain_markers.fasta"
+
+# ======== STRAINGE
+export STRAINGE_DB=/mnt/e/strainge/straingst_umb/pan-genome-db.hdf5
 
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)
 export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
