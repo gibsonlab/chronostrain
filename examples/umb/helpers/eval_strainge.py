@@ -58,7 +58,7 @@ def convert_to_numpy(timeseries_df: pd.DataFrame, metadata: pd.DataFrame) -> np.
     SRR14881730,UMB01,UMB01_00,2015-10-26,298,stool,HiSeq X Ten,WGS,Control
     """
     merged = timeseries_df.merge(
-        metadata['SampleName', 'date', 'days'],
+        metadata[['SampleName', 'date', 'days']],
         left_on='Sample',
         right_on='SampleName',
         how='left'
