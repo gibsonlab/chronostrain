@@ -62,7 +62,7 @@ def parse_outputs(base_dir: Path) -> Iterator[Tuple[str, pd.DataFrame]]:
 def parse_single_output(output_file: Path) -> Iterator[Tuple[str, float]]:
     with open(output_file, "r") as f:
         for strain in parse_straingst(f):
-            strain_id = strain['strain']
+            strain_id = strip_suffixes(strain['strain'])
             rel_abund = float(strain['rapct']) / 100.0
             yield strain_id, rel_abund
 
