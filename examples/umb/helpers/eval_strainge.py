@@ -167,9 +167,9 @@ def main():
             print("If grouping by clades, a clades path is required.")
             exit(1)
         clades = parse_clades(args.clades)
-        df = evaluate_by_clades(Path(args.chronostrain_dir), clades, metadata)
+        df = evaluate_by_clades(Path(args.strainge_dir), clades, metadata)
     else:
-        df = evaluate(Path(args.chronostrain_dir), metadata)
+        df = evaluate(Path(args.strainge_dir), metadata)
 
     df.to_csv(args.output, index=False)
 
