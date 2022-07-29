@@ -35,7 +35,6 @@ def fetch_strain_id(strain_name: str, ref_df: pd.DataFrame) -> str:
     # preprocess.
     strain_name = strip_suffixes(strain_name)
     strain_name = strip_prefix(strain_name)
-    strain_names_to_try = {strain_name, strain_name.replace("_", ".")}
 
     if "GCF" in strain_name:
         tokens = strain_name.split("_GCF_")
@@ -43,6 +42,7 @@ def fetch_strain_id(strain_name: str, ref_df: pd.DataFrame) -> str:
         gcf_id = "GCF_{}".format(tokens[1])
         ref_df = ref_df.loc[ref_df['Assembly'] == gcf_id, :]
 
+    strain_names_to_try = {strain_name, strain_name.replace("_", ".")}
     for s in strain_names_to_try:
         try:
             return search_df(s, ref_df)
