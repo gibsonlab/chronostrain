@@ -86,7 +86,7 @@ def evaluate(strainge_output_dir: Path, metadata: pd.DataFrame) -> pd.DataFrame:
         timeseries = convert_to_numpy(timeseries_df, metadata)
         df_entries.append({
             "Patient": patient,
-            "Dominance": timeseries
+            "Dominance": dominance_switch_ratio(timeseries)
         })
     return pd.DataFrame(df_entries)
 
