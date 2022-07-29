@@ -19,7 +19,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def strip_suffixes(x):
+def strip_suffixes(x: str) -> str:
     x = Path(x)
     suffix_set = {'.chrom', 'fa', '.fna', '.gz', 'fasta'}
     while x.suffix in suffix_set:
@@ -27,7 +27,17 @@ def strip_suffixes(x):
     return x.name
 
 
+def strip_prefix(x: str, prefix: str):
+    if x.startswith(prefix):
+        return x[len(prefix):]
+
+
+
 def fetch_strain_id(strain_name: str, ref_df: pd.DataFrame) -> str:
+    # preprocess.
+    strain_name = strip_suffixes(strain_name)
+    strain_name = strip_prefix(strain_name, "Esch_coli_")
+
     hits = ref_df.loc[ref_df['Strain'] == strain_name, 'Accession']
     if hits.shape[0] == 0:
         raise RuntimeError(f"Unknown strain name `{strain_name}` found.")
@@ -36,7 +46,7 @@ def fetch_strain_id(strain_name: str, ref_df: pd.DataFrame) -> str:
     return hits.item()
 
 
-def parse_clades(clades_path: Path, ref_df: pd.DataFrame) -> Dict[str, str]:
+def parse_clades(clades_path: Path) -> Dict[str, str]:
     """
     NC_017626.1.chrom.fna	['ybgD', 'trpA', 'trpBA', 'chuA', 'arpA', 'trpAgpC']	['+', '+', '-', '-']	['trpAgpC']	D	NC_017626.1.chrom.fna_mash_screen.tab
     """
@@ -48,20 +58,19 @@ def parse_clades(clades_path: Path, ref_df: pd.DataFrame) -> Dict[str, str]:
                 continue
 
             tokens = line.split('\t')
-            strain_name = strip_suffixes(tokens[0])
-            strain_id = fetch_strain_id(strain_name, ref_df)
+            strain_id = strip_suffixes(tokens[0])
             phylogroup = tokens[4]
             mapping[strain_id] = phylogroup
     return mapping
 
 
-def parse_outputs(base_dir: Path) -> Iterator[Tuple[str, pd.DataFrame]]:
+def parse_outputs(base_dir: Path, ref_df: pd.DataFrame) -> Iterator[Tuple[str, pd.DataFrame]]:
     entries = []
     for umb_id, umb_dir in umb_dirs(base_dir):
         print(f"Handling {umb_id}.")
         for sample_id, output_file in output_files(umb_dir):
             print(f"Reading output file {output_file}.")
-            for strain_id, rel_abund in parse_single_output(output_file):
+            for strain_id, rel_abund in parse_single_output(output_file, ref_df):
                 entries.append({
                     'Sample': sample_id,
                     'Strain': strain_id,
@@ -70,10 +79,11 @@ def parse_outputs(base_dir: Path) -> Iterator[Tuple[str, pd.DataFrame]]:
         yield umb_id, pd.DataFrame(entries)
 
 
-def parse_single_output(output_file: Path) -> Iterator[Tuple[str, float]]:
+def parse_single_output(output_file: Path, ref_df: pd.DataFrame) -> Iterator[Tuple[str, float]]:
     with open(output_file, "r") as f:
         for strain in parse_straingst(f):
-            strain_id = strip_suffixes(strain['strain'])
+            strain_name = strain['strain']
+            strain_id = fetch_strain_id(strain_name, ref_df)
             rel_abund = float(strain['rapct']) / 100.0
             yield strain_id, rel_abund
 
@@ -120,9 +130,9 @@ def convert_to_numpy(timeseries_df: pd.DataFrame, metadata: pd.DataFrame) -> Tup
     return timeseries, strains
 
 
-def evaluate(strainge_output_dir: Path, metadata: pd.DataFrame) -> pd.DataFrame:
+def evaluate(strainge_output_dir: Path, metadata: pd.DataFrame, ref_df: pd.DataFrame) -> pd.DataFrame:
     df_entries = []
-    for patient, timeseries_df in parse_outputs(strainge_output_dir):
+    for patient, timeseries_df in parse_outputs(strainge_output_dir, ref_df):
         timeseries, _ = convert_to_numpy(timeseries_df, metadata)
         df_entries.append({
             "Patient": patient,
@@ -131,9 +141,9 @@ def evaluate(strainge_output_dir: Path, metadata: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(df_entries)
 
 
-def evaluate_by_clades(strainge_output_dir: Path, clades: Dict[str, str], metadata: pd.DataFrame) -> pd.DataFrame:
+def evaluate_by_clades(strainge_output_dir: Path, clades: Dict[str, str], metadata: pd.DataFrame, ref_df: pd.DataFrame) -> pd.DataFrame:
     df_entries = []
-    for patient, timeseries_df in parse_outputs(strainge_output_dir):
+    for patient, timeseries_df in parse_outputs(strainge_output_dir, ref_df):
         timeseries, strain_ids = convert_to_numpy(timeseries_df, metadata)
         for clade, sub_timeseries in divide_into_timeseries(timeseries, strain_ids, clades):
             df_entries.append({
@@ -181,10 +191,10 @@ def main():
         if args.clades is None:
             print("If grouping by clades, a clades path is required.")
             exit(1)
-        clades = parse_clades(args.clades, ref_df)
-        df = evaluate_by_clades(Path(args.strainge_dir), clades, metadata)
+        clades = parse_clades(args.clades)
+        df = evaluate_by_clades(Path(args.strainge_dir), clades, metadata, ref_df)
     else:
-        df = evaluate(Path(args.strainge_dir), metadata)
+        df = evaluate(Path(args.strainge_dir), metadata, ref_df)
 
     df.to_csv(args.output, index=False)
 
