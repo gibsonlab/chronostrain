@@ -1,4 +1,4 @@
-from typing import Tuple, Iterator
+from typing import Tuple, Iterator, Dict, List
 from pathlib import Path
 import argparse
 import pandas as pd
@@ -12,10 +12,39 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('-d', '--strainge_dir', required=True, type=str)
     parser.add_argument('-m', '--metadata', required=True, type=str)
     parser.add_argument('-o', '--output', required=True, type=str)
+
+    parser.add_argument('--group_by_clades', action='store_true')
+    parser.add_argument('-c', '--clades', required=False, type=str)
     return parser.parse_args()
 
 
-def parse_outputs(base_dir: Path) -> Iterator[pd.DataFrame]:
+def strip_suffixes(x):
+    x = Path(x)
+    suffix_set = {'.chrom', '.fna', '.gz', 'fasta'}
+    while x.suffix in suffix_set:
+        x = x.with_suffix('')
+    return x.name
+
+
+def parse_clades(clades_path: Path) -> Dict[str, str]:
+    """
+    NC_017626.1.chrom.fna	['ybgD', 'trpA', 'trpBA', 'chuA', 'arpA', 'trpAgpC']	['+', '+', '-', '-']	['trpAgpC']	D	NC_017626.1.chrom.fna_mash_screen.tab
+    """
+    mapping = {}
+    with open(clades_path, "rt") as clades_file:
+        for line in clades_file:
+            line = line.strip()
+            if len(line) == 0:
+                continue
+
+            tokens = line.split('\t')
+            strain_id = strip_suffixes(tokens[0])
+            phylogroup = tokens[4]
+            mapping[strain_id] = phylogroup
+    return mapping
+
+
+def parse_outputs(base_dir: Path) -> Iterator[Tuple[str, pd.DataFrame]]:
     entries = []
     for umb_id, umb_dir in umb_dirs(base_dir):
         print(f"Handling {umb_id}.")
@@ -52,7 +81,7 @@ def output_files(patient_dir: Path):
         yield sample_id, output_file
 
 
-def convert_to_numpy(timeseries_df: pd.DataFrame, metadata: pd.DataFrame) -> np.ndarray:
+def convert_to_numpy(timeseries_df: pd.DataFrame, metadata: pd.DataFrame) -> Tuple[np.ndarray, List[str]]:
     """
     Run,ID,SampleName,date,days,type,Model,LibraryStrategy,Group
     SRR14881730,UMB01,UMB01_00,2015-10-26,298,stool,HiSeq X Ten,WGS,Control
@@ -77,18 +106,38 @@ def convert_to_numpy(timeseries_df: pd.DataFrame, metadata: pd.DataFrame) -> np.
         tidx = time_indexes[day]
         sidx = strain_indexes[strain]
         timeseries[tidx, sidx] = row['RelAbund']
-    return timeseries
+    return timeseries, strains
 
 
 def evaluate(strainge_output_dir: Path, metadata: pd.DataFrame) -> pd.DataFrame:
     df_entries = []
     for patient, timeseries_df in parse_outputs(strainge_output_dir):
-        timeseries = convert_to_numpy(timeseries_df, metadata)
+        timeseries, _ = convert_to_numpy(timeseries_df, metadata)
         df_entries.append({
             "Patient": patient,
             "Dominance": dominance_switch_ratio(timeseries)
         })
     return pd.DataFrame(df_entries)
+
+
+def evaluate_by_clades(strainge_output_dir: Path, clades: Dict[str, str], metadata: pd.DataFrame) -> pd.DataFrame:
+    df_entries = []
+    for patient, timeseries_df in parse_outputs(strainge_output_dir):
+        timeseries, strain_ids = convert_to_numpy(timeseries_df, metadata)
+        for clade, sub_timeseries in divide_into_timeseries(timeseries, strain_ids, clades):
+            df_entries.append({
+                "Patient": patient,
+                "Phylogroup": clade,
+                "Dominance": dominance_switch_ratio(sub_timeseries)
+            })
+    return pd.DataFrame(df_entries)
+
+
+def divide_into_timeseries(timeseries: np.ndarray, strain_ids: List[str], clades: Dict[str, str]) -> Iterator[Tuple[str, np.ndarray]]:
+    all_clades = set(clades.values())
+    for this_clade in all_clades:
+        matching_strains = [i for i, s in enumerate(strain_ids) if clades[s] == this_clade]
+        yield this_clade, timeseries[:, matching_strains]
 
 
 def dominance_switch_ratio(abundance_est: np.ndarray) -> float:
@@ -111,7 +160,16 @@ def dominance_switch_ratio(abundance_est: np.ndarray) -> float:
 def main():
     args = parse_args()
     metadata = pd.read_csv(args.metadata)
-    df = evaluate(Path(args.strainge_dir), metadata)
+
+    if args.group_by_clades:
+        if args.clades is None:
+            print("If grouping by clades, a clades path is required.")
+            exit(1)
+        clades = parse_clades(args.clades)
+        df = evaluate_by_clades(Path(args.chronostrain_dir), clades, metadata)
+    else:
+        df = evaluate(Path(args.chronostrain_dir), metadata)
+
     df.to_csv(args.output, index=False)
 
 

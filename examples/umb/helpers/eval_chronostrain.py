@@ -1,6 +1,7 @@
-from typing import Tuple
+from typing import Tuple, Dict, List, Iterator
 from pathlib import Path
 import argparse
+import numpy as np
 import pandas as pd
 import torch
 
@@ -9,10 +10,39 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--chronostrain_dir', required=True, type=str)
     parser.add_argument('-o', '--output', required=True, type=str)
+
+    parser.add_argument('--group_by_clades', action='store_true')
+    parser.add_argument('-c', '--clades', required=False, type=str)
     return parser.parse_args()
 
 
-def umb_outputs(base_dir: Path) -> Tuple[str, torch.Tensor]:
+def strip_suffixes(x):
+    x = Path(x)
+    suffix_set = {'.chrom', '.fna', '.gz', 'fasta'}
+    while x.suffix in suffix_set:
+        x = x.with_suffix('')
+    return x.name
+
+
+def parse_clades(clades_path: Path) -> Dict[str, str]:
+    """
+    NC_017626.1.chrom.fna	['ybgD', 'trpA', 'trpBA', 'chuA', 'arpA', 'trpAgpC']	['+', '+', '-', '-']	['trpAgpC']	D	NC_017626.1.chrom.fna_mash_screen.tab
+    """
+    mapping = {}
+    with open(clades_path, "rt") as clades_file:
+        for line in clades_file:
+            line = line.strip()
+            if len(line) == 0:
+                continue
+
+            tokens = line.split('\t')
+            strain_id = strip_suffixes(tokens[0])
+            phylogroup = tokens[4]
+            mapping[strain_id] = phylogroup
+    return mapping
+
+
+def umb_outputs(base_dir: Path) -> Iterator[Tuple[str, torch.Tensor, List[str]]]:
     for umb_dir in base_dir.glob("UMB*"):
         if not umb_dir.is_dir():
             raise RuntimeError(f"Expected child `{umb_dir}` to be a directory.")
@@ -23,33 +53,65 @@ def umb_outputs(base_dir: Path) -> Tuple[str, torch.Tensor]:
             print(f"File `{sample_path}` not found. Skipping {umb_id}...")
 
         samples = torch.load(umb_dir / "samples.pt")
-        yield umb_id, samples
+        strain_ids = load_strain_ids(umb_dir / "strains.txt")
+        yield umb_id, samples, strain_ids
+
+
+def load_strain_ids(strains_path: Path) -> List[str]:
+    strains = []
+    with open(strains_path, "rt") as f:
+        for line in f:
+            strains.append(line.strip())
+    return strains
 
 
 def evaluate(chronostrain_output_dir: Path) -> pd.DataFrame:
     df_entries = []
-    for patient, umb_samples in umb_outputs(chronostrain_output_dir):
+    for patient, umb_samples, _ in umb_outputs(chronostrain_output_dir):
         print(f"Handling {patient}.")
+        timeseries = torch.median(umb_samples, dim=1).values.numpy()
+
         df_entries.append({
             "Patient": patient,
-            "Dominance": dominance_switch_ratio(umb_samples)
+            "Dominance": dominance_switch_ratio(timeseries)
         })
     return pd.DataFrame(df_entries)
 
 
-def dominance_switch_ratio(abundance_est: torch.Tensor) -> float:
+def evaluate_by_clades(chronostrain_output_dir: Path, clades: Dict[str, str]) -> pd.DataFrame:
+    df_entries = []
+    for patient, umb_samples, strain_ids in umb_outputs(chronostrain_output_dir):
+        print(f"Handling {patient}.")
+        timeseries = torch.median(umb_samples, dim=1).values.numpy()
+
+        for clade, sub_timeseries in divide_into_timeseries(timeseries, strain_ids, clades):
+            df_entries.append({
+                "Patient": patient,
+                "Phylogroup": clade,
+                "Dominance": dominance_switch_ratio(sub_timeseries)
+            })
+    return pd.DataFrame(df_entries)
+
+
+def divide_into_timeseries(timeseries: np.ndarray, strain_ids: List[str], clades: Dict[str, str]) -> Iterator[Tuple[str, np.ndarray]]:
+    all_clades = set(clades.values())
+    for this_clade in all_clades:
+        matching_strains = [i for i, s in enumerate(strain_ids) if clades[s] == this_clade]
+        yield this_clade, timeseries[:, matching_strains]
+
+
+def dominance_switch_ratio(abundance_est: np.ndarray) -> float:
     """
     Calculate how often the dominant strain switches.
     """
-    medians = torch.median(abundance_est, dim=1).values
-    dom = torch.argmax(medians, dim=1).numpy()
+    dom = np.argmax(abundance_est, axis=1)
     num_switches = 0
 
     def row_is_zeros(r) -> bool:
-        return torch.sum(r == 0).item() == r.shape[0]
+        return np.sum(r == 0).item() == r.shape[0]
 
     for i in range(len(dom) - 1):
-        switched = (dom[i] != dom[i+1]) or row_is_zeros(medians[i]) or row_is_zeros(medians[i+1])
+        switched = (dom[i] != dom[i+1]) or row_is_zeros(abundance_est[i]) or row_is_zeros(abundance_est[i+1])
         if switched:
             num_switches += 1
     return num_switches / (len(dom) - 1)
@@ -57,7 +119,16 @@ def dominance_switch_ratio(abundance_est: torch.Tensor) -> float:
 
 def main():
     args = parse_args()
-    df = evaluate(Path(args.chronostrain_dir))
+
+    if args.group_by_clades:
+        if args.clades is None:
+            print("If grouping by clades, a clades path is required.")
+            exit(1)
+        clades = parse_clades(args.clades)
+        df = evaluate_by_clades(Path(args.chronostrain_dir), clades)
+    else:
+        df = evaluate(Path(args.chronostrain_dir))
+
     df.to_csv(args.output, index=False)
 
 
