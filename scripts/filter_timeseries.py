@@ -125,7 +125,7 @@ def create_aligner(aligner_type: str, read_type: ReadType, db: StrainDatabase, n
             index_basename=db.multifasta_file.stem,
             num_threads=num_threads,
             report_all_alignments=False,
-            seed_length=22,  # -L 22
+            seed_length=15,  # -L 22
             seed_num_mismatches=0,  # -N 0
             seed_extend_failures=5,  # -D 5
             num_reseeds=1,  # -R 1
