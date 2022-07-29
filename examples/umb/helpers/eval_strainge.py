@@ -39,9 +39,11 @@ def fetch_strain_id(strain_name: str, ref_df: pd.DataFrame) -> str:
     hits = ref_df.loc[ref_df['Strain'] == strain_name, 'Accession']
     if hits.shape[0] == 0:
         raise RuntimeError(f"Unknown strain name `{strain_name}` found.")
+
+    result = hits.head(1).item()
     if hits.shape[0] > 1:
-        raise RuntimeError(f"Ambiguous strain name `{strain_name}`.")
-    return hits.item()
+        print(f"Ambiguous strain name `{strain_name}`. Taking the first accession {result}")
+    return result
 
 
 def parse_clades(clades_path: Path) -> Dict[str, str]:
