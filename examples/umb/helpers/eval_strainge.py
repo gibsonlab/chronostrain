@@ -110,7 +110,7 @@ def dominance_switch_ratio(abundance_est: np.ndarray) -> float:
 def main():
     args = parse_args()
     metadata = pd.read_csv(args.metadata)
-    df = evaluate(Path(args.chronostrain_dir), metadata)
+    df = evaluate(Path(args.strainge_dir), metadata)
     df.to_csv(args.output, index=False)
 
 
