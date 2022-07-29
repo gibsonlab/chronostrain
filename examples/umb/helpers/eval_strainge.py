@@ -27,16 +27,14 @@ def strip_suffixes(x: str) -> str:
     return x.name
 
 
-def strip_prefix(x: str, prefix: str):
-    if x.startswith(prefix):
-        return x[len(prefix):]
-
+def strip_prefix(x: str):
+    return "_".join(x.split("_")[2:])
 
 
 def fetch_strain_id(strain_name: str, ref_df: pd.DataFrame) -> str:
     # preprocess.
     strain_name = strip_suffixes(strain_name)
-    strain_name = strip_prefix(strain_name, "Esch_coli_")
+    strain_name = strip_prefix(strain_name)
 
     hits = ref_df.loc[ref_df['Strain'] == strain_name, 'Accession']
     if hits.shape[0] == 0:
