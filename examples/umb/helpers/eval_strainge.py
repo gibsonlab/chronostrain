@@ -4,6 +4,8 @@ import argparse
 import pandas as pd
 import numpy as np
 
+from strainge.io.utils import parse_straingst
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
