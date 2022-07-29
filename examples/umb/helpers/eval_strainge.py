@@ -21,7 +21,7 @@ def parse_args() -> argparse.Namespace:
 
 def strip_suffixes(x: str) -> str:
     x = Path(x)
-    suffix_set = {'.chrom', 'fa', '.fna', '.gz', 'fasta'}
+    suffix_set = {'.chrom', '.fa', '.fna', '.gz', 'fasta'}
     while x.suffix in suffix_set:
         x = x.with_suffix('')
     return x.name
