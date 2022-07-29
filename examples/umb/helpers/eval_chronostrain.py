@@ -96,6 +96,7 @@ def evaluate_by_clades(chronostrain_output_dir: Path, clades: Dict[str, str]) ->
 def divide_into_timeseries(timeseries: np.ndarray, strain_ids: List[str], clades: Dict[str, str]) -> Iterator[Tuple[str, np.ndarray]]:
     all_clades = set(clades.values())
     for this_clade in all_clades:
+        print(strain_ids)
         matching_strains = [i for i, s in enumerate(strain_ids) if clades[s] == this_clade]
         yield this_clade, timeseries[:, matching_strains]
 
