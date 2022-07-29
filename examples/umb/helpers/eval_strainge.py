@@ -175,9 +175,7 @@ def dominance_switch_ratio(abundance_est: np.ndarray) -> float:
 def main():
     args = parse_args()
     metadata = pd.read_csv(args.metadata)
-    ref_df = pd.read_csv(args.refseq_index)
-
-    print(ref_df)
+    ref_df = pd.read_csv(args.refseq_index, sep='\t')
 
     if args.group_by_clades:
         if args.clades is None:
