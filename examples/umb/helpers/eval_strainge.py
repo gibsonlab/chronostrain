@@ -50,6 +50,7 @@ def fetch_strain_id(strain_name: str, ref_df: pd.DataFrame) -> str:
             print(f"Unable to find strain name entry `{s}`. Remaining possibilities: {strain_names_to_try}")
     raise RuntimeError(f"Unknown strain name `{strain_name}` encountered.")
 
+
 def search_df(strain_name: str, ref_df: pd.DataFrame):
     hits = ref_df.loc[ref_df['Strain'] == strain_name, 'Accession']
     if hits.shape[0] == 0:
@@ -164,7 +165,8 @@ def evaluate_by_clades(strainge_output_dir: Path, clades: Dict[str, str], metada
             df_entries.append({
                 "Patient": patient,
                 "Phylogroup": clade,
-                "Dominance": dominance_switch_ratio(sub_timeseries)
+                "Dominance": dominance_switch_ratio(sub_timeseries),
+                "RelAbundMedian": np.median(np.sum(sub_timeseries, axis=1))
             })
     return pd.DataFrame(df_entries)
 
