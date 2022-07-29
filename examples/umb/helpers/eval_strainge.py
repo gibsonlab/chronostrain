@@ -35,21 +35,25 @@ def fetch_strain_id(strain_name: str, ref_df: pd.DataFrame) -> str:
     # preprocess.
     strain_name = strip_suffixes(strain_name)
     strain_name = strip_prefix(strain_name)
+    strain_names_to_try = {strain_name, strain_name.replace("_", ".")}
 
     if "GCF" in strain_name:
         tokens = strain_name.split("_GCF_")
         strain_name = tokens[0]
         gcf_id = "GCF_{}".format(tokens[1])
-        hits = ref_df.loc[
-            (ref_df['Strain'] == strain_name) & (ref_df["Assembly"] == gcf_id),
-            'Accession'
-        ]
-        if hits.shape[0] == 0:
-            raise RuntimeError(f"Unknown strain name `{strain_name}` ({gcf_id}) found.")
-    else:
-        hits = ref_df.loc[ref_df['Strain'] == strain_name, 'Accession']
-        if hits.shape[0] == 0:
-            raise RuntimeError(f"Unknown strain name `{strain_name}` found.")
+        ref_df = ref_df.loc[ref_df['Assembly'] == gcf_id, :]
+
+    for s in strain_names_to_try:
+        try:
+            return search_df(s, ref_df)
+        except RuntimeError:
+            print(f"Unable to find strain name entry `{s}`. Remaining possibilities: {strain_names_to_try}")
+    raise RuntimeError(f"Unknown strain name `{strain_name}` encountered.")
+
+def search_df(strain_name: str, ref_df: pd.DataFrame):
+    hits = ref_df.loc[ref_df['Strain'] == strain_name, 'Accession']
+    if hits.shape[0] == 0:
+        raise RuntimeError(f"Unknown strain name `{strain_name}` encountered.")
 
     result = hits.head(1).item()
     if hits.shape[0] > 1:
