@@ -9,6 +9,8 @@ export LOGDIR="${OUTPUT_DIR}/logs"
 
 # ======== Location of this file.
 export SETTINGS_PATH="${BASE_DIR}/scripts/stool/settings.sh"
+export CLADES_FILE=/mnt/e/chronostrain/phylogeny/ClermonTyping/umb_phylogroups_complete.txt
+export REFSEQ_INDEX="/mnt/e/ref_genomes/index.tsv"
 
 # Location for reads and outputs.
 export READS_DIR="${OUTPUT_DIR}/reads"

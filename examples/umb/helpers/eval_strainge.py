@@ -12,6 +12,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('-d', '--strainge_dir', required=True, type=str)
     parser.add_argument('-m', '--metadata', required=True, type=str)
     parser.add_argument('-o', '--output', required=True, type=str)
+    parser.add_argument('-r', '--refseq_index', required=True, type=str)
 
     parser.add_argument('--group_by_clades', action='store_true')
     parser.add_argument('-c', '--clades', required=False, type=str)
@@ -26,7 +27,16 @@ def strip_suffixes(x):
     return x.name
 
 
-def parse_clades(clades_path: Path) -> Dict[str, str]:
+def fetch_strain_id(strain_name: str, ref_df: pd.DataFrame) -> str:
+    hits = ref_df.loc[ref_df['Strain'] == strain_name, 'Accession']
+    if hits.shape[0] == 0:
+        raise RuntimeError("Unknown strain name `{strain_name}` found.")
+    if hits.shape[0] > 1:
+        raise RuntimeError("Ambiguous strain name `{strain_name}`.")
+    return hits.item()
+
+
+def parse_clades(clades_path: Path, ref_df: pd.DataFrame) -> Dict[str, str]:
     """
     NC_017626.1.chrom.fna	['ybgD', 'trpA', 'trpBA', 'chuA', 'arpA', 'trpAgpC']	['+', '+', '-', '-']	['trpAgpC']	D	NC_017626.1.chrom.fna_mash_screen.tab
     """
@@ -38,7 +48,8 @@ def parse_clades(clades_path: Path) -> Dict[str, str]:
                 continue
 
             tokens = line.split('\t')
-            strain_id = strip_suffixes(tokens[0])
+            strain_name = strip_suffixes(tokens[0])
+            strain_id = fetch_strain_id(strain_name, ref_df)
             phylogroup = tokens[4]
             mapping[strain_id] = phylogroup
     return mapping
@@ -164,12 +175,13 @@ def dominance_switch_ratio(abundance_est: np.ndarray) -> float:
 def main():
     args = parse_args()
     metadata = pd.read_csv(args.metadata)
+    ref_df = pd.read_csv(args.refseq_index)
 
     if args.group_by_clades:
         if args.clades is None:
             print("If grouping by clades, a clades path is required.")
             exit(1)
-        clades = parse_clades(args.clades)
+        clades = parse_clades(args.clades, ref_df)
         df = evaluate_by_clades(Path(args.strainge_dir), clades, metadata)
     else:
         df = evaluate(Path(args.strainge_dir), metadata)
