@@ -138,6 +138,8 @@ def divide_into_timeseries(timeseries: np.ndarray, strain_ids: List[str], clades
     for this_clade in all_clades:
         # Note: if "s" is not in "clades", then it might not be ecoli.
         matching_strains = [i for i, s in enumerate(strain_ids) if (s in clades and clades[s] == this_clade)]
+        if len(matching_strains) == 0:
+            continue
         yield this_clade, timeseries[:, matching_strains]
 
 
