@@ -16,7 +16,9 @@ def parse_args() -> argparse.Namespace:
 def parse_outputs(base_dir: Path) -> Iterator[pd.DataFrame]:
     entries = []
     for umb_id, umb_dir in umb_dirs(base_dir):
+        print(f"Handling {umb_id}.")
         for sample_id, output_file in output_files(umb_dir):
+            print(f"Reading output file {output_file}.")
             for strain_id, rel_abund in parse_single_output(output_file):
                 entries.append({
                     'Sample': sample_id,

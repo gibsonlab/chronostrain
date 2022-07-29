@@ -29,6 +29,7 @@ def umb_outputs(base_dir: Path) -> Tuple[str, torch.Tensor]:
 def evaluate(chronostrain_output_dir: Path) -> pd.DataFrame:
     df_entries = []
     for patient, umb_samples in umb_outputs(chronostrain_output_dir):
+        print(f"Handling {patient}.")
         df_entries.append({
             "Patient": patient,
             "Dominance": dominance_switch_ratio(umb_samples)
