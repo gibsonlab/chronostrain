@@ -177,6 +177,8 @@ def main():
     metadata = pd.read_csv(args.metadata)
     ref_df = pd.read_csv(args.refseq_index)
 
+    print(ref_df)
+
     if args.group_by_clades:
         if args.clades is None:
             print("If grouping by clades, a clades path is required.")
