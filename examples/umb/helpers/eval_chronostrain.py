@@ -90,7 +90,7 @@ def evaluate_by_clades(chronostrain_output_dir: Path, clades: Dict[str, str]) ->
 
         # Renormalize.
         row_sums = timeseries.sum(axis=1)
-        timeseries[row_sums > 0, :] = timeseries[row_sums > 0, :] / np.expand_dims(row_sums, 1)
+        timeseries[row_sums > 0, :] = timeseries[row_sums > 0, :] / np.expand_dims(row_sums[row_sums > 0], 1)
 
         for clade, sub_timeseries in divide_into_timeseries(timeseries, strain_ids, clades):
             df_entries.append({
