@@ -163,6 +163,9 @@ def evaluate(strainge_output_dir: Path, metadata: pd.DataFrame, ref_df: pd.DataF
 def evaluate_by_clades(strainge_output_dir: Path, clades: Dict[str, str], metadata: pd.DataFrame, ref_df: pd.DataFrame) -> pd.DataFrame:
     df_entries = []
     for patient, timeseries_df in parse_outputs(strainge_output_dir, ref_df):
+        if timeseries_df.shape[0] == 0:
+            continue
+
         timeseries, strain_ids = convert_to_numpy(timeseries_df, metadata)
         for clade, sub_timeseries in divide_into_timeseries(timeseries, strain_ids, clades):
             df_entries.append({
