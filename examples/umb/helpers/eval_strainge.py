@@ -162,13 +162,16 @@ def evaluate(strainge_output_dir: Path, metadata: pd.DataFrame, ref_df: pd.DataF
     df_entries = []
     for patient, timeseries_df in parse_outputs(strainge_output_dir, ref_df):
         if timeseries_df.shape[0] == 0:
-            continue
-
-        timeseries, _ = convert_to_numpy(timeseries_df, patient, metadata)
-        df_entries.append({
-            "Patient": patient,
-            "Dominance": dominance_switch_ratio(timeseries)
-        })
+            df_entries.append({
+                "Patient": patient,
+                "Dominance": np.nan
+            })
+        else:
+            timeseries, _ = convert_to_numpy(timeseries_df, patient, metadata)
+            df_entries.append({
+                "Patient": patient,
+                "Dominance": dominance_switch_ratio(timeseries)
+            })
     return pd.DataFrame(df_entries)
 
 
@@ -176,16 +179,22 @@ def evaluate_by_clades(strainge_output_dir: Path, clades: Dict[str, str], metada
     df_entries = []
     for patient, timeseries_df in parse_outputs(strainge_output_dir, ref_df):
         if timeseries_df.shape[0] == 0:
-            continue
-
-        timeseries, strain_ids = convert_to_numpy(timeseries_df, patient, metadata)
-        for clade, sub_timeseries in divide_into_timeseries(timeseries, strain_ids, clades):
-            df_entries.append({
-                "Patient": patient,
-                "Phylogroup": clade,
-                "Dominance": dominance_switch_ratio(sub_timeseries),
-                "RelAbundMax": np.max(np.sum(sub_timeseries, axis=1))
-            })
+            for clade in clades:
+                df_entries.append({
+                    "Patient": patient,
+                    "Phylogroup": clade,
+                    "Dominance": np.nan,
+                    "RelAbundMax": np.nan
+                })
+        else:
+            timeseries, strain_ids = convert_to_numpy(timeseries_df, patient, metadata)
+            for clade, sub_timeseries in divide_into_timeseries(timeseries, strain_ids, clades):
+                df_entries.append({
+                    "Patient": patient,
+                    "Phylogroup": clade,
+                    "Dominance": dominance_switch_ratio(sub_timeseries),
+                    "RelAbundMax": np.max(np.sum(sub_timeseries, axis=1))
+                })
     return pd.DataFrame(df_entries)
 
 
