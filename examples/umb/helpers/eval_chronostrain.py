@@ -84,11 +84,19 @@ def evaluate_by_clades(chronostrain_output_dir: Path, clades: Dict[str, str]) ->
         print(f"Handling {patient}.")
         timeseries = torch.median(umb_samples, dim=1).values.numpy()
 
+        # Zero out small bugs.
+        lb = 1 / timeseries.shape[1]
+        timeseries[timeseries > lb] = 0.0
+
+        # Renormalize.
+        row_sums = timeseries.sum(axis=1)
+        timeseries[row_sums > 0, :] = timeseries[row_sums > 0, :] / np.expand_dims(row_sums, 1)
+
         for clade, sub_timeseries in divide_into_timeseries(timeseries, strain_ids, clades):
             df_entries.append({
                 "Patient": patient,
                 "Phylogroup": clade,
-                "Dominance": dominance_switch_ratio(sub_timeseries, lb=1 / timeseries.shape[1]),
+                "Dominance": dominance_switch_ratio(sub_timeseries, lb=0.),
                 "RelAbundMax": np.max(np.sum(sub_timeseries, axis=1))
             })
     return pd.DataFrame(df_entries)
