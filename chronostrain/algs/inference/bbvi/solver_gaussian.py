@@ -45,11 +45,6 @@ class ADVIGaussianSolver(AbstractADVISolver):
                 num_strains=model.num_strains(),
                 num_times=model.num_times()
             )
-        elif correlation_type == "full-ar1":
-            posterior = GaussianPosteriorAutoregressiveReparametrizedCorrelation(
-                num_strains=model.num_strains(),
-                num_times=model.num_times()
-            )
         else:
             raise ValueError("Unrecognized `correlation_type` argument {}.".format(correlation_type))
 
