@@ -154,7 +154,7 @@ def convert_to_numpy(timeseries_df: pd.DataFrame, patient: str, metadata: pd.Dat
 
     # Normalize.
     row_sums = timeseries.sum(axis=1)
-    timeseries[row_sums > 0] = timeseries[row_sums > 0] / row_sums[row_sums > 0]
+    timeseries[row_sums > 0, :] = timeseries[row_sums > 0, :] / row_sums[row_sums > 0].expand_dims(1)
     return timeseries, strains
 
 
