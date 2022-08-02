@@ -56,7 +56,6 @@ class AbstractADVI(ABC):
                 epoch_elbos.append(elbo_value)
 
             # ===========  End of epoch
-            # numerically safe calculation (for large ELBO loss)
             epoch_elbo_avg = np.mean(epoch_elbos)
 
             if callbacks is not None:

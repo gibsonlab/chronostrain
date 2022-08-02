@@ -1,6 +1,5 @@
 from typing import Iterator, Optional
 
-import numpy as np
 import torch
 
 from chronostrain.database import StrainDatabase
@@ -86,7 +85,7 @@ class ADVIGaussianSolver(AbstractADVISolver):
         entropic = self.posterior.entropy()
         yield entropic
 
-        for t_idx in np.random.permutation(self.model.num_times()):
+        for t_idx in range(self.model.num_times()):
             log_y_t = log_softmax_t(x_samples, t=t_idx)
             for batch_lls in self.batches[t_idx]:
                 # Average of (N x R_batch) entries, we only want to divide by 1/N and not 1/(N*R_batch)
