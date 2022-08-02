@@ -45,7 +45,7 @@ start_time=$(date +%s%N)  # nanoseconds
 python $PROJECT_DIR/scripts/run_advi.py \
 --reads_input "${output_dir}/filtered/filtered_input_files.csv" \
 --out_dir ${output_dir} \
---correlation_mode "full" \
+--correlation_mode "strain" \
 --seed ${INFERENCE_SEED} \
 --iters $CHRONOSTRAIN_NUM_ITERS \
 --epochs $CHRONOSTRAIN_NUM_EPOCHS \
