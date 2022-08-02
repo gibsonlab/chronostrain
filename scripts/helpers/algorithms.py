@@ -99,8 +99,8 @@ def perform_advi(
 
     start_time = time.time()
     solver.solve(
-        optimizer_class=torch.optim.Adam,
-        optimizer_args={'lr': learning_rate, 'betas': (0.9, 0.999), 'eps': 1e-7, 'weight_decay': 0.0},
+        optimizer_class=torch.optim.SGD,
+        optimizer_args={'lr': learning_rate, 'momentum': 0.9},
         iters=iters,
         num_epochs=num_epochs,
         num_samples=num_samples,
