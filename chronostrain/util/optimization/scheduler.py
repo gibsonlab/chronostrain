@@ -61,15 +61,15 @@ class ReduceLROnPlateauLast(object):
 
         if self.in_cooldown:
             self.cooldown_counter -= 1
-        else:
-            if self.is_better(current, self.prev):
-                print("IS BETTER")
-                self.bad_epochs.push(0)
-            else:
-                print("IS WORSE")
-                self.bad_epochs.push(1)
 
-        if self.bad_epochs.size == self.bad_epochs.capacity and self.bad_epochs.mean() >= self.patience_ratio:
+        if self.is_better(current, self.prev):
+            print("IS BETTER")
+            self.bad_epochs.push(0)
+        else:
+            print("IS WORSE")
+            self.bad_epochs.push(1)
+
+        if (not self.in_cooldown) and (self.bad_epochs.size == self.bad_epochs.capacity) and (self.bad_epochs.mean() >= self.patience_ratio):
             self._reduce_lr()
             self.cooldown_counter = self.cooldown
             self.bad_epochs.clear()
