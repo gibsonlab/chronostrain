@@ -121,7 +121,7 @@ def output_files(patient_dir: Path):
         yield sample_id, output_file
 
 
-def convert_to_numpy(timeseries_df: pd.DataFrame, metadata: pd.DataFrame) -> Tuple[np.ndarray, List[str]]:
+def convert_to_numpy(timeseries_df: pd.DataFrame, patient: str, metadata: pd.DataFrame) -> Tuple[np.ndarray, List[str]]:
     """
     Run,ID,SampleName,date,days,type,Model,LibraryStrategy,Group
     SRR14881730,UMB01,UMB01_00,2015-10-26,298,stool,HiSeq X Ten,WGS,Control
@@ -133,7 +133,12 @@ def convert_to_numpy(timeseries_df: pd.DataFrame, metadata: pd.DataFrame) -> Tup
         how='left'
     )
 
-    time_points = list(pd.unique(merged['days']))
+    time_points = list(pd.unique(
+        metadata.loc[
+            (metadata['ID'] == patient) & (metadata['type'] == 'stool'),
+            'days'
+        ]
+    ))
     strains = list(pd.unique(timeseries_df['Strain']))
 
     time_indexes = {t: i for i, t in enumerate(time_points)}
@@ -152,7 +157,7 @@ def convert_to_numpy(timeseries_df: pd.DataFrame, metadata: pd.DataFrame) -> Tup
 def evaluate(strainge_output_dir: Path, metadata: pd.DataFrame, ref_df: pd.DataFrame) -> pd.DataFrame:
     df_entries = []
     for patient, timeseries_df in parse_outputs(strainge_output_dir, ref_df):
-        timeseries, _ = convert_to_numpy(timeseries_df, metadata)
+        timeseries, _ = convert_to_numpy(timeseries_df, patient, metadata)
         df_entries.append({
             "Patient": patient,
             "Dominance": dominance_switch_ratio(timeseries)
@@ -166,7 +171,7 @@ def evaluate_by_clades(strainge_output_dir: Path, clades: Dict[str, str], metada
         if timeseries_df.shape[0] == 0:
             continue
 
-        timeseries, strain_ids = convert_to_numpy(timeseries_df, metadata)
+        timeseries, strain_ids = convert_to_numpy(timeseries_df, patient, metadata)
         for clade, sub_timeseries in divide_into_timeseries(timeseries, strain_ids, clades):
             df_entries.append({
                 "Patient": patient,
