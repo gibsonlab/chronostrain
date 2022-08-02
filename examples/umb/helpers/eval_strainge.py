@@ -84,8 +84,8 @@ def parse_clades(clades_path: Path) -> Dict[str, str]:
 
 
 def parse_outputs(base_dir: Path, ref_df: pd.DataFrame) -> Iterator[Tuple[str, pd.DataFrame]]:
-    entries = []
     for umb_id, umb_dir in umb_dirs(base_dir):
+        entries = []
         print(f"Handling {umb_id}.")
         for sample_id, output_file in output_files(umb_dir):
             print(f"Reading output file {output_file}.")
