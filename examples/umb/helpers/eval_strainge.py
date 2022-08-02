@@ -179,7 +179,7 @@ def evaluate_by_clades(strainge_output_dir: Path, clades: Dict[str, str], metada
     df_entries = []
     for patient, timeseries_df in parse_outputs(strainge_output_dir, ref_df):
         if timeseries_df.shape[0] == 0:
-            for clade in clades:
+            for clade in clades.values():
                 df_entries.append({
                     "Patient": patient,
                     "Phylogroup": clade,
