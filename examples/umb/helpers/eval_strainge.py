@@ -43,6 +43,9 @@ def fetch_strain_id(strain_name: str, ref_df: pd.DataFrame) -> str:
         ref_df = ref_df.loc[ref_df['Assembly'] == gcf_id, :]
 
     strain_names_to_try = {strain_name, strain_name.replace("_", ".")}
+    if strain_name.startswith("str"):
+        strain_names_to_try.add(strain_name.split("_")[1:])
+
     for s in strain_names_to_try:
         try:
             return search_df(s, ref_df)
