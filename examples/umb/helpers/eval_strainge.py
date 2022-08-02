@@ -55,7 +55,7 @@ def fetch_strain_id(strain_name: str, ref_df: pd.DataFrame) -> str:
 
 
 def search_df(strain_name: str, ref_df: pd.DataFrame):
-    hits = ref_df.loc[ref_df['Strain'] == strain_name, 'Accession']
+    hits = ref_df.loc[ref_df['Strain'].str.endswith(strain_name), 'Accession']
     if hits.shape[0] == 0:
         raise RuntimeError(f"Unknown strain name `{strain_name}` encountered.")
 
