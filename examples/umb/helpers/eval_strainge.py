@@ -157,6 +157,9 @@ def convert_to_numpy(timeseries_df: pd.DataFrame, patient: str, metadata: pd.Dat
 def evaluate(strainge_output_dir: Path, metadata: pd.DataFrame, ref_df: pd.DataFrame) -> pd.DataFrame:
     df_entries = []
     for patient, timeseries_df in parse_outputs(strainge_output_dir, ref_df):
+        if timeseries_df.shape[0] == 0:
+            continue
+
         timeseries, _ = convert_to_numpy(timeseries_df, patient, metadata)
         df_entries.append({
             "Patient": patient,
