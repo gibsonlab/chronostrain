@@ -184,7 +184,7 @@ def evaluate_by_clades(strainge_output_dir: Path, clades: Dict[str, str], metada
                 "Patient": patient,
                 "Phylogroup": clade,
                 "Dominance": dominance_switch_ratio(sub_timeseries),
-                "RelAbundMedian": np.median(np.sum(sub_timeseries, axis=1))
+                "RelAbundMax": np.max(np.sum(sub_timeseries, axis=1))
             })
     return pd.DataFrame(df_entries)
 
