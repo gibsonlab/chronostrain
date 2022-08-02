@@ -82,9 +82,9 @@ def evaluate_by_clades(chronostrain_output_dir: Path, clades: Dict[str, str]) ->
     df_entries = []
     for patient, umb_samples, strain_ids in umb_outputs(chronostrain_output_dir):
         print(f"Handling {patient}.")
-        timeseries = torch.median(umb_samples, dim=1).values.numpy()
 
         # Zero out small bugs.
+        timeseries = np.quantile(umb_samples.numpy(), axis=1, q=0.95)
         lb = 1 / timeseries.shape[1]
         timeseries[timeseries > lb] = 0.0
 
