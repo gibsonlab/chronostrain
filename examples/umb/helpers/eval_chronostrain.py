@@ -70,7 +70,6 @@ def evaluate(chronostrain_output_dir: Path) -> pd.DataFrame:
     for patient, umb_samples, _ in umb_outputs(chronostrain_output_dir):
         print(f"Handling {patient}.")
         timeseries = torch.median(umb_samples, dim=1).values.numpy()
-        print(umb_samples.shape)
 
         df_entries.append({
             "Patient": patient,
