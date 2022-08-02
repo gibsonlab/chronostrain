@@ -80,14 +80,18 @@ class ADVIGaussianSolver(AbstractADVISolver):
 
         To save memory on larger inputs, split the ELBO up into several pieces.
         """
+        model_ll = self.model.log_likelihood_x(X=x_samples).mean()
+        yield model_ll
+
+        entropic = self.posterior.entropy()
+        yield entropic
+
         for t_idx in np.random.permutation(self.model.num_times()):
             log_y_t = log_softmax_t(x_samples, t=t_idx)
             for batch_lls in self.batches[t_idx]:
-                wt = batch_lls.shape[1] / self.total_reads
-
                 # Average of (N x R_batch) entries, we only want to divide by 1/N and not 1/(N*R_batch)
                 data_ll = batch_lls.shape[1] * torch.mean(log_matmul_exp(log_y_t, batch_lls))
-                yield data_ll + wt * (self.posterior.entropy() + self.model.log_likelihood_x(X=x_samples).mean())
+                yield data_ll
 
     def data_ll(self, x_samples: torch.Tensor) -> torch.Tensor:
         ans = torch.zeros(size=(x_samples.shape[1],), device=x_samples.device)
