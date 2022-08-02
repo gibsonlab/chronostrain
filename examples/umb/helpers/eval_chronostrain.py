@@ -109,14 +109,16 @@ def dominance_switch_ratio(abundance_est: np.ndarray) -> float:
     """
     Calculate how often the dominant strain switches.
     """
-    dom = np.argmax(abundance_est, axis=1)
+    lb = 1 / abundance_est.shape[1]
+    est = abundance_est[abundance_est > lb]
+    dom = np.argmax(est, axis=1)
     num_switches = 0
 
     def row_is_zeros(r) -> bool:
         return np.sum(r == 0).item() == r.shape[0]
 
     for i in range(len(dom) - 1):
-        switched = (dom[i] != dom[i+1]) or row_is_zeros(abundance_est[i]) or row_is_zeros(abundance_est[i+1])
+        switched = (dom[i] != dom[i+1]) or row_is_zeros(est[i]) or row_is_zeros(est[i+1])
         if switched:
             num_switches += 1
     return num_switches / (len(dom) - 1)
