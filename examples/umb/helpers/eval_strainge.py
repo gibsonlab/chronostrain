@@ -184,7 +184,8 @@ def evaluate_by_clades(strainge_output_dir: Path, clades: Dict[str, str], metada
                     "Patient": patient,
                     "Phylogroup": clade,
                     "Dominance": np.nan,
-                    "RelAbundMax": np.nan
+                    "OverallRelAbundMax": np.nan,
+                    "StrainRelAbundMax": np.nan
                 })
         else:
             timeseries, strain_ids = convert_to_numpy(timeseries_df, patient, metadata)
@@ -193,7 +194,8 @@ def evaluate_by_clades(strainge_output_dir: Path, clades: Dict[str, str], metada
                     "Patient": patient,
                     "Phylogroup": clade,
                     "Dominance": dominance_switch_ratio(sub_timeseries),
-                    "RelAbundMax": np.max(np.sum(sub_timeseries, axis=1))
+                    "OverallRelAbundMax": np.max(np.sum(sub_timeseries, axis=1)),
+                    "StrainRelAbundMax": np.max(sub_timeseries)
                 })
     return pd.DataFrame(df_entries)
 
