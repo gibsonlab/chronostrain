@@ -80,7 +80,7 @@ def perform_advi(
     if save_training_history:
         def anim_callback(x_samples, uppers_buf, lowers_buf, medians_buf):
             # Plot VI posterior.
-            abund_samples = x_samples.cpu().detach().numpy()
+            abund_samples = torch.softmax(x_samples.cpu().detach(), dim=-1).numpy()
             for s_idx in range(model.num_strains()):
                 traj_samples = abund_samples[:, :, s_idx]  # (T x N)
                 upper_quantile = np.quantile(traj_samples, q=0.975, axis=1)

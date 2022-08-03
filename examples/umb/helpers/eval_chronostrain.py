@@ -88,6 +88,7 @@ def evaluate_by_clades(chronostrain_output_dir: Path, clades: Dict[str, str]) ->
             df_entries.append({
                 "Patient": patient,
                 "Phylogroup": clade,
+                "GroupSize": sub_timeseries.shape[1],
                 "Dominance": dominance_switch_ratio(sub_timeseries, lb=1 / timeseries.shape[1]),
                 "RelAbundMax": np.max(np.sum(sub_timeseries, axis=1))
             })
