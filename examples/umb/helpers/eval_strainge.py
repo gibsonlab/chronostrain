@@ -190,13 +190,22 @@ def evaluate_by_clades(strainge_output_dir: Path, clades: Dict[str, str], metada
         else:
             timeseries, strain_ids = convert_to_numpy(timeseries_df, patient, metadata)
             for clade, sub_timeseries in divide_into_timeseries(timeseries, strain_ids, clades):
-                df_entries.append({
-                    "Patient": patient,
-                    "Phylogroup": clade,
-                    "Dominance": dominance_switch_ratio(sub_timeseries),
-                    "OverallRelAbundMax": np.max(np.sum(sub_timeseries, axis=1)),
-                    "StrainRelAbundMax": np.max(sub_timeseries)
-                })
+                if sub_timeseries.shape[1] == 0:
+                    df_entries.append({
+                        "Patient": patient,
+                        "Phylogroup": clade,
+                        "Dominance": np.nan,
+                        "OverallRelAbundMax": np.nan,
+                        "StrainRelAbundMax": np.nan,
+                    })
+                else:
+                    df_entries.append({
+                        "Patient": patient,
+                        "Phylogroup": clade,
+                        "Dominance": dominance_switch_ratio(sub_timeseries),
+                        "OverallRelAbundMax": np.max(np.sum(sub_timeseries, axis=1)),
+                        "StrainRelAbundMax": np.max(sub_timeseries)
+                    })
     return pd.DataFrame(df_entries)
 
 
@@ -207,7 +216,7 @@ def divide_into_timeseries(timeseries: np.ndarray, strain_ids: List[str], clades
         matching_strains = [i for i, s in enumerate(strain_ids) if (s in clades and clades[s] == this_clade)]
         if len(matching_strains) == 0:
             print(f"Phylogroup {this_clade} was empty.")
-            yield this_clade, np.empty((0, 1))
+            yield this_clade, np.empty((timeseries.shape[0], 0))
         yield this_clade, timeseries[:, matching_strains]
 
 
