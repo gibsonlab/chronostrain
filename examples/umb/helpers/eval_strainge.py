@@ -220,7 +220,7 @@ def divide_into_timeseries(timeseries: np.ndarray, strain_ids: List[str], clades
             yield this_clade, timeseries[:, matching_strains]
 
 
-def dominance_switch_ratio(abundance_est: np.ndarray, lb: float) -> float:
+def dominance_switch_ratio(abundance_est: np.ndarray, lb: float = 0.0) -> float:
     """
     Calculate how often the dominant strain switches.
     """
