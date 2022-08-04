@@ -180,7 +180,6 @@ def evaluate_by_clades(strainge_output_dir: Path, clades: Dict[str, str], metada
     for patient, timeseries_df in parse_outputs(strainge_output_dir, ref_df):
         if timeseries_df.shape[0] == 0:
             for clade in set(clades.values()):
-                print(f".. option 1 {patient}, {clade}")
                 df_entries.append({
                     "Patient": patient,
                     "Phylogroup": clade,
@@ -191,7 +190,6 @@ def evaluate_by_clades(strainge_output_dir: Path, clades: Dict[str, str], metada
         else:
             timeseries, strain_ids = convert_to_numpy(timeseries_df, patient, metadata)
             for clade, sub_timeseries in divide_into_timeseries(timeseries, strain_ids, clades):
-                print(f"asDFASDFAS option 2 {patient}, {clade}")
                 if sub_timeseries.shape[1] == 0:
                     df_entries.append({
                         "Patient": patient,
