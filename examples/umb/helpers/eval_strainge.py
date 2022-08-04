@@ -220,7 +220,7 @@ def divide_into_timeseries(timeseries: np.ndarray, strain_ids: List[str], clades
             yield this_clade, timeseries[:, matching_strains]
 
 
-def dominance_switch_ratio(abundance_est: np.ndarray) -> float:
+def dominance_switch_ratio(abundance_est: np.ndarray, lb: float) -> float:
     """
     Calculate how often the dominant strain switches.
     """
@@ -228,13 +228,14 @@ def dominance_switch_ratio(abundance_est: np.ndarray) -> float:
     num_switches = 0
 
     def row_is_zeros(r) -> bool:
-        return np.sum(r == 0).item() == r.shape[0]
+        return np.sum(r <= lb).item() == r.shape[0]
 
     num_total = 0
     for i in range(len(dom) - 1):
         if row_is_zeros(abundance_est[i]) and row_is_zeros(abundance_est[i + 1]):
-            pass
-        elif (dom[i] != dom[i+1]) or row_is_zeros(abundance_est[i]) or row_is_zeros(abundance_est[i+1]):
+            continue  # don't add to denominator.
+
+        elif (dom[i] != dom[i + 1]) or row_is_zeros(abundance_est[i]) or row_is_zeros(abundance_est[i + 1]):
             num_switches += 1
         num_total += 1
     return num_switches / num_total
