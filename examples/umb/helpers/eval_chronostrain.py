@@ -51,6 +51,7 @@ def umb_outputs(base_dir: Path) -> Iterator[Tuple[str, torch.Tensor, List[str]]]
         sample_path = umb_dir / "samples.pt"
         if not sample_path.exists():
             print(f"File `{sample_path}` not found. Skipping {umb_id}...")
+            continue
 
         samples = torch.load(umb_dir / "samples.pt")
         strain_ids = load_strain_ids(umb_dir / "strains.txt")
