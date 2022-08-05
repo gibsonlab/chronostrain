@@ -243,7 +243,7 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
             min_lr=min_lr,
             callbacks=callbacks
         )
-        self.diagnostic()
+        # self.diagnostic()
 
     @abstractmethod
     def data_ll(self, samples: torch.Tensor) -> torch.Tensor:
