@@ -39,6 +39,10 @@ mkdir -p $output_dir
 export CHRONOSTRAIN_CACHE_DIR="${trial_dir}/cache"
 export CHRONOSTRAIN_LOG_FILEPATH="${output_dir}/chronostrain.log"
 
+if [ -f $CHRONOSTRAIN_CACHE_DIR ]; then
+	rm -rf $CHRONOSTRAIN_CACHE_DIR
+fi
+
 echo "[*] Running Chronostrain inference for n_reads: ${n_reads}, trial: ${trial}"
 start_time=$(date +%s%N)  # nanoseconds
 
