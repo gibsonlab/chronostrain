@@ -40,6 +40,7 @@ export CHRONOSTRAIN_CACHE_DIR="${trial_dir}/cache"
 export CHRONOSTRAIN_LOG_FILEPATH="${output_dir}/chronostrain.log"
 
 if [ -f $CHRONOSTRAIN_CACHE_DIR ]; then
+	echo "[*] Clearing cache."
 	rm -rf $CHRONOSTRAIN_CACHE_DIR
 fi
 
