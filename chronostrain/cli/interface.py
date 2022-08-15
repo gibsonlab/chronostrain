@@ -1,13 +1,13 @@
 import click
-import commands
+from .commands import *
 
 
 @click.group(
     context_settings={'help_option_names': ['-h', '--help']},
     help="ChronoStrain (Time-Series Metagenomic Abundance Estimation)",
     commands={
-        'filter': commands.filter_timeseries,
-        'filter-single': commands.filter_single
+        'filter': filter_timeseries,
+        'filter-single': filter_single
     }
 )
 def cli():
