@@ -1,75 +1,94 @@
-import argparse
+import click
+from logging import Logger
 from pathlib import Path
 
-from chronostrain.logging import create_logger
-from chronostrain.config import cfg
-from .base import Filter
 
-logger = create_logger("chronostrain.filter_single")
+@click.command()
+@click.pass_context
+@click.option(
+    '--in-path', '-i', 'in_path',
+    type=click.Path(path_type=Path, dir_okay=False, exists=True, readable=True),
+    required=True,
+    help="The input file path."
+)
+@click.option(
+    '--out-path', '-o', 'out_path',
+    type=click.Path(path_type=Path, dir_okay=False, exists=False, readable=True),
+    required=True,
+    help="The output file path (to be written in fastq format).",
+)
+@click.option(
+    '--quality-format', '-q', 'quality_format',
+    type=str,
+    required=False, default="fastq",
+    help="The quality format of the input file. Token must be parsable by Bio.SeqIO."
+)
+@click.option(
+    '--read-type', '-r', 'read_type',
+    type=str,
+    required=False, default="fastq",
+    help="A string token specifying what type of reads the file contains. (options: paired_1, paired_2, single)"
+)
+@click.option(
+    '--min-read-len', '-mr', 'min_read_len',
+    type=int,
+    required=False, default=35,
+    help="Filters out a read if its length was less than the specified value (helps reduce spurious alignments)."
+         "Ideally, a read trimming tool, such as trimmomatic, should have taken care of this step already!"
+)
+@click.option(
+    '--identity-threshold', '-it', 'frac_identity_threshold',
+    type=float,
+    required=False, default=0.1,
+    help="The percent identity threshold at which to filter reads."
+)
+@click.option(
+    '--error-threshold', '-et', 'error_threshold',
+    type=float,
+    required=False, default=1.0,
+    help="The upper bound on the number of expected errors, expressed as a fraction of length of the read. "
+         "A value of 1.0 disables this feature."
+)
+def main(
+        ctx: click.Context,
+        in_path: Path,
+        out_path: Path,
+        min_read_len: int,
+        frac_identity_threshold: float,
+        error_threshold: float,
+        read_type: str,
+        quality_format: str,
+):
+    ctx.ensure_object(Logger)
+    logger = ctx.obj
+    logger.info(f"Applying filter to `{in_path}`")
 
-
-def parse_args():
-    parser = argparse.ArgumentParser(description="Perform inference on time-series reads.")
-
-    # Input specification.
-    parser.add_argument('-i', '--in_path', required=True, type=str,
-                        help='<Required> The input file path.')
-    parser.add_argument('-o', '--out_path', required=True, type=str,
-                        help='<Required> The output file path (fastq format).')
-    parser.add_argument('-q', '--quality_format', required=False, type=str,
-                        default='fastq',
-                        help='<Optional> The quality format of the input file. '
-                             'Must be parsable by Bio.SeqIO. '
-                             'Default: `fastq`')
-    parser.add_argument('--read_type', required=True, type=str)
-
-    # Optional params.
-    parser.add_argument('--min_read_len', required=False, type=int, default=35,
-                        help='<Optional> Filters out a read if its length was less than the specified value '
-                             '(helps reduce spurious alignments). Ideally, trimmomatic should have taken care '
-                             'of this step already!')
-    parser.add_argument('--pct_identity_threshold', required=False, type=float,
-                        default=0.1,
-                        help='<Optional> The percent identity threshold at which to filter reads. Default: 0.1.')
-    parser.add_argument('--error_threshold', required=False, type=float,
-                        default=0.05,
-                        help='<Optional> The number of expected errors tolerated in order to pass filter, '
-                             'expressed as a ratio to the length of the read..'
-                             'Default: 0.05')
-    parser.add_argument('--num_threads', required=False, type=int,
-                        default=cfg.model_cfg.num_cores,
-                        help='<Optional> Specifies the number of threads. Is passed to underlying alignment tools.')
-    return parser.parse_args()
-
-
-def main():
-    args = parse_args()
-    logger.info(f"Applying filter to `{args.in_path}`")
-
-    db = cfg.database_cfg.get_database()
+    from chronostrain.config import cfg
+    from .base import Filter
 
     # =========== Parse reads.
     filter = Filter(
-        db=db,
-        min_read_len=args.min_read_len,
-        frac_identity_threshold=args.frac_identity_threshold,
-        error_threshold=args.error_threshold,
-        num_threads=args.num_threads
+        db=cfg.database_cfg.get_database(),
+        min_read_len=min_read_len,
+        frac_identity_threshold=frac_identity_threshold,
+        error_threshold=error_threshold,
+        num_threads=cfg.model_cfg.num_cores
     )
 
     filter.apply(
-        Path(args.in_path),
-        Path(args.out_path),
-        read_type=args.read_type,
-        quality_format=args.quality_format
+        in_path, out_path,
+        read_type=read_type,
+        quality_format=quality_format
     )
 
-    logger.info(f"Wrote filtered output to {args.out_path}.")
+    logger.info(f"Wrote output to {out_path}")
 
 
 if __name__ == "__main__":
+    from chronostrain.logging import create_logger
+    logger = create_logger("chronostrain.filter")
     try:
-        main()
+        main(obj=logger)
     except BaseException as e:
         logger.exception(e)
         exit(1)

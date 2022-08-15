@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import List, Tuple, Optional
 
 
-@click.command(name="filter")
+@click.command()
 @click.pass_context
 @click.option(
     '--reads', '-r', 'reads_input',
@@ -16,7 +16,7 @@ from typing import List, Tuple, Optional
 )
 @click.option(
     '--out-dir', '-o', 'out_dir',
-    type=click.Path(path_type=Path, file_okay=False, exists=True, readable=True),
+    type=click.Path(path_type=Path, file_okay=False),
     required=True,
     help="The directory to which the filtered reads/CSV table will be saved.",
 )
@@ -32,7 +32,7 @@ from typing import List, Tuple, Optional
     type=int,
     required=False, default=35,
     help="Filters out a read if its length was less than the specified value (helps reduce spurious alignments)."
-         "Ideally, a read trimming tool (such as trimmomatic) should have taken care of this step already!"
+         "Ideally, a read trimming tool, such as trimmomatic, should have taken care of this step already!"
 )
 @click.option(
     '--identity-threshold', '-it', 'frac_identity_threshold',
@@ -41,7 +41,7 @@ from typing import List, Tuple, Optional
     help="The percent identity threshold at which to filter reads."
 )
 @click.option(
-    '--error-threshold', '-et', 'error_thrshold',
+    '--error-threshold', '-et', 'error_threshold',
     type=float,
     required=False, default=1.0,
     help="The upper bound on the number of expected errors, expressed as a fraction of length of the read. "
@@ -133,4 +133,9 @@ def load_from_csv(csv_path: Path, logger: Logger) -> List[Tuple[float, int, Path
 
 if __name__ == "__main__":
     from chronostrain.logging import create_logger
-    main(obj=create_logger("chronostrain.filter"))
+    logger = create_logger("chronostrain.filter")
+    try:
+        main(obj=logger)
+    except BaseException as e:
+        logger.exception(e)
+        exit(1)
