@@ -5,7 +5,7 @@ from typing import List, Tuple
 
 from chronostrain import logger
 from chronostrain.model.io import load_abundances
-from chronostrain import cfg
+from chronostrain.config import cfg
 
 import numpy as np
 import pandas as pd

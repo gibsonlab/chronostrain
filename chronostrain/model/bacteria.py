@@ -5,8 +5,8 @@ from typing import List, Union, Iterator, Tuple
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
-from chronostrain.config.logging import create_logger
 from chronostrain.util.sequences import SeqType, z4_to_nucleotides
+from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
 

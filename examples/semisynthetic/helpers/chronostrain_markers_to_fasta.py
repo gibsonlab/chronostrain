@@ -1,6 +1,6 @@
 from pathlib import Path
 import argparse
-from chronostrain import cfg
+from chronostrain.config import cfg
 
 
 def parse_args():

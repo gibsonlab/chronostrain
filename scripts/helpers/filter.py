@@ -11,9 +11,10 @@ from chronostrain.model.io import parse_read_type
 from chronostrain.util.alignments.sam import SamFile
 from chronostrain.util.external import call_command
 from chronostrain.util.alignments.pairwise import parse_alignments, BwaAligner, BowtieAligner, SequenceReadPairwiseAlignment
-from chronostrain.config import cfg, create_logger
 from chronostrain.util.sequences import nucleotide_GAP_z4
 
+from chronostrain.config import cfg
+from chronostrain.logging import create_logger
 logger = create_logger("chronostrain.filter")
 
 

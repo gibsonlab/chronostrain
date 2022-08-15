@@ -3,13 +3,9 @@ import glob
 from pathlib import Path
 from typing import List, Tuple
 
-from chronostrain.database import StrainDatabase
-from chronostrain.model import SequenceRead
-from chronostrain.util.alignments import multiple, pairwise
-from chronostrain.util.alignments.sam import SamFile
-from chronostrain.util.flopp import preprocess
 from chronostrain.util.external import run_glopp
-from chronostrain.config import cfg, create_logger
+from chronostrain.config import cfg
+from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
 

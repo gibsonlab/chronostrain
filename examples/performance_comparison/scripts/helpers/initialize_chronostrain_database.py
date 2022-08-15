@@ -4,7 +4,9 @@
 
     Initialize a database instance to download the necessary files.
 """
-from chronostrain import cfg, logger
+from chronostrain.config import cfg
+from chronostrain.logging import create_logger
+logger = create_logger("chronostrain.init_db")
 
 
 def main():

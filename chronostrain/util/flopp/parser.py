@@ -8,8 +8,7 @@ from .classes import FloppMarkerContig, FloppMarkerAssembly
 from ..alignments.multiple import MarkerMultipleFragmentAlignment
 from ..sequences import NucleotideDtype
 
-from chronostrain.config import create_logger
-
+from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
 

@@ -15,7 +15,8 @@ from Bio import Entrez, SeqIO
 
 from typing import Dict, Tuple, Iterator, Set
 
-from chronostrain import create_logger, cfg
+from chronostrain.logging import create_logger
+from chronostrain.config import cfg
 logger = create_logger("chronostrain.extract_from_metaphlan")
 
 

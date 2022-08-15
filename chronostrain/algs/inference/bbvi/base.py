@@ -8,7 +8,7 @@ from chronostrain.algs.subroutines.likelihoods import DataLikelihoods
 from chronostrain.database import StrainDatabase
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
-from chronostrain.config import cfg, create_logger
+from chronostrain.config import cfg
 from chronostrain.util.benchmarking import RuntimeEstimator
 from chronostrain.util.math import log_spspmm_exp
 from chronostrain.util.optimization import ReduceLROnPlateauLast
@@ -18,6 +18,7 @@ from .. import AbstractModelSolver
 from .posteriors.base import AbstractReparametrizedPosterior
 from .util import divide_columns_into_batches
 
+from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
 

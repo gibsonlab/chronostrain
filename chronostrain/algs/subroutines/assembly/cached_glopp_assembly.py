@@ -13,7 +13,7 @@ from chronostrain.util.flopp.preprocess import z4_base_ordering, to_sam, to_vcf
 from chronostrain.util.sequences import *
 from ..cache import ReadsComputationCache
 
-from chronostrain.config import create_logger
+from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
 

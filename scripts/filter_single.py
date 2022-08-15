@@ -1,9 +1,9 @@
 import argparse
 from pathlib import Path
 
-from chronostrain import create_logger, cfg
 from helpers.filter import Filter
-
+from chronostrain.config import cfg
+from chronostrain.logging import create_logger
 logger = create_logger("chronostrain.filter_single")
 
 

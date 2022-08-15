@@ -13,11 +13,10 @@ from chronostrain.model.reads import AbstractErrorModel, SequenceRead
 from chronostrain.model.io import TimeSeriesReads, TimeSliceReads
 from chronostrain.util.math.distributions import *
 from chronostrain.util.sparse import RowSectionedSparseMatrix
-from .fragment_frequencies import SparseFragmentFrequencyComputer
-
-from chronostrain.config.logging import create_logger
 from chronostrain.database import StrainDatabase
 
+from .fragment_frequencies import SparseFragmentFrequencyComputer
+from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
 

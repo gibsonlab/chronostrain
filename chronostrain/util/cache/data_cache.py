@@ -16,7 +16,7 @@ from chronostrain.config import cfg
 from chronostrain.model.bacteria import Strain, Marker
 from chronostrain.util.filesystem import md5_checksum
 
-from chronostrain.config.logging import create_logger
+from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
 

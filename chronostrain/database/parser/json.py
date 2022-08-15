@@ -6,12 +6,12 @@ from typing import Iterator, List, Tuple, Dict, Any
 
 from chronostrain.config import cfg
 from chronostrain.model import Strain, StrainMetadata, Marker
-from chronostrain.config.logging import create_logger
 
 from .base import AbstractDatabaseParser, StrainDatabaseParseError
 from .marker_sources import CachedMarkerSource, MarkerSource
 from ...util.sequences import UnknownNucleotideError
 
+from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
 

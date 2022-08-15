@@ -6,7 +6,7 @@ from chronostrain.model import Marker
 from chronostrain.util.alignments.multiple import MarkerMultipleFragmentAlignment
 from chronostrain.util.sequences import SeqType
 
-from chronostrain.config import create_logger
+from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
 

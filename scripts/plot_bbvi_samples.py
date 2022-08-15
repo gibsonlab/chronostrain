@@ -10,10 +10,11 @@ from typing import List
 import torch
 
 import seaborn as sns
-from chronostrain import cfg, create_logger
 import chronostrain.visualizations as viz
 from chronostrain.model import Population
 
+from chronostrain.config import cfg
+from chronostrain.logging import create_logger
 logger = create_logger("chronostrain.plot_bbvi_samples")
 
 

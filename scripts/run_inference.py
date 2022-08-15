@@ -6,7 +6,6 @@ import argparse
 from pathlib import Path
 
 from chronostrain.algs.subroutines.cache import ReadsComputationCache
-from chronostrain import cfg, create_logger
 import chronostrain.visualizations as viz
 from chronostrain.algs.subroutines.alignments import CachedReadMultipleAlignments
 from chronostrain.database import StrainDatabase
@@ -14,6 +13,8 @@ from chronostrain.model import Population, construct_fragment_space_uniform_leng
 from chronostrain.model.io import TimeSeriesReads
 
 from helpers import *
+from chronostrain.config import cfg
+from chronostrain.logging import create_logger
 logger = create_logger("chronostrain.run_inference")
 
 

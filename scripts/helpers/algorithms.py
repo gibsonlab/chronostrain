@@ -11,9 +11,10 @@ from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads, save_abundances
 from chronostrain.visualizations import plot_abundances, plot_abundances_comparison
 
-from chronostrain.config import cfg, create_logger
 from .initialization import create_model
 
+from chronostrain.config import cfg
+from chronostrain.logging import create_logger
 logger = create_logger("chronostrain.helpers.algorithms")
 
 

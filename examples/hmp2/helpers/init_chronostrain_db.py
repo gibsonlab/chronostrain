@@ -24,8 +24,9 @@ from chronostrain.util.external import make_blast_db, blastn
 from typing import List, Dict, Any, Tuple, Iterator, Callable
 from intervaltree import IntervalTree
 
+from chronostrain.config import cfg
 from chronostrain.util.io import read_seq_file
-from chronostrain import cfg, create_logger
+from chronostrain.logging import create_logger
 logger = create_logger("chronostrain.init_db")
 
 

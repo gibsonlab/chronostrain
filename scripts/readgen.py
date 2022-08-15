@@ -10,13 +10,16 @@ from typing import Tuple, Dict, List
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 
-from chronostrain import cfg, logger
+from chronostrain.config import cfg
+from chronostrain.logging import create_logger
 from chronostrain.database import StrainDatabase
 from chronostrain.model import Strain
 from chronostrain.util.external.art import art_illumina
 
 from random import seed, randint
 import numpy as np
+
+logger = create_logger("chronostrain.readgen")
 
 
 def parse_args():

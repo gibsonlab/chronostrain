@@ -2,10 +2,10 @@ from typing import List
 import numpy as np
 import torch
 
-from chronostrain import cfg, logger
 from chronostrain.database import StrainDatabase
 from chronostrain.model import Population, NoiselessErrorModel, PEPhredErrorModel, FragmentSpace, PhredErrorModel
 from chronostrain.model.generative import GenerativeModel
+from chronostrain.config import cfg
 
 
 def initialize_seed(seed: int):

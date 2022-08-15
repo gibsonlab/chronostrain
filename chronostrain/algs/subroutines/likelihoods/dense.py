@@ -12,7 +12,7 @@ from chronostrain.util.math import log_mm_exp
 from .base import DataLikelihoods, AbstractLogLikelihoodComputer
 from ..cache import ReadsPopulationCache
 
-from chronostrain.config.logging import create_logger
+from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
 

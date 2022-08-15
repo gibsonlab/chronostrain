@@ -3,7 +3,6 @@ from pathlib import Path
 
 from Bio import SeqIO
 
-from chronostrain.config import create_logger, cfg
 from chronostrain.algs import GloppVariantSolver, GloppExhaustiveVariantSolver
 from chronostrain.model import StrainVariant
 
@@ -11,6 +10,8 @@ import chronostrain.visualizations as viz
 from chronostrain.model.io import TimeSeriesReads
 
 from helpers import *
+from chronostrain.config import cfg
+from chronostrain.logging import create_logger
 logger = create_logger("variant_search")
 
 
