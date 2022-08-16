@@ -39,7 +39,7 @@ from ..base import option
 @option(
     '--identity-threshold', '-it', 'frac_identity_threshold',
     type=float,
-    required=False, default=0.1,
+    required=False, default=0.975,
     help="The percent identity threshold at which to filter reads."
 )
 @option(
