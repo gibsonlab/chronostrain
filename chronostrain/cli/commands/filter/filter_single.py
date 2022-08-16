@@ -2,47 +2,49 @@ import click
 from logging import Logger
 from pathlib import Path
 
+from ..base import option
+
 
 @click.command()
 @click.pass_context
-@click.option(
+@option(
     '--in-path', '-i', 'in_path',
     type=click.Path(path_type=Path, dir_okay=False, exists=True, readable=True),
     required=True,
     help="The input file path."
 )
-@click.option(
+@option(
     '--out-path', '-o', 'out_path',
     type=click.Path(path_type=Path, dir_okay=False, exists=False, readable=True),
     required=True,
-    help="The output file path (to be written in fastq format).",
+    help="The output file path, to be written in fastq format.",
 )
-@click.option(
+@option(
+    '--read-type', '-r', 'read_type',
+    type=str,
+    required=True,
+    help="A string token specifying what type of reads the file contains. (options: paired_1, paired_2, single)"
+)
+@option(
     '--quality-format', '-q', 'quality_format',
     type=str,
     required=False, default="fastq",
     help="The quality format of the input file. Token must be parsable by Bio.SeqIO."
 )
-@click.option(
-    '--read-type', '-r', 'read_type',
-    type=str,
-    required=False, default="fastq",
-    help="A string token specifying what type of reads the file contains. (options: paired_1, paired_2, single)"
-)
-@click.option(
+@option(
     '--min-read-len', '-mr', 'min_read_len',
     type=int,
     required=False, default=35,
-    help="Filters out a read if its length was less than the specified value (helps reduce spurious alignments)."
+    help="Filters out a read if its length was less than the specified value (helps reduce spurious alignments). "
          "Ideally, a read trimming tool, such as trimmomatic, should have taken care of this step already!"
 )
-@click.option(
+@option(
     '--identity-threshold', '-it', 'frac_identity_threshold',
     type=float,
     required=False, default=0.1,
     help="The percent identity threshold at which to filter reads."
 )
-@click.option(
+@option(
     '--error-threshold', '-et', 'error_threshold',
     type=float,
     required=False, default=1.0,
@@ -59,6 +61,9 @@ def main(
         read_type: str,
         quality_format: str,
 ):
+    """
+    Filter a single read file.
+    """
     ctx.ensure_object(Logger)
     logger = ctx.obj
     logger.info(f"Applying filter to `{in_path}`")

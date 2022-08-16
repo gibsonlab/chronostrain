@@ -5,42 +5,44 @@ from logging import Logger
 from pathlib import Path
 from typing import List, Tuple, Optional
 
+from ..base import option
+
 
 @click.command()
 @click.pass_context
-@click.option(
+@option(
     '--reads', '-r', 'reads_input',
     type=click.Path(path_type=Path, dir_okay=False, exists=True, readable=True),
     required=True,
     help="Path to the reads input CSV file."
 )
-@click.option(
+@option(
     '--out-dir', '-o', 'out_dir',
     type=click.Path(path_type=Path, file_okay=False),
     required=True,
     help="The directory to which the filtered reads/CSV table will be saved.",
 )
-@click.option(
+@option(
     '--output-filename', '-f', 'reads_output_filename',
     type=str,
-    required=False, default="",
+    required=False, default=None,
     help="The filename of the target CSV file indexing all filtered reads. If not specified, "
          "will default to `filtered_<input_file>`. Parent directory is always out_dir."
 )
-@click.option(
+@option(
     '--min-read-len', '-mr', 'min_read_len',
     type=int,
     required=False, default=35,
-    help="Filters out a read if its length was less than the specified value (helps reduce spurious alignments)."
+    help="Filters out a read if its length was less than the specified value (helps reduce spurious alignments). "
          "Ideally, a read trimming tool, such as trimmomatic, should have taken care of this step already!"
 )
-@click.option(
+@option(
     '--identity-threshold', '-it', 'frac_identity_threshold',
     type=float,
     required=False, default=0.1,
     help="The percent identity threshold at which to filter reads."
 )
-@click.option(
+@option(
     '--error-threshold', '-et', 'error_threshold',
     type=float,
     required=False, default=1.0,
@@ -56,6 +58,9 @@ def main(
         error_threshold: float,
         output_filename: Optional[str]
 ):
+    """
+    Perform filtering on a timeseries dataset, specified by a standard CSV-formatted input index.
+    """
     ctx.ensure_object(Logger)
     logger = ctx.obj
     logger.info(f"Performing filtering to timeseries dataset `{reads_input}`.")

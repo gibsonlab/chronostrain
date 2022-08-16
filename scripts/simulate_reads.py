@@ -9,12 +9,14 @@ from pathlib import Path
 import torch
 from typing import List, Tuple
 
-from chronostrain import logger, cfg
+from chronostrain.config import cfg
+from chronostrain.logging import create_logger
 from chronostrain.database import StrainDatabase
 from chronostrain.model import generative, reads, FragmentSpace, construct_fragment_space_uniform_length
 from chronostrain.model.bacteria import Population
 from chronostrain.model.io import TimeSeriesReads, save_abundances, load_abundances, TimeSliceReadSource, ReadType
 
+logger = create_logger("chronostrain.simulate_reads")
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Simulate reads from genomes.")
