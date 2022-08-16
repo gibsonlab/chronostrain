@@ -78,11 +78,13 @@ from ..base import option
 )
 @option(
     '--draw-training/--no-draw-training', 'draw_training_history',
-    is_flag=True, default=False
+    is_flag=True, default=False,
+    help='Specify whether or not to render a GIF of the posterior mid-training.'
 )
 @option(
     '--plot-elbo/--no-plot-elbo', 'plot_elbo',
-    is_flag=True, default=False
+    is_flag=True, default=False,
+    help='Specify whether or not to render a plot of the ELBO objective.'
 )
 def main(
         ctx: click.Context,
