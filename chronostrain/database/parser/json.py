@@ -11,6 +11,7 @@ from .base import AbstractDatabaseParser, StrainDatabaseParseError
 from .marker_sources import CachedMarkerSource, MarkerSource
 from ...util.sequences import UnknownNucleotideError
 
+from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
 

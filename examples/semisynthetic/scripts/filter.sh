@@ -56,7 +56,8 @@ start_time=$(date +%s%N)  # nanoseconds
 
 chronostrain filter \
 -r ${reads_csv} \
--o "${output_dir}/filtered"
+-o "${output_dir}/filtered" \
+--aligner bowtie2
 
 # ====== Record runtime
 end_time=$(date +%s%N)

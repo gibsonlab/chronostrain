@@ -5,6 +5,8 @@ from logging import Logger
 from pathlib import Path
 from typing import List, Tuple, Optional
 
+from chronostrain.model.io import parse_read_type
+from .base import create_aligner
 from ..base import option
 
 
@@ -37,6 +39,12 @@ from ..base import option
          "Ideally, a read trimming tool, such as trimmomatic, should have taken care of this step already!"
 )
 @option(
+    '--aligner', '-al', 'aligner',
+    type=str,
+    required=False, default='bowtie2',
+    help='Specify the type of aligner to use. Currently available options: bwa, bowtie2.'
+)
+@option(
     '--identity-threshold', '-it', 'frac_identity_threshold',
     type=float,
     required=False, default=0.975,
@@ -53,6 +61,7 @@ def main(
         ctx: click.Context,
         reads_input: Path,
         out_dir: Path,
+        aligner: str,
         min_read_len: int,
         frac_identity_threshold: float,
         error_threshold: float,
@@ -90,14 +99,17 @@ def main(
         num_threads=cfg.model_cfg.num_cores
     )
 
-    for t, read_depth, read_path, read_type, qual_fmt in load_from_csv(reads_input):
+    for t, read_depth, read_path, read_type_str, qual_fmt in load_from_csv(reads_input, logger=logger):
+        read_type = parse_read_type(read_type_str)
         logger.info(f"Applying filter to timepoint {t}, {str(read_path)}")
+
+        aligner = create_aligner(aligner, read_type, db)
         out_path = out_dir / f"filtered_{remove_suffixes(read_path).name}.fastq"
-        filter.apply(read_path, out_path, read_type, quality_format=qual_fmt)
+        filter.apply(read_path, out_path, read_type, aligner, quality_format=qual_fmt)
         with open(target_csv_path, 'a') as target_csv:
             # Append to target CSV file.
             writer = csv.writer(target_csv, delimiter=',', quotechar='\"', quoting=csv.QUOTE_ALL)
-            writer.writerow([t, read_depth, str(out_path), read_type, qual_fmt])
+            writer.writerow([t, read_depth, str(out_path), read_type_str, qual_fmt])
 
     logger.info("Finished filtering.")
 

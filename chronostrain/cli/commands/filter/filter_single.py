@@ -2,7 +2,9 @@ import click
 from logging import Logger
 from pathlib import Path
 
+from chronostrain.model.io import parse_read_type
 from ..base import option
+from .base import create_aligner
 
 
 @click.command()
@@ -39,6 +41,12 @@ from ..base import option
          "Ideally, a read trimming tool, such as trimmomatic, should have taken care of this step already!"
 )
 @option(
+    '--aligner', '-al', 'aligner',
+    type=str,
+    required=False, default='bowtie2',
+    help='Specify the type of aligner to use. Currently available options: bwa, bowtie2.'
+)
+@option(
     '--identity-threshold', '-it', 'frac_identity_threshold',
     type=float,
     required=False, default=0.975,
@@ -55,6 +63,7 @@ def main(
         ctx: click.Context,
         in_path: Path,
         out_path: Path,
+        aligner: str,
         min_read_len: int,
         frac_identity_threshold: float,
         error_threshold: float,
@@ -71,6 +80,8 @@ def main(
     from chronostrain.config import cfg
     from .base import Filter
 
+    db = cfg.database_cfg.get_database()
+
     # =========== Parse reads.
     filter = Filter(
         db=cfg.database_cfg.get_database(),
@@ -80,8 +91,12 @@ def main(
         num_threads=cfg.model_cfg.num_cores
     )
 
+    read_type = parse_read_type(read_type)
+    aligner = create_aligner(aligner, read_type, db)
     filter.apply(
-        in_path, out_path,
+        in_path,
+        out_path,
+        aligner=aligner,
         read_type=read_type,
         quality_format=quality_format
     )
