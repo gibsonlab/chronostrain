@@ -1,6 +1,7 @@
 import click
-from logging import Logger
 from .commands import *
+from chronostrain.logging import create_logger
+logger = create_logger("chronostrain.cli")
 
 
 @click.group(
@@ -16,15 +17,12 @@ def main(ctx):
     """
     ChronoStrain (Time-Series Metagenomic Abundance Estimation)
     """
-    print(ctx.obj)
-    ctx.ensure_object(Logger)
+    ctx.obj = logger
 
 
 if __name__ == "__main__":
-    from chronostrain.logging import create_logger
-    logger = create_logger("chronostrain.cli")
     try:
-        main(obj=logger)
+        main()
     except Exception as e:
         logger.exception(e)
         exit(1)
