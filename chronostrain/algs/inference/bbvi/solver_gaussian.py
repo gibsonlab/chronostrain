@@ -6,12 +6,12 @@ from chronostrain.database import StrainDatabase
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
 
-from chronostrain.config import create_logger
 from .base import AbstractADVISolver
 from .posteriors import *
 from .util import log_softmax_t, log_matmul_exp
 from ...subroutines.likelihoods import DataLikelihoods
 
+from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
 

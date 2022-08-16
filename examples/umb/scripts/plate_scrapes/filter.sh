@@ -20,10 +20,7 @@ do
 	export CHRONOSTRAIN_LOG_FILEPATH="${LOGDIR}/filter_${sample_name}.log"
 
 	echo "Filtering reads for ${sample_name}"
-	python $PROJECT_DIR/scripts/filter_timeseries.py \
-	--reads_input "${READS_DIR}/${csv_file}" \
-	-o "${READS_DIR}/${sample_name}_filtered" \
-	--frac_identity_threshold 0.975 \
-	--error_threshold 1.0 \
-	--num_threads 4
+	chronostrain filter \
+	-r ${READS_DIR}/${csv_file} \
+	-o "${READS_DIR}/${sample_name}_filtered"
 done

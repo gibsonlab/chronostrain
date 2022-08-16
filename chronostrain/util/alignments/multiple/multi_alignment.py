@@ -14,7 +14,7 @@ from chronostrain.model import Marker, SequenceRead
 from ...external import clustal_omega, mafft_fragment, mafft_global
 from ...sequences import *
 
-from chronostrain.config import create_logger
+from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
 

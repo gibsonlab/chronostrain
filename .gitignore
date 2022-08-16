@@ -16,4 +16,4 @@ trials/
 *.log
 *.csv
 log_config.ini
-ncbi_refs.json
+*.json

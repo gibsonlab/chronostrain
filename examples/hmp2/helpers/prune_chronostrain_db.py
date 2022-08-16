@@ -8,7 +8,7 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
 import numpy as np
-from chronostrain.config import cfg, create_logger
+from chronostrain.config import cfg
 from chronostrain.util.sequences import nucleotides_to_z4
 from chronostrain.database import JSONStrainDatabase, StrainDatabase
 from chronostrain.model import Marker, Strain
@@ -18,6 +18,7 @@ from sklearn.cluster import AgglomerativeClustering
 import itertools
 import math
 
+from chronostrain.logging import create_logger
 logger = create_logger("chronostrain.prune_db")
 
 

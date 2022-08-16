@@ -11,7 +11,7 @@ from Bio.SeqIO.QualityIO import phred_quality_from_solexa
 from chronostrain.model.reads import SequenceRead, PairedEndRead
 from chronostrain.util.filesystem import convert_size
 
-from chronostrain.config.logging import create_logger
+from chronostrain.logging import create_logger
 from chronostrain.util.io import read_seq_file
 
 logger = create_logger(__name__)

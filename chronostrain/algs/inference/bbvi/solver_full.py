@@ -15,7 +15,7 @@ from chronostrain.database import StrainDatabase
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
 
-from chronostrain.config import create_logger, cfg
+from chronostrain.config import cfg
 from chronostrain.util.math.psis import psis_smooth_ratios
 
 from .. import AbstractModelSolver
@@ -23,6 +23,7 @@ from .util import log_softmax_t, log_matmul_exp
 from .solver_gaussian import ADVIGaussianSolver
 from ..vi import AbstractPosterior
 
+from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
 

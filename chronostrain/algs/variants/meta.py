@@ -13,8 +13,9 @@ from .base import StrainVariant
 from ..inference import ADVIGaussianSolver
 from ..subroutines.alignments import CachedReadMultipleAlignments
 
-from chronostrain.config import create_logger, cfg
+from chronostrain.config import cfg
 
+from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
 

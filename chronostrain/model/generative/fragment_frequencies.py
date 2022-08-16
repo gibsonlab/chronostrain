@@ -11,10 +11,10 @@ from chronostrain.database import StrainDatabase
 from chronostrain.model import FragmentSpace, Fragment, Population, Marker, Strain
 from chronostrain.util.cache import ComputationCache, CacheTag
 from chronostrain.util.external import bwa_index, bwa_fastmap
-
-from chronostrain.config import create_logger, cfg
+from chronostrain.config import cfg
 from chronostrain.util.sparse import RowSectionedSparseMatrix, SparseMatrix
 
+from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
 

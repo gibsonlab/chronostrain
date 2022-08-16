@@ -12,7 +12,7 @@ import numpy as np
 from sklearn import covariance, preprocessing
 import networkx as nx
 
-from chronostrain.config import create_logger
+from chronostrain.logging import create_logger
 from chronostrain.database import StrainDatabase
 from chronostrain.algs.subroutines.assembly import CachedGloppVariantAssembly
 from chronostrain.model import AbstractMarkerVariant, StrainVariant

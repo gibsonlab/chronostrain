@@ -33,7 +33,7 @@ def art_illumina(reference_path: Path,
     :param output_sam:
     :param quality_shift:
     :param quality_shift_2:
-    :return: The filepath to the paired-end reads. TODO: Currently only returns the first read of the pair.
+    :return: The filepaths to the synthetic paired-end reads.
     """
 
     cmd_args = [

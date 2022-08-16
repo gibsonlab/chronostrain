@@ -6,7 +6,8 @@ import pandas as pd
 from Bio import SeqIO
 
 from chronostrain.util.io import read_seq_file
-from chronostrain import cfg, create_logger
+from chronostrain.config import cfg
+from chronostrain.logging import create_logger
 logger = create_logger("chronostrain.index_refseqs")
 
 

@@ -8,7 +8,7 @@ from chronostrain.util.sequences import *
 
 from ..sam import *
 
-from chronostrain.config.logging import create_logger
+from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
 

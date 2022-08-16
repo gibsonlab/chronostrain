@@ -11,7 +11,8 @@ import torch.nn.functional
 from .base import AbstractReparametrizedPosterior
 from .util import TrilLinear, init_diag
 
-from chronostrain.config import cfg, create_logger
+from chronostrain.config import cfg
+from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
 

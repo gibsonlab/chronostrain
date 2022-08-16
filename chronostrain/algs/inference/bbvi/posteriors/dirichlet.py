@@ -6,10 +6,11 @@ import torch
 import torch.nn.functional
 from torch.distributions import Dirichlet, Normal, Uniform
 
-from chronostrain.config import cfg, create_logger
+from chronostrain.config import cfg
 from ..util import log_softmax
 from .base import AbstractReparametrizedPosterior
 
+from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
 

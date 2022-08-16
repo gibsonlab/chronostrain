@@ -3,7 +3,7 @@ from chronostrain.util.sequences import SeqType
 from .fragments import FragmentSpace
 from .bacteria import Population
 
-from chronostrain.config.logging import create_logger
+from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
 

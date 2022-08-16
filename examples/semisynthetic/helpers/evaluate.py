@@ -12,10 +12,10 @@ import matplotlib.pyplot as plt
 from Bio import SeqIO
 from tqdm import tqdm
 
-from chronostrain.config import create_logger
 from chronostrain.database import StrainDatabase
-from chronostrain import cfg
+from chronostrain.config import cfg
 
+from chronostrain.logging import create_logger
 logger = create_logger("chronostrain.evaluate")
 device = torch.device("cuda:0")
 

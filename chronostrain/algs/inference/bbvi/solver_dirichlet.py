@@ -7,7 +7,7 @@ from chronostrain.database import StrainDatabase
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
 
-from chronostrain.config import create_logger
+from chronostrain.logging import create_logger
 from .base import AbstractADVISolver
 from .util import log_matmul_exp
 from ...subroutines.likelihoods import DataLikelihoods
