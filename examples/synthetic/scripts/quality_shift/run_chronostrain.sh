@@ -29,17 +29,17 @@ export CHRONOSTRAIN_LOG_FILEPATH="${log_dir}/chronostrain.log"
 export CHRONOSTRAIN_CACHE_DIR="${trial_dir}/cache"
 
 echo "[*] Running Chronostrain inference for q_shift: ${q_shift}, trial: ${trial}"
-python $PROJECT_DIR/scripts/run_advi.py \
---reads_input "${read_dir}/filtered/filtered_input_files.csv" \
---out_dir ${output_dir} \
---seed ${INFERENCE_SEED} \
---iters $CHRONOSTRAIN_NUM_ITERS \
---epochs $CHRONOSTRAIN_NUM_EPOCHS \
---decay_lr $CHRONOSTRAIN_DECAY_LR \
---lr_patience 10 \
---min_lr 1e-4 \
---learning_rate $CHRONOSTRAIN_LR \
---num_samples $CHRONOSTRAIN_NUM_SAMPLES \
---read_batch_size $CHRONOSTRAIN_READ_BATCH_SZ \
---plot_format "pdf" \
---plot_elbo
+chronostrain advi \
+	-r "${read_dir}/filtered/filtered_input_files.csv" \
+	-o ${output_dir} \
+	--seed ${INFERENCE_SEED} \
+	--iters $CHRONOSTRAIN_NUM_ITERS \
+	--epochs $CHRONOSTRAIN_NUM_EPOCHS \
+	--decay-lr $CHRONOSTRAIN_DECAY_LR \
+	--lr-patience 10 \
+	--min-lr 1e-5 \
+	--learning-rate $CHRONOSTRAIN_LR \
+	--num-samples $CHRONOSTRAIN_NUM_SAMPLES \
+	--read-batch_size $CHRONOSTRAIN_READ_BATCH_SZ \
+	--plot-format "pdf" \
+	--plot-elbo

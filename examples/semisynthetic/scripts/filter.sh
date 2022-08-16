@@ -47,12 +47,9 @@ reads_csv="${output_dir}/input_files.csv"
 echo "[*] Filtering reads..."
 start_time=$(date +%s%N)  # nanoseconds
 
-python $PROJECT_DIR/scripts/filter_timeseries.py \
---reads_input ${reads_csv} \
--o "${output_dir}/filtered/" \
---frac_identity_threshold 0.975 \
---error_threshold 1.0 \
---num_threads 4
+chronostrain filter \
+-r ${reads_csv} \
+-o "${output_dir}/filtered"
 
 # ====== Record runtime
 end_time=$(date +%s%N)
