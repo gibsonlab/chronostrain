@@ -12,10 +12,10 @@ import matplotlib.pyplot as plt
 from Bio import SeqIO
 from tqdm import tqdm
 
-from chronostrain.config import create_logger
 from chronostrain.database import StrainDatabase
-from chronostrain import cfg
+from chronostrain.config import cfg
 
+from chronostrain.logging import create_logger
 logger = create_logger("chronostrain.evaluate")
 device = torch.device("cuda:0")
 
@@ -124,6 +124,8 @@ def parse_chronostrain_estimate(db: StrainDatabase,
     estimate = torch.zeros(size=(len(time_points), n_samples, len(strain_ids)), dtype=torch.float, device=device)
     strain_indices = {sid: i for i, sid in enumerate(strain_ids)}
     for db_idx, strain_id in enumerate(db_strains):
+        if strain_id not in strain_indices:
+            continue
         s_idx = strain_indices[strain_id]
         estimate[:, :, s_idx] = abundance_samples[:, :, db_idx]
     return estimate
@@ -154,13 +156,6 @@ def parse_strainest_estimate(ground_truth: pd.DataFrame,
                     est_rel_abunds[t_idx][strain_idx] = abund
                 except KeyError as e:
                     continue
-
-    # Renormalize.
-    row_sum = torch.sum(est_rel_abunds, dim=1, keepdim=True)
-    support = torch.where(row_sum > 0)[0]
-    zeros = torch.where(row_sum == 0)[0]
-    est_rel_abunds[support, :] = est_rel_abunds[support, :] / row_sum[support]
-    est_rel_abunds[zeros, :] = 1 / len(strain_ids)
     return est_rel_abunds
 
 
@@ -186,16 +181,13 @@ def parse_straingst_estimate(
             for row in reader:
                 strain_id = row[1]
                 strain_id = strip_suffixes(strain_id)
+
+                if strain_id not in strain_indices:
+                    continue
+
                 strain_idx = strain_indices[strain_id]
                 rel_abund = float(row[11]) / 100.0
                 est_rel_abunds[t_idx][strain_idx] = rel_abund
-
-    # Renormalize.
-    row_sum = torch.sum(est_rel_abunds, dim=1, keepdim=True)
-    support = torch.where(row_sum > 0)[0]
-    zeros = torch.where(row_sum == 0)[0]
-    est_rel_abunds[support, :] = est_rel_abunds[support, :] / row_sum[support]
-    est_rel_abunds[zeros, :] = 1 / len(strain_ids)
     return est_rel_abunds
 
 
@@ -253,11 +245,19 @@ def extract_ground_truth_array(truth_df: pd.DataFrame, strain_ids: List[str]) ->
 
 def error_metric(abundance_est: torch.Tensor, truth: torch.Tensor) -> float:
     assert len(abundance_est.shape) == 2
+    est = torch.clone(abundance_est)
 
-    _T = abundance_est.shape[0]
-    _S = abundance_est.shape[1]
+    # Renormalize.
+    row_sum = torch.sum(est, dim=1, keepdim=True)
+    support = torch.where(row_sum > 0)[0]
+    zeros = torch.where(row_sum == 0)[0]
+    est[support, :] = est[support, :] / row_sum[support]
+    est[zeros, :] = 1 / est.shape[1]  # rows with all zeros: set to uniform.
 
-    l1_error = torch.sum(torch.abs(truth - abundance_est))
+    _T = est.shape[0]
+    _S = est.shape[1]
+
+    l1_error = torch.sum(torch.abs(truth - est))
     return l1_error.item()
 
 
@@ -296,26 +296,52 @@ def other_method_presence(abundance_est: torch.Tensor) -> torch.Tensor:
     return abundance_est != 0
 
 
-def dominance_coeff(x: torch.Tensor, y: torch.Tensor, eps: float = 1e-10) -> torch.Tensor:
+def dominance_switch_ratio(abundance_est: torch.Tensor, lb: float = 0.0) -> float:
     """
-    :param x: a 1-d Tensor of values.
-    :param y: a 1-d Tensor of values of the same size as x.
-    :param eps: A padding value to prevent division by zeroes.
-    :return: the entrywise dominance coefficient log(x) - log(y).
+    Calculate how often the dominant strain switches.
     """
-    return torch.divide(x + eps, y + eps)
+    abundance_est = abundance_est.cpu().numpy()
+    dom = np.argmax(abundance_est, axis=1)
+    num_switches = 0
+
+    def row_is_zeros(r) -> bool:
+        return np.sum(r <= lb).item() == r.shape[0]
+
+    num_total = 0
+    for i in range(len(dom) - 1):
+        if row_is_zeros(abundance_est[i]) and row_is_zeros(abundance_est[i + 1]):
+            continue  # don't add to denominator.
+
+        elif (dom[i] != dom[i + 1]) or row_is_zeros(abundance_est[i]) or row_is_zeros(abundance_est[i + 1]):
+            num_switches += 1
+        num_total += 1
+    if num_total > 0:
+        return num_switches / num_total
+    else:
+        return np.nan
 
 
-def dominance_error(abundance_est: torch.Tensor, truth: torch.Tensor, strain_ids: List[str], strain1: str, strain2: str) -> float:
-    idxs = {sid: i for i, sid in enumerate(strain_ids)}
-    sidx1 = idxs[strain1]
-    sidx2 = idxs[strain2]
 
-    _est = dominance_coeff(abundance_est[:, sidx1], abundance_est[:, sidx2])
-    _truth = dominance_coeff(truth[:, sidx1], truth[:, sidx2])
-    return torch.exp(
-        torch.mean(torch.log(_est) - torch.log(_truth))
-    ).item()  # geometric mean
+# def dominance_coeff(x: torch.Tensor, y: torch.Tensor, eps: float = 1e-10) -> torch.Tensor:
+#     """
+#     :param x: a 1-d Tensor of values.
+#     :param y: a 1-d Tensor of values of the same size as x.
+#     :param eps: A padding value to prevent division by zeroes.
+#     :return: the entrywise dominance coefficient log(x) - log(y).
+#     """
+#     return torch.divide(x + eps, y + eps)
+#
+#
+# def dominance_error(abundance_est: torch.Tensor, truth: torch.Tensor, strain_ids: List[str], strain1: str, strain2: str) -> float:
+#     idxs = {sid: i for i, sid in enumerate(strain_ids)}
+#     sidx1 = idxs[strain1]
+#     sidx2 = idxs[strain2]
+#
+#     _est = dominance_coeff(abundance_est[:, sidx1], abundance_est[:, sidx2])
+#     _truth = dominance_coeff(truth[:, sidx1], truth[:, sidx2])
+#     return torch.exp(
+#         torch.mean(torch.log(_est) - torch.log(_truth))
+#     ).item()  # geometric mean
 
 
 # def wasserstein_error(abundance_est: torch.Tensor, truth_df: pd.DataFrame, strain_distances: torch.Tensor, strain_ids: List[str]) -> torch.Tensor:
@@ -403,6 +429,7 @@ def plot_result(out_path: Path, truth_df: pd.DataFrame, samples: torch.Tensor, s
     else:
         raise RuntimeError(f"Can't plot samples of dimension {len(samples.shape)}")
     plt.savefig(out_path)
+    plt.close(fig)
 
 
 def parse_args() -> argparse.Namespace:
@@ -415,23 +442,17 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def evaluate_errors(index_df: pd.DataFrame,
-                    ground_truth: pd.DataFrame,
+def evaluate_errors(ground_truth: pd.DataFrame,
                     result_base_dir: Path,
                     chronostrain_db: StrainDatabase) -> pd.DataFrame:
-    strain_ids = list(pd.unique(
-        index_df.loc[
-            index_df['Species'] == 'coli',
-            'Accession'
-        ]
-    ))
+    strain_ids = list(pd.unique(ground_truth.loc[ground_truth['RelAbund'] > 0, 'Strain']))
+    truth_tensor = extract_ground_truth_array(ground_truth, strain_ids)
 
     def engraftment_clearance(pres: torch.Tensor) -> Tuple[float, float]:
         return engraftment_ratio(pres), clearance_ratio(pres)
 
     # search through all of the read depths.
     df_entries = []
-    truth_tensor = extract_ground_truth_array(ground_truth, strain_ids)
     for read_depth, read_depth_dir in read_depth_dirs(result_base_dir):
         for trial_num, trial_dir in trial_dirs(read_depth_dir):
             logger.info(f"Handling read depth {read_depth}, trial {trial_num}")
@@ -441,14 +462,14 @@ def evaluate_errors(index_df: pd.DataFrame,
             # =========== Chronostrain
             try:
                 chronostrain_estimate_samples = parse_chronostrain_estimate(chronostrain_db, ground_truth, strain_ids,
-                                                                            trial_dir / 'output' / 'chronostrain' / 'full_corr')
+                                                                            trial_dir / 'output' / 'chronostrain')
                 # errors = wasserstein_error(
                 #     chronostrain_estimate_samples[:, :30, :],
                 #     ground_truth, distances, strain_ids
                 # )
                 error = error_metric(torch.median(chronostrain_estimate_samples, dim=1).values, truth_tensor)
                 engraftment, clearance = engraftment_clearance(chronostrain_presence(chronostrain_estimate_samples))
-                dom_err = dominance_error(torch.median(chronostrain_estimate_samples, dim=1).values, truth_tensor, strain_ids, "NZ_CP069709.1", "NZ_CP076645.1")
+                dom_err = dominance_switch_ratio(torch.median(chronostrain_estimate_samples, dim=1).values)
 
                 logger.info("Chronostrain: err = {}, engraft = {}, clear = {}".format(error, engraftment, clearance))
 
@@ -474,7 +495,7 @@ def evaluate_errors(index_df: pd.DataFrame,
                 # error = wasserstein_error(strainest_estimate, ground_truth, distances, strain_ids).item()
                 error = error_metric(strainest_sens_estimate, truth_tensor)
                 engraftment, clearance = engraftment_clearance(other_method_presence(strainest_sens_estimate))
-                dom_err = dominance_error(strainest_sens_estimate, truth_tensor, strain_ids, "NZ_CP069709.1", "NZ_CP076645.1")
+                dom_err = dominance_switch_ratio(strainest_sens_estimate)
 
                 logger.info("StrainEst (Sens) err = {}, engraft = {}, clear = {}".format(error, engraftment, clearance))
                 df_entries.append({
@@ -497,7 +518,7 @@ def evaluate_errors(index_df: pd.DataFrame,
                                                               trial_dir / 'output' / 'strainest')
                 error = error_metric(strainest_estimate, truth_tensor)
                 engraftment, clearance = engraftment_clearance(other_method_presence(strainest_estimate))
-                dom_err = dominance_error(strainest_estimate, truth_tensor, strain_ids, "NZ_CP069709.1", "NZ_CP076645.1")
+                dom_err = dominance_switch_ratio(strainest_estimate)
 
                 logger.info("StrainEst (Default) err = {}, engraft = {}, clear = {}".format(error, engraftment, clearance))
                 df_entries.append({
@@ -521,7 +542,7 @@ def evaluate_errors(index_df: pd.DataFrame,
                 # error = wasserstein_error(straingst_estimate, ground_truth, distances, strain_ids).item()
                 error = error_metric(straingst_estimate, truth_tensor)
                 engraftment, clearance = engraftment_clearance(other_method_presence(straingst_estimate))
-                dom_err = dominance_error(straingst_estimate, truth_tensor, strain_ids, "NZ_CP069709.1", "NZ_CP076645.1")
+                dom_err = dominance_switch_ratio(straingst_estimate)
                 logger.info("StrainGST err = {}, engraft = {}, clear = {}".format(error, engraftment, clearance))
                 df_entries.append({
                     'ReadDepth': read_depth,
@@ -560,7 +581,6 @@ def evaluate_errors(index_df: pd.DataFrame,
                                                                   strain_ids,
                                                                   trial_dir / 'output' / 'strainfacts')
                 error = error_metric(strainfacts_estimate, truth_tensor)
-                dom_err = dominance_error(strainfacts_estimate, truth_tensor, strain_ids, "NZ_CP069709.1", "NZ_CP076645.1")
                 logger.info("StrainFacts Error: {}".format(error))
                 df_entries.append({
                     'ReadDepth': read_depth,
@@ -569,7 +589,7 @@ def evaluate_errors(index_df: pd.DataFrame,
                     'Error': error,
                     'Engraftment': float('inf'),
                     'Clearance': float('inf'),
-                    'Dominance': dom_err
+                    'Dominance': float('inf')
                 })
                 # plot_result(plot_dir / 'strainfacts.pdf', ground_truth, strainfacts_estimate, strain_ids)
             except FileNotFoundError:
@@ -635,7 +655,6 @@ def main():
 
     logger.info("Evaluating error metrics.")
     summary_df = evaluate_errors(
-        index_df,
         ground_truth,
         result_base_dir,
         chronostrain_db

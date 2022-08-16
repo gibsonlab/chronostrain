@@ -2,7 +2,7 @@ from typing import Union
 from numpy import pi
 import torch
 
-from chronostrain import cfg
+from chronostrain.config import cfg
 
 _pi = torch.tensor(pi)
 

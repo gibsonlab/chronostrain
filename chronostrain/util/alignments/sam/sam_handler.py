@@ -7,7 +7,7 @@ from chronostrain.util.quality import ascii_to_phred
 from .cigar import CigarElement, parse_cigar
 from chronostrain.util.sequences import SeqType, nucleotides_to_z4, UnknownNucleotideError
 
-from chronostrain.config import create_logger
+from chronostrain.logging import create_logger
 from .util import *
 logger = create_logger(__name__)
 

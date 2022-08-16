@@ -11,7 +11,7 @@ from chronostrain.util.quality import phred_to_ascii
 from chronostrain.util.sequences import *
 from .base import VCF_GAP_CHAR
 
-from chronostrain.config import create_logger
+from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
 

@@ -41,9 +41,16 @@ fi
 trial_dir=$(get_trial_dir $n_reads $trial)
 read_dir=${trial_dir}/reads
 output_dir=${trial_dir}/output/strainest
+runtime_file=${trial_dir}/output/strainest_runtime.${sensitivity}.${time_point}.txt
 
 mkdir -p ${output_dir}
 cd ${output_dir}
+
+
+if [[ -f $runtime_file ]]; then
+	echo "[*] Skipping StrainEst run (n_reads: ${n_reads}, trial: ${trial}, timepoint #${time_point})"
+	exit 0
+fi
 
 
 # ========== Run
@@ -58,6 +65,7 @@ sorted_bam_file="reads_${time_point}.sorted.bam"
 echo "[*] Running alignment..."
 bowtie2 \
 --very-fast --no-unal --quiet \
+-p ${N_CORES} \
 -x ${STRAINEST_DB_DIR}/clustered/${STRAINEST_BT2_DB} \
 -U ${read_dir}/${time_point}_sim_1.fq \
 -U ${read_dir}/${time_point}_sim_2.fq \
@@ -78,7 +86,7 @@ if [ "$sensitivity" == "sensitive" ]; then
 	${STRAINEST_DB_DIR}/snvs_all.txt \
 	${sorted_bam_file} \
 	./ \
-	-t 1 \
+	-t ${N_CORES} \
 	-p 0 \
 	-a
 else
@@ -86,19 +94,16 @@ else
 	${STRAINEST_DB_DIR}/snvs_all.txt \
 	${sorted_bam_file} \
 	./ \
-	-t 1
+	-t ${N_CORES}
 fi
 
 # ====== Record runtime
 end_time=$(date +%s%N)
 elapsed_time=$(( $(($end_time-$start_time)) / 1000000 ))
-runtime_file=${trial_dir}/output/strainest_runtime.${sensitivity}.${time_point}.txt
 echo "${elapsed_time}" > $runtime_file
 
 # ========== Clean up
 echo "[*] Cleaning up..."
-rm ${reads_1}
-rm ${reads_2}
 rm ${sam_file}
 rm ${bam_file}
 rm ${sorted_bam_file}

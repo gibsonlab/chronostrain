@@ -7,13 +7,12 @@ import pandas as pd
 from multiprocessing.dummy import Pool
 from typing import Tuple, Dict, List
 
-from chronostrain.config import create_logger
 from chronostrain.util.external.art import art_illumina
-
 from random import seed, randint
 import numpy as np
 
-logger = create_logger("sample_reads")
+from chronostrain.logging import create_logger
+logger = create_logger("chronostrain.sample_reads")
 
 
 def parse_args():

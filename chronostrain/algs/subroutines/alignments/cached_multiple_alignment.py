@@ -12,7 +12,7 @@ from chronostrain.util.alignments.pairwise import SequenceReadPairwiseAlignment
 from chronostrain.util.cache import ComputationCache
 from .cached_pairwise_alignment import CachedReadPairwiseAlignments
 
-from chronostrain.config import create_logger
+from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
 

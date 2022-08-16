@@ -29,9 +29,6 @@ export CHRONOSTRAIN_LOG_FILEPATH="${log_dir}/filter.log"
 export CHRONOSTRAIN_CACHE_DIR="${trial_dir}/cache"
 
 echo "[*] Filtering reads for q_shift: ${q_shift}, trial: ${trial}"
-python $PROJECT_DIR/scripts/filter_timeseries.py \
---reads_input "${read_dir}/input_files.csv" \
--o "${read_dir}/filtered/" \
---frac_identity_threshold 0.95 \
---error_threshold 1.0 \
---num_threads 4
+chronostrain filter \
+-r "${read_dir}/input_files.csv" \
+-o "${read_dir}/filtered"

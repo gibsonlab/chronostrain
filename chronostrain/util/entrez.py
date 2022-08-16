@@ -3,7 +3,8 @@ from pathlib import Path
 from Bio import Entrez
 
 from chronostrain.util.filesystem import convert_size
-from chronostrain.config import cfg, create_logger
+from chronostrain.config import cfg
+from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
 

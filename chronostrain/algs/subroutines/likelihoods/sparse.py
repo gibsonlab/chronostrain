@@ -20,7 +20,7 @@ from .base import DataLikelihoods, AbstractLogLikelihoodComputer
 from ..alignments import CachedReadMultipleAlignments, CachedReadPairwiseAlignments
 from ..cache import ReadsPopulationCache
 
-from chronostrain.config.logging import create_logger
+from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
 

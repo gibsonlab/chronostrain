@@ -7,10 +7,9 @@ import numpy as np
 import pandas as pd
 import torch
 
-from chronostrain.config import create_logger
 from chronostrain.database import StrainDatabase
-from chronostrain import cfg
-
+from chronostrain.config import cfg
+from chronostrain.logging import create_logger
 logger = create_logger("chronostrain.roc_curve")
 device = torch.device("cuda:0")
 

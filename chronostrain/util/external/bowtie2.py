@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from chronostrain.config import create_logger
+from chronostrain.logging import create_logger
 from .commandline import call_command, CommandLineException
 
 logger = create_logger(__name__)

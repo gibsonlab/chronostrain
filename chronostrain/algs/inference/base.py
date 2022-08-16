@@ -1,5 +1,5 @@
 """
- base.py
+ initialize.py
  Contains implementations of the proposed algorithms.
 """
 from abc import ABCMeta, abstractmethod
@@ -12,7 +12,7 @@ from chronostrain.model.generative import GenerativeModel
 
 from chronostrain.algs.subroutines.likelihoods import DenseDataLikelihoods, SparseDataLikelihoods, DataLikelihoods
 
-from chronostrain.config.logging import create_logger
+from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
 

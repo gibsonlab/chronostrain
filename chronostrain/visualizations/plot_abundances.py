@@ -295,9 +295,9 @@ def render_posterior_abundances(
     else:
         ax.plot(times, median, linestyle='--', marker='x', linewidth=thickness, color=color)
 
-    # Plot subsampled trajectories.
-    for i in range(0, traj_samples.shape[1], 1000):
-        ax.plot(times, traj_samples[:, i], linestyle='-', marker='o', linewidth=thickness, color=color)
+    # # Plot subsampled trajectories.
+    # for i in range(0, traj_samples.shape[1], 1000):
+    #     ax.plot(times, traj_samples[:, i], linestyle='-', marker='o', linewidth=thickness, color=color)
 
     # Fill between the quantiles.
     for q_idx, (q, q_val) in enumerate(zip(quantiles, quantile_values)):

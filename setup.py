@@ -19,7 +19,7 @@ if Path(requirementPath).is_file():
 
 setuptools.setup(
     name="chronostrain",
-    version="0.2",
+    version="0.3",
     author="Younhun Kim",
     author_email="younhun@mit.edu",
     url="https://github.com/gibsonlab/chronostrain",
@@ -31,4 +31,8 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     install_requires=requirements,
     python_requires='>=3.8',
+    entry_points='''
+        [console_scripts]
+        chronostrain=chronostrain.cli.interface:main
+    '''
 )

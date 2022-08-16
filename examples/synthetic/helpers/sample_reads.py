@@ -7,13 +7,14 @@ from pathlib import Path
 from multiprocessing.dummy import Pool
 from typing import Tuple, Dict, List
 
-from chronostrain.config import create_logger, cfg
 from chronostrain.database import StrainDatabase
 from chronostrain.util.external.art import art_illumina
 
 from random import seed, randint
 import numpy as np
 
+from chronostrain.config import cfg
+from chronostrain.logging import create_logger
 logger = create_logger("sample_reads")
 
 

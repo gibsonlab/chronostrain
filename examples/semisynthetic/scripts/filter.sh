@@ -22,11 +22,18 @@ fi
 trial_dir=$(get_trial_dir $n_reads $trial)
 read_dir=${trial_dir}/reads
 output_dir=${trial_dir}/output/chronostrain
+runtime_file=${trial_dir}/output/chronostrain_filter_runtime.txt
 
 mkdir -p $output_dir
 mkdir -p $read_dir
 export CHRONOSTRAIN_LOG_FILEPATH="${output_dir}/filter.log"
 export CHRONOSTRAIN_CACHE_DIR="${trial_dir}/cache"
+
+
+if [[ -f $runtime_file ]]; then
+	echo "[*] Skipping Filter (n_reads: ${n_reads}, trial: ${trial})"
+	exit 0
+fi
 
 
 echo "[*] Preparing input for n_reads: ${n_reads}, trial: ${trial}"
@@ -47,16 +54,13 @@ reads_csv="${output_dir}/input_files.csv"
 echo "[*] Filtering reads..."
 start_time=$(date +%s%N)  # nanoseconds
 
-python $PROJECT_DIR/scripts/filter_timeseries.py \
---reads_input ${reads_csv} \
--o "${output_dir}/filtered/" \
---frac_identity_threshold 0.975 \
---error_threshold 1.0 \
---num_threads 4
+chronostrain filter \
+-r ${reads_csv} \
+-o "${output_dir}/filtered" \
+--aligner bowtie2
 
 # ====== Record runtime
 end_time=$(date +%s%N)
 elapsed_time=$(( $(($end_time-$start_time)) / 1000000 ))
 mkdir -p ${trial_dir}/output
-runtime_file=${trial_dir}/output/chronostrain_filter_runtime.txt
 echo "${elapsed_time}" > $runtime_file

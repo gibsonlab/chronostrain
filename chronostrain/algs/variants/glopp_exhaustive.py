@@ -7,7 +7,7 @@ import itertools
 from collections import defaultdict
 from typing import List, Dict, Iterator, Union, Iterable, Optional, Set, Tuple
 
-from chronostrain.config import create_logger
+from chronostrain.logging import create_logger
 from chronostrain.database import StrainDatabase
 from chronostrain.algs.subroutines.assembly import CachedGloppVariantAssembly
 from chronostrain.model import AbstractMarkerVariant, StrainVariant

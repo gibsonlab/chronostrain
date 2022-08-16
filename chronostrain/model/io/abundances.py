@@ -7,7 +7,7 @@ from chronostrain.config import cfg
 from chronostrain.model.bacteria import Population
 from chronostrain.util.filesystem import convert_size
 
-from chronostrain.config.logging import create_logger
+from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
 

@@ -9,7 +9,7 @@ import torch
 import matplotlib.pyplot as plt
 import seaborn as sb
 
-from chronostrain import cfg
+from chronostrain.config import cfg
 from chronostrain.database import StrainDatabase
 
 
