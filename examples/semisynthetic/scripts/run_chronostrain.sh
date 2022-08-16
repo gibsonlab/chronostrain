@@ -22,10 +22,27 @@ fi
 trial_dir=$(get_trial_dir $n_reads $trial)
 read_dir=${trial_dir}/reads
 output_dir=${trial_dir}/output/chronostrain
+runtime_file=${trial_dir}/output/chronostrain_runtime.txt
+filter_file=${trial_dir}/output/chronostrain_filter_runtime.txt
+
+if [ -f $runtime_file ]; then
+	echo "[*] Skipping Chronostrain Inference (n_reads: ${n_reads}, trial: ${trial})"
+	exit 0
+fi
+
+if [ ! -f $filter_file ]; then
+	echo "[*] Filtered result not found."
+	exit 1
+fi
 
 mkdir -p $output_dir
 export CHRONOSTRAIN_CACHE_DIR="${trial_dir}/cache"
 export CHRONOSTRAIN_LOG_FILEPATH="${output_dir}/chronostrain.log"
+
+if [ -d $CHRONOSTRAIN_CACHE_DIR ]; then
+	echo "[*] Clearing cache."
+	rm -rf $CHRONOSTRAIN_CACHE_DIR
+fi
 
 echo "[*] Running Chronostrain inference for n_reads: ${n_reads}, trial: ${trial}"
 start_time=$(date +%s%N)  # nanoseconds
@@ -50,5 +67,4 @@ chronostrain advi \
 # ====== Record runtime
 end_time=$(date +%s%N)
 elapsed_time=$(( $(($end_time-$start_time)) / 1000000 ))
-runtime_file=${trial_dir}/output/chronostrain_runtime.txt
 echo "${elapsed_time}" > $runtime_file

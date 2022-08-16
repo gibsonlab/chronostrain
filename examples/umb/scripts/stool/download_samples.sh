@@ -9,9 +9,6 @@ check_program 'fasterq-dump'
 check_program 'pigz'
 
 # ================================= Main script ==================================
-
-SRA_CSV_PATH="${BASE_DIR}/files/umb_samples.csv"
-
 mkdir -p ${SAMPLES_DIR}
 mkdir -p ${SRA_PREFETCH_DIR}
 mkdir -p ${FASTERQ_TMP_DIR}

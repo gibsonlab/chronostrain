@@ -147,12 +147,15 @@ class BowtieAligner(AbstractPairwiseAligner):
                  index_basepath: Path,
                  index_basename: str,
                  num_threads: int,
+                 seed_length: int,
+                 seed_extend_failures: int,
                  num_reseeds: int,
                  score_min_fn: str,
                  score_match_bonus: int,
                  score_mismatch_penalty: Tuple[int, int],
                  score_read_gap_penalty: Tuple[int, int],
                  score_ref_gap_penalty: Tuple[int, int],
+                 seed_num_mismatches: int = 0,
                  num_report_alignments: Optional[int] = None,
                  report_all_alignments: bool = False):
         self.index_basepath = index_basepath
@@ -162,6 +165,9 @@ class BowtieAligner(AbstractPairwiseAligner):
         self.num_threads = num_threads
 
         # Alignment params
+        self.seed_length = seed_length
+        self.seed_num_mistmatches = seed_num_mismatches
+        self.seed_extend_failures = seed_extend_failures
         self.num_reseeds = num_reseeds
         self.score_min_fn = score_min_fn
         self.score_match_bonus = score_match_bonus
@@ -201,13 +207,13 @@ class BowtieAligner(AbstractPairwiseAligner):
             report_k_alignments=self.num_report_alignments,
             report_all_alignments=self.report_all_alignments,
             num_threads=self.num_threads,
-            aln_seed_num_mismatches=0,
-            aln_seed_len=20,  # -L 20
+            aln_seed_num_mismatches=0,  # -N
+            aln_seed_len=self.seed_length,  # -L
             aln_seed_interval_fn=bt2_func_constant(7),
             aln_gbar=1,
-            effort_seed_ext_failures=30,  # -D 30
+            effort_seed_ext_failures=self.seed_extend_failures,  # -D
             local=False,
-            effort_num_reseeds=self.num_reseeds,
+            effort_num_reseeds=self.num_reseeds,  # -R
             score_match_bonus=self.score_match_bonus,
             score_min_fn=self.score_min_fn,
             score_mismatch_penalty=self.score_mismatch_penalty,
@@ -228,13 +234,13 @@ class BowtieAligner(AbstractPairwiseAligner):
             report_k_alignments=self.num_report_alignments,
             report_all_alignments=self.report_all_alignments,
             num_threads=self.num_threads,
-            aln_seed_num_mismatches=0,
-            aln_seed_len=17,  # -L 17
+            aln_seed_num_mismatches=0,  # -N
+            aln_seed_len=self.seed_length,  # -L
             aln_seed_interval_fn=bt2_func_constant(7),
             aln_gbar=1,
-            effort_seed_ext_failures=30,  # -D 30
+            effort_seed_ext_failures=self.seed_extend_failures,  # -D
             local=True,
-            effort_num_reseeds=self.num_reseeds,  # -R 3
+            effort_num_reseeds=self.num_reseeds,  # -R
             score_min_fn=self.score_min_fn,
             score_match_bonus=self.score_match_bonus,
             score_mismatch_penalty=self.score_mismatch_penalty,

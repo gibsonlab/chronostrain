@@ -316,8 +316,7 @@ def parse_alignments(sam_file: SamFile,
     """
     n_alns = sam_file.num_mapped_lines()
     logger.debug(f"Parsing {n_alns} alignments from {sam_file.file_path.name}")
-    from tqdm import tqdm
-    for samline in tqdm(sam_file.mapped_lines(), total=n_alns):
+    for samline in sam_file.mapped_lines():
         try:
             if read_getter is not None:
                 # Apply min_hit_ratio criterion.

@@ -8,11 +8,15 @@ from chronostrain.algs.subroutines.likelihoods import DataLikelihoods
 from chronostrain.database import StrainDatabase
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
-from chronostrain.config import cfg
+from chronostrain.config import cfg, create_logger
 from chronostrain.util.benchmarking import RuntimeEstimator
 from chronostrain.util.math import log_spspmm_exp
 from chronostrain.util.optimization import ReduceLROnPlateauLast
 from chronostrain.util.sparse import ColumnSectionedSparseMatrix
+
+from .. import AbstractModelSolver
+from .posteriors.base import AbstractReparametrizedPosterior
+from .util import divide_columns_into_batches
 
 from .. import AbstractModelSolver
 from .posteriors.base import AbstractReparametrizedPosterior
@@ -57,7 +61,6 @@ class AbstractADVI(ABC):
                 epoch_elbos.append(elbo_value)
 
             # ===========  End of epoch
-            # numerically safe calculation (for large ELBO loss)
             epoch_elbo_avg = np.mean(epoch_elbos)
 
             if callbacks is not None:
@@ -217,16 +220,25 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
               callbacks: Optional[List[Callable[[int, torch.Tensor, float], None]]] = None):
         optimizer_args['params'] = self.posterior.trainable_parameters()
         optimizer = optimizer_class(**optimizer_args)
-        lr_scheduler = ReduceLROnPlateauLast(
+
+        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
             factor=lr_decay_factor,
-            patience_horizon=5,
-            patience_ratio=0.3,
+            cooldown=lr_patience,
             threshold=1e-4,
             threshold_mode='rel',
-            cooldown=lr_patience,
             mode='min'  # track (-ELBO) and decrease LR when it stops decreasing.
         )
+
+        # lr_scheduler = ReduceLROnPlateauLast(
+        #     optimizer,
+        #     factor=lr_decay_factor,
+        #     patience_horizon=lr_patience,
+        #     patience_ratio=0.5,
+        #     threshold=1e-4,
+        #     threshold_mode='rel',
+        #     mode='min'  # track (-ELBO) and decrease LR when it stops decreasing.
+        # )
         self.optimize(
             optimizer=optimizer,
             lr_scheduler=lr_scheduler,

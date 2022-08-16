@@ -10,6 +10,7 @@ from chronostrain.model import Population, FragmentSpace, PEPhredErrorModel
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
 from .base import StrainVariant
+from ..inference import ADVIGaussianSolver
 from ..subroutines.alignments import CachedReadMultipleAlignments
 
 from chronostrain.config import cfg
