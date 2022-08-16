@@ -24,6 +24,6 @@ if __name__ == "__main__":
     logger = create_logger("chronostrain.cli")
     try:
         main(obj=logger)
-    except BaseException as e:
+    except Exception as e:
         logger.exception(e)
         exit(1)
