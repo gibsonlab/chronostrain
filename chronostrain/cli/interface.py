@@ -16,6 +16,7 @@ def main(ctx):
     """
     ChronoStrain (Time-Series Metagenomic Abundance Estimation)
     """
+    print(ctx.obj)
     ctx.ensure_object(Logger)
 
 
