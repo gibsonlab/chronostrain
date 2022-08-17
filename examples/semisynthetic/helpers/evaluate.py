@@ -316,7 +316,7 @@ def dominance_switch_ratio(abundance_est: torch.Tensor, lb: float = 0.0) -> floa
             num_switches += 1
         num_total += 1
     if num_total > 0:
-        return num_switches / (len(dom) - 1)
+        return num_switches / len(dom)
     else:
         return np.nan
 
