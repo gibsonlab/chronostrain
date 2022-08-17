@@ -28,7 +28,8 @@ def main(ctx, config_path: Optional[Path]):
     ChronoStrain (Time-Series Metagenomic Abundance Estimation)
     """
     ctx.obj = logger
-    os.environ['CHRONOSTRAIN_INI'] = str(config_path)
+    if config_path is not None:
+        os.environ['CHRONOSTRAIN_INI'] = str(config_path)
 
 
 if __name__ == "__main__":
