@@ -5,7 +5,6 @@ from logging import Logger
 from pathlib import Path
 from typing import List, Tuple, Optional
 
-from chronostrain.model.io import parse_read_type
 from .base import create_aligner
 from ..base import option
 
@@ -76,6 +75,7 @@ def main(
 
     from chronostrain.config import cfg
     from .base import Filter
+    from chronostrain.model.io import parse_read_type
     db = cfg.database_cfg.get_database()
 
     # ============ Prepare output files/directories.
