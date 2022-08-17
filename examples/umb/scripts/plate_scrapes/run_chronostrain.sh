@@ -20,21 +20,20 @@ do
 	echo "Running inference on ${sample_name}."
 	export CHRONOSTRAIN_LOG_FILEPATH="${LOGDIR}/chronostrain_${sample_name}.log"
 
-	cd $PROJECT_DIR/scripts
-	python run_advi.py \
-	--reads_input "${READS_DIR}/${sample_name}_filtered/filtered_${sample_name}.csv" \
-	--out_dir $CHRONOSTRAIN_OUTPUT_DIR/${sample_name} \
-	--seed $SEED \
-	--correlation_mode $CHRONOSTRAIN_CORR_MODE \
-	--iters $CHRONOSTRAIN_NUM_ITERS \
-	--epochs $CHRONOSTRAIN_NUM_EPOCHS \
-	--decay_lr $CHRONOSTRAIN_DECAY_LR \
-	--lr_patience $CHRONOSTRAIN_LR_PATIENCE \
-  --min_lr $CHRONOSTRAIN_MIN_LR \
-	--learning_rate $CHRONOSTRAIN_LR \
-	--num_samples $CHRONOSTRAIN_NUM_SAMPLES \
-	--read_batch_size $CHRONOSTRAIN_READ_BATCH_SZ \
-	--plot_format "pdf" \
-	--plot_elbo
+	chronostrain advi \
+		-r "${READS_DIR}/${sample_name}_filtered/filtered_${sample_name}.csv" \
+		-o $CHRONOSTRAIN_OUTPUT_DIR/${sample_name} \
+		--seed $SEED \
+    --correlation_mode $CHRONOSTRAIN_CORR_MODE \
+		--iters $CHRONOSTRAIN_NUM_ITERS \
+		--epochs $CHRONOSTRAIN_NUM_EPOCHS \
+		--decay-lr $CHRONOSTRAIN_DECAY_LR \
+		--lr-patience ${CHRONOSTRAIN_LR_PATIENCE} \
+		--min-lr ${CHRONOSTRAIN_MIN_LR} \
+		--learning-rate $CHRONOSTRAIN_LR \
+		--num-samples $CHRONOSTRAIN_NUM_SAMPLES \
+		--read-batch-size $CHRONOSTRAIN_READ_BATCH_SZ \
+		--plot-format "pdf" \
+		--plot-elbo
 done
 # ================================================

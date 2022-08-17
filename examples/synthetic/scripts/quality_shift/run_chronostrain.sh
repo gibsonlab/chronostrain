@@ -40,6 +40,6 @@ chronostrain advi \
 	--min-lr 1e-5 \
 	--learning-rate $CHRONOSTRAIN_LR \
 	--num-samples $CHRONOSTRAIN_NUM_SAMPLES \
-	--read-batch_size $CHRONOSTRAIN_READ_BATCH_SZ \
+	--read-batch-size $CHRONOSTRAIN_READ_BATCH_SZ \
 	--plot-format "pdf" \
 	--plot-elbo
