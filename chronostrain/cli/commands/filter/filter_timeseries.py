@@ -5,7 +5,6 @@ from logging import Logger
 from pathlib import Path
 from typing import List, Tuple, Optional
 
-from .base import create_aligner
 from ..base import option
 
 
@@ -74,7 +73,7 @@ def main(
     logger.info(f"Performing filtering to timeseries dataset `{reads_input}`.")
 
     from chronostrain.config import cfg
-    from .base import Filter
+    from .base import Filter, create_aligner
     from chronostrain.model.io import parse_read_type
     db = cfg.database_cfg.get_database()
 
