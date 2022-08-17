@@ -232,10 +232,10 @@ def dominance_switch_ratio(abundance_est: np.ndarray, lb: float = 0.0) -> float:
 
     num_total = 0
     for i in range(len(dom) - 1):
-        if row_is_zeros(abundance_est[i]) and row_is_zeros(abundance_est[i + 1]):
+        if row_is_zeros(abundance_est[i]):
             continue  # don't add to denominator.
 
-        elif (dom[i] != dom[i + 1]) or row_is_zeros(abundance_est[i]) or row_is_zeros(abundance_est[i + 1]):
+        elif row_is_zeros(abundance_est[i + 1]) or (dom[i] != dom[i + 1]):
             num_switches += 1
         num_total += 1
     if num_total > 0:
