@@ -28,6 +28,7 @@ class DatabaseConfig(AbstractConfig):
         for k, v in kwargs.items():
             db_kwargs[k] = v
 
+        db_kwargs['data_dir'] = self.data_dir
         db_obj = class_(**db_kwargs)
         if not isinstance(db_obj, chronostrain.database.StrainDatabase):
             raise RuntimeError("Specified database class {} is not a subclass of {}".format(

@@ -6,7 +6,6 @@ import pickle
 
 from Bio import SeqIO
 
-from chronostrain.config import cfg
 from chronostrain.model import Strain, Marker
 from .parser import AbstractDatabaseParser, JSONParser
 from .backend import AbstractStrainDatabaseBackend, PandasAssistedBackend
@@ -20,10 +19,11 @@ class StrainDatabase(object):
     def __init__(self,
                  parser: AbstractDatabaseParser,
                  backend: AbstractStrainDatabaseBackend,
+                 data_dir: Path,
                  multifasta_filename: str = 'all_markers.fasta',
                  force_refresh: bool = False):
         self.backend = backend
-        self.marker_multifasta_file = cfg.database_cfg.data_dir / multifasta_filename
+        self.marker_multifasta_file = data_dir / multifasta_filename
         self.initialize(parser, force_refresh)
 
     def initialize(self, parser: AbstractDatabaseParser, force_refresh: bool):
