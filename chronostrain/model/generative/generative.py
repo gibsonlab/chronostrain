@@ -14,6 +14,7 @@ from chronostrain.model.io import TimeSeriesReads, TimeSliceReads
 from chronostrain.util.math.distributions import *
 from chronostrain.util.sparse import RowSectionedSparseMatrix
 from chronostrain.database import StrainDatabase
+from chronostrain.config import cfg
 
 from .fragment_frequencies import SparseFragmentFrequencyComputer
 from chronostrain.logging import create_logger
@@ -35,7 +36,8 @@ class GenerativeModel:
                  frag_negbin_p: float,
                  read_error_model: AbstractErrorModel,
                  min_overlap_ratio: float,
-                 db: StrainDatabase):
+                 db: StrainDatabase,
+                 ):
         """
         :param times: A list of time points.
         :param mu: The prior mean E[X_1] of the first time point.

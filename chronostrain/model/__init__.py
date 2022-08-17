@@ -6,4 +6,3 @@ from .variants import StrainVariant, AbstractMarkerVariant
 from .reads import AbstractErrorModel, SequenceRead, PairedEndRead, AbstractTrainableErrorModel, \
     AbstractQScoreDistribution, BasicQScoreDistribution, BasicPhredScoreDistribution, BasicErrorModel, \
     PhredErrorModel, PEPhredErrorModel, NoiselessErrorModel
-from .generative import GenerativeModel
