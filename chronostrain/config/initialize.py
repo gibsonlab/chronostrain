@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-from .base import ConfigParser
+from configparser import ConfigParser
 from .chronostrain import ChronostrainConfig
 from chronostrain.logging import create_logger
 logger = create_logger(__name__)
