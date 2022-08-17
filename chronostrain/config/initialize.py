@@ -10,8 +10,10 @@ logger = create_logger(__name__)
 def _config_load(ini_path: str) -> ChronostrainConfig:
     if not Path(ini_path).exists():
         raise FileNotFoundError(
-            "Config INI path `{}` invalid. Create a `chronostrain.ini` file, or set the `{}` environment "
-            "variable to point to the right configuration.".format(
+            "Config INI path `{}` invalid. "
+            "Create a `chronostrain.ini` file "
+            "and pass it through the CLI option (-c), "
+            "or set the `{}` environment variable to point to the right configuration.".format(
                 str(ini_path),
                 __env_key__
             )
