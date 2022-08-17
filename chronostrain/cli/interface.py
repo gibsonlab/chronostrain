@@ -1,3 +1,7 @@
+from typing import Optional
+from pathlib import Path
+import os
+
 import click
 from .commands import *
 from chronostrain.logging import create_logger
@@ -12,12 +16,19 @@ logger = create_logger("chronostrain.cli")
         'advi': run_advi
     }
 )
+@click.option(
+    '--config', '-c', 'config_path',
+    type=click.Path(path_type=Path, dir_okay=False, exists=True, readable=True),
+    required=False,
+    help="The path to a chronostrain INI configuration file."
+)
 @click.pass_context
-def main(ctx):
+def main(ctx, config_path: Optional[Path]):
     """
     ChronoStrain (Time-Series Metagenomic Abundance Estimation)
     """
     ctx.obj = logger
+    os.environ['CHRONOSTRAIN_INI'] = str(config_path)
 
 
 if __name__ == "__main__":
