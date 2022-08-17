@@ -3,16 +3,21 @@ from pathlib import Path
 from Bio import Entrez
 
 from chronostrain.util.filesystem import convert_size
-from chronostrain.config import cfg
 from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
 
-logger.info(f"Using email `{cfg.entrez_cfg.email}` for Entrez.")
-Entrez.email = cfg.entrez_cfg.email
-
 _fasta_filename = "{accession}.fasta"
 _genbank_filename = "{accession}.gb"
+
+
+_INITIALIZED = False
+
+
+def init_entrez(email: str):
+    if not _INITIALIZED:
+        logger.info(f"Using email `{email}` for Entrez.")
+        Entrez.email = email
 
 
 def fasta_filename(accession: str, base_dir: Path) -> Path:

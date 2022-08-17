@@ -2,7 +2,8 @@ from abc import abstractmethod
 from typing import Tuple, List, Iterator
 import numpy as np
 
-from chronostrain.model import Marker, Strain, SequenceRead, MarkerMetadata
+from .bacteria import Marker, Strain, MarkerMetadata
+from .reads import SequenceRead
 from chronostrain.util.sequences import *
 
 

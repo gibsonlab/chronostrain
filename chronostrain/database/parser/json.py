@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterator, List, Tuple, Dict, Any
 
-from chronostrain.config import cfg
 from chronostrain.model import Strain, StrainMetadata, Marker
 
 from .base import AbstractDatabaseParser, StrainDatabaseParseError
@@ -270,9 +269,11 @@ class UnknownSourceNucleotideError(BaseException):
 class JSONParser(AbstractDatabaseParser):
     def __init__(self,
                  entries_file: Path,
+                 data_dir: Path,
                  marker_max_len: int,
                  force_refresh: bool = False):
         self.entries_file = entries_file
+        self.data_dir = data_dir
         self.marker_max_len = marker_max_len
         self.force_refresh = force_refresh
 
@@ -300,6 +301,7 @@ class JSONParser(AbstractDatabaseParser):
 
             marker_src = CachedMarkerSource(
                 strain_id=strain_entry.id,
+                data_dir=self.data_dir,
                 seq_accession=seq_entry.accession,
                 marker_max_len=self.marker_max_len,
                 force_download=self.force_refresh
@@ -373,7 +375,6 @@ class JSONParser(AbstractDatabaseParser):
 
     def strains(self) -> Iterator[Strain]:
         logger.info("Loading from JSON marker database file {}.".format(self.entries_file))
-        logger.debug("Database root directory: {}".format(cfg.database_cfg.data_dir))
         for strain_entry in self.strain_entries():
             try:
                 yield self.parse_strain(strain_entry)

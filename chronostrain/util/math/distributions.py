@@ -2,8 +2,6 @@ from typing import Union
 from numpy import pi
 import torch
 
-from chronostrain.config import cfg
-
 _pi = torch.tensor(pi)
 
 
@@ -129,6 +127,7 @@ class HalfCauchyVarianceGaussian(object):
         self.cauchy_dist = torch.distributions.HalfCauchy(scale=cauchy_scale)
 
     def empirical_log_likelihood(self, x: torch.Tensor):
+        from chronostrain.config import cfg
         gaussian_size = x.size()[-1]
         ans = torch.zeros(size=(x.size()[0],), device=cfg.torch_cfg.device)
         for i in range(self.n_samples):

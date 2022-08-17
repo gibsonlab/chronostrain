@@ -1,11 +1,11 @@
 from logging import Logger
 from typing import List
-import numpy as np
 import torch
 
 from chronostrain.database import StrainDatabase
 from chronostrain.model import *
 from chronostrain.config import cfg
+from chronostrain.model.generative import GenerativeModel
 
 
 def create_model(population: Population,

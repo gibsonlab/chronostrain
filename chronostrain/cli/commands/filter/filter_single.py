@@ -2,9 +2,7 @@ import click
 from logging import Logger
 from pathlib import Path
 
-from chronostrain.model.io import parse_read_type
 from ..base import option
-from .base import create_aligner
 
 
 @click.command()
@@ -78,7 +76,8 @@ def main(
     logger.info(f"Applying filter to `{in_path}`")
 
     from chronostrain.config import cfg
-    from .base import Filter
+    from .base import Filter, create_aligner
+    from chronostrain.model.io import parse_read_type
 
     db = cfg.database_cfg.get_database()
 

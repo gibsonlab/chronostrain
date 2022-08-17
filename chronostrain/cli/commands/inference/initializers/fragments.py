@@ -2,8 +2,9 @@ from logging import Logger
 from chronostrain.algs.subroutines.alignments import CachedReadPairwiseAlignments, CachedReadMultipleAlignments
 from chronostrain.algs.subroutines.cache import ReadsComputationCache
 from chronostrain.database import StrainDatabase
-from chronostrain.model import FragmentSpace, TimeSeriesReads
+from chronostrain.model import FragmentSpace
 from chronostrain.config import cfg
+from chronostrain.model.io import TimeSeriesReads
 
 
 def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase, logger: Logger, mode: str = 'pairwise') -> FragmentSpace:
