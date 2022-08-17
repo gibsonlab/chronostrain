@@ -9,6 +9,7 @@ seaborn
 joblib
 networkx
 biopython
+click
 
 [bioconda]
 sra-tools=2.11
@@ -19,7 +20,7 @@ bwa
 bowtie2
 
 [pytorch]
-pytorch=1.10
+pytorch
 
 [pyg]
 pytorch-scatter
