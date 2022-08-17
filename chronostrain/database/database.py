@@ -159,6 +159,7 @@ class JSONStrainDatabase(StrainDatabase):
     def __init__(self,
                  entries_file: Union[str, Path],
                  marker_max_len: int,
+                 data_dir: Path,
                  force_refresh: bool = False,
                  multifasta_filename: str = 'all_markers.fasta'):
         if isinstance(entries_file, str):
@@ -167,10 +168,11 @@ class JSONStrainDatabase(StrainDatabase):
         self.entries_file = entries_file
         self.pickle_path: Path = entries_file.with_suffix('.pkl')
         parser = JSONParser(entries_file,
+                            data_dir,
                             marker_max_len,
                             force_refresh)
         backend = PandasAssistedBackend()
-        super().__init__(parser, backend, multifasta_filename=multifasta_filename)
+        super().__init__(parser, backend, data_dir, multifasta_filename)
 
     def pickle_is_stale(self):
         if not self.pickle_path.exists():

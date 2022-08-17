@@ -5,7 +5,6 @@ from typing import Tuple, Iterator, Union
 from Bio import SeqIO
 from Bio.SeqFeature import SeqFeature
 
-from chronostrain.config import cfg
 from chronostrain.model import Marker, MarkerMetadata
 from chronostrain.util.entrez import fetch_genbank, fetch_fasta
 from chronostrain.util.sequences import nucleotides_to_z4, reverse_complement_seq, z4_to_nucleotides
@@ -160,8 +159,9 @@ class MarkerSource:
 
 
 class CachedMarkerSource(MarkerSource):
-    def __init__(self, strain_id: str, seq_accession: str, marker_max_len: int, force_download: bool):
+    def __init__(self, strain_id: str, data_dir: Path, seq_accession: str, marker_max_len: int, force_download: bool):
         super().__init__(strain_id, seq_accession, marker_max_len, force_download)
+        self.data_dir = data_dir
         self._seq_len = self.get_seq_len()
 
     def get_seq_len(self) -> int:
@@ -177,7 +177,7 @@ class CachedMarkerSource(MarkerSource):
 
     def get_marker_filepath(self, marker_id: str) -> Path:
         return (
-                cfg.database_cfg.data_dir
+                self.data_dir
                 / "markers"
                 / f"{self.strain_id}"
                 / f"{marker_id}.fasta"
