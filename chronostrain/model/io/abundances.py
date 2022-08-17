@@ -3,7 +3,6 @@ import csv
 from pathlib import Path
 from typing import List, Tuple
 
-from chronostrain.config import cfg
 from chronostrain.model.bacteria import Population
 from chronostrain.util.filesystem import convert_size
 
@@ -46,7 +45,7 @@ def load_abundances(file_path: Path) -> Tuple[List[int], torch.Tensor, List[str]
     (2) a time indexed list of abundance profiles,
     (3) the list of relevant accessions.
     """
-
+    from chronostrain.config import cfg
     time_points = []
     strain_abundances = []
     accessions = []
