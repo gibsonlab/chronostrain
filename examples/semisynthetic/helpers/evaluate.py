@@ -264,7 +264,6 @@ def detection_ratio(pred: torch.Tensor, truth: torch.Tensor) -> float:
 
     errs = torch.sum(torch.not_equal(pred, truth)).item()
     total = truth.shape[0] * truth.shape[1]
-    print(truth.shape)
     return errs / total
 
 
@@ -453,6 +452,9 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                     chronostrain_db: StrainDatabase) -> pd.DataFrame:
     strain_ids = list(pd.unique(ground_truth.loc[ground_truth['RelAbund'] > 0, 'Strain']))
     truth_tensor = extract_ground_truth_array(ground_truth, strain_ids)
+
+    print(truth_tensor.shape)
+    exit(1)
 
     def engraftment_clearance(pres: torch.Tensor) -> Tuple[float, float]:
         return engraftment_ratio(pres), clearance_ratio(pres)
