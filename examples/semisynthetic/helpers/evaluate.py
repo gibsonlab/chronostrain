@@ -262,7 +262,7 @@ def detection_ratio(pred: torch.Tensor, truth: torch.Tensor) -> float:
     pred = pred.view(torch.int)
     truth = truth.view(torch.int)
 
-    errs = torch.sum(torch.abs(truth - pred)).item()
+    errs = torch.sum(torch.not_equal(pred, truth)).item()
     total = truth.shape[0] * truth.shape[1]
     return errs / total
 
@@ -288,13 +288,12 @@ def clearance_ratio(presence: torch.Tensor) -> float:
     return engraftment_ratio(torch.logical_not(presence))
 
 
-def chronostrain_presence(abundance_est: torch.Tensor, q: float = 0.95) -> torch.Tensor:
+def chronostrain_presence(abundance_est: torch.Tensor, q: float = 0.95, lb: float = 0.0) -> torch.Tensor:
     """
     :param abundance_est: (T x N x S) tensor of abundance samples.
     :param q: the quantile to compute.
     :return:
     """
-    lb = 1 / abundance_est.shape[-1]
     return torch.quantile(abundance_est, q, dim=1) > lb
 
 
@@ -473,9 +472,11 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                 #     chronostrain_estimate_samples[:, :30, :],
                 #     ground_truth, distances, strain_ids
                 # )
+
+                detection = chronostrain_presence(chronostrain_estimate_samples, q=0.95, lb=1 / chronostrain_db.num_strains())
                 error = error_metric(torch.median(chronostrain_estimate_samples, dim=1).values, truth_tensor)
                 dom_err = dominance_switch_ratio(torch.median(chronostrain_estimate_samples, dim=1).values)
-                detection_err = detection_ratio(chronostrain_presence(chronostrain_estimate_samples, q=0.5), truth_tensor > 0)
+                detection_err = detection_ratio(detection, truth_tensor > 0)
 
                 df_entries.append({
                     'ReadDepth': read_depth,
