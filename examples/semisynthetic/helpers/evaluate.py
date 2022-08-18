@@ -261,6 +261,15 @@ def error_metric(abundance_est: torch.Tensor, truth: torch.Tensor) -> float:
     return l1_error.item()
 
 
+def detection_ratio(pred: torch.Tensor, truth: torch.Tensor) -> float:
+    pred = pred.view(torch.int)
+    truth = truth.view(torch.int)
+
+    errs = torch.sum(torch.abs(truth - pred)).item()
+    total = truth.shape[0] * truth.shape[1]
+    return errs / total
+
+
 def engraftment_ratio(presence: torch.Tensor) -> float:
     """
     :param presence: (T x S) Tensor of boolean values.
@@ -468,19 +477,16 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                 #     ground_truth, distances, strain_ids
                 # )
                 error = error_metric(torch.median(chronostrain_estimate_samples, dim=1).values, truth_tensor)
-                engraftment, clearance = engraftment_clearance(chronostrain_presence(chronostrain_estimate_samples))
                 dom_err = dominance_switch_ratio(torch.median(chronostrain_estimate_samples, dim=1).values)
-
-                logger.info("Chronostrain: err = {}, engraft = {}, clear = {}".format(error, engraftment, clearance))
+                detection_err = detection_ratio(chronostrain_presence(chronostrain_estimate_samples, q=0.5), truth_tensor > 0)
 
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
                     'Method': 'Chronostrain',
                     'Error': error,
-                    'Engraftment': engraftment,
-                    'Clearance': clearance,
-                    'Dominance': dom_err
+                    'Dominance': dom_err,
+                    'DetectionErr': detection_err
                 })
 
                 plot_result(plot_dir / 'chronostrain.pdf', ground_truth, chronostrain_estimate_samples, strain_ids)
@@ -494,18 +500,16 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                                                                    trial_dir / 'output' / 'strainest')
                 # error = wasserstein_error(strainest_estimate, ground_truth, distances, strain_ids).item()
                 error = error_metric(strainest_sens_estimate, truth_tensor)
-                engraftment, clearance = engraftment_clearance(other_method_presence(strainest_sens_estimate))
                 dom_err = dominance_switch_ratio(strainest_sens_estimate)
+                detection_err = detection_ratio(strainest_sens_estimate > 0, truth_tensor > 0)
 
-                logger.info("StrainEst (Sens) err = {}, engraft = {}, clear = {}".format(error, engraftment, clearance))
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
                     'Method': 'StrainEst (Sensitive)',
                     'Error': error,
-                    'Engraftment': engraftment,
-                    'Clearance': clearance,
-                    'Dominance': dom_err
+                    'Dominance': dom_err,
+                    'DetectionErr': detection_err
                 })
                 plot_result(plot_dir / 'strainest.sensitive.pdf', ground_truth, strainest_sens_estimate, strain_ids)
             except FileNotFoundError:
@@ -517,18 +521,16 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                                                               'default',
                                                               trial_dir / 'output' / 'strainest')
                 error = error_metric(strainest_estimate, truth_tensor)
-                engraftment, clearance = engraftment_clearance(other_method_presence(strainest_estimate))
                 dom_err = dominance_switch_ratio(strainest_estimate)
+                detection_err = detection_ratio(strainest_estimate > 0, truth_tensor > 0)
 
-                logger.info("StrainEst (Default) err = {}, engraft = {}, clear = {}".format(error, engraftment, clearance))
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
                     'Method': 'StrainEst (Default)',
                     'Error': error,
-                    'Engraftment': engraftment,
-                    'Clearance': clearance,
-                    'Dominance': dom_err
+                    'Dominance': dom_err,
+                    'DetectionErr': detection_err
                 })
                 plot_result(plot_dir / 'strainest.default.pdf', ground_truth, strainest_estimate, strain_ids)
             except FileNotFoundError:
@@ -541,17 +543,16 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                                                               mode='chromosome')
                 # error = wasserstein_error(straingst_estimate, ground_truth, distances, strain_ids).item()
                 error = error_metric(straingst_estimate, truth_tensor)
-                engraftment, clearance = engraftment_clearance(other_method_presence(straingst_estimate))
                 dom_err = dominance_switch_ratio(straingst_estimate)
-                logger.info("StrainGST err = {}, engraft = {}, clear = {}".format(error, engraftment, clearance))
+                detection_err = detection_ratio(straingst_estimate > 0, truth_tensor > 0)
+
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
                     'Method': 'StrainGST',
                     'Error': error,
-                    'Engraftment': engraftment,
-                    'Clearance': clearance,
-                    'Dominance': dom_err
+                    'Dominance': dom_err,
+                    'DetectionErr': detection_err
                 })
                 plot_result(plot_dir / 'straingst.pdf', ground_truth, straingst_estimate, strain_ids)
             except FileNotFoundError:
@@ -575,25 +576,23 @@ def evaluate_errors(ground_truth: pd.DataFrame,
             # except FileNotFoundError:
             #     logger.info("Skipping StrainGST (markers) output.")
 
-            # =========== StrainFacts
-            try:
-                strainfacts_estimate = parse_strainfacts_estimate(ground_truth,
-                                                                  strain_ids,
-                                                                  trial_dir / 'output' / 'strainfacts')
-                error = error_metric(strainfacts_estimate, truth_tensor)
-                logger.info("StrainFacts Error: {}".format(error))
-                df_entries.append({
-                    'ReadDepth': read_depth,
-                    'TrialNum': trial_num,
-                    'Method': 'StrainFacts',
-                    'Error': error,
-                    'Engraftment': float('inf'),
-                    'Clearance': float('inf'),
-                    'Dominance': float('inf')
-                })
-                # plot_result(plot_dir / 'strainfacts.pdf', ground_truth, strainfacts_estimate, strain_ids)
-            except FileNotFoundError:
-                logger.info("Skipping StrainFacts output.")
+            # # =========== StrainFacts
+            # try:
+            #     strainfacts_estimate = parse_strainfacts_estimate(ground_truth,
+            #                                                       strain_ids,
+            #                                                       trial_dir / 'output' / 'strainfacts')
+            #     error = error_metric(strainfacts_estimate, truth_tensor)
+            #     logger.info("StrainFacts Error: {}".format(error))
+            #     df_entries.append({
+            #         'ReadDepth': read_depth,
+            #         'TrialNum': trial_num,
+            #         'Method': 'StrainFacts',
+            #         'Error': error,
+            #         'Dominance': float('inf')
+            #     })
+            #     # plot_result(plot_dir / 'strainfacts.pdf', ground_truth, strainfacts_estimate, strain_ids)
+            # except FileNotFoundError:
+            #     logger.info("Skipping StrainFacts output.")
 
     return pd.DataFrame(df_entries)
 
