@@ -264,6 +264,7 @@ def detection_ratio(pred: torch.Tensor, truth: torch.Tensor) -> float:
 
     errs = torch.sum(torch.not_equal(pred, truth)).item()
     total = truth.shape[0] * truth.shape[1]
+    print(truth.shape)
     return errs / total
 
 
