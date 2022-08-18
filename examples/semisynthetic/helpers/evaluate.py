@@ -7,8 +7,6 @@ import csv
 import numpy as np
 import pandas as pd
 import torch
-import matplotlib
-import matplotlib.pyplot as plt
 from Bio import SeqIO
 
 from chronostrain.database import StrainDatabase
@@ -398,46 +396,46 @@ def all_ecoli_strain_ids(index_path: Path) -> List[str]:
     ]))
 
 
-def plot_result(out_path: Path, truth_df: pd.DataFrame, samples: torch.Tensor, strain_ordering: List[str]):
-    fig, ax = plt.subplots(1, 1, figsize=(16, 10))
-    viridis = matplotlib.cm.get_cmap('viridis', len(strain_ordering))
-    cmap = viridis(np.linspace(0, 1, len(strain_ordering)))
-
-    q_lower = 0.025
-    q_upper = 0.975
-    t = sorted(float(x) for x in pd.unique(truth_df['T']))
-    time_points = sorted(pd.unique(truth_df['T']))
-    t_idxs = {t: t_idx for t_idx, t in enumerate(time_points)}
-    strain_idxs = {sid: i for i, sid in enumerate(strain_ordering)}
-    ground_truth = torch.zeros(size=(len(time_points), len(strain_ordering)), dtype=torch.float, device=device)
-    for _, row in truth_df.iterrows():
-        s_idx = strain_idxs[row['Strain']]
-        t_idx = t_idxs[row['T']]
-        ground_truth[t_idx, s_idx] = row['RelAbund']
-
-    if len(samples.shape) == 3:
-        for s_idx, strain_id in enumerate(strain_ordering):
-            traj = samples[:, :, s_idx]
-            truth_traj = ground_truth[:, s_idx].cpu().numpy()
-            lower = torch.quantile(traj, q_lower, dim=1).cpu().numpy()
-            upper = torch.quantile(traj, q_upper, dim=1).cpu().numpy()
-            median = torch.median(traj, dim=1).values.cpu().numpy()
-
-            color = cmap[s_idx]
-            ax.fill_between(t, lower, upper, alpha=0.3, color=color)
-            ax.plot(t, median, color=color)
-            ax.plot(t, truth_traj, color=color, linestyle='dashed')
-    elif len(samples.shape) == 2:
-        for s_idx, strain_id in enumerate(strain_ordering):
-            traj = samples[:, s_idx].cpu().numpy()
-            truth_traj = ground_truth[:, s_idx].cpu().numpy()
-            color = cmap[s_idx]
-            ax.plot(t, traj, color=color)
-            ax.plot(t, truth_traj, color=color, linestyle='dashed')
-    else:
-        raise RuntimeError(f"Can't plot samples of dimension {len(samples.shape)}")
-    plt.savefig(out_path)
-    plt.close(fig)
+# def plot_result(out_path: Path, truth_df: pd.DataFrame, samples: torch.Tensor, strain_ordering: List[str]):
+#     fig, ax = plt.subplots(1, 1, figsize=(16, 10))
+#     viridis = matplotlib.cm.get_cmap('viridis', len(strain_ordering))
+#     cmap = viridis(np.linspace(0, 1, len(strain_ordering)))
+#
+#     q_lower = 0.025
+#     q_upper = 0.975
+#     t = sorted(float(x) for x in pd.unique(truth_df['T']))
+#     time_points = sorted(pd.unique(truth_df['T']))
+#     t_idxs = {t: t_idx for t_idx, t in enumerate(time_points)}
+#     strain_idxs = {sid: i for i, sid in enumerate(strain_ordering)}
+#     ground_truth = torch.zeros(size=(len(time_points), len(strain_ordering)), dtype=torch.float, device=device)
+#     for _, row in truth_df.iterrows():
+#         s_idx = strain_idxs[row['Strain']]
+#         t_idx = t_idxs[row['T']]
+#         ground_truth[t_idx, s_idx] = row['RelAbund']
+#
+#     if len(samples.shape) == 3:
+#         for s_idx, strain_id in enumerate(strain_ordering):
+#             traj = samples[:, :, s_idx]
+#             truth_traj = ground_truth[:, s_idx].cpu().numpy()
+#             lower = torch.quantile(traj, q_lower, dim=1).cpu().numpy()
+#             upper = torch.quantile(traj, q_upper, dim=1).cpu().numpy()
+#             median = torch.median(traj, dim=1).values.cpu().numpy()
+#
+#             color = cmap[s_idx]
+#             ax.fill_between(t, lower, upper, alpha=0.3, color=color)
+#             ax.plot(t, median, color=color)
+#             ax.plot(t, truth_traj, color=color, linestyle='dashed')
+#     elif len(samples.shape) == 2:
+#         for s_idx, strain_id in enumerate(strain_ordering):
+#             traj = samples[:, s_idx].cpu().numpy()
+#             truth_traj = ground_truth[:, s_idx].cpu().numpy()
+#             color = cmap[s_idx]
+#             ax.plot(t, traj, color=color)
+#             ax.plot(t, truth_traj, color=color, linestyle='dashed')
+#     else:
+#         raise RuntimeError(f"Can't plot samples of dimension {len(samples.shape)}")
+#     plt.savefig(out_path)
+#     plt.close(fig)
 
 
 def parse_args() -> argparse.Namespace:
@@ -488,7 +486,7 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                     'DetectionErr': detection_err
                 })
 
-                plot_result(plot_dir / 'chronostrain.pdf', ground_truth, chronostrain_estimate_samples, strain_ids)
+                # plot_result(plot_dir / 'chronostrain.pdf', ground_truth, chronostrain_estimate_samples, strain_ids)
             except FileNotFoundError:
                 logger.info("Skipping Chronostrain output.")
 
@@ -510,7 +508,7 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                     'Dominance': dom_err,
                     'DetectionErr': detection_err
                 })
-                plot_result(plot_dir / 'strainest.sensitive.pdf', ground_truth, strainest_sens_estimate, strain_ids)
+                # plot_result(plot_dir / 'strainest.sensitive.pdf', ground_truth, strainest_sens_estimate, strain_ids)
             except FileNotFoundError:
                 logger.info("Skipping StrainEst (Sensitive) output.")
 
@@ -531,7 +529,7 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                     'Dominance': dom_err,
                     'DetectionErr': detection_err
                 })
-                plot_result(plot_dir / 'strainest.default.pdf', ground_truth, strainest_estimate, strain_ids)
+                # plot_result(plot_dir / 'strainest.default.pdf', ground_truth, strainest_estimate, strain_ids)
             except FileNotFoundError:
                 logger.info("Skipping StrainEst (Default) output.")
 
@@ -553,7 +551,7 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                     'Dominance': dom_err,
                     'DetectionErr': detection_err
                 })
-                plot_result(plot_dir / 'straingst.pdf', ground_truth, straingst_estimate, strain_ids)
+                # plot_result(plot_dir / 'straingst.pdf', ground_truth, straingst_estimate, strain_ids)
             except FileNotFoundError:
                 logger.info("Skipping StrainGST output.")
 
