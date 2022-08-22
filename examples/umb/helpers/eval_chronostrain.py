@@ -114,13 +114,18 @@ def evaluate_by_clades(chronostrain_output_dir: Path, reads_dir: Path, clades: D
     strains = db.all_strains()
     for patient, reads, umb_samples, strain_ids in umb_outputs(chronostrain_output_dir, reads_dir):
         print(f"Handling {patient}.")
-        overall_medians = np.median(overall_relabund(umb_samples, reads, strains), axis=1)
+        overall_relabund_samples = overall_relabund(umb_samples, reads, strains)
+        overall_medians = np.median(overall_relabund_samples, axis=1)
         relative_medians = np.median(umb_samples, axis=1)
 
-        for (clade, overall_chunk), (_, relative_chunk) in zip(
+        for (clade, overall_chunk), (_c, relative_chunk) in zip(
                 divide_into_timeseries(overall_medians, strain_ids, clades),
                 divide_into_timeseries(relative_medians, strain_ids, clades),
         ):
+            assert clade == _c
+            assert overall_chunk.shape[0] == relative_chunk.shape[0]
+            assert overall_chunk.shape[1] == relative_chunk.shape[1]
+
             df_entries.append({
                 "Patient": patient,
                 "Phylogroup": clade,
@@ -133,7 +138,7 @@ def evaluate_by_clades(chronostrain_output_dir: Path, reads_dir: Path, clades: D
 
 
 def divide_into_timeseries(timeseries: np.ndarray, strain_ids: List[str], clades: Dict[str, str]) -> Iterator[Tuple[str, np.ndarray]]:
-    all_clades = set(clades.values())
+    all_clades = sorted(list(set(clades.values())))
     for this_clade in all_clades:
         # Note: if "s" is not in "clades", then it might not be ecoli.
         matching_strains = [i for i, s in enumerate(strain_ids) if (s in clades and clades[s] == this_clade)]
