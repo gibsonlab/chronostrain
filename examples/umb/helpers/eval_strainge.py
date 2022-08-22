@@ -145,12 +145,16 @@ def convert_to_numpy(timeseries_df: pd.DataFrame, patient: str, metadata: pd.Dat
     strain_indexes = {s: i for i, s in enumerate(strains)}
     timeseries = np.zeros((len(time_points), len(strains)), dtype=float)
 
-    for _, row in merged.iterrows():
-        day = row['days']
-        strain = row['Strain']
-        tidx = time_indexes[day]
-        sidx = strain_indexes[strain]
-        timeseries[tidx, sidx] = row['RelAbund']
+    try:
+        for _, row in merged.iterrows():
+            day = row['days']
+            strain = row['Strain']
+            tidx = time_indexes[day]
+            sidx = strain_indexes[strain]
+            timeseries[tidx, sidx] = row['RelAbund']
+    except KeyError as e:
+        merged.to_csv(f"__{patient}_DATA_DUMP.csv", index=False)
+        raise e
 
     return timeseries, strains
 
