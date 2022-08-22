@@ -3,6 +3,8 @@ A sparse 2-d matrix in COO format. Uses torch_sparse as a backend.
 
 Note: since torch_sparse largely already uses C-compiled computations or JIT whenever possible, calls using
 torch_sparse need not be optimized. For custom model-specific operations, we use @torch.jit ourselves.
+
+TODO: remove dependency on torch_sparse.
 """
 from pathlib import Path
 from typing import Tuple, List, Union

@@ -10,8 +10,7 @@ from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.config import cfg
 from chronostrain.util.benchmarking import RuntimeEstimator
-from chronostrain.util.math import log_spspmm_exp
-from chronostrain.util.sparse import ColumnSectionedSparseMatrix
+from chronostrain.util.math.matrices import *
 
 from .. import AbstractModelSolver
 from .posteriors.base import AbstractReparametrizedPosterior

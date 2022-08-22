@@ -1,11 +1,8 @@
 import math
-from pathlib import Path
 from typing import Tuple, List
 
-import numpy as np
 import torch
 from .sparse_tensor import SparseMatrix
-import torch_scatter
 
 
 class ColumnSectionedSparseMatrix(SparseMatrix):
@@ -158,21 +155,21 @@ class ADVIOptimizedSparseMatrix(RowSectionedSparseMatrix):
                 force_coalesce=False
             ))
 
-    def columnwise_min(self) -> torch.Tensor:
-        return self.scatter_groupby_reduce('min')
-
-    def columnwise_max(self) -> torch.Tensor:
-        return self.scatter_groupby_reduce('max')
-
-    def scatter_groupby_reduce(self, operation: str) -> torch.Tensor:
-        ans = torch.empty(self.columns, device=self.values.device, dtype=self.values.dtype)
-        torch_scatter.segment_csr(
-            src=self.values,
-            indptr=self.col_indptrs,
-            reduce=operation,
-            out=ans
-        )
-        return ans
+    # def columnwise_min(self) -> torch.Tensor:
+    #     return self.scatter_groupby_reduce('min')
+    #
+    # def columnwise_max(self) -> torch.Tensor:
+    #     return self.scatter_groupby_reduce('max')
+    #
+    # def scatter_groupby_reduce(self, operation: str) -> torch.Tensor:
+    #     ans = torch.empty(self.columns, device=self.values.device, dtype=self.values.dtype)
+    #     torch_scatter.segment_csr(
+    #         src=self.values,
+    #         indptr=self.col_indptrs,
+    #         reduce=operation,
+    #         out=ans
+    #     )
+    #     return ans
 
     def update_values(self, new_values: torch.Tensor):
         self.values = new_values

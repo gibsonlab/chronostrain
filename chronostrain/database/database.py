@@ -1,4 +1,5 @@
 import time
+import os
 from collections import defaultdict
 from pathlib import Path
 from typing import List, Union, Set
@@ -166,13 +167,27 @@ class JSONStrainDatabase(StrainDatabase):
             entries_file = Path(entries_file)
 
         self.entries_file = entries_file
-        self.pickle_path: Path = entries_file.with_suffix('.pkl')
         parser = JSONParser(entries_file,
                             data_dir,
                             marker_max_len,
                             force_refresh)
         backend = PandasAssistedBackend()
         super().__init__(parser, backend, data_dir, multifasta_filename)
+
+    @property
+    def pickle_path(self) -> Path:
+        """
+        Certain object attributes (such as marker metadata) uses pathlib.Path, which is specific to the OS.
+        Therefore, save/load each separately.
+
+        :return: The target path to save the database.
+        """
+        if os.name == 'nt':
+            # Windows paths
+            return self.entries_file.with_suffix('.windows.pkl')
+        else:
+            # Posix paths
+            return self.entries_file.with_suffix('.posix.pkl')
 
     def pickle_is_stale(self):
         if not self.pickle_path.exists():

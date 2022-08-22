@@ -1,5 +1,6 @@
-from .mappings import *
-from .matrices import log_mm_exp, log_spspmm_exp, log_mm_exp_spdense, log_mm_exp_densesp
+from .mappings import multi_logit, normalize
 from .generalized_pareto import fit_pareto
 from .psis import psis_smooth_ratios
+
 from . import distributions
+from . import matrices

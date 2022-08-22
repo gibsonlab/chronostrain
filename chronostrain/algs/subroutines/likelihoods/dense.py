@@ -7,7 +7,6 @@ from chronostrain.model import Fragment, SequenceRead
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.config import cfg
 from chronostrain.model.generative import GenerativeModel
-from chronostrain.util.math import log_mm_exp
 
 from .base import DataLikelihoods, AbstractLogLikelihoodComputer
 from ..cache import ReadsPopulationCache

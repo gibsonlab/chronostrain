@@ -5,10 +5,11 @@ import torch
 from chronostrain.database import StrainDatabase
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
+from chronostrain.util.math.matrices import log_mm_exp
 
 from .base import AbstractADVISolver
 from .posteriors import *
-from .util import log_softmax_t, log_matmul_exp
+from .util import log_softmax_t
 from ...subroutines.likelihoods import DataLikelihoods
 
 from chronostrain.logging import create_logger
@@ -89,7 +90,7 @@ class ADVIGaussianSolver(AbstractADVISolver):
             log_y_t = log_softmax_t(x_samples, t=t_idx)
             for batch_lls in self.batches[t_idx]:
                 # Average of (N x R_batch) entries, we only want to divide by 1/N and not 1/(N*R_batch)
-                data_ll = batch_lls.shape[1] * torch.mean(log_matmul_exp(log_y_t, batch_lls))
+                data_ll = batch_lls.shape[1] * torch.mean(log_mm_exp(log_y_t, batch_lls))
                 yield data_ll
 
     def data_ll(self, x_samples: torch.Tensor) -> torch.Tensor:
@@ -97,7 +98,7 @@ class ADVIGaussianSolver(AbstractADVISolver):
         for t_idx in range(self.model.num_times()):
             log_y_t = log_softmax_t(x_samples, t=t_idx)
             for batch_lls in self.batches[t_idx]:
-                batch_matrix = log_matmul_exp(log_y_t, batch_lls).detach()
+                batch_matrix = log_mm_exp(log_y_t, batch_lls).detach()
                 ans = ans + torch.sum(batch_matrix, dim=1)
         return ans
 

@@ -1,2 +1,0 @@
-from .sparse_tensor import SparseMatrix
-from .sliceable import ColumnSectionedSparseMatrix, RowSectionedSparseMatrix

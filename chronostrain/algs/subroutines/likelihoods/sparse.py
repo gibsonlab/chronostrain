@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import List, Dict, Iterator, Tuple, Set
 from collections import defaultdict
 import numpy as np
+import torch
 
 from joblib import Parallel, delayed
 
@@ -9,12 +10,10 @@ from chronostrain.database import StrainDatabase
 from chronostrain.model import Fragment, Marker, SequenceRead, AbstractMarkerVariant
 from chronostrain.util.alignments.multiple import MarkerMultipleFragmentAlignment
 from chronostrain.util.filesystem import convert_size
-from chronostrain.util.math import *
-from chronostrain.util.sparse import SparseMatrix, ColumnSectionedSparseMatrix
+from chronostrain.util.math.matrices import *
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.config import cfg
 from chronostrain.model.generative import GenerativeModel
-from chronostrain.util.sparse.sliceable import ADVIOptimizedSparseMatrix, RowSectionedSparseMatrix
 
 from .base import DataLikelihoods, AbstractLogLikelihoodComputer
 from ..alignments import CachedReadMultipleAlignments, CachedReadPairwiseAlignments
@@ -77,9 +76,6 @@ class SparseDataLikelihoods(DataLikelihoods):
 
             self.projectors.append(projector)
             self.supported_frags.append(row_support)
-
-    def sparse_matrices(self) -> Iterator[ADVIOptimizedSparseMatrix]:
-        yield from self.matrices
 
     def _likelihood_computer(self) -> AbstractLogLikelihoodComputer:
         return SparseLogLikelihoodComputer(self.model, self.data, self.db, self.num_cores)

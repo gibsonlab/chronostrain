@@ -21,11 +21,12 @@ class PrimerNotFoundError(BaseException):
 
 
 class MarkerSource:
-    def __init__(self, strain_id: str, seq_accession: str, marker_max_len: int, force_download: bool):
+    def __init__(self, strain_id: str, seq_accession: str, marker_max_len: int, force_download: bool, data_dir: Path):
         self.strain_id = strain_id
         self.seq_accession = seq_accession
         self.marker_max_len = marker_max_len
         self.force_download = force_download
+        self.data_dir = data_dir
 
         self._seq_len = None
         self._seq = None
@@ -33,7 +34,7 @@ class MarkerSource:
 
     @property
     def strain_assembly_dir(self) -> Path:
-        return cfg.database_cfg.data_dir / "assemblies" / self.strain_id
+        return self.data_dir / "assemblies" / self.strain_id
 
     @property
     def nucleotide_length(self) -> int:
@@ -160,8 +161,7 @@ class MarkerSource:
 
 class CachedMarkerSource(MarkerSource):
     def __init__(self, strain_id: str, data_dir: Path, seq_accession: str, marker_max_len: int, force_download: bool):
-        super().__init__(strain_id, seq_accession, marker_max_len, force_download)
-        self.data_dir = data_dir
+        super().__init__(strain_id, seq_accession, marker_max_len, force_download, data_dir)
         self._seq_len = self.get_seq_len()
 
     def get_seq_len(self) -> int:

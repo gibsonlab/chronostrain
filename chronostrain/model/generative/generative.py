@@ -12,7 +12,7 @@ from chronostrain.model.fragments import FragmentSpace
 from chronostrain.model.reads import AbstractErrorModel, SequenceRead
 from chronostrain.model.io import TimeSeriesReads, TimeSliceReads
 from chronostrain.util.math.distributions import *
-from chronostrain.util.sparse import RowSectionedSparseMatrix
+from chronostrain.util.math.matrices import RowSectionedSparseMatrix
 from chronostrain.database import StrainDatabase
 from chronostrain.config import cfg
 

@@ -8,8 +8,8 @@ from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
 
 from chronostrain.logging import create_logger
+from chronostrain.util.math.matrices import log_mm_exp
 from .base import AbstractADVISolver
-from .util import log_matmul_exp
 from ...subroutines.likelihoods import DataLikelihoods
 from .posteriors import ReparametrizedDirichletPosterior
 
@@ -76,14 +76,14 @@ class ADVIDirichletSolver(AbstractADVISolver):
                 prior = torch.mean(self.model_ll_with_grad(log_dirichlet_samples))
 
                 # Average of (N x R_batch) entries, we only want to divide by 1/N and not 1/(N*R_batch)
-                data_ll = batch_lls.shape[1] * torch.mean(log_matmul_exp(log_dirichlet_samples[t_idx], batch_lls))
+                data_ll = batch_lls.shape[1] * torch.mean(log_mm_exp(log_dirichlet_samples[t_idx], batch_lls))
                 yield data_ll + batch_wt * (entropy + prior)
 
     def data_ll(self, log_dirichlet_samples: torch.Tensor) -> torch.Tensor:
         ans = torch.zeros(size=(log_dirichlet_samples.shape[1],), device=log_dirichlet_samples.device)
         for t_idx in range(self.model.num_times()):
             for batch_lls in self.batches[t_idx]:
-                batch_matrix = log_matmul_exp(log_dirichlet_samples[t_idx], batch_lls).detach()
+                batch_matrix = log_mm_exp(log_dirichlet_samples[t_idx], batch_lls).detach()
                 ans = ans + torch.sum(batch_matrix, dim=1)
         return ans
 
