@@ -1,5 +1,5 @@
-from numba import cuda
 import numpy as np
+from numba import cuda
 import math
 import torch
 from .constants import _DTYPE, _THREADS_PER_BLOCK
@@ -23,7 +23,14 @@ def log_matmul_exp(x: torch.Tensor, y: torch.Tensor):
         return torch_log_matmul_exp(x, y)
 
     out = torch.empty((x.shape[0], y.shape[1]), dtype=x.dtype, device=x.device)
-    jit_log_matmul_exp(
+
+    # CUDA memory specification
+    threads_per_block = (_THREADS_PER_BLOCK, _THREADS_PER_BLOCK)
+    n_blocks_x = int(math.ceil(out.shape[0] / threads_per_block[0]))
+    n_blocks_y = int(math.ceil(out.shape[1] / threads_per_block[1]))
+    block_dims = (n_blocks_x, n_blocks_y)
+
+    jit_log_matmul_exp[block_dims, threads_per_block](
         cuda.as_cuda_array(x),
         cuda.as_cuda_array(y),
         cuda.as_cuda_array(out)
@@ -65,10 +72,10 @@ def jit_log_matmul_exp(A, B, C):
 
     # Each thread computes one element in the result matrix.
     # The dot product is chunked into dot products of TPB-long vectors.
-    tmp = 0.
-    offset = -np.inf
-    total = 0.
-    for i in range(A.shape[1] // _THREADS_PER_BLOCK):  # i: index over blocks
+    log_sum_exp = -np.inf
+    for i in range(int(math.ceil(A.shape[1] / _THREADS_PER_BLOCK))):
+        num_j = min(_THREADS_PER_BLOCK, A.shape[1] - i * _THREADS_PER_BLOCK)
+
         # Preload data into shared memory
         sA[tx, ty] = A[x, ty + i * _THREADS_PER_BLOCK]
         sB[tx, ty] = B[tx + i * _THREADS_PER_BLOCK, y]
@@ -77,15 +84,18 @@ def jit_log_matmul_exp(A, B, C):
         cuda.syncthreads()
 
         # Compute offset to use for logsumexp()
-        for j in range(_THREADS_PER_BLOCK):
-            # tmp += sA[tx, j] * sB[j, ty]
+        offset = log_sum_exp
+        for j in range(num_j):
             offset = max(offset, sA[tx, j] + sB[j, ty])
 
         # Compute summation of exponentials
-        for j in range(_THREADS_PER_BLOCK):
-            total += math.exp(sA[tx, j] + sB[j, ty] - offset)
+        sum_exp = math.exp(log_sum_exp - offset)
+        for j in range(num_j):
+            sum_exp += math.exp(sA[tx, j] + sB[j, ty] - offset)
+
+        # Compute logsumexp.
+        log_sum_exp = math.log(sum_exp) + offset
 
         # Wait until all threads finish computing
         cuda.syncthreads()
-
-    C[x, y] = math.log(total) + offset
+    C[x, y] = log_sum_exp
