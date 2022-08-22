@@ -259,12 +259,6 @@ def error_metric(abundance_est: torch.Tensor, truth: torch.Tensor) -> float:
 
 
 def detection_ratio(pred: torch.Tensor, truth: torch.Tensor) -> float:
-    pred = pred.view(torch.int)
-    truth = truth.view(torch.int)
-
-    print(truth.shape)
-    exit(1)
-
     errs = torch.sum(torch.not_equal(pred, truth)).item()
     total = truth.shape[0] * truth.shape[1]
     return errs / total
