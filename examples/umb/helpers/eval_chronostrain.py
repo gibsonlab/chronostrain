@@ -5,11 +5,17 @@ import numpy as np
 import pandas as pd
 import torch
 
+from chronostrain.database import StrainDatabase
+from chronostrain.model import Strain
+from chronostrain.model.io import TimeSeriesReads
+from chronostrain.config import cfg
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--chronostrain_dir', required=True, type=str)
     parser.add_argument('-o', '--output', required=True, type=str)
+    parser.add_argument('-r', '--reads_dir', required=True, type=str)
 
     parser.add_argument('--group_by_clades', action='store_true')
     parser.add_argument('-c', '--clades', required=False, type=str)
@@ -42,8 +48,8 @@ def parse_clades(clades_path: Path) -> Dict[str, str]:
     return mapping
 
 
-def umb_outputs(base_dir: Path) -> Iterator[Tuple[str, torch.Tensor, List[str]]]:
-    for umb_dir in base_dir.glob("UMB*"):
+def umb_outputs(outputs_dir: Path, read_dir: Path, db_strains: List[Strain]) -> Iterator[Tuple[str, torch.Tensor, List[str]]]:
+    for umb_dir in outputs_dir.glob("UMB*"):
         if not umb_dir.is_dir():
             raise RuntimeError(f"Expected child `{umb_dir}` to be a directory.")
         umb_id = umb_dir.name
@@ -53,9 +59,32 @@ def umb_outputs(base_dir: Path) -> Iterator[Tuple[str, torch.Tensor, List[str]]]
             print(f"File `{sample_path}` not found. Skipping {umb_id}...")
             continue
 
+        reads = TimeSeriesReads.load_from_csv(read_dir / f"{umb_id}_filtered/filtered_{umb_id}_inputs.csv")
         samples = torch.load(umb_dir / "samples.pt")
         strain_ids = load_strain_ids(umb_dir / "strains.txt")
-        yield umb_id, samples, strain_ids
+        yield umb_id, overall_relabund(samples, reads, db_strains), strain_ids
+
+
+def overall_relabund(database_relabund: torch.Tensor, reads: TimeSeriesReads, db_strains: List[Strain]) -> torch.Tensor:
+    """
+    Converts the database-normalized relative abundances to the overall (sample-wide) relative abundance.
+    """
+    def total_marker_len(strain: Strain) -> int:
+        ans = 0
+        for marker in strain.markers:
+            ans += len(marker)
+        return ans
+
+    T, N, S = database_relabund.shape
+    num_filtered_reads = np.array([len(reads_t) for reads_t in reads], dtype=int)
+    read_depths = np.array([reads_t.read_depth for reads_t in reads], dtype=int)
+    marker_lens = np.array([total_marker_len(strain) for strain in db_strains], dtype=int)
+    genome_lens = np.array([strain.metadata.total_len for strain in db_strains], dtype=int)
+
+    marker_sum = np.sum(marker_lens.reshape((1, 1, S)) * database_relabund, axis=2)
+    genome_sum = np.sum(genome_lens.reshape((1, 1, S)) * database_relabund, axis=2)
+    weights = np.reshape(genome_sum / marker_sum, (T, N, 1)) * np.reshape(np.array(num_filtered_reads) / np.array(read_depths), (T, 1, 1))
+    return database_relabund * weights
 
 
 def load_strain_ids(strains_path: Path) -> List[str]:
@@ -66,9 +95,9 @@ def load_strain_ids(strains_path: Path) -> List[str]:
     return strains
 
 
-def evaluate(chronostrain_output_dir: Path) -> pd.DataFrame:
+def evaluate(chronostrain_output_dir: Path, reads_dir: Path, db: StrainDatabase) -> pd.DataFrame:
     df_entries = []
-    for patient, umb_samples, _ in umb_outputs(chronostrain_output_dir):
+    for patient, umb_samples, _ in umb_outputs(chronostrain_output_dir, reads_dir, db.all_strains()):
         print(f"Handling {patient}.")
         timeseries = torch.median(umb_samples, dim=1).values.numpy()
 
@@ -79,9 +108,9 @@ def evaluate(chronostrain_output_dir: Path) -> pd.DataFrame:
     return pd.DataFrame(df_entries)
 
 
-def evaluate_by_clades(chronostrain_output_dir: Path, clades: Dict[str, str]) -> pd.DataFrame:
+def evaluate_by_clades(chronostrain_output_dir: Path, reads_dir: Path, clades: Dict[str, str], db: StrainDatabase) -> pd.DataFrame:
     df_entries = []
-    for patient, umb_samples, strain_ids in umb_outputs(chronostrain_output_dir):
+    for patient, umb_samples, strain_ids in umb_outputs(chronostrain_output_dir, reads_dir, db.all_strains()):
         print(f"Handling {patient}.")
         timeseries = torch.median(umb_samples, dim=1).values.numpy()
 
@@ -134,15 +163,17 @@ def dominance_switch_ratio(abundance_est: np.ndarray, lb: float = 0.0) -> float:
 
 def main():
     args = parse_args()
+    db = cfg.database_cfg.get_database()
+    reads_dir = Path(args.reads_dir)
 
     if args.group_by_clades:
         if args.clades is None:
             print("If grouping by clades, a clades path is required.")
             exit(1)
         clades = parse_clades(args.clades)
-        df = evaluate_by_clades(Path(args.chronostrain_dir), clades)
+        df = evaluate_by_clades(Path(args.chronostrain_dir), reads_dir, clades, db)
     else:
-        df = evaluate(Path(args.chronostrain_dir))
+        df = evaluate(Path(args.chronostrain_dir), reads_dir, db)
 
     df.to_csv(args.output, index=False)
 
