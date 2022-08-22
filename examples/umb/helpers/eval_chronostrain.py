@@ -104,7 +104,7 @@ def evaluate(chronostrain_output_dir: Path, reads_dir: Path, db: StrainDatabase)
 
         df_entries.append({
             "Patient": patient,
-            "Dominance": dominance_switch_ratio(umb_samples, lb=len(strains))
+            "Dominance": dominance_switch_ratio(medians, lb=len(strains))
         })
     return pd.DataFrame(df_entries)
 
