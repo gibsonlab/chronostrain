@@ -259,7 +259,7 @@ def main():
     else:
         df = evaluate(Path(args.strainge_dir), metadata, ref_df)
 
-    df.to_csv(args.output, index=False)
+    df.to_csv(args.output, index=False, sep='\t')
 
 
 if __name__ == "__main__":

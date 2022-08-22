@@ -175,7 +175,7 @@ def main():
     else:
         df = evaluate(Path(args.chronostrain_dir), reads_dir, db)
 
-    df.to_csv(args.output, index=False)
+    df.to_csv(args.output, index=False, sep='\t')
 
 
 if __name__ == "__main__":

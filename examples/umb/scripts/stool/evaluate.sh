@@ -10,14 +10,14 @@ SEED=31415
 echo "Running ChronoStrain evaluation. (ungrouped)"
 python ${BASE_DIR}/helpers/eval_chronostrain.py \
 -d $CHRONOSTRAIN_OUTPUT_DIR \
--o $OUTPUT_DIR/chronostrain.csv \
+-o $OUTPUT_DIR/chronostrain.tsv \
 -r ${READS_DIR}
 
 
 echo "Running ChronoStrain evaluation. (grouped)"
 python ${BASE_DIR}/helpers/eval_chronostrain.py \
 -d $CHRONOSTRAIN_OUTPUT_DIR \
--o $OUTPUT_DIR/chronostrain.grouped.csv \
+-o $OUTPUT_DIR/chronostrain.grouped.tsv \
 -r ${READS_DIR} \
 --group_by_clades -c $CLADES_FILE
 
@@ -25,7 +25,7 @@ python ${BASE_DIR}/helpers/eval_chronostrain.py \
 echo "Running StrainGE evaluation. (ungrouped)"
 python ${BASE_DIR}/helpers/eval_strainge.py \
 -d $STRAINGE_OUTPUT_DIR \
--o $OUTPUT_DIR/strainge.csv -m $SRA_CSV_PATH \
+-o $OUTPUT_DIR/strainge.tsv -m $SRA_CSV_PATH \
 -r ${REFSEQ_INDEX} \
 -m $SRA_CSV_PATH
 
@@ -33,7 +33,7 @@ python ${BASE_DIR}/helpers/eval_strainge.py \
 echo "Running StrainGE evaluation. (grouped)"
 python ${BASE_DIR}/helpers/eval_strainge.py \
 -d $STRAINGE_OUTPUT_DIR \
--o $OUTPUT_DIR/strainge.grouped.csv \
+-o $OUTPUT_DIR/strainge.grouped.tsv \
 -r ${REFSEQ_INDEX} \
 -m $SRA_CSV_PATH \
 --group_by_clades -c $CLADES_FILE
