@@ -48,7 +48,7 @@ def parse_clades(clades_path: Path) -> Dict[str, str]:
     return mapping
 
 
-def umb_outputs(outputs_dir: Path, read_dir: Path, db_strains: List[Strain]) -> Iterator[Tuple[str, torch.Tensor, List[str]]]:
+def umb_outputs(outputs_dir: Path, read_dir: Path, db_strains: List[Strain]) -> Iterator[Tuple[str, np.ndarray, List[str]]]:
     for umb_dir in outputs_dir.glob("UMB*"):
         if not umb_dir.is_dir():
             raise RuntimeError(f"Expected child `{umb_dir}` to be a directory.")
@@ -62,10 +62,10 @@ def umb_outputs(outputs_dir: Path, read_dir: Path, db_strains: List[Strain]) -> 
         reads = TimeSeriesReads.load_from_csv(read_dir / f"{umb_id}_filtered/filtered_{umb_id}_inputs.csv")
         samples = torch.load(umb_dir / "samples.pt")
         strain_ids = load_strain_ids(umb_dir / "strains.txt")
-        yield umb_id, overall_relabund(samples, reads, db_strains), strain_ids
+        yield umb_id, overall_relabund(samples.cpu().numpy(), reads, db_strains), strain_ids
 
 
-def overall_relabund(database_relabund: torch.Tensor, reads: TimeSeriesReads, db_strains: List[Strain]) -> torch.Tensor:
+def overall_relabund(database_relabund: np.ndarray, reads: TimeSeriesReads, db_strains: List[Strain]) -> np.ndarray:
     """
     Converts the database-normalized relative abundances to the overall (sample-wide) relative abundance.
     """
@@ -99,7 +99,7 @@ def evaluate(chronostrain_output_dir: Path, reads_dir: Path, db: StrainDatabase)
     df_entries = []
     for patient, umb_samples, _ in umb_outputs(chronostrain_output_dir, reads_dir, db.all_strains()):
         print(f"Handling {patient}.")
-        timeseries = torch.median(umb_samples, dim=1).values.numpy()
+        timeseries = np.median(umb_samples, axis=1)
 
         df_entries.append({
             "Patient": patient,
@@ -112,7 +112,7 @@ def evaluate_by_clades(chronostrain_output_dir: Path, reads_dir: Path, clades: D
     df_entries = []
     for patient, umb_samples, strain_ids in umb_outputs(chronostrain_output_dir, reads_dir, db.all_strains()):
         print(f"Handling {patient}.")
-        timeseries = torch.median(umb_samples, dim=1).values.numpy()
+        timeseries = np.median(umb_samples, axis=1)
 
         for clade, sub_timeseries in divide_into_timeseries(timeseries, strain_ids, clades):
             df_entries.append({
