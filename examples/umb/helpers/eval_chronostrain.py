@@ -48,7 +48,7 @@ def parse_clades(clades_path: Path) -> Dict[str, str]:
     return mapping
 
 
-def umb_outputs(outputs_dir: Path, read_dir: Path, db_strains: List[Strain]) -> Iterator[Tuple[str, np.ndarray, List[str]]]:
+def umb_outputs(outputs_dir: Path, read_dir: Path) -> Iterator[Tuple[str, TimeSeriesReads, np.ndarray, List[str]]]:
     for umb_dir in outputs_dir.glob("UMB*"):
         if not umb_dir.is_dir():
             raise RuntimeError(f"Expected child `{umb_dir}` to be a directory.")
@@ -62,7 +62,7 @@ def umb_outputs(outputs_dir: Path, read_dir: Path, db_strains: List[Strain]) -> 
         reads = TimeSeriesReads.load_from_csv(read_dir / f"{umb_id}_filtered/filtered_{umb_id}_inputs.csv")
         samples = torch.load(umb_dir / "samples.pt")
         strain_ids = load_strain_ids(umb_dir / "strains.txt")
-        yield umb_id, overall_relabund(samples.cpu().numpy(), reads, db_strains), strain_ids
+        yield umb_id, reads, samples.cpu().numpy(), strain_ids
 
 
 def overall_relabund(database_relabund: np.ndarray, reads: TimeSeriesReads, db_strains: List[Strain]) -> np.ndarray:
@@ -97,31 +97,37 @@ def load_strain_ids(strains_path: Path) -> List[str]:
 
 def evaluate(chronostrain_output_dir: Path, reads_dir: Path, db: StrainDatabase) -> pd.DataFrame:
     df_entries = []
-    for patient, umb_samples, _ in umb_outputs(chronostrain_output_dir, reads_dir, db.all_strains()):
+    strains = db.all_strains()
+    for patient, reads, umb_samples, _ in umb_outputs(chronostrain_output_dir, reads_dir):
         print(f"Handling {patient}.")
-        timeseries = np.median(umb_samples, axis=1)
+        medians = np.median(umb_samples, axis=1)
 
         df_entries.append({
             "Patient": patient,
-            "Dominance": dominance_switch_ratio(timeseries, lb=1 / timeseries.shape[1])
+            "Dominance": dominance_switch_ratio(umb_samples, lb=len(strains))
         })
     return pd.DataFrame(df_entries)
 
 
 def evaluate_by_clades(chronostrain_output_dir: Path, reads_dir: Path, clades: Dict[str, str], db: StrainDatabase) -> pd.DataFrame:
     df_entries = []
-    for patient, umb_samples, strain_ids in umb_outputs(chronostrain_output_dir, reads_dir, db.all_strains()):
+    strains = db.all_strains()
+    for patient, reads, umb_samples, strain_ids in umb_outputs(chronostrain_output_dir, reads_dir):
         print(f"Handling {patient}.")
-        timeseries = np.median(umb_samples, axis=1)
+        overall_medians = np.median(overall_relabund(umb_samples, reads, strains), axis=1)
+        relative_medians = np.median(umb_samples, axis=1)
 
-        for clade, sub_timeseries in divide_into_timeseries(timeseries, strain_ids, clades):
+        for (clade, overall_chunk), (_, relative_chunk) in zip(
+                divide_into_timeseries(overall_medians, strain_ids, clades),
+                divide_into_timeseries(relative_medians, strain_ids, clades),
+        ):
             df_entries.append({
                 "Patient": patient,
                 "Phylogroup": clade,
-                "GroupSize": sub_timeseries.shape[1],
-                "Dominance": dominance_switch_ratio(sub_timeseries, lb=1 / timeseries.shape[1]),
-                "OverallRelAbundMax": np.max(np.sum(sub_timeseries, axis=1)),
-                "StrainRelAbundMax": np.max(sub_timeseries)
+                "GroupSize": overall_chunk.shape[1],
+                "Dominance": dominance_switch_ratio(relative_chunk, lb=1 / len(strains)),
+                "OverallRelAbundMax": np.max(np.sum(overall_medians, axis=1)),
+                "StrainRelAbundMax": np.max(overall_medians)
             })
     return pd.DataFrame(df_entries)
 
