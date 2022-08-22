@@ -131,8 +131,8 @@ def evaluate_by_clades(chronostrain_output_dir: Path, reads_dir: Path, clades: D
                 "Phylogroup": clade,
                 "GroupSize": overall_chunk.shape[1],
                 "Dominance": dominance_switch_ratio(relative_chunk, lb=1 / len(strains)),
-                "OverallRelAbundMax": np.max(np.sum(overall_medians, axis=1)),
-                "StrainRelAbundMax": np.max(overall_medians)
+                "OverallRelAbundMax": np.max(np.sum(overall_chunk, axis=1)),
+                "StrainRelAbundMax": np.max(overall_chunk)
             })
     return pd.DataFrame(df_entries)
 
