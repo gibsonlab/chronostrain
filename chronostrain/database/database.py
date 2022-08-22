@@ -200,6 +200,7 @@ class JSONStrainDatabase(StrainDatabase):
             logger.debug("Populating database.")
             super().initialize(parser, force_refresh)
             self.save_to_disk()
+            logger.debug(f"Saved database to {self.pickle_path}.")
         else:
             logger.debug(f"Loaded database from disk ({self.pickle_path}).")
             self.load_from_disk()
