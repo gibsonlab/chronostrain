@@ -17,7 +17,6 @@ def perform_advi(
         population: Population,
         fragments: FragmentSpace,
         reads: TimeSeriesReads,
-        paired_end: bool,
         num_epochs: int,
         lr_decay_factor: float,
         lr_patience: int,
@@ -31,17 +30,23 @@ def perform_advi(
         save_elbo_history: bool = False,
         save_training_history: bool = False
 ):
+    read_types = {
+        src.read_type
+        for reads_t in reads.time_slices
+        for src in reads_t.sources
+    }
+
     # ==== Run the solver.
     time_points = [time_slice.time_point for time_slice in reads]
     if correlation_type == 'dirichlet':
         model = create_model(
             population=population,
+            read_types=read_types,
             mean=torch.zeros(population.num_strains() - 1, device=cfg.torch_cfg.device),
             fragments=fragments,
             time_points=time_points,
             disable_quality=not cfg.model_cfg.use_quality_scores,
             db=db,
-            pair_ended=paired_end,
             logger=logger
         )
         solver = ADVIDirichletSolver(
@@ -53,12 +58,12 @@ def perform_advi(
     else:
         model = create_model(
             population=population,
+            read_types=read_types,
             mean=torch.zeros(population.num_strains(), device=cfg.torch_cfg.device),
             fragments=fragments,
             time_points=time_points,
             disable_quality=not cfg.model_cfg.use_quality_scores,
             db=db,
-            pair_ended=paired_end,
             logger=logger
         )
         solver = ADVIGaussianSolver(

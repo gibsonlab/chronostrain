@@ -137,8 +137,8 @@ class BwaAligner(AbstractPairwiseAligner):
             tmp_sam.rename(output_path)
 
 
-logger.warn("If invoked, bowtie2 will initialize using default setting `phred33`. "
-            "(TODO: implement a universal definition across Biopython and bowtie2.)")
+logger.info("If invoked, bowtie2 will initialize using default setting `phred33`. "
+               "(TODO: implement some flexibility here.)")
 
 
 class BowtieAligner(AbstractPairwiseAligner):

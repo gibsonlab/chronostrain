@@ -19,7 +19,7 @@ def log_mm_exp(x: Tensor, y: Tensor) -> Tensor:
         raise RuntimeError(f"Unknown device name `{cfg.torch_cfg.device.type}`.")
 
 
-logger.debug("TODO: cuda.log_spspmm_exp has not yet been implemented; by default, it will revert to cpu implementation.")
+logger.info("TODO: cuda.log_spspmm_exp has not yet been implemented; by default, it will revert to cpu implementation.")
 def log_spspmm_exp(x: ColumnSectionedSparseMatrix, y: RowSectionedSparseMatrix) -> Tensor:
     # Choose the proper interface (cpu vs cuda).
     if cfg.torch_cfg.device.type == "cpu":

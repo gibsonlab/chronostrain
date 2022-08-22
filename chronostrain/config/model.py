@@ -8,6 +8,7 @@ class ModelConfig(AbstractConfig):
         self.use_quality_scores: bool = self.get_bool("USE_QUALITY_SCORES")
         self.num_cores: int = self.get_int("NUM_CORES")
         self.cache_dir: Path = self.get_path("CACHE_DIR")
+        self.cache_enabled: bool = self.get_bool("CACHE_ENABLED", default_value=True)
         self.sics_dof_1: float = self.get_float("SICS_DOF_1")
         self.sics_scale_1: float = self.get_float("SICS_SCALE_1")
         self.sics_dof: float = self.get_float("SICS_DOF")

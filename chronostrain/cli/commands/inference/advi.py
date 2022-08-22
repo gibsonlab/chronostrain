@@ -117,7 +117,7 @@ def main(
     import torch
     from chronostrain.config import cfg
     from chronostrain.model import Population
-    from chronostrain.model.io import TimeSeriesReads
+    from chronostrain.model.io import TimeSeriesReads, ReadType
     import chronostrain.visualizations as viz
     from .initializers import load_fragments, perform_advi
 
@@ -150,7 +150,6 @@ def main(
         population=population,
         fragments=fragments,
         reads=reads,
-        paired_end=True,
         num_epochs=epochs,
         iters=iters,
         min_lr=min_lr,

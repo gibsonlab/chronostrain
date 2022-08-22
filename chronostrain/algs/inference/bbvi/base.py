@@ -224,15 +224,6 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
             mode='min'  # track (-ELBO) and decrease LR when it stops decreasing.
         )
 
-        # lr_scheduler = ReduceLROnPlateauLast(
-        #     optimizer,
-        #     factor=lr_decay_factor,
-        #     patience_horizon=lr_patience,
-        #     patience_ratio=0.5,
-        #     threshold=1e-4,
-        #     threshold_mode='rel',
-        #     mode='min'  # track (-ELBO) and decrease LR when it stops decreasing.
-        # )
         self.optimize(
             optimizer=optimizer,
             lr_scheduler=lr_scheduler,
@@ -242,7 +233,6 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
             min_lr=min_lr,
             callbacks=callbacks
         )
-        # self.diagnostic()
 
     @abstractmethod
     def data_ll(self, samples: torch.Tensor) -> torch.Tensor:
@@ -281,4 +271,5 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
         if k_hat > 0.7:
             # Extremely large number of samples are needed for stable gradient estimates!
             logger.warning(f"Pareto k-hat estimate ({k_hat}) exceeds safe threshold (0.7). "
-                           "Estimates may be biased/overfit to the variational family.")
+                           "Estimates may be biased/overfit to the variational family. "
+                           "Perform some empirical testing before proceeding.")

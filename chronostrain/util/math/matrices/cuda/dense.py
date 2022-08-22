@@ -16,8 +16,8 @@ def log_matmul_exp(x: torch.Tensor, y: torch.Tensor):
     assert x.device.type == "cuda" and y.device.type == "cuda"
     if x.requires_grad or y.requires_grad:
         if not _CUDA_WARNED:
-            logger.warning("The custom CUDA implementation of log_matmul_exp doesn't support requires_grad=True. "
-                            "Defaulting to torch-native implementation; a C++ implementation should be provided instead.")
+            logger.debug("TODO: The custom implementation of cuda.log_matmul_exp doesn't support grad. "
+                         "Defaulting to torch-native CUDA implementation; a C++ implementation should be provided instead.")
             _CUDA_WARNED = True
 
         return torch_log_matmul_exp(x, y)

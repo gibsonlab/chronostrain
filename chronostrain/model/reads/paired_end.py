@@ -34,7 +34,7 @@ class PEPhredErrorModel(PhredErrorModel):
 
     def indel_ll(self, read: SequenceRead, insertions: np.ndarray, deletions: np.ndarray):
         if not isinstance(read, PairedEndRead):
-            return super().indel_ll(read, insertions, deletions)
+            raise Exception("PEErrorModel must use paired-end reads.")
 
         n_insertions = np.sum(insertions)
         n_deletions = np.sum(deletions)
