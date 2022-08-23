@@ -258,10 +258,10 @@ def error_metric(abundance_est: torch.Tensor, truth: torch.Tensor) -> float:
     return l1_error.item()
 
 
-def detection_ratio(pred: torch.Tensor, truth: torch.Tensor) -> float:
-    errs = torch.sum(torch.not_equal(pred, truth)).item()
-    total = truth.shape[0] * truth.shape[1]
-    return errs / total
+def recall_ratio(pred: torch.Tensor, truth: torch.Tensor) -> float:
+    true_pos = torch.sum(torch.eq(pred, truth)).item()
+    total_pos = torch.sum(truth)
+    return true_pos / total_pos
 
 
 def engraftment_ratio(presence: torch.Tensor) -> float:
@@ -473,7 +473,7 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                 detection = chronostrain_presence(chronostrain_estimate_samples, q=0.95, lb=1 / chronostrain_db.num_strains())
                 error = error_metric(torch.median(chronostrain_estimate_samples, dim=1).values, truth_tensor)
                 dom_err = dominance_switch_ratio(torch.median(chronostrain_estimate_samples, dim=1).values)
-                detection_err = detection_ratio(detection, truth_tensor > 0)
+                recall = recall_ratio(detection, truth_tensor > 0)
 
                 df_entries.append({
                     'ReadDepth': read_depth,
@@ -481,34 +481,34 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                     'Method': 'Chronostrain',
                     'Error': error,
                     'Dominance': dom_err,
-                    'DetectionErr': detection_err
+                    'Recall': recall
                 })
 
                 # plot_result(plot_dir / 'chronostrain.pdf', ground_truth, chronostrain_estimate_samples, strain_ids)
             except FileNotFoundError:
                 logger.info("Skipping Chronostrain output.")
 
-            # =========== StrainEst (Sensitive)
-            try:
-                strainest_sens_estimate = parse_strainest_estimate(ground_truth, strain_ids,
-                                                                   'sensitive',
-                                                                   trial_dir / 'output' / 'strainest')
-                # error = wasserstein_error(strainest_estimate, ground_truth, distances, strain_ids).item()
-                error = error_metric(strainest_sens_estimate, truth_tensor)
-                dom_err = dominance_switch_ratio(strainest_sens_estimate)
-                detection_err = detection_ratio(strainest_sens_estimate > 0, truth_tensor > 0)
-
-                df_entries.append({
-                    'ReadDepth': read_depth,
-                    'TrialNum': trial_num,
-                    'Method': 'StrainEst (Sensitive)',
-                    'Error': error,
-                    'Dominance': dom_err,
-                    'DetectionErr': detection_err
-                })
-                # plot_result(plot_dir / 'strainest.sensitive.pdf', ground_truth, strainest_sens_estimate, strain_ids)
-            except FileNotFoundError:
-                logger.info("Skipping StrainEst (Sensitive) output.")
+            # # =========== StrainEst (Sensitive)
+            # try:
+            #     strainest_sens_estimate = parse_strainest_estimate(ground_truth, strain_ids,
+            #                                                        'sensitive',
+            #                                                        trial_dir / 'output' / 'strainest')
+            #     # error = wasserstein_error(strainest_estimate, ground_truth, distances, strain_ids).item()
+            #     error = error_metric(strainest_sens_estimate, truth_tensor)
+            #     dom_err = dominance_switch_ratio(strainest_sens_estimate)
+            #     recall = recall_ratio(strainest_sens_estimate > 0, truth_tensor > 0)
+            #
+            #     df_entries.append({
+            #         'ReadDepth': read_depth,
+            #         'TrialNum': trial_num,
+            #         'Method': 'StrainEst (Sensitive)',
+            #         'Error': error,
+            #         'Dominance': dom_err,
+            #         'Recall': recall
+            #     })
+            #     # plot_result(plot_dir / 'strainest.sensitive.pdf', ground_truth, strainest_sens_estimate, strain_ids)
+            # except FileNotFoundError:
+            #     logger.info("Skipping StrainEst (Sensitive) output.")
 
             # =========== StrainEst (Default)
             try:
@@ -517,7 +517,7 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                                                               trial_dir / 'output' / 'strainest')
                 error = error_metric(strainest_estimate, truth_tensor)
                 dom_err = dominance_switch_ratio(strainest_estimate)
-                detection_err = detection_ratio(strainest_estimate > 0, truth_tensor > 0)
+                recall = recall_ratio(strainest_estimate > 0, truth_tensor > 0)
 
                 df_entries.append({
                     'ReadDepth': read_depth,
@@ -525,7 +525,7 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                     'Method': 'StrainEst (Default)',
                     'Error': error,
                     'Dominance': dom_err,
-                    'DetectionErr': detection_err
+                    'Recall': recall
                 })
                 # plot_result(plot_dir / 'strainest.default.pdf', ground_truth, strainest_estimate, strain_ids)
             except FileNotFoundError:
@@ -539,7 +539,7 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                 # error = wasserstein_error(straingst_estimate, ground_truth, distances, strain_ids).item()
                 error = error_metric(straingst_estimate, truth_tensor)
                 dom_err = dominance_switch_ratio(straingst_estimate)
-                detection_err = detection_ratio(straingst_estimate > 0, truth_tensor > 0)
+                recall = recall_ratio(straingst_estimate > 0, truth_tensor > 0)
 
                 df_entries.append({
                     'ReadDepth': read_depth,
@@ -547,7 +547,7 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                     'Method': 'StrainGST',
                     'Error': error,
                     'Dominance': dom_err,
-                    'DetectionErr': detection_err
+                    'Recall': recall
                 })
                 # plot_result(plot_dir / 'straingst.pdf', ground_truth, straingst_estimate, strain_ids)
             except FileNotFoundError:
