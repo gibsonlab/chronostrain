@@ -260,7 +260,7 @@ def error_metric(abundance_est: torch.Tensor, truth: torch.Tensor) -> float:
 
 def recall_ratio(pred: torch.Tensor, truth: torch.Tensor) -> float:
     true_pos = torch.sum(torch.eq(pred, truth)).item()
-    total_pos = torch.sum(truth)
+    total_pos = torch.sum(truth).item()
     return true_pos / total_pos
 
 
