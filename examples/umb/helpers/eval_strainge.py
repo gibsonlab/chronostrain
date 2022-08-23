@@ -51,6 +51,7 @@ def fetch_strain_id(strain_name: str, ref_df: pd.DataFrame) -> str:
         short_name = "_".join(strain_name.split("_")[1:])
         strain_names_to_try.append(short_name)
         strain_names_to_try.append(f"str._{short_name}")
+        strain_names_to_try.append(f"Escherichia_coli_str._{short_name}")
 
     for s in strain_names_to_try:
         try:
