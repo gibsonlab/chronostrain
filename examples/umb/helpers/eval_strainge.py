@@ -48,7 +48,9 @@ def fetch_strain_id(strain_name: str, ref_df: pd.DataFrame) -> str:
 
     strain_names_to_try = {strain_name, strain_name.replace("_", ".")}
     if strain_name.startswith("str"):
-        strain_names_to_try.add("_".join(strain_name.split("_")[1:]))
+        short_name = "_".join(strain_name.split("_")[1:])
+        strain_names_to_try.add(short_name)
+        strain_names_to_try.add(f"str._{short_name}")
 
     for s in strain_names_to_try:
         try:
