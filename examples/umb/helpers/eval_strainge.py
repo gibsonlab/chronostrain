@@ -31,6 +31,10 @@ def strip_prefix(x: str):
     return "_".join(x.split("_")[2:])
 
 
+class StrainNotFound(BaseException):
+    pass
+
+
 def fetch_strain_id(strain_name: str, ref_df: pd.DataFrame) -> str:
     # preprocess.
     strain_name = strip_suffixes(strain_name)
@@ -49,15 +53,15 @@ def fetch_strain_id(strain_name: str, ref_df: pd.DataFrame) -> str:
     for s in strain_names_to_try:
         try:
             return search_df(s, ref_df)
-        except RuntimeError:
+        except StrainNotFound:
             print(f"Unable to find strain name entry `{s}`. Remaining possibilities: {strain_names_to_try}")
     raise RuntimeError(f"Unknown strain name `{strain_name}` encountered.")
 
 
 def search_df(strain_name: str, ref_df: pd.DataFrame):
-    hits = ref_df.loc[ref_df['Strain'].str.endswith(strain_name), 'Accession']
+    hits = ref_df.loc[ref_df['Strain'] == strain_name, 'Accession']
     if hits.shape[0] == 0:
-        raise RuntimeError(f"Unknown strain name `{strain_name}` encountered.")
+        raise StrainNotFound(f"Unknown strain name `{strain_name}` encountered.")
 
     result = hits.head(1).item()
     if hits.shape[0] > 1:
