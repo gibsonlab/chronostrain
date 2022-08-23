@@ -46,11 +46,11 @@ def fetch_strain_id(strain_name: str, ref_df: pd.DataFrame) -> str:
         gcf_id = "GCF_{}".format(tokens[1])
         ref_df = ref_df.loc[ref_df['Assembly'] == gcf_id, :]
 
-    strain_names_to_try = {strain_name, strain_name.replace("_", ".")}
+    strain_names_to_try = [strain_name, strain_name.replace("_", ".")]
     if strain_name.startswith("str"):
         short_name = "_".join(strain_name.split("_")[1:])
-        strain_names_to_try.add(short_name)
-        strain_names_to_try.add(f"str._{short_name}")
+        strain_names_to_try.append(short_name)
+        strain_names_to_try.append(f"str._{short_name}")
 
     for s in strain_names_to_try:
         try:
