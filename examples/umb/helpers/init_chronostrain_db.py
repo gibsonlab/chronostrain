@@ -352,7 +352,7 @@ class UniProtLoader(GeneLoader):
                     yield gene_name, locus_tag, feature.location
 
     def get_uniprot_genes(self) -> Iterator[Tuple[str, List[str]]]:
-        u = UniProt()
+        u = UniProt(verbose=False)
 
         for uniprot_id, gene_name in self.parse_uniprot_csv():
             logger.info(f"Performing search for Uniprot id {uniprot_id}...")
@@ -398,7 +398,7 @@ class MetaphlanLoader(GeneLoader):
     def retrieve_reference(self, marker_keys: Set[str]) -> Tuple[str, Seq]:
         remaining = set(marker_keys)
         with open(self.marker_fasta, "r") as f:
-            for record in SeqIO.read(f, "fasta"):
+            for record in SeqIO.parse(f, "fasta"):
                 if len(remaining) == 0:
                     break
                 if record.id not in remaining:
