@@ -355,15 +355,16 @@ class UniProtLoader(GeneLoader):
         u = UniProt()
 
         for uniprot_id, gene_name in self.parse_uniprot_csv():
+            logger.info(f"Performing search for Uniprot id {uniprot_id}...")
             res = u.quick_search(uniprot_id)
 
             if uniprot_id not in res:
-                logger.debug(
+                logger.info(
                     f"No result found for UniProt query `{uniprot_id}`."
                 )
                 continue
             else:
-                logger.debug(f"Found {len(res)} hits for UniProt query `{uniprot_id}`.")
+                logger.info(f"Found {len(res)} hits for UniProt query `{uniprot_id}`.")
 
             cluster = res[uniprot_id]['Gene names'].split()
             yield gene_name, cluster
