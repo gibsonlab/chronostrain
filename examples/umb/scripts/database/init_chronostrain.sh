@@ -59,4 +59,4 @@ python prune_chronostrain_db.py \
 --raw_json ${CHRONOSTRAIN_DB_JSON_ALL} \
 --merged_json ${CHRONOSTRAIN_DB_JSON_RESOLVED} \
 --output_json ${CHRONOSTRAIN_DB_JSON_PRUNED} \
---temp_dir ${DB_TEMP_DIR}
+--align_path ${MULTI_ALIGN_PATH}

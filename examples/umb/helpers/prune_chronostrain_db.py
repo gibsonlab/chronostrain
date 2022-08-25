@@ -34,10 +34,8 @@ def parse_args():
                         help='<Required> The merged database JSON file, with overlaps resolved via merging.')
     parser.add_argument('--output_json', required=True, type=str,
                         help='<Required> The output database JSON file.')
-    parser.add_argument('--temp_dir', required=False, type=str,
-                        default=cfg.database_cfg.data_dir,
-                        help='<Optional> If specified, will use the specified directory to perform all calculations.'
-                             'By default, it uses the DB_DATA_DIR attribute of the configuration.')
+    parser.add_argument('--align_path', required=True, type=str,
+                        help='<Required> the target alignment file to output to.')
     return parser.parse_args()
 
 
@@ -225,7 +223,6 @@ def pick_cluster_representatives(clusters: List[List[int]], distances: np.ndarra
 
 def main():
     args = parse_args()
-    work_dir = Path(args.temp_dir)
 
     raw_json_path = Path(args.raw_json)
     merged_json_path = Path(args.merged_json)
@@ -233,12 +230,12 @@ def main():
 
     raw_db = JSONStrainDatabase(
         entries_file=raw_json_path,
-        data_dir=work_dir / "v1_with_overlaps",
+        data_dir=cfg.database_cfg.data_dir,
         marker_max_len=cfg.database_cfg.db_kwargs['marker_max_len'],
         force_refresh=False
     )
 
-    alignments_path = work_dir / "__concatenated_alignments.fasta"
+    alignments_path = Path(args.align_path)
     get_concatenated_alignments(raw_db, alignments_path)
     prune_db(
         [s.id for s in raw_db.all_strains()],
