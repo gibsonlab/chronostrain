@@ -390,8 +390,7 @@ class MetaphlanLoader(GeneLoader):
 
         logger.info(f"Target # of markers: {len(target_keys)}")
         for marker_key, seq in self.retrieve_reference(target_keys):
-            logger.info("Found metaphlan marker ID {marker_key}.")
-            seq = self.retrieve_reference(marker_key)
+            logger.info(f"Found metaphlan marker ID {marker_key}.")
             record = SeqRecord(seq, id=marker_key, description=self.pkl_path.stem)
             yield marker_key, record
 
