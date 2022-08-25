@@ -35,7 +35,7 @@ def parse_args():
     parser.add_argument('--output_json', required=True, type=str,
                         help='<Required> The output database JSON file.')
     parser.add_argument('--temp_dir', required=False, type=str,
-                        default=cfg.database_cfg.db_kwargs['db_data_dir'],
+                        default=cfg.database_cfg.db_kwargs['DB_DATA_DIR'],
                         help='<Optional> If specified, will use the specified directory to perform all calculations.'
                              'By default, it uses the DB_DATA_DIR attribute of the configuration.')
     return parser.parse_args()
