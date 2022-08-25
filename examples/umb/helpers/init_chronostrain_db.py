@@ -121,20 +121,23 @@ def create_chronostrain_db(
     return create_strain_entries(blast_results, gene_paths, strain_df)
 
 
-def blank_strain_entry(strain_id: str, genus: str, species: str, name: str, accession: str):
-    return {
-        'id': strain_id,
-        'genus': genus,
-        'species': species,
-        'name': name,
-        'seqs': [{'accession': accession, 'seq_type': 'chromosome'}],
-        'markers': []
-    }
-
-
 def create_strain_entries(blast_results: Dict[str, Path], ref_gene_paths: Dict[str, Path], strain_df: pd.DataFrame):
-    strain_entries: Dict[str, Dict] = {}
-    seen_accessions: Set[str] = set()
+    def _entry_initializer(_accession):
+        strain_row = strain_df.loc[strain_df['Accession'] == _accession, ['Genus', 'Species', 'Strain']].head(1)
+        subj_genus = strain_row['Genus'].item()
+        subj_species = strain_row['Species'].item()
+        subj_strain_name = strain_row['Strain'].item()
+
+        return {
+            'id': _accession,
+            'genus': subj_genus,
+            'species': subj_species,
+            'name': subj_strain_name,
+            'seqs': [{'accession': _accession, 'seq_type': 'chromosome'}],
+            'markers': []
+        }
+
+    strain_entries = defaultdict(_entry_initializer)
 
     # ===================== Parse BLAST hits.
     for gene_name, blast_result_path in blast_results.items():
@@ -148,25 +151,6 @@ def create_strain_entries(blast_results: Dict[str, Path], ref_gene_paths: Dict[s
 
         logger.debug(f"Parsing BLAST hits for gene `{gene_name}`.")
         for subj_acc in blast_hits.keys():
-            # Create strain entries if they don't already exist.
-            if subj_acc not in seen_accessions:
-                seen_accessions.add(subj_acc)
-                strain_row = strain_df.loc[strain_df['Accession'] == subj_acc, ['Genus', 'Species', 'Strain']].head(1)
-                subj_genus = strain_row['Genus'].item()
-                subj_species = strain_row['Species'].item()
-                subj_strain_name = strain_row['Strain'].item()
-
-                strain_entries[subj_acc] = blank_strain_entry(
-                    strain_id=subj_acc,
-                    genus=subj_genus,
-                    species=subj_species,
-                    name=subj_strain_name,
-                    accession=subj_acc
-                )
-
-            if subj_acc not in strain_entries:
-                continue
-
             strain_entry = strain_entries[subj_acc]
             seq_accession = strain_entry['seqs'][0]['accession']
             for blast_hit in blast_hits[seq_accession]:
@@ -295,38 +279,39 @@ def retrieve_reference(accession: str, uniprot_csv_path: Optional[Path], genes_p
         gb_file = fetch_genbank(accession, target_dir)
         clusters_already_found: Set[str] = set()
         clusters_to_find: Set[str] = set()
-        genes_to_clusters: Dict[str, str] = {}
+        gene_cluster_mapping: Dict[str, str] = {}
 
-        for cluster, cluster_genes in get_uniprot_genes(uniprot_csv_path):
-            clusters_to_find.add(cluster)
-            for gene in cluster_genes:
-                genes_to_clusters[gene.lower()] = cluster
+        for gene_name, gene_cluster in get_uniprot_genes(uniprot_csv_path):
+            clusters_to_find.add(gene_name)
+            gene_cluster_mapping[gene_name.lower()] = gene_name
+            for other_gene in gene_cluster:
+                gene_cluster_mapping[other_gene.lower()] = gene_name
 
         chromosome_seq = next(SeqIO.parse(gb_file, "gb")).seq
 
         for gb_gene_name, locus_tag, location in parse_genbank_genes(gb_file):
-            if gb_gene_name.lower() not in genes_to_clusters:
+            if gb_gene_name.lower() not in gene_cluster_mapping:
                 continue
-            if genes_to_clusters[gb_gene_name.lower()] not in clusters_to_find:
+            if gene_cluster_mapping[gb_gene_name.lower()] not in clusters_to_find:
                 continue
 
-            found_cluster = genes_to_clusters[gb_gene_name.lower()]
-            logger.info(f"Found uniref cluster {found_cluster} for accession {accession} (name={gb_gene_name})")
+            found_gene = gene_cluster_mapping[gb_gene_name.lower()]
+            logger.info(f"Found uniref cluster {found_gene} for accession {accession} (name={gb_gene_name})")
 
-            if found_cluster in clusters_already_found:
-                logger.warning(f"Multiple copies of {found_cluster} found in {accession}. Skipping second instance.")
+            if found_gene in clusters_already_found:
+                logger.warning(f"Multiple copies of {found_gene} found in {accession}. Skipping second instance.")
             else:
-                clusters_already_found.add(found_cluster)
-                clusters_to_find.remove(found_cluster)
+                clusters_already_found.add(found_gene)
+                clusters_to_find.remove(found_gene)
 
-                gene_out_path = target_dir / f"{found_cluster}_{accession}.fasta"
+                gene_out_path = target_dir / f"{found_gene}_{accession}.fasta"
                 gene_seq = location.extract(chromosome_seq)
                 SeqIO.write(
-                    SeqRecord(gene_seq, id=f"REF_GENE_{found_cluster}", description=f"{accession}_{str(location)}"),
+                    SeqRecord(gene_seq, id=f"REF_GENE_{found_gene}", description=f"{accession}_{str(location)}"),
                     gene_out_path,
                     "fasta"
                 )
-                gene_paths[found_cluster] = gene_out_path
+                gene_paths[found_gene] = gene_out_path
 
         if len(clusters_to_find) > 0:
             logger.info("Couldn't find uniprot genes {}.".format(
@@ -349,8 +334,7 @@ def retrieve_reference(accession: str, uniprot_csv_path: Optional[Path], genes_p
 def get_uniprot_genes(uniprot_csv_path: Path) -> Iterator[Tuple[str, List[str]]]:
     u = UniProt()
 
-    # for metaphlan_marker_id in metaphlan_markers(db, 'g__Escherichia'):
-    for uniprot_id in parse_uniprot_csv(uniprot_csv_path):
+    for uniprot_id, gene_name in parse_uniprot_csv(uniprot_csv_path):
         res = u.quick_search(uniprot_id)
 
         if uniprot_id not in res:
@@ -361,7 +345,6 @@ def get_uniprot_genes(uniprot_csv_path: Path) -> Iterator[Tuple[str, List[str]]]
         else:
             logger.debug(f"Found {len(res)} hits for UniProt query `{uniprot_id}`.")
 
-        gene_name = res[uniprot_id]['Entry name']
         cluster = res[uniprot_id]['Gene names'].split()
         yield gene_name, cluster
 
@@ -393,21 +376,20 @@ def print_summary(strain_entries: List[Dict[str, Any]], gene_paths: Dict[str, Pa
             ))
 
 
-def parse_uniprot_csv(csv_path: Path) -> Iterator[str]:
+def parse_uniprot_csv(csv_path: Path) -> Iterator[Tuple[str, str]]:
     with open(csv_path, "r") as f:
         for line in f:
             if len(line.strip()) == 0:
                 continue
 
-            tokens = line.strip().split(",")
-            uniprot_id, cluster_name = tokens[0], tokens[1]
+            tokens = line.strip().split("\t")
+            uniprot_id, gene_name, metadata = tokens[0], tokens[1], tokens[2]
 
             if uniprot_id == "UNIPROT_ID":
                 # Header line
                 continue
 
-            logger.debug(f"Yielding cluster `{cluster_name}`, uniprot ID `{uniprot_id}`")
-            yield uniprot_id
+            yield uniprot_id, gene_name
 
 
 def main():

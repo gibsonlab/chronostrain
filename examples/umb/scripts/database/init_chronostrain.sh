@@ -39,7 +39,7 @@ python init_chronostrain_db.py \
 -dbname ${BLAST_DB_NAME} \
 --min_pct_idty 75 \
 --refseq_index ${NCBI_REFSEQ_DIR}/index.tsv \
---uniprot_csv ${BASE_DIR}/files/markers.csv \
+--uniprot_csv ${BASE_DIR}/files/uniprot_markers.tsv \
 --genes_fasta ${BASE_DIR}/files/clermont_genes.fasta \
 --reference_accession "U00096.3"
 
