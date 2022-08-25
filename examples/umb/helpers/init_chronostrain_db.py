@@ -6,6 +6,7 @@ Works in 3 steps:
         (with blastn configured to allow, on average, up to 10 hits per genome).
     3) Convert BLAST results into chronostrain JSON database specification.
 """
+from abc import ABC
 import argparse
 from collections import defaultdict
 from pathlib import Path
@@ -13,8 +14,11 @@ import csv
 import json
 
 import pandas as pd
+import pickle
+import bz2
 
-from Bio import SeqIO, Entrez
+from Bio import SeqIO
+from Bio.Seq import Seq
 from Bio.SeqFeature import FeatureLocation
 from Bio.SeqRecord import SeqRecord
 from bioservices import UniProt
@@ -22,16 +26,17 @@ from bioservices import UniProt
 from chronostrain.util.entrez import fetch_genbank
 from chronostrain.util.external import blastn
 
-from typing import List, Set, Dict, Any, Tuple, Iterator, Optional
+from typing import List, Set, Dict, Any, Tuple, Iterator
 
 from chronostrain.util.io import read_seq_file
 from chronostrain.config import cfg
 from chronostrain.logging import create_logger
+
 logger = create_logger("chronostrain.init_db")
 
 
 READ_LEN = 150
-Entrez.email = cfg.entrez_cfg.email
+_BLAST_OUT_FMT = "6 saccver sstart send slen qstart qend evalue pident gaps qcovhsp"
 
 
 def parse_args():
@@ -41,8 +46,10 @@ def parse_args():
 
     # Input specification.
     parser.add_argument('-u', '--uniprot_csv', required=False, type=str, default='',
-                        help='<Required> A path to a two-column CSV file (<UniprotID>, <ClusterName>) format specifying'
+                        help='<Optional> A path to a two-column CSV file (<UniprotID>, <ClusterName>) format specifying'
                              'any desired additional genes not given by metaphlan.')
+    parser.add_argument('-m', '--metaphlan_pkl', required=False, type=str, default='',
+                        help='<Optional> A path to the metaphlan database pickle file.')
     parser.add_argument('-g', '--genes_fasta', required=False, type=str, default='',
                         help='<Optional> A path to a fasta file listing out genes. Each records ID must be the '
                              'desired gene name.')
@@ -192,9 +199,6 @@ def prune_entries(strain_entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     ]
 
 
-_BLAST_OUT_FMT = "6 saccver sstart send slen qstart qend evalue pident gaps qcovhsp"
-
-
 class BlastHit(object):
     def __init__(self,
                  line_idx: int,
@@ -266,64 +270,168 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
     return accession_to_positions
 
 
-# ======================== Reference genome: pull from downloaded genbank file.
-def retrieve_reference(accession: str, uniprot_csv_path: Optional[Path], genes_path: Optional[Path]) -> Dict[str, Path]:
-    logger.info(f"Downloading reference accession {accession}")
-    target_dir = cfg.database_cfg.data_dir / "reference" / accession
-    target_dir.mkdir(exist_ok=True, parents=True)
+# ======================== Reference sequence loaders ========================================
+class GeneLoader(ABC):
+    def load_genes(self) -> Iterator[Tuple[str, SeqRecord]]:
+        """
+        :return: A generator over (gene_name, reference sequence) pairs.
+        """
+        raise NotImplementedError()
 
-    gene_paths: Dict[str, Path] = {}
 
-    # ========== Retrieve from Uniprot
-    if uniprot_csv_path is not None:
-        gb_file = fetch_genbank(accession, target_dir)
+class UniProtLoader(GeneLoader):
+    def __init__(self, uniprot_csv: Path, ref_accession: str):
+        self.uniprot_csv = uniprot_csv
+        self.reference_accession = ref_accession
+        self.reference_dir = cfg.database_cfg.data_dir / "reference" / ref_accession
+        self.reference_dir.mkdir(exist_ok=True, parents=True)
+        self.gb_file = fetch_genbank(self.reference_accession, self.reference_dir)
+
+    def load_genes(self) -> Iterator[Tuple[str, SeqRecord]]:
+        logger.info(f"Loading markers from uniprot collection {self.uniprot_csv}.")
+        logger.info(f"Downloading reference accession {self.reference_accession}")
+
+        chromosome_seq = next(SeqIO.parse(self.gb_file, "gb")).seq
+
         clusters_already_found: Set[str] = set()
         clusters_to_find: Set[str] = set()
         gene_cluster_mapping: Dict[str, str] = {}
 
-        for gene_name, gene_cluster in get_uniprot_genes(uniprot_csv_path):
+        for gene_name, gene_cluster in self.get_uniprot_genes():
             clusters_to_find.add(gene_name)
             gene_cluster_mapping[gene_name.lower()] = gene_name
             for other_gene in gene_cluster:
                 gene_cluster_mapping[other_gene.lower()] = gene_name
 
-        chromosome_seq = next(SeqIO.parse(gb_file, "gb")).seq
-
-        for gb_gene_name, locus_tag, location in parse_genbank_genes(gb_file):
+        for gb_gene_name, locus_tag, location in self.parse_genbank_genes():
             if gb_gene_name.lower() not in gene_cluster_mapping:
                 continue
             if gene_cluster_mapping[gb_gene_name.lower()] not in clusters_to_find:
                 continue
 
             found_gene = gene_cluster_mapping[gb_gene_name.lower()]
-            logger.info(f"Found uniref cluster {found_gene} for accession {accession} (name={gb_gene_name})")
+            logger.info(f"Found uniref cluster {found_gene} for accession {self.reference_accession} (name={gb_gene_name})")
 
             if found_gene in clusters_already_found:
-                logger.warning(f"Multiple copies of {found_gene} found in {accession}. Skipping second instance.")
+                logger.warning(f"Multiple copies of {found_gene} found in {self.reference_accession}. Skipping second instance.")
             else:
                 clusters_already_found.add(found_gene)
                 clusters_to_find.remove(found_gene)
 
-                gene_out_path = target_dir / f"{found_gene}_{accession}.fasta"
                 gene_seq = location.extract(chromosome_seq)
-                SeqIO.write(
-                    SeqRecord(gene_seq, id=f"REF_GENE_{found_gene}", description=f"{accession}_{str(location)}"),
-                    gene_out_path,
-                    "fasta"
-                )
-                gene_paths[found_gene] = gene_out_path
+                record = SeqRecord(gene_seq, id=f"{found_gene}", description=f"REFERENCE_{self.reference_accession}_{str(location)}")
+                yield found_gene, record
 
         if len(clusters_to_find) > 0:
-            logger.info("Couldn't find uniprot genes {}.".format(
+            logger.warning("Couldn't find uniprot genes {}.".format(
                 ",".join(clusters_to_find))
             )
-        logger.info(f"Finished parsing reference accession {accession}.")
+        logger.info(f"Finished parsing reference accession {self.reference_accession}.")
 
-    # =========== Retrieve from Fasta
-    if genes_path is not None:
-        for record in SeqIO.parse(genes_path, 'fasta'):
+    def parse_uniprot_csv(self) -> Iterator[Tuple[str, str]]:
+        with open(self.uniprot_csv, "r") as f:
+            for line in f:
+                if len(line.strip()) == 0:
+                    continue
+
+                tokens = line.strip().split("\t")
+                uniprot_id, gene_name, metadata = tokens[0], tokens[1], tokens[2]
+
+                if uniprot_id == "UNIPROT_ID":
+                    # Header line
+                    continue
+
+                yield uniprot_id, gene_name
+
+    def parse_genbank_genes(self) -> Iterator[Tuple[str, str, FeatureLocation]]:
+        for record in SeqIO.parse(self.gb_file, format="gb"):
+            for feature in record.features:
+                if feature.type == "gene":
+                    gene_name = feature.qualifiers['gene'][0]
+                    locus_tag = feature.qualifiers['locus_tag'][0]
+                    yield gene_name, locus_tag, feature.location
+
+    def get_uniprot_genes(self) -> Iterator[Tuple[str, List[str]]]:
+        u = UniProt()
+
+        for uniprot_id, gene_name in self.parse_uniprot_csv():
+            res = u.quick_search(uniprot_id)
+
+            if uniprot_id not in res:
+                logger.debug(
+                    f"No result found for UniProt query `{uniprot_id}`."
+                )
+                continue
+            else:
+                logger.debug(f"Found {len(res)} hits for UniProt query `{uniprot_id}`.")
+
+            cluster = res[uniprot_id]['Gene names'].split()
+            yield gene_name, cluster
+
+
+class MetaphlanLoader(GeneLoader):
+    def __init__(self, metaphlan_pkl_path: Path):
+        self.pkl_path = metaphlan_pkl_path
+        self.marker_fasta = metaphlan_pkl_path.with_suffix('.fna')
+        if not self.marker_fasta.exists():
+            raise FileNotFoundError(f"Expected {self.marker_fasta} to exist, but not found.")
+
+    def load_genes(self) -> Iterator[Tuple[str, SeqRecord]]:
+        logger.info(f"Searching for E.coli markers from MetaPhlAn database: {self.pkl_path.stem}.")
+        with bz2.open(self.pkl_path, "r") as f:
+            db = pickle.load(f)
+
+        markers = db['markers']
+        target_keys = set()
+        for marker_key, marker_dict in markers.items():
+            if 's__Escherichia_coli' in marker_dict['taxon']:
+                target_keys.add(marker_key)
+
+        logger.info(f"Target # of markers: {len(target_keys)}")
+        for marker_key, seq in self.retrieve_reference(target_keys):
+            logger.info("Found metaphlan marker ID {marker_key}.")
+            seq = self.retrieve_reference(marker_key)
+            record = SeqRecord(seq, id=marker_key, description=self.pkl_path.stem)
+            yield marker_key, record
+
+    def retrieve_reference(self, marker_keys: Set[str]) -> Tuple[str, Seq]:
+        remaining = set(marker_keys)
+        with open(self.marker_fasta, "r") as f:
+            for record in SeqIO.read(f, "fasta"):
+                if len(remaining) == 0:
+                    break
+                if record.id not in remaining:
+                    continue
+
+                remaining.remove(record.id)
+                yield record.id, record.seq
+        if len(remaining) > 0:
+            logger.warning(f"For some reason, couldn't locate {len(remaining)} markers: {remaining}")
+
+
+class FastaLoader(GeneLoader):
+    def __init__(self, fasta_path: Path):
+        self.fasta_path = fasta_path
+
+    def load_genes(self) -> Iterator[Tuple[str, SeqRecord]]:
+        logger.info(f"Loading markers from fasta file {self.fasta_path}.")
+        for record in SeqIO.parse(self.fasta_path, 'fasta'):
             gene_name = record.id
             logger.info(f"Found FASTA record for gene `{gene_name}` ({record.description})")
+            yield gene_name, record
+
+
+def retrieve_reference(loaders: List[GeneLoader]) -> Dict[str, Path]:
+    target_dir = cfg.database_cfg.data_dir / "reference"
+    target_dir.mkdir(exist_ok=True, parents=True)
+
+    gene_paths: Dict[str, Path] = {}
+
+    for loader in loaders:
+        for gene_name, record in loader.load_genes():
+            if gene_name in gene_paths:
+                raise RuntimeError(f"gene `{gene_name}` was found in two separate instances.")
+
             gene_out_path = target_dir / f"{gene_name}.fasta"
             SeqIO.write(record, gene_out_path, "fasta")
             gene_paths[gene_name] = gene_out_path
@@ -331,89 +439,35 @@ def retrieve_reference(accession: str, uniprot_csv_path: Optional[Path], genes_p
     return gene_paths
 
 
-def get_uniprot_genes(uniprot_csv_path: Path) -> Iterator[Tuple[str, List[str]]]:
-    u = UniProt()
-
-    for uniprot_id, gene_name in parse_uniprot_csv(uniprot_csv_path):
-        res = u.quick_search(uniprot_id)
-
-        if uniprot_id not in res:
-            logger.debug(
-                f"No result found for UniProt query `{uniprot_id}`."
-            )
-            continue
-        else:
-            logger.debug(f"Found {len(res)} hits for UniProt query `{uniprot_id}`.")
-
-        cluster = res[uniprot_id]['Gene names'].split()
-        yield gene_name, cluster
-
-
-def parse_genbank_genes(gb_file: Path) -> Iterator[Tuple[str, str, FeatureLocation]]:
-    for record in SeqIO.parse(gb_file, format="gb"):
-        for feature in record.features:
-            if feature.type == "gene":
-                gene_name = feature.qualifiers['gene'][0]
-                locus_tag = feature.qualifiers['locus_tag'][0]
-
-                yield gene_name, locus_tag, feature.location
-
-
-# ================= MAIN
-def print_summary(strain_entries: List[Dict[str, Any]], gene_paths: Dict[str, Path]):
-    for strain_entry in strain_entries:
-        seq_accession = strain_entry['seqs'][0]['accession']
-        found_genes: Set[str] = set()
-        for marker_entry in strain_entry['markers']:
-            found_genes.add(marker_entry['name'])
-
-        genes_not_found = set(gene_paths.keys()).difference(found_genes)
-        if len(genes_not_found) > 0:
-            logger.info("Accession {}, {} genes not found: [{}]".format(
-                seq_accession,
-                len(genes_not_found),
-                ', '.join(genes_not_found)
-            ))
-
-
-def parse_uniprot_csv(csv_path: Path) -> Iterator[Tuple[str, str]]:
-    with open(csv_path, "r") as f:
-        for line in f:
-            if len(line.strip()) == 0:
-                continue
-
-            tokens = line.strip().split("\t")
-            uniprot_id, gene_name, metadata = tokens[0], tokens[1], tokens[2]
-
-            if uniprot_id == "UNIPROT_ID":
-                # Header line
-                continue
-
-            yield uniprot_id, gene_name
-
-
 def main():
     args = parse_args()
 
-    if args.uniprot_csv == '' and args.genes_fasta == '':
-        print("Must specify at least one of --uniprot_path or --primers_path.")
+    if args.uniprot_csv is None and args.genes_fasta is None and args.metaphlan_pkl is None:
+        print("Must specify at least one of --uniprot_path, --metaphlan_pkl, or --primers_path.")
         exit(1)
 
-    if len(args.uniprot_csv) > 0:
-        uniprot_path = Path(args.uniprot_csv)
-    else:
-        uniprot_path = None
+    loaders = []
 
-    if len(args.genes_fasta) > 0:
-        genes_path = Path(args.genes_fasta)
-    else:
-        genes_path = None
+    if args.uniprot_csv is not None:
+        loaders.append(
+            UniProtLoader(Path(args.uniprot_csv), args.reference_accession)
+        )
+
+    if args.metaphlan_pkl is not None:
+        loaders.append(
+            MetaphlanLoader(Path(args.metaphlan_pkl))
+        )
+
+    if args.genes_fasta is not None:
+        loaders.append(
+            FastaLoader(Path(args.uniprot_csv))
+        )
 
     output_path = Path(args.output_path)
 
     # ================= Pull out reference genes
     logger.info(f"Retrieving reference genes from {args.reference_accession}")
-    ref_gene_paths = retrieve_reference(args.reference_accession, uniprot_path, genes_path)
+    ref_gene_paths = retrieve_reference(loaders)
 
     refseq_index_df = pd.read_csv(Path(args.refseq_index), sep='\t')
 
@@ -432,7 +486,6 @@ def main():
         num_ref_genomes=refseq_index_df.shape[0]
     )
 
-    print_summary(object_entries, ref_gene_paths)
     with open(output_path, 'w') as outfile:
         json.dump(object_entries, outfile, indent=4)
     logger.info(f"Wrote output to {str(output_path)}.")
