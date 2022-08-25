@@ -24,7 +24,7 @@ do
 		-r "${READS_DIR}/${sample_name}_filtered/filtered_${sample_name}.csv" \
 		-o $CHRONOSTRAIN_OUTPUT_DIR/${sample_name} \
 		--seed $SEED \
-    --correlation_mode $CHRONOSTRAIN_CORR_MODE \
+    --correlation-mode $CHRONOSTRAIN_CORR_MODE \
 		--iters $CHRONOSTRAIN_NUM_ITERS \
 		--epochs $CHRONOSTRAIN_NUM_EPOCHS \
 		--decay-lr $CHRONOSTRAIN_DECAY_LR \

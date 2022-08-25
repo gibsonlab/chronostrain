@@ -17,7 +17,7 @@ do
 		-r "${READS_DIR}/${umb_id}_filtered/filtered_${umb_id}_inputs.csv" \
 		-o $CHRONOSTRAIN_OUTPUT_DIR/${umb_id} \
 		--seed $SEED \
-    --correlation_mode $CHRONOSTRAIN_CORR_MODE \
+    --correlation-mode $CHRONOSTRAIN_CORR_MODE \
 		--iters $CHRONOSTRAIN_NUM_ITERS \
 		--epochs $CHRONOSTRAIN_NUM_EPOCHS \
 		--decay-lr $CHRONOSTRAIN_DECAY_LR \
