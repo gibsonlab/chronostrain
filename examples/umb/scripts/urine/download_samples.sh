@@ -50,7 +50,7 @@ mkdir -p ${FASTERQ_TMP_DIR}
 		--outdir $SAMPLES_DIR \
 		--skip-technical \
 		--seq-defline $ac.$sn.$sr.$ri \
-		--defline-qual '+' \
+		--qual-defline '+' \
 		--force \
 		-t ${FASTERQ_TMP_DIR} \
 		"${SRA_PREFETCH_DIR}/${sra_id}/${sra_id}.sra"
