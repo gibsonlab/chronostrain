@@ -144,7 +144,7 @@ def create_strain_entries(blast_results: Dict[str, Path], ref_gene_paths: Dict[s
             'markers': []
         }
 
-    strain_entries = defaultdict(_entry_initializer)
+    strain_entries = {}
 
     # ===================== Parse BLAST hits.
     for gene_name, blast_result_path in blast_results.items():
@@ -158,6 +158,9 @@ def create_strain_entries(blast_results: Dict[str, Path], ref_gene_paths: Dict[s
 
         logger.debug(f"Parsing BLAST hits for gene `{gene_name}`.")
         for subj_acc in blast_hits.keys():
+            if subj_acc not in strain_entries:
+                strain_entries[subj_acc] = _entry_initializer(subj_acc)
+
             strain_entry = strain_entries[subj_acc]
             seq_accession = strain_entry['seqs'][0]['accession']
             for blast_hit in blast_hits[seq_accession]:
