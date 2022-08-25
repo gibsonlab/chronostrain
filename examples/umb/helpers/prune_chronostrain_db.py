@@ -151,8 +151,8 @@ def prune_db(strain_ids: List[str], input_json_path: Path, output_json_path: Pat
 
     logger.info("Computing distances.")
     distances = np.zeros(shape=(len(strain_ids), len(strain_ids)), dtype=int)
-    for (i1, strain1), (i2, strain2) in itertools.combinations(enumerate(strain_ids), r=2):
-        hamming_dist = np.sum(alignments[strain1.id] != alignments[strain2.id])
+    for (i1, strain1_id), (i2, strain2_id) in itertools.combinations(enumerate(strain_ids), r=2):
+        hamming_dist = np.sum(alignments[strain1_id] != alignments[strain2_id])
         distances[i1, i2] = hamming_dist
         distances[i2, i1] = hamming_dist
 
