@@ -94,10 +94,12 @@ def get_concatenated_alignments(db: StrainDatabase, out_path: Path):
 
         strain_marker_map: Dict[str, Marker] = {}
         for marker in strain.markers:
-            # TODO use the longest marker instead!
-
-            # Append the first available marker with matching gene name.
-            if marker.name not in strain_marker_map:
+            # if a previous one exists, check which is longer.
+            if marker.name in strain_marker_map:
+                other = strain_marker_map[marker.name]
+                if len(marker) > len(other):
+                    strain_marker_map[marker.name] = marker
+            else:
                 strain_marker_map[marker.name] = marker
 
         gene_ids = []
