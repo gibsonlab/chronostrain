@@ -23,7 +23,7 @@ from ..base import option
     help="The directory to which the filtered reads/CSV table will be saved.",
 )
 @option(
-    '--output-filename', '-f', 'reads_output_filename',
+    '--output-filename', '-f', 'output_filename',
     type=str,
     required=False, default=None,
     help="The filename of the target CSV file indexing all filtered reads. If not specified, "
