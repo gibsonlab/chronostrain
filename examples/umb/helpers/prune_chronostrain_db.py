@@ -10,7 +10,7 @@ from Bio.SeqRecord import SeqRecord
 import numpy as np
 from chronostrain.util.sequences import nucleotides_to_z4
 from chronostrain.database import JSONStrainDatabase, StrainDatabase
-from chronostrain.model import Marker, Strain
+from chronostrain.model import Marker
 from chronostrain.util.external import mafft_global
 
 from sklearn.cluster import AgglomerativeClustering
@@ -28,12 +28,16 @@ def parse_args():
     )
 
     # Input specification.
-    parser.add_argument('--input_json', required=True, type=str,
-                        help='<Required> The input database JSON file.')
+    parser.add_argument('--raw_json', required=True, type=str,
+                        help='<Required> The raw database JSON file, PRIOR to resolving overlaps.')
+    parser.add_argument('--merged_json', required=True, type=str,
+                        help='<Required> The merged database JSON file, with overlaps resolved via merging.')
     parser.add_argument('--output_json', required=True, type=str,
                         help='<Required> The output database JSON file.')
-    parser.add_argument('--alignments_path', required=True, type=str,
-                        help='<Required> The path to the concatenated alignments.')
+    parser.add_argument('--temp_dir', required=False, type=str,
+                        default=cfg.database_cfg.db_kwargs['db_data_dir'],
+                        help='<Optional> If specified, will use the specified directory to perform all calculations.'
+                             'By default, it uses the DB_DATA_DIR attribute of the configuration.')
     return parser.parse_args()
 
 
@@ -81,7 +85,7 @@ def get_concatenated_alignments(db: StrainDatabase, out_path: Path):
     If a gene is missing from a strain, gaps are appended instead.
     If multiple hits are found, then the first available one is used (found in the same order as BLAST hits).
     """
-    all_marker_alignments = get_all_alignments(db, out_path.parent / "marker_genes")
+    all_marker_alignments = get_all_alignments(db, out_path.parent / "alignments_for_pruning")
     gene_names = list(all_marker_alignments.keys())
 
     records: List[SeqRecord] = []
@@ -90,6 +94,8 @@ def get_concatenated_alignments(db: StrainDatabase, out_path: Path):
 
         strain_marker_map: Dict[str, Marker] = {}
         for marker in strain.markers:
+            # TODO use the longest marker instead!
+
             # Append the first available marker with matching gene name.
             if marker.name not in strain_marker_map:
                 strain_marker_map[marker.name] = marker
@@ -125,15 +131,15 @@ def get_concatenated_alignments(db: StrainDatabase, out_path: Path):
     )
 
 
-def prune_db(strains: List[Strain], input_json_path: Path, output_json_path: Path, alignments_path: Path):
+def prune_db(strain_ids: List[str], input_json_path: Path, output_json_path: Path, alignments_path: Path):
     logger.info("Preprocessing for pruning.")
     # parse json entries.
     entries: Dict[str, Dict[str, Any]] = {}
     with open(input_json_path, "r") as f:
-        start_entries = json.load(f)
-        for entry in start_entries:
-            accession = entry['id']
-            entries[accession] = entry
+        _initial_strain_entries = json.load(f)
+        for strain_entry in _initial_strain_entries:
+            accession = strain_entry['id']
+            entries[accession] = strain_entry
 
     # Read the alignments.
     alignments: Dict[str, np.ndarray] = {}
@@ -144,8 +150,8 @@ def prune_db(strains: List[Strain], input_json_path: Path, output_json_path: Pat
         align_len = len(record.seq)
 
     logger.info("Computing distances.")
-    distances = np.zeros(shape=(len(strains), len(strains)), dtype=int)
-    for (i1, strain1), (i2, strain2) in itertools.combinations(enumerate(strains), r=2):
+    distances = np.zeros(shape=(len(strain_ids), len(strain_ids)), dtype=int)
+    for (i1, strain1), (i2, strain2) in itertools.combinations(enumerate(strain_ids), r=2):
         hamming_dist = np.sum(alignments[strain1.id] != alignments[strain2.id])
         distances[i1, i2] = hamming_dist
         distances[i2, i1] = hamming_dist
@@ -171,11 +177,11 @@ def prune_db(strains: List[Strain], input_json_path: Path, output_json_path: Pat
     result_entries = []
     for cluster, rep in zip(clusters, cluster_reps):
         rep_strain_idx = cluster[rep]
-        rep_strain = strains[rep_strain_idx].id
+        rep_strain = strain_ids[rep_strain_idx]
 
         cluster_entry = entries[rep_strain]
         cluster_entry['cluster'] = [
-            "{}({})".format(strains[s_idx].id, entries[strains[s_idx].id]['name'])
+            "{}({})".format(strain_ids[s_idx], entries[strain_ids[s_idx]]['name'])
             for s_idx in cluster
         ]
         result_entries.append(cluster_entry)
@@ -217,20 +223,27 @@ def pick_cluster_representatives(clusters: List[List[int]], distances: np.ndarra
 
 def main():
     args = parse_args()
+    work_dir = Path(args.temp_dir)
 
-    input_json_path = Path(args.input_json)
+    raw_json_path = Path(args.raw_json)
+    merged_json_path = Path(args.merged_json)
     output_json_path = Path(args.output_json)
 
-    input_db = JSONStrainDatabase(
-        entries_file=input_json_path,
+    raw_db = JSONStrainDatabase(
+        entries_file=raw_json_path,
+        data_dir=work_dir / "v1_with_overlaps",
         marker_max_len=cfg.database_cfg.db_kwargs['marker_max_len'],
-        force_refresh=False,
-        load_full_genomes=False
+        force_refresh=False
     )
 
-    alignments_path = Path(args.alignments_path)
-    get_concatenated_alignments(input_db, alignments_path)
-    prune_db(input_db.all_strains(), input_json_path, output_json_path, alignments_path)
+    alignments_path = work_dir / "__concatenated_alignments.fasta"
+    get_concatenated_alignments(raw_db, alignments_path)
+    prune_db(
+        [s.id for s in raw_db.all_strains()],
+        merged_json_path,
+        output_json_path,
+        alignments_path
+    )
 
 
 if __name__ == "__main__":

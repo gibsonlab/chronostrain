@@ -10,12 +10,13 @@ export SETTINGS_PATH="${BASE_DIR}/scripts/settings.sh"
 
 # ========= NCBI RefSeqs
 export NCBI_REFSEQ_DIR="/mnt/e/ref_genomes"
-export REFSEQ_ALIGN_PATH="${CHRONOSTRAIN_DB_DIR}/strain_alignments/concatenation.fasta"
 export BLAST_DB_DIR="${CHRONOSTRAIN_DB_DIR}/blast_db"
 export BLAST_DB_NAME="esch_chrom"
 
 # ======== Chronostrain settings
+export DB_TEMP_DIR="${CHRONOSTRAIN_DB_DIR}/_temp"
 export CHRONOSTRAIN_DB_JSON_ALL="${CHRONOSTRAIN_DB_DIR}/database_all.json"
+export CHRONOSTRAIN_DB_JSON_RESOLVED="${CHRONOSTRAIN_DB_DIR}/database_all.resolved.json"
 export CHRONOSTRAIN_DB_JSON_PRUNED="${CHRONOSTRAIN_DB_DIR}/database_pruned.json"
 export CHRONOSTRAIN_DB_JSON="${CHRONOSTRAIN_DB_JSON_PRUNED}"
 export CHRONOSTRAIN_CACHE_DIR="${CHRONOSTRAIN_DB_DIR}/cache"

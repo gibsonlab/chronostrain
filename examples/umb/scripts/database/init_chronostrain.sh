@@ -25,7 +25,7 @@ makeblastdb \
 -in ${REFSEQ_FASTA_FILE} \
 -out ${BLAST_DB_NAME} \
 -dbtype nucl \
--title "Escherichia RefSeq Chromosomes" \
+-title "Enterobacteriaceae RefSeq Chromosomes" \
 -parse_seqids
 
 rm ${REFSEQ_FASTA_FILE}
@@ -45,10 +45,18 @@ python init_chronostrain_db.py \
 --reference_accession "U00096.3"
 
 
+echo "[*] Resolving overlaps."
+python validate_database.py \
+--refseq_index ${NCBI_REFSEQ_DIR}/index.tsv \
+-i ${CHRONOSTRAIN_DB_JSON_ALL} \
+-o ${CHRONOSTRAIN_DB_JSON_RESOLVED}
+
+
 echo "[*] Pruning database by hamming similarity."
 MULTIFASTA_FILE="all_strain_markers.fasta"
 cd ${BASE_DIR}/helpers
 python prune_chronostrain_db.py \
---input_json ${CHRONOSTRAIN_DB_JSON_ALL} \
+--raw_json ${CHRONOSTRAIN_DB_JSON_ALL} \
+--merged_json ${CHRONOSTRAIN_DB_JSON_RESOLVED} \
 --output_json ${CHRONOSTRAIN_DB_JSON_PRUNED} \
---alignments_path ${REFSEQ_ALIGN_PATH}
+--temp_dir ${DB_TEMP_DIR}
