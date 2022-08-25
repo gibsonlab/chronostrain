@@ -22,6 +22,9 @@ from chronostrain.logging import create_logger
 logger = create_logger("chronostrain.prune_db")
 
 
+print(cfg.database_cfg.db_kwargs)
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Cluster strains by similarity (in hamming distance of concatenated marker alignments)"
