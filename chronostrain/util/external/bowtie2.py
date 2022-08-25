@@ -35,7 +35,6 @@ def bowtie2_build(refs_in: List[Path],
                   packed: Optional[bool] = False,
                   seed: Optional[int] = None,
                   quiet: bool = False,
-                  n_threads: Optional[int] = None,
                   command_path: str = "bowtie2-build"):
     """
     :param refs_in: List of paths to reference sequences.
@@ -48,7 +47,6 @@ def bowtie2_build(refs_in: List[Path],
     :param seed: Passed to '--seed' param (the seed to run the command with).
     :param command_path: The path to `bowtie2-inspect`, if not located in path env (typically /usr/bin).
     :param quiet: Suppress debug messages.
-    :param n_threads: the number of threads to use.
     :return:
     """
     args = [",".join(str(p) for p in refs_in), index_basepath / index_basename]
@@ -77,9 +75,6 @@ def bowtie2_build(refs_in: List[Path],
 
     if quiet:
         args.append('--quiet')
-
-    if n_threads is not None:
-        args += ['--threads', n_threads]
 
     exit_code = call_command(
         command_path,

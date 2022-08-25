@@ -184,8 +184,7 @@ class BowtieAligner(AbstractPairwiseAligner):
                 refs_in=[reference_path],
                 index_basepath=self.index_basepath,
                 index_basename=self.index_basename,
-                quiet=True,
-                n_threads=num_threads
+                quiet=True
             )
             self.index_trace_path.touch(exist_ok=True)  # Create an empty file to indicate that this finished.
         else:
