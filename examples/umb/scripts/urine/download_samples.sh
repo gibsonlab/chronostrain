@@ -49,7 +49,7 @@ mkdir -p ${FASTERQ_TMP_DIR}
 		--progress \
 		--outdir $SAMPLES_DIR \
 		--skip-technical \
-		--seq-defline $ac.$sn.$sr.$ri \
+		--seq-defline @$ac.$sn.$sr.$ri \
 		--qual-defline '+' \
 		--force \
 		-t ${FASTERQ_TMP_DIR} \
