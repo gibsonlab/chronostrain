@@ -160,7 +160,7 @@ def find_and_resolve_overlaps(strain, refseq_index: pd.DataFrame):
             if 'members' in marker:
                 logger.debug("{} -> {}".format(
                     ' + '.join(marker['members']),
-                    marker.name
+                    marker['name']
                 ))
 
 
