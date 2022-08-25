@@ -460,7 +460,7 @@ def main():
 
     if args.genes_fasta is not None:
         loaders.append(
-            FastaLoader(Path(args.uniprot_csv))
+            FastaLoader(Path(args.genes_fasta))
         )
 
     output_path = Path(args.output_path)
