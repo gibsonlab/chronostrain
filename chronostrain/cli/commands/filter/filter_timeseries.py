@@ -103,12 +103,12 @@ def main(
         logger.info(f"Applying filter to timepoint {t}, {str(read_path)}")
 
         aligner = create_aligner(aligner_type, read_type, db)
-        out_path = out_dir / f"filtered_{remove_suffixes(read_path).name}.fastq"
-        filter.apply(read_path, out_path, read_type, aligner, quality_format=qual_fmt)
+        out_file = f"filtered_{remove_suffixes(read_path).name}.fastq"
+        filter.apply(read_path, out_dir / out_file, read_type, aligner, quality_format=qual_fmt)
         with open(target_csv_path, 'a') as target_csv:
             # Append to target CSV file.
             writer = csv.writer(target_csv, delimiter=',', quotechar='\"', quoting=csv.QUOTE_ALL)
-            writer.writerow([t, read_depth, str(out_path), read_type_str, qual_fmt])
+            writer.writerow([t, read_depth, str(out_file), read_type_str, qual_fmt])
 
     logger.info("Finished filtering.")
 
