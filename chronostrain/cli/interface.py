@@ -26,6 +26,7 @@ logger = create_logger("chronostrain.cli")
 def main(ctx, config_path: Optional[Path]):
     """
     ChronoStrain (Time-Series Metagenomic Abundance Estimation)
+    Contact: Younhun Kim (younhun@mit.edu)
     """
     ctx.obj = logger
     if config_path is not None:

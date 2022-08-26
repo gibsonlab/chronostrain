@@ -10,6 +10,7 @@ This example requires the following to be run first:
 In addition, it requires the installation of these programs (most are available on bioconda):
 - sra-tools=2.11
 - blast
+- mafft
 - trimmomatic
 - gzip
 

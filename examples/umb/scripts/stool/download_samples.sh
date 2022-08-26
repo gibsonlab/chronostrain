@@ -46,7 +46,7 @@ mkdir -p ${FASTERQ_TMP_DIR}
 		--progress \
 		--outdir $SAMPLES_DIR \
 		--skip-technical \
-		--seq-defline '@$ac.$si/$ri $sn length=$rl' \
+		--seq-defline '@$ac.$si/$ri' \
 		--qual-defline '+' \
 		--force \
 		-t ${FASTERQ_TMP_DIR} \
