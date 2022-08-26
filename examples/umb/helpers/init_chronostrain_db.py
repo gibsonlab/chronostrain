@@ -134,12 +134,14 @@ def create_strain_entries(blast_results: Dict[str, Path], ref_gene_paths: Dict[s
         subj_genus = strain_row['Genus'].item()
         subj_species = strain_row['Species'].item()
         subj_strain_name = strain_row['Strain'].item()
+        genome_length = strain_row['ChromosomeLen'].item()
 
         return {
             'id': _accession,
             'genus': subj_genus,
             'species': subj_species,
             'name': subj_strain_name,
+            'genome_length': genome_length,
             'seqs': [{'accession': _accession, 'seq_type': 'chromosome'}],
             'markers': []
         }

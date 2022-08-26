@@ -51,16 +51,14 @@ def perform_indexing(refseq_dir: Path) -> pd.DataFrame:
                     continue
 
                 strain_name = strain_dir.name
-                target_files = list(strain_dir.glob("*_genomic.fna.gz"))
-
-                for fpath in target_files:
+                for fpath in strain_dir.glob("*_genomic.fna.gz"):
                     if fpath.name.endswith('_cds_from_genomic.fna.gz'):
                         continue
 
                     if fpath.name.endswith('_rna_from_genomic.fna.gz'):
                         continue
 
-                    for accession, assembly_gcf, chrom_path in extract_chromosomes(fpath):
+                    for accession, assembly_gcf, chrom_path, chrom_length in extract_chromosomes(fpath):
                         logger.debug("Found accession {} from assembly {} ({} {}, Strain `{}`)".format(
                             accession,
                             assembly_gcf,
@@ -68,13 +66,15 @@ def perform_indexing(refseq_dir: Path) -> pd.DataFrame:
                             species,
                             strain_name
                         ))
+
                         df_entries.append({
                             "Genus": genus,
                             "Species": species,
                             "Strain": strain_name,
                             "Accession": accession,
                             "Assembly": assembly_gcf,
-                            "SeqPath": chrom_path
+                            "SeqPath": chrom_path,
+                            "ChromosomeLen": chrom_length
                         })
     return pd.DataFrame(df_entries)
 
@@ -91,7 +91,7 @@ def extract_chromosomes(path: Path) -> Iterator[Tuple[str, Path]]:
             chrom_path = path.parent / f"{accession}.chrom.fna"
             SeqIO.write([record], chrom_path, "fasta")
 
-            yield accession, assembly_gcf, chrom_path
+            yield accession, assembly_gcf, chrom_path, len(record)
 
 
 def main():
