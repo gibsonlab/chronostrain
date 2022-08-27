@@ -81,9 +81,12 @@ def perform_advi(
     elbo_history = []
 
     if save_training_history:
+        from chronostrain.util.math.activations import sparsemax
         def anim_callback(x_samples, uppers_buf, lowers_buf, medians_buf):
             # Plot VI posterior.
-            abund_samples = x_samples.cpu().detach().numpy()
+            y_samples = model.latent_conversion(x_samples)
+            abund_samples = y_samples.cpu().detach().numpy()
+
             for s_idx in range(model.num_strains()):
                 traj_samples = abund_samples[:, :, s_idx]  # (T x N)
                 upper_quantile = np.quantile(traj_samples, q=0.975, axis=1)

@@ -3,6 +3,7 @@ from numba import cuda
 import math
 import torch
 from .constants import _DTYPE, _THREADS_PER_BLOCK
+from ..cpu.dense import log_matmul_exp as cpu_like_torch_log_matmul_exp
 
 from chronostrain.logging import create_logger
 logger = create_logger(__name__)
@@ -17,10 +18,10 @@ def log_matmul_exp(x: torch.Tensor, y: torch.Tensor):
     if x.requires_grad or y.requires_grad:
         if not _CUDA_WARNED:
             logger.debug("TODO: The custom implementation of cuda.log_matmul_exp doesn't support grad. "
-                         "Defaulting to torch-native CUDA implementation; a C++ implementation should be provided instead.")
+                         "Defaulting to torch-native implementation; a C++ implementation should be provided instead.")
             _CUDA_WARNED = True
 
-        return torch_log_matmul_exp(x, y)
+        return cpu_like_torch_log_matmul_exp(x, y)
 
     out = torch.empty((x.shape[0], y.shape[1]), dtype=x.dtype, device=x.device)
 
@@ -36,14 +37,6 @@ def log_matmul_exp(x: torch.Tensor, y: torch.Tensor):
         cuda.as_cuda_array(out)
     )
     return out
-
-
-def torch_log_matmul_exp(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-    return torch.logsumexp(
-        x.unsqueeze(2) + y.unsqueeze(0),
-        dim=1,
-        keepdim=False
-    )
 
 
 @cuda.jit

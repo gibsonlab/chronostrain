@@ -2,7 +2,7 @@
  generative.py
  Contains classes for representing the generative model.
 """
-from typing import List, Tuple
+from typing import List, Tuple, Callable
 
 from torch.distributions.multivariate_normal import MultivariateNormal
 from scipy.stats import rv_discrete, nbinom
@@ -36,7 +36,7 @@ class GenerativeModel:
                  frag_negbin_p: float,
                  read_error_model: AbstractErrorModel,
                  min_overlap_ratio: float,
-                 db: StrainDatabase,
+                 db: StrainDatabase
                  ):
         """
         :param times: A list of time points.
@@ -66,6 +66,8 @@ class GenerativeModel:
         self.db = db
         self._frag_freqs_sparse = None
         self._frag_freqs_dense = None
+        self.latent_conversion = lambda x: torch.softmax(10 * x, dim=-1)
+        self.log_latent_conversion = lambda x: (10 * x) - torch.logsumexp(10 * x, dim=-1, keepdim=True)
 
     def num_times(self) -> int:
         return len(self.times)
@@ -359,7 +361,7 @@ class GenerativeModel:
         :return: A T x S tensor; each row is an abundance profile for a time point.
         """
         gaussians = self._sample_brownian_motion()
-        return torch.softmax(gaussians, dim=1)
+        return self.latent_conversion(gaussians)
 
     def strain_abundance_to_frag_abundance(self, strain_abundances: torch.Tensor) -> torch.Tensor:
         """

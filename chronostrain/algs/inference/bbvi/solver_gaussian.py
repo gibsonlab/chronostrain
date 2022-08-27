@@ -9,7 +9,6 @@ from chronostrain.util.math.matrices import log_mm_exp
 
 from .base import AbstractADVISolver
 from .posteriors import *
-from .util import log_softmax_t
 from ...subroutines.likelihoods import DataLikelihoods
 
 from chronostrain.logging import create_logger
@@ -31,20 +30,11 @@ class ADVIGaussianSolver(AbstractADVISolver):
                  precomputed_data_likelihoods: Optional[DataLikelihoods] = None):
         logger.info("Initializing solver with Gaussian posterior")
         if correlation_type == "time":
-            posterior = GaussianPosteriorTimeCorrelation(
-                num_strains=model.num_strains(),
-                num_times=model.num_times()
-            )
+            posterior = GaussianPosteriorTimeCorrelation(model)
         elif correlation_type == "strain":
-            posterior = GaussianPosteriorStrainCorrelation(
-                num_strains=model.num_strains(),
-                num_times=model.num_times()
-            )
+            posterior = GaussianPosteriorStrainCorrelation(model)
         elif correlation_type == "full":
-            posterior = GaussianPosteriorFullReparametrizedCorrelation(
-                num_strains=model.num_strains(),
-                num_times=model.num_times()
-            )
+            posterior = GaussianPosteriorFullReparametrizedCorrelation(model)
         else:
             raise ValueError("Unrecognized `correlation_type` argument {}.".format(correlation_type))
 
@@ -86,17 +76,23 @@ class ADVIGaussianSolver(AbstractADVISolver):
         entropic = self.posterior.entropy()
         yield entropic
 
+        log_y = self.model.log_latent_conversion(x_samples)
+        n_samples = x_samples.shape[1]
         for t_idx in range(self.model.num_times()):
-            log_y_t = log_softmax_t(x_samples, t=t_idx)
-            for batch_lls in self.batches[t_idx]:
+            for batch_idx, batch_lls in enumerate(self.batches[t_idx]):
+                # prod = y[t_idx] @ batch_lls.exp()
+                # nonzeros = (prod != 0)
+                # nonzero_data_ll = (torch.sum(nonzeros) / n_samples) * torch.mean(torch.log(prod[nonzeros]))
+                # yield nonzero_data_ll
+
                 # Average of (N x R_batch) entries, we only want to divide by 1/N and not 1/(N*R_batch)
-                data_ll = batch_lls.shape[1] * torch.mean(log_mm_exp(log_y_t, batch_lls))
+                data_ll = batch_lls.shape[1] * torch.mean(log_mm_exp(log_y[t_idx], batch_lls))
                 yield data_ll
 
     def data_ll(self, x_samples: torch.Tensor) -> torch.Tensor:
         ans = torch.zeros(size=(x_samples.shape[1],), device=x_samples.device)
         for t_idx in range(self.model.num_times()):
-            log_y_t = log_softmax_t(x_samples, t=t_idx)
+            log_y_t = self.model.latent_conversion(x_samples[t_idx]).log()
             for batch_lls in self.batches[t_idx]:
                 batch_matrix = log_mm_exp(log_y_t, batch_lls).detach()
                 ans = ans + torch.sum(batch_matrix, dim=1)
