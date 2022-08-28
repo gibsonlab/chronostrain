@@ -17,7 +17,7 @@ for choice in "all" "metaphlan" "mlst" "clermont"; do
 			--marker_choice "${choice}" \
 			--uniprot_csv ${BASE_DIR}/files/uniprot_markers.tsv \
 			--clermont_fasta ${BASE_DIR}/files/clermont_genes.fasta \
-			--metaphlan_db ${METAPHLAN_PKL_PATH}
+			--metaphlan_pkl ${METAPHLAN_PKL_PATH}
 
 	echo "[*] Running fasttree multiple alignments."
 
