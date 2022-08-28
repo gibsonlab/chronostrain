@@ -6,7 +6,7 @@ export NCBI_REFSEQ_DIR="/mnt/e/ref_genomes"
 export PHYLOGENY_OUTPUT_DIR="/mnt/e/chronostrain/phylogeny"
 export LOGDIR="/mnt/e/chronostrain/phylogeny/logs"
 export CHRONOSTRAIN_DB_DIR="/mnt/e/chronostrain/umb_database"
-export MULTI_ALIGN_DIR="${CHRONOSTRAIN_DB_DIR}/strain_alignments/"
+export MULTI_ALIGN_DIR="${CHRONOSTRAIN_DB_DIR}/strain_alignments"
 
 # ======== Location of this file.
 export SETTINGS_PATH="${BASE_DIR}/scripts/phylogeny/settings.sh"
