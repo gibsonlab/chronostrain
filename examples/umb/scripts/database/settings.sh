@@ -23,7 +23,8 @@ export CHRONOSTRAIN_CACHE_DIR="${CHRONOSTRAIN_DB_DIR}/cache"
 export MULTIFASTA_FILE="strain_markers.fasta"
 
 # ======== MetaPhlAn settings
-export METAPHLAN_PKL_PATH="/home/lactis/anaconda3/envs/metaphlan/lib/python3.7/site-packages/metaphlan/metaphlan_databases/mpa_vJan21_CHOCOPhlAnSGB_202103.pkl"
+export METAPHLAN4_PKL_PATH="/mnt/e/metaphlan_databases/mpa_vJan21_CHOCOPhlAnSGB_202103/mpa_vJan21_CHOCOPhlAnSGB_202103.pkl"
+export METAPHLAN3_PKL_PATH="/mnt/e/metaphlan_databases/mpa_v31_CHOCOPhlAn_201901/mpa_v31_CHOCOPhlAn_201901.pkl"
 
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)
 export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"

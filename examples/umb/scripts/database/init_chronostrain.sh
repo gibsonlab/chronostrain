@@ -41,7 +41,8 @@ python init_chronostrain_db.py \
 --refseq_index ${NCBI_REFSEQ_DIR}/index.tsv \
 --uniprot_csv ${BASE_DIR}/files/uniprot_markers.tsv \
 --genes_fasta ${BASE_DIR}/files/clermont_genes.fasta \
---metaphlan_pkl ${METAPHLAN_PKL_PATH} \
+--metaphlan_pkl ${METAPHLAN4_PKL_PATH} \
+--metaphlan_pkl ${METAPHLAN3_PKL_PATH} \
 --reference_accession "U00096.3"
 
 

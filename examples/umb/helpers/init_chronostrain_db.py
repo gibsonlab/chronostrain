@@ -48,8 +48,9 @@ def parse_args():
     parser.add_argument('-u', '--uniprot_csv', required=False, type=str, default='',
                         help='<Optional> A path to a two-column CSV file (<UniprotID>, <ClusterName>) format specifying'
                              'any desired additional genes not given by metaphlan.')
-    parser.add_argument('-m', '--metaphlan_pkl', required=False, type=str, default='',
-                        help='<Optional> A path to the metaphlan database pickle file.')
+    parser.add_argument('-m', '--metaphlan_pkl', required=False, action='append',
+                        help='<Optional> A path to the metaphlan database pickle file.'
+                             'Can be repeated to specify more than one.')
     parser.add_argument('-g', '--genes_fasta', required=False, type=str, default='',
                         help='<Optional> A path to a fasta file listing out genes. Each records ID must be the '
                              'desired gene name.')
@@ -458,10 +459,11 @@ def main():
             UniProtLoader(Path(args.uniprot_csv), args.reference_accession)
         )
 
-    if args.metaphlan_pkl is not None:
-        loaders.append(
-            MetaphlanLoader(Path(args.metaphlan_pkl))
-        )
+    if args.metaphlan_pkl is not None and len(args.metaphlan_pkl) > 0:
+        for f in args.metaphlan_pkl:
+            loaders.append(
+                MetaphlanLoader(Path(f))
+            )
 
     if args.genes_fasta is not None:
         loaders.append(
