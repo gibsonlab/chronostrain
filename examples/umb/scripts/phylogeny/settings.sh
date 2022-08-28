@@ -15,10 +15,12 @@ export SETTINGS_PATH="${BASE_DIR}/scripts/phylogeny/settings.sh"
 export METAPHLAN_PKL_PATH="/home/lactis/anaconda3/envs/metaphlan/lib/python3.7/site-packages/metaphlan/metaphlan_databases/mpa_vJan21_CHOCOPhlAnSGB_202103.pkl"
 
 # ======== Chronostrain settings
+export CHRONOSTRAIN_DB_JSON_ALL="${CHRONOSTRAIN_DB_DIR}/database_all.json"
+export CHRONOSTRAIN_DB_JSON_PRUNED="${CHRONOSTRAIN_DB_DIR}/database_pruned.json"
+export CHRONOSTRAIN_DB_JSON="${CHRONOSTRAIN_DB_JSON_ALL}"
+
 export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
 export CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"
-export CHRONOSTRAIN_DB_JSON_ALL="${CHRONOSTRAIN_DB_DIR}/database_all.json"
-export CHRONOSTRAIN_DB_JSON="${CHRONOSTRAIN_DB_JSON_ALL}"
 export CHRONOSTRAIN_CACHE_DIR="${PHYLOGENY_OUTPUT_DIR}/cache"
 export MULTIFASTA_FILE="all_markers.fasta"
 
