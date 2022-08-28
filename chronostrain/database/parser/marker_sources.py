@@ -28,19 +28,12 @@ class MarkerSource:
         self.force_download = force_download
         self.data_dir = data_dir
 
-        self._seq_len = None
         self._seq = None
         self._gb_record = None
 
     @property
     def strain_assembly_dir(self) -> Path:
         return self.data_dir / "assemblies" / self.strain_id
-
-    @property
-    def nucleotide_length(self) -> int:
-        if self._seq_len is None:
-            self._seq_len = len(self.seq_nucleotide)
-        return self._seq_len
 
     @property
     def seq_nucleotide(self) -> str:
@@ -162,18 +155,6 @@ class MarkerSource:
 class CachedMarkerSource(MarkerSource):
     def __init__(self, strain_id: str, data_dir: Path, seq_accession: str, marker_max_len: int, force_download: bool):
         super().__init__(strain_id, seq_accession, marker_max_len, force_download, data_dir)
-        self._seq_len = self.get_seq_len()
-
-    def get_seq_len(self) -> int:
-        p = self.strain_assembly_dir / "length.txt"
-        if p.exists():
-            with open(p, 'rt') as f:
-                l = int(f.readline().strip())
-        else:
-            l = len(self.seq_nucleotide)
-            with open(p, 'wt') as f:
-                print(str(l), file=f)
-        return l
 
     def get_marker_filepath(self, marker_id: str) -> Path:
         return (
