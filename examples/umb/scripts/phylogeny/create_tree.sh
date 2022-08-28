@@ -14,7 +14,7 @@ for db_type in "raw" "pruned"; do
 			db_json=$CHRONOSTRAIN_DB_JSON_ALL
 		fi
 
-		echo "[*] Starting pipeline for generating phylogenetic tree (marker choice: \"${gene_choice}\")"
+		echo "[*] Starting pipeline for generating phylogenetic tree (database \"${db_type}\", marker choice: \"${gene_choice}\")"
 		marker_multi_align=${MULTI_ALIGN_DIR}/${gene_choice}_markers.fasta
 
 		if [ -f $marker_multi_align ]; then
