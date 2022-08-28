@@ -277,7 +277,7 @@ def render_posterior_abundances(
         quantiles: Optional[np.ndarray] = None
 ):
     if quantiles is None:
-        quantiles = np.linspace(0.025, 0.975, 50)  # DEFAULT
+        quantiles = np.array([0.025, 0.5, 0.975])
     if quantiles[0] > 0.5 or quantiles[-1] < 0.5:
         raise RuntimeError("Quantiles must lead with a value <= 0.5 and end with a value >= 0.5.")
     quantile_values = parse_quantiles(traj_samples, quantiles)  # size Q x T

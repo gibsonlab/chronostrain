@@ -30,8 +30,7 @@ class Filter(object):
                  min_read_len: int,
                  frac_identity_threshold: float,
                  error_threshold: float = 1.0,
-                 min_hit_ratio: float = 0.5,
-                 num_threads: int = 1):
+                 min_hit_ratio: float = 0.5):
         self.db = db
 
         # Note: Bowtie2 does not have the restriction to uncompress bz2 files, but bwa does.
@@ -45,7 +44,6 @@ class Filter(object):
         self.frac_identity_threshold = frac_identity_threshold
         self.error_threshold = error_threshold
         self.min_hit_ratio = min_hit_ratio
-        self.num_threads = num_threads
 
     def apply(self, read_file: Path, out_path: Path, read_type: ReadType, aligner: AbstractPairwiseAligner, quality_format: str = 'fastq'):
         out_path.parent.mkdir(parents=True, exist_ok=True)
