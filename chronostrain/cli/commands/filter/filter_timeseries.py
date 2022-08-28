@@ -37,9 +37,9 @@ from ..base import option
          "Ideally, a read trimming tool, such as trimmomatic, should have taken care of this step already!"
 )
 @option(
-    '--aligner', '-al', 'aligner_type',
+    '--aligner', '-al', 'aligner',
     type=str,
-    required=False, default='bowtie2',
+    required=False, default='bwa',
     help='Specify the type of aligner to use. Currently available options: bwa, bowtie2.'
 )
 @option(
@@ -59,7 +59,7 @@ def main(
         ctx: click.Context,
         reads_input: Path,
         out_dir: Path,
-        aligner_type: str,
+        aligner: str,
         min_read_len: int,
         frac_identity_threshold: float,
         error_threshold: float,
@@ -94,17 +94,16 @@ def main(
         db=db,
         min_read_len=min_read_len,
         frac_identity_threshold=frac_identity_threshold,
-        error_threshold=error_threshold,
-        num_threads=cfg.model_cfg.num_cores
+        error_threshold=error_threshold
     )
 
     for t, read_depth, read_path, read_type_str, qual_fmt in load_from_csv(reads_input, logger=logger):
         read_type = parse_read_type(read_type_str)
         logger.info(f"Applying filter to timepoint {t}, {str(read_path)}")
 
-        aligner = create_aligner(aligner_type, read_type, db)
+        aligner_obj = create_aligner(aligner, read_type, db)
         out_file = f"filtered_{remove_suffixes(read_path).name}.fastq"
-        filter.apply(read_path, out_dir / out_file, read_type, aligner, quality_format=qual_fmt)
+        filter.apply(read_path, out_dir / out_file, read_type, aligner_obj, quality_format=qual_fmt)
         with open(target_csv_path, 'a') as target_csv:
             # Append to target CSV file.
             writer = csv.writer(target_csv, delimiter=',', quotechar='\"', quoting=csv.QUOTE_ALL)

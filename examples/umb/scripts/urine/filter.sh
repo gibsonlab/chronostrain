@@ -18,5 +18,6 @@ do
 	echo "Filtering reads for ${umb_id}"
 	chronostrain filter \
 	-r "${READS_DIR}/${umb_id}_inputs.csv" \
-	-o "${READS_DIR}/${umb_id}_filtered"
+	-o "${READS_DIR}/${umb_id}_filtered" \
+	--aligner "bwa"
 done

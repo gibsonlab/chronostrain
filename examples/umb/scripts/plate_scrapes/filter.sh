@@ -22,5 +22,6 @@ do
 	echo "Filtering reads for ${sample_name}"
 	chronostrain filter \
 	-r ${READS_DIR}/${csv_file} \
-	-o "${READS_DIR}/${sample_name}_filtered"
+	-o "${READS_DIR}/${sample_name}_filtered" \
+	--aligner "bwa"
 done

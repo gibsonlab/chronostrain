@@ -39,9 +39,9 @@ from ..base import option
          "Ideally, a read trimming tool, such as trimmomatic, should have taken care of this step already!"
 )
 @option(
-    '--aligner', '-al', 'aligner_type',
+    '--aligner', '-al', 'aligner',
     type=str,
-    required=False, default='bowtie2',
+    required=False, default='bwa',
     help='Specify the type of aligner to use. Currently available options: bwa, bowtie2.'
 )
 @option(
@@ -61,7 +61,7 @@ def main(
         ctx: click.Context,
         in_path: Path,
         out_path: Path,
-        aligner_type: str,
+        aligner: str,
         min_read_len: int,
         frac_identity_threshold: float,
         error_threshold: float,
@@ -91,11 +91,11 @@ def main(
     )
 
     read_type = parse_read_type(read_type)
-    aligner = create_aligner(aligner_type, read_type, db)
+    aligner_obj = create_aligner(aligner, read_type, db)
     filter.apply(
         in_path,
         out_path,
-        aligner=aligner,
+        aligner=aligner_obj,
         read_type=read_type,
         quality_format=quality_format
     )
