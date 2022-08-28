@@ -3,8 +3,6 @@ set -e
 source settings.sh
 export CHRONOSTRAIN_LOG_FILEPATH="${LOGDIR}/create_tree.log"
 
-mkdir -p ${PHYLOGENY_OUTPUT_DIR}/tree
-
 
 for db_type in "raw" "pruned"; do
 	for gene_choice in "all" "metaphlan" "mlst" "clermont"; do
