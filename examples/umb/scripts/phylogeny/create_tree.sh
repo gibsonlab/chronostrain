@@ -39,7 +39,7 @@ for db_type in "raw" "pruned"; do
 
 		echo "[*] Generating tree annotations."
 		python ${BASE_DIR}/scripts/phylogeny/tree_annotations.py \
-				-o ${tree_output_dir}/tree \
+				-o ${tree_output_dir} \
 				-i ${NCBI_REFSEQ_DIR}/index.tsv \
 				-p ${PHYLOGENY_OUTPUT_DIR}/ClermonTyping/umb_phylogroups_complete.txt
 	done
