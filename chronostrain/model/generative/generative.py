@@ -18,6 +18,8 @@ from chronostrain.config import cfg
 
 from .fragment_frequencies import SparseFragmentFrequencyComputer
 from chronostrain.logging import create_logger
+from ...util.math.activations import sparsemax
+
 logger = create_logger(__name__)
 
 
@@ -66,8 +68,9 @@ class GenerativeModel:
         self.db = db
         self._frag_freqs_sparse = None
         self._frag_freqs_dense = None
-        self.latent_conversion = lambda x: torch.softmax(10 * x, dim=-1)
-        self.log_latent_conversion = lambda x: (10 * x) - torch.logsumexp(10 * x, dim=-1, keepdim=True)
+        self.latent_conversion = lambda x: torch.softmax(cfg.model_cfg.inverse_temperature * x, dim=-1)
+        # self.log_latent_conversion = lambda x: torch.log(sparsemax(x, dim=-1))
+        self.log_latent_conversion = lambda x: (cfg.model_cfg.inverse_temperature * x) - torch.logsumexp(cfg.model_cfg.inverse_temperature * x, dim=-1, keepdim=True)
 
     def num_times(self) -> int:
         return len(self.times)
