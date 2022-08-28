@@ -29,8 +29,10 @@ def parse_args():
     parser.add_argument('-u', '--uniprot_csv', required=False, type=str, default='',
                         help='<Optional> A path to a two-column CSV file (<UniprotID>, <ClusterName>) format specifying'
                              'any desired additional genes not given by metaphlan.')
-    parser.add_argument('-m', '--metaphlan_pkl', required=False, type=str, default='',
-                        help='<Optional> A path to the metaphlan database pickle file.')
+    parser.add_argument('-m3', '--metaphlan3_pkl', required=False, type=str, default='',
+                        help='<Optional> A path to the metaphlan3 database pickle file.')
+    parser.add_argument('-m4', '--metaphlan4_pkl', required=False, type=str, default='',
+                        help='<Optional> A path to the metaphlan4 database pickle file.')
     parser.add_argument('-c', '--clermont_fasta', required=False, type=str, default='',
                         help='<Optional> A path to a fasta file listing out genes. Each records ID must be the '
                              'desired gene name.')
@@ -138,34 +140,48 @@ def get_concatenated_alignments(db: StrainDatabase, out_path: Path, marker_names
     )
 
 
-def get_marker_choice(db: StrainDatabase, marker_choice: str,
-                      uniprot_csv_path: Path, metaphlan_pkl_path: Path, clermont_genes_path: Path) -> Set[str]:
+def extract_metaphlan_markers(pkl_path: Path) -> Set[str]:
+    import bz2
+    import pickle
+
+    logger.info(f"Searching for E.coli markers from MetaPhlAn database: {pkl_path.stem}.")
+    with bz2.open(pkl_path, "r") as f:
+        db = pickle.load(f)
+
+    return set(
+        marker_key
+        for marker_key, marker_dict in db['markers'].items()
+        if 's__Escherichia_coli' in marker_dict['taxon']
+    )
+
+
+def get_marker_choice(db: StrainDatabase,
+                      marker_choice: str,
+                      uniprot_csv_path: Path,
+                      metaphlan3_pkl_path: Path,
+                      metaphlan4_pkl_path: Path,
+                      clermont_genes_path: Path) -> Set[str]:
     if marker_choice == "all":
         return db.all_marker_names()
-    elif marker_choice == "metaphlan":
-        if not metaphlan_pkl_path.exists():
+    elif marker_choice == "metaphlan3":
+        if not metaphlan3_pkl_path.exists():
             raise FileNotFoundError(
-                f"If specifying marker_choice == `metaphlan`, then a valid metaphlan pkl path must be provided. "
-                f"(Got: {metaphlan_pkl_path})"
+                f"If specifying marker_choice == `metaphlan3`, then a valid metaphlan pkl path must be provided. "
+                f"(Got: {metaphlan3_pkl_path})"
             )
-
-        import bz2
-        import pickle
-
-        logger.info(f"Searching for E.coli markers from MetaPhlAn database: {metaphlan_pkl_path.stem}.")
-        with bz2.open(metaphlan_pkl_path, "r") as f:
-            db = pickle.load(f)
-
-        return set(
-            marker_key
-            for marker_key, marker_dict in db['markers'].items()
-            if 's__Escherichia_coli' in marker_dict['taxon']
-        )
+        return extract_metaphlan_markers(metaphlan3_pkl_path)
+    elif marker_choice == "metaphlan4":
+        if not metaphlan4_pkl_path.exists():
+            raise FileNotFoundError(
+                f"If specifying marker_choice == `metaphlan4`, then a valid metaphlan pkl path must be provided. "
+                f"(Got: {metaphlan4_pkl_path})"
+            )
+        return extract_metaphlan_markers(metaphlan4_pkl_path)
     elif marker_choice == "mlst":
         if not uniprot_csv_path.exists():
             raise FileNotFoundError(
-                f"If specifying marker_choice == `metaphlan`, then a valid metaphlan pkl path must be provided. "
-                f"(Got: {metaphlan_pkl_path})"
+                f"If specifying marker_choice == `mlst`, then a valid CSV file that includes MLST genes must be provided. "
+                f"(Got: {uniprot_csv_path})"
             )
 
         target_genes = set()
@@ -187,8 +203,8 @@ def get_marker_choice(db: StrainDatabase, marker_choice: str,
     elif marker_choice == "clermont":
         if not clermont_genes_path.exists():
             raise FileNotFoundError(
-                f"If specifying marker_choice == `metaphlan`, then a valid metaphlan pkl path must be provided. "
-                f"(Got: {metaphlan_pkl_path})"
+                f"If specifying marker_choice == `clermont`, then a valid FASTA path must be provided. "
+                f"(Got: {clermont_genes_path})"
             )
 
         return {
@@ -210,8 +226,12 @@ def main():
         force_refresh=False
     )
 
-    marker_names = get_marker_choice(raw_db, args.marker_choice,
-                                     Path(args.uniprot_csv), Path(args.metaphlan_pkl), Path(args.clermont_fasta))
+    marker_names = get_marker_choice(raw_db,
+                                     args.marker_choice,
+                                     Path(args.uniprot_csv),
+                                     Path(args.metaphlan3_pkl),
+                                     Path(args.metaphlan4_pkl),
+                                     Path(args.clermont_fasta))
     get_concatenated_alignments(raw_db, Path(args.align_path), marker_names)
 
 

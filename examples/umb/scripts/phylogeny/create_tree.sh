@@ -5,7 +5,7 @@ export CHRONOSTRAIN_LOG_FILEPATH="${LOGDIR}/create_tree.log"
 
 
 for db_type in "raw" "pruned"; do
-	for gene_choice in "all" "metaphlan" "mlst" "clermont"; do
+	for gene_choice in "all" "metaphlan3" "metaphlan4" "mlst" "clermont"; do
 		if [[ "$db_type" == "pruned" ]]; then
 			db_json=$CHRONOSTRAIN_DB_JSON_PRUNED
 		else
@@ -26,7 +26,8 @@ for db_type in "raw" "pruned"; do
 					--marker_choice "${gene_choice}" \
 					--uniprot_csv ${BASE_DIR}/files/uniprot_markers.tsv \
 					--clermont_fasta ${BASE_DIR}/files/clermont_genes.fasta \
-					--metaphlan_pkl ${METAPHLAN_PKL_PATH}
+					--metaphlan3_pkl ${METAPHLAN_PKL_PATH} \
+					--metaphlan4_pkl ${METAPHLAN_PKL_PATH}
 		fi
 
 		tree_output_dir=${PHYLOGENY_OUTPUT_DIR}/tree_${gene_choice}_${db_type}
