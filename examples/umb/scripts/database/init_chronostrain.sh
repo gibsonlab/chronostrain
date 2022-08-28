@@ -55,6 +55,7 @@ python validate_database.py \
 echo "[*] Pruning database by hamming similarity."
 MULTIFASTA_FILE="all_strain_markers.fasta"
 cd ${BASE_DIR}/helpers
+python concatenated_multiple_alignments.py --raw_json ${CHRONOSTRAIN_DB_JSON_ALL} --align_path ${MULTI_ALIGN_PATH}
 python prune_chronostrain_db.py \
 --raw_json ${CHRONOSTRAIN_DB_JSON_ALL} \
 --merged_json ${CHRONOSTRAIN_DB_JSON_RESOLVED} \

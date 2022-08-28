@@ -6,10 +6,13 @@ export NCBI_REFSEQ_DIR="/mnt/e/ref_genomes"
 export PHYLOGENY_OUTPUT_DIR="/mnt/e/chronostrain/phylogeny"
 export LOGDIR="/mnt/e/chronostrain/phylogeny/logs"
 export CHRONOSTRAIN_DB_DIR="/mnt/e/chronostrain/umb_database"
-export MULTI_ALIGN_PATH="${CHRONOSTRAIN_DB_DIR}/strain_alignments/concatenation.fasta"
+export MULTI_ALIGN_DIR="${CHRONOSTRAIN_DB_DIR}/strain_alignments/"
 
 # ======== Location of this file.
 export SETTINGS_PATH="${BASE_DIR}/scripts/phylogeny/settings.sh"
+
+# ========
+export METAPHLAN_PKL_PATH="/home/lactis/anaconda3/envs/metaphlan/lib/python3.7/site-packages/metaphlan/metaphlan_databases/mpa_vJan21_CHOCOPhlAnSGB_202103.pkl"
 
 # ======== Chronostrain settings
 export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
