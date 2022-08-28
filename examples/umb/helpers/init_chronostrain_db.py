@@ -131,7 +131,7 @@ def create_chronostrain_db(
 
 def create_strain_entries(blast_results: Dict[str, Path], ref_gene_paths: Dict[str, Path], strain_df: pd.DataFrame):
     def _entry_initializer(_accession):
-        strain_row = strain_df.loc[strain_df['Accession'] == _accession, ['Genus', 'Species', 'Strain']].head(1)
+        strain_row = strain_df.loc[strain_df['Accession'] == _accession, :].head(1)
         subj_genus = strain_row['Genus'].item()
         subj_species = strain_row['Species'].item()
         subj_strain_name = strain_row['Strain'].item()
