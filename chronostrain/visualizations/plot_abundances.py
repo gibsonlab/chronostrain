@@ -306,9 +306,8 @@ def render_posterior_abundances(
             q_val_next = quantile_values[q_idx + 1]
             ax.fill_between(times, q_val, q_val_next, alpha=alpha, color=color, linewidth=0)
         if q > 0.5:
-            q_prev = quantiles[q_idx - 1]
+            alpha = 0.8 * (1 - (abs(q - 0.5) / 0.5))
             q_val_prev = quantile_values[q_idx - 1]
-            alpha = 0.8 * (1 - (abs(q_prev - 0.5) / 0.5))
             ax.fill_between(times, q_val_prev, q_val, alpha=alpha, color=color, linewidth=0)
 
     # Populate the legend.

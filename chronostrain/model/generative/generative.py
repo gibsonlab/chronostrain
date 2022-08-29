@@ -68,6 +68,8 @@ class GenerativeModel:
         self.db = db
         self._frag_freqs_sparse = None
         self._frag_freqs_dense = None
+
+        logger.debug(f"Model has inverse temperature = {cfg.model_cfg.inverse_temperature}")
         self.latent_conversion = lambda x: torch.softmax(cfg.model_cfg.inverse_temperature * x, dim=-1)
         # self.log_latent_conversion = lambda x: torch.log(sparsemax(x, dim=-1))
         self.log_latent_conversion = lambda x: (cfg.model_cfg.inverse_temperature * x) - torch.logsumexp(cfg.model_cfg.inverse_temperature * x, dim=-1, keepdim=True)
