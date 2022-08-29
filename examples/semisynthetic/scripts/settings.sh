@@ -2,9 +2,11 @@
 export PROJECT_DIR="/home/lactis/chronostrain"
 export BASE_DIR="${PROJECT_DIR}/examples/semisynthetic"
 export DATA_DIR="/mnt/e/semisynthetic_data"
-export CHRONOSTRAIN_DB_DIR="/mnt/e/chronostrain/umb_database"
+export UMB_DB_DIR="/mnt/e/chronostrain/umb_database"
+
+export MISC_DB_DIR="${DATA_DIR}/databases"
 export CHRONOSTRAIN_CACHE_DIR="${DATA_DIR}/cache"  # Default for all scripts; specify per script if desired!
-export MISC_DB_DIR="/mnt/e/chronostrain/semisynthetic"
+export CHRONOSTRAIN_DB_DIR="${MISC_DB_DIR}/chronostrain"
 
 # ==================== Read sampling settings
 export N_TRIALS=10
@@ -57,7 +59,7 @@ export CHRONOSTRAIN_OUTPUT_FILENAME="abundances.out"
 
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)
 export REFSEQ_INDEX="/mnt/e/ref_genomes/index.tsv"
-export CHRONOSTRAIN_DB_JSON="${DATA_DIR}/database.json"
+export CHRONOSTRAIN_DB_JSON="${CHRONOSTRAIN_DB_DIR}/database.json"
 export MULTIFASTA_FILE="ecoli_only.fasta"
 export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
 export CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"

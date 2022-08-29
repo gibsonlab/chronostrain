@@ -2,7 +2,10 @@
 set -e
 source settings.sh
 
+echo "[*] Symlinking database structure..."
+ln -s ${UMB_DB_DIR}/assemblies ${CHRONOSTRAIN_DB_DIR}/assemblies
 
+echo "[*] Extracting ecoli-only database."
 python ${BASE_DIR}/helpers/init_db.py \
--i "/mnt/e/chronostrain/umb_database/database_pruned.json" \
+-i "${UMB_DB_DIR}/database_pruned.json" \
 -o ${CHRONOSTRAIN_DB_JSON}
