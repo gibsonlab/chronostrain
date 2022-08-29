@@ -11,8 +11,9 @@ export MULTI_ALIGN_DIR="${CHRONOSTRAIN_DB_DIR}/strain_alignments"
 # ======== Location of this file.
 export SETTINGS_PATH="${BASE_DIR}/scripts/phylogeny/settings.sh"
 
-# ========
-export METAPHLAN_PKL_PATH="/home/lactis/anaconda3/envs/metaphlan/lib/python3.7/site-packages/metaphlan/metaphlan_databases/mpa_vJan21_CHOCOPhlAnSGB_202103.pkl"
+# ======== MetaPhlAn settings
+export METAPHLAN4_PKL_PATH="/mnt/e/metaphlan_databases/mpa_vJan21_CHOCOPhlAnSGB_202103/mpa_vJan21_CHOCOPhlAnSGB_202103.pkl"
+export METAPHLAN3_PKL_PATH="/mnt/e/metaphlan_databases/mpa_v31_CHOCOPhlAn_201901/mpa_v31_CHOCOPhlAn_201901.pkl"
 
 # ======== Chronostrain settings
 export CHRONOSTRAIN_DB_JSON_ALL="${CHRONOSTRAIN_DB_DIR}/database_all.json"
