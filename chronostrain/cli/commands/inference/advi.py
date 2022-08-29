@@ -177,7 +177,8 @@ def main(
             out_path=animation_path,
             upper_quantiles=uppers,
             lower_quantiles=lowers,
-            medians=medians
+            medians=medians,
+            elbo_history=elbo_history,
         )
 
     # ==== Plot the posterior.
