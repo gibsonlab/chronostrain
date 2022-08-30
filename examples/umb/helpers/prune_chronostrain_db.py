@@ -1,23 +1,15 @@
 import argparse
 from pathlib import Path
 from typing import List, Dict, Any
+import itertools
+import math
 import json
 
 from Bio import SeqIO
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
 
 import numpy as np
 from chronostrain.util.sequences import nucleotides_to_z4
-from chronostrain.database import JSONStrainDatabase, StrainDatabase
-from chronostrain.model import Marker
-from chronostrain.util.external import mafft_global
-
 from sklearn.cluster import AgglomerativeClustering
-import itertools
-import math
-
-from chronostrain.config import cfg
 from chronostrain.logging import create_logger
 logger = create_logger("chronostrain.prune_db")
 
@@ -28,10 +20,8 @@ def parse_args():
     )
 
     # Input specification.
-    parser.add_argument('--raw_json', required=True, type=str,
+    parser.add_argument('--source_json', required=True, type=str,
                         help='<Required> The raw database JSON file, PRIOR to resolving overlaps.')
-    parser.add_argument('--merged_json', required=True, type=str,
-                        help='<Required> The merged database JSON file, with overlaps resolved via merging.')
     parser.add_argument('--output_json', required=True, type=str,
                         help='<Required> The output database JSON file.')
     parser.add_argument('--align_path', required=True, type=str,
@@ -39,15 +29,17 @@ def parse_args():
     return parser.parse_args()
 
 
-def prune_db(strain_ids: List[str], input_json_path: Path, output_json_path: Path, alignments_path: Path):
+def prune_db(input_json_path: Path, output_json_path: Path, alignments_path: Path):
     logger.info("Preprocessing for pruning.")
     # parse json entries.
     entries: Dict[str, Dict[str, Any]] = {}
+    strain_ids = []
     with open(input_json_path, "r") as f:
         _initial_strain_entries = json.load(f)
         for strain_entry in _initial_strain_entries:
             accession = strain_entry['id']
             entries[accession] = strain_entry
+            strain_ids.append(accession)
 
     # Read the alignments.
     alignments: Dict[str, np.ndarray] = {}
@@ -132,21 +124,11 @@ def pick_cluster_representatives(clusters: List[List[int]], distances: np.ndarra
 def main():
     args = parse_args()
 
-    raw_json_path = Path(args.raw_json)
-    merged_json_path = Path(args.merged_json)
+    source_json_path = Path(args.source_json)
     output_json_path = Path(args.output_json)
-
-    raw_db = JSONStrainDatabase(
-        entries_file=raw_json_path,
-        data_dir=cfg.database_cfg.data_dir,
-        marker_max_len=cfg.database_cfg.db_kwargs['marker_max_len'],
-        force_refresh=False
-    )
-
     alignments_path = Path(args.align_path)
     prune_db(
-        [s.id for s in raw_db.all_strains()],
-        merged_json_path,
+        source_json_path,
         output_json_path,
         alignments_path
     )

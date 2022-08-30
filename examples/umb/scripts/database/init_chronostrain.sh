@@ -45,19 +45,18 @@ python init_chronostrain_db.py \
 --reference_accession "U00096.3"
 
 
-echo "[*] Resolving overlaps."
-python validate_database.py \
---refseq_index ${NCBI_REFSEQ_DIR}/index.tsv \
--i ${CHRONOSTRAIN_DB_JSON_ALL} \
--o ${CHRONOSTRAIN_DB_JSON_RESOLVED}
-
-
 echo "[*] Pruning database by hamming similarity."
 MULTIFASTA_FILE="all_strain_markers.fasta"
 cd ${BASE_DIR}/helpers
 python concatenated_multiple_alignments.py --raw_json ${CHRONOSTRAIN_DB_JSON_ALL} --align_path ${MULTI_ALIGN_PATH}
 python prune_chronostrain_db.py \
---raw_json ${CHRONOSTRAIN_DB_JSON_ALL} \
---merged_json ${CHRONOSTRAIN_DB_JSON_RESOLVED} \
+--source_json ${CHRONOSTRAIN_DB_JSON_ALL} \
 --output_json ${CHRONOSTRAIN_DB_JSON_PRUNED} \
 --align_path ${MULTI_ALIGN_PATH}
+
+
+echo "[*] Resolving overlaps."
+python validate_database.py \
+--refseq_index ${NCBI_REFSEQ_DIR}/index.tsv \
+-i ${CHRONOSTRAIN_DB_JSON_PRUNED} \
+-o ${CHRONOSTRAIN_DB_JSON_RESOLVED}

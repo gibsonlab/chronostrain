@@ -81,14 +81,13 @@ def get_all_alignments(db: StrainDatabase, work_dir: Path, marker_names: Set[str
     return all_alignments
 
 
-def get_concatenated_alignments(db: StrainDatabase, out_path: Path, marker_names: Set[str]):
+def get_concatenated_alignments(db: StrainDatabase, out_path: Path, marker_names: List[str]):
     """
     Generates a single FASTA file containing the concatenation of the multiple alignments of each marker gene.
     If a gene is missing from a strain, gaps are appended instead.
     If multiple hits are found, then the first available one is used (found in the same order as BLAST hits).
     """
-    all_marker_alignments = get_all_alignments(db, out_path.parent / "alignments_for_pruning", marker_names)
-    marker_name_list = list(marker_names)
+    all_marker_alignments = get_all_alignments(db, out_path.parent / "alignments_for_pruning", set(marker_names))
 
     records: List[SeqRecord] = []
     for strain in db.all_strains():
@@ -100,17 +99,15 @@ def get_concatenated_alignments(db: StrainDatabase, out_path: Path, marker_names
             if marker.name not in marker_names:
                 continue
 
-            # if a previous one exists, check which is longer.
+            # Using marker that comes first in the listing (usually the highest idty blast hit)"
             if marker.name in strain_marker_map:
-                other = strain_marker_map[marker.name]
-                if len(marker) > len(other):
-                    strain_marker_map[marker.name] = marker
-            else:
-                strain_marker_map[marker.name] = marker
+                continue
+
+            strain_marker_map[marker.name] = marker
 
         # Concatenate the alignment sequence in the particular order.
         target_gene_ids = []
-        for gene_name in marker_name_list:
+        for gene_name in marker_names:
             record_map = all_marker_alignments[gene_name]
 
             if gene_name not in strain_marker_map:
@@ -160,23 +157,23 @@ def get_marker_choice(db: StrainDatabase,
                       uniprot_csv_path: Path,
                       metaphlan3_pkl_path: Path,
                       metaphlan4_pkl_path: Path,
-                      clermont_genes_path: Path) -> Set[str]:
+                      clermont_genes_path: Path) -> List[str]:
     if marker_choice == "all":
-        return db.all_marker_names()
+        return sorted(db.all_marker_names())
     elif marker_choice == "metaphlan3":
         if not metaphlan3_pkl_path.exists():
             raise FileNotFoundError(
                 f"If specifying marker_choice == `metaphlan3`, then a valid metaphlan pkl path must be provided. "
                 f"(Got: {metaphlan3_pkl_path})"
             )
-        return extract_metaphlan_markers(metaphlan3_pkl_path)
+        return sorted(extract_metaphlan_markers(metaphlan3_pkl_path))
     elif marker_choice == "metaphlan4":
         if not metaphlan4_pkl_path.exists():
             raise FileNotFoundError(
                 f"If specifying marker_choice == `metaphlan4`, then a valid metaphlan pkl path must be provided. "
                 f"(Got: {metaphlan4_pkl_path})"
             )
-        return extract_metaphlan_markers(metaphlan4_pkl_path)
+        return sorted(extract_metaphlan_markers(metaphlan4_pkl_path))
     elif marker_choice == "mlst":
         if not uniprot_csv_path.exists():
             raise FileNotFoundError(
@@ -199,7 +196,7 @@ def get_marker_choice(db: StrainDatabase,
 
                 if "MLST" in metadata:
                     target_genes.add(gene_name)
-        return target_genes
+        return sorted(target_genes)
     elif marker_choice == "clermont":
         if not clermont_genes_path.exists():
             raise FileNotFoundError(
@@ -207,10 +204,10 @@ def get_marker_choice(db: StrainDatabase,
                 f"(Got: {clermont_genes_path})"
             )
 
-        return {
+        return sorted({
             record.id
             for record in SeqIO.parse(clermont_genes_path, 'fasta')
-        }
+        })
     else:
         raise ValueError(f"Unrecognized marker_choice string `{marker_choice}`")
 
