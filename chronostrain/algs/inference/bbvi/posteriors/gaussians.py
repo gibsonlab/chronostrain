@@ -49,7 +49,7 @@ class GaussianPosteriorFullReparametrizedCorrelation(ReparametrizedGaussianPoste
             bias=True,
             device=cfg.torch_cfg.device
         )
-        init_diag(self.reparam_network.weight, scale=INIT_SCALE)
+        init_diag(self.reparam_network.weight, scale=np.log(INIT_SCALE))
         torch.nn.init.constant_(self.reparam_network.bias, 0)
 
         self.parameters = list(self.reparam_network.parameters())
