@@ -437,8 +437,6 @@ def all_ecoli_strain_ids(index_path: Path) -> List[str]:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument('-b', '--base_data_dir', type=str, required=True)
-    parser.add_argument('-i', '--index_path', type=str, required=True)
-    parser.add_argument('-a', '--alignment_file', type=str, required=True)
     parser.add_argument('-o', '--out_dir', type=str, required=True)
     parser.add_argument('-g', '--ground_truth_path', type=str, required=True)
     return parser.parse_args()
@@ -643,7 +641,6 @@ def main():
 
     # Necessary precomputation.
     ground_truth = load_ground_truth(Path(args.ground_truth_path))
-    index_df = pd.read_csv(args.index_path, sep='\t')
     chronostrain_db = cfg.database_cfg.get_database()
     out_dir.mkdir(exist_ok=True, parents=True)
 
