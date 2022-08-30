@@ -238,28 +238,60 @@ class SparseFragmentFrequencyComputer(FragmentFrequencyComputer):
             dtype=cfg.torch_cfg.default_dtype
         ))
 
+    # def frag_log_ll(self, frag: Fragment, strain: Strain, hits: List[Tuple[Marker, int]]) -> float:
+    #     window_lens = torch.arange(
+    #         len(frag),
+    #         1 + max(int(self.frag_length_rv.mean() + 2 * self.frag_length_rv.std()), len(frag)),
+    #         dtype=cfg.torch_cfg.default_dtype
+    #     )  # 1-dimensional, [|f|, |f|+1, ..., µ+2σ], length = W
+    #
+    #     n_total_windows = strain.metadata.total_len - window_lens + 1
+    #
+    #     def is_edge_positioned(marker: Marker, pos: int) -> bool:
+    #         return (pos == 1) or (pos == len(marker) - len(frag) + 1)
+    #
+    #     # the number of windows which ``look like'' the read.
+    #     n_matching_windows = torch.sum(
+    #         torch.unsqueeze(torch.tensor([is_edge_positioned(m, p) for m, p in hits], dtype=torch.bool), 1)  # (N_HITS) x 1
+    #         | torch.unsqueeze(window_lens == len(frag), 0),  # (1 x W)
+    #         dim=0
+    #     )  # length W
+    #
+    #     return float(torch.logsumexp(
+    #         torch.tensor(self.frag_length_rv.logpmf(window_lens))  # window length prior
+    #         + torch.log(n_matching_windows) - torch.log(n_total_windows),  # proportion of hitting windows versus entire strain.
+    #         dim=0,
+    #         keepdim=False
+    #     ).item())
+
     def frag_log_ll(self, frag: Fragment, strain: Strain, hits: List[Tuple[Marker, int]]) -> float:
+        marker_lengths = torch.tensor([len(marker) for marker in strain.markers], dtype=cfg.torch_cfg.default_dtype)
+
         window_lens = torch.arange(
             len(frag),
             1 + max(int(self.frag_length_rv.mean() + 2 * self.frag_length_rv.std()), len(frag)),
             dtype=cfg.torch_cfg.default_dtype
-        )  # 1-dimensional, [|f|, |f|+1, ..., µ+2σ], length = W
+        )
 
-        n_total_windows = strain.metadata.total_len - window_lens + 1
+        n_windows = torch.sum(
+            torch.unsqueeze(marker_lengths, 1)  # (M x 1)
+            + torch.unsqueeze((2 * (1 - self.min_overlap_ratio) * window_lens) - window_lens + 1, 0),  # (1 x W)
+            dim=0
+        )  # length W
 
         def is_edge_positioned(marker: Marker, pos: int) -> bool:
             return (pos == 1) or (pos == len(marker) - len(frag) + 1)
 
-        # the number of windows which ``look like'' the read.
         n_matching_windows = torch.sum(
-            torch.unsqueeze(torch.tensor([is_edge_positioned(m, p) for m, p in hits], dtype=torch.bool), 1)  # (N_HITS) x 1
+            torch.unsqueeze(torch.tensor([is_edge_positioned(m, p) for m, p in hits], dtype=torch.bool), 1)  # H x 1
             | torch.unsqueeze(window_lens == len(frag), 0),  # (1 x W)
             dim=0
         )  # length W
 
         return float(torch.logsumexp(
-            torch.tensor(self.frag_length_rv.logpmf(window_lens))  # window length prior
-            + torch.log(n_matching_windows) - torch.log(n_total_windows),  # proportion of hitting windows versus entire strain.
+            torch.tensor(self.frag_length_rv.logpmf(window_lens))
+            + torch.log(n_matching_windows)
+            - torch.log(n_windows),
             dim=0,
             keepdim=False
         ).item())

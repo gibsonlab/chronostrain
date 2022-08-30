@@ -77,7 +77,6 @@ class ADVIGaussianSolver(AbstractADVISolver):
         yield entropic
 
         log_y = self.model.log_latent_conversion(x_samples)
-        n_samples = x_samples.shape[1]
         for t_idx in range(self.model.num_times()):
             for batch_idx, batch_lls in enumerate(self.batches[t_idx]):
                 # prod = y[t_idx] @ batch_lls.exp()
@@ -86,8 +85,8 @@ class ADVIGaussianSolver(AbstractADVISolver):
                 # yield nonzero_data_ll
 
                 # Average of (N x R_batch) entries, we only want to divide by 1/N and not 1/(N*R_batch)
-                data_ll = batch_lls.shape[1] * torch.mean(log_mm_exp(log_y[t_idx], batch_lls))
-                yield data_ll
+                batch_data_ll = batch_lls.shape[1] * torch.mean(log_mm_exp(log_y[t_idx], batch_lls))
+                yield batch_data_ll
 
     def data_ll(self, x_samples: torch.Tensor) -> torch.Tensor:
         ans = torch.zeros(size=(x_samples.shape[1],), device=x_samples.device)
