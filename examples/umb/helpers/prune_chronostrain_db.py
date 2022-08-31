@@ -31,15 +31,6 @@ def parse_args():
 
 def prune_db(input_json_path: Path, output_json_path: Path, alignments_path: Path):
     logger.info("Preprocessing for pruning.")
-    # parse json entries.
-    entries: Dict[str, Dict[str, Any]] = {}
-    strain_ids = []
-    with open(input_json_path, "r") as f:
-        _initial_strain_entries = json.load(f)
-        for strain_entry in _initial_strain_entries:
-            accession = strain_entry['id']
-            entries[accession] = strain_entry
-            strain_ids.append(accession)
 
     # Read the alignments.
     alignments: Dict[str, np.ndarray] = {}
@@ -48,6 +39,23 @@ def prune_db(input_json_path: Path, output_json_path: Path, alignments_path: Pat
         accession = record.id
         alignments[accession] = nucleotides_to_z4(str(record.seq))
         align_len = len(record.seq)
+
+    # parse json entries.
+    entries: Dict[str, Dict[str, Any]] = {}
+    strain_ids = []
+    with open(input_json_path, "r") as f:
+        _initial_strain_entries = json.load(f)
+        for strain_entry in _initial_strain_entries:
+            accession = strain_entry['id']
+            if accession not in alignments:
+                logger.warning(
+                    f"Strain `{accession} not found in the multiple alignments. "
+                    f"This is to be expected, if it wasn't parseable. "
+                    f"Check the logs which first loaded the database."
+                )
+                continue
+            entries[accession] = strain_entry
+            strain_ids.append(accession)
 
     logger.info("Computing distances.")
     distances = np.zeros(shape=(len(strain_ids), len(strain_ids)), dtype=int)
