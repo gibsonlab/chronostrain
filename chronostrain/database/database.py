@@ -25,7 +25,9 @@ class StrainDatabase(object):
                  force_refresh: bool = False):
         self.backend = backend
         self.name = name
-        self.marker_multifasta_file = data_dir / f'__{name}_MARKERS.fasta'
+
+        all_markers_base_name = f'__{name}_MARKERS'
+        self.marker_multifasta_file = data_dir / all_markers_base_name / f'all_markers.fasta'
         self.initialize(parser, force_refresh)
 
     def initialize(self, parser: AbstractDatabaseParser, force_refresh: bool):
