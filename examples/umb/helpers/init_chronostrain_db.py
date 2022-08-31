@@ -455,6 +455,11 @@ def main():
 
     loaders = []
 
+    if args.genes_fasta is not None:
+        loaders.append(
+            FastaLoader(Path(args.genes_fasta))
+        )
+
     if args.uniprot_csv is not None:
         loaders.append(
             UniProtLoader(Path(args.uniprot_csv), args.reference_accession)
@@ -465,11 +470,6 @@ def main():
             loaders.append(
                 MetaphlanLoader(Path(f))
             )
-
-    if args.genes_fasta is not None:
-        loaders.append(
-            FastaLoader(Path(args.genes_fasta))
-        )
 
     output_path = Path(args.output_path)
 
