@@ -174,13 +174,16 @@ class CachedMarkerSource(MarkerSource):
         )
 
     def load_from_disk(self, marker_id: str, marker_name: str, is_canonical: bool, marker_filepath: Path):
-        marker_seq = nucleotides_to_z4(
-            str(SeqIO.read(marker_filepath, "fasta").seq)
-        )
+        # noinspection PyBroadException
+        try:
+            seq = str(SeqIO.read(marker_filepath, "fasta").seq)
+        except Exception as e:
+            raise RuntimeError("Encountered an error while loading cached marker sequence. "
+                               "The database may be corrupeted.") from e
         return Marker(
             id=marker_id,
             name=marker_name,
-            seq=marker_seq,
+            seq=nucleotides_to_z4(seq),
             canonical=is_canonical,
             metadata=MarkerMetadata(
                 parent_strain=self.strain_id,
