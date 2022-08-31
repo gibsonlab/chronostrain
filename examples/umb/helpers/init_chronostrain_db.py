@@ -436,7 +436,8 @@ def retrieve_reference(loaders: List[GeneLoader]) -> Dict[str, Path]:
     for loader in loaders:
         for gene_name, record in loader.load_genes():
             if gene_name in gene_paths:
-                raise RuntimeError(f"gene `{gene_name}` was found in two separate instances.")
+                logger.warning(f"gene `{gene_name}` was found in two separate instances. "
+                               f"Skipping loader {loader.__class__.__name__}")
 
             gene_out_path = target_dir / f"{gene_name}.fasta"
             SeqIO.write(record, gene_out_path, "fasta")
