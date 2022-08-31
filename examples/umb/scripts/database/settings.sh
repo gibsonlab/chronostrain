@@ -16,7 +16,7 @@ export BLAST_DB_NAME="esch_chrom"
 # ======== Chronostrain setting
 export MULTI_ALIGN_PATH="${CHRONOSTRAIN_DB_DIR}/strain_alignments/concatenation.fasta"
 export CHRONOSTRAIN_DB_JSON_ALL="${CHRONOSTRAIN_DB_DIR}/database_all.json"
-export CHRONOSTRAIN_DB_JSON_RESOLVED="${CHRONOSTRAIN_DB_DIR}/database_all.resolved.json"
+export CHRONOSTRAIN_DB_JSON_RESOLVED="${CHRONOSTRAIN_DB_DIR}/database_pruned_resolved.json"
 export CHRONOSTRAIN_DB_JSON_PRUNED="${CHRONOSTRAIN_DB_DIR}/database_pruned.json"
 export CHRONOSTRAIN_DB_JSON="${CHRONOSTRAIN_DB_JSON_PRUNED}"
 export CHRONOSTRAIN_CACHE_DIR="${CHRONOSTRAIN_DB_DIR}/cache"
