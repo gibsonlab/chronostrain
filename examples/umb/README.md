@@ -14,8 +14,9 @@ In addition, it requires the installation of these programs (most are available 
 - trimmomatic
 - gzip
 
-and these python packages:
+and these python packages:u
 - bioservices (for UniProt access)
+- IntervalTree (for marker overlap detection)
 
 Optionally, for deriving the E.coli clades, we used ClermonTyping.
 Its command-line inputs can be programmatically generated using `bash helpers/create_clermontyping_input.sh`
