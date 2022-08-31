@@ -72,7 +72,10 @@ class GenerativeModel:
         logger.debug(f"Model has inverse temperature = {cfg.model_cfg.inverse_temperature}")
         self.latent_conversion = lambda x: torch.softmax(cfg.model_cfg.inverse_temperature * x, dim=-1)
         # self.log_latent_conversion = lambda x: torch.log(sparsemax(x, dim=-1))
-        self.log_latent_conversion = lambda x: (cfg.model_cfg.inverse_temperature * x) - torch.logsumexp(cfg.model_cfg.inverse_temperature * x, dim=-1, keepdim=True)
+        def _log_softmax(x):
+            _x = cfg.model_cfg.inverse_temperature * x
+            return _x - torch.logsumexp(_x, dim=-1, keepdim=True)
+        self.log_latent_conversion = _log_softmax
 
     def num_times(self) -> int:
         return len(self.times)
