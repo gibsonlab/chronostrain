@@ -264,9 +264,10 @@ class SubseqMarkerEntry(MarkerEntry):
 
 
 class UnknownSourceNucleotideError(BaseException):
-    def __init__(self, e: UnknownNucleotideError, src: str):
+    def __init__(self, e: UnknownNucleotideError, src: str, marker_entry: MarkerEntry):
         self.nucleotide = e.nucleotide
         self.src = src
+        self.marker_entry = marker_entry
 
 
 class JSONParser(AbstractDatabaseParser):
@@ -309,11 +310,13 @@ class JSONParser(AbstractDatabaseParser):
                 force_download=self.force_refresh
             )
 
-            try:
-                for marker in self.parse_markers(marker_entries, marker_src):
-                    strain_markers.append(marker)
-            except UnknownNucleotideError as e:
-                raise UnknownSourceNucleotideError(e, marker_src.seq_accession) from None
+            for marker_entry in marker_entries:
+                try:
+                    marker = self.parse_marker(marker_entry, marker_src)
+                except UnknownNucleotideError as e:
+                    raise UnknownSourceNucleotideError(e, marker_src.seq_accession, marker_entry) from None
+
+                strain_markers.append(marker)
         if len(strain_markers) == 0:
             logger.warning("No markers parsed for strain entry {}.".format(
                 str(strain_entry)
@@ -340,37 +343,36 @@ class JSONParser(AbstractDatabaseParser):
             )
         )
 
-    def parse_markers(self, marker_entries: List[MarkerEntry], marker_src: MarkerSource) -> Iterator[Marker]:
-        for marker_entry in marker_entries:
-            if isinstance(marker_entry, TagMarkerEntry):
-                marker = marker_src.extract_from_locus_tag(
-                    marker_entry.marker_id,
-                    marker_entry.name,
-                    marker_entry.is_canonical,
-                    marker_entry.locus_tag
-                )
-            elif isinstance(marker_entry, PrimerMarkerEntry):
-                marker = marker_src.extract_from_primer(
-                    marker_entry.marker_id,
-                    marker_entry.name,
-                    marker_entry.is_canonical,
-                    marker_entry.forward,
-                    marker_entry.reverse
-                )
-            elif isinstance(marker_entry, SubseqMarkerEntry):
-                marker = marker_src.extract_subseq(
-                    marker_entry.marker_id,
-                    marker_entry.name,
-                    marker_entry.is_canonical,
-                    marker_entry.start_pos,
-                    marker_entry.end_pos,
-                    marker_entry.is_negative_strand
-                )
-            else:
-                raise NotImplementedError(
-                    f"Unsupported entry class `{marker_entry.__class__.__name__}`."
-                )
-            yield marker
+    def parse_marker(self, marker_entry: MarkerEntry, marker_src: MarkerSource) -> Marker:
+        if isinstance(marker_entry, TagMarkerEntry):
+            marker = marker_src.extract_from_locus_tag(
+                marker_entry.marker_id,
+                marker_entry.name,
+                marker_entry.is_canonical,
+                marker_entry.locus_tag
+            )
+        elif isinstance(marker_entry, PrimerMarkerEntry):
+            marker = marker_src.extract_from_primer(
+                marker_entry.marker_id,
+                marker_entry.name,
+                marker_entry.is_canonical,
+                marker_entry.forward,
+                marker_entry.reverse
+            )
+        elif isinstance(marker_entry, SubseqMarkerEntry):
+            marker = marker_src.extract_subseq(
+                marker_entry.marker_id,
+                marker_entry.name,
+                marker_entry.is_canonical,
+                marker_entry.start_pos,
+                marker_entry.end_pos,
+                marker_entry.is_negative_strand
+            )
+        else:
+            raise NotImplementedError(
+                f"Unsupported entry class `{marker_entry.__class__.__name__}`."
+            )
+        return marker
 
     def strains(self) -> Iterator[Strain]:
         logger.info("Loading from JSON marker database file {}.".format(self.entries_file))
@@ -378,6 +380,9 @@ class JSONParser(AbstractDatabaseParser):
             try:
                 yield self.parse_strain(strain_entry)
             except UnknownSourceNucleotideError as e:
-                logger.warning(f"Skipping strain entry {strain_entry.id}, "
-                               f"due to unknown nucleotide {e.nucleotide} (possible IUPAC code) in {e.src}.")
+                logger.warning(
+                    f"Encountered an unknown nucleotide {e.nucleotide} (possible IUPAC code) in {e.src}, "
+                    f"while parsing marker {e.marker_entry.marker_id}. "
+                    f"Skipping strain {strain_entry.id}."
+                )
                 continue
