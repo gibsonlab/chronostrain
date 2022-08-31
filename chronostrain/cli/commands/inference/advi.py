@@ -37,7 +37,7 @@ from ..base import option
          'improvements before decaying lr.'
 )
 @option(
-    '--min-lr', 'min_lr', type=float, default=1e-5,
+    '--min-lr', 'min_lr', type=float, default=1e-4,
     help='Stop the algorithm when the LR is below this threshold.'
 )
 @option(
