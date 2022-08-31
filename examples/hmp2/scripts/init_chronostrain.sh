@@ -24,7 +24,6 @@ python ${BASE_DIR}/helpers/init_chronostrain_db.py \
 -r ${NCBI_REFSEQ_DIR}
 
 echo "[*] Pruning database by hamming similarity."
-MULTIFASTA_FILE="all_strain_markers.fasta"
 python ${BASE_DIR}/helpers/prune_chronostrain_db.py \
 --input_json ${CHRONOSTRAIN_DB_JSON} \
 --output_json ${CHRONOSTRAIN_DB_JSON_PRUNED} \

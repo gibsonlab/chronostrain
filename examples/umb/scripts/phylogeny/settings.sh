@@ -23,7 +23,6 @@ export CHRONOSTRAIN_DB_JSON="${CHRONOSTRAIN_DB_JSON_ALL}"
 export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
 export CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"
 export CHRONOSTRAIN_CACHE_DIR="${PHYLOGENY_OUTPUT_DIR}/cache"
-export MULTIFASTA_FILE="all_markers.fasta"
 
 
 # ========= Done.

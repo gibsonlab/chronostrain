@@ -41,7 +41,6 @@ export CHRONOSTRAIN_CACHE_DIR="${OUTPUT_DIR}/cache"
 export CHRONOSTRAIN_OUTPUT_FILENAME="abundances.out"
 
 export CHRONOSTRAIN_DB_JSON="${CHRONOSTRAIN_DB_DIR}/database_pruned_resolved.json"
-export MULTIFASTA_FILE="strain_markers.fasta"
 
 # ======== STRAINGE
 export STRAINGE_DB=/mnt/e/strainge/straingst_umb/pan-genome-db.hdf5

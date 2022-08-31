@@ -21,10 +21,11 @@ class StrainDatabase(object):
                  parser: AbstractDatabaseParser,
                  backend: AbstractStrainDatabaseBackend,
                  data_dir: Path,
-                 multifasta_filename: str = 'all_markers.fasta',
+                 name: str,
                  force_refresh: bool = False):
         self.backend = backend
-        self.marker_multifasta_file = data_dir / multifasta_filename
+        self.name = name
+        self.marker_multifasta_file = data_dir / f'_{name}_data' / 'database_markers.fasta'
         self.initialize(parser, force_refresh)
 
     def initialize(self, parser: AbstractDatabaseParser, force_refresh: bool):
@@ -161,8 +162,7 @@ class JSONStrainDatabase(StrainDatabase):
                  entries_file: Union[str, Path],
                  marker_max_len: int,
                  data_dir: Path,
-                 force_refresh: bool = False,
-                 multifasta_filename: str = 'all_markers.fasta'):
+                 force_refresh: bool = False):
         if isinstance(entries_file, str):
             entries_file = Path(entries_file)
 
@@ -172,7 +172,7 @@ class JSONStrainDatabase(StrainDatabase):
                             marker_max_len,
                             force_refresh)
         backend = PandasAssistedBackend()
-        super().__init__(parser, backend, data_dir, multifasta_filename)
+        super().__init__(parser, backend, data_dir, parser.entries_file.stem)
 
     @property
     def pickle_path(self) -> Path:

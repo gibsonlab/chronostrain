@@ -28,7 +28,6 @@ export CHRONOSTRAIN_CACHE_DIR="${OUTPUT_DIR}/cache"
 export CHRONOSTRAIN_OUTPUT_FILENAME="abundances.out"
 
 export CHRONOSTRAIN_DB_JSON="${CHRONOSTRAIN_DB_DIR}/database_pruned_resolved.json"
-export MULTIFASTA_FILE="strain_markers.fasta"
 
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)
 export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"

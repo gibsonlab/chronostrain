@@ -60,7 +60,6 @@ export CHRONOSTRAIN_OUTPUT_FILENAME="abundances.out"
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)
 export REFSEQ_INDEX="/mnt/e/ref_genomes/index.tsv"
 export CHRONOSTRAIN_DB_JSON="${CHRONOSTRAIN_DB_DIR}/database.json"
-export MULTIFASTA_FILE="ecoli_only.fasta"
 export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
 export CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"
 

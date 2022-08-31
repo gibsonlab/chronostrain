@@ -20,7 +20,6 @@ export CHRONOSTRAIN_DB_JSON_RESOLVED="${CHRONOSTRAIN_DB_DIR}/database_pruned_res
 export CHRONOSTRAIN_DB_JSON_PRUNED="${CHRONOSTRAIN_DB_DIR}/database_pruned.json"
 export CHRONOSTRAIN_DB_JSON="${CHRONOSTRAIN_DB_JSON_PRUNED}"
 export CHRONOSTRAIN_CACHE_DIR="${CHRONOSTRAIN_DB_DIR}/cache"
-export MULTIFASTA_FILE="strain_markers.fasta"
 
 # ======== MetaPhlAn settings
 export METAPHLAN4_PKL_PATH="/mnt/e/metaphlan_databases/mpa_vJan21_CHOCOPhlAnSGB_202103/mpa_vJan21_CHOCOPhlAnSGB_202103.pkl"
