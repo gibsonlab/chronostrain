@@ -23,12 +23,6 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def flip_strand(start, end, total) -> Tuple[int, int]:
-    new_start = total - end + 1
-    new_end = total - start + 1
-    return new_start, new_end
-
-
 def has_overlap(start1, end1, start2, end2):
     return (
             ((start1 <= start2) & (start2 <= end1))
@@ -112,20 +106,9 @@ def find_and_resolve_overlaps(strain, refseq_index: pd.DataFrame):
         t[x:(y + 1)] = item
 
     strain_id = strain['id']
-    chromosome_path = refseq_index.loc[refseq_index['Accession'] == strain_id, 'SeqPath'].item()
-    record = SeqIO.read(chromosome_path, format='fasta')
-    genome_len = len(record)
-
     for marker in strain['markers']:
-        strand = marker['strand']
-        strand_start = marker['start']
-        strand_end = marker['end']
-        if strand == '+':
-            marker_start, marker_end = strand_start, strand_end
-        elif strand == '-':
-            marker_start, marker_end = flip_strand(strand_start, strand_end, genome_len)
-        else:
-            raise RuntimeError(f"Unexpected strand `{strand}`")
+        marker_start = marker['start']
+        marker_end = marker['end']
 
         add_to_tree(marker_start, marker_end, marker)
 

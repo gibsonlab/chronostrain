@@ -250,6 +250,10 @@ def parse_blast_hits(blast_result_path: Path) -> Dict[str, List[BlastHit]]:
                 subj_end_pos = subj_end
                 strand = '+'
             else:
+                """
+                BLAST convention: if hit is on the minus strand, start > end (to indicate the negative direction).
+                *** IMPORTANT *** --- note that the actual VALUES of (start, end) is with respect to the plus strand.
+                """
                 subj_start_pos = subj_end
                 subj_end_pos = subj_start
                 strand = '-'
