@@ -23,5 +23,5 @@ do
 	chronostrain filter \
 	-r ${READS_DIR}/${csv_file} \
 	-o "${READS_DIR}/${sample_name}_filtered" \
-	--aligner "bwa"
+	--aligner "bowtie2"
 done

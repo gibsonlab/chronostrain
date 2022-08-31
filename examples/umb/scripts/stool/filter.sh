@@ -15,5 +15,5 @@ do
 	chronostrain filter \
 	-r "${READS_DIR}/${umb_id}_inputs.csv" \
 	-o "${READS_DIR}/${umb_id}_filtered" \
-	--aligner "bwa"
+	--aligner "bowtie2"
 done
