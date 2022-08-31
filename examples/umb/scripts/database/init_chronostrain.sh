@@ -32,8 +32,7 @@ rm ${REFSEQ_FASTA_FILE}
 cd -
 
 echo "[*] Initializing database."
-cd ${BASE_DIR}/helpers
-python init_chronostrain_db.py \
+python ${BASE_DIR}/helpers/init_chronostrain_db.py \
 -o ${CHRONOSTRAIN_DB_JSON_ALL} \
 -dbdir ${BLAST_DB_DIR} \
 -dbname ${BLAST_DB_NAME} \
