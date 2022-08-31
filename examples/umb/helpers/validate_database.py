@@ -89,10 +89,12 @@ def merge_markers(refseq_index: pd.DataFrame, strain: Dict, start: int, end: int
         "source": strain['id'],
         "start": start,
         "end": end,
-        "strand": "+",
+        "strand": "+",  # by convention
         "canonical": False,
-        "members": [m['id'] for m in to_merge],
-        "member_names": "+".join(sorted(m['name'] for m in to_merge))
+        "_merged_members": [
+            {'id': m['id'], 'name': m['name'], 'strand': m['strand']}
+            for m in to_merge
+        ]
     }]
 
 
