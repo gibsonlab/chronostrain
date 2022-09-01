@@ -87,7 +87,7 @@ def get_concatenated_alignments(db: StrainDatabase, out_path: Path, marker_names
     If a gene is missing from a strain, gaps are appended instead.
     If multiple hits are found, then the first available one is used (found in the same order as BLAST hits).
     """
-    all_marker_alignments = get_all_alignments(db, out_path.parent / "marker_multiple_alignments", set(marker_names))
+    all_marker_alignments = get_all_alignments(db, out_path.parent / out_path.stem, set(marker_names))
 
     records: List[SeqRecord] = []
     for strain in db.all_strains():
