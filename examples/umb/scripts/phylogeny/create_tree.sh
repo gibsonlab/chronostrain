@@ -12,14 +12,25 @@ for gene_choice in "all" "metaphlan3" "mlst" "clermont"; do
 		echo "[*] Multiple alignment ${marker_multi_align} already found; Skipping this step."
 	else
 		echo "[*] Obtaining multiple alignments."
-		# Always perform multiple alignments using raw db.
-		python ${BASE_DIR}/helpers/concatenated_multiple_alignments.py \
-				--raw_json ${CHRONOSTRAIN_DB_JSON_ALL} \
-				--align_path ${marker_multi_align} \
-				--marker_choice "${gene_choice}" \
-				--uniprot_csv ${BASE_DIR}/files/uniprot_markers.tsv \
-				--clermont_fasta ${BASE_DIR}/files/clermont_genes.fasta \
-				--metaphlan3_pkl ${METAPHLAN3_PKL_PATH}
+
+		if [[ "${gene_choice}" == "clermont" ]]; then
+			python ${BASE_DIR}/helpers/concatenated_multiple_alignments.py \
+					--raw_json ${CHRONOSTRAIN_DB_JSON_ALL} \
+					--align_path ${marker_multi_align} \
+					--marker_choice "${gene_choice}" \
+					--uniprot_csv ${BASE_DIR}/files/uniprot_markers.tsv \
+					--clermont_fasta ${BASE_DIR}/files/clermont_genes.fasta \
+					--metaphlan3_pkl ${METAPHLAN3_PKL_PATH} \
+					--force_include "trpB"
+		else
+			python ${BASE_DIR}/helpers/concatenated_multiple_alignments.py \
+					--raw_json ${CHRONOSTRAIN_DB_JSON_ALL} \
+					--align_path ${marker_multi_align} \
+					--marker_choice "${gene_choice}" \
+					--uniprot_csv ${BASE_DIR}/files/uniprot_markers.tsv \
+					--clermont_fasta ${BASE_DIR}/files/clermont_genes.fasta \
+					--metaphlan3_pkl ${METAPHLAN3_PKL_PATH}
+		fi
 	fi
 
 	tree_output_dir=${PHYLOGENY_OUTPUT_DIR}/tree_${gene_choice}

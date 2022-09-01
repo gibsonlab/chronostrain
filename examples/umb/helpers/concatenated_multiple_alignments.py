@@ -40,6 +40,8 @@ def parse_args():
                         help='<Optional> A string specifying which group of markers to choose. '
                              'Supported options are: [all, metaphlan, mlst, clermont] '
                              '(Default: `all`).')
+    parser.add_argument('--force_include', action='append', type=str,
+                        help='<Optional, May be repeated> Forcefully include the specified gene name.')
     return parser.parse_args()
 
 
@@ -157,23 +159,23 @@ def get_marker_choice(db: StrainDatabase,
                       uniprot_csv_path: Path,
                       metaphlan3_pkl_path: Path,
                       metaphlan4_pkl_path: Path,
-                      clermont_genes_path: Path) -> List[str]:
+                      clermont_genes_path: Path) -> Set[str]:
     if marker_choice == "all":
-        return sorted(db.all_marker_names())
+        marker_names = db.all_marker_names()
     elif marker_choice == "metaphlan3":
         if not metaphlan3_pkl_path.exists():
             raise FileNotFoundError(
                 f"If specifying marker_choice == `metaphlan3`, then a valid metaphlan pkl path must be provided. "
                 f"(Got: {metaphlan3_pkl_path})"
             )
-        return sorted(extract_metaphlan_markers(metaphlan3_pkl_path))
+        marker_names = extract_metaphlan_markers(metaphlan3_pkl_path)
     elif marker_choice == "metaphlan4":
         if not metaphlan4_pkl_path.exists():
             raise FileNotFoundError(
                 f"If specifying marker_choice == `metaphlan4`, then a valid metaphlan pkl path must be provided. "
                 f"(Got: {metaphlan4_pkl_path})"
             )
-        return sorted(extract_metaphlan_markers(metaphlan4_pkl_path))
+        marker_names = extract_metaphlan_markers(metaphlan4_pkl_path)
     elif marker_choice == "mlst":
         if not uniprot_csv_path.exists():
             raise FileNotFoundError(
@@ -196,7 +198,7 @@ def get_marker_choice(db: StrainDatabase,
 
                 if "MLST" in metadata:
                     target_genes.add(gene_name)
-        return sorted(target_genes)
+        marker_names = target_genes
     elif marker_choice == "clermont":
         if not clermont_genes_path.exists():
             raise FileNotFoundError(
@@ -204,12 +206,14 @@ def get_marker_choice(db: StrainDatabase,
                 f"(Got: {clermont_genes_path})"
             )
 
-        return sorted({
+        marker_names = {
             record.id
             for record in SeqIO.parse(clermont_genes_path, 'fasta')
-        })
+        }
     else:
         raise ValueError(f"Unrecognized marker_choice string `{marker_choice}`")
+
+    return marker_names
 
 
 def main():
@@ -229,7 +233,10 @@ def main():
                                      Path(args.metaphlan3_pkl),
                                      Path(args.metaphlan4_pkl),
                                      Path(args.clermont_fasta))
-    get_concatenated_alignments(raw_db, Path(args.align_path), marker_names)
+    for forced_name in args.force_include:
+        marker_names.add(forced_name)
+
+    get_concatenated_alignments(raw_db, Path(args.align_path), sorted(marker_names))
 
 
 if __name__ == "__main__":
