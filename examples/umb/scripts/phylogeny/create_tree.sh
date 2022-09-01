@@ -19,7 +19,7 @@ for gene_choice in "all" "metaphlan3" "mlst" "clermont"; do
 				--marker_choice "${gene_choice}" \
 				--uniprot_csv ${BASE_DIR}/files/uniprot_markers.tsv \
 				--clermont_fasta ${BASE_DIR}/files/clermont_genes.fasta \
-				--metaphlan3_pkl ${METAPHLAN4_PKL_PATH}
+				--metaphlan3_pkl ${METAPHLAN3_PKL_PATH}
 	fi
 
 	tree_output_dir=${PHYLOGENY_OUTPUT_DIR}/tree_${gene_choice}
