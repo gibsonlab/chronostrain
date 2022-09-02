@@ -9,9 +9,6 @@ import pandas as pd
 import torch
 from Bio import SeqIO
 
-from chronostrain.database import StrainDatabase
-from chronostrain.config import cfg
-
 from chronostrain.logging import create_logger
 logger = create_logger("chronostrain.evaluate")
 device = torch.device("cuda:0")
@@ -97,12 +94,12 @@ def strip_suffixes(strain_id_string: str):
     return x.name
 
 
-def parse_chronostrain_estimate(db: StrainDatabase,
-                                ground_truth: pd.DataFrame,
+def parse_chronostrain_estimate(ground_truth: pd.DataFrame,
                                 strain_ids: List[str],
                                 output_dir: Path) -> torch.Tensor:
     abundance_samples = torch.load(output_dir / 'samples.pt')
-    db_strains = [s.id for s in db.all_strains()]
+    with open(output_dir / 'strains.txt', 'rt') as strain_file:
+        db_strains = [line.strip() for line in strain_file]
 
     time_points = sorted(pd.unique(ground_truth['T']))
     if abundance_samples.shape[0] != len(time_points):
@@ -285,7 +282,7 @@ def clearance_ratio(presence: torch.Tensor) -> float:
     return engraftment_ratio(torch.logical_not(presence))
 
 
-def chronostrain_presence(abundance_est: torch.Tensor, q: float = 0.95, lb: float = 0.0) -> torch.Tensor:
+def chronostrain_presence(abundance_est: torch.Tensor, q: float = 0.025, lb: float = 0.0) -> torch.Tensor:
     """
     :param abundance_est: (T x N x S) tensor of abundance samples.
     :param q: the quantile to compute.
@@ -443,8 +440,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def evaluate_errors(ground_truth: pd.DataFrame,
-                    result_base_dir: Path,
-                    chronostrain_db: StrainDatabase) -> pd.DataFrame:
+                    result_base_dir: Path) -> pd.DataFrame:
     strain_ids = list(pd.unique(ground_truth.loc[ground_truth['RelAbund'] > 0, 'Strain']))
     truth_tensor = extract_ground_truth_array(ground_truth, strain_ids)
 
@@ -461,14 +457,14 @@ def evaluate_errors(ground_truth: pd.DataFrame,
 
             # =========== Chronostrain
             try:
-                chronostrain_estimate_samples = parse_chronostrain_estimate(chronostrain_db, ground_truth, strain_ids,
+                chronostrain_estimate_samples, all_strains = parse_chronostrain_estimate(ground_truth, strain_ids,
                                                                             trial_dir / 'output' / 'chronostrain')
                 # errors = wasserstein_error(
                 #     chronostrain_estimate_samples[:, :30, :],
                 #     ground_truth, distances, strain_ids
                 # )
 
-                detection = chronostrain_presence(chronostrain_estimate_samples, q=0.95, lb=1 / chronostrain_db.num_strains())
+                detection = chronostrain_presence(chronostrain_estimate_samples, q=0.025, lb=1 / len(all_strains))
                 error = error_metric(torch.median(chronostrain_estimate_samples, dim=1).values, truth_tensor)
                 dom_err = dominance_switch_ratio(torch.median(chronostrain_estimate_samples, dim=1).values)
                 recall = recall_ratio(detection, truth_tensor > 0)
@@ -641,14 +637,12 @@ def main():
 
     # Necessary precomputation.
     ground_truth = load_ground_truth(Path(args.ground_truth_path))
-    chronostrain_db = cfg.database_cfg.get_database()
     out_dir.mkdir(exist_ok=True, parents=True)
 
     logger.info("Evaluating error metrics.")
     summary_df = evaluate_errors(
         ground_truth,
-        result_base_dir,
-        chronostrain_db
+        result_base_dir
     )
     out_path = out_dir / 'summary.csv'
     summary_df.to_csv(out_path, index=False)
