@@ -96,7 +96,7 @@ def strip_suffixes(strain_id_string: str):
 
 def parse_chronostrain_estimate(ground_truth: pd.DataFrame,
                                 strain_ids: List[str],
-                                output_dir: Path) -> torch.Tensor:
+                                output_dir: Path) -> Tuple[torch.Tensor, List[str]]:
     abundance_samples = torch.load(output_dir / 'samples.pt')
     with open(output_dir / 'strains.txt', 'rt') as strain_file:
         db_strains = [line.strip() for line in strain_file]
@@ -122,7 +122,7 @@ def parse_chronostrain_estimate(ground_truth: pd.DataFrame,
             continue
         s_idx = strain_indices[strain_id]
         estimate[:, :, s_idx] = abundance_samples[:, :, db_idx]
-    return estimate
+    return estimate, db_strains
 
 
 def parse_strainest_estimate(ground_truth: pd.DataFrame,
