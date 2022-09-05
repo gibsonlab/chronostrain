@@ -10,7 +10,8 @@ echo "Running ChronoStrain evaluation. (ungrouped)"
 python ${BASE_DIR}/helpers/eval_chronostrain.py \
 -d $CHRONOSTRAIN_OUTPUT_DIR \
 -o $OUTPUT_DIR/chronostrain.tsv \
--r ${READS_DIR}
+-r ${READS_DIR} \
+-lb 0.0014409
 
 
 echo "Running ChronoStrain evaluation. (grouped)"
@@ -18,6 +19,7 @@ python ${BASE_DIR}/helpers/eval_chronostrain.py \
 -d $CHRONOSTRAIN_OUTPUT_DIR \
 -o $OUTPUT_DIR/chronostrain.grouped.tsv \
 -r ${READS_DIR} \
+-lb 0.0014409 \
 --group_by_clades -c $CLADES_FILE
 
 
