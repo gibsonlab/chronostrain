@@ -19,6 +19,15 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def fetch_strain_id_from_straingst(strain_name: str, index_df: pd.DataFrame) -> Tuple[str, str]:
+    fasta_path = Path("/mnt/e/strainge/strainge_db") / strain_name
+    gcf_id = '_'.join(fasta_path.resolve().stem.split('_')[:2])
+    hit = index_df.loc[index_df['Assembly'] == gcf_id, :].head(1)
+    if hit.shape[0] == 0:
+        raise ValueError(f"Couldn't find strain from StrainGST identifier `{strain_name}`.")
+    return hit['Accession'].item(), hit['Strain'].item()
+
+
 def strip_suffixes(x: str) -> str:
     x = Path(x)
     suffix_set = {'.chrom', '.fa', '.fna', '.gz', 'fasta'}
@@ -27,49 +36,49 @@ def strip_suffixes(x: str) -> str:
     return x.name
 
 
-def strip_prefix(x: str):
-    return "_".join(x.split("_")[2:])
-
-
-class StrainNotFound(BaseException):
-    pass
-
-
-def fetch_strain_id(strain_name: str, ref_df: pd.DataFrame) -> str:
-    # preprocess.
-    strain_name = strip_suffixes(strain_name)
-    strain_name = strip_prefix(strain_name)
-
-    if "GCF" in strain_name:
-        tokens = strain_name.split("_GCF_")
-        strain_name = tokens[0]
-        gcf_id = "GCF_{}".format(tokens[1])
-        ref_df = ref_df.loc[ref_df['Assembly'] == gcf_id, :]
-
-    strain_names_to_try = [strain_name, strain_name.replace("_", ".")]
-    if strain_name.startswith("str"):
-        short_name = "_".join(strain_name.split("_")[1:])
-        strain_names_to_try.append(short_name)
-        strain_names_to_try.append(f"str._{short_name}")
-        strain_names_to_try.append(f"Escherichia_coli_str._{short_name}")
-
-    for s in strain_names_to_try:
-        try:
-            return search_df(s, ref_df)
-        except StrainNotFound:
-            print(f"Unable to find strain name entry `{s}`. Remaining possibilities: {strain_names_to_try}")
-    raise RuntimeError(f"Unknown strain name `{strain_name}` encountered.")
-
-
-def search_df(strain_name: str, ref_df: pd.DataFrame):
-    hits = ref_df.loc[ref_df['Strain'] == strain_name, 'Accession']
-    if hits.shape[0] == 0:
-        raise StrainNotFound(f"Unknown strain name `{strain_name}` encountered.")
-
-    result = hits.head(1).item()
-    if hits.shape[0] > 1:
-        print(f"Ambiguous strain name `{strain_name}`. Taking the first accession {result}")
-    return result
+# def strip_prefix(x: str):
+#     return "_".join(x.split("_")[2:])
+#
+#
+# class StrainNotFound(BaseException):
+#     pass
+#
+#
+# def fetch_strain_id(strain_name: str, ref_df: pd.DataFrame) -> str:
+#     # preprocess.
+#     strain_name = strip_suffixes(strain_name)
+#     strain_name = strip_prefix(strain_name)
+#
+#     if "GCF" in strain_name:
+#         tokens = strain_name.split("_GCF_")
+#         strain_name = tokens[0]
+#         gcf_id = "GCF_{}".format(tokens[1])
+#         ref_df = ref_df.loc[ref_df['Assembly'] == gcf_id, :]
+#
+#     strain_names_to_try = [strain_name, strain_name.replace("_", ".")]
+#     if strain_name.startswith("str"):
+#         short_name = "_".join(strain_name.split("_")[1:])
+#         strain_names_to_try.append(short_name)
+#         strain_names_to_try.append(f"str._{short_name}")
+#         strain_names_to_try.append(f"Escherichia_coli_str._{short_name}")
+#
+#     for s in strain_names_to_try:
+#         try:
+#             return search_df(s, ref_df)
+#         except StrainNotFound:
+#             print(f"Unable to find strain name entry `{s}`. Remaining possibilities: {strain_names_to_try}")
+#     raise RuntimeError(f"Unknown strain name `{strain_name}` encountered.")
+#
+#
+# def search_df(strain_name: str, ref_df: pd.DataFrame):
+#     hits = ref_df.loc[ref_df['Strain'] == strain_name, 'Accession']
+#     if hits.shape[0] == 0:
+#         raise StrainNotFound(f"Unknown strain name `{strain_name}` encountered.")
+#
+#     result = hits.head(1).item()
+#     if hits.shape[0] > 1:
+#         print(f"Ambiguous strain name `{strain_name}`. Taking the first accession {result}")
+#     return result
 
 
 def parse_clades(clades_path: Path) -> Dict[str, str]:
@@ -109,7 +118,7 @@ def parse_single_output(output_file: Path, ref_df: pd.DataFrame) -> Iterator[Tup
     with open(output_file, "r") as f:
         for strain in parse_straingst(f):
             strain_name = strain['strain']
-            strain_id = fetch_strain_id(strain_name, ref_df)
+            strain_id, _ = fetch_strain_id_from_straingst(strain_name, ref_df)
             rel_abund = float(strain['rapct']) / 100.0
             yield strain_id, rel_abund
 

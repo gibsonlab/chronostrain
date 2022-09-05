@@ -5,7 +5,6 @@ source settings.sh
 SEED=31415
 
 
-
 # =========== Run chronostrain. ==================
 echo "Running ChronoStrain evaluation. (ungrouped)"
 python ${BASE_DIR}/helpers/eval_chronostrain.py \

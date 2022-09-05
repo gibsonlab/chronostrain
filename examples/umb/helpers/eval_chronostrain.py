@@ -97,14 +97,13 @@ def load_strain_ids(strains_path: Path) -> List[str]:
 
 def evaluate(chronostrain_output_dir: Path, reads_dir: Path, db: StrainDatabase) -> pd.DataFrame:
     df_entries = []
-    strains = db.all_strains()
     for patient, reads, umb_samples, _ in umb_outputs(chronostrain_output_dir, reads_dir):
         print(f"Handling {patient}.")
         medians = np.median(umb_samples, axis=1)
 
         df_entries.append({
             "Patient": patient,
-            "Dominance": dominance_switch_ratio(medians, lb=len(strains))
+            "Dominance": dominance_switch_ratio(medians)
         })
     return pd.DataFrame(df_entries)
 
@@ -130,7 +129,7 @@ def evaluate_by_clades(chronostrain_output_dir: Path, reads_dir: Path, clades: D
                 "Patient": patient,
                 "Phylogroup": clade,
                 "GroupSize": overall_chunk.shape[1],
-                "Dominance": dominance_switch_ratio(relative_chunk, lb=1 / len(strains)),
+                "Dominance": dominance_switch_ratio(relative_chunk),
                 "OverallRelAbundMax": np.max(np.sum(overall_chunk, axis=1)),
                 "StrainRelAbundMax": np.max(overall_chunk)
             })
