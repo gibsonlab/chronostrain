@@ -19,6 +19,7 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument('--group_by_clades', action='store_true')
     parser.add_argument('-c', '--clades', required=False, type=str)
+    parser.add_argument('-lb', '--detection_lb', required=False, default=1e-5, type=float)
     return parser.parse_args()
 
 
@@ -95,19 +96,19 @@ def load_strain_ids(strains_path: Path) -> List[str]:
     return strains
 
 
-def evaluate(chronostrain_output_dir: Path, reads_dir: Path) -> pd.DataFrame:
+def evaluate(chronostrain_output_dir: Path, reads_dir: Path, detection_lb: float) -> pd.DataFrame:
     df_entries = []
     for patient, reads, db_relabund_samples, _ in umb_outputs(chronostrain_output_dir, reads_dir):
         print(f"Handling {patient}.")
 
         df_entries.append({
             "Patient": patient,
-            "Dominance": dominance_switch_ratio(db_relabund_samples)
+            "Dominance": dominance_switch_ratio(db_relabund_samples, lb=detection_lb)
         })
     return pd.DataFrame(df_entries)
 
 
-def evaluate_by_clades(chronostrain_output_dir: Path, reads_dir: Path, clades: Dict[str, str], db: StrainDatabase) -> pd.DataFrame:
+def evaluate_by_clades(chronostrain_output_dir: Path, reads_dir: Path, clades: Dict[str, str], db: StrainDatabase, detection_lb: float) -> pd.DataFrame:
     df_entries = []
     strains = db.all_strains()
     for patient, reads, db_relabund_samples, strain_ids in umb_outputs(chronostrain_output_dir, reads_dir):
@@ -123,13 +124,15 @@ def evaluate_by_clades(chronostrain_output_dir: Path, reads_dir: Path, clades: D
             assert overall_chunk.shape[1] == relative_chunk.shape[1]
             assert overall_chunk.shape[2] == relative_chunk.shape[2]
 
+            dsr = dominance_switch_ratio(relative_chunk, lb=detection_lb)
+
             df_entries.append({
                 "Patient": patient,
                 "Phylogroup": clade,
                 "GroupSize": overall_chunk.shape[1],
-                "DominanceLower": np.quantile(dominance_switch_ratio(relative_chunk), q=0.025),
-                "DominanceMedian": np.quantile(dominance_switch_ratio(relative_chunk), q=0.5),
-                "DominanceUpper": np.quantile(dominance_switch_ratio(relative_chunk), q=0.975),
+                "DominanceLower": np.quantile(dsr, q=0.025),
+                "DominanceMedian": np.quantile(dsr, q=0.5),
+                "DominanceUpper": np.quantile(dsr, q=0.975),
                 "CladeOverallRelAbundLower": np.quantile(overall_chunk.sum(axis=-1).max(axis=0), q=0.025),
                 "CladeOverallRelAbundMedian": np.quantile(overall_chunk.sum(axis=-1).max(axis=0), q=0.5),
                 "CladeOverallRelAbundUpper": np.quantile(overall_chunk.sum(axis=-1).max(axis=0), q=0.975),
@@ -169,7 +172,6 @@ def dominance_switch_ratio(abundance_est: np.ndarray, lb: float = 0.0) -> np.nda
 
     dom = np.argmax(abundance_est, axis=-1)
     _is_missing[0] = clade_is_missing(abundance_est[0])
-    print(f"# timepoints = {_T}, shape: {abundance_est.shape}")
     for t in range(_T - 1):
         _is_missing[t + 1] = clade_is_missing(abundance_est[t + 1])
         _has_switch[t] = _is_missing[t + 1] | (dom[t] != dom[t + 1])
@@ -185,14 +187,16 @@ def main():
     db = cfg.database_cfg.get_database()
     reads_dir = Path(args.reads_dir)
 
+    detection_lb = args.detection_lb
+
     if args.group_by_clades:
         if args.clades is None:
             print("If grouping by clades, a clades path is required.")
             exit(1)
         clades = parse_clades(args.clades)
-        df = evaluate_by_clades(Path(args.chronostrain_dir), reads_dir, clades, db)
+        df = evaluate_by_clades(Path(args.chronostrain_dir), reads_dir, clades, db, detection_lb=detection_lb)
     else:
-        df = evaluate(Path(args.chronostrain_dir), reads_dir)
+        df = evaluate(Path(args.chronostrain_dir), reads_dir, detection_lb=detection_lb)
 
     df.to_csv(args.output, index=False, sep='\t')
 
