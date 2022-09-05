@@ -172,7 +172,7 @@ def dominance_switch_ratio(abundance_est: np.ndarray, lb: float = 0.0) -> np.nda
     print(f"# timepoints = {_T}")
     for t in range(_T - 1):
         _is_missing[t + 1] = clade_is_missing(abundance_est[t])
-        _has_switch[t] = _is_missing[t + 1] | dom[t] != dom[t + 1]
+        _has_switch[t] = _is_missing[t + 1] | (dom[t] != dom[t + 1])
 
     # Compute conditional ratio.
     numer = np.sum(~_is_missing[:-1] & _has_switch, axis=0)
