@@ -160,7 +160,7 @@ def dominance_switch_ratio(abundance_est: np.ndarray, lb: float = 0.0) -> np.nda
 
     if len(abundance_est.shape) == 3:
         _T, _N, _S = abundance_est.shape
-        _is_missing = np.zeros((_T - 1, _N), dtype=np.bool)
+        _is_missing = np.zeros((_T, _N), dtype=np.bool)
         _has_switch = np.zeros((_T - 1, _N), dtype=np.bool)
     else:
         _T, _S = abundance_est.shape
@@ -175,8 +175,8 @@ def dominance_switch_ratio(abundance_est: np.ndarray, lb: float = 0.0) -> np.nda
         _has_switch[t] = _is_missing[t + 1] | dom[t] != dom[t + 1]
 
     # Compute conditional ratio.
-    numer = np.sum(np.logical_not(_is_missing) & _has_switch, axis=0)
-    denom = np.sum(np.logical_not(_is_missing), axis=0)
+    numer = np.sum(~_is_missing[:-1] & _has_switch, axis=0)
+    denom = np.sum(~_is_missing[:-1], axis=0)
     return numer / denom
 
 
