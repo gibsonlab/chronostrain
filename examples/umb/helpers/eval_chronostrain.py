@@ -95,15 +95,14 @@ def load_strain_ids(strains_path: Path) -> List[str]:
     return strains
 
 
-def evaluate(chronostrain_output_dir: Path, reads_dir: Path, db: StrainDatabase) -> pd.DataFrame:
+def evaluate(chronostrain_output_dir: Path, reads_dir: Path) -> pd.DataFrame:
     df_entries = []
-    for patient, reads, umb_samples, _ in umb_outputs(chronostrain_output_dir, reads_dir):
+    for patient, reads, db_relabund_samples, _ in umb_outputs(chronostrain_output_dir, reads_dir):
         print(f"Handling {patient}.")
-        medians = np.median(umb_samples, axis=1)
 
         df_entries.append({
             "Patient": patient,
-            "Dominance": dominance_switch_ratio(medians)
+            "Dominance": dominance_switch_ratio(db_relabund_samples)
         })
     return pd.DataFrame(df_entries)
 
@@ -111,27 +110,32 @@ def evaluate(chronostrain_output_dir: Path, reads_dir: Path, db: StrainDatabase)
 def evaluate_by_clades(chronostrain_output_dir: Path, reads_dir: Path, clades: Dict[str, str], db: StrainDatabase) -> pd.DataFrame:
     df_entries = []
     strains = db.all_strains()
-    for patient, reads, umb_samples, strain_ids in umb_outputs(chronostrain_output_dir, reads_dir):
+    for patient, reads, db_relabund_samples, strain_ids in umb_outputs(chronostrain_output_dir, reads_dir):
         print(f"Handling {patient}.")
-        overall_relabund_samples = overall_relabund(umb_samples, reads, strains)
-        overall_medians = np.median(overall_relabund_samples, axis=1)
-        relative_medians = np.median(umb_samples, axis=1)
+        overall_relabund_samples = overall_relabund(db_relabund_samples, reads, strains)
 
         for (clade, overall_chunk), (_c, relative_chunk) in zip(
-                divide_into_timeseries(overall_medians, strain_ids, clades),
-                divide_into_timeseries(relative_medians, strain_ids, clades),
+                divide_into_timeseries(overall_relabund_samples, strain_ids, clades),
+                divide_into_timeseries(db_relabund_samples, strain_ids, clades),
         ):
             assert clade == _c
             assert overall_chunk.shape[0] == relative_chunk.shape[0]
             assert overall_chunk.shape[1] == relative_chunk.shape[1]
+            assert overall_chunk.shape[2] == relative_chunk.shape[2]
 
             df_entries.append({
                 "Patient": patient,
                 "Phylogroup": clade,
                 "GroupSize": overall_chunk.shape[1],
-                "Dominance": dominance_switch_ratio(relative_chunk),
-                "OverallRelAbundMax": np.max(np.sum(overall_chunk, axis=1)),
-                "StrainRelAbundMax": np.max(overall_chunk)
+                "DominanceLower": np.quantile(dominance_switch_ratio(relative_chunk), q=0.025),
+                "DominanceMedian": np.quantile(dominance_switch_ratio(relative_chunk), q=0.5),
+                "DominanceUpper": np.quantile(dominance_switch_ratio(relative_chunk), q=0.975),
+                "CladeOverallRelAbundLower": np.quantile(overall_chunk.sum(axis=-1).max(axis=0), q=0.025),
+                "CladeOverallRelAbundMedian": np.quantile(overall_chunk.sum(axis=-1).max(axis=0), q=0.5),
+                "CladeOverallRelAbundUpper": np.quantile(overall_chunk.sum(axis=-1).max(axis=0), q=0.975),
+                "StrainRelAbundLower": np.quantile(relative_chunk.max(axis=-1, initial=0.).max(axis=0), q=0.025),
+                "StrainRelAbundMedian": np.quantile(relative_chunk.max(axis=-1, initial=0.).max(axis=0), q=0.5),
+                "StrainRelAbundUppser": np.quantile(relative_chunk.max(axis=-1, initial=0.).max(axis=0), q=0.975)
             })
     return pd.DataFrame(df_entries)
 
@@ -140,35 +144,38 @@ def divide_into_timeseries(timeseries: np.ndarray, strain_ids: List[str], clades
     all_clades = sorted(list(set(clades.values())))
     for this_clade in all_clades:
         # Note: if "s" is not in "clades", then it might not be ecoli.
-        matching_strains = [i for i, s in enumerate(strain_ids) if (s in clades and clades[s] == this_clade)]
-        if len(matching_strains) == 0:
+        matching_strain_indices = [i for i, s in enumerate(strain_ids) if (s in clades and clades[s] == this_clade)]
+        if len(matching_strain_indices) == 0:
             print(f"Phylogroup {this_clade} was empty.")
             continue
-        yield this_clade, timeseries[:, matching_strains]
+        yield this_clade, timeseries[:, matching_strain_indices]
 
 
-def dominance_switch_ratio(abundance_est: np.ndarray, lb: float = 0.0) -> float:
+def dominance_switch_ratio(abundance_est: np.ndarray, lb: float = 0.0) -> np.ndarray:
     """
     Calculate how often the dominant strain switches.
     """
-    dom = np.argmax(abundance_est, axis=1)
-    num_switches = 0
+    def clade_is_missing(r) -> np.ndarray:
+        return np.sum(r > lb, axis=-1) == 0
 
-    def row_is_zeros(r) -> bool:
-        return np.sum(r <= lb).item() == r.shape[0]
-
-    num_total = 0
-    for i in range(len(dom) - 1):
-        if row_is_zeros(abundance_est[i]):
-            continue  # don't add to denominator.
-
-        elif row_is_zeros(abundance_est[i + 1]) or (dom[i] != dom[i + 1]):
-            num_switches += 1
-        num_total += 1
-    if num_total > 0:
-        return num_switches / num_total
+    if len(abundance_est.shape) == 3:
+        _T, _N, _S = abundance_est.shape
+        _is_missing = np.zeros((_T - 1, _N), dtype=np.bool)
+        _has_switch = np.zeros((_T - 1, _N), dtype=np.bool)
     else:
-        return np.nan
+        _T, _S = abundance_est.shape
+        _is_missing = np.zeros(_T, dtype=np.bool)
+        _has_switch = np.zeros(_T, dtype=np.bool)
+
+    dom = np.argmax(abundance_est, axis=-1)
+    for t in range(_T - 1):
+        _is_missing[t] = clade_is_missing(abundance_est[t])
+        _has_switch[t] = abundance_est[t + 1] or dom[t] != dom[t + 1]
+
+    # Compute conditional ratio.
+    numer = np.sum(np.logical_not(_is_missing) and _has_switch, axis=0)
+    denom = np.sum(np.logical_not(_is_missing), axis=0)
+    return numer / denom
 
 
 def main():
@@ -183,7 +190,7 @@ def main():
         clades = parse_clades(args.clades)
         df = evaluate_by_clades(Path(args.chronostrain_dir), reads_dir, clades, db)
     else:
-        df = evaluate(Path(args.chronostrain_dir), reads_dir, db)
+        df = evaluate(Path(args.chronostrain_dir), reads_dir)
 
     df.to_csv(args.output, index=False, sep='\t')
 
