@@ -124,9 +124,11 @@ def parse_single_output(output_file: Path, ref_df: pd.DataFrame) -> Iterator[Tup
 
 
 def umb_dirs(base_dir: Path) -> Iterator[Tuple[str, Path]]:
+    print(f"Searching for UMB results in {base_dir}")
     for umb_dir in base_dir.glob("UMB*"):
         if not umb_dir.is_dir():
             raise RuntimeError(f"Expected child `{umb_dir}` to be a directory.")
+        print(f"Navigating {umb_dir}")
         umb_id = umb_dir.name
         yield umb_id, umb_dir
 
