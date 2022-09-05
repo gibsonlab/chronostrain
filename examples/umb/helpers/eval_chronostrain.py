@@ -169,7 +169,7 @@ def dominance_switch_ratio(abundance_est: np.ndarray, lb: float = 0.0) -> np.nda
 
     dom = np.argmax(abundance_est, axis=-1)
     _is_missing[0] = clade_is_missing(abundance_est[0])
-    print(f"# timepoints = {_T}")
+    print(f"# timepoints = {_T}, shape: {abundance_est.shape}")
     for t in range(_T - 1):
         _is_missing[t + 1] = clade_is_missing(abundance_est[t + 1])
         _has_switch[t] = _is_missing[t + 1] | (dom[t] != dom[t + 1])
