@@ -122,6 +122,7 @@ def parse_single_output(output_file: Path, ref_df: pd.DataFrame) -> Iterator[Tup
                 strain_id, _ = fetch_strain_id_from_straingst(strain_name, ref_df)
             except ValueError:
                 print("Couldn't identify an accession number for `{strain_name}` in the StrainGE database.")
+                continue
             rel_abund = float(strain['rapct']) / 100.0
             yield strain_id, rel_abund
 
