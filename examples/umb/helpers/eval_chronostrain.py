@@ -148,7 +148,7 @@ def divide_into_timeseries(timeseries: np.ndarray, strain_ids: List[str], clades
         if len(matching_strain_indices) == 0:
             print(f"Phylogroup {this_clade} was empty.")
             continue
-        yield this_clade, timeseries[:, matching_strain_indices]
+        yield this_clade, timeseries[:, :, matching_strain_indices]
 
 
 def dominance_switch_ratio(abundance_est: np.ndarray, lb: float = 0.0) -> np.ndarray:
