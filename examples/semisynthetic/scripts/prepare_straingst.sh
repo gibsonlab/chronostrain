@@ -18,7 +18,7 @@ python ${BASE_DIR}/helpers/list_strain_paths.py -j ${CHRONOSTRAIN_DB_JSON} -i $R
 	strain_kmers="${base_name}.hdf5"
 	straingst kmerize -o $strain_kmers $strain_seq
 
-	cat $strain_kmers > $references_file
+	echo "$strain_kmers" > $references_file
 done
 
 all_strain_kmers=""
