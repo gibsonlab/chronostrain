@@ -10,24 +10,27 @@ mkdir -p $out_dir
 
 tree_path=${out_dir}/newick_jaccard.nwk  # precomputed
 
-echo "[*] Preprocessing inputs for SynerClust."
-python create_tree_for_synerclust.py \
-	-i ${NCBI_REFSEQ_DIR}/index.tsv \
-	-o ${tree_path} \
-	-f 'newick' \
-	-s ${sim_file}
+if [ ! -f "${tree_path}" ]; then
+	echo "[*] Creating tree for SynerClust."
+	python create_tree_for_synerclust.py \
+		-i ${NCBI_REFSEQ_DIR}/index.tsv \
+		-o ${tree_path} \
+		-f 'newick' \
+		-s ${sim_file}
+fi
 
-python create_synerclust_input.py \
-	-i ${NCBI_REFSEQ_DIR}/index.tsv \
-	-o ${out_dir}/input.txt
+if [ ! -f "${input.txt}" ]; then
+	echo "[*] Generating input file for SynerClust."
+	python create_synerclust_input.py \
+		-i ${NCBI_REFSEQ_DIR}/index.tsv \
+		-o ${out_dir}/input.txt
+fi
 
 
 echo "[*] Running Synerclust (PATH: ${synerclust_dir})"
-
 python $synerclust_dir/synerclust.py \
 	-r ${out_dir}/input.txt \
 	-w ${out_dir} \
 	-t ${tree_path}
 
-
-echo "[*] Generated phylogroup path ${final_path}."
+echo "[*] Done."
