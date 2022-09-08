@@ -102,8 +102,14 @@ def main():
     args = parse_args()
     index_df = pd.read_csv(args.refseq_index, sep='\t')
     tree = create_tree(parse_distances(args.sim_tsv_path, index_df))
+
+    # erase internal node names. Necessary for SynerClust?
+    for clade in tree.find_clades():
+        clade.name = ""
+
     Phylo.write([tree], str(args.output_path), args.tree_format)
     print("Created tree {}".format(args.output_path))
+    print("To run SynerClust, the user might need to manually delete the root node distance (`:0.000`).")
 
 
 if __name__ == "__main__":
