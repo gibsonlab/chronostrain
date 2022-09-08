@@ -163,12 +163,12 @@ def dominance_switch_ratio(abundance_est: np.ndarray, lb: float = 0.0) -> np.nda
 
     if len(abundance_est.shape) == 3:
         _T, _N, _S = abundance_est.shape
-        _is_missing = np.zeros((_T, _N), dtype=np.bool)
-        _has_switch = np.zeros((_T - 1, _N), dtype=np.bool)
+        _is_missing = np.zeros((_T, _N), dtype=bool)
+        _has_switch = np.zeros((_T - 1, _N), dtype=bool)
     else:
         _T, _S = abundance_est.shape
-        _is_missing = np.zeros(_T, dtype=np.bool)
-        _has_switch = np.zeros(_T - 1, dtype=np.bool)
+        _is_missing = np.zeros(_T, dtype=bool)
+        _has_switch = np.zeros(_T - 1, dtype=bool)
 
     dom = np.argmax(abundance_est, axis=-1)
     _is_missing[0] = clade_is_missing(abundance_est[0])
