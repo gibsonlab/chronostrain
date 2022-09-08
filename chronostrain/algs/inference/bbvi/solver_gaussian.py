@@ -1,5 +1,6 @@
 from typing import Iterator, Optional
 
+import numpy as np
 import torch
 
 from chronostrain.database import StrainDatabase
@@ -48,6 +49,11 @@ class ADVIGaussianSolver(AbstractADVISolver):
             precomputed_data_likelihoods=precomputed_data_likelihoods
         )
 
+        self.log_total_marker_lens = torch.tensor([
+            [np.log(sum(len(m) for m in strain.markers))]
+            for strain in self.model.bacteria_pop.strains
+        ], device=self.device)  # (S x 1)
+
     def elbo(self,
              x_samples: torch.Tensor
              ) -> Iterator[torch.Tensor]:
@@ -67,6 +73,11 @@ class ADVIGaussianSolver(AbstractADVISolver):
         """
         ELBO original formula:
             E_Q[P(X)] - E_Q[Q(X)] + E_{F ~ phi} [log P(F | X)]
+        
+        To obtain monte carlo estimates of ELBO, need to be able to compute:
+        1. p(x)
+        2. q(x), or more directly the entropy H(Q) = -E_Q[Q(X)]
+        3. p(f|x) --> implemented via sparse log-likelihood matmul
 
         To save memory on larger inputs, split the ELBO up into several pieces.
         """
@@ -77,10 +88,17 @@ class ADVIGaussianSolver(AbstractADVISolver):
         yield entropic
 
         for t_idx in range(self.model.num_times()):
-            log_y_t = self.model.log_latent_conversion(x_samples[t_idx])
+            log_y_t = self.model.log_latent_conversion(x_samples[t_idx])  # (N x S)
             for batch_idx, batch_lls in enumerate(self.batches[t_idx]):
+                batch_sz = batch_lls.shape[1]
+
                 # Average of (N x R_batch) entries, we only want to divide by 1/N and not 1/(N*R_batch)
-                data_ll = batch_lls.shape[1] * torch.mean(log_mm_exp(log_y_t, batch_lls))
+                data_ll = batch_sz * torch.mean(
+                    # (N x S) @ (S x R_batch)   ->  Raw data likelihood (up to proportionality)
+                    log_mm_exp(log_y_t, batch_lls)
+                    # (N x S) @ (S x 1)   -> Approx. correction term for conditioning on markers.
+                    - log_mm_exp(log_y_t, self.log_total_marker_lens)
+                )
                 yield data_ll
 
     def data_ll(self, x_samples: torch.Tensor) -> torch.Tensor:

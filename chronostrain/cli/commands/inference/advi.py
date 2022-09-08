@@ -191,7 +191,7 @@ def main(
         plot_format=plot_format,
         ground_truth_path=true_abundance_path,
         num_samples=num_posterior_samples,
-        draw_legend=True
+        draw_legend=False
     )
 
     # ==== Output strain ordering.
