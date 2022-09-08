@@ -5,6 +5,7 @@ source settings.sh
 synerclust_dir=/home/lactis/SynerClust/bin
 tree_path=/mnt/e/strainge/straingst_umb/tree/newick_jaccard.nwk  # precomputed
 
+mkdir -p ${PHYLOGENY_OUTPUT_DIR}/synerclust
 
 echo "[*] Preprocessing inputs for SynerClust."
 python create_synerclust_input.py \
