@@ -162,7 +162,7 @@ def parse_straingst_estimate(
     time_points = sorted(pd.unique(ground_truth['T']))
     strain_indices = {strain_id: s_idx for s_idx, strain_id in enumerate(strain_ids)}
 
-    est_rel_abunds = torch.zeros(size=(len(time_points), len(strain_ids)), dtype=torch.float, device=device)
+    est_rel_abunds = torch.zeros(size=(len(time_points), len(strain_ids)), dtype=torch.float)
     for t_idx, t in enumerate(time_points):
         output_path = output_dir / mode / f"output_mash_{t_idx}.tsv"
         with open(output_path, 'r') as tsv_file:
