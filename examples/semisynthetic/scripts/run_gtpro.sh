@@ -38,8 +38,8 @@ for t_idx in 0 1 2 3 4; do
 	concat_reads=${t_idx}_reads.fq
 
 	> $concat_reads
-	cat ${read_dir}/${time_point}_sim_1.fq >> $concat_reads
-	cat ${read_dir}/${time_point}_sim_2.fq >> $concat_reads
+	cat ${read_dir}/${t_idx}_sim_1.fq >> $concat_reads
+	cat ${read_dir}/${t_idx}_sim_2.fq >> $concat_reads
 done
 
 
