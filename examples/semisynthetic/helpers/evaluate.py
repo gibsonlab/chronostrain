@@ -299,7 +299,6 @@ def dominance_switch_ratio(abundance_est: np.ndarray, lb: float = 0.0) -> np.nda
     Calculate how often the dominant strain switches.
     """
     def clade_is_missing(r) -> np.ndarray:
-        print(r.shape)
         return np.sum(r > lb, axis=-1) == 0
 
     if len(abundance_est.shape) == 3:
@@ -469,7 +468,7 @@ def evaluate_errors(ground_truth: pd.DataFrame,
 
                 detection = chronostrain_presence(chronostrain_estimate_samples, q=0.025, lb=1 / len(all_strains))
                 error = error_metric(torch.median(chronostrain_estimate_samples, dim=1).values, truth_tensor)
-                dom_err = np.median(dominance_switch_ratio(chronostrain_estimate_samples))
+                dom_err = np.median(dominance_switch_ratio(chronostrain_estimate_samples.numpy()))
                 recall = recall_ratio(detection, truth_tensor > 0)
 
                 df_entries.append({
@@ -513,7 +512,7 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                                                               'default',
                                                               trial_dir / 'output' / 'strainest')
                 error = error_metric(strainest_estimate, truth_tensor)
-                dom_err = dominance_switch_ratio(strainest_estimate)
+                dom_err = dominance_switch_ratio(strainest_estimate.numpy())
                 recall = recall_ratio(strainest_estimate > 0, truth_tensor > 0)
 
                 df_entries.append({
@@ -535,7 +534,7 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                                                               mode='chromosome')
                 # error = wasserstein_error(straingst_estimate, ground_truth, distances, strain_ids).item()
                 error = error_metric(straingst_estimate, truth_tensor)
-                dom_err = dominance_switch_ratio(straingst_estimate)
+                dom_err = dominance_switch_ratio(straingst_estimate.numpy())
                 recall = recall_ratio(straingst_estimate > 0, truth_tensor > 0)
 
                 df_entries.append({
