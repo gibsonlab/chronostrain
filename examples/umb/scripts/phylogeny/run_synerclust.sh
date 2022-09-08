@@ -32,6 +32,7 @@ echo "[*] Running Synerclust (PATH: ${synerclust_dir})"
 python $synerclust_dir/synerclust.py \
 	-r ${out_dir}/input.txt \
 	-w ${out_dir} \
-	-t ${tree_path}
+	-t ${tree_path} \
+	--run single
 
 echo "[*] Done."
