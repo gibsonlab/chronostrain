@@ -7,6 +7,9 @@ source settings.sh
 mkdir -p ${STRAINGST_DB_DIR}/full_genome
 cd ${STRAINGST_DB_DIR}/full_genome
 
+references_file=$STRAINGST_DB_DIR/full_genome/references_list.txt
+>> $references_file
+
 python ${BASE_DIR}/helpers/list_strain_paths.py -j ${CHRONOSTRAIN_DB_JSON} -i $REFSEQ_INDEX \
 | while read strain_seq; do
 	base_name="$(basename -- $strain_seq)"
@@ -14,13 +17,15 @@ python ${BASE_DIR}/helpers/list_strain_paths.py -j ${CHRONOSTRAIN_DB_JSON} -i $R
 	echo "Kmerizing ${base_name} chromosomes..."
 	strain_kmers="${base_name}.hdf5"
 	straingst kmerize -o $strain_kmers $strain_seq
+
+	cat $strain_kmers > $references_file
 done
 
 all_strain_kmers=""
 for f in *.hdf5; do
 	all_strain_kmers="${all_strain_kmers} ${f}"
 done
-straingst createdb -o ${STRAINGST_CHROMOSOME_DB_HDF5} ${all_strain_kmers}
+straingst createdb -o ${STRAINGST_CHROMOSOME_DB_HDF5} -f $references_file
 
 
 ## ================= Database using marker sequences
