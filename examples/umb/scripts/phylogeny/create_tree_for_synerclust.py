@@ -10,7 +10,8 @@ import pandas as pd
 
 
 class SpeciesNotIncluded(BaseException):
-    pass
+    def __init__(self, name_str: str):
+        self.name_str = name_str
 
 
 def fetch_strain_id_from_straingst(strain_name, index_df):
@@ -23,7 +24,7 @@ def fetch_strain_id_from_straingst(strain_name, index_df):
         )
 
     if hit['Species'].item().lower() != 'coli':
-        raise SpeciesNotIncluded()
+        raise SpeciesNotIncluded(strain_name)
 
     return hit['Accession'].item(), hit['Strain'].item()
 
@@ -40,16 +41,23 @@ def parse_distances(similarities_path, index_df):
             names_to_ids[strain_name] = acc
         return names_to_ids[strain_name]
 
+    names_to_skip = set()
+
     with open(similarities_path, "rt") as f:
         reader = csv.DictReader(f, delimiter='\t')
         for row in reader:
+            u_name = row['kmerset1']
+            v_name = row['kmerset2']
+            jaccard_dist = 1 - float(row['jaccard'])
+
+            if u_name in names_to_skip:
+                continue
+            if v_name in names_to_skip:
+                continue
+
             try:
-                u_name = row['kmerset1']
-                v_name = row['kmerset2']
-                jaccard_dist = 1 - float(row['jaccard'])
                 u_id = fetch_id(u_name)
                 v_id = fetch_id(v_name)
-
                 names.add(u_id)
                 names.add(v_id)
 
@@ -57,7 +65,8 @@ def parse_distances(similarities_path, index_df):
                     dists[(u_id, v_id)] = jaccard_dist
                 else:
                     dists[(v_id, u_id)] = jaccard_dist
-            except SpeciesNotIncluded:
+            except SpeciesNotIncluded as e:
+                names_to_skip.add(e.name_str)
                 continue
 
     print("found {} records.".format(len(names)))
