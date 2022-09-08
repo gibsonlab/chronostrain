@@ -4,10 +4,10 @@ source settings.sh
 
 
 # ================= Database using complete genomes
-mkdir -p ${STRAINGST_DB_DIR}/full_genome
-cd ${STRAINGST_DB_DIR}/full_genome
+mkdir -p ${STRAINGST_DB_DIR}/full_genome_hdf5
+cd ${STRAINGST_DB_DIR}/full_genome_hdf5
 
-references_file=$STRAINGST_DB_DIR/full_genome/references_list.txt
+references_file=$STRAINGST_DB_DIR/full_genome_hdf5/references_list.txt
 > $references_file
 
 python ${BASE_DIR}/helpers/list_strain_paths.py -j ${CHRONOSTRAIN_DB_JSON} -i $REFSEQ_INDEX \
@@ -26,6 +26,7 @@ for f in *.hdf5; do
 	all_strain_kmers="${all_strain_kmers} ${f}"
 done
 straingst createdb -o ${STRAINGST_CHROMOSOME_DB_HDF5} -f $references_file
+rm -rf ${STRAINGST_DB_DIR}/full_genome_hdf5
 
 
 ## ================= Database using marker sequences
