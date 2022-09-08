@@ -3,22 +3,31 @@ set -e
 source settings.sh
 
 synerclust_dir=/home/lactis/SynerClust/bin
-tree_path=/mnt/e/strainge/straingst_umb/tree/newick_jaccard.nwk  # precomputed
+sim_file=/mnt/e/strainge/similarities.tsv
 
-mkdir -p ${PHYLOGENY_OUTPUT_DIR}/synerclust
+out_dir=${PHYLOGENY_OUTPUT_DIR}/synerclust
+mkdir -p $out_dir
+
+tree_path=${out_dir}/newick_jaccard.nwk  # precomputed
 
 echo "[*] Preprocessing inputs for SynerClust."
+python create_tree_for_synerclust.py \
+	-i ${NCBI_REFSEQ_DIR}/index.tsv \
+	-o ${tree_path} \
+	-f 'newick' \
+	-s ${sim_file}
+
 python create_synerclust_input.py \
 	-i ${NCBI_REFSEQ_DIR}/index.tsv \
-	-o ${PHYLOGENY_OUTPUT_DIR}/synerclust/input.txt
+	-o ${out_dir}/input.txt
 
 
 echo "[*] Running Synerclust (PATH: ${synerclust_dir})"
 
 python $synerclust_dir/synerclust.py \
-	-r ${PHYLOGENY_OUTPUT_DIR}/synerclust/input.txt \
-	-w ${PHYLOGENY_OUTPUT_DIR}/synerclust \
-	-t $tree_path
+	-r ${out_dir}/input.txt \
+	-w ${out_dir} \
+	-t ${tree_path}
 
 
 echo "[*] Generated phylogroup path ${final_path}."
