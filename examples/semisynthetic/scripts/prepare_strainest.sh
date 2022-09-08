@@ -9,6 +9,8 @@ mkdir -p ${STRAINEST_DB_DIR}
 
 echo "[*] Extracting strain accessions from ${CHRONOSTRAIN_DB_JSON}"
 seq_paths=$(python ${BASE_DIR}/helpers/list_strain_paths.py -j ${CHRONOSTRAIN_DB_JSON} -i $REFSEQ_INDEX | paste -s -d " ")
+num_paths=$(python ${BASE_DIR}/helpers/list_strain_paths.py -j ${CHRONOSTRAIN_DB_JSON} -i $REFSEQ_INDEX | wc -l)
+echo "(Found ${num_paths} genomes.)"
 
 echo "[*] Performing alignment..."
 strainest mapgenomes ${seq_paths} ${STRAIN_REP_FASTA} ${alignment_fasta}
