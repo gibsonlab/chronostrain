@@ -2,6 +2,8 @@
 set -e
 source settings.sh
 
+check_program "sfacts"
+
 n_reads=$1
 trial=$2
 
@@ -32,6 +34,7 @@ mg_prefix="mg_all"
 metagenotype_all="${mg_prefix}.tsv"
 
 sfacts load --gtpro-metagenotype ${metagenotype_all} ${mg_prefix}.mgen.nc
+
 sfacts fit \
 -m ssdd3_with_error  \
 --verbose \
