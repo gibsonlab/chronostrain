@@ -19,11 +19,12 @@ if [ ! -f "${tree_path}" ]; then
 		-s ${sim_file}
 fi
 
-if [ ! -f "${input.txt}" ]; then
+input_file=${out_dir}/input.txt
+if [ ! -f "${input_file}" ]; then
 	echo "[*] Generating input file for SynerClust."
 	python create_synerclust_input.py \
 		-i ${NCBI_REFSEQ_DIR}/index.tsv \
-		-o ${out_dir}/input.txt
+		-o $input_file
 fi
 
 
