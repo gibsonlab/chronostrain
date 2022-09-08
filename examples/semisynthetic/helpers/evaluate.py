@@ -6,6 +6,7 @@ import argparse
 import csv
 import numpy as np
 import pandas as pd
+import scipy.stats
 import torch
 from Bio import SeqIO
 
@@ -294,32 +295,74 @@ def other_method_presence(abundance_est: torch.Tensor) -> torch.Tensor:
     return abundance_est != 0
 
 
-def dominance_switch_ratio(abundance_est: np.ndarray, lb: float = 0.0) -> np.ndarray:
-    """
-    Calculate how often the dominant strain switches.
-    """
-    def clade_is_missing(r) -> np.ndarray:
-        return np.sum(r > lb, axis=-1) == 0
+def coherence_factor(x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    assert x.shape[0] == y.shape[0]
+    assert x.shape[-1] == y.shape[-1]
 
-    if len(abundance_est.shape) == 3:
-        _T, _N, _S = abundance_est.shape
-        _is_missing = np.zeros((_T, _N), dtype=bool)
-        _has_switch = np.zeros((_T - 1, _N), dtype=bool)
-    else:
-        _T, _S = abundance_est.shape
-        _is_missing = np.zeros(_T, dtype=bool)
-        _has_switch = np.zeros(_T - 1, dtype=bool)
+    if len(x.shape) == 2 and len(y.shape) == 2:
+        return np.mean([
+            scipy.stats.kendalltau(x_t, y_t)
+            for x_t, y_t in zip(x, y)
+        ])
 
-    dom = np.argmax(abundance_est, axis=-1)
-    _is_missing[0] = clade_is_missing(abundance_est[0])
-    for t in range(_T - 1):
-        _is_missing[t + 1] = clade_is_missing(abundance_est[t + 1])
-        _has_switch[t] = _is_missing[t + 1] | (dom[t] != dom[t + 1])
+    if len(x.shape) == 2:
+        x = np.repeat(np.expand_dims(x, 1), y.shape[1], axis=1)
+    if len(y.shape) == 2:
+        y = np.repeat(np.expand_dims(y, 1), x.shape[1], axis=1)
 
-    # Compute conditional ratio.
-    numer = np.sum(~_is_missing[:-1] & _has_switch, axis=0)
-    denom = np.sum(~_is_missing[:-1], axis=0)
-    return numer / denom
+    return np.mean([
+        [
+            scipy.stats.kendalltau(x_tn, y_tn)
+            for x_tn, y_tn in zip(x_t, y_t)
+        ]
+        for x_t, y_t in zip(x, y)
+    ], axis=0)
+
+
+
+
+# def dominance_switch_ratio(x: np.ndarray, y: np.ndarray) -> np.ndarray:
+#     """
+#     Calculate how often the dominant strain switches.
+#     """
+#     assert x.shape[0] == y.shape[0]
+#     assert x.shape[-1] == y.shape[-1]
+#
+#     def clade_is_missing(r) -> np.ndarray:
+#         """
+#         :param r: A length-S array of abundance estimates, or an (N x S) matrix of abundance samples.
+#         :return: a boolean (or an array of booleans) indicating whether the total abundance was zero.
+#         """
+#         return np.sum(r > 0, axis=-1) == 0
+#
+#     if len(x.shape) == 2:
+#         x = np.expand_dims(x, 1)
+#     if len(y.shape) == 2:
+#         y = np.expand_dims(y, 1)
+#
+#     _T = x.shape[0]
+#     _N = max(x.shape[1], y.shape[1])
+#
+#     # Create empty buffers
+#     argmax_x = np.argmax(x, axis=-1)
+#     argmax_y = np.argmax(y, axis=-1)
+#
+#     has_switch = np.zeros(_T, _N, dtype=bool)
+#     both_missing = np.zeros(_T, _N, dtype=bool)
+#     for t in range(_T):
+#         x_is_missing = clade_is_missing(x[t])
+#         y_is_missing = clade_is_missing(y[t])
+#         both_missing[t] = x_is_missing & y_is_missing
+#
+#         has_switch[t] = np.logical_or(
+#             x_is_missing | y_is_missing,  # at least one is missing, or
+#             argmax_x[t] != argmax_y[t]  # the argmaxes don't agree.
+#         )
+#
+#     # Compute conditional ratio.
+#     numer = np.sum(~both_missing & has_switch, axis=0)
+#     denom = np.sum(~both_missing, axis=0)
+#     return numer / denom
 
 
 
@@ -466,9 +509,18 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                 #     ground_truth, distances, strain_ids
                 # )
 
-                detection = chronostrain_presence(chronostrain_estimate_samples, q=0.025, lb=1 / len(all_strains))
+                lb = 1 / len(all_strains)
+                detection = chronostrain_presence(chronostrain_estimate_samples, q=0.025, lb=lb)
                 error = error_metric(torch.median(chronostrain_estimate_samples, dim=1).values, truth_tensor)
-                dom_err = np.median(dominance_switch_ratio(chronostrain_estimate_samples.numpy()))
+
+                chronostrain_thresholded = chronostrain_estimate_samples.numpy()
+                chronostrain_thresholded[chronostrain_thresholded < lb] = 0.
+                dom_err = np.median(
+                    coherence_factor(
+                        chronostrain_thresholded,
+                        truth_tensor.numpy()
+                    )
+                )
                 recall = recall_ratio(detection, truth_tensor > 0)
 
                 df_entries.append({
@@ -512,7 +564,10 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                                                               'default',
                                                               trial_dir / 'output' / 'strainest')
                 error = error_metric(strainest_estimate, truth_tensor)
-                dom_err = dominance_switch_ratio(strainest_estimate.numpy())
+                dom_err = coherence_factor(
+                    strainest_estimate.numpy(),
+                    truth_tensor.numpy()
+                )
                 recall = recall_ratio(strainest_estimate > 0, truth_tensor > 0)
 
                 df_entries.append({
@@ -534,7 +589,10 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                                                               mode='chromosome')
                 # error = wasserstein_error(straingst_estimate, ground_truth, distances, strain_ids).item()
                 error = error_metric(straingst_estimate, truth_tensor)
-                dom_err = dominance_switch_ratio(straingst_estimate.numpy())
+                dom_err = coherence_factor(
+                    straingst_estimate.numpy(),
+                    truth_tensor.numpy()
+                )
                 recall = recall_ratio(straingst_estimate > 0, truth_tensor > 0)
 
                 df_entries.append({
