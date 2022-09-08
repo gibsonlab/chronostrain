@@ -295,32 +295,31 @@ def other_method_presence(abundance_est: torch.Tensor) -> torch.Tensor:
     return abundance_est != 0
 
 
-def dominance_switch_ratio(abundance_est: torch.Tensor, lb: float = 0.0) -> np.ndarray:
+def dominance_switch_ratio(abundance_est: np.ndarray, lb: float = 0.0) -> np.ndarray:
     """
     Calculate how often the dominant strain switches.
     """
-    abundance_est = abundance_est.cpu().numpy()
-
     def clade_is_missing(r) -> np.ndarray:
-        return np.sum(r >= lb, axis=-1) == 0
+        return np.sum(r > lb, axis=-1) == 0
 
     if len(abundance_est.shape) == 3:
         _T, _N, _S = abundance_est.shape
-        _is_missing = np.zeros((_T - 1, _N), dtype=np.bool)
+        _is_missing = np.zeros((_T, _N), dtype=np.bool)
         _has_switch = np.zeros((_T - 1, _N), dtype=np.bool)
     else:
         _T, _S = abundance_est.shape
         _is_missing = np.zeros(_T, dtype=np.bool)
-        _has_switch = np.zeros(_T, dtype=np.bool)
+        _has_switch = np.zeros(_T - 1, dtype=np.bool)
 
     dom = np.argmax(abundance_est, axis=-1)
+    _is_missing[0] = clade_is_missing(abundance_est[0])
     for t in range(_T - 1):
-        _is_missing[t] = clade_is_missing(abundance_est[t])
-        _has_switch[t] = abundance_est[t + 1] or dom[t] != dom[t + 1]
+        _is_missing[t + 1] = clade_is_missing(abundance_est[t + 1])
+        _has_switch[t] = _is_missing[t + 1] | (dom[t] != dom[t + 1])
 
     # Compute conditional ratio.
-    numer = np.sum(np.logical_not(_is_missing) and _has_switch, axis=0)
-    denom = np.sum(np.logical_not(_is_missing), axis=0)
+    numer = np.sum(~_is_missing[:-1] & _has_switch, axis=0)
+    denom = np.sum(~_is_missing[:-1], axis=0)
     return numer / denom
 
 
