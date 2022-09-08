@@ -1,13 +1,11 @@
-# requires python 3
+# compatible with python 2
 
-from typing import Tuple
 import csv
 import argparse
 import itertools
 from pathlib import Path
 from Bio import Phylo
 from Bio.Phylo.TreeConstruction import DistanceTreeConstructor, DistanceMatrix
-from Bio.Phylo.BaseTree import Tree
 import pandas as pd
 
 
@@ -15,7 +13,7 @@ class SpeciesNotIncluded(BaseException):
     pass
 
 
-def fetch_strain_id_from_straingst(strain_name: str, index_df: pd.DataFrame) -> Tuple[str, str]:
+def fetch_strain_id_from_straingst(strain_name, index_df):
     fasta_path = Path("/mnt/e/strainge/strainge_db") / strain_name
     gcf_id = '_'.join(fasta_path.resolve().stem.split('_')[:2])
     hit = index_df.loc[index_df['Assembly'] == gcf_id, :].head(1)
@@ -28,13 +26,13 @@ def fetch_strain_id_from_straingst(strain_name: str, index_df: pd.DataFrame) -> 
     return hit['Accession'].item(), hit['Strain'].item()
 
 
-def parse_distances(similarities_path: Path, index_df: pd.DataFrame) -> DistanceMatrix:
+def parse_distances(similarities_path, index_df):
     print(f"Parsing distances from {similarities_path}")
     names = set()
     dists = dict()
     names_to_ids = dict()
 
-    def fetch_id(strain_name: str) -> str:
+    def fetch_id(strain_name):
         if strain_name not in names_to_ids:
             acc, _ = fetch_strain_id_from_straingst(strain_name, index_df)
             names_to_ids[strain_name] = acc
@@ -74,13 +72,13 @@ def parse_distances(similarities_path: Path, index_df: pd.DataFrame) -> Distance
     return DistanceMatrix(names, matrix)
 
 
-def create_tree(d: DistanceMatrix) -> Tree:
+def create_tree(d):
     print("Constructing tree from distance matrix.")
     tree_constructor = DistanceTreeConstructor()
     return tree_constructor.nj(d)
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-s', '--sim_tsv_path', type=str, required=True)
     parser.add_argument('-o', '--output_path', type=str, required=True)
