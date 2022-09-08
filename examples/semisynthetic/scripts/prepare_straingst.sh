@@ -8,7 +8,7 @@ mkdir -p ${STRAINGST_DB_DIR}/full_genome
 cd ${STRAINGST_DB_DIR}/full_genome
 
 references_file=$STRAINGST_DB_DIR/full_genome/references_list.txt
->> $references_file
+> $references_file
 
 python ${BASE_DIR}/helpers/list_strain_paths.py -j ${CHRONOSTRAIN_DB_JSON} -i $REFSEQ_INDEX \
 | while read strain_seq; do
@@ -18,7 +18,7 @@ python ${BASE_DIR}/helpers/list_strain_paths.py -j ${CHRONOSTRAIN_DB_JSON} -i $R
 	strain_kmers="${base_name}.hdf5"
 	straingst kmerize -o $strain_kmers $strain_seq
 
-	echo "$strain_kmers" > $references_file
+	echo "$strain_kmers" >> $references_file
 done
 
 all_strain_kmers=""
