@@ -18,7 +18,9 @@ def fetch_strain_id_from_straingst(strain_name, index_df):
     gcf_id = '_'.join(fasta_path.resolve().stem.split('_')[:2])
     hit = index_df.loc[index_df['Assembly'] == gcf_id, :].head(1)
     if hit.shape[0] == 0:
-        raise ValueError(f"Couldn't find strain from StrainGST identifier `{strain_name}`.")
+        raise ValueError(
+            "Couldn't find strain from StrainGST identifier `{}`.".format(strain_name)
+        )
 
     if hit['Species'].item().lower() != 'coli':
         raise SpeciesNotIncluded()
@@ -27,7 +29,7 @@ def fetch_strain_id_from_straingst(strain_name, index_df):
 
 
 def parse_distances(similarities_path, index_df):
-    print(f"Parsing distances from {similarities_path}")
+    print("Parsing distances from {}".format(similarities_path))
     names = set()
     dists = dict()
     names_to_ids = dict()
@@ -58,7 +60,7 @@ def parse_distances(similarities_path, index_df):
             except SpeciesNotIncluded:
                 continue
 
-    print(f"found {len(names)} records.")
+    print("found {} records.".format(len(names)))
     names = sorted(names)
     matrix = [
         [0.] * (u_idx + 1)
@@ -92,7 +94,7 @@ def main():
     index_df = pd.read_csv(args.refseq_index, sep='\t')
     tree = create_tree(parse_distances(args.sim_tsv_path, index_df))
     Phylo.write([tree], str(args.output_path), args.tree_format)
-    print(f"Created tree {args.output_path}")
+    print("Created tree {}".format(args.output_path))
 
 
 if __name__ == "__main__":
