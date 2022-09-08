@@ -9,7 +9,10 @@ logger = create_logger("chronostrain.cli")
 
 
 @click.group(
-    context_settings={'help_option_names': ['-h', '--help']},
+    context_settings={
+        'help_option_names': ['-h', '--help'],
+        'max_content_width': 120
+    },
     commands={
         'filter': filter_timeseries,
         'filter-single': filter_single,
