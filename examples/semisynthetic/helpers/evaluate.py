@@ -11,7 +11,6 @@ from Bio import SeqIO
 
 from chronostrain.logging import create_logger
 logger = create_logger("chronostrain.evaluate")
-device = torch.device("cuda:0")
 
 
 def read_depth_dirs(base_dir: Path) -> Iterator[Tuple[int, Path]]:
@@ -115,7 +114,7 @@ def parse_chronostrain_estimate(ground_truth: pd.DataFrame,
         ))
 
     n_samples = abundance_samples.size(1)
-    estimate = torch.zeros(size=(len(time_points), n_samples, len(strain_ids)), dtype=torch.float, device=device)
+    estimate = torch.zeros(size=(len(time_points), n_samples, len(strain_ids)), dtype=torch.float)
     strain_indices = {sid: i for i, sid in enumerate(strain_ids)}
     for db_idx, strain_id in enumerate(db_strains):
         if strain_id not in strain_indices:
@@ -132,7 +131,7 @@ def parse_strainest_estimate(ground_truth: pd.DataFrame,
     time_points = sorted(pd.unique(ground_truth['T']))
     strain_indices = {sid: i for i, sid in enumerate(strain_ids)}
 
-    est_rel_abunds = torch.zeros(size=(len(time_points), len(strain_ids)), dtype=torch.float, device=device)
+    est_rel_abunds = torch.zeros(size=(len(time_points), len(strain_ids)), dtype=torch.float)
     for t_idx, t in enumerate(time_points):
         output_path = output_dir / f"abund_{t_idx}.{sensitivity}.txt"
         with open(output_path, 'rt') as f:
