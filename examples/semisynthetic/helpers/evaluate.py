@@ -193,7 +193,7 @@ def parse_strainfacts_estimate(
     supported_strains = list(pd.unique(truth_df['Strain']))
     ground_truth = extract_ground_truth_array(truth_df, supported_strains)
 
-    est_rel_abunds = torch.zeros(size=(len(time_points), len(supported_strains)), dtype=torch.float, device=device)
+    est_rel_abunds = torch.zeros(size=(len(time_points), len(supported_strains)), dtype=torch.float)
     with open(output_dir / 'result_community.tsv', 'r') as f:
         for line in f:
             if line.startswith("sample"):
@@ -219,7 +219,7 @@ def parse_strainfacts_estimate(
 
     all_idxs = {s: i for i, s in enumerate(strain_ids)}
     support_idx = [all_idxs[s] for s in supported_strains]
-    full_est = torch.zeros(size=(len(time_points), len(strain_ids)), dtype=torch.float, device=device)
+    full_est = torch.zeros(size=(len(time_points), len(strain_ids)), dtype=torch.float)
     full_est[:, support_idx] = est_rel_abunds[:, best_perm]
     return full_est
 
@@ -228,7 +228,7 @@ def extract_ground_truth_array(truth_df: pd.DataFrame, strain_ids: List[str]) ->
     time_points = sorted(pd.unique(truth_df['T']))
     t_idxs = {t: t_idx for t_idx, t in enumerate(time_points)}
     strain_idxs = {sid: i for i, sid in enumerate(strain_ids)}
-    ground_truth = torch.zeros(size=(len(time_points), len(strain_ids)), dtype=torch.float, device=device)
+    ground_truth = torch.zeros(size=(len(time_points), len(strain_ids)), dtype=torch.float)
     for _, row in truth_df.iterrows():
         s_idx = strain_idxs[row['Strain']]
         t_idx = t_idxs[row['T']]
