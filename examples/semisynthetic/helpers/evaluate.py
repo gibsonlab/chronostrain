@@ -295,29 +295,33 @@ def other_method_presence(abundance_est: torch.Tensor) -> torch.Tensor:
     return abundance_est != 0
 
 
-def dominance_switch_ratio(abundance_est: torch.Tensor, lb: float = 0.0) -> float:
+def dominance_switch_ratio(abundance_est: torch.Tensor, lb: float = 0.0) -> np.ndarray:
     """
     Calculate how often the dominant strain switches.
     """
     abundance_est = abundance_est.cpu().numpy()
-    dom = np.argmax(abundance_est, axis=1)
-    num_switches = 0
 
-    def row_is_zeros(r) -> bool:
-        return np.sum(r <= lb).item() == r.shape[0]
+    def clade_is_missing(r) -> np.ndarray:
+        return np.sum(r >= lb, axis=-1) == 0
 
-    num_total = 0
-    for i in range(len(dom) - 1):
-        if row_is_zeros(abundance_est[i]):
-            continue  # don't add to denominator.
-
-        elif row_is_zeros(abundance_est[i + 1]) or (dom[i] != dom[i + 1]):
-            num_switches += 1
-        num_total += 1
-    if num_total > 0:
-        return num_switches / num_total
+    if len(abundance_est.shape) == 3:
+        _T, _N, _S = abundance_est.shape
+        _is_missing = np.zeros((_T - 1, _N), dtype=np.bool)
+        _has_switch = np.zeros((_T - 1, _N), dtype=np.bool)
     else:
-        return np.nan
+        _T, _S = abundance_est.shape
+        _is_missing = np.zeros(_T, dtype=np.bool)
+        _has_switch = np.zeros(_T, dtype=np.bool)
+
+    dom = np.argmax(abundance_est, axis=-1)
+    for t in range(_T - 1):
+        _is_missing[t] = clade_is_missing(abundance_est[t])
+        _has_switch[t] = abundance_est[t + 1] or dom[t] != dom[t + 1]
+
+    # Compute conditional ratio.
+    numer = np.sum(np.logical_not(_is_missing) and _has_switch, axis=0)
+    denom = np.sum(np.logical_not(_is_missing), axis=0)
+    return numer / denom
 
 
 
@@ -466,7 +470,7 @@ def evaluate_errors(ground_truth: pd.DataFrame,
 
                 detection = chronostrain_presence(chronostrain_estimate_samples, q=0.025, lb=1 / len(all_strains))
                 error = error_metric(torch.median(chronostrain_estimate_samples, dim=1).values, truth_tensor)
-                dom_err = dominance_switch_ratio(torch.median(chronostrain_estimate_samples, dim=1).values)
+                dom_err = np.median(dominance_switch_ratio(chronostrain_estimate_samples))
                 recall = recall_ratio(detection, truth_tensor > 0)
 
                 df_entries.append({
