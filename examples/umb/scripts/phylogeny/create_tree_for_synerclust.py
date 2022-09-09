@@ -92,6 +92,8 @@ def compute_distances(
 
     for x, y in itertools.combinations(strain_sketches.keys(), r=2):
         d = invoke_mash_dist(strain_sketches[x], strain_sketches[y])
+        print(f"Mash Distance({x}, {y}): {d}")
+
         x_idx = indices[x]
         y_idx = indices[y]
         if x_idx > y_idx:
