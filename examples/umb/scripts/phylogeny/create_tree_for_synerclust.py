@@ -142,7 +142,11 @@ def create_synerclust_input(target_path: Path, strain_ids: List[str], index_df: 
 def main():
     args = parse_args()
     output_dir = Path(args.output_dir)
+    output_dir.mkdir(exist_ok=True, parents=True)
+
     temp_dir = output_dir / '__dist_tmp'
+    temp_dir.mkdir(exist_ok=True, parents=True)
+
     index_df = pd.read_csv(args.refseq_index, sep='\t')
 
     straingst_strains = retrieve_straingst_strains(
