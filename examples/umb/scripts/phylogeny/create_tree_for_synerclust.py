@@ -147,7 +147,7 @@ def main():
 
     straingst_strains = retrieve_straingst_strains(
         args.strainge_strains,
-        args.strainge_db_dir,
+        Path(args.strainge_db_dir),
         index_df
     )
     chronostrain_strains = retrieve_chronostrain_strains(
