@@ -103,12 +103,14 @@ def compute_distances(
 
 
 def invoke_mash_sketch(fasta_path: Path, out_prefix: Path) -> Path:
-    subprocess.run([
-        'mash', 'sketch',
-        str(fasta_path),
-        '-o', str(out_prefix)
-    ], capture_output=False)
-    return out_prefix.parent / f'{out_prefix.name}.msh'
+    expected_out_path = out_prefix.parent / f'{out_prefix.name}.msh'
+    if not expected_out_path.exists():
+        subprocess.run([
+            'mash', 'sketch',
+            str(fasta_path),
+            '-o', str(out_prefix)
+        ], capture_output=False)
+    return expected_out_path
 
 
 def invoke_mash_dist(sketch1: Path, sketch2: Path) -> float:
