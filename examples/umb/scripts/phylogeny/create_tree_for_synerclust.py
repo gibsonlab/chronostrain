@@ -84,7 +84,12 @@ def compute_distances(
         sketch_path = invoke_mash_sketch(strain_path, out_prefix)
         strain_sketches[strain_id] = sketch_path
 
-    indices: Dict[str, int] = {strain_id: i for i, strain_id in enumerate(strain_sketches.keys())}
+    indices: Dict[str, int] = {}
+    strain_ids = []
+    for i, strain_id in enumerate(strain_sketches.keys()):
+        indices[strain_id] = i
+        strain_ids.append(strain_id)
+
     matrix = [
         [0.] * k
         for k in range(1, len(indices) + 1)
@@ -92,7 +97,6 @@ def compute_distances(
 
     for x, y in itertools.combinations(strain_sketches.keys(), r=2):
         d = invoke_mash_dist(strain_sketches[x], strain_sketches[y])
-        print(f"Mash Distance({x}, {y}): {d}")
 
         x_idx = indices[x]
         y_idx = indices[y]
@@ -101,7 +105,7 @@ def compute_distances(
         else:
             matrix[y_idx][x_idx] = d
 
-    return DistanceMatrix(matrix), list(strain_sketches.keys())
+    return DistanceMatrix(names=strain_ids, matrix=matrix), strain_ids
 
 
 def invoke_mash_sketch(fasta_path: Path, out_prefix: Path) -> Path:
