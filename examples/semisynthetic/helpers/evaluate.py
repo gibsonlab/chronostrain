@@ -301,7 +301,7 @@ def coherence_factor(x: np.ndarray, y: np.ndarray) -> np.ndarray:
 
     if len(x.shape) == 2 and len(y.shape) == 2:
         return np.mean([
-            scipy.stats.kendalltau(x_t, y_t)
+            scipy.stats.kendalltau(x_t, y_t)[0]
             for x_t, y_t in zip(x, y)
         ])
 
@@ -312,7 +312,7 @@ def coherence_factor(x: np.ndarray, y: np.ndarray) -> np.ndarray:
 
     return np.mean([
         [
-            scipy.stats.kendalltau(x_tn, y_tn)
+            scipy.stats.kendalltau(x_tn, y_tn)[0]
             for x_tn, y_tn in zip(x_t, y_t)
         ]
         for x_t, y_t in zip(x, y)
@@ -515,12 +515,11 @@ def evaluate_errors(ground_truth: pd.DataFrame,
 
                 chronostrain_thresholded = chronostrain_estimate_samples.numpy()
                 chronostrain_thresholded[chronostrain_thresholded < lb] = 0.
-                dom_err = np.median(
-                    coherence_factor(
-                        chronostrain_thresholded,
-                        truth_tensor.numpy()
-                    )
+                coherence = coherence_factor(
+                    chronostrain_thresholded,
+                    truth_tensor.numpy()
                 )
+                print("coherence shape: {}".format(coherence.shape))
                 recall = recall_ratio(detection, truth_tensor > 0)
 
                 df_entries.append({
@@ -528,7 +527,7 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                     'TrialNum': trial_num,
                     'Method': 'Chronostrain',
                     'Error': error,
-                    'Dominance': dom_err,
+                    'Coherence': np.median(coherence),
                     'Recall': recall
                 })
 
@@ -564,7 +563,7 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                                                               'default',
                                                               trial_dir / 'output' / 'strainest')
                 error = error_metric(strainest_estimate, truth_tensor)
-                dom_err = coherence_factor(
+                coherence = coherence_factor(
                     strainest_estimate.numpy(),
                     truth_tensor.numpy()
                 )
@@ -575,7 +574,7 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                     'TrialNum': trial_num,
                     'Method': 'StrainEst (Default)',
                     'Error': error,
-                    'Dominance': dom_err,
+                    'Coherence': coherence,
                     'Recall': recall
                 })
                 # plot_result(plot_dir / 'strainest.default.pdf', ground_truth, strainest_estimate, strain_ids)
@@ -589,7 +588,7 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                                                               mode='chromosome')
                 # error = wasserstein_error(straingst_estimate, ground_truth, distances, strain_ids).item()
                 error = error_metric(straingst_estimate, truth_tensor)
-                dom_err = coherence_factor(
+                coherence = coherence_factor(
                     straingst_estimate.numpy(),
                     truth_tensor.numpy()
                 )
@@ -600,7 +599,7 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                     'TrialNum': trial_num,
                     'Method': 'StrainGST',
                     'Error': error,
-                    'Dominance': dom_err,
+                    'Coherence': coherence,
                     'Recall': recall
                 })
                 # plot_result(plot_dir / 'straingst.pdf', ground_truth, straingst_estimate, strain_ids)
