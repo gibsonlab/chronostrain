@@ -10,7 +10,7 @@ cd ${STRAINGST_DB_DIR}/full_genome_hdf5
 references_file=$STRAINGST_DB_DIR/full_genome_hdf5/references_list.txt
 > $references_file
 
-python ${BASE_DIR}/helpers/list_strain_paths.py -j ${CHRONOSTRAIN_DB_JSON} -i $REFSEQ_INDEX \
+python ${BASE_DIR}/helpers/list_strain_paths.py -j ${ECOLI_ONLY_JSON} -i $REFSEQ_INDEX \
 | while read strain_seq; do
 	base_name="$(basename -- $strain_seq)"
 	base_name="${base_name%.chrom.fna}"
