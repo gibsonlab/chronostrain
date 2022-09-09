@@ -175,7 +175,7 @@ def main():
     tree = DistanceTreeConstructor().nj(distances)
 
     # erase internal node names. Necessary for SynerClust?
-    for clade in tree.find_clades():
+    for clade in tree.get_nonterminals():
         clade.name = ""
 
     # Save the tree.
