@@ -44,6 +44,7 @@ if [ -d $CHRONOSTRAIN_CACHE_DIR ]; then
 	rm -rf $CHRONOSTRAIN_CACHE_DIR
 fi
 
+echo "[*] Using database ${CHRONOSTRAIN_DB_DIR}"
 echo "[*] Running Chronostrain inference for n_reads: ${n_reads}, trial: ${trial}"
 start_time=$(date +%s%N)  # nanoseconds
 
