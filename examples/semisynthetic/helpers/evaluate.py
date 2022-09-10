@@ -323,13 +323,16 @@ def coherence_factor(x: np.ndarray, y: np.ndarray) -> float:
     assert len(x.shape) == 1
     assert len(y.shape) == 1
 
-    if np.std(x) == 0 and np.std(y) == 0:
+    if np.std(x) == 0 and np.std(y) == 0:  # edge case
         if x[0] == 0.:
             return np.nan
         elif x[0] == y[0]:
             return 1.0
         else:
             return 0.0
+
+    if np.std(x) == 0 or np.std(y) == 0:  # only one is zero
+        return 0.0
 
     # noinspection PyTypeChecker
     return scipy.stats.spearmanr(x, y)[0]
