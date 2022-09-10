@@ -301,7 +301,7 @@ def coherence_factor(x: np.ndarray, y: np.ndarray) -> np.ndarray:
 
     if len(x.shape) == 2 and len(y.shape) == 2:
         return np.mean([
-            scipy.stats.kendalltau(x_t, y_t)[0]
+            scipy.stats.spearmanr(x_t, y_t)[0]
             for x_t, y_t in zip(x, y)
         ])
 
@@ -312,7 +312,7 @@ def coherence_factor(x: np.ndarray, y: np.ndarray) -> np.ndarray:
 
     return np.mean([
         [
-            scipy.stats.kendalltau(x_tn, y_tn)[0]
+            scipy.stats.spearmanr(x_tn, y_tn)[0]
             for x_tn, y_tn in zip(x_t, y_t)
         ]
         for x_t, y_t in zip(x, y)
