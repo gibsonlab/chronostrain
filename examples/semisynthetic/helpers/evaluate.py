@@ -320,8 +320,6 @@ def mean_coherence_factor(x: np.ndarray, y: np.ndarray) -> np.ndarray:
 
 
 def coherence_factor(x: np.ndarray, y: np.ndarray) -> float:
-    print("x shape = {}".format(x.shape))
-    print("y shape = {}".format(y.shape))
     assert len(x.shape) == 1
     assert len(y.shape) == 1
 
@@ -532,7 +530,7 @@ def evaluate_errors(ground_truth: pd.DataFrame,
 
                 chronostrain_thresholded = chronostrain_estimate_samples.numpy()
                 chronostrain_thresholded[chronostrain_thresholded < lb] = 0.
-                coherence = coherence_factor(
+                coherence = mean_coherence_factor(
                     chronostrain_thresholded,
                     truth_tensor.numpy()
                 )
@@ -581,7 +579,7 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                                                               'default',
                                                               trial_dir / 'output' / 'strainest')
                 error = error_metric(strainest_estimate, truth_tensor)
-                coherence = coherence_factor(
+                coherence = mean_coherence_factor(
                     strainest_estimate.numpy(),
                     truth_tensor.numpy()
                 )
@@ -606,7 +604,7 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                                                               mode='chromosome')
                 # error = wasserstein_error(straingst_estimate, ground_truth, distances, strain_ids).item()
                 error = error_metric(straingst_estimate, truth_tensor)
-                coherence = coherence_factor(
+                coherence = mean_coherence_factor(
                     straingst_estimate.numpy(),
                     truth_tensor.numpy()
                 )
