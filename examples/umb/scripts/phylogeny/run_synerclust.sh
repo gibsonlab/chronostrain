@@ -7,16 +7,14 @@ out_dir=${PHYLOGENY_OUTPUT_DIR}/synerclust
 mkdir -p $out_dir
 
 
-if [ ! -f "${out_dir}/tree.nwk" ]; then
-	echo "[*] Creating tree for SynerClust."
-	python create_tree_for_synerclust.py \
-		-s /mnt/e/strainge/references_to_keep.txt \
-		-sdb /mnt/e/strainge/strainge_db \
-		-j /mnt/e/chronostrain/umb_database/database_pruned_resolved.json \
-		-i ${NCBI_REFSEQ_DIR}/index.tsv \
-		-o ${out_dir} \
-		-f 'newick'
-fi
+echo "[*] Creating inputs for SynerClust."
+python create_tree_for_synerclust.py \
+	-s /mnt/e/strainge/references_to_keep.txt \
+	-sdb /mnt/e/strainge/strainge_db \
+	-j /mnt/e/chronostrain/umb_database/database_pruned_resolved.json \
+	-i ${NCBI_REFSEQ_DIR}/index.tsv \
+	-o ${out_dir} \
+	-f 'newick'
 
 
 echo "[*] Running Synerclust (PATH: ${synerclust_dir})"
