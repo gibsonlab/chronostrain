@@ -534,7 +534,7 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                 chronostrain_thresholded = chronostrain_estimate_samples.numpy()
                 chronostrain_thresholded[chronostrain_thresholded < lb] = 0.
                 coherence = mean_coherence_factor(
-                    chronostrain_thresholded,
+                    np.median(chronostrain_thresholded, axis=1),
                     truth_tensor.numpy()
                 )
                 recall = recall_ratio(detection, truth_tensor > 0)
