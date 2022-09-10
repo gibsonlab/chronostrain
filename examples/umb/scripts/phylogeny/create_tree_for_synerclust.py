@@ -131,10 +131,14 @@ def invoke_mash_dist(sketch1: Path, sketch2: Path) -> float:
 def create_synerclust_input(target_path: Path, strain_ids: List[str], index_df: pd.DataFrame):
     # Search for fasta path.
     dir_for_bad_paths = target_path.parent / "bad_path_fix"
+    resolved_strains = set()
 
     with open(target_path, "w") as out_f:
         print("//", file=out_f)
         for strain_id in strain_ids:
+            if strain_id in resolved_strains:
+                continue
+
             res = index_df.loc[index_df['Accession'] == strain_id, :]
             if res.shape[0] > 1:
                 raise RuntimeError("Ambiguous accession -> gcf mapping.")
@@ -162,6 +166,7 @@ def create_synerclust_input(target_path: Path, strain_ids: List[str], index_df: 
             print(f"Sequence\t{seq_path}", file=out_f)
             print(f"Annotation\t{gff_path}", file=out_f)
             print("//", file=out_f)
+            resolved_strains.add(strain_id)
 
 
 def main():
