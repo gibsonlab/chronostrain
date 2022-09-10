@@ -144,7 +144,7 @@ def create_synerclust_input(target_path: Path, strain_ids: List[str], index_df: 
             gff_path = next(iter(seq_path.parent.glob(f'{gcf}_*genomic.chrom.gff')))
 
             chars = set(str(seq_path))
-            if len({'(', ')', '-', '%', '&', '#', '$', '@', '^', '[', ']' '?'}.intersection(chars)) > 0:
+            if len({'(', ')', '%', '&', '#', '$', '@', '^', '[', ']' '?'}.intersection(chars)) > 0:
                 print(f"Bad character detected for strain {strain_id} (basepath: {seq_path.parent})")
                 # Hacky fix since SynerClust doesn't play well with path strings.
                 # Solution: create symlinks.
