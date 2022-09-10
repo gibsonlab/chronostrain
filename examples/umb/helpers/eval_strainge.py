@@ -3,6 +3,7 @@ from pathlib import Path
 import argparse
 import pandas as pd
 import numpy as np
+import scipy.stats
 
 from strainge.io.utils import parse_straingst
 
@@ -187,13 +188,13 @@ def evaluate(strainge_output_dir: Path, metadata: pd.DataFrame, ref_df: pd.DataF
         if timeseries_df.shape[0] == 0:
             df_entries.append({
                 "Patient": patient,
-                "Dominance": np.nan
+                "Coherence": np.nan
             })
         else:
             timeseries, _ = convert_to_numpy(timeseries_df, patient, metadata)
             df_entries.append({
                 "Patient": patient,
-                "Dominance": dominance_switch_ratio(timeseries)
+                "Coherence": timeseries_coherence_factor(timeseries)
             })
     return pd.DataFrame(df_entries)
 
@@ -206,7 +207,7 @@ def evaluate_by_clades(strainge_output_dir: Path, clades: Dict[str, str], metada
                 df_entries.append({
                     "Patient": patient,
                     "Phylogroup": clade,
-                    "Dominance": np.nan,
+                    "Coherence": np.nan,
                     "OverallRelAbundMax": np.nan,
                     "StrainRelAbundMax": np.nan
                 })
@@ -217,7 +218,7 @@ def evaluate_by_clades(strainge_output_dir: Path, clades: Dict[str, str], metada
                     df_entries.append({
                         "Patient": patient,
                         "Phylogroup": clade,
-                        "Dominance": np.nan,
+                        "Coherence": np.nan,
                         "OverallRelAbundMax": np.nan,
                         "StrainRelAbundMax": np.nan,
                     })
@@ -225,7 +226,7 @@ def evaluate_by_clades(strainge_output_dir: Path, clades: Dict[str, str], metada
                     df_entries.append({
                         "Patient": patient,
                         "Phylogroup": clade,
-                        "Dominance": dominance_switch_ratio(sub_timeseries),
+                        "Coherence": timeseries_coherence_factor(sub_timeseries),
                         "OverallRelAbundMax": np.max(np.sum(sub_timeseries, axis=1)),
                         "StrainRelAbundMax": np.max(sub_timeseries)
                     })
@@ -243,28 +244,48 @@ def divide_into_timeseries(timeseries: np.ndarray, strain_ids: List[str], clades
             yield this_clade, timeseries[:, matching_strains]
 
 
-def dominance_switch_ratio(abundance_est: np.ndarray, lb: float = 0.0) -> float:
-    """
-    Calculate how often the dominant strain switches.
-    """
-    dom = np.argmax(abundance_est, axis=1)
-    num_switches = 0
+def timeseries_coherence_factor(x: np.ndarray) -> np.ndarray:
+    return mean_coherence_factor(x[1:], x[:-1])
 
-    def row_is_zeros(r) -> bool:
-        return np.sum(r <= lb).item() == r.shape[0]
 
-    num_total = 0
-    for i in range(len(dom) - 1):
-        if row_is_zeros(abundance_est[i]):
-            continue  # don't add to denominator.
+def mean_coherence_factor(x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    assert x.shape[0] == y.shape[0]
+    assert x.shape[-1] == y.shape[-1]
 
-        elif row_is_zeros(abundance_est[i + 1]) or (dom[i] != dom[i + 1]):
-            num_switches += 1
-        num_total += 1
-    if num_total > 0:
-        return num_switches / num_total
-    else:
-        return np.nan
+    if len(x.shape) == 2 and len(y.shape) == 2:
+        return np.nanmean([
+            coherence_factor(x_t, y_t)
+            for x_t, y_t in zip(x, y)
+        ])
+
+    if len(x.shape) == 2:
+        x = np.repeat(np.expand_dims(x, 1), y.shape[1], axis=1)
+    if len(y.shape) == 2:
+        y = np.repeat(np.expand_dims(y, 1), x.shape[1], axis=1)
+
+    return np.nanmean([
+        [
+            coherence_factor(x_tn, y_tn)
+            for x_tn, y_tn in zip(x_t, y_t)
+        ]
+        for x_t, y_t in zip(x, y)
+    ], axis=0)
+
+
+def coherence_factor(x: np.ndarray, y: np.ndarray) -> float:
+    assert len(x.shape) == 1
+    assert len(y.shape) == 1
+
+    if np.std(x) == 0 and np.std(y) == 0:
+        if x[0] == 0.:
+            return np.nan
+        elif x[0] == y[0]:
+            return 1.0
+        else:
+            return 0.0
+
+    # noinspection PyTypeChecker
+    return scipy.stats.spearmanr(x, y)[0]
 
 
 def main():

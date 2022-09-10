@@ -4,6 +4,7 @@ import argparse
 import numpy as np
 import pandas as pd
 import torch
+import scipy.stats
 
 from chronostrain.database import StrainDatabase
 from chronostrain.model import Strain
@@ -101,9 +102,15 @@ def evaluate(chronostrain_output_dir: Path, reads_dir: Path, detection_lb: float
     for patient, reads, db_relabund_samples, _ in umb_outputs(chronostrain_output_dir, reads_dir):
         print(f"Handling {patient}.")
 
+        thresholded_presence = np.copy(db_relabund_samples)
+        thresholded_presence[thresholded_presence < detection_lb] = 0.
+        coherence = timeseries_coherence_factor(thresholded_presence)
+
         df_entries.append({
             "Patient": patient,
-            "Dominance": dominance_switch_ratio(db_relabund_samples, lb=detection_lb)
+            "CoherenceLower": np.quantile(coherence, q=0.025),
+            "CoherenceMedian": np.quantile(coherence, q=0.5),
+            "CoherenceUpper": np.quantile(coherence, q=0.975),
         })
     return pd.DataFrame(df_entries)
 
@@ -124,15 +131,17 @@ def evaluate_by_clades(chronostrain_output_dir: Path, reads_dir: Path, clades: D
             assert overall_chunk.shape[1] == relative_chunk.shape[1]
             assert overall_chunk.shape[2] == relative_chunk.shape[2]
 
-            dsr = dominance_switch_ratio(relative_chunk, lb=detection_lb)
+            thresholded_presence = np.copy(relative_chunk)
+            thresholded_presence[thresholded_presence < detection_lb] = 0.
+            coherence = timeseries_coherence_factor(relative_chunk)
 
             df_entries.append({
                 "Patient": patient,
                 "Phylogroup": clade,
                 "GroupSize": overall_chunk.shape[1],
-                "DominanceLower": np.quantile(dsr, q=0.025),
-                "DominanceMedian": np.quantile(dsr, q=0.5),
-                "DominanceUpper": np.quantile(dsr, q=0.975),
+                "CoherenceLower": np.quantile(coherence, q=0.025),
+                "CoherenceMedian": np.quantile(coherence, q=0.5),
+                "CoherenceUpper": np.quantile(coherence, q=0.975),
                 "CladeOverallRelAbundLower": np.quantile(overall_chunk.sum(axis=-1).max(axis=0), q=0.025),
                 "CladeOverallRelAbundMedian": np.quantile(overall_chunk.sum(axis=-1).max(axis=0), q=0.5),
                 "CladeOverallRelAbundUpper": np.quantile(overall_chunk.sum(axis=-1).max(axis=0), q=0.975),
@@ -154,32 +163,48 @@ def divide_into_timeseries(timeseries: np.ndarray, strain_ids: List[str], clades
         yield this_clade, timeseries[:, :, matching_strain_indices]
 
 
-def dominance_switch_ratio(abundance_est: np.ndarray, lb: float = 0.0) -> np.ndarray:
-    """
-    Calculate how often the dominant strain switches.
-    """
-    def clade_is_missing(r) -> np.ndarray:
-        return np.sum(r > lb, axis=-1) == 0
+def timeseries_coherence_factor(x: np.ndarray) -> np.ndarray:
+    return mean_coherence_factor(x[1:], x[:-1])
 
-    if len(abundance_est.shape) == 3:
-        _T, _N, _S = abundance_est.shape
-        _is_missing = np.zeros((_T, _N), dtype=bool)
-        _has_switch = np.zeros((_T - 1, _N), dtype=bool)
-    else:
-        _T, _S = abundance_est.shape
-        _is_missing = np.zeros(_T, dtype=bool)
-        _has_switch = np.zeros(_T - 1, dtype=bool)
 
-    dom = np.argmax(abundance_est, axis=-1)
-    _is_missing[0] = clade_is_missing(abundance_est[0])
-    for t in range(_T - 1):
-        _is_missing[t + 1] = clade_is_missing(abundance_est[t + 1])
-        _has_switch[t] = _is_missing[t + 1] | (dom[t] != dom[t + 1])
+def mean_coherence_factor(x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    assert x.shape[0] == y.shape[0]
+    assert x.shape[-1] == y.shape[-1]
 
-    # Compute conditional ratio.
-    numer = np.sum(~_is_missing[:-1] & _has_switch, axis=0)
-    denom = np.sum(~_is_missing[:-1], axis=0)
-    return numer / denom
+    if len(x.shape) == 2 and len(y.shape) == 2:
+        return np.nanmean([
+            coherence_factor(x_t, y_t)
+            for x_t, y_t in zip(x, y)
+        ])
+
+    if len(x.shape) == 2:
+        x = np.repeat(np.expand_dims(x, 1), y.shape[1], axis=1)
+    if len(y.shape) == 2:
+        y = np.repeat(np.expand_dims(y, 1), x.shape[1], axis=1)
+
+    return np.nanmean([
+        [
+            coherence_factor(x_tn, y_tn)
+            for x_tn, y_tn in zip(x_t, y_t)
+        ]
+        for x_t, y_t in zip(x, y)
+    ], axis=0)
+
+
+def coherence_factor(x: np.ndarray, y: np.ndarray) -> float:
+    assert len(x.shape) == 1
+    assert len(y.shape) == 1
+
+    if np.std(x) == 0 and np.std(y) == 0:
+        if x[0] == 0.:
+            return np.nan
+        elif x[0] == y[0]:
+            return 1.0
+        else:
+            return 0.0
+
+    # noinspection PyTypeChecker
+    return scipy.stats.spearmanr(x, y)[0]
 
 
 def main():

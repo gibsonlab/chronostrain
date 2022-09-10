@@ -295,13 +295,13 @@ def other_method_presence(abundance_est: torch.Tensor) -> torch.Tensor:
     return abundance_est != 0
 
 
-def coherence_factor(x: np.ndarray, y: np.ndarray) -> np.ndarray:
+def mean_coherence_factor(x: np.ndarray, y: np.ndarray) -> np.ndarray:
     assert x.shape[0] == y.shape[0]
     assert x.shape[-1] == y.shape[-1]
 
     if len(x.shape) == 2 and len(y.shape) == 2:
-        return np.mean([
-            scipy.stats.spearmanr(x_t, y_t)[0]
+        return np.nanmean([
+            coherence_factor(x_t, y_t)
             for x_t, y_t in zip(x, y)
         ])
 
@@ -310,14 +310,29 @@ def coherence_factor(x: np.ndarray, y: np.ndarray) -> np.ndarray:
     if len(y.shape) == 2:
         y = np.repeat(np.expand_dims(y, 1), x.shape[1], axis=1)
 
-    return np.mean([
+    return np.nanmean([
         [
-            scipy.stats.spearmanr(x_tn, y_tn)[0]
+            coherence_factor(x_tn, y_tn)
             for x_tn, y_tn in zip(x_t, y_t)
         ]
         for x_t, y_t in zip(x, y)
     ], axis=0)
 
+
+def coherence_factor(x: np.ndarray, y: np.ndarray) -> float:
+    assert len(x.shape) == 1
+    assert len(y.shape) == 1
+
+    if np.std(x) == 0 and np.std(y) == 0:
+        if x[0] == 0.:
+            return np.nan
+        elif x[0] == y[0]:
+            return 1.0
+        else:
+            return 0.0
+
+    # noinspection PyTypeChecker
+    return scipy.stats.spearmanr(x, y)[0]
 
 
 
