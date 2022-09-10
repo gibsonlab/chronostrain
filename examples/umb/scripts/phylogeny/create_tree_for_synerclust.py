@@ -130,6 +130,8 @@ def invoke_mash_dist(sketch1: Path, sketch2: Path) -> float:
 
 def create_synerclust_input(target_path: Path, strain_ids: List[str], index_df: pd.DataFrame):
     # Search for fasta path.
+    dir_for_bad_paths = target_path.parent / "bad_path_fix"
+
     with open(target_path, "w") as out_f:
         print("//", file=out_f)
         for strain_id in strain_ids:
@@ -141,6 +143,21 @@ def create_synerclust_input(target_path: Path, strain_ids: List[str], index_df: 
             seq_path = Path(res.head(1)['SeqPath'].item())
             gff_path = next(iter(seq_path.parent.glob(f'{gcf}_*genomic.chrom.gff')))
 
+            chars = set(str(seq_path))
+            if len({'(', ')', '-', '%', '&', '#', '$', '@', '^', '[', ']' '?'}.intersection(chars)) > 0:
+                print(f"Bad character detected for strain {strain_id} (basepath: {seq_path.parent})")
+                # Hacky fix since SynerClust doesn't play well with path strings.
+                # Solution: create symlinks.
+                link_dir = dir_for_bad_paths / f'{strain_id}'
+                link_dir.mkdir(exist_ok=True, parents=True)
+
+                link_fasta = link_dir / seq_path.name
+                link_fasta.symlink_to(seq_path)
+                link_gff = link_dir / gff_path.name
+                link_gff.symlink_to(gff_path)
+
+                seq_path = link_fasta
+                gff_path = link_gff
             print(f"Genome\t{strain_id}", file=out_f)
             print(f"Sequence\t{seq_path}", file=out_f)
             print(f"Annotation\t{gff_path}", file=out_f)
