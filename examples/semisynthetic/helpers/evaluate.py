@@ -528,23 +528,41 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                 # )
 
                 lb = 1 / len(all_strains)
-                detection = chronostrain_presence(chronostrain_estimate_samples, q=0.025, lb=lb)
-                error = error_metric(torch.median(chronostrain_estimate_samples, dim=1).values, truth_tensor)
-
                 chronostrain_thresholded = chronostrain_estimate_samples.numpy()
                 chronostrain_thresholded[chronostrain_thresholded < lb] = 0.
-                coherence = mean_coherence_factor(
-                    np.median(chronostrain_thresholded, axis=1),
-                    truth_tensor.numpy()
-                )
-                recall = recall_ratio(detection, truth_tensor > 0)
+
+                errors = np.array([
+                    error_metric(chronostrain_estimate_samples[:, n, :], truth_tensor)
+                    for n in range(chronostrain_estimate_samples.shape[1])
+                ])
+                coherences = mean_coherence_factor(chronostrain_thresholded, truth_tensor.numpy())
+                recalls = np.array([
+                    recall_ratio(chronostrain_thresholded[:, n, :] > 0., truth_tensor > 0.)
+                    for n in range(chronostrain_estimate_samples.shape[1])
+                ])
 
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
                     'Method': 'Chronostrain',
+                    'Error': np.median(errors),
+                    'Coherence': np.median(coherences),
+                    'Recall': np.median(recalls)
+                })
+
+                error = error_metric(torch.median(chronostrain_estimate_samples, dim=1).values, truth_tensor)
+                coherence = mean_coherence_factor(
+                    np.median(chronostrain_thresholded, axis=1),
+                    truth_tensor.numpy()
+                )
+                detection = chronostrain_presence(chronostrain_estimate_samples, q=0.025, lb=lb)
+                recall = recall_ratio(detection, truth_tensor > 0)
+                df_entries.append({
+                    'ReadDepth': read_depth,
+                    'TrialNum': trial_num,
+                    'Method': 'Chronostrain (Aggregate)',
                     'Error': error,
-                    'Coherence': np.median(coherence),
+                    'Coherence': coherence,
                     'Recall': recall
                 })
 
