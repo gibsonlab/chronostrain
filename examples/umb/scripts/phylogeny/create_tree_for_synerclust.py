@@ -71,7 +71,7 @@ def retrieve_chronostrain_strains(json_path: Path, index_df: pd.DataFrame) -> It
 def compute_distances(
         strain_records: Iterator[Tuple[str, Path]],
         work_dir: Path
-) -> Tuple[DistanceMatrix, List[str]]:
+) -> DistanceMatrix:
     work_dir.mkdir(exist_ok=True, parents=True)
 
     strain_sketches = {}
@@ -105,7 +105,7 @@ def compute_distances(
         else:
             matrix[y_idx][x_idx] = d
 
-    return DistanceMatrix(names=strain_ids, matrix=matrix), strain_ids
+    return DistanceMatrix(names=strain_ids, matrix=matrix)
 
 
 def invoke_mash_sketch(fasta_path: Path, out_prefix: Path) -> Path:
@@ -157,6 +157,38 @@ def main():
 
     index_df = pd.read_csv(args.refseq_index, sep='\t')
 
+    # ========== Create tree.
+    tree_path = output_dir / "tree.nwk"
+    if not tree_path.exists():
+        straingst_strains = retrieve_straingst_strains(
+            args.strainge_strains,
+            Path(args.strainge_db_dir),
+            index_df
+        )
+        chronostrain_strains = retrieve_chronostrain_strains(
+            args.chronostrain_json,
+            index_df
+        )
+        distances = compute_distances(
+            itertools.chain(straingst_strains, chronostrain_strains),
+            temp_dir
+        )
+
+        print("Constructing tree from distance matrix.")
+        tree = DistanceTreeConstructor().nj(distances)
+
+        # erase internal node names. Necessary for SynerClust?
+        for clade in tree.get_nonterminals():
+            clade.name = ""
+
+        # Save the tree.
+        Phylo.write([tree], tree_path, args.tree_format)
+        print("Created tree {}".format(tree_path))
+        print("To run SynerClust, the user might need to manually delete the root node distance (`:0.000`).")
+    else:
+        print("Already found pre-computed tree {}".format(tree_path))
+
+    # Generate synerclust input.
     straingst_strains = retrieve_straingst_strains(
         args.strainge_strains,
         Path(args.strainge_db_dir),
@@ -166,25 +198,12 @@ def main():
         args.chronostrain_json,
         index_df
     )
-    distances, strain_ids = compute_distances(
-        itertools.chain(straingst_strains, chronostrain_strains),
-        temp_dir
-    )
 
-    print("Constructing tree from distance matrix.")
-    tree = DistanceTreeConstructor().nj(distances)
+    strain_ids = [
+        strain_id
+        for strain_id, _ in itertools.chain(straingst_strains, chronostrain_strains)
+    ]
 
-    # erase internal node names. Necessary for SynerClust?
-    for clade in tree.get_nonterminals():
-        clade.name = ""
-
-    # Save the tree.
-    tree_path = output_dir / "tree.nwk"
-    Phylo.write([tree], tree_path, args.tree_format)
-    print("Created tree {}".format(tree_path))
-    print("To run SynerClust, the user might need to manually delete the root node distance (`:0.000`).")
-
-    # Generate synerclust input.
     synerclust_input = output_dir / "synerclust_input.txt"
     create_synerclust_input(synerclust_input, strain_ids, index_df)
     print("Created synerclust input file {}".format(synerclust_input))
