@@ -141,10 +141,10 @@ def create_synerclust_input(target_path: Path, strain_ids: List[str], index_df: 
             seq_path = Path(res.head(1)['SeqPath'].item())
             gff_path = next(iter(seq_path.parent.glob(f'{gcf}_*genomic.chrom.gff')))
 
-        print(f"Genome\t{strain_id}", file=out_f)
-        print(f"Sequence\t{seq_path}", file=out_f)
-        print(f"Annotation\t{gff_path}", file=out_f)
-        print("//", file=out_f)
+            print(f"Genome\t{strain_id}", file=out_f)
+            print(f"Sequence\t{seq_path}", file=out_f)
+            print(f"Annotation\t{gff_path}", file=out_f)
+            print("//", file=out_f)
 
 
 def main():
