@@ -71,8 +71,7 @@ mkdir -p ${output_dir}/${mode}
 straingst run \
 -o ${output_dir}/${mode}/output_mash_${time_point}.tsv \
 ${straingst_db} \
-${read_kmers} \
--i 6
+${read_kmers}
 
 # ====== Record runtime
 end_time=$(date +%s%N)

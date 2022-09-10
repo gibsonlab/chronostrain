@@ -537,8 +537,6 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                     chronostrain_thresholded,
                     truth_tensor.numpy()
                 )
-                print("coherence shape: {}".format(coherence.shape))
-                print("coherence value: {}".format(np.median(coherence)))
                 recall = recall_ratio(detection, truth_tensor > 0)
 
                 df_entries.append({
