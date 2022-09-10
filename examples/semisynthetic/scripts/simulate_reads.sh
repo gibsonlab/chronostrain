@@ -120,9 +120,9 @@ done < ${BACKGROUND_CSV}
 
 
 # =============== Sample synthetic reads
-for n_reads in 10000 25000 50000 75000 100000
+for (( trial = 1; trial < ${N_TRIALS}+1; trial++ ));
 do
-	for (( trial = 1; trial < ${N_TRIALS}+1; trial++ ));
+	for n_reads in 10000 25000 50000 75000 100000
 	do
 		seed=$((seed+1))
 
