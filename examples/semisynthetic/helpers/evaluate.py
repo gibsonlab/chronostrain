@@ -239,7 +239,7 @@ def extract_ground_truth_array(truth_df: pd.DataFrame, strain_ids: List[str]) ->
 
 def error_metric(abundance_est: np.ndarray, truth: np.ndarray) -> np.ndarray:
     # Renormalize.
-    row_sum = np.sum(abundance_est, axis=-1, keepdim=True)
+    row_sum = np.sum(abundance_est, axis=-1, keepdims=True)
     est = abundance_est / row_sum
     est[np.isnan(est)] = 1 / est.shape[1]
 
