@@ -400,7 +400,7 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                     'Recall': np.median(recalls)
                 })
 
-                error = error_metric(np.median(chronostrain_estimate_samples, dim=1), truth_tensor)
+                error = error_metric(np.median(chronostrain_estimate_samples, axis=1), truth_tensor)
                 coherence = mean_coherence_factor(np.median(chronostrain_thresholded, axis=1), truth_tensor)
                 recall = recall_ratio(
                     np.quantile(chronostrain_estimate_samples, q=0.025, axis=1) > lb,
