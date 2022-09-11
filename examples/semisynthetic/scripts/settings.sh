@@ -37,7 +37,7 @@ export STRAINGST_MARKER_DB_HDF5=${STRAINGST_DB_DIR}/marker_db.hdf5
 export STRAIN_REP_FASTA=/mnt/e/ref_genomes/human_readable/refseq/bacteria/Escherichia/coli/K-12_MG1655/NZ_CP010438.1.chrom.fna
 export STRAINEST_DB_DIR=${MISC_DB_DIR}/strainest
 export STRAINEST_BT2_DB=ecoli_db
-export SYNTHETIC_COVERAGES=(5000 10000 25000 50000 65000)
+export SYNTHETIC_COVERAGES=(2500 5000 10000 25000 50000)
 
 # ================= StrainFacts+gt-pro settings
 export CALLM_BIN_DIR=/home/lactis/CallM
