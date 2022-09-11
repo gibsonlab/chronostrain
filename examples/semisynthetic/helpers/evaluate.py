@@ -241,7 +241,7 @@ def error_metric(abundance_est: np.ndarray, truth: np.ndarray) -> np.ndarray:
     # Renormalize.
     row_sum = np.sum(abundance_est, axis=-1, keepdims=True)
     est = abundance_est / row_sum
-    est[np.isnan(est)] = 1 / est.shape[1]
+    est[np.isnan(est)] = 1 / truth.shape[1]
 
     if len(abundance_est.shape) == 2:
         return np.sum(np.abs(truth - est))
