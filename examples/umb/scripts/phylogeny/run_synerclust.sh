@@ -22,6 +22,7 @@ python $synerclust_dir/synerclust.py \
 	-w ${out_dir} \
 	-r ${out_dir}/synerclust_input.txt \
 	-t ${out_dir}/tree.nwk \
-	--run single
+	--run single \
+	-n 4
 
 echo "[*] Done."
