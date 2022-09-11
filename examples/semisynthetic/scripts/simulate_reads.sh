@@ -122,7 +122,7 @@ done < ${BACKGROUND_CSV}
 # =============== Sample synthetic reads
 for (( trial = 1; trial < ${N_TRIALS}+1; trial++ ));
 do
-	for n_reads in 10000 25000 50000 75000 100000
+	for n_reads in "${SYNTHETIC_COVERAGES[@]}"
 	do
 		seed=$((seed+1))
 
@@ -130,21 +130,25 @@ do
 		read_dir=${trial_dir}/reads
 		log_dir=${trial_dir}/logs
 
-		echo "[Number of reads: ${n_reads}, trial #${trial}] -> ${trial_dir}"
+		if [[ -d "${read_dir}" ]]; then
+			echo "[*] Skipping reads: ${n_reads}, trial #${trial}] -> ${trial_dir}"
+		else
+			echo "Sampling [Number of reads: ${n_reads}, trial #${trial}] -> ${trial_dir}"
 
-		mkdir -p $log_dir
-		mkdir -p $read_dir
-		export CHRONOSTRAIN_LOG_FILEPATH="${log_dir}/read_sample.log"
-		export CHRONOSTRAIN_CACHE_DIR="${trial_dir}/cache"
+			mkdir -p $log_dir
+			mkdir -p $read_dir
+			export CHRONOSTRAIN_LOG_FILEPATH="${log_dir}/read_sample.log"
+			export CHRONOSTRAIN_CACHE_DIR="${trial_dir}/cache"
 
-		python ${BASE_DIR}/helpers/sample_reads.py \
-		--out_dir $read_dir \
-		--abundance_path $RELATIVE_GROUND_TRUTH \
-		--index_path ${REFSEQ_INDEX} \
-		--num_reads $n_reads \
-		--profiles $READ_PROFILE_PATH $READ_PROFILE_PATH \
-		--read_len $READ_LEN \
-		--seed ${seed} \
-		--num_cores $N_CORES
+			python ${BASE_DIR}/helpers/sample_reads.py \
+			--out_dir $read_dir \
+			--abundance_path $RELATIVE_GROUND_TRUTH \
+			--index_path ${REFSEQ_INDEX} \
+			--num_reads $n_reads \
+			--profiles $READ_PROFILE_PATH $READ_PROFILE_PATH \
+			--read_len $READ_LEN \
+			--seed ${seed} \
+			--num_cores $N_CORES
+		fi
 	done
 done
