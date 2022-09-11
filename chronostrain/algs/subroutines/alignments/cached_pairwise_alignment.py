@@ -73,7 +73,7 @@ class CachedReadPairwiseAlignments(object):
                     int(-deletion_ll / np.log(2)),
                     int(-insertion_ll / np.log(2))
                 ),
-                clip_penalty=1,
+                clip_penalty=5,
                 score_threshold=50,
                 bwa_command='bwa'
             )
