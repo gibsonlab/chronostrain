@@ -216,7 +216,7 @@ def create_aligner(aligner_type: str, read_type: ReadType, db: StrainDatabase) -
                 int(-deletion_ll / np.log(2)),
                 int(-insertion_ll / np.log(2))
             ),
-            clip_penalty=5,
+            clip_penalty=0,
             score_threshold=50,
             bwa_command='bwa-mem2'
         )
