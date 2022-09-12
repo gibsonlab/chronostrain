@@ -241,12 +241,17 @@ def error_metric(abundance_est: np.ndarray, truth: np.ndarray) -> np.ndarray:
     # Renormalize.
     row_sum = np.sum(abundance_est, axis=-1, keepdims=True)
     est = abundance_est / row_sum
-    est[np.isnan(est)] = 1 / truth.shape[1]
+
+    # est = abundance_est / row_sum
+    # est[np.isnan(est)] = 1 / truth.shape[1]
 
     if len(abundance_est.shape) == 2:
-        return np.sum(np.abs(truth - est))
+        tv_dists = 0.5 * np.abs(truth - est).sum(axis=-1)
     else:
-        return np.abs(np.expand_dims(truth, 1) - est).sum(axis=0).sum(axis=-1)
+        tv_dists = 0.5 * np.abs(np.expand_dims(truth, 1) - est).sum(axis=-1)
+
+    tv_dists[np.isnan(tv_dists)] = 1.0
+    return tv_dists.sum(axis=0)
 
 
 def recall_ratio(pred: np.ndarray, truth: np.ndarray) -> np.ndarray:
