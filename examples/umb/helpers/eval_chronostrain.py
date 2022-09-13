@@ -138,7 +138,7 @@ def evaluate_by_clades(chronostrain_output_dir: Path, reads_dir: Path, clades: D
             df_entries.append({
                 "Patient": patient,
                 "Phylogroup": clade,
-                "GroupSize": overall_chunk.shape[1],
+                "GroupSize": overall_chunk.shape[-1],
                 "CoherenceLower": np.quantile(coherence, q=0.025),
                 "CoherenceMedian": np.quantile(coherence, q=0.5),
                 "CoherenceUpper": np.quantile(coherence, q=0.975),
