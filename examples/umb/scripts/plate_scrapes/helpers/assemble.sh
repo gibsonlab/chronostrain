@@ -12,6 +12,11 @@ out_dir=${OUTPUT_DIR}/assembly/${sample_name}
 mkdir -p ${out_dir}
 cd ${out_dir}
 
+if [ -f _ASSEMBLY_FINISHED.txt ]; then
+	echo "Assembly of ${sample_name} finished in a previous run. Skipping this step."
+	exit 0;
+fi
+
 # ============== Check to see if we need to run trimomomatic.
 r1="${sample_name}_paired_1.fastq.gz"
 r2="${sample_name}_paired_2.fastq.gz"
@@ -51,3 +56,5 @@ ${SPADES_DIR}/spades.py \
     -1 $r1 -2 $r2 \
     -t 8 \
     -m 60
+
+echo "finished." > _ASSEMBLY_FINISHED.txt
