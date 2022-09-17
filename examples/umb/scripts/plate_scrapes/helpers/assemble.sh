@@ -47,6 +47,8 @@ if [ ! -f ${r1} ]; then
     echo "[*] Cleaning up."
     rm $tmp_1
     rm $tmp_2
+    rm *.trimmed.*
+    rm *_bowtie2_*
 fi
 
 
