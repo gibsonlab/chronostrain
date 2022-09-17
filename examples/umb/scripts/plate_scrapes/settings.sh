@@ -30,7 +30,7 @@ export CHRONOSTRAIN_OUTPUT_FILENAME="abundances.out"
 export CHRONOSTRAIN_DB_JSON="${CHRONOSTRAIN_DB_DIR}/database_pruned_resolved.json"
 
 # ================ assembly settings
-export SPADES_DIR=""
+export SPADES_DIR="/home/lactis/SPAdes-3.15.5"
 export BLAST_DB="${CHRONOSTRAIN_DB_DIR}/blast_db/esch_chrom"
 
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)
