@@ -9,7 +9,7 @@ out_dir=${OUTPUT_DIR}/assembly/${sample_name}
 cd ${out_dir}
 
 if [ -f _BLAST_FINISHED.txt ]; then
-	echo "Assembly of ${sample_name} finished in a previous run. Skipping this step."
+	echo "BLAST queries for ${sample_name} finished in a previous run. Skipping this step."
 	exit 0;
 fi
 
