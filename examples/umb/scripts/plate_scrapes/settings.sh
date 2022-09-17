@@ -2,7 +2,7 @@
 export PROJECT_DIR="/home/lactis/chronostrain"
 export BASE_DIR="${PROJECT_DIR}/examples/umb"
 export DATA_DIR="/mnt/e/umb_data"
-export OUTPUT_DIR="/mnt/e/chronostrain/umb_plate_scrapes"
+export OUTPUT_DIR="/mnt/e/chronostrain/umb_plate_scrapes/output"
 export CHRONOSTRAIN_DB_DIR="/mnt/e/chronostrain/umb_database"
 export LOGDIR="${OUTPUT_DIR}/logs"
 export SAMPLES_DIR="/mnt/e/umb_data/plate_scrapes"
@@ -12,7 +12,7 @@ export SETTINGS_PATH="${BASE_DIR}/scripts/plate_scrapes/settings.sh"
 
 # Location for reads and outputs.
 export READS_DIR="${OUTPUT_DIR}/reads"
-export CHRONOSTRAIN_OUTPUT_DIR="${OUTPUT_DIR}/output/chronostrain"
+export CHRONOSTRAIN_OUTPUT_DIR="${OUTPUT_DIR}/chronostrain"
 
 # ========= Chronostrain settings
 export CHRONOSTRAIN_CORR_MODE='full'
@@ -28,6 +28,10 @@ export CHRONOSTRAIN_CACHE_DIR="${OUTPUT_DIR}/cache"
 export CHRONOSTRAIN_OUTPUT_FILENAME="abundances.out"
 
 export CHRONOSTRAIN_DB_JSON="${CHRONOSTRAIN_DB_DIR}/database_pruned_resolved.json"
+
+# ================ assembly settings
+export SPADES_DIR=""
+export BLAST_DB="${CHRONOSTRAIN_DB_DIR}/blast_db/esch_chrom"
 
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)
 export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
