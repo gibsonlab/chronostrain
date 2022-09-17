@@ -38,12 +38,15 @@ export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
 export CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"
 
 # ========= Done.
-echo "======================================================="
-echo "Loaded shell settings from ${SETTINGS_PATH}."
-echo "Chronostrain config: ${CHRONOSTRAIN_INI}"
-echo "Logging config: ${CHRONOSTRAIN_LOG_INI}"
-echo "Logging dir: ${LOGDIR}"
-echo "======================================================="
+if [ ! -z ${_settings_loaded} ]; then
+	echo "======================================================="
+	echo "Loaded shell settings from ${SETTINGS_PATH}."
+	echo "Chronostrain config: ${CHRONOSTRAIN_INI}"
+	echo "Logging config: ${CHRONOSTRAIN_LOG_INI}"
+	echo "Logging dir: ${LOGDIR}"
+	echo "======================================================="
+fi
+_settings_loaded="True"
 
 check_program()
 {
