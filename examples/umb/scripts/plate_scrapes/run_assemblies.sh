@@ -10,7 +10,7 @@ handle_sample()
 
 		cd ${BASE_DIR}/scripts/plate_scrapes
 		bash helpers/assemble.sh $sample_name
-		bash run_blast.sh $sample_name
+		bash helpers/run_blast.sh $sample_name
 		cd -
 }
 
