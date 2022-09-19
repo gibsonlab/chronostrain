@@ -90,9 +90,9 @@ def save_hits(hits: List[Hit], out_path: Path):
         print('\t'.join(['Ref', 'RefLen', 'Query', 'Start', 'End']), file=f)
         for hit in hits:
             print('\t'.join([
-                hit.reference_id, hit.reference_len,
+                hit.reference_id, str(hit.reference_len),
                 hit.query_id,
-                hit.start_pos, hit.end_pos
+                str(hit.start_pos), str(hit.end_pos)
             ]), file=f)
 
 
