@@ -52,7 +52,6 @@ class PairedPrimer(object):
 
 def parse_primers(primer_path: Path) -> Iterator[PairedPrimer]:
     records = list(Bio.SeqIO.parse(primer_path, "fasta"))
-    primer_names = set()
     for i in range(len(records) // 2):
         fwd = records[2 * i]
         rev = records[1 + 2 * i]
@@ -61,9 +60,7 @@ def parse_primers(primer_path: Path) -> Iterator[PairedPrimer]:
         if gene_name_fwd != gene_name_rev:
             raise ValueError(f"Got a non-matching primer pair {fwd.id} and {rev.id}.")
 
-        primer_names.add(gene_name_fwd)
         yield PairedPrimer(gene_name_fwd, fwd.seq, rev.seq)
-    print("Got primers for: {}".format(primer_names))
 
 
 @dataclass
@@ -114,7 +111,13 @@ def main():
     out_path.parent.mkdir(exist_ok=True, parents=True)
 
     primers = list(parse_primers(Path(args.primer_path)))
+    print("Got primers for: [{}]".format(
+        ','.join(p.gene_name for p in primers)
+    ))
+
     hits = list(search_scaffolds(scaffold_path, primers))
+    print("Found {} hits.".format(len(hits)))
+
     save_hits(hits, out_path)
 
 
