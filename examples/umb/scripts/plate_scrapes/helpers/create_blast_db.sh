@@ -11,5 +11,4 @@ makeblastdb \
 -in ${MARKER_FASTA} \
 -out ${BLAST_DB_NAME} \
 -dbtype nucl \
--title "ChronoStrain Markers" \
--parse_seqids
+-title "ChronoStrain Markers"
