@@ -13,9 +13,9 @@ if [ -f _BLAST_FINISHED.txt ]; then
 	exit 0;
 fi
 
-export BLASTDB="/mnt/e/chronostrain/umb_database/blast_db"
+export BLASTDB="${CHRONOSTRAIN_MARKERS_DIR}"
 blastn \
-    -db esch_chrom \
+    -db ${BLAST_DB_NAME} \
     -query spades_output/scaffolds.fasta \
     -outfmt "6 saccver sstart send slen qseqid qstart qend qlen evalue pident gaps qcovhsp" \
     -out scaffold_blastn.tsv \

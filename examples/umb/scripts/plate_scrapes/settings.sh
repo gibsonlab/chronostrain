@@ -31,7 +31,9 @@ export CHRONOSTRAIN_DB_JSON="${CHRONOSTRAIN_DB_DIR}/database_pruned_resolved.jso
 
 # ================ assembly settings
 export SPADES_DIR="/home/lactis/SPAdes-3.15.5"
-export BLAST_DB="${CHRONOSTRAIN_DB_DIR}/blast_db/esch_chrom"
+export CHRONOSTRAIN_MARKERS_DIR=${CHRONOSTRAIN_DB_DIR}/__database_all_MARKERS
+export MARKER_FASTA=all_markers.fasta
+export BLAST_DB_NAME="markers"
 
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)
 export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
