@@ -87,12 +87,13 @@ def search_scaffolds(scaffold_fasta: Path, primers: List[PairedPrimer]) -> Itera
 
 def save_hits(hits: List[Hit], out_path: Path):
     with open(out_path, 'w') as f:
-        print('\t'.join(['Ref', 'RefLen', 'Query', 'Start', 'End']), file=f)
+        print('\t'.join(['Ref', 'RefLen', 'Query', 'Start', 'End', 'HitLength']), file=f)
         for hit in hits:
             print('\t'.join([
                 hit.reference_id, str(hit.reference_len),
                 hit.query_id,
-                str(hit.start_pos), str(hit.end_pos)
+                str(hit.start_pos), str(hit.end_pos),
+                str(hit.end_pos - hit.start_pos + 1)
             ]), file=f)
 
 
