@@ -14,6 +14,11 @@ if [ -f _BLAST_FINISHED.txt ]; then
 fi
 
 export BLASTDB="${CHRONOSTRAIN_MARKERS_DIR}"
+
+if [ ! -f ${CHRONOSTRAIN_MARKERS_DIR}/${BLAST_DB_NAME}.ndb ]; then
+	bash helpers/create_blast_db.sh
+fi
+
 blastn \
     -db ${BLAST_DB_NAME} \
     -query spades_output/scaffolds.fasta \
