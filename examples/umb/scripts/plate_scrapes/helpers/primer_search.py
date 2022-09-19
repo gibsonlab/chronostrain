@@ -51,7 +51,7 @@ class PairedPrimer(object):
 
 
 def parse_primers(primer_path: Path) -> Iterator[PairedPrimer]:
-    records = [Bio.SeqIO.read(primer_path, "fasta")]
+    records = [Bio.SeqIO.parse(primer_path, "fasta")]
     primer_names = set()
     for i in range(len(records) // 2):
         fwd = records[2 * i]
@@ -76,7 +76,7 @@ class Hit(object):
 
 
 def search_scaffolds(scaffold_fasta: Path, primers: List[PairedPrimer]) -> Iterator[Hit]:
-    for scaffold in Bio.SeqIO.read(scaffold_fasta, "fasta"):
+    for scaffold in Bio.SeqIO.parse(scaffold_fasta, "fasta"):
         for primer in primers:
             for start_pos, end_pos in primer.matches(scaffold.seq):
                 yield Hit(
