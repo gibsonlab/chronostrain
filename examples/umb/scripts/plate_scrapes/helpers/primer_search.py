@@ -51,7 +51,7 @@ class PairedPrimer(object):
 
 
 def parse_primers(primer_path: Path) -> Iterator[PairedPrimer]:
-    records = [Bio.SeqIO.parse(primer_path, "fasta")]
+    records = list(Bio.SeqIO.parse(primer_path, "fasta"))
     primer_names = set()
     for i in range(len(records) // 2):
         fwd = records[2 * i]
