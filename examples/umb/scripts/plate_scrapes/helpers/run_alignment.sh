@@ -26,4 +26,4 @@ bwa-mem2 mem \
 		-a \
 		$ref_path $scaffold_path
 
-echo "finished." > _ALIGNMENT_FINISHED.txt
+echo "finished." > ${out_dir}/_ALIGNMENT_FINISHED.txt
