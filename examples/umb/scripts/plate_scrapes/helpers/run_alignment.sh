@@ -15,7 +15,7 @@ fi
 ref_path=${CHRONOSTRAIN_MARKERS_DIR}/${MARKER_FASTA}
 scaffold_path=${out_dir}/spades_output/scaffolds.fasta
 
-bwa-mem2 index -db $ref_path
+bwa-mem2 index $ref_path
 
 bwa-mem2 mem \
 		-o ${out_dir}/alignment.sam \
