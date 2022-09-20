@@ -2,8 +2,7 @@
 set -e
 source settings.sh
 
-synerclust_dir=/home/lactis/SynerClust/bin
-out_dir=${PHYLOGENY_OUTPUT_DIR}/synerclust
+out_dir=${PHYLOGENY_OUTPUT_DIR}/tree_mash
 mkdir -p $out_dir
 
 
