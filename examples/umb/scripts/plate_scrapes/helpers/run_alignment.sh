@@ -18,7 +18,8 @@ scaffold_path=${out_dir}/spades_output/scaffolds.fasta
 echo "Target reference: ${ref_path}"
 echo "Target query: ${scaffold_path}"
 
-bwa-mem2 mem \
+bwa index ${ref_path}
+bwa mem \
 		-o ${out_dir}/alignment.sam \
 		-t 6 \
 		-k 20 \
