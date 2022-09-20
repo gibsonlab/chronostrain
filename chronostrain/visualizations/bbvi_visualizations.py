@@ -57,13 +57,13 @@ def plot_training_animation(
     ]
 
     # =========== Second axis (Elbo)
-    samples_ax = axes[1]
-    samples_ax.plot(
+    elbo_ax = axes[1]
+    elbo_ax.plot(
         np.arange(1, len(elbo_history) + 1, 1),
         elbo_history
     )
-    samples_ax.set_xlabel("Iteration")
-    samples_ax.set_ylabel("ELBO")
+    elbo_ax.set_xlabel("Iteration")
+    elbo_ax.set_ylabel("ELBO")
     scat = plt.scatter([0], [0], c='red',  linewidths=1., edgecolors='black', s=100)
 
     def init():
