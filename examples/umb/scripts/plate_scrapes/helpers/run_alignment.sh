@@ -22,8 +22,8 @@ bwa index ${ref_path}
 bwa mem \
 		-o ${out_dir}/alignment.sam \
 		-t 6 \
-		-k 20 \
-		-r 1.5 \
+		-k 10 \
+		-r 1.0 \
 		-a \
 		$ref_path $scaffold_path
 
