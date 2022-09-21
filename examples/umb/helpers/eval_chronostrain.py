@@ -142,12 +142,12 @@ def evaluate_by_clades(chronostrain_output_dir: Path, reads_dir: Path, clades: D
                 "CoherenceLower": np.quantile(coherence, q=0.025),
                 "CoherenceMedian": np.quantile(coherence, q=0.5),
                 "CoherenceUpper": np.quantile(coherence, q=0.975),
-                "CladeOverallRelAbundLower": np.quantile(overall_chunk.sum(axis=-1).max(axis=0), q=0.025),
-                "CladeOverallRelAbundMedian": np.quantile(overall_chunk.sum(axis=-1).max(axis=0), q=0.5),
-                "CladeOverallRelAbundUpper": np.quantile(overall_chunk.sum(axis=-1).max(axis=0), q=0.975),
-                "StrainRelAbundLower": np.quantile(relative_chunk.max(axis=-1, initial=0.).max(axis=0), q=0.025),
-                "StrainRelAbundMedian": np.quantile(relative_chunk.max(axis=-1, initial=0.).max(axis=0), q=0.5),
-                "StrainRelAbundUppser": np.quantile(relative_chunk.max(axis=-1, initial=0.).max(axis=0), q=0.975)
+                "CladeOverallRelAbundLower": np.max(np.quantile(overall_chunk.sum(axis=-1), q=0.025, axis=1)),
+                "CladeOverallRelAbundMedian": np.max(np.quantile(overall_chunk.sum(axis=-1), q=0.5, axis=1)),
+                "CladeOverallRelAbundUpper": np.max(np.quantile(overall_chunk.sum(axis=-1), q=0.975, axis=1)),
+                "StrainRelAbundLower": np.max(np.quantile(relative_chunk, axis=1, q=0.025)),
+                "StrainRelAbundMedian": np.max(np.quantile(relative_chunk, axis=1, q=0.5)),
+                "StrainRelAbundUppser": np.max(np.quantile(relative_chunk, axis=1, q=0.975))
             })
     return pd.DataFrame(df_entries)
 
