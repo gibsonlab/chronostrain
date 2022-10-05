@@ -18,8 +18,15 @@ export MULTI_ALIGN_PATH="${CHRONOSTRAIN_DB_DIR}/strain_alignments/concatenation.
 export CHRONOSTRAIN_DB_JSON_ALL="${CHRONOSTRAIN_DB_DIR}/database_all.json"
 export CHRONOSTRAIN_DB_JSON_RESOLVED="${CHRONOSTRAIN_DB_DIR}/database_pruned_resolved.json"
 export CHRONOSTRAIN_DB_JSON_PRUNED="${CHRONOSTRAIN_DB_DIR}/database_pruned.json"
-export CHRONOSTRAIN_DB_JSON="${CHRONOSTRAIN_DB_JSON_PRUNED}"
 export CHRONOSTRAIN_CACHE_DIR="${CHRONOSTRAIN_DB_DIR}/cache"
+
+# ======== StrainGE setting
+export STRAINGE_DB_DIR="/mnt/e/strainge"
+
+# ======== Karp setting
+export KARP_DB_DIR="/mnt/e/karp"
+export KARP_BIN="/home/lactis/Karp"
+export PATH="${PATH}:${KARP_BIN}"
 
 # ======== MetaPhlAn settings
 export METAPHLAN4_PKL_PATH="/mnt/e/metaphlan_databases/mpa_vJan21_CHOCOPhlAnSGB_202103/mpa_vJan21_CHOCOPhlAnSGB_202103.pkl"

@@ -16,11 +16,19 @@ export REFSEQ_INDEX="/mnt/e/ref_genomes/index.tsv"
 export READS_DIR="${OUTPUT_DIR}/reads"
 export CHRONOSTRAIN_OUTPUT_DIR="${OUTPUT_DIR}/output/chronostrain"
 export STRAINGE_OUTPUT_DIR="${OUTPUT_DIR}/output/strainge"
+export KARP_OUTPUT_DIR="${OUTPUT_DIR}/output/karp"
 
 # sratools prefetch/sample output directories.
 export SRA_CSV_PATH="${BASE_DIR}/files/umb_samples.csv"
 export SRA_PREFETCH_DIR="${DATA_DIR}/prefetch"
 export FASTERQ_TMP_DIR="${DATA_DIR}/fasterq-tmp"
+
+# ========= Karp
+export KARP_REFS="/mnt/e/karp/references.fasta"
+export KARP_IDX="/mnt/e/karp/references.index"
+export KARP_TAX="/mnt/e/karp/references.tax"
+export KARP_BIN="/home/lactis/Karp"
+export PATH="${PATH}:${KARP_BIN}"
 
 # ========= Kneaddata
 export KNEADDATA_DB_DIR="/mnt/e/kneaddata_db"

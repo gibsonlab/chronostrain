@@ -12,15 +12,15 @@ do_inference() {
 	patient=$3
 
 	output_file="${STRAINGE_OUTPUT_DIR}/${patient}/${sample_id}.tsv"
-	file1="/mnt/e/umb_data/samples_stool/kneaddata/${sra_id}/${sra_id}_paired_1.fastq.gz"
-  file2="/mnt/e/umb_data/samples_stool/kneaddata/${sra_id}/${sra_id}_unmatched_1.fastq.gz"
-  file3="/mnt/e/umb_data/samples_stool/kneaddata/${sra_id}/${sra_id}_paired_2.fastq.gz"
-  file4="/mnt/e/umb_data/samples_stool/kneaddata/${sra_id}/${sra_id}_unmatched_2.fastq.gz"
+	file1="${SAMPLES_DIR}/kneaddata/${sra_id}/${sra_id}_paired_1.fastq.gz"
+  file2="${SAMPLES_DIR}/kneaddata/${sra_id}/${sra_id}_unmatched_1.fastq.gz"
+  file3="${SAMPLES_DIR}/kneaddata/${sra_id}/${sra_id}_paired_2.fastq.gz"
+  file4="${SAMPLES_DIR}/kneaddata/${sra_id}/${sra_id}_unmatched_2.fastq.gz"
 
   if [ -f $output_file ]; then
-  	echo "[*] StrainGST result on ${sample_id} already found."
+  	echo "[*] StrainGST result on ${sample_id} (patient ${patient}) already found."
   else
-		echo "[*] Running StrainGST on ${sample_id}."
+		echo "[*] Running StrainGST on ${sample_id} (patient ${patient})."
 
 		mkdir -p ${HDF5_DIR}
 		straingst kmerize -k 23 -o ${HDF5_DIR}/${sample_id}.hdf5 $file1 $file2 $file3 $file4
