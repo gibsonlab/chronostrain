@@ -21,6 +21,7 @@ do_inference() {
   file3="${SAMPLES_DIR}/kneaddata/${sra_id}/${sra_id}_paired_2.fastq.gz"
   file4="${SAMPLES_DIR}/kneaddata/${sra_id}/${sra_id}_unmatched_2.fastq.gz"
 
+	mkdir -p $out_dir
 	cd $out_dir
 
   if [ -f $output_file ]; then
