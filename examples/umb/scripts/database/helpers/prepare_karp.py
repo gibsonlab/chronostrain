@@ -2,7 +2,7 @@ import argparse
 from pathlib import Path
 from typing import *
 
-from pandas import pd
+import pandas as pd
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 
