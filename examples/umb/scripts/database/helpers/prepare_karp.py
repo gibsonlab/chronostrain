@@ -21,8 +21,8 @@ def prepare_refs(index_df: pd.DataFrame, ref_path: Path, meta_path: Path, out_di
     tax_path = out_dir / "references.tax"
 
     with open(fasta_path, "w") as fasta_file, open(tax_path, "w") as tax_file:
-        for accession, record, genus, species in ref_genomes(index_df, ref_path, meta_path):
-            print(f"Handling {accession}")
+        for accession, name, record, genus, species in ref_genomes(index_df, ref_path, meta_path):
+            print(f"Handling {accession} ({name})")
             record.id = accession
             SeqIO.write([record], fasta_file, "fasta")
 
@@ -59,12 +59,13 @@ def ref_genomes(index_df: pd.DataFrame, ref_path: Path, meta_path: Path) -> Iter
 
             result = index_df.loc[index_df['Assembly'] == gcf_id, :].head(1)
             accession = result['Accession'].item()
+            name = result['Strain'].item()
             seq_path = Path(result['SeqPath'].item())
             genus = result['Genus'].item()
             species = result['Species'].item()
 
             record = SeqIO.read(seq_path, "fasta")
-            yield accession, record, genus, species
+            yield accession, name, record, genus, species
 
 
 def main():
