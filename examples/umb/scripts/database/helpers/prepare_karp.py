@@ -22,6 +22,7 @@ def prepare_refs(index_df: pd.DataFrame, ref_path: Path, meta_path: Path, out_di
 
     with open(fasta_path, "w") as fasta_file, open(tax_path, "w") as tax_file:
         for accession, record, genus, species in ref_genomes(index_df, ref_path, meta_path):
+            print(f"Handling {accession}")
             record.id = accession
             SeqIO.write([record], fasta_file, "fasta")
 
