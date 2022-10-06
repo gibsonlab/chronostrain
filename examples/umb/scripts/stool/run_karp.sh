@@ -27,7 +27,7 @@ do_inference() {
   if [ -f $output_file ]; then
   	echo "[*] Karp result on ${sample_id} (patient ${patient}) already found."
   else
-  	echo "[*] Counting reads."
+  	echo "[*] Counting reads for ${sample_id} (patient ${patient})."
 		n_reads_1=$(($(pigz -dc $file1 | wc -l | awk '{print $1}') / 4))
 		n_reads_2=$(($(pigz -dc $file2 | wc -l | awk '{print $1}') / 4))
 		n_reads_3=$(($(pigz -dc $file3 | wc -l | awk '{print $1}') / 4))
