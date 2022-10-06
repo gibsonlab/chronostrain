@@ -14,7 +14,7 @@ do_inference() {
 	out_dir=${KARP_OUTPUT_DIR}/${patient}
 	out_prefix="${sample_id}"
 	output_file="${out_prefix}.freqs"
-	read_counts="out_prefix.reads"
+	read_counts="${out_prefix}.reads"
 
 	file1="${SAMPLES_DIR}/kneaddata/${sra_id}/${sra_id}_paired_1.fastq.gz"
   file2="${SAMPLES_DIR}/kneaddata/${sra_id}/${sra_id}_unmatched_1.fastq.gz"
