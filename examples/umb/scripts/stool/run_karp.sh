@@ -33,10 +33,10 @@ do_inference() {
 		n_reads_3=$(($(pigz -dc $file3 | wc -l | awk '{print $1}') / 4))
 		n_reads_4=$(($(pigz -dc $file4 | wc -l | awk '{print $1}') / 4))
 		> $read_counts
-		echo -e "${Paired_1}\t${n_reads_1}" >> $read_counts
-		echo -e "${Unmatched_1}\t${n_reads_2}" >> $read_counts
-		echo -e "${Paired_2}\t${n_reads_3}" >> $read_counts
-		echo -e "${Unmatched_2}\t${n_reads_4}" >> $read_counts
+		echo -e "Paired_1\t${n_reads_1}" >> $read_counts
+		echo -e "Unmatched_1\t${n_reads_2}" >> $read_counts
+		echo -e "Paired_2\t${n_reads_3}" >> $read_counts
+		echo -e "Unmatched_2\t${n_reads_4}" >> $read_counts
 
 		echo "[*] Running Karp on ${sample_id} (patient ${patient})."
 		karp \
