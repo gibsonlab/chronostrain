@@ -2,7 +2,7 @@
 set -e
 source settings.sh
 
-
+mkdir -p ${KARP_DB_DIR}
 python helpers/prepare_karp.py \
 -i ${NCBI_REFSEQ_DIR}/index.tsv \
 -s ${STRAINGE_DB_DIR}/references_to_keep.tsv \
