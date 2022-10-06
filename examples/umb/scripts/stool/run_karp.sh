@@ -62,8 +62,7 @@ do_inference() {
 	# Read rest of csv file.
 	while IFS=, read -r sra_id umb_id sample_name date days experiment_type model library_strategy exp_group
 	do
-		if [ "$experiment_type" = "stool" ] & [ "$umb_id" = "UMB18" ]; then
-			echo "$experiment_type"
+		if [ "$experiment_type" = "stool" ] && [ "$umb_id" = "UMB18" ]; then
 			do_inference $sra_id $sample_name $umb_id
 		fi
 	done
