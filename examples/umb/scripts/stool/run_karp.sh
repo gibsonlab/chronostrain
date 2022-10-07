@@ -11,15 +11,20 @@ do_inference() {
 	sample_id=$2
 	patient=$3
 
-	out_dir=${KARP_OUTPUT_DIR}/${patient}
-	out_prefix="${sample_id}"
+	out_dir=${KARP_OUTPUT_DIR}/${patient}/${sample_id}
+  out_prefix="sample"
 	output_file="${out_prefix}.freqs"
 	read_counts="${out_prefix}.reads"
 
-	file1="${SAMPLES_DIR}/kneaddata/${sra_id}/${sra_id}_paired_1.fastq.gz"
-  file2="${SAMPLES_DIR}/kneaddata/${sra_id}/${sra_id}_unmatched_1.fastq.gz"
-  file3="${SAMPLES_DIR}/kneaddata/${sra_id}/${sra_id}_paired_2.fastq.gz"
-  file4="${SAMPLES_DIR}/kneaddata/${sra_id}/${sra_id}_unmatched_2.fastq.gz"
+#	 file1="${SAMPLES_DIR}/kneaddata/${sra_id}/${sra_id}_paired_1.fastq.gz"
+#  file2="${SAMPLES_DIR}/kneaddata/${sra_id}/${sra_id}_unmatched_1.fastq.gz"
+#  file3="${SAMPLES_DIR}/kneaddata/${sra_id}/${sra_id}_paired_2.fastq.gz"
+#  file4="${SAMPLES_DIR}/kneaddata/${sra_id}/${sra_id}_unmatched_2.fastq.gz"
+
+	file1="${READS_DIR}/${patient}_filtered/filtered_${sra_id}_paired_1.fastq"
+	file1="${READS_DIR}/${patient}_filtered/filtered_${sra_id}_unmatched_1.fastq"
+	file1="${READS_DIR}/${patient}_filtered/filtered_${sra_id}_paired_2.fastq"
+	file1="${READS_DIR}/${patient}_filtered/filtered_${sra_id}_unmatched_2.fastq"
 
 	mkdir -p $out_dir
 	cd $out_dir
