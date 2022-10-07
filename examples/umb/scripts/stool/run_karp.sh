@@ -22,9 +22,9 @@ do_inference() {
 #  file4="${SAMPLES_DIR}/kneaddata/${sra_id}/${sra_id}_unmatched_2.fastq.gz"
 
 	file1="${READS_DIR}/${patient}_filtered/filtered_${sra_id}_paired_1.fastq"
-	file1="${READS_DIR}/${patient}_filtered/filtered_${sra_id}_unmatched_1.fastq"
-	file1="${READS_DIR}/${patient}_filtered/filtered_${sra_id}_paired_2.fastq"
-	file1="${READS_DIR}/${patient}_filtered/filtered_${sra_id}_unmatched_2.fastq"
+	file2="${READS_DIR}/${patient}_filtered/filtered_${sra_id}_unmatched_1.fastq"
+	file3="${READS_DIR}/${patient}_filtered/filtered_${sra_id}_paired_2.fastq"
+	file4="${READS_DIR}/${patient}_filtered/filtered_${sra_id}_unmatched_2.fastq"
 
 	mkdir -p $out_dir
 	cd $out_dir
@@ -32,17 +32,6 @@ do_inference() {
   if [ -f $output_file ]; then
   	echo "[*] Karp result on ${sample_id} (patient ${patient}) already found."
   else
-  	echo "[*] Counting reads for ${sample_id} (patient ${patient})."
-		n_reads_1=$(($(pigz -dc $file1 | wc -l | awk '{print $1}') / 4))
-		n_reads_2=$(($(pigz -dc $file2 | wc -l | awk '{print $1}') / 4))
-		n_reads_3=$(($(pigz -dc $file3 | wc -l | awk '{print $1}') / 4))
-		n_reads_4=$(($(pigz -dc $file4 | wc -l | awk '{print $1}') / 4))
-		> $read_counts
-		echo -e "Paired_1\t${n_reads_1}" >> $read_counts
-		echo -e "Unmatched_1\t${n_reads_2}" >> $read_counts
-		echo -e "Paired_2\t${n_reads_3}" >> $read_counts
-		echo -e "Unmatched_2\t${n_reads_4}" >> $read_counts
-
 		echo "[*] Running Karp on ${sample_id} (patient ${patient})."
 		karp \
 			-c quantify \
