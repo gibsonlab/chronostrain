@@ -54,7 +54,7 @@ do_inference() {
 	patient=$3
 
 	out_dir=${KARP_OUTPUT_DIR}/${patient}/${sample_id}
-	out_prefix="${sample_id}"
+	out_prefix="sample"
 	output_file="${out_prefix}.freqs"
 	read_counts="${out_prefix}.reads"
 
