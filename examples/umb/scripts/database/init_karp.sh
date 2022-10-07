@@ -10,4 +10,4 @@ python helpers/prepare_karp.py \
 -o ${KARP_DB_DIR}
 
 samtools faidx ${KARP_DB_DIR}/references.fasta
-karp -c index -r ${KARP_DB_DIR}/references.fasta -i ${KARP_DB_DIR}/references.index
+karp -c index -r ${KARP_DB_DIR}/references.fasta -i ${KARP_DB_DIR}/references.index -k 23
