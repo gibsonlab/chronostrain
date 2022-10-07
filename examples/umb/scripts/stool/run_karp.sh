@@ -89,7 +89,8 @@ do_inference() {
 			-f $file1,$file2,$file3,$file4 \
 			--phred 33 \
 			--threads 4 \
-			-o $out_prefix
+			-o $out_prefix \
+			--no_harp_filter
 	fi
 
 	cd -
