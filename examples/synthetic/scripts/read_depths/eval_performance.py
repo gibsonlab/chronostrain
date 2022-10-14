@@ -60,19 +60,46 @@ def load_ground_truth(ground_truth_path: Path) -> pd.DataFrame:
     return pd.DataFrame(df_entries)
 
 
-def error_metric(abundance_est: np.ndarray, ground_truth: pd.DataFrame) -> float:
+# def error_metric(abundance_est: np.ndarray, ground_truth: pd.DataFrame) -> float:
+#     time_points = sorted(pd.unique(ground_truth['T']))
+#     strains = sorted(pd.unique(ground_truth['Strain']))
+#     ground_truth = np.array([
+#         [
+#             ground_truth.loc[(ground_truth['Strain'] == strain_id) & (ground_truth['T'] == t), 'RelAbund'].item()
+#             for strain_id in strains
+#         ]
+#         for t in time_points
+#     ])
+#     return np.sqrt(np.sum(
+#         np.square(abundance_est - ground_truth)
+#     ))
+
+
+def error_metric(abundance_est: np.ndarray, ground_truth: pd.DataFrame) -> np.ndarray:
     time_points = sorted(pd.unique(ground_truth['T']))
     strains = sorted(pd.unique(ground_truth['Strain']))
-    ground_truth = np.array([
+    truth = np.array([
         [
             ground_truth.loc[(ground_truth['Strain'] == strain_id) & (ground_truth['T'] == t), 'RelAbund'].item()
             for strain_id in strains
         ]
         for t in time_points
     ])
-    return np.sqrt(np.sum(
-        np.square(abundance_est - ground_truth)
-    ))
+
+    # Renormalize.
+    row_sum = np.sum(abundance_est, axis=-1, keepdims=True)
+    est = abundance_est / row_sum
+
+    # est = abundance_est / row_sum
+    # est[np.isnan(est)] = 1 / truth.shape[1]
+
+    if len(abundance_est.shape) == 2:
+        tv_dists = 0.5 * np.abs(truth - est).sum(axis=-1)
+    else:
+        tv_dists = 0.5 * np.abs(np.expand_dims(truth, 1) - est).sum(axis=-1)
+
+    tv_dists[np.isnan(tv_dists)] = 1.0
+    return tv_dists.sum(axis=0)
 
 
 def parse_chronostrain_error(db: StrainDatabase, ground_truth: pd.DataFrame, output_dir: Path) -> float:
@@ -97,8 +124,8 @@ def parse_chronostrain_error(db: StrainDatabase, ground_truth: pd.DataFrame, out
     #     torch.sqrt(samples, dim=2) - torch.unsqueeze(torch.sqrt(ground_truth_tensor), 1)
     # ).sum(dim=2).sqrt().mean(dim=0)  # Average hellinger distance across time, for each sample.
     # return torch.median(hellingers).item() / np.sqrt(2)
-    median_abundances = np.median(abundance_samples.numpy(), axis=1)
-    return error_metric(median_abundances, ground_truth)
+    # median_abundances = np.median(abundance_samples.numpy(), axis=1)
+    return float(np.median(error_metric(abundance_samples.numpy(), ground_truth)))
 
 
 def parse_straingst_error(ground_truth: pd.DataFrame, output_dir: Path, mode: str) -> float:
@@ -126,7 +153,7 @@ def parse_straingst_error(ground_truth: pd.DataFrame, output_dir: Path, mode: st
                 rel_abund = float(row[11]) / 100.0
                 est_rel_abunds[t_idx][strain_idx] = rel_abund
 
-    return error_metric(est_rel_abunds, ground_truth)
+    return float(error_metric(est_rel_abunds, ground_truth).item())
 
 
 def parse_strainest_error(ground_truth: pd.DataFrame, output_dir: Path) -> float:
@@ -152,16 +179,7 @@ def parse_strainest_error(ground_truth: pd.DataFrame, output_dir: Path) -> float
                 strain_idx = strain_indices[strain_id]
                 est_rel_abunds[t_idx][strain_idx] = abund
 
-    return error_metric(est_rel_abunds, ground_truth)
-
-
-def get_baseline_diff(ground_truth: pd.DataFrame) -> float:
-    time_points = sorted(pd.unique(ground_truth['T']))
-    strains = sorted(pd.unique(ground_truth['Strain']))
-
-    # baseline_arr = np.round(ground_truth, 0)
-    baseline_arr = 0.5 * np.ones(shape=(len(time_points), len(strains)), dtype=float)
-    return error_metric(baseline_arr, ground_truth)
+    return float(error_metric(est_rel_abunds, ground_truth).item())
 
 
 def main():
@@ -214,22 +232,6 @@ def main():
     summary_df = pd.DataFrame(df_entries)
     summary_df.to_csv(out_path, index=False)
     print(f"[*] Saved results to {out_path}.")
-
-    plot_path = out_path.parent / "plot.pdf"
-    fig, ax = plt.subplots(1, 1, figsize=(16, 10))
-    sb.boxplot(
-        data=summary_df,
-        x='ReadDepth',
-        hue='Method',
-        y='Error',
-        ax=ax
-    )
-
-    baseline_diff = get_baseline_diff(ground_truth)
-    x = [-0.5, len(pd.unique(summary_df['ReadDepth'])) - 0.5]
-    ax.plot(x, [baseline_diff, baseline_diff], linestyle='dotted', color='black', alpha=0.3)
-    plt.savefig(plot_path)
-    print(f"[*] Saved plot to {plot_path}.")
 
 
 if __name__ == "__main__":
