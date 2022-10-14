@@ -124,8 +124,8 @@ def parse_chronostrain_error(db: StrainDatabase, ground_truth: pd.DataFrame, out
     #     torch.sqrt(samples, dim=2) - torch.unsqueeze(torch.sqrt(ground_truth_tensor), 1)
     # ).sum(dim=2).sqrt().mean(dim=0)  # Average hellinger distance across time, for each sample.
     # return torch.median(hellingers).item() / np.sqrt(2)
-    # median_abundances = np.median(abundance_samples.numpy(), axis=1)
-    return float(np.median(error_metric(abundance_samples.numpy(), ground_truth)))
+    median_abundances = np.median(abundance_samples.numpy(), axis=1)
+    return float(error_metric(median_abundances, ground_truth).item())
 
 
 def parse_straingst_error(ground_truth: pd.DataFrame, output_dir: Path, mode: str) -> float:
