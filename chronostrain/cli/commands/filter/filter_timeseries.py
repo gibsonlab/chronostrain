@@ -148,9 +148,9 @@ def load_from_csv(csv_path: Path, logger: Logger) -> List[Tuple[float, int, Path
 
 if __name__ == "__main__":
     from chronostrain.logging import create_logger
-    logger = create_logger("chronostrain.filter")
+    my_logger = create_logger("chronostrain.filter")
     try:
-        main(obj=logger)
+        main(obj=my_logger)
     except Exception as e:
-        logger.exception(e)
+        my_logger.exception(e)
         exit(1)

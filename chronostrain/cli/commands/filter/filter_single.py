@@ -86,8 +86,7 @@ def main(
         db=cfg.database_cfg.get_database(),
         min_read_len=min_read_len,
         frac_identity_threshold=frac_identity_threshold,
-        error_threshold=error_threshold,
-        num_threads=cfg.model_cfg.num_cores
+        error_threshold=error_threshold
     )
 
     read_type = parse_read_type(read_type)
@@ -105,9 +104,9 @@ def main(
 
 if __name__ == "__main__":
     from chronostrain.logging import create_logger
-    logger = create_logger("chronostrain.filter")
+    my_logger = create_logger("chronostrain.filter")
     try:
-        main(obj=logger)
+        main(obj=my_logger)
     except Exception as e:
-        logger.exception(e)
+        my_logger.exception(e)
         exit(1)

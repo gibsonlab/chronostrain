@@ -31,9 +31,13 @@ class MarkerSource:
         self._seq = None
         self._gb_record = None
 
+    @staticmethod
+    def assembly_subdir(data_dir: Path, strain_id: str) -> Path:
+        return data_dir / "assemblies" / strain_id
+
     @property
     def strain_assembly_dir(self) -> Path:
-        return self.data_dir / "assemblies" / self.strain_id
+        return self.assembly_subdir(self.data_dir, self.strain_id)
 
     @property
     def seq_nucleotide(self) -> str:

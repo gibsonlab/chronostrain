@@ -16,7 +16,8 @@ logger = create_logger("chronostrain.cli")
     commands={
         'filter': filter_timeseries,
         'filter-single': filter_single,
-        'advi': run_advi
+        'advi': run_advi,
+        'make-db': make_db
     }
 )
 @click.option(

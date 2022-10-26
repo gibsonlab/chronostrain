@@ -117,7 +117,7 @@ def main(
     import torch
     from chronostrain.config import cfg
     from chronostrain.model import Population
-    from chronostrain.model.io import TimeSeriesReads, ReadType
+    from chronostrain.model.io import TimeSeriesReads
     import chronostrain.visualizations as viz
     from .initializers import load_fragments, perform_advi
 
@@ -206,9 +206,9 @@ def main(
 
 if __name__ == "__main__":
     from chronostrain.logging import create_logger
-    logger = create_logger("chronostrain.inference")
+    my_logger = create_logger("chronostrain.inference")
     try:
-        main(obj=logger)
+        main(obj=my_logger)
     except Exception as e:
-        logger.exception(e)
+        my_logger.exception(e)
         exit(1)
