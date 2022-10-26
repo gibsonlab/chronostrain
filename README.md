@@ -10,7 +10,7 @@
 
 # 1. Installation <a name="installation"></a>
 
-As of 2/29/2021, a simple `pip install` suffices:
+As of Oct. 2022, simple `pip install` suffices:
 
 ```bash
 cd chronostrain
