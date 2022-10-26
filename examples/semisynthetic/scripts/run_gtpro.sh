@@ -36,27 +36,10 @@ metagenotype_all="${mg_prefix}.tsv"
 echo "[*] Preparing GT_Pro inputs..."
 for t_idx in 0 1 2 3 4; do
 	concat_reads=${t_idx}_reads.fq
+
 	> $concat_reads
-
-	cat ${read_dir}/${time_point}_sim_1.fq >> $concat_reads
-	cat ${BACKGROUND_FASTQ_DIR}/${time_point}_background_1.fq >> $concat_reads
-	cat ${read_dir}/${time_point}_sim_2.fq >> $concat_reads
-	cat ${BACKGROUND_FASTQ_DIR}/${time_point}_background_2.fq >> $concat_reads
-
-#	pigz -dck ${read_dir}/${t_idx}_reads_1.fq.gz >> $concat_reads
-#	pigz -dck ${read_dir}/${t_idx}_reads_2.fq.gz >> $concat_reads
-
-#	cat ${read_dir}/${t_idx}_NZ_CP069709.1_1.fq >> $concat_reads
-#	cat ${read_dir}/${t_idx}_NZ_CP069709.1_2.fq >> $concat_reads
-#
-#	cat ${read_dir}/${t_idx}_NZ_CP076645.1_1.fq >> $concat_reads
-#	cat ${read_dir}/${t_idx}_NZ_CP076645.1_2.fq >> $concat_reads
-#
-#	cat ${read_dir}/${t_idx}_NZ_CP026399.1_1.fq >> $concat_reads
-#	cat ${read_dir}/${t_idx}_NZ_CP026399.1_2.fq >> $concat_reads
-#
-#	cat ${read_dir}/${t_idx}_NZ_LR134247.1_1.fq >> $concat_reads
-#	cat ${read_dir}/${t_idx}_NZ_LR134247.1_2.fq >> $concat_reads
+	cat ${read_dir}/${t_idx}_sim_1.fq >> $concat_reads
+	cat ${read_dir}/${t_idx}_sim_2.fq >> $concat_reads
 done
 
 

@@ -1,4 +1,4 @@
-from typing import List, Iterator
+from typing import List, Iterator, Dict
 import pandas as pd
 
 from chronostrain.model import Marker, Strain
@@ -8,8 +8,8 @@ from ..error import QueryNotFoundError
 
 class PandasAssistedBackend(AbstractStrainDatabaseBackend):
     def __init__(self):
-        self.strains = {}
-        self.markers = {}
+        self.strains: Dict[str, Strain] = {}
+        self.markers: Dict[str, Marker] = {}
         self.strain_df = pd.DataFrame({
             'StrainId': pd.Series(dtype='str'),
             'MarkerId': pd.Series(dtype='str')

@@ -1,9 +1,13 @@
 from abc import ABCMeta
-from typing import Any, Dict, Iterator
+from typing import Any, Dict, Iterator, Optional
 from pathlib import Path
 
 
 class ConfigurationParseError(Exception):
+    pass
+
+
+class ConfigurationNotFound(Exception):
     pass
 
 
@@ -24,7 +28,7 @@ class AbstractConfig(metaclass=ABCMeta):
                 return self.cfg_dict[key_to_try]
             except KeyError:
                 continue
-        raise ConfigurationParseError("Could not find key {} in configuration '{}'.".format(
+        raise ConfigurationNotFound("Could not find key {} in configuration '{}'.".format(
             key,
             self.name,
         ))
@@ -48,8 +52,15 @@ class AbstractConfig(metaclass=ABCMeta):
                 f"Field `{key}`: Expected `int`, got value `{self.get_str(key)}`"
             )
 
-    def get_bool(self, key: str) -> bool:
-        item = self.get_str(key)
+    def get_bool(self, key: str, default_value: Optional[bool] = None) -> bool:
+        try:
+            item = self.get_str(key)
+        except ConfigurationNotFound as e:
+            if default_value is not None:
+                return default_value
+            else:
+                raise e
+
         if item.lower() == "true":
             return True
         elif item.lower() == "false":

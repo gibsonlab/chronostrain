@@ -17,7 +17,6 @@ def perform_advi(
         population: Population,
         fragments: FragmentSpace,
         reads: TimeSeriesReads,
-        paired_end: bool,
         num_epochs: int,
         lr_decay_factor: float,
         lr_patience: int,
@@ -31,43 +30,31 @@ def perform_advi(
         save_elbo_history: bool = False,
         save_training_history: bool = False
 ):
+    read_types = {
+        src.read_type
+        for reads_t in reads.time_slices
+        for src in reads_t.sources
+    }
+
     # ==== Run the solver.
     time_points = [time_slice.time_point for time_slice in reads]
-    if correlation_type == 'dirichlet':
-        model = create_model(
-            population=population,
-            mean=torch.zeros(population.num_strains() - 1, device=cfg.torch_cfg.device),
-            fragments=fragments,
-            time_points=time_points,
-            disable_quality=not cfg.model_cfg.use_quality_scores,
-            db=db,
-            pair_ended=paired_end,
-            logger=logger
-        )
-        solver = ADVIDirichletSolver(
-            model=model,
-            data=reads,
-            db=db,
-            read_batch_size=read_batch_size
-        )
-    else:
-        model = create_model(
-            population=population,
-            mean=torch.zeros(population.num_strains(), device=cfg.torch_cfg.device),
-            fragments=fragments,
-            time_points=time_points,
-            disable_quality=not cfg.model_cfg.use_quality_scores,
-            db=db,
-            pair_ended=paired_end,
-            logger=logger
-        )
-        solver = ADVIGaussianSolver(
-            model=model,
-            data=reads,
-            correlation_type=correlation_type,
-            db=db,
-            read_batch_size=read_batch_size
-        )
+    model = create_model(
+        population=population,
+        read_types=read_types,
+        mean=torch.zeros(population.num_strains(), device=cfg.torch_cfg.device),
+        fragments=fragments,
+        time_points=time_points,
+        disable_quality=not cfg.model_cfg.use_quality_scores,
+        db=db,
+        logger=logger
+    )
+    solver = ADVIGaussianSolver(
+        model=model,
+        data=reads,
+        correlation_type=correlation_type,
+        db=db,
+        read_batch_size=read_batch_size
+    )
 
     callbacks = []
     uppers = [[] for _ in range(model.num_strains())]
@@ -76,9 +63,12 @@ def perform_advi(
     elbo_history = []
 
     if save_training_history:
+        from chronostrain.util.math.activations import sparsemax
         def anim_callback(x_samples, uppers_buf, lowers_buf, medians_buf):
             # Plot VI posterior.
-            abund_samples = x_samples.cpu().detach().numpy()
+            y_samples = model.latent_conversion(x_samples)
+            abund_samples = y_samples.cpu().detach().numpy()
+
             for s_idx in range(model.num_strains()):
                 traj_samples = abund_samples[:, :, s_idx]  # (T x N)
                 upper_quantile = np.quantile(traj_samples, q=0.975, axis=1)

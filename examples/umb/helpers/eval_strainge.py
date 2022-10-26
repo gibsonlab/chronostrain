@@ -3,6 +3,7 @@ from pathlib import Path
 import argparse
 import pandas as pd
 import numpy as np
+import scipy.stats
 
 from strainge.io.utils import parse_straingst
 
@@ -19,6 +20,15 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def fetch_strain_id_from_straingst(strain_name: str, index_df: pd.DataFrame) -> Tuple[str, str]:
+    fasta_path = Path("/mnt/e/strainge/strainge_db") / strain_name
+    gcf_id = '_'.join(fasta_path.resolve().stem.split('_')[:2])
+    hit = index_df.loc[index_df['Assembly'] == gcf_id, :].head(1)
+    if hit.shape[0] == 0:
+        raise ValueError(f"Couldn't find strain from StrainGST identifier `{strain_name}`.")
+    return hit['Accession'].item(), hit['Strain'].item()
+
+
 def strip_suffixes(x: str) -> str:
     x = Path(x)
     suffix_set = {'.chrom', '.fa', '.fna', '.gz', 'fasta'}
@@ -27,42 +37,49 @@ def strip_suffixes(x: str) -> str:
     return x.name
 
 
-def strip_prefix(x: str):
-    return "_".join(x.split("_")[2:])
-
-
-def fetch_strain_id(strain_name: str, ref_df: pd.DataFrame) -> str:
-    # preprocess.
-    strain_name = strip_suffixes(strain_name)
-    strain_name = strip_prefix(strain_name)
-
-    if "GCF" in strain_name:
-        tokens = strain_name.split("_GCF_")
-        strain_name = tokens[0]
-        gcf_id = "GCF_{}".format(tokens[1])
-        ref_df = ref_df.loc[ref_df['Assembly'] == gcf_id, :]
-
-    strain_names_to_try = {strain_name, strain_name.replace("_", ".")}
-    if strain_name.startswith("str"):
-        strain_names_to_try.add("_".join(strain_name.split("_")[1:]))
-
-    for s in strain_names_to_try:
-        try:
-            return search_df(s, ref_df)
-        except RuntimeError:
-            print(f"Unable to find strain name entry `{s}`. Remaining possibilities: {strain_names_to_try}")
-    raise RuntimeError(f"Unknown strain name `{strain_name}` encountered.")
-
-
-def search_df(strain_name: str, ref_df: pd.DataFrame):
-    hits = ref_df.loc[ref_df['Strain'].str.endswith(strain_name), 'Accession']
-    if hits.shape[0] == 0:
-        raise RuntimeError(f"Unknown strain name `{strain_name}` encountered.")
-
-    result = hits.head(1).item()
-    if hits.shape[0] > 1:
-        print(f"Ambiguous strain name `{strain_name}`. Taking the first accession {result}")
-    return result
+# def strip_prefix(x: str):
+#     return "_".join(x.split("_")[2:])
+#
+#
+# class StrainNotFound(BaseException):
+#     pass
+#
+#
+# def fetch_strain_id(strain_name: str, ref_df: pd.DataFrame) -> str:
+#     # preprocess.
+#     strain_name = strip_suffixes(strain_name)
+#     strain_name = strip_prefix(strain_name)
+#
+#     if "GCF" in strain_name:
+#         tokens = strain_name.split("_GCF_")
+#         strain_name = tokens[0]
+#         gcf_id = "GCF_{}".format(tokens[1])
+#         ref_df = ref_df.loc[ref_df['Assembly'] == gcf_id, :]
+#
+#     strain_names_to_try = [strain_name, strain_name.replace("_", ".")]
+#     if strain_name.startswith("str"):
+#         short_name = "_".join(strain_name.split("_")[1:])
+#         strain_names_to_try.append(short_name)
+#         strain_names_to_try.append(f"str._{short_name}")
+#         strain_names_to_try.append(f"Escherichia_coli_str._{short_name}")
+#
+#     for s in strain_names_to_try:
+#         try:
+#             return search_df(s, ref_df)
+#         except StrainNotFound:
+#             print(f"Unable to find strain name entry `{s}`. Remaining possibilities: {strain_names_to_try}")
+#     raise RuntimeError(f"Unknown strain name `{strain_name}` encountered.")
+#
+#
+# def search_df(strain_name: str, ref_df: pd.DataFrame):
+#     hits = ref_df.loc[ref_df['Strain'] == strain_name, 'Accession']
+#     if hits.shape[0] == 0:
+#         raise StrainNotFound(f"Unknown strain name `{strain_name}` encountered.")
+#
+#     result = hits.head(1).item()
+#     if hits.shape[0] > 1:
+#         print(f"Ambiguous strain name `{strain_name}`. Taking the first accession {result}")
+#     return result
 
 
 def parse_clades(clades_path: Path) -> Dict[str, str]:
@@ -102,15 +119,21 @@ def parse_single_output(output_file: Path, ref_df: pd.DataFrame) -> Iterator[Tup
     with open(output_file, "r") as f:
         for strain in parse_straingst(f):
             strain_name = strain['strain']
-            strain_id = fetch_strain_id(strain_name, ref_df)
+            try:
+                strain_id, _ = fetch_strain_id_from_straingst(strain_name, ref_df)
+            except ValueError:
+                print("Couldn't identify an accession number for `{strain_name}` in the StrainGE database.")
+                continue
             rel_abund = float(strain['rapct']) / 100.0
             yield strain_id, rel_abund
 
 
 def umb_dirs(base_dir: Path) -> Iterator[Tuple[str, Path]]:
+    print(f"Searching for UMB results in {base_dir}")
     for umb_dir in base_dir.glob("UMB*"):
         if not umb_dir.is_dir():
             raise RuntimeError(f"Expected child `{umb_dir}` to be a directory.")
+        print(f"Navigating {umb_dir}")
         umb_id = umb_dir.name
         yield umb_id, umb_dir
 
@@ -145,16 +168,17 @@ def convert_to_numpy(timeseries_df: pd.DataFrame, patient: str, metadata: pd.Dat
     strain_indexes = {s: i for i, s in enumerate(strains)}
     timeseries = np.zeros((len(time_points), len(strains)), dtype=float)
 
-    for _, row in merged.iterrows():
-        day = row['days']
-        strain = row['Strain']
-        tidx = time_indexes[day]
-        sidx = strain_indexes[strain]
-        timeseries[tidx, sidx] = row['RelAbund']
+    try:
+        for _, row in merged.iterrows():
+            day = row['days']
+            strain = row['Strain']
+            tidx = time_indexes[day]
+            sidx = strain_indexes[strain]
+            timeseries[tidx, sidx] = row['RelAbund']
+    except KeyError as e:
+        merged.to_csv(f"__{patient}_DATA_DUMP.csv", index=False)
+        raise e
 
-    # Normalize.
-    row_sums = timeseries.sum(axis=1)
-    timeseries[row_sums > 0, :] = timeseries[row_sums > 0, :] / np.expand_dims(row_sums[row_sums > 0], 1)
     return timeseries, strains
 
 
@@ -164,13 +188,13 @@ def evaluate(strainge_output_dir: Path, metadata: pd.DataFrame, ref_df: pd.DataF
         if timeseries_df.shape[0] == 0:
             df_entries.append({
                 "Patient": patient,
-                "Dominance": np.nan
+                "Coherence": np.nan
             })
         else:
             timeseries, _ = convert_to_numpy(timeseries_df, patient, metadata)
             df_entries.append({
                 "Patient": patient,
-                "Dominance": dominance_switch_ratio(timeseries)
+                "Coherence": timeseries_coherence_factor(timeseries)
             })
     return pd.DataFrame(df_entries)
 
@@ -183,7 +207,7 @@ def evaluate_by_clades(strainge_output_dir: Path, clades: Dict[str, str], metada
                 df_entries.append({
                     "Patient": patient,
                     "Phylogroup": clade,
-                    "Dominance": np.nan,
+                    "Coherence": np.nan,
                     "OverallRelAbundMax": np.nan,
                     "StrainRelAbundMax": np.nan
                 })
@@ -194,7 +218,7 @@ def evaluate_by_clades(strainge_output_dir: Path, clades: Dict[str, str], metada
                     df_entries.append({
                         "Patient": patient,
                         "Phylogroup": clade,
-                        "Dominance": np.nan,
+                        "Coherence": np.nan,
                         "OverallRelAbundMax": np.nan,
                         "StrainRelAbundMax": np.nan,
                     })
@@ -202,7 +226,7 @@ def evaluate_by_clades(strainge_output_dir: Path, clades: Dict[str, str], metada
                     df_entries.append({
                         "Patient": patient,
                         "Phylogroup": clade,
-                        "Dominance": dominance_switch_ratio(sub_timeseries),
+                        "Coherence": timeseries_coherence_factor(sub_timeseries),
                         "OverallRelAbundMax": np.max(np.sum(sub_timeseries, axis=1)),
                         "StrainRelAbundMax": np.max(sub_timeseries)
                     })
@@ -220,28 +244,51 @@ def divide_into_timeseries(timeseries: np.ndarray, strain_ids: List[str], clades
             yield this_clade, timeseries[:, matching_strains]
 
 
-def dominance_switch_ratio(abundance_est: np.ndarray, lb: float = 0.0) -> float:
-    """
-    Calculate how often the dominant strain switches.
-    """
-    dom = np.argmax(abundance_est, axis=1)
-    num_switches = 0
+def timeseries_coherence_factor(x: np.ndarray) -> np.ndarray:
+    return mean_coherence_factor(x[1:], x[:-1])
 
-    def row_is_zeros(r) -> bool:
-        return np.sum(r <= lb).item() == r.shape[0]
 
-    num_total = 0
-    for i in range(len(dom) - 1):
-        if row_is_zeros(abundance_est[i]) and row_is_zeros(abundance_est[i + 1]):
-            continue  # don't add to denominator.
+def mean_coherence_factor(x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    assert x.shape[0] == y.shape[0]
+    assert x.shape[-1] == y.shape[-1]
 
-        elif (dom[i] != dom[i + 1]) or row_is_zeros(abundance_est[i]) or row_is_zeros(abundance_est[i + 1]):
-            num_switches += 1
-        num_total += 1
-    if num_total > 0:
-        return num_switches / num_total
-    else:
-        return np.nan
+    if len(x.shape) == 2 and len(y.shape) == 2:
+        return np.nanmean([
+            coherence_factor(x_t, y_t)
+            for x_t, y_t in zip(x, y)
+        ])
+
+    if len(x.shape) == 2:
+        x = np.repeat(np.expand_dims(x, 1), y.shape[1], axis=1)
+    if len(y.shape) == 2:
+        y = np.repeat(np.expand_dims(y, 1), x.shape[1], axis=1)
+
+    return np.nanmean([
+        [
+            coherence_factor(x_tn, y_tn)
+            for x_tn, y_tn in zip(x_t, y_t)
+        ]
+        for x_t, y_t in zip(x, y)
+    ], axis=0)
+
+
+def coherence_factor(x: np.ndarray, y: np.ndarray) -> float:
+    assert len(x.shape) == 1
+    assert len(y.shape) == 1
+
+    if np.std(x) == 0 and np.std(y) == 0:  # edge case
+        if x[0] == 0.:
+            return np.nan
+        elif x[0] == y[0]:
+            return 1.0
+        else:
+            return 0.0
+
+    if np.std(x) == 0 or np.std(y) == 0:  # only one is zero
+        return 0.0
+
+    # noinspection PyTypeChecker
+    return scipy.stats.spearmanr(x, y)[0]
 
 
 def main():
@@ -258,7 +305,7 @@ def main():
     else:
         df = evaluate(Path(args.strainge_dir), metadata, ref_df)
 
-    df.to_csv(args.output, index=False)
+    df.to_csv(args.output, index=False, sep='\t')
 
 
 if __name__ == "__main__":

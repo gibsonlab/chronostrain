@@ -37,7 +37,7 @@ from ..base import option
          'improvements before decaying lr.'
 )
 @option(
-    '--min-lr', 'min_lr', type=float, default=1e-5,
+    '--min-lr', 'min_lr', type=float, default=1e-4,
     help='Stop the algorithm when the LR is below this threshold.'
 )
 @option(
@@ -150,7 +150,6 @@ def main(
         population=population,
         fragments=fragments,
         reads=reads,
-        paired_end=True,
         num_epochs=epochs,
         iters=iters,
         min_lr=min_lr,
@@ -178,7 +177,8 @@ def main(
             out_path=animation_path,
             upper_quantiles=uppers,
             lower_quantiles=lowers,
-            medians=medians
+            medians=medians,
+            elbo_history=elbo_history,
         )
 
     # ==== Plot the posterior.
@@ -191,7 +191,7 @@ def main(
         plot_format=plot_format,
         ground_truth_path=true_abundance_path,
         num_samples=num_posterior_samples,
-        draw_legend=True
+        draw_legend=False
     )
 
     # ==== Output strain ordering.
@@ -206,9 +206,9 @@ def main(
 
 if __name__ == "__main__":
     from chronostrain.logging import create_logger
-    logger = create_logger("chronostrain.inference")
+    my_logger = create_logger("chronostrain.inference")
     try:
-        main(obj=logger)
+        main(obj=my_logger)
     except Exception as e:
-        logger.exception(e)
+        my_logger.exception(e)
         exit(1)

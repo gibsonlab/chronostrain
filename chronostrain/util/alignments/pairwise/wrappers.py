@@ -137,8 +137,8 @@ class BwaAligner(AbstractPairwiseAligner):
             tmp_sam.rename(output_path)
 
 
-logger.warn("If invoked, bowtie2 will initialize using default setting `phred33`. "
-            "(TODO: implement a universal definition across Biopython and bowtie2.)")
+logger.info("If invoked, bowtie2 will initialize using default setting `phred33`. "
+               "(TODO: implement some flexibility here.)")
 
 
 class BowtieAligner(AbstractPairwiseAligner):
@@ -184,8 +184,7 @@ class BowtieAligner(AbstractPairwiseAligner):
                 refs_in=[reference_path],
                 index_basepath=self.index_basepath,
                 index_basename=self.index_basename,
-                quiet=True,
-                n_threads=num_threads
+                quiet=True
             )
             self.index_trace_path.touch(exist_ok=True)  # Create an empty file to indicate that this finished.
         else:

@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Iterator, Union
+from typing import List, Iterator, Union, Dict, Tuple
 
 import numpy as np
 
@@ -54,6 +54,12 @@ class SamLine:
     @property
     def read_len(self) -> int:
         return len(self.read_seq)
+
+    @property
+    def optional_fields(self) -> Iterator[Tuple[str, str, str]]:
+        for token in self.line.strip().split('\t')[11:]:
+            tag_name, tag_type, tag_value = token.split(':')
+            yield tag_name, tag_type, tag_value
 
     def __str__(self):
         return "SamLine(L={lineno}):{tokens}".format(

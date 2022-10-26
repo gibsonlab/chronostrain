@@ -31,15 +31,12 @@ export CHRONOSTRAIN_NUM_SAMPLES=400
 export CHRONOSTRAIN_READ_BATCH_SZ=2500
 export CHRONOSTRAIN_DECAY_LR=0.25
 export CHRONOSTRAIN_LR_PATIENCE=5
-export CHRONOSTRAIN_LR=0.01
-export CHRONOSTRAIN_MIN_LR=1e-4
+export CHRONOSTRAIN_LR=0.001
+export CHRONOSTRAIN_MIN_LR=1e-5
 export CHRONOSTRAIN_CACHE_DIR="${OUTPUT_DIR}/cache"
 export CHRONOSTRAIN_OUTPUT_FILENAME="abundances.out"
 
-export CHRONOSTRAIN_DB_JSON_ALL="${CHRONOSTRAIN_DB_DIR}/database_all.json"
-export CHRONOSTRAIN_DB_JSON_PRUNED="${CHRONOSTRAIN_DB_DIR}/database_pruned.json"
-export CHRONOSTRAIN_DB_JSON="${CHRONOSTRAIN_DB_JSON_PRUNED}"
-export MULTIFASTA_FILE="strain_markers.fasta"
+export CHRONOSTRAIN_DB_JSON="${CHRONOSTRAIN_DB_DIR}/database_pruned_resolved.json"
 
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)
 export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"

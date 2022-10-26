@@ -66,7 +66,7 @@ echo "[*] Running alignment..."
 bowtie2 \
 --very-fast --no-unal --quiet \
 -p ${N_CORES} \
--x ${STRAINEST_DB_DIR}/clustered/${STRAINEST_BT2_DB} \
+-x ${STRAINEST_DB_DIR}/unclustered/${STRAINEST_BT2_DB} \
 -U ${read_dir}/${time_point}_sim_1.fq \
 -U ${read_dir}/${time_point}_sim_2.fq \
 -U ${BACKGROUND_FASTQ_DIR}/${time_point}_background_1.fq \

@@ -222,6 +222,8 @@ class TimeSeriesReads(object):
                 read_type = parse_read_type(row[3])
                 quality_fmt = row[4]
 
+                if not read_path.is_absolute():
+                    read_path = csv_path.parent / read_path
                 if not read_path.exists():
                     raise FileNotFoundError(
                         "The input specification `{}` pointed to `{}`, which does not exist.".format(

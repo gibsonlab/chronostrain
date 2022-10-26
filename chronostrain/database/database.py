@@ -1,4 +1,5 @@
 import time
+import os
 from collections import defaultdict
 from pathlib import Path
 from typing import List, Union, Set
@@ -20,10 +21,13 @@ class StrainDatabase(object):
                  parser: AbstractDatabaseParser,
                  backend: AbstractStrainDatabaseBackend,
                  data_dir: Path,
-                 multifasta_filename: str = 'all_markers.fasta',
+                 name: str,
                  force_refresh: bool = False):
         self.backend = backend
-        self.marker_multifasta_file = data_dir / multifasta_filename
+        self.name = name
+
+        all_markers_base_name = f'__{name}_MARKERS'
+        self.marker_multifasta_file = data_dir / all_markers_base_name / f'all_markers.fasta'
         self.initialize(parser, force_refresh)
 
     def initialize(self, parser: AbstractDatabaseParser, force_refresh: bool):
@@ -160,19 +164,32 @@ class JSONStrainDatabase(StrainDatabase):
                  entries_file: Union[str, Path],
                  marker_max_len: int,
                  data_dir: Path,
-                 force_refresh: bool = False,
-                 multifasta_filename: str = 'all_markers.fasta'):
+                 force_refresh: bool = False):
         if isinstance(entries_file, str):
             entries_file = Path(entries_file)
 
         self.entries_file = entries_file
-        self.pickle_path: Path = entries_file.with_suffix('.pkl')
         parser = JSONParser(entries_file,
                             data_dir,
                             marker_max_len,
                             force_refresh)
         backend = PandasAssistedBackend()
-        super().__init__(parser, backend, data_dir, multifasta_filename)
+        super().__init__(parser, backend, data_dir, parser.entries_file.stem)
+
+    @property
+    def pickle_path(self) -> Path:
+        """
+        Certain object attributes (such as marker metadata) uses pathlib.Path, which is specific to the OS.
+        Therefore, save/load each separately.
+
+        :return: The target path to save the database.
+        """
+        if os.name == 'nt':
+            # Windows paths
+            return self.entries_file.with_suffix('.windows.pkl')
+        else:
+            # Posix paths
+            return self.entries_file.with_suffix('.posix.pkl')
 
     def pickle_is_stale(self):
         if not self.pickle_path.exists():
@@ -185,6 +202,7 @@ class JSONStrainDatabase(StrainDatabase):
             logger.debug("Populating database.")
             super().initialize(parser, force_refresh)
             self.save_to_disk()
+            logger.debug(f"Saved database to {self.pickle_path}.")
         else:
             logger.debug(f"Loaded database from disk ({self.pickle_path}).")
             self.load_from_disk()

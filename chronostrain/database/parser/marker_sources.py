@@ -21,25 +21,23 @@ class PrimerNotFoundError(BaseException):
 
 
 class MarkerSource:
-    def __init__(self, strain_id: str, seq_accession: str, marker_max_len: int, force_download: bool):
+    def __init__(self, strain_id: str, seq_accession: str, marker_max_len: int, force_download: bool, data_dir: Path):
         self.strain_id = strain_id
         self.seq_accession = seq_accession
         self.marker_max_len = marker_max_len
         self.force_download = force_download
+        self.data_dir = data_dir
 
-        self._seq_len = None
         self._seq = None
         self._gb_record = None
 
-    @property
-    def strain_assembly_dir(self) -> Path:
-        return cfg.database_cfg.data_dir / "assemblies" / self.strain_id
+    @staticmethod
+    def assembly_subdir(data_dir: Path, strain_id: str) -> Path:
+        return data_dir / "assemblies" / strain_id
 
     @property
-    def nucleotide_length(self) -> int:
-        if self._seq_len is None:
-            self._seq_len = len(self.seq_nucleotide)
-        return self._seq_len
+    def strain_assembly_dir(self) -> Path:
+        return self.assembly_subdir(self.data_dir, self.strain_id)
 
     @property
     def seq_nucleotide(self) -> str:
@@ -160,20 +158,7 @@ class MarkerSource:
 
 class CachedMarkerSource(MarkerSource):
     def __init__(self, strain_id: str, data_dir: Path, seq_accession: str, marker_max_len: int, force_download: bool):
-        super().__init__(strain_id, seq_accession, marker_max_len, force_download)
-        self.data_dir = data_dir
-        self._seq_len = self.get_seq_len()
-
-    def get_seq_len(self) -> int:
-        p = self.strain_assembly_dir / "length.txt"
-        if p.exists():
-            with open(p, 'rt') as f:
-                l = int(f.readline().strip())
-        else:
-            l = len(self.seq_nucleotide)
-            with open(p, 'wt') as f:
-                print(str(l), file=f)
-        return l
+        super().__init__(strain_id, seq_accession, marker_max_len, force_download, data_dir)
 
     def get_marker_filepath(self, marker_id: str) -> Path:
         return (
@@ -193,13 +178,16 @@ class CachedMarkerSource(MarkerSource):
         )
 
     def load_from_disk(self, marker_id: str, marker_name: str, is_canonical: bool, marker_filepath: Path):
-        marker_seq = nucleotides_to_z4(
-            str(SeqIO.read(marker_filepath, "fasta").seq)
-        )
+        # noinspection PyBroadException
+        try:
+            seq = str(SeqIO.read(marker_filepath, "fasta").seq)
+        except Exception as e:
+            raise RuntimeError("Encountered an error while loading cached marker sequence. "
+                               "The database may be corrupeted.") from e
         return Marker(
             id=marker_id,
             name=marker_name,
-            seq=marker_seq,
+            seq=nucleotides_to_z4(seq),
             canonical=is_canonical,
             metadata=MarkerMetadata(
                 parent_strain=self.strain_id,

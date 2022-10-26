@@ -1,14 +1,15 @@
 from typing import Iterator, Optional
 
+import numpy as np
 import torch
 
 from chronostrain.database import StrainDatabase
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
+from chronostrain.util.math.matrices import log_mm_exp
 
 from .base import AbstractADVISolver
 from .posteriors import *
-from .util import log_softmax_t, log_matmul_exp
 from ...subroutines.likelihoods import DataLikelihoods
 
 from chronostrain.logging import create_logger
@@ -30,20 +31,11 @@ class ADVIGaussianSolver(AbstractADVISolver):
                  precomputed_data_likelihoods: Optional[DataLikelihoods] = None):
         logger.info("Initializing solver with Gaussian posterior")
         if correlation_type == "time":
-            posterior = GaussianPosteriorTimeCorrelation(
-                num_strains=model.num_strains(),
-                num_times=model.num_times()
-            )
+            posterior = GaussianPosteriorTimeCorrelation(model)
         elif correlation_type == "strain":
-            posterior = GaussianPosteriorStrainCorrelation(
-                num_strains=model.num_strains(),
-                num_times=model.num_times()
-            )
+            posterior = GaussianPosteriorStrainCorrelation(model)
         elif correlation_type == "full":
-            posterior = GaussianPosteriorFullReparametrizedCorrelation(
-                num_strains=model.num_strains(),
-                num_times=model.num_times()
-            )
+            posterior = GaussianPosteriorFullReparametrizedCorrelation(model)
         else:
             raise ValueError("Unrecognized `correlation_type` argument {}.".format(correlation_type))
 
@@ -56,6 +48,11 @@ class ADVIGaussianSolver(AbstractADVISolver):
             num_cores=num_cores,
             precomputed_data_likelihoods=precomputed_data_likelihoods
         )
+
+        self.log_total_marker_lens = torch.tensor([
+            [np.log(sum(len(m) for m in strain.markers))]
+            for strain in self.model.bacteria_pop.strains
+        ], device=self.device)  # (S x 1)
 
     def elbo(self,
              x_samples: torch.Tensor
@@ -76,6 +73,11 @@ class ADVIGaussianSolver(AbstractADVISolver):
         """
         ELBO original formula:
             E_Q[P(X)] - E_Q[Q(X)] + E_{F ~ phi} [log P(F | X)]
+        
+        To obtain monte carlo estimates of ELBO, need to be able to compute:
+        1. p(x)
+        2. q(x), or more directly the entropy H(Q) = -E_Q[Q(X)]
+        3. p(f|x) --> implemented via sparse log-likelihood matmul
 
         To save memory on larger inputs, split the ELBO up into several pieces.
         """
@@ -86,18 +88,25 @@ class ADVIGaussianSolver(AbstractADVISolver):
         yield entropic
 
         for t_idx in range(self.model.num_times()):
-            log_y_t = log_softmax_t(x_samples, t=t_idx)
-            for batch_lls in self.batches[t_idx]:
+            log_y_t = self.model.log_latent_conversion(x_samples[t_idx])  # (N x S)
+            for batch_idx, batch_lls in enumerate(self.batches[t_idx]):
+                batch_sz = batch_lls.shape[1]
+
                 # Average of (N x R_batch) entries, we only want to divide by 1/N and not 1/(N*R_batch)
-                data_ll = batch_lls.shape[1] * torch.mean(log_matmul_exp(log_y_t, batch_lls))
+                data_ll = batch_sz * torch.mean(
+                    # (N x S) @ (S x R_batch)   ->  Raw data likelihood (up to proportionality)
+                    log_mm_exp(log_y_t, batch_lls)
+                    # (N x S) @ (S x 1)   -> Approx. correction term for conditioning on markers.
+                    - log_mm_exp(log_y_t, self.log_total_marker_lens)
+                )
                 yield data_ll
 
     def data_ll(self, x_samples: torch.Tensor) -> torch.Tensor:
         ans = torch.zeros(size=(x_samples.shape[1],), device=x_samples.device)
         for t_idx in range(self.model.num_times()):
-            log_y_t = log_softmax_t(x_samples, t=t_idx)
+            log_y_t = self.model.latent_conversion(x_samples[t_idx]).log()
             for batch_lls in self.batches[t_idx]:
-                batch_matrix = log_matmul_exp(log_y_t, batch_lls).detach()
+                batch_matrix = log_mm_exp(log_y_t, batch_lls).detach()
                 ans = ans + torch.sum(batch_matrix, dim=1)
         return ans
 

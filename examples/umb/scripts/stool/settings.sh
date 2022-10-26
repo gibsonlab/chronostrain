@@ -16,11 +16,19 @@ export REFSEQ_INDEX="/mnt/e/ref_genomes/index.tsv"
 export READS_DIR="${OUTPUT_DIR}/reads"
 export CHRONOSTRAIN_OUTPUT_DIR="${OUTPUT_DIR}/output/chronostrain"
 export STRAINGE_OUTPUT_DIR="${OUTPUT_DIR}/output/strainge"
+export KARP_OUTPUT_DIR="${OUTPUT_DIR}/output/karp"
 
 # sratools prefetch/sample output directories.
 export SRA_CSV_PATH="${BASE_DIR}/files/umb_samples.csv"
 export SRA_PREFETCH_DIR="${DATA_DIR}/prefetch"
 export FASTERQ_TMP_DIR="${DATA_DIR}/fasterq-tmp"
+
+# ========= Karp
+export KARP_REFS="/mnt/e/karp/references.fasta"
+export KARP_IDX="/mnt/e/karp/references.index"
+export KARP_TAX="/mnt/e/karp/references.tax"
+export KARP_BIN="/home/lactis/Karp"
+export PATH="${PATH}:${KARP_BIN}"
 
 # ========= Kneaddata
 export KNEADDATA_DB_DIR="/mnt/e/kneaddata_db"
@@ -33,17 +41,14 @@ export CHRONOSTRAIN_NUM_EPOCHS=1000
 export CHRONOSTRAIN_NUM_ITERS=50
 export CHRONOSTRAIN_NUM_SAMPLES=200
 export CHRONOSTRAIN_READ_BATCH_SZ=2500
-export CHRONOSTRAIN_LR_PATIENCE=10
+export CHRONOSTRAIN_LR_PATIENCE=5
 export CHRONOSTRAIN_MIN_LR=1e-5
 export CHRONOSTRAIN_DECAY_LR=0.25
 export CHRONOSTRAIN_LR=0.001
 export CHRONOSTRAIN_CACHE_DIR="${OUTPUT_DIR}/cache"
 export CHRONOSTRAIN_OUTPUT_FILENAME="abundances.out"
 
-export CHRONOSTRAIN_DB_JSON_ALL="${CHRONOSTRAIN_DB_DIR}/database_all.json"
-export CHRONOSTRAIN_DB_JSON_PRUNED="${CHRONOSTRAIN_DB_DIR}/database_pruned.json"
-export CHRONOSTRAIN_DB_JSON="${CHRONOSTRAIN_DB_JSON_PRUNED}"
-export MULTIFASTA_FILE="strain_markers.fasta"
+export CHRONOSTRAIN_DB_JSON="${CHRONOSTRAIN_DB_DIR}/database_pruned_resolved.json"
 
 # ======== STRAINGE
 export STRAINGE_DB=/mnt/e/strainge/straingst_umb/pan-genome-db.hdf5

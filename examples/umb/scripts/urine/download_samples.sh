@@ -29,11 +29,6 @@ mkdir -p ${FASTERQ_TMP_DIR}
 			continue
 		fi
 
-		if [[ "${exp_group}" != "Test" ]]; then
-			echo "Skipping ${sample_name}. (is not test group)"
-			continue
-		fi
-
 		# Target fastq files.
 		gz_file_1="${SAMPLES_DIR}/${sra_id}_1.fastq.gz"
 		gz_file_2="${SAMPLES_DIR}/${sra_id}_2.fastq.gz"
@@ -54,7 +49,8 @@ mkdir -p ${FASTERQ_TMP_DIR}
 		--progress \
 		--outdir $SAMPLES_DIR \
 		--skip-technical \
-		--print-read-nr \
+		--seq-defline '@$ac.$si/$ri' \
+		--qual-defline '+' \
 		--force \
 		-t ${FASTERQ_TMP_DIR} \
 		"${SRA_PREFETCH_DIR}/${sra_id}/${sra_id}.sra"

@@ -60,8 +60,8 @@ class CachedReadPairwiseAlignments(object):
 
             return BwaAligner(
                 reference_path=self.db.multifasta_file,
-                min_seed_len=15,
-                reseed_ratio=0.5,  # default; smaller = slower but more alignments.
+                min_seed_len=10,
+                reseed_ratio=0.5,  # smaller = slower but more alignments.
                 bandwidth=10,
                 num_threads=self.num_cores,
                 report_all_alignments=True,
@@ -73,7 +73,7 @@ class CachedReadPairwiseAlignments(object):
                     int(-deletion_ll / np.log(2)),
                     int(-insertion_ll / np.log(2))
                 ),
-                clip_penalty=5,
+                clip_penalty=0,
                 score_threshold=50,
                 bwa_command='bwa'
             )

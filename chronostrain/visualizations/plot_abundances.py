@@ -277,7 +277,7 @@ def render_posterior_abundances(
         quantiles: Optional[np.ndarray] = None
 ):
     if quantiles is None:
-        quantiles = np.linspace(0.025, 0.975, 50)  # DEFAULT
+        quantiles = np.array([0.025, 0.5, 0.975])
     if quantiles[0] > 0.5 or quantiles[-1] < 0.5:
         raise RuntimeError("Quantiles must lead with a value <= 0.5 and end with a value >= 0.5.")
     quantile_values = parse_quantiles(traj_samples, quantiles)  # size Q x T
@@ -306,9 +306,8 @@ def render_posterior_abundances(
             q_val_next = quantile_values[q_idx + 1]
             ax.fill_between(times, q_val, q_val_next, alpha=alpha, color=color, linewidth=0)
         if q > 0.5:
-            q_prev = quantiles[q_idx - 1]
+            alpha = 0.8 * (1 - (abs(q - 0.5) / 0.5))
             q_val_prev = quantile_values[q_idx - 1]
-            alpha = 0.8 * (1 - (abs(q_prev - 0.5) / 0.5))
             ax.fill_between(times, q_val_prev, q_val, alpha=alpha, color=color, linewidth=0)
 
     # Populate the legend.

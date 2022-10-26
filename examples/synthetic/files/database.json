@@ -4,6 +4,7 @@
         "genus": "Escherichia",
         "species": "coli",
         "name": "K12_Original",
+        "genome_length": 4631469,
         "seqs": [{"accession": "CP009273.1_Original", "seq_type": "chromosome"}],
         "markers": [
             {
@@ -23,6 +24,7 @@
         "genus": "Escherichia",
         "species": "coli",
         "name": "K12_Substitution",
+        "genome_length": 4631469,
         "seqs": [{"accession": "CP009273.1_Substitution", "seq_type": "chromosome"}],
         "markers": [
             {

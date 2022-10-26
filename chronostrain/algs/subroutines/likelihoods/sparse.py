@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import List, Dict, Iterator, Tuple, Set
 from collections import defaultdict
 import numpy as np
+import torch
 
 from joblib import Parallel, delayed
 
@@ -9,12 +10,10 @@ from chronostrain.database import StrainDatabase
 from chronostrain.model import Fragment, Marker, SequenceRead, AbstractMarkerVariant
 from chronostrain.util.alignments.multiple import MarkerMultipleFragmentAlignment
 from chronostrain.util.filesystem import convert_size
-from chronostrain.util.math import *
-from chronostrain.util.sparse import SparseMatrix, ColumnSectionedSparseMatrix
+from chronostrain.util.math.matrices import *
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.config import cfg
 from chronostrain.model.generative import GenerativeModel
-from chronostrain.util.sparse.sliceable import ADVIOptimizedSparseMatrix, RowSectionedSparseMatrix
 
 from .base import DataLikelihoods, AbstractLogLikelihoodComputer
 from ..alignments import CachedReadMultipleAlignments, CachedReadPairwiseAlignments
@@ -78,36 +77,8 @@ class SparseDataLikelihoods(DataLikelihoods):
             self.projectors.append(projector)
             self.supported_frags.append(row_support)
 
-    def sparse_matrices(self) -> Iterator[ADVIOptimizedSparseMatrix]:
-        yield from self.matrices
-
     def _likelihood_computer(self) -> AbstractLogLikelihoodComputer:
         return SparseLogLikelihoodComputer(self.model, self.data, self.db, self.num_cores)
-
-    def conditional_likelihood(self, X: torch.Tensor, inf_fill: float = -100000) -> float:
-        y = torch.softmax(X, dim=1)
-        total_ll = 0.
-        for t_idx in range(self.model.num_times()):
-            projector_t = self.projectors[t_idx]
-            if projector_t.rows == 0 and projector_t.columns > 0:
-                log_likelihood_t = -1e10 * len(self.data[t_idx])
-            else:
-                raise NotImplementedError("TODO fix with new implementation of log_spmm_exp.")
-                # log_likelihood_t = log_mm_exp(
-                #     y[t_idx].log().view(1, -1),  # (N x S)
-                #     log_spmm_exp(
-                #         ColumnSectionedSparseMatrix.from_sparse_matrix(self.matrices[t_idx].t()),  # (R x F')
-                #         log_spspmm_exp(
-                #             projector_t,  # (F' x F)
-                #             self.model.fragment_frequencies_sparse  # (F x S)
-                #         ),  # (F' x S)
-                #     ).t()  # after transpose: (S x R)
-                # )
-                #
-                # log_likelihood_t[torch.isinf(log_likelihood_t)] = inf_fill
-                # log_likelihood_t = log_likelihood_t.sum()
-            total_ll += log_likelihood_t
-        return total_ll
 
 
 class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):

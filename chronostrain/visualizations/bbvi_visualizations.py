@@ -4,13 +4,11 @@ from typing import List, Optional, Union
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
 
 from chronostrain import logger
-from chronostrain.algs import AbstractPosterior, ADVIGaussianSolver
+from chronostrain.algs import AbstractPosterior
 from chronostrain.model import Population
 from chronostrain.model.generative import GenerativeModel
-from chronostrain.model.io import TimeSeriesReads
 from chronostrain.util import filesystem
 
 from .plot_abundances import plot_posterior_abundances
@@ -38,44 +36,55 @@ def plot_training_animation(
         upper_quantiles: List[List[float]],
         lower_quantiles: List[List[float]],
         medians: List[List[float]],
+        elbo_history: List[float],
         backend_writer: str = 'imagemagick'
 ):
-    fig = plt.figure(figsize=(15, 10), dpi=100)
-    ax = plt.axes(xlim=(model.times[0] - 0.5, model.times[-1] + 0.5), ylim=(0, 1))
+    fig, axes = plt.subplots(1, 2, figsize=(15, 10), dpi=100)
+
+    # ========== First axis (samples)
+    samples_ax = axes[0]
+    samples_ax.set_xlim((model.times[0] - 0.5, model.times[-1] + 0.5))
+    samples_ax.set_ylim((0, 1))
 
     lines = [
-        ax.plot([], [], lw=2)[0]
+        samples_ax.plot([], [], lw=2)[0]
         for _ in range(model.num_strains())
     ]
 
-    # Populate the legend.
-    ax.legend(bbox_to_anchor=(1.05, 1.0), loc='lower center', handles=[
-        Line2D([0], [0], color=line.get_color(), lw=2, label=strain.id)
-        for line, strain in zip(lines, model.bacteria_pop.strains)
-    ])
-
     fills = [
-        ax.fill_between([], [], [], facecolor=lines[i].get_color())
+        samples_ax.fill_between([], [], [], facecolor=lines[i].get_color())
         for i in range(model.num_strains())
     ]
+
+    # =========== Second axis (Elbo)
+    elbo_ax = axes[1]
+    elbo_ax.plot(
+        np.arange(1, len(elbo_history) + 1, 1),
+        elbo_history
+    )
+    elbo_ax.set_xlabel("Iteration")
+    elbo_ax.set_ylabel("ELBO")
+    scat = plt.scatter([0], [0], c='red',  linewidths=1., edgecolors='black', s=100)
 
     def init():
         for line in lines:
             line.set_data([], [])
-        return lines
+        return lines + fills + [scat]
 
     def animate(i):
         for s_idx in range(model.num_strains()):
             lines[s_idx].set_data(model.times, medians[s_idx][i])
             fills[s_idx].remove()
-            fills[s_idx] = ax.fill_between(
+            fills[s_idx] = samples_ax.fill_between(
                 model.times,
                 lower_quantiles[s_idx][i],
                 upper_quantiles[s_idx][i],
                 alpha=0.2,
                 color=lines[s_idx].get_color()
             )
-        return lines + fills
+        # Set x and y data...
+        scat.set_offsets([i+1, elbo_history[i]])
+        return lines + fills + [scat]
 
     from matplotlib import animation
     n_frames = len(upper_quantiles[0])

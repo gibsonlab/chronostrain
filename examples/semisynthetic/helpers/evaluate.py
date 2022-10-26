@@ -6,18 +6,12 @@ import argparse
 import csv
 import numpy as np
 import pandas as pd
+import scipy.stats
 import torch
-import matplotlib
-import matplotlib.pyplot as plt
 from Bio import SeqIO
-from tqdm import tqdm
-
-from chronostrain.database import StrainDatabase
-from chronostrain.config import cfg
 
 from chronostrain.logging import create_logger
 logger = create_logger("chronostrain.evaluate")
-device = torch.device("cuda:0")
 
 
 def read_depth_dirs(base_dir: Path) -> Iterator[Tuple[int, Path]]:
@@ -80,7 +74,7 @@ def parse_hamming(multi_align_path: Path, index_df: pd.DataFrame) -> Tuple[List[
 
     n_strains = len(strain_ids)
     n_pairs = int(n_strains * (n_strains - 1)) // 2
-    for (i, i_seq), (j, j_seq) in tqdm(itertools.combinations(enumerate(aligned_seqs), r=2), total=n_pairs):
+    for (i, i_seq), (j, j_seq) in itertools.combinations(enumerate(aligned_seqs), r=2):
         if len(i_seq) != len(j_seq):
             raise RuntimeError("Found mismatching string lengths {} and {} (strains {} vs {})".format(
                 len(i_seq), len(j_seq),
@@ -100,12 +94,12 @@ def strip_suffixes(strain_id_string: str):
     return x.name
 
 
-def parse_chronostrain_estimate(db: StrainDatabase,
-                                ground_truth: pd.DataFrame,
+def parse_chronostrain_estimate(ground_truth: pd.DataFrame,
                                 strain_ids: List[str],
-                                output_dir: Path) -> torch.Tensor:
+                                output_dir: Path) -> Tuple[np.ndarray, List[str]]:
     abundance_samples = torch.load(output_dir / 'samples.pt')
-    db_strains = [s.id for s in db.all_strains()]
+    with open(output_dir / 'strains.txt', 'rt') as strain_file:
+        db_strains = [line.strip() for line in strain_file]
 
     time_points = sorted(pd.unique(ground_truth['T']))
     if abundance_samples.shape[0] != len(time_points):
@@ -121,24 +115,24 @@ def parse_chronostrain_estimate(db: StrainDatabase,
         ))
 
     n_samples = abundance_samples.size(1)
-    estimate = torch.zeros(size=(len(time_points), n_samples, len(strain_ids)), dtype=torch.float, device=device)
+    estimate = np.ndarray(shape=(len(time_points), n_samples, len(strain_ids)), dtype=float)
     strain_indices = {sid: i for i, sid in enumerate(strain_ids)}
     for db_idx, strain_id in enumerate(db_strains):
         if strain_id not in strain_indices:
             continue
         s_idx = strain_indices[strain_id]
-        estimate[:, :, s_idx] = abundance_samples[:, :, db_idx]
-    return estimate
+        estimate[:, :, s_idx] = abundance_samples[:, :, db_idx].numpy()
+    return estimate, db_strains
 
 
 def parse_strainest_estimate(ground_truth: pd.DataFrame,
                              strain_ids: List[str],
                              sensitivity: str,
-                             output_dir: Path) -> torch.Tensor:
+                             output_dir: Path) -> np.ndarray:
     time_points = sorted(pd.unique(ground_truth['T']))
     strain_indices = {sid: i for i, sid in enumerate(strain_ids)}
 
-    est_rel_abunds = torch.zeros(size=(len(time_points), len(strain_ids)), dtype=torch.float, device=device)
+    est_rel_abunds = np.zeros(shape=(len(time_points), len(strain_ids)), dtype=float)
     for t_idx, t in enumerate(time_points):
         output_path = output_dir / f"abund_{t_idx}.{sensitivity}.txt"
         with open(output_path, 'rt') as f:
@@ -164,11 +158,11 @@ def parse_straingst_estimate(
         strain_ids: List[str],
         output_dir: Path,
         mode: str
-) -> torch.Tensor:
+) -> np.ndarray:
     time_points = sorted(pd.unique(ground_truth['T']))
     strain_indices = {strain_id: s_idx for s_idx, strain_id in enumerate(strain_ids)}
 
-    est_rel_abunds = torch.zeros(size=(len(time_points), len(strain_ids)), dtype=torch.float, device=device)
+    est_rel_abunds = np.zeros(shape=(len(time_points), len(strain_ids)), dtype=float)
     for t_idx, t in enumerate(time_points):
         output_path = output_dir / mode / f"output_mash_{t_idx}.tsv"
         with open(output_path, 'r') as tsv_file:
@@ -195,12 +189,12 @@ def parse_strainfacts_estimate(
         truth_df: pd.DataFrame,
         strain_ids: List[str],
         output_dir: Path
-) -> torch.Tensor:
+) -> np.ndarray:
     time_points = sorted(pd.unique(truth_df['T']))
     supported_strains = list(pd.unique(truth_df['Strain']))
     ground_truth = extract_ground_truth_array(truth_df, supported_strains)
 
-    est_rel_abunds = torch.zeros(size=(len(time_points), len(supported_strains)), dtype=torch.float, device=device)
+    est_rel_abunds = np.zeros(shape=(len(time_points), len(supported_strains)), dtype=float)
     with open(output_dir / 'result_community.tsv', 'r') as f:
         for line in f:
             if line.startswith("sample"):
@@ -226,16 +220,16 @@ def parse_strainfacts_estimate(
 
     all_idxs = {s: i for i, s in enumerate(strain_ids)}
     support_idx = [all_idxs[s] for s in supported_strains]
-    full_est = torch.zeros(size=(len(time_points), len(strain_ids)), dtype=torch.float, device=device)
+    full_est = np.zeros(shape=(len(time_points), len(strain_ids)), dtype=float)
     full_est[:, support_idx] = est_rel_abunds[:, best_perm]
     return full_est
 
 
-def extract_ground_truth_array(truth_df: pd.DataFrame, strain_ids: List[str]) -> torch.Tensor:
+def extract_ground_truth_array(truth_df: pd.DataFrame, strain_ids: List[str]) -> np.ndarray:
     time_points = sorted(pd.unique(truth_df['T']))
     t_idxs = {t: t_idx for t_idx, t in enumerate(time_points)}
     strain_idxs = {sid: i for i, sid in enumerate(strain_ids)}
-    ground_truth = torch.zeros(size=(len(time_points), len(strain_ids)), dtype=torch.float, device=device)
+    ground_truth = np.zeros(shape=(len(time_points), len(strain_ids)), dtype=float)
     for _, row in truth_df.iterrows():
         s_idx = strain_idxs[row['Strain']]
         t_idx = t_idxs[row['T']]
@@ -243,143 +237,75 @@ def extract_ground_truth_array(truth_df: pd.DataFrame, strain_ids: List[str]) ->
     return ground_truth
 
 
-def error_metric(abundance_est: torch.Tensor, truth: torch.Tensor) -> float:
-    assert len(abundance_est.shape) == 2
-    est = torch.clone(abundance_est)
-
+def error_metric(abundance_est: np.ndarray, truth: np.ndarray) -> np.ndarray:
     # Renormalize.
-    row_sum = torch.sum(est, dim=1, keepdim=True)
-    support = torch.where(row_sum > 0)[0]
-    zeros = torch.where(row_sum == 0)[0]
-    est[support, :] = est[support, :] / row_sum[support]
-    est[zeros, :] = 1 / est.shape[1]  # rows with all zeros: set to uniform.
+    row_sum = np.sum(abundance_est, axis=-1, keepdims=True)
+    est = abundance_est / row_sum
 
-    _T = est.shape[0]
-    _S = est.shape[1]
+    # est = abundance_est / row_sum
+    # est[np.isnan(est)] = 1 / truth.shape[1]
 
-    l1_error = torch.sum(torch.abs(truth - est))
-    return l1_error.item()
-
-
-def engraftment_ratio(presence: torch.Tensor) -> float:
-    """
-    :param presence: (T x S) Tensor of boolean values.
-    :return:
-    """
-    t1 = presence[:-1]
-    t2 = presence[1:]
-    if torch.sum(t1).item() == 0:
-        return float('inf')
+    if len(abundance_est.shape) == 2:
+        tv_dists = 0.5 * np.abs(truth - est).sum(axis=-1)
     else:
-        return torch.sum(torch.logical_and(t1, t2)).item() / torch.sum(t1).item()
+        tv_dists = 0.5 * np.abs(np.expand_dims(truth, 1) - est).sum(axis=-1)
+
+    tv_dists[np.isnan(tv_dists)] = 1.0
+    return tv_dists.sum(axis=0)
 
 
-def clearance_ratio(presence: torch.Tensor) -> float:
-    """
-    :param presence: (T x S) Tensor of boolean values.
-    :return:
-    """
-    return engraftment_ratio(torch.logical_not(presence))
-
-
-def chronostrain_presence(abundance_est: torch.Tensor, q: float = 0.95) -> torch.Tensor:
-    """
-    :param abundance_est: (T x N x S) tensor of abundance samples.
-    :param q: the quantile to compute.
-    :return:
-    """
-    lb = 1 / abundance_est.shape[-1]
-    return torch.quantile(abundance_est, q, dim=1) > lb
-
-
-def other_method_presence(abundance_est: torch.Tensor) -> torch.Tensor:
-    return abundance_est != 0
-
-
-def dominance_switch_ratio(abundance_est: torch.Tensor, lb: float = 0.0) -> float:
-    """
-    Calculate how often the dominant strain switches.
-    """
-    abundance_est = abundance_est.cpu().numpy()
-    dom = np.argmax(abundance_est, axis=1)
-    num_switches = 0
-
-    def row_is_zeros(r) -> bool:
-        return np.sum(r <= lb).item() == r.shape[0]
-
-    num_total = 0
-    for i in range(len(dom) - 1):
-        if row_is_zeros(abundance_est[i]) and row_is_zeros(abundance_est[i + 1]):
-            continue  # don't add to denominator.
-
-        elif (dom[i] != dom[i + 1]) or row_is_zeros(abundance_est[i]) or row_is_zeros(abundance_est[i + 1]):
-            num_switches += 1
-        num_total += 1
-    if num_total > 0:
-        return num_switches / num_total
+def recall_ratio(pred: np.ndarray, truth: np.ndarray) -> np.ndarray:
+    total_pos = truth.sum()
+    if len(pred.shape) == 2:
+        true_pos = np.sum(pred == truth)
+        return true_pos / total_pos
     else:
-        return np.nan
+        true_pos = pred == np.expand_dims(truth, 1)
+        true_pos = true_pos.sum(axis=-1).sum(axis=0)
+        return true_pos / total_pos
 
 
+def mean_coherence_factor(x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    assert x.shape[0] == y.shape[0]
+    assert x.shape[-1] == y.shape[-1]
 
-# def dominance_coeff(x: torch.Tensor, y: torch.Tensor, eps: float = 1e-10) -> torch.Tensor:
-#     """
-#     :param x: a 1-d Tensor of values.
-#     :param y: a 1-d Tensor of values of the same size as x.
-#     :param eps: A padding value to prevent division by zeroes.
-#     :return: the entrywise dominance coefficient log(x) - log(y).
-#     """
-#     return torch.divide(x + eps, y + eps)
-#
-#
-# def dominance_error(abundance_est: torch.Tensor, truth: torch.Tensor, strain_ids: List[str], strain1: str, strain2: str) -> float:
-#     idxs = {sid: i for i, sid in enumerate(strain_ids)}
-#     sidx1 = idxs[strain1]
-#     sidx2 = idxs[strain2]
-#
-#     _est = dominance_coeff(abundance_est[:, sidx1], abundance_est[:, sidx2])
-#     _truth = dominance_coeff(truth[:, sidx1], truth[:, sidx2])
-#     return torch.exp(
-#         torch.mean(torch.log(_est) - torch.log(_truth))
-#     ).item()  # geometric mean
+    if len(x.shape) == 2 and len(y.shape) == 2:
+        return np.nanmean([
+            coherence_factor(x_t, y_t)
+            for x_t, y_t in zip(x, y)
+        ])
 
+    if len(x.shape) == 2:
+        x = np.repeat(np.expand_dims(x, 1), y.shape[1], axis=1)
+    if len(y.shape) == 2:
+        y = np.repeat(np.expand_dims(y, 1), x.shape[1], axis=1)
 
-# def wasserstein_error(abundance_est: torch.Tensor, truth_df: pd.DataFrame, strain_distances: torch.Tensor, strain_ids: List[str]) -> torch.Tensor:
-#     time_points = sorted(pd.unique(truth_df['T']))
-#     ground_truth = extract_ground_truth_array(truth_df, strain_ids)
-#
-#     if len(abundance_est.shape) == 2:
-#         answers = torch.cat([
-#             compute_wasserstein(ground_truth[t_idx], abundance_est[t_idx].unsqueeze(1), strain_distances)
-#             for t_idx in range(len(time_points))
-#         ], dim=0)
-#         return answers.sum()
-#     elif len(abundance_est.shape) == 3:
-#         w_errors = torch.stack([
-#             compute_wasserstein(ground_truth[t_idx], torch.transpose(abundance_est[t_idx, :, ], 0, 1), strain_distances)
-#             for t_idx in range(len(time_points))
-#         ], dim=0)
-#         return w_errors.sum(dim=0)
-#     else:
-#         raise ValueError("Cannot handle abundance estimate matrices of dimension != (2 or 3).")
+    return np.nanmean([
+        [
+            coherence_factor(x_tn, y_tn)
+            for x_tn, y_tn in zip(x_t, y_t)
+        ]
+        for x_t, y_t in zip(x, y)
+    ], axis=0)
 
 
-# def compute_wasserstein(
-#         src_histogram: torch.Tensor,
-#         tgt_histogram: torch.Tensor,
-#         distance_matrix: torch.Tensor
-# ) -> torch.Tensor:
-#     """Computes the wasserstein distance. A simple wrapper around `ot.sinkhorn` call with default regularization value."""
-#     wasserstein = ot.sinkhorn(
-#         src_histogram,
-#         tgt_histogram,
-#         distance_matrix,
-#         verbose=False,
-#         reg=1e-2,
-#         method='sinkhorn_log',
-#         numItermax=500
-#     )
-#     return wasserstein
+def coherence_factor(x: np.ndarray, y: np.ndarray) -> float:
+    assert len(x.shape) == 1
+    assert len(y.shape) == 1
+
+    if np.std(x) == 0 and np.std(y) == 0:  # edge case
+        if x[0] == 0.:
+            return np.nan
+        elif x[0] == y[0]:
+            return 1.0
+        else:
+            return 0.0
+
+    if np.std(x) == 0 or np.std(y) == 0:  # only one is zero
+        return 0.0
+
+    # noinspection PyTypeChecker
+    return scipy.stats.spearmanr(x, y)[0]
 
 
 def all_ecoli_strain_ids(index_path: Path) -> List[str]:
@@ -390,66 +316,60 @@ def all_ecoli_strain_ids(index_path: Path) -> List[str]:
     ]))
 
 
-def plot_result(out_path: Path, truth_df: pd.DataFrame, samples: torch.Tensor, strain_ordering: List[str]):
-    fig, ax = plt.subplots(1, 1, figsize=(16, 10))
-    viridis = matplotlib.cm.get_cmap('viridis', len(strain_ordering))
-    cmap = viridis(np.linspace(0, 1, len(strain_ordering)))
-
-    q_lower = 0.025
-    q_upper = 0.975
-    t = sorted(float(x) for x in pd.unique(truth_df['T']))
-    time_points = sorted(pd.unique(truth_df['T']))
-    t_idxs = {t: t_idx for t_idx, t in enumerate(time_points)}
-    strain_idxs = {sid: i for i, sid in enumerate(strain_ordering)}
-    ground_truth = torch.zeros(size=(len(time_points), len(strain_ordering)), dtype=torch.float, device=device)
-    for _, row in truth_df.iterrows():
-        s_idx = strain_idxs[row['Strain']]
-        t_idx = t_idxs[row['T']]
-        ground_truth[t_idx, s_idx] = row['RelAbund']
-
-    if len(samples.shape) == 3:
-        for s_idx, strain_id in enumerate(strain_ordering):
-            traj = samples[:, :, s_idx]
-            truth_traj = ground_truth[:, s_idx].cpu().numpy()
-            lower = torch.quantile(traj, q_lower, dim=1).cpu().numpy()
-            upper = torch.quantile(traj, q_upper, dim=1).cpu().numpy()
-            median = torch.median(traj, dim=1).values.cpu().numpy()
-
-            color = cmap[s_idx]
-            ax.fill_between(t, lower, upper, alpha=0.3, color=color)
-            ax.plot(t, median, color=color)
-            ax.plot(t, truth_traj, color=color, linestyle='dashed')
-    elif len(samples.shape) == 2:
-        for s_idx, strain_id in enumerate(strain_ordering):
-            traj = samples[:, s_idx].cpu().numpy()
-            truth_traj = ground_truth[:, s_idx].cpu().numpy()
-            color = cmap[s_idx]
-            ax.plot(t, traj, color=color)
-            ax.plot(t, truth_traj, color=color, linestyle='dashed')
-    else:
-        raise RuntimeError(f"Can't plot samples of dimension {len(samples.shape)}")
-    plt.savefig(out_path)
-    plt.close(fig)
+# def plot_result(out_path: Path, truth_df: pd.DataFrame, samples: torch.Tensor, strain_ordering: List[str]):
+#     fig, ax = plt.subplots(1, 1, figsize=(16, 10))
+#     viridis = matplotlib.cm.get_cmap('viridis', len(strain_ordering))
+#     cmap = viridis(np.linspace(0, 1, len(strain_ordering)))
+#
+#     q_lower = 0.025
+#     q_upper = 0.975
+#     t = sorted(float(x) for x in pd.unique(truth_df['T']))
+#     time_points = sorted(pd.unique(truth_df['T']))
+#     t_idxs = {t: t_idx for t_idx, t in enumerate(time_points)}
+#     strain_idxs = {sid: i for i, sid in enumerate(strain_ordering)}
+#     ground_truth = torch.zeros(size=(len(time_points), len(strain_ordering)), dtype=torch.float, device=device)
+#     for _, row in truth_df.iterrows():
+#         s_idx = strain_idxs[row['Strain']]
+#         t_idx = t_idxs[row['T']]
+#         ground_truth[t_idx, s_idx] = row['RelAbund']
+#
+#     if len(samples.shape) == 3:
+#         for s_idx, strain_id in enumerate(strain_ordering):
+#             traj = samples[:, :, s_idx]
+#             truth_traj = ground_truth[:, s_idx].cpu().numpy()
+#             lower = torch.quantile(traj, q_lower, dim=1).cpu().numpy()
+#             upper = torch.quantile(traj, q_upper, dim=1).cpu().numpy()
+#             median = torch.median(traj, dim=1).values.cpu().numpy()
+#
+#             color = cmap[s_idx]
+#             ax.fill_between(t, lower, upper, alpha=0.3, color=color)
+#             ax.plot(t, median, color=color)
+#             ax.plot(t, truth_traj, color=color, linestyle='dashed')
+#     elif len(samples.shape) == 2:
+#         for s_idx, strain_id in enumerate(strain_ordering):
+#             traj = samples[:, s_idx].cpu().numpy()
+#             truth_traj = ground_truth[:, s_idx].cpu().numpy()
+#             color = cmap[s_idx]
+#             ax.plot(t, traj, color=color)
+#             ax.plot(t, truth_traj, color=color, linestyle='dashed')
+#     else:
+#         raise RuntimeError(f"Can't plot samples of dimension {len(samples.shape)}")
+#     plt.savefig(out_path)
+#     plt.close(fig)
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument('-b', '--base_data_dir', type=str, required=True)
-    parser.add_argument('-i', '--index_path', type=str, required=True)
-    parser.add_argument('-a', '--alignment_file', type=str, required=True)
     parser.add_argument('-o', '--out_dir', type=str, required=True)
     parser.add_argument('-g', '--ground_truth_path', type=str, required=True)
     return parser.parse_args()
 
 
 def evaluate_errors(ground_truth: pd.DataFrame,
-                    result_base_dir: Path,
-                    chronostrain_db: StrainDatabase) -> pd.DataFrame:
+                    result_base_dir: Path) -> pd.DataFrame:
     strain_ids = list(pd.unique(ground_truth.loc[ground_truth['RelAbund'] > 0, 'Strain']))
     truth_tensor = extract_ground_truth_array(ground_truth, strain_ids)
-
-    def engraftment_clearance(pres: torch.Tensor) -> Tuple[float, float]:
-        return engraftment_ratio(pres), clearance_ratio(pres)
 
     # search through all of the read depths.
     df_entries = []
@@ -461,55 +381,51 @@ def evaluate_errors(ground_truth: pd.DataFrame,
 
             # =========== Chronostrain
             try:
-                chronostrain_estimate_samples = parse_chronostrain_estimate(chronostrain_db, ground_truth, strain_ids,
+                chronostrain_estimate_samples, all_strains = parse_chronostrain_estimate(ground_truth, strain_ids,
                                                                             trial_dir / 'output' / 'chronostrain')
                 # errors = wasserstein_error(
                 #     chronostrain_estimate_samples[:, :30, :],
                 #     ground_truth, distances, strain_ids
                 # )
-                error = error_metric(torch.median(chronostrain_estimate_samples, dim=1).values, truth_tensor)
-                engraftment, clearance = engraftment_clearance(chronostrain_presence(chronostrain_estimate_samples))
-                dom_err = dominance_switch_ratio(torch.median(chronostrain_estimate_samples, dim=1).values)
 
-                logger.info("Chronostrain: err = {}, engraft = {}, clear = {}".format(error, engraftment, clearance))
+                lb = 1 / len(all_strains)
+                chronostrain_thresholded = chronostrain_estimate_samples
+                chronostrain_thresholded[chronostrain_thresholded < lb] = 0.
+
+                errors = error_metric(
+                    np.median(chronostrain_estimate_samples, axis=1),
+                    truth_tensor
+                )
+                coherences = mean_coherence_factor(chronostrain_thresholded, truth_tensor)
+                recalls = recall_ratio(chronostrain_thresholded > 0., truth_tensor > 0.)
 
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
                     'Method': 'Chronostrain',
-                    'Error': error,
-                    'Engraftment': engraftment,
-                    'Clearance': clearance,
-                    'Dominance': dom_err
+                    'Error': np.median(errors),
+                    'Coherence': np.median(coherences),
+                    'Recall': np.median(recalls)
                 })
 
-                plot_result(plot_dir / 'chronostrain.pdf', ground_truth, chronostrain_estimate_samples, strain_ids)
-            except FileNotFoundError:
-                logger.info("Skipping Chronostrain output.")
-
-            # =========== StrainEst (Sensitive)
-            try:
-                strainest_sens_estimate = parse_strainest_estimate(ground_truth, strain_ids,
-                                                                   'sensitive',
-                                                                   trial_dir / 'output' / 'strainest')
-                # error = wasserstein_error(strainest_estimate, ground_truth, distances, strain_ids).item()
-                error = error_metric(strainest_sens_estimate, truth_tensor)
-                engraftment, clearance = engraftment_clearance(other_method_presence(strainest_sens_estimate))
-                dom_err = dominance_switch_ratio(strainest_sens_estimate)
-
-                logger.info("StrainEst (Sens) err = {}, engraft = {}, clear = {}".format(error, engraftment, clearance))
+                error = error_metric(np.median(chronostrain_estimate_samples, axis=1), truth_tensor)
+                coherence = mean_coherence_factor(np.median(chronostrain_thresholded, axis=1), truth_tensor)
+                recall = recall_ratio(
+                    np.quantile(chronostrain_estimate_samples, q=0.025, axis=1) > lb,
+                    truth_tensor > 0
+                )
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
-                    'Method': 'StrainEst (Sensitive)',
+                    'Method': 'Chronostrain (Aggregate)',
                     'Error': error,
-                    'Engraftment': engraftment,
-                    'Clearance': clearance,
-                    'Dominance': dom_err
+                    'Coherence': coherence,
+                    'Recall': recall
                 })
-                plot_result(plot_dir / 'strainest.sensitive.pdf', ground_truth, strainest_sens_estimate, strain_ids)
+
+                # plot_result(plot_dir / 'chronostrain.pdf', ground_truth, chronostrain_estimate_samples, strain_ids)
             except FileNotFoundError:
-                logger.info("Skipping StrainEst (Sensitive) output.")
+                logger.info("Skipping Chronostrain output.")
 
             # =========== StrainEst (Default)
             try:
@@ -517,20 +433,18 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                                                               'default',
                                                               trial_dir / 'output' / 'strainest')
                 error = error_metric(strainest_estimate, truth_tensor)
-                engraftment, clearance = engraftment_clearance(other_method_presence(strainest_estimate))
-                dom_err = dominance_switch_ratio(strainest_estimate)
+                coherence = mean_coherence_factor(strainest_estimate, truth_tensor)
+                recall = recall_ratio(strainest_estimate > 0, truth_tensor > 0)
 
-                logger.info("StrainEst (Default) err = {}, engraft = {}, clear = {}".format(error, engraftment, clearance))
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
-                    'Method': 'StrainEst (Default)',
+                    'Method': 'StrainEst',
                     'Error': error,
-                    'Engraftment': engraftment,
-                    'Clearance': clearance,
-                    'Dominance': dom_err
+                    'Coherence': coherence,
+                    'Recall': recall
                 })
-                plot_result(plot_dir / 'strainest.default.pdf', ground_truth, strainest_estimate, strain_ids)
+                # plot_result(plot_dir / 'strainest.default.pdf', ground_truth, strainest_estimate, strain_ids)
             except FileNotFoundError:
                 logger.info("Skipping StrainEst (Default) output.")
 
@@ -539,61 +453,21 @@ def evaluate_errors(ground_truth: pd.DataFrame,
                 straingst_estimate = parse_straingst_estimate(ground_truth, strain_ids,
                                                               trial_dir / 'output' / 'straingst',
                                                               mode='chromosome')
-                # error = wasserstein_error(straingst_estimate, ground_truth, distances, strain_ids).item()
                 error = error_metric(straingst_estimate, truth_tensor)
-                engraftment, clearance = engraftment_clearance(other_method_presence(straingst_estimate))
-                dom_err = dominance_switch_ratio(straingst_estimate)
-                logger.info("StrainGST err = {}, engraft = {}, clear = {}".format(error, engraftment, clearance))
+                coherence = mean_coherence_factor(straingst_estimate, truth_tensor)
+                recall = recall_ratio(straingst_estimate > 0, truth_tensor > 0)
+
                 df_entries.append({
                     'ReadDepth': read_depth,
                     'TrialNum': trial_num,
                     'Method': 'StrainGST',
                     'Error': error,
-                    'Engraftment': engraftment,
-                    'Clearance': clearance,
-                    'Dominance': dom_err
+                    'Coherence': coherence,
+                    'Recall': recall
                 })
-                plot_result(plot_dir / 'straingst.pdf', ground_truth, straingst_estimate, strain_ids)
+                # plot_result(plot_dir / 'straingst.pdf', ground_truth, straingst_estimate, strain_ids)
             except FileNotFoundError:
                 logger.info("Skipping StrainGST output.")
-
-            # # =========== StrainGST (markers)
-            # try:
-            #     straingst_estimate = parse_straingst_estimate(ground_truth, strain_ids,
-            #                                                   trial_dir / 'output' / 'straingst',
-            #                                                   mode='markers')
-            #     # error = wasserstein_error(straingst_estimate, ground_truth, distances, strain_ids).item()
-            #     error = error_metric(straingst_estimate, truth_tensor)
-            #     logger.info("StrainGST Error: {}".format(error))
-            #     df_entries.append({
-            #         'ReadDepth': read_depth,
-            #         'TrialNum': trial_num,
-            #         'Method': 'StrainGST (Markers)',
-            #         'Error': error
-            #     })
-            #     # plot_result(plot_dir / 'straingst_marker.pdf', ground_truth, straingst_estimate, strain_ids)
-            # except FileNotFoundError:
-            #     logger.info("Skipping StrainGST (markers) output.")
-
-            # =========== StrainFacts
-            try:
-                strainfacts_estimate = parse_strainfacts_estimate(ground_truth,
-                                                                  strain_ids,
-                                                                  trial_dir / 'output' / 'strainfacts')
-                error = error_metric(strainfacts_estimate, truth_tensor)
-                logger.info("StrainFacts Error: {}".format(error))
-                df_entries.append({
-                    'ReadDepth': read_depth,
-                    'TrialNum': trial_num,
-                    'Method': 'StrainFacts',
-                    'Error': error,
-                    'Engraftment': float('inf'),
-                    'Clearance': float('inf'),
-                    'Dominance': float('inf')
-                })
-                # plot_result(plot_dir / 'strainfacts.pdf', ground_truth, strainfacts_estimate, strain_ids)
-            except FileNotFoundError:
-                logger.info("Skipping StrainFacts output.")
 
     return pd.DataFrame(df_entries)
 
@@ -629,16 +503,11 @@ def evaluate_runtimes(result_base_dir: Path):
             parse_runtime_file('StrainGST', 'all', '4', 'straingst_runtime.4.chromosome.txt')
             parse_runtime_file('StrainFacts', 'GTPro', 'all', 'gtpro_runtime.txt')
             parse_runtime_file('StrainFacts', 'Inference', 'all', 'strainfacts_runtime.txt')
-            parse_runtime_file('StrainEst (Sensitive)', 'Inference', '0', 'strainest_runtime.sensitive.0.txt')
-            parse_runtime_file('StrainEst (Sensitive)', 'Inference', '1', 'strainest_runtime.sensitive.1.txt')
-            parse_runtime_file('StrainEst (Sensitive)', 'Inference', '2', 'strainest_runtime.sensitive.2.txt')
-            parse_runtime_file('StrainEst (Sensitive)', 'Inference', '3', 'strainest_runtime.sensitive.3.txt')
-            parse_runtime_file('StrainEst (Sensitive)', 'Inference', '4', 'strainest_runtime.sensitive.4.txt')
-            parse_runtime_file('StrainEst (Default)', 'Inference', '0', 'strainest_runtime.default.0.txt')
-            parse_runtime_file('StrainEst (Default)', 'Inference', '1', 'strainest_runtime.default.1.txt')
-            parse_runtime_file('StrainEst (Default)', 'Inference', '2', 'strainest_runtime.default.2.txt')
-            parse_runtime_file('StrainEst (Default)', 'Inference', '3', 'strainest_runtime.default.3.txt')
-            parse_runtime_file('StrainEst (Default)', 'Inference', '4', 'strainest_runtime.default.4.txt')
+            parse_runtime_file('StrainEst', 'Inference', '0', 'strainest_runtime.default.0.txt')
+            parse_runtime_file('StrainEst', 'Inference', '1', 'strainest_runtime.default.1.txt')
+            parse_runtime_file('StrainEst', 'Inference', '2', 'strainest_runtime.default.2.txt')
+            parse_runtime_file('StrainEst', 'Inference', '3', 'strainest_runtime.default.3.txt')
+            parse_runtime_file('StrainEst', 'Inference', '4', 'strainest_runtime.default.4.txt')
     return pd.DataFrame(df_entries)
 
 
@@ -649,15 +518,12 @@ def main():
 
     # Necessary precomputation.
     ground_truth = load_ground_truth(Path(args.ground_truth_path))
-    index_df = pd.read_csv(args.index_path, sep='\t')
-    chronostrain_db = cfg.database_cfg.get_database()
     out_dir.mkdir(exist_ok=True, parents=True)
 
     logger.info("Evaluating error metrics.")
     summary_df = evaluate_errors(
         ground_truth,
-        result_base_dir,
-        chronostrain_db
+        result_base_dir
     )
     out_path = out_dir / 'summary.csv'
     summary_df.to_csv(out_path, index=False)

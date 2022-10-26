@@ -23,7 +23,7 @@ from ..base import option
     help="The directory to which the filtered reads/CSV table will be saved.",
 )
 @option(
-    '--output-filename', '-f', 'reads_output_filename',
+    '--output-filename', '-f', 'output_filename',
     type=str,
     required=False, default=None,
     help="The filename of the target CSV file indexing all filtered reads. If not specified, "
@@ -39,7 +39,7 @@ from ..base import option
 @option(
     '--aligner', '-al', 'aligner',
     type=str,
-    required=False, default='bowtie2',
+    required=False, default='bwa',
     help='Specify the type of aligner to use. Currently available options: bwa, bowtie2.'
 )
 @option(
@@ -94,21 +94,20 @@ def main(
         db=db,
         min_read_len=min_read_len,
         frac_identity_threshold=frac_identity_threshold,
-        error_threshold=error_threshold,
-        num_threads=cfg.model_cfg.num_cores
+        error_threshold=error_threshold
     )
 
     for t, read_depth, read_path, read_type_str, qual_fmt in load_from_csv(reads_input, logger=logger):
         read_type = parse_read_type(read_type_str)
         logger.info(f"Applying filter to timepoint {t}, {str(read_path)}")
 
-        aligner = create_aligner(aligner, read_type, db)
-        out_path = out_dir / f"filtered_{remove_suffixes(read_path).name}.fastq"
-        filter.apply(read_path, out_path, read_type, aligner, quality_format=qual_fmt)
+        aligner_obj = create_aligner(aligner, read_type, db)
+        out_file = f"filtered_{remove_suffixes(read_path).name}.fastq"
+        filter.apply(read_path, out_dir / out_file, read_type, aligner_obj, quality_format=qual_fmt)
         with open(target_csv_path, 'a') as target_csv:
             # Append to target CSV file.
             writer = csv.writer(target_csv, delimiter=',', quotechar='\"', quoting=csv.QUOTE_ALL)
-            writer.writerow([t, read_depth, str(out_path), read_type_str, qual_fmt])
+            writer.writerow([t, read_depth, str(out_file), read_type_str, qual_fmt])
 
     logger.info("Finished filtering.")
 
@@ -149,9 +148,9 @@ def load_from_csv(csv_path: Path, logger: Logger) -> List[Tuple[float, int, Path
 
 if __name__ == "__main__":
     from chronostrain.logging import create_logger
-    logger = create_logger("chronostrain.filter")
+    my_logger = create_logger("chronostrain.filter")
     try:
-        main(obj=logger)
+        main(obj=my_logger)
     except Exception as e:
-        logger.exception(e)
+        my_logger.exception(e)
         exit(1)

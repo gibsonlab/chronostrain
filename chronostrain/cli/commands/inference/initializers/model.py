@@ -1,21 +1,22 @@
 from logging import Logger
-from typing import List
+from typing import List, Set
 import torch
 
 from chronostrain.database import StrainDatabase
 from chronostrain.model import *
 from chronostrain.config import cfg
 from chronostrain.model.generative import GenerativeModel
+from chronostrain.model.io import ReadType
 
 
 def create_model(population: Population,
+                 read_types: Set[ReadType],
                  mean: torch.Tensor,
                  fragments: FragmentSpace,
                  time_points: List[float],
                  disable_quality: bool,
                  db: StrainDatabase,
-                 logger: Logger,
-                 pair_ended: bool = True) -> GenerativeModel:
+                 logger: Logger) -> GenerativeModel:
     """
     Simple wrapper for creating a generative model.
     :param mean: The prior mean for the underlying gaussian process.
@@ -28,20 +29,40 @@ def create_model(population: Population,
     :return A Generative model object.
     """
     if disable_quality:
-        logger.info("Flag --disable_quality turned on; Quality scores are diabled. Initializing NoiselessErrorModel.")
+        logger.info("Using NoiselessErrorModel (Are you trying to debug?).")
         error_model = NoiselessErrorModel(mismatch_likelihood=0.)
-    elif not pair_ended:
-        error_model = PhredErrorModel(
-            insertion_error_ll=cfg.model_cfg.get_float("INSERTION_LL"),
-            deletion_error_ll=cfg.model_cfg.get_float("DELETION_LL")
-        )
     else:
-        error_model = PEPhredErrorModel(
-            insertion_error_ll_1=cfg.model_cfg.get_float("INSERTION_LL_1"),
-            deletion_error_ll_1=cfg.model_cfg.get_float("DELETION_LL_1"),
-            insertion_error_ll_2=cfg.model_cfg.get_float("INSERTION_LL_2"),
-            deletion_error_ll_2=cfg.model_cfg.get_float("DELETION_LL_2")
-        )
+        """
+        Possible todo item: allow for mixing & matching of different experiments across timepoints?
+        """
+        if read_types == {ReadType.SINGLE_END}:
+            is_paired_end = False
+        elif read_types == {ReadType.PAIRED_END_1}:
+            is_paired_end = True
+            logger.warning("Read set specified paired-ended reads, but only found forward reads. Is this correct?")
+        elif read_types == {ReadType.PAIRED_END_2}:
+            is_paired_end = True
+            logger.warning("Read set specified paired-ended reads, but only found reverse reads. Is this correct?")
+        elif read_types == {ReadType.PAIRED_END_1, ReadType.PAIRED_END_2}:
+            is_paired_end = True
+        else:
+            raise RuntimeError("Only single-ended datasets or paired-end datasets are supported. "
+                               "Mixtures or other combinations are not supported.")
+
+        if is_paired_end:
+            logger.debug("Using paired-end error model.")
+            error_model = PEPhredErrorModel(
+                insertion_error_ll_1=cfg.model_cfg.get_float("INSERTION_LL_1"),
+                deletion_error_ll_1=cfg.model_cfg.get_float("DELETION_LL_1"),
+                insertion_error_ll_2=cfg.model_cfg.get_float("INSERTION_LL_2"),
+                deletion_error_ll_2=cfg.model_cfg.get_float("DELETION_LL_2")
+            )
+        else:
+            logger.debug("Using single-end error model.")
+            error_model = PhredErrorModel(
+                insertion_error_ll=cfg.model_cfg.get_float("INSERTION_LL"),
+                deletion_error_ll=cfg.model_cfg.get_float("DELETION_LL")
+            )
 
     model = GenerativeModel(
         bacteria_pop=population,

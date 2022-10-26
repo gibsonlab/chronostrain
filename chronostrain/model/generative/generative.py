@@ -2,7 +2,7 @@
  generative.py
  Contains classes for representing the generative model.
 """
-from typing import List, Tuple
+from typing import List, Tuple, Callable
 
 from torch.distributions.multivariate_normal import MultivariateNormal
 from scipy.stats import rv_discrete, nbinom
@@ -12,12 +12,14 @@ from chronostrain.model.fragments import FragmentSpace
 from chronostrain.model.reads import AbstractErrorModel, SequenceRead
 from chronostrain.model.io import TimeSeriesReads, TimeSliceReads
 from chronostrain.util.math.distributions import *
-from chronostrain.util.sparse import RowSectionedSparseMatrix
+from chronostrain.util.math.matrices import RowSectionedSparseMatrix
 from chronostrain.database import StrainDatabase
 from chronostrain.config import cfg
 
 from .fragment_frequencies import SparseFragmentFrequencyComputer
 from chronostrain.logging import create_logger
+from ...util.math.activations import sparsemax
+
 logger = create_logger(__name__)
 
 
@@ -36,7 +38,7 @@ class GenerativeModel:
                  frag_negbin_p: float,
                  read_error_model: AbstractErrorModel,
                  min_overlap_ratio: float,
-                 db: StrainDatabase,
+                 db: StrainDatabase
                  ):
         """
         :param times: A list of time points.
@@ -66,6 +68,14 @@ class GenerativeModel:
         self.db = db
         self._frag_freqs_sparse = None
         self._frag_freqs_dense = None
+
+        logger.debug(f"Model has inverse temperature = {cfg.model_cfg.inverse_temperature}")
+        self.latent_conversion = lambda x: torch.softmax(cfg.model_cfg.inverse_temperature * x, dim=-1)
+        # self.log_latent_conversion = lambda x: torch.log(sparsemax(x, dim=-1))
+        def _log_softmax(x):
+            _x = cfg.model_cfg.inverse_temperature * x
+            return _x - torch.logsumexp(_x, dim=-1, keepdim=True)
+        self.log_latent_conversion = _log_softmax
 
     def num_times(self) -> int:
         return len(self.times)
@@ -359,7 +369,7 @@ class GenerativeModel:
         :return: A T x S tensor; each row is an abundance profile for a time point.
         """
         gaussians = self._sample_brownian_motion()
-        return torch.softmax(gaussians, dim=1)
+        return self.latent_conversion(gaussians)
 
     def strain_abundance_to_frag_abundance(self, strain_abundances: torch.Tensor) -> torch.Tensor:
         """

@@ -6,18 +6,23 @@ export NCBI_REFSEQ_DIR="/mnt/e/ref_genomes"
 export PHYLOGENY_OUTPUT_DIR="/mnt/e/chronostrain/phylogeny"
 export LOGDIR="/mnt/e/chronostrain/phylogeny/logs"
 export CHRONOSTRAIN_DB_DIR="/mnt/e/chronostrain/umb_database"
-export REFSEQ_ALIGN_PATH="${CHRONOSTRAIN_DB_DIR}/strain_alignments/concatenation.fasta"
+export MULTI_ALIGN_DIR="${CHRONOSTRAIN_DB_DIR}/strain_alignments"
 
 # ======== Location of this file.
 export SETTINGS_PATH="${BASE_DIR}/scripts/phylogeny/settings.sh"
 
+# ======== MetaPhlAn settings
+export METAPHLAN4_PKL_PATH="/mnt/e/metaphlan_databases/mpa_vJan21_CHOCOPhlAnSGB_202103/mpa_vJan21_CHOCOPhlAnSGB_202103.pkl"
+export METAPHLAN3_PKL_PATH="/mnt/e/metaphlan_databases/mpa_v31_CHOCOPhlAn_201901/mpa_v31_CHOCOPhlAn_201901.pkl"
+
 # ======== Chronostrain settings
+export CHRONOSTRAIN_DB_JSON_ALL="${CHRONOSTRAIN_DB_DIR}/database_all.json"
+export CHRONOSTRAIN_DB_JSON_PRUNED="${CHRONOSTRAIN_DB_DIR}/database_pruned.json"
+export CHRONOSTRAIN_DB_JSON="${CHRONOSTRAIN_DB_JSON_ALL}"
+
 export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
 export CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"
-export CHRONOSTRAIN_DB_JSON_ALL="${CHRONOSTRAIN_DB_DIR}/database_all.json"
-export CHRONOSTRAIN_DB_JSON="${CHRONOSTRAIN_DB_JSON_ALL}"
 export CHRONOSTRAIN_CACHE_DIR="${PHYLOGENY_OUTPUT_DIR}/cache"
-export MULTIFASTA_FILE="all_markers.fasta"
 
 
 # ========= Done.

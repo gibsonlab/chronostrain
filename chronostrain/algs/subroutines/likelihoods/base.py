@@ -38,14 +38,6 @@ class DataLikelihoods(object):
     def _likelihood_computer(self) -> 'AbstractLogLikelihoodComputer':
         raise NotImplementedError()
 
-    @abstractmethod
-    def conditional_likelihood(self, X: torch.Tensor) -> float:
-        """
-        Computes the conditional data likelihood p(Data | X).
-        :param X: The (T x S) tensor of latent abundance representations.
-        :return:
-        """
-
 
 class AbstractLogLikelihoodComputer(metaclass=ABCMeta):
     def __init__(self, model: GenerativeModel, reads: TimeSeriesReads):

@@ -9,11 +9,15 @@ logger = create_logger("chronostrain.cli")
 
 
 @click.group(
-    context_settings={'help_option_names': ['-h', '--help']},
+    context_settings={
+        'help_option_names': ['-h', '--help'],
+        'max_content_width': 120
+    },
     commands={
         'filter': filter_timeseries,
         'filter-single': filter_single,
-        'advi': run_advi
+        'advi': run_advi,
+        'make-db': make_db
     }
 )
 @click.option(
@@ -26,6 +30,7 @@ logger = create_logger("chronostrain.cli")
 def main(ctx, config_path: Optional[Path]):
     """
     ChronoStrain (Time-Series Metagenomic Abundance Estimation)
+    Contact: Younhun Kim (younhun@mit.edu)
     """
     ctx.obj = logger
     if config_path is not None:

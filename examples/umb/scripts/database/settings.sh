@@ -10,16 +10,27 @@ export SETTINGS_PATH="${BASE_DIR}/scripts/settings.sh"
 
 # ========= NCBI RefSeqs
 export NCBI_REFSEQ_DIR="/mnt/e/ref_genomes"
-export REFSEQ_ALIGN_PATH="${CHRONOSTRAIN_DB_DIR}/strain_alignments/concatenation.fasta"
 export BLAST_DB_DIR="${CHRONOSTRAIN_DB_DIR}/blast_db"
 export BLAST_DB_NAME="esch_chrom"
 
-# ======== Chronostrain settings
+# ======== Chronostrain setting
+export MULTI_ALIGN_PATH="${CHRONOSTRAIN_DB_DIR}/strain_alignments/concatenation.fasta"
 export CHRONOSTRAIN_DB_JSON_ALL="${CHRONOSTRAIN_DB_DIR}/database_all.json"
+export CHRONOSTRAIN_DB_JSON_RESOLVED="${CHRONOSTRAIN_DB_DIR}/database_pruned_resolved.json"
 export CHRONOSTRAIN_DB_JSON_PRUNED="${CHRONOSTRAIN_DB_DIR}/database_pruned.json"
-export CHRONOSTRAIN_DB_JSON="${CHRONOSTRAIN_DB_JSON_PRUNED}"
 export CHRONOSTRAIN_CACHE_DIR="${CHRONOSTRAIN_DB_DIR}/cache"
-export MULTIFASTA_FILE="strain_markers.fasta"
+
+# ======== StrainGE setting
+export STRAINGE_DB_DIR="/mnt/e/strainge"
+
+# ======== Karp setting
+export KARP_DB_DIR="/mnt/e/karp"
+export KARP_BIN="/home/lactis/Karp"
+export PATH="${PATH}:${KARP_BIN}"
+
+# ======== MetaPhlAn settings
+export METAPHLAN4_PKL_PATH="/mnt/e/metaphlan_databases/mpa_vJan21_CHOCOPhlAnSGB_202103/mpa_vJan21_CHOCOPhlAnSGB_202103.pkl"
+export METAPHLAN3_PKL_PATH="/mnt/e/metaphlan_databases/mpa_v31_CHOCOPhlAn_201901/mpa_v31_CHOCOPhlAn_201901.pkl"
 
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)
 export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"

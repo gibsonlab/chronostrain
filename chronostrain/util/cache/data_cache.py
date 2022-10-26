@@ -35,8 +35,8 @@ class CacheTag(object):
         """
         self.attr_dict = kwargs
         self.encoding = self.generate_encoding()
-        self.directory().mkdir(exist_ok=True, parents=True)
 
+    @property
     def directory(self) -> Path:
         return cfg.model_cfg.cache_dir / self.encoding
 
@@ -122,8 +122,10 @@ class ComputationCache(object):
         """
         """
         self.cache_tag = cache_tag
-        self.cache_dir = cache_tag.directory()
-        logger.debug("Using cache dir {}.".format(self.cache_dir))
+        self.cache_dir = cache_tag.directory
+        self.cache_dir.mkdir(exist_ok=True, parents=True)
+        if cfg.model_cfg.cache_enabled:
+            logger.debug("Using cache dir {}.".format(self.cache_dir))
 
     def call(self,
              relative_filepath: Union[str, Path],
@@ -152,7 +154,7 @@ class ComputationCache(object):
 
         # Try to retrieve from cache.
         cache_path = self.cache_dir / relative_filepath
-        if cache_path.exists():
+        if cache_path.exists() and cfg.model_cfg.cache_enabled:
             logger.debug("[Cache {}] Loading pre-computed file {}.".format(
                 self.cache_tag.encoding,
                 relative_filepath
@@ -160,17 +162,19 @@ class ComputationCache(object):
 
             data = load(cache_path)
         else:
-            logger.debug("[Cache {}] Could not load cached file {}. Recomputing.".format(
-                self.cache_tag.encoding, cache_path
-            ))
+            if cfg.model_cfg.cache_enabled:
+                logger.debug("[Cache {}] Could not load cached file {}. Recomputing.".format(
+                    self.cache_tag.encoding, cache_path
+                ))
 
             self.cache_tag.write_readable_attributes_to_disk(self.cache_dir / "attributes.txt")
             data = fn(*call_args, **call_kwargs)
-            save(cache_path, data)
 
-            logger.debug("[Cache {}] Saved {}.".format(
-                self.cache_tag.encoding, cache_path
-            ))
+            if cfg.model_cfg.cache_enabled:
+                save(cache_path, data)
+                logger.debug("[Cache {}] Saved {}.".format(
+                    self.cache_tag.encoding, cache_path
+                ))
 
         if success_callback is not None:
             success_callback(data)

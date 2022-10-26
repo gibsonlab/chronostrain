@@ -100,24 +100,29 @@ do
 	mkdir -p $raw_sample_dir
 	mkdir -p $trimmomatic_outdir
 
-	raw_gz1=${raw_sample_dir}/${sra_id}_1.fastq.gz
-	raw_gz2=${raw_sample_dir}/${sra_id}_2.fastq.gz
-	download_sra $sra_id $raw_gz1 $raw_gz2
-	run_trimmomatic $raw_gz1 $raw_gz2 $sra_id $trimmomatic_outdir
+	if [ -f "${tidx}_background_1.fq" ] && [ -f "${tidx}_background_2.fq" ]
+	then
+		echo "[*] Background reads already found!"
+	else
+		raw_gz1=${raw_sample_dir}/${sra_id}_1.fastq.gz
+		raw_gz2=${raw_sample_dir}/${sra_id}_2.fastq.gz
+		download_sra $sra_id $raw_gz1 $raw_gz2
+		run_trimmomatic $raw_gz1 $raw_gz2 $sra_id $trimmomatic_outdir
 
-	trimmed_1_unpaired="${trimmomatic_outdir}/${sra_id}_unmatched_1.fastq"
-	trimmed_1_paired="${trimmomatic_outdir}/${sra_id}_paired_1.fastq"
-	trimmed_2_unpaired="${trimmomatic_outdir}/${sra_id}_unmatched_2.fastq"
-	trimmed_2_paired="${trimmomatic_outdir}/${sra_id}_paired_2.fastq"
-	cat $trimmed_1_unpaired $trimmed_1_paired > ${tidx}_background_1.fq
-	cat $trimmed_2_unpaired $trimmed_2_paired > ${tidx}_background_2.fq
+		trimmed_1_unpaired="${trimmomatic_outdir}/${sra_id}_unmatched_1.fastq"
+		trimmed_1_paired="${trimmomatic_outdir}/${sra_id}_paired_1.fastq"
+		trimmed_2_unpaired="${trimmomatic_outdir}/${sra_id}_unmatched_2.fastq"
+		trimmed_2_paired="${trimmomatic_outdir}/${sra_id}_paired_2.fastq"
+		cat $trimmed_1_unpaired $trimmed_1_paired > ${tidx}_background_1.fq
+		cat $trimmed_2_unpaired $trimmed_2_paired > ${tidx}_background_2.fq
+	fi
 done < ${BACKGROUND_CSV}
 
 
 # =============== Sample synthetic reads
-for n_reads in 5000 10000 25000 50000 75000 100000
+for (( trial = 1; trial < ${N_TRIALS}+1; trial++ ));
 do
-	for (( trial = 1; trial < ${N_TRIALS}+1; trial++ ));
+	for n_reads in "${SYNTHETIC_COVERAGES[@]}"
 	do
 		seed=$((seed+1))
 
@@ -125,21 +130,25 @@ do
 		read_dir=${trial_dir}/reads
 		log_dir=${trial_dir}/logs
 
-		echo "[Number of reads: ${n_reads}, trial #${trial}] -> ${trial_dir}"
+		if [[ -d "${read_dir}" ]]; then
+			echo "[*] Skipping reads: ${n_reads}, trial #${trial}] -> ${trial_dir}"
+		else
+			echo "Sampling [Number of reads: ${n_reads}, trial #${trial}] -> ${trial_dir}"
 
-		mkdir -p $log_dir
-		mkdir -p $read_dir
-		export CHRONOSTRAIN_LOG_FILEPATH="${log_dir}/read_sample.log"
-		export CHRONOSTRAIN_CACHE_DIR="${trial_dir}/cache"
+			mkdir -p $log_dir
+			mkdir -p $read_dir
+			export CHRONOSTRAIN_LOG_FILEPATH="${log_dir}/read_sample.log"
+			export CHRONOSTRAIN_CACHE_DIR="${trial_dir}/cache"
 
-		python ${BASE_DIR}/helpers/sample_reads.py \
-		--out_dir $read_dir \
-		--abundance_path $RELATIVE_GROUND_TRUTH \
-		--index_path ${REFSEQ_INDEX} \
-		--num_reads $n_reads \
-		--profiles $READ_PROFILE_PATH $READ_PROFILE_PATH \
-		--read_len $READ_LEN \
-		--seed ${seed} \
-		--num_cores $N_CORES
+			python ${BASE_DIR}/helpers/sample_reads.py \
+			--out_dir $read_dir \
+			--abundance_path $RELATIVE_GROUND_TRUTH \
+			--index_path ${REFSEQ_INDEX} \
+			--num_reads $n_reads \
+			--profiles $READ_PROFILE_PATH $READ_PROFILE_PATH \
+			--read_len $READ_LEN \
+			--seed ${seed} \
+			--num_cores $N_CORES
+		fi
 	done
 done

@@ -8,6 +8,7 @@ from torch.distributions import Normal
 from torch.nn import Parameter
 import torch.nn.functional
 
+from chronostrain.model.generative import GenerativeModel
 from .base import AbstractReparametrizedPosterior
 from .util import TrilLinear, init_diag
 
@@ -20,23 +21,26 @@ INIT_SCALE = 1.0
 
 
 class ReparametrizedGaussianPosterior(AbstractReparametrizedPosterior, ABC):
+    def __init__(self, model: GenerativeModel):
+        self.model = model
+
     def sample(self, num_samples: int = 1) -> torch.Tensor:
-        return torch.softmax(
-            self.reparametrized_sample(num_samples=num_samples).detach(),
-            dim=2
+        return self.model.latent_conversion(
+            self.reparametrized_sample(num_samples=num_samples).detach()
         )
 
 
 class GaussianPosteriorFullReparametrizedCorrelation(ReparametrizedGaussianPosterior):
-    def __init__(self, num_strains: int, num_times: int):
+    def __init__(self, model: GenerativeModel):
         """
         Mean-field assumption:
         1) Parametrize the (T x S) trajectory as a (TS)-dimensional Gaussian.
         2) Parametrize F_1, ..., F_T as independent (but not identical) categorical RVs (for each read).
         """
         logger.info("Initializing Fully joint posterior")
-        self.num_strains = num_strains
-        self.num_times = num_times
+        super().__init__(model)
+        self.num_strains = model.num_strains()
+        self.num_times = model.num_times()
 
         # ========== Reparametrization network (standard Gaussians -> nonstandard Gaussians)
         n_features = self.num_times * self.num_strains
@@ -118,15 +122,16 @@ class GaussianPosteriorFullReparametrizedCorrelation(ReparametrizedGaussianPoste
 
 
 class GaussianPosteriorStrainCorrelation(ReparametrizedGaussianPosterior):
-    def __init__(self, num_strains: int, num_times: int):
+    def __init__(self, model: GenerativeModel):
         """
         Mean-field assumption:
         1) Parametrize X_1, ..., X_T as independent S-dimensional gaussians.
         2) Parametrize F_1, ..., F_T as independent (but not identical) categorical RVs (for each read).
         """
         logger.info("Initializing Time-factorized (strain-correlated) posterior")
-        self.num_strains = num_strains
-        self.num_times = num_times
+        super().__init__(model)
+        self.num_strains = model.num_strains()
+        self.num_times = model.num_times()
 
         # ========== Reparametrization network (standard Gaussians -> nonstandard Gaussians)
         self.reparam_networks = []
@@ -222,15 +227,16 @@ class GaussianPosteriorStrainCorrelation(ReparametrizedGaussianPosterior):
 
 
 class GaussianPosteriorTimeCorrelation(ReparametrizedGaussianPosterior):
-    def __init__(self, num_strains: int, num_times: int):
+    def __init__(self, model: GenerativeModel):
         """
         Mean-field assumption:
         1) Parametrize X_1, X_2, ..., X_S as independent T-dimensional gaussians (one per strain).
         2) Parametrize F_1, ..., F_T as independent (but not identical) categorical RVs (for each read).
         """
         logger.info("Initializing Strain-factorized (time-correlated) posterior")
-        self.num_times = num_times
-        self.num_strains = num_strains
+        super().__init__(model)
+        self.num_times = model.num_times()
+        self.num_strains = model.num_strains()
 
         # ========== Reparametrization network (standard Gaussians -> nonstandard Gaussians)
         self.reparam_networks: List[torch.nn.Module] = []
@@ -324,10 +330,10 @@ class GaussianPosteriorTimeCorrelation(ReparametrizedGaussianPosterior):
         torch.save(params, path)
 
     @staticmethod
-    def load(path: Path, num_strains: int, num_times: int) -> 'GaussianPosteriorTimeCorrelation':
-        posterior = GaussianPosteriorTimeCorrelation(num_strains, num_times)
+    def load(path: Path, model: GenerativeModel) -> 'GaussianPosteriorTimeCorrelation':
+        posterior = GaussianPosteriorTimeCorrelation(model)
         params = torch.load(path)
-        for s_idx in range(num_strains):
+        for s_idx in range(model.num_strains()):
             linear_layer = posterior.reparam_networks[s_idx]
             linear_layer.weight = torch.nn.Parameter(params[s_idx]['weight'])
             linear_layer.bias = torch.nn.Parameter(params[s_idx]['bias'])

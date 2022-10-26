@@ -9,6 +9,8 @@
 - tqdm
 - biopython
 
+In addition, it requires either bwa or bowtie2.
+
 ## Installation/Configuration
 
 As of 2/29/2021, a simple `pip install` suffices:
