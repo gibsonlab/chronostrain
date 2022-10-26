@@ -148,7 +148,7 @@ def main(
     )
 
     # ============== Step 2: prune using multiple alignments.
-    logger.info("Building ")
+    logger.info("Pruning database by constructing multiple alignments.")
     from .multiple_alignments import marker_concatenated_multiple_alignments
     from .prune import prune_db
 
@@ -159,6 +159,7 @@ def main(
     prune_db(raw_json_path, pruned_json_path, align_path, logger)
 
     # ============== Step 3: check for overlaps.
+    logger.info("Resolving overlaps.")
     from .resolve_overlaps import find_and_resolve_overlaps
     with open(pruned_json_path, "r") as f:
         db_json = json.load(f)
