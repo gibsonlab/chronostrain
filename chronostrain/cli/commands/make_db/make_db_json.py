@@ -104,7 +104,13 @@ def main(
                 raise FileNotFoundError("Reference index pointed to `{seq_path}`, but it does not exist.")
             target_dir = MarkerSource.assembly_subdir(cfg.database_cfg.data_dir, strain_id)
             target_dir.mkdir(exist_ok=True, parents=True)
+
             target_path = fasta_filename(strain_id, target_dir)
+            if target_path.exists():
+                if target_path.is_symlink():
+                    target_path.unlink()
+                else:
+                    logger.info(f"File {target_path} already exists. Skipping symlink.")
             target_path.symlink_to(seq_path)
 
     # ============== Step 1: initialize using BLAST.
