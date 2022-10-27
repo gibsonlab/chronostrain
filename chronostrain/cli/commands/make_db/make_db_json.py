@@ -87,6 +87,7 @@ def main(
     from chronostrain.database import JSONStrainDatabase
     from chronostrain.config import cfg
     reference_df = pd.read_csv(ref_index_path, sep="\t")
+    json_output_path.touch(exist_ok=True)
 
     # ============== Optional: preprocess reference_df into
     if skip_symlink:

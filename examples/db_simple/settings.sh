@@ -1,4 +1,5 @@
 export NCBI_REFSEQ_DIR=./ncbi-genomes
+export BLAST_DB_DIR=./blast-db
 export NUM_CORES=4
 export INDEX_FILE=${NCBI_REFSEQ_DIR}/index.tsv
 
