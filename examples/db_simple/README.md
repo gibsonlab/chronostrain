@@ -1,6 +1,9 @@
 # Summary
 
-This contains an example of what the user COULD do to set up a database.
+This contains an example of a database generation pipeline; there are multiple ways to 
+arrive at the end product. 
+For instance, if you have high-quality MAGs (e.g. maybe you deeply sequenced a subset of your samples) 
+then those should be used instead of downloading a reference genome.
 
 In particular, we provide scripts that sets up a RefSeq index, which is a prerequisite for the 
 command `chronostrain make-db`.
@@ -83,5 +86,9 @@ chronostrain -c chronostrain.ini \
   -r ./ncbi-genomes/index.tsv \
   -b kleb_ex \
   -bd ./blast-db \
+  --min_pct_idty 90 \
   -o ./chronostrain-db/kleb_db.json
 ```
+The argument `--min_pct_idty 90` reflects the belief (e.g. for MetaPhlAn markers) that within the species, there is
+at least 90% similarity between any two instances (this is just an example; the value "90%" was arbitrarily chosen. 
+It might not actually hold! Check this against BLAST before deciding on a cutoff value.)
