@@ -17,7 +17,7 @@ author's <a href="https://github.com/kblin/ncbi-genome-download">github repo</a>
 also install <a href="https://huttenhower.sph.harvard.edu/metaphlan/">MetaPhlAn</a> and know where the 
 database files are located. 
   
-  By default (as of Oct. 2022), one runs `metaphlan --install`, which downloads/extracts a tarball into 
+  By default (as of Oct. 2022), according to the MetaPhlAn documentation, one runs `metaphlan --install`, which downloads/extracts a tarball into 
   `<PYTHON_LIBS>/site-packages/metaphlan/metaphlan_databases`.
   
 
