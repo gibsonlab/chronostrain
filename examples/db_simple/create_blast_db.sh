@@ -13,6 +13,7 @@ mkdir -p ${BLAST_DB_DIR}
 > ${BLAST_DB_DIR}/${refseq_fasta}  # Clear file
 while IFS=$'\t' read genus species strain accession assembly seqpath chrlen gffpath
 do
+	if [ "${seqpath}" == "SeqPath" ]; then continue; fi
 	echo "Concatenating ${seqpath}..."
 	cat ${seqpath} >> ${BLAST_DB_DIR}/${refseq_fasta}
 done < ${INDEX_FILE}
