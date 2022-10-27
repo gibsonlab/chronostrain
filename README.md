@@ -45,7 +45,9 @@ Note that all commands below requires a valid configuration file; refer to [Conf
     ```bash
     chronostrain filter <ARGS>
     ```
-   A pre-requisite for this command is that one has a TSV/CSV file, formatted in the following way:
+   A pre-requisite for this command is that one has a TSV/CSV file (tab- or comma-separated), formatted in the following way:
+   
+    **example (of CSV format):**
     ```csv
     <timepoint>,<experiment_read_depth>,<path_to_fastq>,<read_type>,<quality_fmt>
     ```
