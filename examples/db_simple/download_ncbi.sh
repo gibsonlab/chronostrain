@@ -13,7 +13,7 @@ fi
 
 echo "[*] Using tool to download complete assemblies of Klebsiella from NCBI (# cores = ${NUM_CORES})."
 mkdir -p ${NCBI_REFSEQ_DIR}
-cd ncbi-genome-download  # TODO replace this with forked github branch.
+cd ncbi-genome-download
 python ncbi-genome-download-runner.py bacteria \
 	-l complete -g Klebsiella -H -F all \
 	-o ${NCBI_REFSEQ_DIR} -v --parallel ${NUM_CORES} --progress-bar
