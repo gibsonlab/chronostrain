@@ -77,7 +77,9 @@ a database called `kleb_ex`.
 Then, we invoke chronostrain:
 ```bash
 mkdir chronostrain-db
-chronostrain make-db -m ./marker_seeds/marker_seed_index.tsv \
+chronostrain -c chronostrain.ini \
+  make-db \
+  -m ./marker_seeds/marker_seed_index.tsv \
   -r ./ncbi-genomes/index.tsv \
   -b kleb_ex \
   -bd ./blast-db \

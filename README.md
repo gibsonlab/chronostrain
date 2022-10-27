@@ -118,7 +118,7 @@ cores to use, where to store/load the database from, etc.
 Configurations are specified by a file in the INI format; see `examples/example_configs/chronostrain.ini.example` for an example.
 
 ## First method: command-line
-All subcommands inherit the `-c / --config` argument, which specifies how the software is configured.
+All subcommands can be preceded with the `-c / --config` argument, which specifies how the software is configured.
 
 Usage:
 ```bash
@@ -127,7 +127,8 @@ chronostrain [-c CONFIG_PATH] <SUBCOMMAND>
 
 Example:
 ```bash
-chronostrain filter -c examples/example_configs/chronostrain.ini.example -r subject_1_timeseries.csv -o subj_1_filtered
+chronostrain -c examples/example_configs/chronostrain.ini.example \
+filter -r subject_1_timeseries.csv -o subj_1_filtered
 ```
 
 ## Second method: env variables
