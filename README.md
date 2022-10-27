@@ -7,21 +7,49 @@
 3. [Manually defining a database](#manual-db)
     1. [Strain Definition](#strain-def)
     2. [Marker Sequence Definition](#marker-def)
+4. [Reproducing paper analyses](#paper)
 
 # 1. Installation <a name="installation"></a>
 
-As of Oct. 2022, a simple `pip install` suffices:
+There are three ways to install chronostrain.
+
+## Basic recipe (Recommended)
+
+Necessary dependencies only, installs cuda-toolkit from NVIDIA for (optional, but highly useful) GPU usage.
+```bash
+conda env create -f conda_basic.yml
+conda activate chronostrain
+```
+
+If you intend to use a GPU, verify whether pytorch's CUDA interface is available for usage:
+```bash
+python -c "import torch; print(torch.cuda.is_available())"
+```
+
+## Full recipe
+
+Necessary dependencies + optional bioinformatics dependencies.
+
+Includes additional dependencies such as: `sra-tools`, `kneaddata`, `trimmomatic` etc found in scripts in `example` 
+subdirectories.
 
 ```bash
-cd chronostrain
+conda env create -f conda_full.yml
+conda activate chronostrain_full
+```
+
+## Pip
+
+```bash
 pip install .
 ```
 
-We will release a recipe for a conda environment in a near-future update.
+one may need to pick and choose the proper pytorch version beforehand (e.g. with/without cuda).
+
 
 ## Core Interface: Quickstart (Unix) <a name="quickstart"></a>
 
-Installing chronostrain using `pip` creates a command-line entry point `chronostrain`.
+Installing chronostrain creates a command-line entry point `chronostrain`.
 For precise I/O specification and a description of all arguments, please invoke the `--help` option.
 Note that all commands below requires a valid configuration file; refer to [Configuration](#config).
 
@@ -37,6 +65,16 @@ Note that all commands below requires a valid configuration file; refer to [Conf
     The TSV file must contain at least the following columns:
     `Accession`, `Genus`, `Species`, `Strain`, `ChromosomeLen`, `SeqPath`, `GFF`.
     An easy way to do this is using the `ncbi-genome-download` tool and using our script (link here).
+   
+    **Alternative setup** (if replicating paper figures / estimating E.coli ratios)
+
+    Configure chronostrain to use the `entero_ecoli.json` database
+    ```text
+    ...
+    [Database.args]
+    ENTRIES_FILE=<REPO_CLONE_DIR>/examples/example_configs/entero_ecoli.json
+    ...
+    ```
    
 2. **Time-series read filtering**
 
@@ -77,7 +115,7 @@ Note that all commands below requires a valid configuration file; refer to [Conf
 A configuration file for ChronoStrain is required, because it specifies parameters for our model, how many 
 cores to use, where to store/load the database from, etc.
 
-Configurations are specified by a file in the INI format; see `chronostrain.ini.example` for an example.
+Configurations are specified by a file in the INI format; see `examples/example_configs/chronostrain.ini.example` for an example.
 
 ## First method: command-line
 All subcommands inherit the `-c / --config` argument, which specifies how the software is configured.
@@ -89,7 +127,7 @@ chronostrain [-c CONFIG_PATH] <SUBCOMMAND>
 
 Example:
 ```bash
-chronostrain filter -c ./chronostrain.ini.example -r subject_1_timeseries.csv -o subj_1_filtered
+chronostrain filter -c examples/example_configs/chronostrain.ini.example -r subject_1_timeseries.csv -o subj_1_filtered
 ```
 
 ## Second method: env variables
@@ -97,7 +135,7 @@ chronostrain filter -c ./chronostrain.ini.example -r subject_1_timeseries.csv -o
 By default, ChronoStrain uses the variable `CHRONOSTRAIN_INI`.
 The following is equivalent to using the -c option from the above example:
 ```bash
-export CHRONOSTRAIN_INI=./chronostrain.ini.example
+export CHRONOSTRAIN_INI=examples/exmaple_configs/chronostrain.ini.example
 chronostrain filter -r subject_1_timeseries.csv -o subj_1_filtered
 ```
 in the scenario that both of the `-c` and `CHRONOSTRAIN_INI` are specified, the program will always 
@@ -251,3 +289,11 @@ If a complete assembly is not available and one only has scaffolds or contigs, o
 ```
 Note that the `primer` option's search will fail if no scaffold or contig contains
 *both* forward and reverse primer matches.
+
+# 3. Reproducing paper analyses <a name="paper"></a>
+
+Please refer to the scripts/documentation found in each respective subdirectory.
+
+- Fully synthetic: `examples/synthetic`
+- Semi-synthetic: `examples/semisynthetic`
+- UMB Analysis: `examples/umb`

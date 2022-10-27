@@ -1,0 +1,38 @@
+name: chronostrain_full
+
+channels:
+  - conda-forge
+  - bioconda
+  - pytorch
+
+dependencies:
+  - python=3.10
+  - numpy
+  - scipy
+  - pandas
+  - numba
+  - nvidia::cudatoolkit=11.6
+  - pytorch::pytorch
+  - pyg::pytorch-scatter
+  - pyg::pytorch-sparse
+  - scikit-learn
+  - matplotlib
+  - seaborn
+  - joblib
+  - networkx
+  - biopython
+  - click
+  - samtools=1.14
+  - mafft
+  - bwa
+  - bowtie2
+  - blast
+  - pigz
+  - fasttree
+  - sra-tools=2.11
+  - kneaddata
+  - trimmomatic
+  - strainge
+  - bwa-mem2
+  - pip:
+    - ./
