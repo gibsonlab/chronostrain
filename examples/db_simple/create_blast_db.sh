@@ -11,7 +11,7 @@ mkdir -p ${BLAST_DB_DIR}
 
 # Create a concatenated file of fasta records.
 > ${BLAST_DB_DIR}/${refseq_fasta}  # Clear file
-while IFS=$'\t' genus species strain accession assembly seqpath chrlen gffpath
+while IFS=$'\t' read genus species strain accession assembly seqpath chrlen gffpath
 do
 	echo "Concatenating ${seqpath}..."
 	cat ${seqpath} >> ${BLAST_DB_DIR}/${refseq_fasta}
