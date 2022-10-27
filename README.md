@@ -266,6 +266,10 @@ specify the marker sequence.*)
 ## Source Sequence Definition
 
 Each strain entry contains a `seqs` field, which specifies the source sequence that each marker should be pulled out of.
+Each corresponds to a FASTA file `<accession>.fasta` and a genbank annotation file `<accession>.gb`.
+If these files are missing (in the `DATA_DB_DIR` directory, as specified in the configuration), then ChronoStrain 
+will attempt to automatically download these files from NCBI on-the-fly.
+If this behavior is something that you would like, please use a valid NCBI accession for the `accession` field.
 
 In the case of a strain with a *complete* chromosomal assembly, one only needs to provide a single-object list:
 ```text
@@ -273,9 +277,7 @@ In the case of a strain with a *complete* chromosomal assembly, one only needs t
 "seqs": [{"accession": "SEQ_ID_1", "seq_type": "chromosome"}],
 ...
 ```
-when using the `locus_tag` type and one does *not* have a genbank annotation file on hand, one needs to
-define the `accession` field using an NCBI nucleotide accession (ChronoStrain will automatically download
-the genbank file from NCBI using the accession string.)
+the `locus_tag` type will specifically parse the genbank annotation `.gb` file and look for the matching entry.
 
 If a complete assembly is not available and one only has scaffolds or contigs, one can specify multiple sources:
 ```text

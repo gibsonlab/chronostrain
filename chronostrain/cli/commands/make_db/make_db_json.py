@@ -161,7 +161,7 @@ def main(
     align_path = json_output_path.parent / f"_ALIGN_{json_output_path.stem}" / "multiple_alignment.fasta"
     pruned_json_path = json_output_path.with_stem(f'{json_output_path.stem}-2pruned')
     marker_names = set(gene_paths.keys())
-    marker_concatenated_multiple_alignments(raw_db, align_path, sorted(marker_names))
+    marker_concatenated_multiple_alignments(raw_db, align_path, sorted(marker_names), logger)
     prune_db(raw_json_path, pruned_json_path, align_path, logger)
 
     # ============== Step 3: check for overlaps.

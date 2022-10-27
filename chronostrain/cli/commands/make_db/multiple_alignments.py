@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import List, Dict, Set
+from logging import Logger
 
 from Bio import SeqIO
 from Bio.Seq import Seq
@@ -12,13 +13,13 @@ from chronostrain.util.external import mafft_global
 from chronostrain.config import cfg
 
 
-def marker_concatenated_multiple_alignments(db: StrainDatabase, out_path: Path, marker_names: List[str]):
+def marker_concatenated_multiple_alignments(db: StrainDatabase, out_path: Path, marker_names: List[str], logger: Logger):
     """
     Generates a single FASTA file containing the concatenation of the multiple alignments of each marker gene.
     If a gene is missing from a strain, gaps are appended instead.
     If multiple hits are found, then the first available one is used (found in the same order as BLAST hits).
     """
-    all_marker_alignments = get_all_alignments(db, out_path.parent / out_path.stem, set(marker_names))
+    all_marker_alignments = get_all_alignments(db, out_path.parent / out_path.stem, set(marker_names), logger)
 
     records: List[SeqRecord] = []
     for strain in db.all_strains():
@@ -92,10 +93,11 @@ def multi_align_markers(output_path: Path, markers: List[Marker], n_threads: int
     return ids_to_records
 
 
-def get_all_alignments(db: StrainDatabase, work_dir: Path, marker_names: Set[str]) -> Dict[str, Dict[str, SeqRecord]]:
+def get_all_alignments(db: StrainDatabase, work_dir: Path, marker_names: Set[str], logger: Logger) -> Dict[str, Dict[str, SeqRecord]]:
     work_dir.mkdir(exist_ok=True, parents=True)
     all_alignments = {}
     for gene_name in marker_names:
+        logger.info("Aligning instances of {gene_name}")
         alignment_records = multi_align_markers(
             output_path=work_dir / f"{gene_name}.fasta",
             markers=db.get_markers_by_name(gene_name),
