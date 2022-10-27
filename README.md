@@ -10,20 +10,20 @@
 
 # 1. Installation <a name="installation"></a>
 
-As of Oct. 2022, simple `pip install` suffices:
+As of Oct. 2022, a simple `pip install` suffices:
 
 ```bash
 cd chronostrain
 pip install .
 ```
 
-We will release configuration files for a conda environment in a near-future update.
+We will release a recipe for a conda environment in a near-future update.
 
 ## Core Interface: Quickstart (Unix) <a name="quickstart"></a>
 
 Installing chronostrain using `pip` creates a command-line entry point `chronostrain`.
-For precise i/o specification and argument description, please invoke the `--help` option.
-
+For precise I/O specification and a description of all arguments, please invoke the `--help` option.
+Note that all commands below requires a valid configuration file; refer to [Configuration](#config).
 
 1. **Database creation** (if starting from scratch)
    
@@ -32,8 +32,8 @@ For precise i/o specification and argument description, please invoke the `--hel
     ```bash
     chronostrain make-db <ARGS>
     ```
-    This has a major prerequisite: one needs to have constructed a directory of reference sequences, and catalogued this repository via
-    a TSV file, to be passed via the `--reference` argument.
+    This has a major prerequisite: one needs to have a local repository of reference sequences, and 
+    catalogued this repository via a TSV file, to be passed via the `--reference` argument.
     The TSV file must contain at least the following columns:
     `Accession`, `Genus`, `Species`, `Strain`, `ChromosomeLen`, `SeqPath`, `GFF`.
     An easy way to do this is using the `ncbi-genome-download` tool and using our script (link here).
@@ -45,7 +45,7 @@ For precise i/o specification and argument description, please invoke the `--hel
     ```bash
     chronostrain filter <ARGS>
     ```
-   A pre-requisite for this command is that one has a CSV file, formatted in the following way:
+   A pre-requisite for this command is that one has a TSV/CSV file, formatted in the following way:
     ```csv
     <timepoint>,<experiment_read_depth>,<path_to_fastq>,<read_type>,<quality_fmt>
     ```
@@ -55,7 +55,19 @@ For precise i/o specification and argument description, please invoke the `--hel
     - read_type: one of `single`, `paired_1` or `paired_2`.
     - quality_fmt: Currently implemented options are: `fastq`, `fastq-sanger`, `fastq-illumina`, `fastq-solexa`. 
       Generally speaking, we can add on any format implemented in the `BioPython.QualityIO` module.
-   
+      
+    This command outputs, into a directory of your choice, a collection of filtered FASTQ files, a summary of all alignments
+    and a CSV file that catalogues the result (to be passed as input to `chronostrain advi`).
+      
+3. **Time-series inference**
+    
+    To run the inference using time-series reads that have been filered (via `chronostrain filter`), run this command.
+    ```bash
+    chronostrain advi <ARGS>
+    ```
+    The pre-requisite for this command is that one has run `chronostrain filter` to produce a TSV/CSV file that
+    catalogues the filtered fastq files. Several options are available to tweak the optimization; we highly recommend
+    that one enable the `--plot-elbo` flag to diagnose whether the stochastic optimization is converging properly.
 
 
 # 2. Configuration <a name="config"></a>
@@ -66,7 +78,7 @@ cores to use, where to store/load the database from, etc.
 Configurations are specified by a file in the INI format; see `chronostrain.ini.example` for an example.
 
 ## First method: command-line
-All subcommands inherit the `-c / -config` argument, which specifies how the software is configured.
+All subcommands inherit the `-c / --config` argument, which specifies how the software is configured.
 
 Usage:
 ```bash
