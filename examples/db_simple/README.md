@@ -25,6 +25,7 @@ Run the script `download_ncbi.sh`:
 ```
 bash download_ncbi.sh
 ```
+You may see some errors (e.g. `No entry for file ending in <..>`) but these can mostly be ignored.
 
 The recipe outlined in that shell script is as follows:
 1. Use `ncbi-genome-download` to download all complete chromosomal assemblies of Klebsiella from NCBI.

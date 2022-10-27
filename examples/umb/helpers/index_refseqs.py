@@ -96,7 +96,7 @@ def extract_chromosomes(path: Path) -> Iterator[Tuple[str, str, Path, Path, int]
             if len(gff_files) == 0:
                 raise RuntimeError(f"No annotations found for {accession} (assembly: {assembly_gcf}).")
             elif len(gff_files) > 1:
-                raise RuntimeError(f"Multiple annotation files found for {accession} (assembly: {assembly_gf}).")
+                raise RuntimeError(f"Multiple annotation files found for {accession} (assembly: {assembly_gcf}).")
             gff_path = Path(gff_files[0])
 
             yield accession, assembly_gcf, chrom_path, gff_path, len(record)

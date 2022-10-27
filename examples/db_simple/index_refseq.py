@@ -89,11 +89,11 @@ def extract_chromosomes(path: Path) -> Iterator[Tuple[str, str, Path, Path, int]
             chrom_path = path.parent / f"{accession}.chrom.fna"
             SeqIO.write([record], chrom_path, "fasta")
 
-            gff_files = list(chrom_path.parent.glob(f"{assembly_gcf}_*_genomic.chrom.gff"))
+            gff_files = list(chrom_path.parent.glob(f"{assembly_gcf}_*_genomic.gff.gz"))
             if len(gff_files) == 0:
                 raise RuntimeError(f"No annotations found for {accession} (assembly: {assembly_gcf}).")
             elif len(gff_files) > 1:
-                raise RuntimeError(f"Multiple annotation files found for {accession} (assembly: {assembly_gf}).")
+                raise RuntimeError(f"Multiple annotation files found for {accession} (assembly: {assembly_gcf}).")
             gff_path = Path(gff_files[0])
 
             yield accession, assembly_gcf, chrom_path, gff_path, len(record)
