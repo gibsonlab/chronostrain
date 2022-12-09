@@ -1,9 +1,11 @@
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Iterator
 from pathlib import Path
 import pandas as pd
 
 from intervaltree import IntervalTree
 from logging import Logger
+
+from chronostrain.util.io import open_check_compression
 
 
 def find_and_resolve_overlaps(strain, refseq_index: pd.DataFrame, logger: Logger):
@@ -83,7 +85,7 @@ def merge_markers(refseq_index: pd.DataFrame, strain: Dict, start: int, end: int
 
 def resolve_overlap(refseq_index: pd.DataFrame, offending_strain: str, start: int, end: int) -> str:
     gff_path = refseq_index.loc[refseq_index['Accession'] == offending_strain, 'GFF'].item()
-    hits = search_gff_annotation(gff_path, start, end)
+    hits = search_gff_annotation(gff_path, start, end, target_accession=offending_strain)
     gene_names = sorted(list(hits.keys()), key=lambda g: hits[g][1] - hits[g][0], reverse=True)  # Descending order
     new_name = '-'.join(gene_names)
     return new_name
@@ -97,11 +99,21 @@ def has_overlap(start1, end1, start2, end2):
     )
 
 
-def search_gff_annotation(gff_path: Path, target_start: int, target_end: int) -> Dict[str, Tuple[int, int]]:
+def read_gff_file(file_path: Path) -> Iterator[str]:
+    with open_check_compression(file_path) as handle:
+        for line in handle:
+            yield line
+
+
+def search_gff_annotation(gff_path: Path, target_start: int, target_end: int, target_accession: str) -> Dict[str, Tuple[int, int]]:
     with open(gff_path, "rt") as f:
         key_to_coords = {}
         for line in f:
             tokens = line.strip().split('\t')
+            acc = tokens[0]
+            if acc != target_accession:
+                continue
+
             datum = {}
             for entry in tokens[8].split(';'):
                 k, v = entry.split('=')

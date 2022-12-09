@@ -7,23 +7,51 @@
 3. [Manually defining a database](#manual-db)
     1. [Strain Definition](#strain-def)
     2. [Marker Sequence Definition](#marker-def)
+4. [Reproducing paper analyses](#paper)
 
 # 1. Installation <a name="installation"></a>
 
-As of 2/29/2021, a simple `pip install` suffices:
+There are three ways to install chronostrain.
+
+## Basic recipe (Recommended)
+
+Necessary dependencies only, installs cuda-toolkit from NVIDIA for (optional, but highly useful) GPU usage.
+```bash
+conda env create -f conda_basic.yml
+conda activate chronostrain
+```
+
+If you intend to use a GPU, verify whether pytorch's CUDA interface is available for usage:
+```bash
+python -c "import torch; print(torch.cuda.is_available())"
+```
+
+## Full recipe
+
+Necessary dependencies + optional bioinformatics dependencies.
+
+Includes additional dependencies such as: `sra-tools`, `kneaddata`, `trimmomatic` etc found in scripts in `example` 
+subdirectories.
 
 ```bash
-cd chronostrain
+conda env create -f conda_full.yml
+conda activate chronostrain_full
+```
+
+## Pip
+
+```bash
 pip install .
 ```
 
-We will release configuration files for a conda environment in a near-future update.
+one may need to pick and choose the proper pytorch version beforehand (e.g. with/without cuda).
+
 
 ## Core Interface: Quickstart (Unix) <a name="quickstart"></a>
 
-Installing chronostrain using `pip` creates a command-line entry point `chronostrain`.
-For precise i/o specification and argument description, please invoke the `--help` option.
-
+Installing chronostrain creates a command-line entry point `chronostrain`.
+For precise I/O specification and a description of all arguments, please invoke the `--help` option.
+Note that all commands below requires a valid configuration file; refer to [Configuration](#config).
 
 1. **Database creation** (if starting from scratch)
    
@@ -32,11 +60,21 @@ For precise i/o specification and argument description, please invoke the `--hel
     ```bash
     chronostrain make-db <ARGS>
     ```
-    This has a major prerequisite: one needs to have constructed a directory of reference sequences, and catalogued this repository via
-    a TSV file, to be passed via the `--reference` argument.
+    This has a major prerequisite: one needs to have a local repository of reference sequences, and 
+    catalogued this repository via a TSV file, to be passed via the `--reference` argument.
     The TSV file must contain at least the following columns:
     `Accession`, `Genus`, `Species`, `Strain`, `ChromosomeLen`, `SeqPath`, `GFF`.
     An easy way to do this is using the `ncbi-genome-download` tool and using our script (link here).
+   
+    **Alternative setup** (if replicating paper figures / estimating E.coli ratios)
+
+    Configure chronostrain to use the `entero_ecoli.json` database
+    ```text
+    ...
+    [Database.args]
+    ENTRIES_FILE=<REPO_CLONE_DIR>/examples/example_configs/entero_ecoli.json
+    ...
+    ```
    
 2. **Time-series read filtering**
 
@@ -45,7 +83,9 @@ For precise i/o specification and argument description, please invoke the `--hel
     ```bash
     chronostrain filter <ARGS>
     ```
-   A pre-requisite for this command is that one has a CSV file, formatted in the following way:
+   A pre-requisite for this command is that one has a TSV/CSV file (tab- or comma-separated), formatted in the following way:
+   
+    **example (of CSV format):**
     ```csv
     <timepoint>,<experiment_read_depth>,<path_to_fastq>,<read_type>,<quality_fmt>
     ```
@@ -55,7 +95,19 @@ For precise i/o specification and argument description, please invoke the `--hel
     - read_type: one of `single`, `paired_1` or `paired_2`.
     - quality_fmt: Currently implemented options are: `fastq`, `fastq-sanger`, `fastq-illumina`, `fastq-solexa`. 
       Generally speaking, we can add on any format implemented in the `BioPython.QualityIO` module.
-   
+      
+    This command outputs, into a directory of your choice, a collection of filtered FASTQ files, a summary of all alignments
+    and a CSV file that catalogues the result (to be passed as input to `chronostrain advi`).
+      
+3. **Time-series inference**
+    
+    To run the inference using time-series reads that have been filered (via `chronostrain filter`), run this command.
+    ```bash
+    chronostrain advi <ARGS>
+    ```
+    The pre-requisite for this command is that one has run `chronostrain filter` to produce a TSV/CSV file that
+    catalogues the filtered fastq files. Several options are available to tweak the optimization; we highly recommend
+    that one enable the `--plot-elbo` flag to diagnose whether the stochastic optimization is converging properly.
 
 
 # 2. Configuration <a name="config"></a>
@@ -63,10 +115,10 @@ For precise i/o specification and argument description, please invoke the `--hel
 A configuration file for ChronoStrain is required, because it specifies parameters for our model, how many 
 cores to use, where to store/load the database from, etc.
 
-Configurations are specified by a file in the INI format; see `chronostrain.ini.example` for an example.
+Configurations are specified by a file in the INI format; see `examples/example_configs/chronostrain.ini.example` for an example.
 
 ## First method: command-line
-All subcommands inherit the `-c / -config` argument, which specifies how the software is configured.
+All subcommands can be preceded with the `-c / --config` argument, which specifies how the software is configured.
 
 Usage:
 ```bash
@@ -75,7 +127,8 @@ chronostrain [-c CONFIG_PATH] <SUBCOMMAND>
 
 Example:
 ```bash
-chronostrain filter -c ./chronostrain.ini.example -r subject_1_timeseries.csv -o subj_1_filtered
+chronostrain -c examples/example_configs/chronostrain.ini.example \
+filter -r subject_1_timeseries.csv -o subj_1_filtered
 ```
 
 ## Second method: env variables
@@ -83,7 +136,7 @@ chronostrain filter -c ./chronostrain.ini.example -r subject_1_timeseries.csv -o
 By default, ChronoStrain uses the variable `CHRONOSTRAIN_INI`.
 The following is equivalent to using the -c option from the above example:
 ```bash
-export CHRONOSTRAIN_INI=./chronostrain.ini.example
+export CHRONOSTRAIN_INI=examples/exmaple_configs/chronostrain.ini.example
 chronostrain filter -r subject_1_timeseries.csv -o subj_1_filtered
 ```
 in the scenario that both of the `-c` and `CHRONOSTRAIN_INI` are specified, the program will always 
@@ -213,6 +266,10 @@ specify the marker sequence.*)
 ## Source Sequence Definition
 
 Each strain entry contains a `seqs` field, which specifies the source sequence that each marker should be pulled out of.
+Each corresponds to a FASTA file `<accession>.fasta` and a genbank annotation file `<accession>.gb`.
+If these files are missing (in the `DATA_DB_DIR` directory, as specified in the configuration), then ChronoStrain 
+will attempt to automatically download these files from NCBI on-the-fly.
+If this behavior is something that you would like, please use a valid NCBI accession for the `accession` field.
 
 In the case of a strain with a *complete* chromosomal assembly, one only needs to provide a single-object list:
 ```text
@@ -220,9 +277,7 @@ In the case of a strain with a *complete* chromosomal assembly, one only needs t
 "seqs": [{"accession": "SEQ_ID_1", "seq_type": "chromosome"}],
 ...
 ```
-when using the `locus_tag` type and one does *not* have a genbank annotation file on hand, one needs to
-define the `accession` field using an NCBI nucleotide accession (ChronoStrain will automatically download
-the genbank file from NCBI using the accession string.)
+the `locus_tag` type will specifically parse the genbank annotation `.gb` file and look for the matching entry.
 
 If a complete assembly is not available and one only has scaffolds or contigs, one can specify multiple sources:
 ```text
@@ -237,3 +292,11 @@ If a complete assembly is not available and one only has scaffolds or contigs, o
 ```
 Note that the `primer` option's search will fail if no scaffold or contig contains
 *both* forward and reverse primer matches.
+
+# 3. Reproducing paper analyses <a name="paper"></a>
+
+Please refer to the scripts/documentation found in each respective subdirectory.
+
+- Fully synthetic: `examples/synthetic`
+- Semi-synthetic: `examples/semisynthetic`
+- UMB Analysis: `examples/umb`

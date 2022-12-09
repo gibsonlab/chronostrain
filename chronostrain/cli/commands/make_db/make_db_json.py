@@ -87,6 +87,7 @@ def main(
     from chronostrain.database import JSONStrainDatabase
     from chronostrain.config import cfg
     reference_df = pd.read_csv(ref_index_path, sep="\t")
+    json_output_path.touch(exist_ok=True)
 
     # ============== Optional: preprocess reference_df into
     if skip_symlink:
@@ -103,7 +104,12 @@ def main(
                 raise FileNotFoundError("Reference index pointed to `{seq_path}`, but it does not exist.")
             target_dir = MarkerSource.assembly_subdir(cfg.database_cfg.data_dir, strain_id)
             target_dir.mkdir(exist_ok=True, parents=True)
+
             target_path = fasta_filename(strain_id, target_dir)
+            if target_path.is_symlink():
+                target_path.unlink()
+            elif target_path.exists():
+                logger.info(f"File {target_path} already exists. Skipping symlink.")
             target_path.symlink_to(seq_path)
 
     # ============== Step 1: initialize using BLAST.
@@ -155,7 +161,7 @@ def main(
     align_path = json_output_path.parent / f"_ALIGN_{json_output_path.stem}" / "multiple_alignment.fasta"
     pruned_json_path = json_output_path.with_stem(f'{json_output_path.stem}-2pruned')
     marker_names = set(gene_paths.keys())
-    marker_concatenated_multiple_alignments(raw_db, align_path, sorted(marker_names))
+    marker_concatenated_multiple_alignments(raw_db, align_path, sorted(marker_names), logger)
     prune_db(raw_json_path, pruned_json_path, align_path, logger)
 
     # ============== Step 3: check for overlaps.

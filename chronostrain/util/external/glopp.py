@@ -30,7 +30,7 @@ def run_glopp(
         params.append("-m")
 
     exit_code = call_command(
-        command=cfg.external_tools_cfg.glopp_path,
+        command=cfg.external_tools_cfg.get_str('GLOPP'),
         args=params
     )
 

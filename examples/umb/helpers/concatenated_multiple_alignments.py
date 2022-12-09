@@ -233,8 +233,9 @@ def main():
                                      Path(args.metaphlan3_pkl),
                                      Path(args.metaphlan4_pkl),
                                      Path(args.clermont_fasta))
-    for forced_name in args.force_include:
-        marker_names.add(forced_name)
+    if args.force_include is not None and len(args.force_include) > 0:
+        for forced_name in args.force_include:
+            marker_names.add(forced_name)
 
     get_concatenated_alignments(raw_db, Path(args.align_path), sorted(marker_names))
 
