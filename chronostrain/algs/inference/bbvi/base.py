@@ -222,7 +222,7 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
         lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
             factor=lr_decay_factor,
-            cooldown=lr_patience,
+            patience=lr_patience,
             threshold=1e-4,
             threshold_mode='rel',
             mode='min'  # track (-ELBO) and decrease LR when it stops decreasing.
