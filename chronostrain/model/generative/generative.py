@@ -2,7 +2,7 @@
  generative.py
  Contains classes for representing the generative model.
 """
-from typing import List, Tuple, Callable
+from typing import List, Tuple
 
 from torch.distributions.multivariate_normal import MultivariateNormal
 from scipy.stats import rv_discrete, nbinom
@@ -76,6 +76,16 @@ class GenerativeModel:
             _x = cfg.model_cfg.inverse_temperature * x
             return _x - torch.logsumexp(_x, dim=-1, keepdim=True)
         self.log_latent_conversion = _log_softmax
+
+        self._first_prior = None
+        self._rest_prior = None
+        self.dt_sqrt_inverse = torch.tensor(
+            [
+                self.dt(t_idx)
+                for t_idx in range(1, self.num_times())
+            ],
+            device=cfg.torch_cfg.device
+        ).pow(-0.5)
 
     def num_times(self) -> int:
         return len(self.times)
@@ -188,27 +198,24 @@ class GenerativeModel:
         """
         Implementation of log_likelihood_x using Jeffrey's prior (for the Gaussian with known mean) for the variance.
         """
-        log_likelihood_first = JeffreysGaussian(mean=self.mu).log_likelihood(x=X[0, :, :])
-
-        if self.num_times() == 1:
-            return log_likelihood_first
-
         n_samples = X.size()[1]
         n_strains = X.size()[2]
         collapsed_size = (self.num_times() - 1) * n_strains
 
-        dt_sqrt_inverse = torch.tensor(
-            [
-                self.dt(t_idx)
-                for t_idx in range(1, self.num_times())
-            ],
-            device=cfg.torch_cfg.device
-        ).pow(-0.5)
-        diffs = (X[1:, :, ] - X[:-1, :, ]) * dt_sqrt_inverse.unsqueeze(1).unsqueeze(2)
+        initialized = self._first_prior is not None
+        if not initialized:
+            self._first_prior = JeffreysGaussian(mean=self.mu)
+            self._rest_prior = JeffreysGaussian(
+                mean=torch.zeros(n_samples, collapsed_size,
+                                 dtype=cfg.torch_cfg.default_dtype,
+                                 device=cfg.torch_cfg.device)
+            )
 
-        log_likelihood_rest = JeffreysGaussian(
-            mean=torch.zeros(n_samples, collapsed_size, dtype=cfg.torch_cfg.default_dtype, device=cfg.torch_cfg.device)
-        ).log_likelihood(
+        log_likelihood_first = self._first_prior.log_likelihood(x=X[0, :, :])
+        if self.num_times() == 1:
+            return log_likelihood_first
+        diffs = (X[1:, :, ] - X[:-1, :, ]) * self.dt_sqrt_inverse.unsqueeze(1).unsqueeze(2)
+        log_likelihood_rest = self._rest_prior.log_likelihood(
             x=diffs.transpose(0, 1).reshape(n_samples, collapsed_size)
         )
 
