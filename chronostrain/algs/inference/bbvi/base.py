@@ -215,6 +215,10 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
         optimizer_args['params'] = self.posterior.trainable_parameters()
         optimizer = optimizer_class(**optimizer_args)
 
+        logger.debug("LR scheduler parameters: decay={}, patience={}".format(
+            lr_decay_factor,
+            lr_patience
+        ))
         lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
             factor=lr_decay_factor,
