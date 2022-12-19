@@ -49,7 +49,8 @@ python ${BASE_DIR}/helpers/concatenated_multiple_alignments.py --raw_json ${CHRO
 python ${BASE_DIR}/helpers/prune_chronostrain_db.py \
 --source_json ${CHRONOSTRAIN_DB_JSON_ALL} \
 --output_json ${CHRONOSTRAIN_DB_JSON_PRUNED} \
---align_path ${MULTI_ALIGN_PATH}
+--align_path ${MULTI_ALIGN_PATH} \
+--identity_threshold 0.002
 
 
 echo "[*] Resolving overlaps."
