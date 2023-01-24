@@ -3,7 +3,7 @@
 ## Before you start 
 
 This example requires the following to be run first:
-1) Installation of MetaPhlAn (v3.0)
+1) Installation of MetaPhlAn (v3.0 or above)
 2) Installation of the `ncbi-genome-download` tool.
 3) The locations of these installations edited into `settings.sh`
 
