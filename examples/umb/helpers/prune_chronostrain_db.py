@@ -26,10 +26,13 @@ def parse_args():
                         help='<Required> The output database JSON file.')
     parser.add_argument('--align_path', required=True, type=str,
                         help='<Required> the target alignment file to output to.')
+
+    parser.add_argument('--identity_threshold', '-id', required=False, default=0.002,
+                        help='<Optional> The identity threshold to use for agglomeration.')
     return parser.parse_args()
 
 
-def prune_db(input_json_path: Path, output_json_path: Path, alignments_path: Path):
+def prune_db(input_json_path: Path, output_json_path: Path, alignments_path: Path, ident_fraction: float):
     logger.info("Preprocessing for pruning.")
 
     # Read the alignments.
@@ -64,8 +67,7 @@ def prune_db(input_json_path: Path, output_json_path: Path, alignments_path: Pat
         distances[i1, i2] = hamming_dist
         distances[i2, i1] = hamming_dist
 
-    logger.info("Computing clusters.")
-    ident_fraction = 0.01  # corresponds to 1% identity
+    logger.info("Computing clusters. (Approx. ANI = {}%)".format(100 * (1 - ident_fraction)))
     clustering = AgglomerativeClustering(
         affinity='precomputed',
         linkage='average',
@@ -138,7 +140,8 @@ def main():
     prune_db(
         source_json_path,
         output_json_path,
-        alignments_path
+        alignments_path,
+        args.identity_threshold
     )
 
 

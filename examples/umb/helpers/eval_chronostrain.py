@@ -97,14 +97,20 @@ def load_strain_ids(strains_path: Path) -> List[str]:
     return strains
 
 
-def evaluate(chronostrain_output_dir: Path, reads_dir: Path, detection_lb: float) -> pd.DataFrame:
+def evaluate(chronostrain_output_dir: Path, reads_dir: Path, db: StrainDatabase, detection_lb: float) -> pd.DataFrame:
     df_entries = []
+    allowed_genera = {'Escherichia', 'Shigella'}
     for patient, reads, db_relabund_samples, _ in umb_outputs(chronostrain_output_dir, reads_dir):
         print(f"Handling {patient}.")
 
         thresholded_presence = np.copy(db_relabund_samples)
         thresholded_presence[thresholded_presence < detection_lb] = 0.
-        coherence = timeseries_coherence_factor(thresholded_presence)
+
+        filter_indices = [i for i, s in enumerate(db.all_strains()) if s.metadata.genus in allowed_genera]
+
+        coherence = timeseries_coherence_factor(
+            thresholded_presence[:, :, filter_indices]
+        )
 
         df_entries.append({
             "Patient": patient,
@@ -224,7 +230,7 @@ def main():
         clades = parse_clades(args.clades)
         df = evaluate_by_clades(Path(args.chronostrain_dir), reads_dir, clades, db, detection_lb=detection_lb)
     else:
-        df = evaluate(Path(args.chronostrain_dir), reads_dir, detection_lb=detection_lb)
+        df = evaluate(Path(args.chronostrain_dir), reads_dir, db, detection_lb=detection_lb)
 
     df.to_csv(args.output, index=False, sep='\t')
 
