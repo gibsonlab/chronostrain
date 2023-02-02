@@ -199,7 +199,7 @@ class JSONStrainDatabase(StrainDatabase):
 
     def initialize(self, parser: AbstractDatabaseParser, force_refresh: bool):
         if self.pickle_is_stale():
-            logger.debug("Populating database.")
+            logger.info("Populating database.")
             super().initialize(parser, force_refresh)
             self.save_to_disk()
             logger.debug(f"Saved database to {self.pickle_path}.")
