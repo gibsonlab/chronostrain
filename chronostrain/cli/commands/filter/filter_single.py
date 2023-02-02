@@ -41,7 +41,7 @@ from ..base import option
 @option(
     '--aligner', '-al', 'aligner',
     type=str,
-    required=False, default='bwa',
+    required=False, default='bwa-mem2',
     help='Specify the type of aligner to use. Currently available options: bwa, bowtie2.'
 )
 @option(
