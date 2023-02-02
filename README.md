@@ -1,19 +1,24 @@
 # ChronoStrain
 
 # Table of Contents
-1. [Installation](#installation)
-   1. [Quickstart](#quickstart)
-2. [Configuration](#config)
-3. [Manually defining a database](#manual-db)
+1. [Colab Demo](#colab-demo)
+2. [Installation](#installation)
+3. [Core Interface - Quickstart](#quickstart)
+4. [Configuration](#config)
+5. [Manually defining a database](#manual-db)
     1. [Strain Definition](#strain-def)
     2. [Marker Sequence Definition](#marker-def)
-4. [Reproducing paper analyses](#paper)
+6. [Reproducing paper analyses](#paper)
 
-# 1. Installation <a name="installation"></a>
+# 1. Colab Demo <a name="colab-demo"></a>
+
+<a href="https://colab.research.google.com/github/gibsonlab/chronostrain/blob/master/examples/colab_demo/demo.ipynb"><img alt="" src="https://img.shields.io/badge/Google%20Colab-Open%20tutorial-blue?style=flat&logo=googlecolab"/></a>
+
+# 2. Installation <a name="installation"></a>
 
 There are three ways to install chronostrain.
 
-## Basic recipe (Recommended)
+## A. Basic conda recipe (Recommended)
 
 Necessary dependencies only, installs cuda-toolkit from NVIDIA for (optional, but highly useful) GPU usage.
 ```bash
@@ -26,9 +31,9 @@ If you intend to use a GPU, verify whether pytorch's CUDA interface is available
 python -c "import torch; print(torch.cuda.is_available())"
 ```
 
-## Full recipe
+## B. Full conda recipe
 
-Necessary dependencies + optional bioinformatics dependencies.
+Necessary dependencies + optional bioinformatics dependencies for running the examples/paper analyses.
 
 Includes additional dependencies such as: `sra-tools`, `kneaddata`, `trimmomatic` etc found in scripts in `example` 
 subdirectories.
@@ -38,7 +43,7 @@ conda env create -f conda_full.yml
 conda activate chronostrain_full
 ```
 
-## Pip
+## C. Pip
 
 ```bash
 pip install .
@@ -47,7 +52,7 @@ pip install .
 one may need to pick and choose the proper pytorch version beforehand (e.g. with/without cuda).
 
 
-## Core Interface: Quickstart (Unix) <a name="quickstart"></a>
+# Core Interface: Quickstart (Unix) <a name="quickstart"></a>
 
 Installing chronostrain creates a command-line entry point `chronostrain`.
 For precise I/O specification and a description of all arguments, please invoke the `--help` option.
