@@ -11,4 +11,4 @@ seaborn>=0.11.0
 joblib>=1.0.1
 biopython>=1.78
 networkx
-click
+click>=8.1.3
