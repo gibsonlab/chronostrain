@@ -218,6 +218,26 @@ def create_aligner(aligner_type: str, read_type: ReadType, db: StrainDatabase) -
             ),
             clip_penalty=0,
             score_threshold=50,
+            bwa_command='bwa'
+        )
+    elif aligner_type == 'bwa-mem2':
+        return BwaAligner(
+            reference_path=db.multifasta_file,
+            min_seed_len=15,
+            reseed_ratio=0.5,  # default; smaller = slower but more alignments.
+            bandwidth=10,
+            num_threads=cfg.model_cfg.num_cores,
+            report_all_alignments=False,
+            match_score=2,  # log likelihood ratio log_2(4p)
+            mismatch_penalty=5,  # Assume quality score of 20, log likelihood ratio log_2(4 * error * <3/4>)
+            off_diag_dropoff=100,  # default
+            gap_open_penalty=(0, 0),
+            gap_extend_penalty=(
+                int(-deletion_ll / np.log(2)),
+                int(-insertion_ll / np.log(2))
+            ),
+            clip_penalty=0,
+            score_threshold=50,
             bwa_command='bwa-mem2'
         )
     elif aligner_type == 'bowtie2':
