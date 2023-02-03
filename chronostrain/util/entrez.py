@@ -17,7 +17,7 @@ _INITIALIZED = False
 def init_entrez(email: str):
     if not _INITIALIZED:
         if len(email) == 0:
-            raise RuntimeError("To meet Entrez API conventions, please specify an Email address in the configuration.")
+            raise RuntimeError("To meet NCBI's Entrez API conventions [https://www.ncbi.nlm.nih.gov/books/NBK25501/], please specify an Email address in the configuration (We do not store or use your e-mail for any other purpose).")
         logger.info(f"Using email `{email}` for Entrez.")
         Entrez.email = email
 
