@@ -20,6 +20,7 @@ def init_entrez(email: str):
             raise RuntimeError("To meet NCBI's Entrez API conventions [https://www.ncbi.nlm.nih.gov/books/NBK25497/#chapter2.Usage_Guidelines_and_Requiremen], please specify an Email address in the configuration (We do not store or use your e-mail for any other purpose).")
         logger.info(f"Using email `{email}` for Entrez.")
         Entrez.email = email
+        Entrez.tool = "chronostrain"
 
 
 def fasta_filename(accession: str, base_dir: Path) -> Path:
