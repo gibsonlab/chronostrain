@@ -104,9 +104,9 @@ class ADVIGaussianSolver(AbstractADVISolver):
     def data_ll(self, x_samples: torch.Tensor) -> torch.Tensor:
         ans = torch.zeros(size=(x_samples.shape[1],), device=x_samples.device)
         for t_idx in range(self.model.num_times()):
-            log_y_t = self.model.latent_conversion(x_samples[t_idx]).log()
+            log_y_t = self.model.log_latent_conversion(x_samples[t_idx]).detach()
             for batch_lls in self.batches[t_idx]:
-                batch_matrix = log_mm_exp(log_y_t, batch_lls).detach()
+                batch_matrix = log_mm_exp(log_y_t, batch_lls) - log_mm_exp(log_y_t, self.log_total_marker_lens)
                 ans = ans + torch.sum(batch_matrix, dim=1)
         return ans
 

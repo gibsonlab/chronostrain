@@ -77,8 +77,6 @@ class GenerativeModel:
             return _x - torch.logsumexp(_x, dim=-1, keepdim=True)
         self.log_latent_conversion = _log_softmax
 
-        self._first_prior = None
-        self._rest_prior = None
         self.dt_sqrt_inverse = torch.tensor(
             [
                 self.dt(t_idx)
@@ -202,20 +200,18 @@ class GenerativeModel:
         n_strains = X.size()[2]
         collapsed_size = (self.num_times() - 1) * n_strains
 
-        initialized = self._first_prior is not None
-        if not initialized:
-            self._first_prior = JeffreysGaussian(mean=self.mu)
-            self._rest_prior = JeffreysGaussian(
-                mean=torch.zeros(n_samples, collapsed_size,
-                                 dtype=cfg.torch_cfg.default_dtype,
-                                 device=cfg.torch_cfg.device)
-            )
+        _first_prior = JeffreysGaussian(mean=self.mu)
+        _rest_prior = JeffreysGaussian(
+            mean=torch.zeros(n_samples, collapsed_size,
+                             dtype=cfg.torch_cfg.default_dtype,
+                             device=cfg.torch_cfg.device)
+        )
 
-        log_likelihood_first = self._first_prior.log_likelihood(x=X[0, :, :])
+        log_likelihood_first = _first_prior.log_likelihood(x=X[0, :, :])
         if self.num_times() == 1:
             return log_likelihood_first
         diffs = (X[1:, :, ] - X[:-1, :, ]) * self.dt_sqrt_inverse.unsqueeze(1).unsqueeze(2)
-        log_likelihood_rest = self._rest_prior.log_likelihood(
+        log_likelihood_rest = _rest_prior.log_likelihood(
             x=diffs.transpose(0, 1).reshape(n_samples, collapsed_size)
         )
 
