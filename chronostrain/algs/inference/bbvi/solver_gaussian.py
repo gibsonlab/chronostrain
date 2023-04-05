@@ -89,17 +89,25 @@ class ADVIGaussianSolver(AbstractADVISolver):
 
         for t_idx in range(self.model.num_times()):
             log_y_t = self.model.log_latent_conversion(x_samples[t_idx])  # (N x S)
+
+            # Iterate over reads at timepoint t, pre-divided into batches.
             for batch_idx, batch_lls in enumerate(self.batches[t_idx]):
                 batch_sz = batch_lls.shape[1]
 
                 # Average of (N x R_batch) entries, we only want to divide by 1/N and not 1/(N*R_batch)
+                # [but still call torch.mean() for numerical stability instead of torch.sum()]
                 data_ll = batch_sz * torch.mean(
                     # (N x S) @ (S x R_batch)   ->  Raw data likelihood (up to proportionality)
                     log_mm_exp(log_y_t, batch_lls)
-                    # (N x S) @ (S x 1)   -> Approx. correction term for conditioning on markers.
-                    - log_mm_exp(log_y_t, self.log_total_marker_lens)
                 )
                 yield data_ll
+
+            # (N x S) @ (S x 1)
+            # -> Approx. conditional correction term for conditioning on markers. (note the minus sign)
+            correction = len(self.data.time_slices[t_idx]) * torch.mean(
+                -log_mm_exp(log_y_t, self.log_total_marker_lens)
+            )
+            yield correction
 
     def data_ll(self, x_samples: torch.Tensor) -> torch.Tensor:
         ans = torch.zeros(size=(x_samples.shape[1],), device=x_samples.device)

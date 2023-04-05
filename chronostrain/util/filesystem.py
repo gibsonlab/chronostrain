@@ -5,7 +5,7 @@ from typing import List, Union
 import hashlib
 
 
-def convert_size(size_bytes):
+def convert_size(size_bytes: int) -> str:
     """
     Converts bytes to the nearest useful meaningful unit (B, KB, MB, GB, etc.)
     Code credit to https://stackoverflow.com/questions/5194057/better-way-to-convert-file-sizes-in-python/14822210

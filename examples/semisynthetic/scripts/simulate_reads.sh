@@ -6,7 +6,6 @@ seed=0
 check_program 'art_illumina'
 check_program 'prefetch'
 check_program 'fasterq-dump'
-check_program 'seqtk'
 
 # First, download the background samples.
 mkdir -p ${BACKGROUND_FASTQ_DIR}

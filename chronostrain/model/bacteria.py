@@ -59,7 +59,7 @@ class Marker:
         return self.id == other.id
 
     @property
-    def nucleotide_seq(self) -> str:
+    def nucleotide_content(self) -> str:
         """
         The ACGT nucleotide sequence of this marker.
         """
@@ -71,15 +71,15 @@ class Marker:
 
     def to_seqrecord(self, description: str = "") -> SeqRecord:
         return SeqRecord(
-            Seq(self.nucleotide_seq),
-            id="{}|{}|{}".format(self.metadata.parent_strain, self.name, self.id),
+            Seq(self.nucleotide_content),
+            id=f"{self.name}|{self.id}",
             description=description
         )
 
     @staticmethod
-    def parse_seqrecord_id(record_id: str) -> Tuple[str, str, str]:
-        parent_strain, name, marker_id = record_id.split("|")
-        return parent_strain, name, marker_id
+    def parse_seqrecord_id(record_id: str) -> Tuple[str, str]:
+        name, marker_id = record_id.split("|")
+        return name, marker_id
 
 
 @dataclass

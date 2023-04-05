@@ -244,8 +244,8 @@ def parse(db: StrainDatabase,
     # ============================ BEGIN HELPERS ============================
     def parse_marker_record(marker_record: SeqRecord):
         record_tokens = marker_record.id.split("|")
-        parsed_marker_name = record_tokens[1]
-        parsed_marker_id = record_tokens[2]
+        parsed_marker_name = record_tokens[0]
+        parsed_marker_id = record_tokens[1]
         if target_marker_name != parsed_marker_name:
             raise ValueError(f"Expected marker `{target_marker_name}`, "
                              f"but instead found `{parsed_marker_name}` in alignment file.")

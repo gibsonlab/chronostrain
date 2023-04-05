@@ -105,6 +105,7 @@ class GenerativeModel:
             self._frag_freqs_sparse = SparseFragmentFrequencyComputer(
                 frag_length_rv=self.frag_length_distribution,
                 db=self.db,
+                fragments=self.fragments,
                 min_overlap_ratio=self.min_overlap_ratio
             ).get_frequencies(self.fragments, self.bacteria_pop)
         return self._frag_freqs_sparse

@@ -64,7 +64,7 @@ def multi_align_markers(output_path: Path, markers: List[Marker], n_threads: int
 
     ids_to_records = {}
     for record in SeqIO.parse(output_path, format='fasta'):
-        strain_id, marker_name, marker_id = Marker.parse_seqrecord_id(record.id)
+        marker_name, marker_id = Marker.parse_seqrecord_id(record.id)
         ids_to_records[marker_id] = record
     return ids_to_records
 

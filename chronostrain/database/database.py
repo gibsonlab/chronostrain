@@ -2,7 +2,7 @@ import time
 import os
 from collections import defaultdict
 from pathlib import Path
-from typing import List, Union, Set
+from typing import List, Union, Set, Optional
 import pickle
 
 from Bio import SeqIO
@@ -18,17 +18,20 @@ logger = create_logger(__name__)
 
 class StrainDatabase(object):
     def __init__(self,
-                 parser: AbstractDatabaseParser,
                  backend: AbstractStrainDatabaseBackend,
                  data_dir: Path,
                  name: str,
+                 parser: Optional[AbstractDatabaseParser] = None,
                  force_refresh: bool = False):
         self.backend = backend
         self.name = name
 
+        if parser is not None:
+            self.initialize(parser, force_refresh)
+
         all_markers_base_name = f'__{name}_MARKERS'
         self.marker_multifasta_file = data_dir / all_markers_base_name / f'all_markers.fasta'
-        self.initialize(parser, force_refresh)
+        self._save_markers_to_multifasta(force_refresh=force_refresh)
 
     def initialize(self, parser: AbstractDatabaseParser, force_refresh: bool):
         logger.debug("Initializing db backend `{}`".format(self.backend.__class__.__name__))
@@ -39,8 +42,6 @@ class StrainDatabase(object):
             self.backend.num_strains(),
             (time.time() - start) / 60.0
         ))
-
-        self._save_markers_to_multifasta(force_refresh=force_refresh)
 
     def get_strain(self, strain_id: str) -> Strain:
         return self.backend.get_strain(strain_id)
@@ -117,8 +118,7 @@ class StrainDatabase(object):
 
             with open(self.multifasta_file, "w"):
                 pass
-            for strain in self.all_strains():
-                self.strain_markers_to_fasta(strain.id, self.multifasta_file, "a+")
+            self.markers_to_fasta(self.multifasta_file, "a+")
 
         if force_refresh:
             logger.debug("Forcing re-creation of multi-fasta file.")
@@ -141,10 +141,9 @@ class StrainDatabase(object):
                     return True
         return False
 
-    def strain_markers_to_fasta(self, strain_id: str, out_path: Path, file_mode: str = "w"):
-        strain = self.get_strain(strain_id)
+    def markers_to_fasta(self, out_path: Path, file_mode: str = "w"):
         records = []
-        for marker in strain.markers:
+        for marker in self.backend.all_markers():
             records.append(marker.to_seqrecord(description=""))
         with open(out_path, file_mode) as out_file:
             SeqIO.write(records, out_file, "fasta")
@@ -174,7 +173,12 @@ class JSONStrainDatabase(StrainDatabase):
                             marker_max_len,
                             force_refresh)
         backend = PandasAssistedBackend()
-        super().__init__(parser, backend, data_dir, parser.entries_file.stem)
+        super().__init__(
+            parser=parser,
+            backend=backend,
+            data_dir=data_dir,
+            name=parser.entries_file.stem
+        )
 
     @property
     def pickle_path(self) -> Path:

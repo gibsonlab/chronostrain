@@ -247,9 +247,7 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
         pass
 
     def diagnostic(self, num_importance_samples: int = 10000, batch_size: int = 500):
-        import scipy.special
         from chronostrain.util.math import psis_smooth_ratios
-
         logger.debug("Running diagnostic...")
 
         log_importance_weights = []
@@ -266,9 +264,9 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
             )
             log_importance_weights.append(log_importance_ratios.cpu().numpy())
 
-        # normalize (we don't know normalization constant of true posterior).
+        # normalize (for numerical stability).
         log_importance_weights = np.concatenate(log_importance_weights)
-        log_importance_weights = log_importance_weights - scipy.special.logsumexp(log_importance_weights)
+        log_importance_weights = log_importance_weights - logsumexp(log_importance_weights)
         log_smoothed_weights, k_hat = psis_smooth_ratios(log_importance_weights)
 
         logger.debug(f"Estimated Pareto k-hat: {k_hat}")

@@ -4,8 +4,11 @@ from pathlib import Path
 from typing import Union, List, Tuple, Iterator, Dict
 
 import torch
+import pandas as pd
 from Bio import SeqIO
+import numpy as np
 from scipy.stats import rv_discrete
+from scipy.special import logsumexp
 
 from chronostrain.database import StrainDatabase
 from chronostrain.model import FragmentSpace, Fragment, Population, Marker, Strain
@@ -119,7 +122,16 @@ class FragmentFrequencyComputer(object):
         """
         :return: A dictionary mapping (fragment) -> List of (strain, num_hits) pairs
         """
-        with open(fastmap_output_path) as f:
+        total_entries = 0
+        with open(fastmap_output_path, 'rt') as f:
+            for line in f:
+                if line.startswith('SQ'):
+                    total_entries += 1
+
+        from tqdm import tqdm
+        pbar = tqdm(total=total_entries)
+
+        with open(fastmap_output_path, 'rt') as f:
             for fragment_line in f:
                 fragment_line = fragment_line.strip()
                 if fragment_line == '':
@@ -136,6 +148,7 @@ class FragmentFrequencyComputer(object):
 
                 # Parse matches
                 exact_match_found = False
+                total_matches = 0
                 for match_line in f:
                     match_line = match_line.strip()
 
@@ -149,6 +162,7 @@ class FragmentFrequencyComputer(object):
                     match_tokens = match_line.split('\t')
                     if match_tokens[0] != 'EM':
                         raise ValueError(f"Expected header line to start with `EM`. Got: {match_line}")
+                    total_matches += len(match_tokens)
 
                     # Only accept a match if it spans the whole fragment (we are looking for exact matches)
                     frag_start = int(match_tokens[1])
@@ -165,18 +179,18 @@ class FragmentFrequencyComputer(object):
                                 )
 
                             marker_desc, pos = marker_hit_token.split(':')
-                            strain_id, gene_name, gene_id = marker_desc.split('|')
+                            gene_name, gene_id = marker_desc.split('|')
 
                             marker = self.db.get_marker(gene_id)
-                            strain = self.db.get_strain(strain_id)
-                            pos = int(pos)
-                            if pos < 0:
-                                # Skip `-` strands (since fragments are canonically defined using the forward strand)
-                                continue
+                            for strain in self.db.get_strains_with_marker(marker):
+                                pos = int(pos)
+                                if pos < 0:
+                                    # Skip `-` strands (since fragments are canonically defined using the forward strand)
+                                    continue
 
-                            fragment_mapping_locations.append(
-                                (marker, strain, pos)
-                            )
+                                fragment_mapping_locations.append(
+                                    (marker, strain, pos)
+                                )
                 if not exact_match_found:
                     logger.warning(
                         f"No exact matches found for fragment {fragment.index} [{fragment.nucleotide_content()}]."
@@ -184,15 +198,41 @@ class FragmentFrequencyComputer(object):
                     )
                 else:
                     yield fragment, fragment_mapping_locations
+                pbar.update(1)
 
 
 class SparseFragmentFrequencyComputer(FragmentFrequencyComputer):
-    def __init__(self, frag_length_rv: rv_discrete, db: StrainDatabase, min_overlap_ratio: float):
+    def __init__(self, frag_length_rv: rv_discrete, db: StrainDatabase, fragments: FragmentSpace, min_overlap_ratio: float):
         super().__init__(frag_length_rv, db)
+        self.fragments = fragments
+        self.strains = self.db.all_strains()
         self.min_overlap_ratio: float = min_overlap_ratio
 
     def relative_matrix_path(self) -> Path:
         return Path('fragment_frequencies') / 'sparse_frag_freqs.npz'
+
+    # def construct_matrix_fast(self,
+    #                           fragments: FragmentSpace,
+    #                           population: Population,
+    #                           all_frag_hits: np.ndarray,
+    #                           ) -> RowSectionedSparseMatrix:
+    #     prior_lls = {
+    #         self.frag_length_rv.logpmf()
+    #         for fl in set(frag_lens)
+    #     }
+    #
+    #
+    #     # Use acceleration/multithreading-enabled libraries.
+    #     strain_indices = []
+    #     frag_indices = []
+    #     matrix_values = []
+    #
+    #     return RowSectionedSparseMatrix(
+    #         indices=torch.tensor([frag_indices, strain_indices], device=cfg.torch_cfg.device, dtype=torch.long),
+    #         values=torch.tensor(matrix_values, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype),
+    #         dims=(len(fragments), population.num_strains()),
+    #         force_coalesce=False
+    #     )
 
     def construct_matrix(self,
                          fragments: FragmentSpace,
@@ -209,18 +249,31 @@ class SparseFragmentFrequencyComputer(FragmentFrequencyComputer):
         frag_indices = []
         matrix_values = []
 
-        for fragment, frag_hits in all_frag_hits:
-            hits_per_strain: Dict[Strain, List[Tuple[Marker, int]]] = defaultdict(list)
-            for hit_marker, hit_strain, hit_pos in frag_hits:
-                hits_per_strain[hit_strain].append((hit_marker, hit_pos))
+        all_strain_marker_lengths = {}
+        strain_index_mapping = {
+            strain.id: idx
+            for idx, strain in enumerate(self.strains)
+        }
 
-            for strain, hits in hits_per_strain.items():
+        for fragment, frag_hits in all_frag_hits:
+            hits_df = pd.DataFrame([
+                {'strain_idx': strain_index_mapping[hit_strain.id], 'hit_marker_len': len(hit_marker), 'hit_pos': hit_pos}
+                for hit_marker, hit_strain, hit_pos in frag_hits
+            ])
+            for strain_idx, section in hits_df.groupby('strain_idx'):
+                if strain_idx not in all_strain_marker_lengths:
+                    all_strain_marker_lengths[strain_idx] = np.array([len(m) for m in self.strains[strain_idx].markers])
+
                 try:
-                    strain_indices.append(population.strain_index(strain))
+                    strain_indices.append(strain_idx)
                 except KeyError:
                     continue
                 frag_indices.append(fragment.index)
-                matrix_values.append(self.frag_log_ll(fragment, strain, hits))
+                matrix_values.append(
+                    self.frag_log_ll_numpy(
+                        len(fragment), all_strain_marker_lengths[strain_idx], section['hit_marker_len'].to_numpy(), section['hit_pos'].to_numpy()
+                    )
+                )
         return RowSectionedSparseMatrix(
             indices=torch.tensor([frag_indices, strain_indices], device=cfg.torch_cfg.device, dtype=torch.long),
             values=torch.tensor(matrix_values, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype),
@@ -264,34 +317,55 @@ class SparseFragmentFrequencyComputer(FragmentFrequencyComputer):
     #         keepdim=False
     #     ).item())
 
-    def frag_log_ll(self, frag: Fragment, strain: Strain, hits: List[Tuple[Marker, int]]) -> float:
-        marker_lengths = torch.tensor([len(marker) for marker in strain.markers], dtype=cfg.torch_cfg.default_dtype)
+    def frag_log_ll_numpy(self, frag_len: int, strain_marker_lengths: np.ndarray, hit_marker_lens: np.ndarray, hit_pos: np.ndarray) -> float:
+        window_lens = np.arange(
+            frag_len,
+            1 + max(int(self.frag_length_rv.mean() + 2 * self.frag_length_rv.std()), frag_len)
+        )  # length-W
 
-        window_lens = torch.arange(
-            len(frag),
-            1 + max(int(self.frag_length_rv.mean() + 2 * self.frag_length_rv.std()), len(frag)),
-            dtype=cfg.torch_cfg.default_dtype
+        n_windows = np.sum(strain_marker_lengths) + len(strain_marker_lengths) * (
+                (2 * (1 - self.min_overlap_ratio) - 1) * window_lens + 1
+        )  # length-W
+
+        cond1 = window_lens == frag_len
+        cond2 = (hit_pos == 1) | (hit_pos == hit_marker_lens - frag_len + 1)
+        n_matching_windows = np.sum(cond1[None, :] | cond2[:, None], axis=0)
+        _mask = n_matching_windows > 0
+        result: np.ndarray = logsumexp(
+            self.frag_length_rv.logpmf(window_lens[_mask]) + np.log(n_matching_windows[_mask]) - np.log(n_windows[_mask]),
+            keepdims=False
         )
-
-        n_windows = torch.sum(
-            torch.unsqueeze(marker_lengths, 1)  # (M x 1)
-            + torch.unsqueeze((2 * (1 - self.min_overlap_ratio) * window_lens) - window_lens + 1, 0),  # (1 x W)
-            dim=0
-        )  # length W
-
-        def is_edge_positioned(marker: Marker, pos: int) -> bool:
-            return (pos == 1) or (pos == len(marker) - len(frag) + 1)
-
-        n_matching_windows = torch.sum(
-            torch.unsqueeze(torch.tensor([is_edge_positioned(m, p) for m, p in hits], dtype=torch.bool), 1)  # H x 1
-            | torch.unsqueeze(window_lens == len(frag), 0),  # (1 x W)
-            dim=0
-        )  # length W
-
-        return float(torch.logsumexp(
-            torch.tensor(self.frag_length_rv.logpmf(window_lens))
-            + torch.log(n_matching_windows)
-            - torch.log(n_windows),
-            dim=0,
-            keepdim=False
-        ).item())
+        return float(result)
+    #
+    #
+    # def frag_log_ll(self, frag: Fragment, strain: Strain, hits: List[Tuple[Marker, int]]) -> float:
+    #     marker_lengths = torch.tensor([len(marker) for marker in strain.markers], dtype=cfg.torch_cfg.default_dtype)
+    #
+    #     window_lens = torch.arange(
+    #         len(frag),
+    #         1 + max(int(self.frag_length_rv.mean() + 2 * self.frag_length_rv.std()), len(frag)),
+    #         dtype=cfg.torch_cfg.default_dtype
+    #     )
+    #
+    #     n_windows = torch.sum(
+    #         torch.unsqueeze(marker_lengths, 1)  # (M x 1)
+    #         + torch.unsqueeze((2 * (1 - self.min_overlap_ratio) * window_lens) - window_lens + 1, 0),  # (1 x W)
+    #         dim=0
+    #     )  # length W
+    #
+    #     def is_edge_positioned(marker: Marker, pos: int) -> bool:
+    #         return (pos == 1) or (pos == len(marker) - len(frag) + 1)
+    #
+    #     n_matching_windows = torch.sum(
+    #         torch.unsqueeze(torch.tensor([is_edge_positioned(m, p) for m, p in hits], dtype=torch.bool), 1)  # H x 1
+    #         | torch.unsqueeze(window_lens == len(frag), 0),  # (1 x W)
+    #         dim=0
+    #     )  # length W
+    #
+    #     return float(torch.logsumexp(
+    #         torch.tensor(self.frag_length_rv.logpmf(window_lens))
+    #         + torch.log(n_matching_windows)
+    #         - torch.log(n_windows),
+    #         dim=0,
+    #         keepdim=False
+    #     ).item())

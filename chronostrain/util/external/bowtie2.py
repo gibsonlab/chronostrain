@@ -49,7 +49,7 @@ def bowtie2_build(refs_in: List[Path],
     :param quiet: Suppress debug messages.
     :return:
     """
-    args = [",".join(str(p) for p in refs_in), index_basepath / index_basename]
+    args = []
 
     auto = True
     for optional_param in [bmax, bmaxdivn, diff_cover_sample]:
@@ -75,6 +75,8 @@ def bowtie2_build(refs_in: List[Path],
 
     if quiet:
         args.append('--quiet')
+
+    args += [",".join(str(p) for p in refs_in), index_basepath / index_basename]
 
     exit_code = call_command(
         command_path,

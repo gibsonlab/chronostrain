@@ -4,10 +4,11 @@
 1. [Colab Demo](#colab-demo)
 2. [Installation](#installation)
 3. [Core Interface - Quickstart](#quickstart)
-4. [Configuration](#config)
+4. [Configuration](#config) 
+   1. [Before you start!](#before-you-start)
 5. [Manually defining a database](#manual-db)
-    1. [Strain Definition](#strain-def)
-    2. [Marker Sequence Definition](#marker-def)
+   1. [Strain Definition](#strain-def)
+   2. [Marker Sequence Definition](#marker-def)
 6. [Reproducing paper analyses](#paper)
 
 # 1. Colab Demo <a name="colab-demo"></a>
@@ -52,7 +53,7 @@ pip install .
 one may need to pick and choose the proper pytorch version beforehand (e.g. with/without cuda).
 
 
-# Core Interface: Quickstart (Unix) <a name="quickstart"></a>
+# 3. Core Interface: Quickstart (Unix) <a name="quickstart"></a>
 
 Installing chronostrain creates a command-line entry point `chronostrain`.
 For precise I/O specification and a description of all arguments, please invoke the `--help` option.
@@ -115,12 +116,22 @@ Note that all commands below requires a valid configuration file; refer to [Conf
     that one enable the `--plot-elbo` flag to diagnose whether the stochastic optimization is converging properly.
 
 
-# 2. Configuration <a name="config"></a>
+# 4. Configuration <a name="config"></a>
 
 A configuration file for ChronoStrain is required, because it specifies parameters for our model, how many 
 cores to use, where to store/load the database from, etc.
 
 Configurations are specified by a file in the INI format; see `examples/example_configs/chronostrain.ini.example` for an example.
+
+## BEFORE YOU START! <a name="before-you-start"></a>
+
+One extremely important configuration item is the Negative Binomial parametrization for the fragment length prior,
+which determines the likelihood of reads in aligning well to database-specific regions of the genome. 
+Not setting this properly can cause the model to "miss" important parts of the database.
+
+Ensure that the "typical" read length (e.g. 100 or 150 for Illumina) is contained inside the µ ± 2σ interval of the 
+specified Negative-Binomial(n,p) distribution.
+Perform a fit (e.g. using `statsmodels`) beforehand.
 
 ## First method: command-line
 All subcommands can be preceded with the `-c / --config` argument, which specifies how the software is configured.
@@ -155,7 +166,7 @@ For debugging and/or requiring chronostrain to log more helpful and verbose stat
 export CHRONOSTRAIN_LOG_INI=./log_config.ini.example
 ```
 
-# 3. Defining a database manually <a name="manual-db"></a>
+# 5. Defining a database manually <a name="manual-db"></a>
 
 In general, one may refer to our manuscript for how we define strains using BLAST and a 
 cleaning procedure, resulting in a .json strain definition file.
@@ -298,7 +309,7 @@ If a complete assembly is not available and one only has scaffolds or contigs, o
 Note that the `primer` option's search will fail if no scaffold or contig contains
 *both* forward and reverse primer matches.
 
-# 3. Reproducing paper analyses <a name="paper"></a>
+# 6. Reproducing paper analyses <a name="paper"></a>
 
 Please refer to the scripts/documentation found in each respective subdirectory.
 

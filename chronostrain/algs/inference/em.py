@@ -178,10 +178,7 @@ class EMSolver(AbstractModelSolver):
         x_gradient[x_gradient > gradient_clip] = gradient_clip
         x_gradient[x_gradient < -gradient_clip] = -gradient_clip
 
-        updated_x = x + self.lr * x_gradient
-
-        # ==== Re-center to zero to prevent drift. (Adding constant to each component does not change softmax.)
-        updated_x = updated_x - (updated_x.mean() * torch.ones(size=updated_x.size(), device=cfg.torch_cfg.device))
+        updated_x: torch.Tensor = x + self.lr * x_gradient
 
         # ==== Estimate variances from new posterior.
         updated_var_1, updated_var = self.estimate_posterior_variances(updated_x)
@@ -201,7 +198,8 @@ class EMSolver(AbstractModelSolver):
         )
 
         diffs = (x[1:, :] - x[:-1, :]) * torch.tensor(
-            [self.model.dt(t_idx) for t_idx in range(1, self.model.num_times())]
+            [self.model.dt(t_idx) for t_idx in range(1, self.model.num_times())],
+            device=cfg.torch_cfg.device
         ).pow(-0.5).unsqueeze(1)
         dof = self.model.tau_dof + diffs.numel()
         scale = (1 / dof) * (

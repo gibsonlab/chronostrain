@@ -144,7 +144,7 @@ def parse_line_into_alignment(sam_path: Path,
             )
 
     # ============ Retrieve the marker.
-    accession_token, name_token, id_token = samline.contig_name.strip().split(" ")[0].split("|")
+    name_token, id_token = samline.contig_name.strip().split(" ")[0].split("|")
     try:
         marker = db.get_marker(
             # Assumes that the reference marker was stored automatically using Marker.to_seqrecord().

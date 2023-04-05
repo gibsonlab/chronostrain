@@ -40,14 +40,14 @@ class SparseDataLikelihoods(DataLikelihoods):
         self.projectors: List[ColumnSectionedSparseMatrix] = []
 
         # Delete empty rows (Fragments)
-        for t_idx in range(self.model.num_times()):
+        for t_idx, t in enumerate(self.model.times):
             F, R = self.matrices[t_idx].size()
             row_support = self.matrices[t_idx].indices[0, :].unique(
                 sorted=True, return_inverse=False, return_counts=False
             )
             _F = len(row_support)
             logger.debug("(t = {}) # of supported fragments: {} out of {} ({:.2e}) ({} reads)".format(
-                t_idx, _F, F, _F / F, len(data[t_idx])
+                t, _F, F, _F / F, len(data[t_idx])
             ))
 
             _support_indices = torch.tensor([

@@ -215,7 +215,8 @@ def sample_reads_from_rel_abundances(
                     read_length=read_len,
                     seed=seed.next_value(),
                     output_sam=False,
-                    output_aln=False
+                    output_aln=False,
+                    stdout_path=out_dir / "{}_{}.out.txt".format(t_idx, strain_id)
                 )
 
                 index_entries.append(
@@ -245,7 +246,8 @@ def sample_reads_from_rel_abundances(
                     False,
                     False,
                     quality_shift,
-                    quality_shift_2
+                    quality_shift_2,
+                    out_dir / "{}_{}.out.txt".format(t_idx, strain_id)
                 ))
 
                 partial_index_entries.append(
