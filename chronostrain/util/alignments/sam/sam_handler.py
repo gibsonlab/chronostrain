@@ -1,11 +1,11 @@
 from pathlib import Path
-from typing import List, Iterator, Union, Dict, Tuple
+from typing import List, Iterator, Union, Tuple
 
 import numpy as np
 
 from chronostrain.util.quality import ascii_to_phred
 from .cigar import CigarElement, parse_cigar
-from chronostrain.util.sequences import SeqType, nucleotides_to_z4, UnknownNucleotideError
+from chronostrain.util.sequences import Sequence, AllocatedSequence, UnknownNucleotideError
 
 from chronostrain.logging import create_logger
 from .util import *
@@ -17,7 +17,7 @@ class SamLine:
                  lineno: int,
                  plaintext_line: str,
                  readname: str,
-                 read_seq: SeqType,
+                 read_seq: Sequence,
                  read_phred: np.ndarray,
                  is_mapped: bool,
                  is_reverse_complemented: bool,
@@ -38,7 +38,7 @@ class SamLine:
         self.line = plaintext_line
 
         self.readname = readname
-        self.read_seq = read_seq
+        self.read_seq: Sequence = read_seq
         self.read_phred = read_phred
 
         self.is_mapped = is_mapped
@@ -100,7 +100,7 @@ class SamLine:
             read_seq = prev_sam_line.read_seq
             read_phred = prev_sam_line.read_phred
         else:
-            read_seq = nucleotides_to_z4(tokens[SamTags.Read.value])
+            read_seq = AllocatedSequence(tokens[SamTags.Read.value])
             read_phred = ascii_to_phred(tokens[SamTags.Quality.value], quality_format)
 
         cigar = parse_cigar(tokens[SamTags.Cigar.value])

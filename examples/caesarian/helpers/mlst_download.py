@@ -5,7 +5,8 @@ import pickle
 from io import StringIO
 from pathlib import Path
 from xml.etree import ElementTree
-import urllib.error, urllib.request
+import urllib.error
+import urllib.request
 import csv
 
 from Bio import SeqIO
@@ -14,7 +15,7 @@ from chronostrain import create_logger
 from chronostrain.database.backend import PandasAssistedBackend
 from chronostrain.util.filesystem import convert_size
 from chronostrain.model import Strain, Marker
-from chronostrain.util.sequences import SeqType, nucleotides_to_z4
+from chronostrain.util.sequences import Sequence, DynamicFastaSequence
 
 logger = create_logger('script.mlst_download')
 
@@ -57,13 +58,13 @@ class LocusContainer:
     def __init__(self, locus_name: str, url: str):
         self.locus_name = locus_name
         self.url = url
-        self._fasta_contents: Dict[str, SeqType] = {}
+        self._fasta_contents: Dict[str, Sequence] = {}
         self._fasta_loaded = False
 
     def __str__(self):
         return f"{self.locus_name}[{self.url}]"
 
-    def variant(self, seq_id: str) -> SeqType:
+    def variant(self, seq_id: str) -> Sequence:
         # Lazy initialization
         if not self._fasta_loaded:
             self._load_fasta_contents()
@@ -79,7 +80,7 @@ class LocusContainer:
             if not rec.id.startswith(f'{self.locus_name}_'):
                 raise ValueError(f"Found fasta record ID {rec.id}; expected prefix `{self.locus_name}_`")
             rec_id = rec.id[len(self.locus_name)+1:]
-            self._fasta_contents[rec_id] = nucleotides_to_z4(rec.seq)
+            self._fasta_contents[rec_id] = DynamicFastaSequence(seq_bank, rec_id)
 
         fasta_io.close()
         self._fasta_loaded = True
@@ -190,6 +191,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('-t', '--target_genera_path', type=str, required=False, dest='target_genera_path',
                         help='A text file listing out all Genera to include, one per line.')
     return parser.parse_args()
+
 
 def main():
     args = parse_args()

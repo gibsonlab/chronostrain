@@ -8,7 +8,7 @@ from torch.distributions.multivariate_normal import MultivariateNormal
 from scipy.stats import rv_discrete, nbinom
 
 from chronostrain.model.bacteria import Population
-from chronostrain.model.fragments import FragmentSpace
+from chronostrain.model import FragmentSpace
 from chronostrain.model.reads import AbstractErrorModel, SequenceRead
 from chronostrain.model.io import TimeSeriesReads, TimeSliceReads
 from chronostrain.util.math.distributions import *
@@ -18,7 +18,6 @@ from chronostrain.config import cfg
 
 from .fragment_frequencies import SparseFragmentFrequencyComputer
 from chronostrain.logging import create_logger
-from ...util.math.activations import sparsemax
 
 logger = create_logger(__name__)
 
@@ -92,7 +91,7 @@ class GenerativeModel:
         return self.bacteria_pop.num_strains()
 
     def num_fragments(self) -> int:
-        return self.fragments.size()
+        return len(self.fragments)
 
     @property
     def fragment_frequencies_sparse(self) -> RowSectionedSparseMatrix:
@@ -385,46 +384,46 @@ class GenerativeModel:
         else:
             return self.fragment_frequencies_dense.exp().mm(strain_abundances)
 
-    def sample_reads(
-            self,
-            frag_abundances: torch.Tensor,
-            num_samples: int = 1,
-            read_length: int = 150,
-            metadata: str = "") -> List[SequenceRead]:
-        """
-        Given a set of fragments and their time indexed frequencies (based on the current time
-        index strain abundances and the fragments' relative frequencies in each strain's sequence.),
-        generate a set of noisy fragment reads where the read fragments are selected in proportion
-        to their time indexed frequencies and the outputted base pair at location i of each selected
-        fragment is chosen from a probability distribution condition on the actual base pair at location
-        i and the quality score at location i in the generated quality score vector for the
-        selected fragment.
-
-        :param - frag_abundances: a tensor of floats representing a probability distribution over the fragments
-        :param - num_samples: the number of samples to be taken.
-        :return: a list of strings representing a noisy reads of the set of input fragments
-        """
-
-        frag_indexed_samples = torch.multinomial(
-            frag_abundances,
-            num_samples=num_samples,
-            replacement=True
-        )
-
-        frag_samples = []
-
-        from .. import construct_fragment_space_uniform_length
-        fragments = construct_fragment_space_uniform_length(read_length, self.bacteria_pop)
-
-        # Draw a read from each fragment.
-        for i in range(num_samples):
-            frag = fragments.get_fragment_by_index(frag_indexed_samples[i].item())
-            frag_samples.append(self.error_model.sample_noisy_read(
-                read_id="SimRead_{}".format(i),
-                fragment=frag,
-                metadata="{}|{}".format(
-                    metadata, "|".join(frag.metadata)
-                )
-            ))
-
-        return frag_samples
+    # def sample_reads(
+    #         self,
+    #         frag_abundances: torch.Tensor,
+    #         num_samples: int = 1,
+    #         read_length: int = 150,
+    #         metadata: str = "") -> List[SequenceRead]:
+    #     """
+    #     Given a set of fragments and their time indexed frequencies (based on the current time
+    #     index strain abundances and the fragments' relative frequencies in each strain's sequence.),
+    #     generate a set of noisy fragment reads where the read fragments are selected in proportion
+    #     to their time indexed frequencies and the outputted base pair at location i of each selected
+    #     fragment is chosen from a probability distribution condition on the actual base pair at location
+    #     i and the quality score at location i in the generated quality score vector for the
+    #     selected fragment.
+    #
+    #     :param - frag_abundances: a tensor of floats representing a probability distribution over the fragments
+    #     :param - num_samples: the number of samples to be taken.
+    #     :return: a list of strings representing a noisy reads of the set of input fragments
+    #     """
+    #
+    #     frag_indexed_samples = torch.multinomial(
+    #         frag_abundances,
+    #         num_samples=num_samples,
+    #         replacement=True
+    #     )
+    #
+    #     frag_samples = []
+    #
+    #     from .. import construct_fragment_space_uniform_length
+    #     fragments = construct_fragment_space_uniform_length(read_length, self.bacteria_pop)
+    #
+    #     # Draw a read from each fragment.
+    #     for i in range(num_samples):
+    #         frag = fragments.get_fragment_by_index(frag_indexed_samples[i].item())
+    #         frag_samples.append(self.error_model.sample_noisy_read(
+    #             read_id="SimRead_{}".format(i),
+    #             fragment=frag,
+    #             metadata="{}|{}".format(
+    #                 metadata, "|".join(frag.metadata)
+    #             )
+    #         ))
+    #
+    #     return frag_samples

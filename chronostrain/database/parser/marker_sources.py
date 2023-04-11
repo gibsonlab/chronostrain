@@ -7,7 +7,7 @@ from Bio.SeqFeature import SeqFeature
 
 from chronostrain.model import Marker, MarkerMetadata
 from chronostrain.util.entrez import fetch_genbank, fetch_fasta
-from chronostrain.util.sequences import nucleotides_to_z4, reverse_complement_seq, z4_to_nucleotides
+from chronostrain.util.sequences import AllocatedSequence
 
 
 class PrimerNotFoundError(BaseException):
@@ -20,7 +20,7 @@ class PrimerNotFoundError(BaseException):
         self.reverse_primer = reverse
 
 
-class MarkerSource:
+class SingleFastaMarkerSource:
     def __init__(self, strain_id: str, seq_accession: str, marker_max_len: int, force_download: bool, data_dir: Path):
         self.strain_id = strain_id
         self.seq_accession = seq_accession
@@ -66,7 +66,7 @@ class MarkerSource:
             forward: str, reverse: str
     ) -> Marker:
         result = self._regex_match_primers(forward, reverse)
-        marker_seq = nucleotides_to_z4(self.seq_nucleotide[result[0]:result[1]])
+        marker_seq = AllocatedSequence(self.seq_nucleotide[result[0]:result[1]])
         return Marker(
             id=marker_id,
             name=marker_name,
@@ -83,9 +83,9 @@ class MarkerSource:
             marker_id: str, marker_name: str, is_canonical: bool,
             start_pos: int, end_pos: int, from_negative_strand: bool
     ) -> Marker:
-        marker_seq = nucleotides_to_z4(self.seq_nucleotide[start_pos - 1:end_pos])
+        marker_seq = AllocatedSequence(self.seq_nucleotide[start_pos - 1:end_pos])
         if from_negative_strand:
-            marker_seq = reverse_complement_seq(marker_seq)
+            marker_seq = marker_seq.revcomp_seq()
         return Marker(
             id=marker_id,
             name=marker_name,
@@ -110,7 +110,7 @@ class MarkerSource:
             elif locus_tag != feature.qualifiers['locus_tag'][0]:
                 continue
 
-            marker_seq = nucleotides_to_z4(str(feature.extract(self.seq_nucleotide)))
+            marker_seq = AllocatedSequence(str(feature.extract(self.seq_nucleotide)))
             return Marker(
                 id=marker_id,
                 name=marker_name,
@@ -142,13 +142,7 @@ class MarkerSource:
 
     def _regex_match_primers(self, forward: str, reverse: str) -> Tuple[int, int]:
         forward_primer_regex = parse_fasta_regex(forward)
-        reverse_primer_regex = z4_to_nucleotides(
-            reverse_complement_seq(
-                nucleotides_to_z4(
-                    parse_fasta_regex(reverse)
-                )
-            )
-        )
+        reverse_primer_regex = AllocatedSequence(reverse).revcomp_nucleotides()
 
         result = self._find_primer_match(forward_primer_regex, reverse_primer_regex)
         if result is None:
@@ -156,7 +150,7 @@ class MarkerSource:
         return result
 
 
-class CachedMarkerSource(MarkerSource):
+class CachedSingleFastaMarkerSource(SingleFastaMarkerSource):
     def __init__(self, strain_id: str, data_dir: Path, seq_accession: str, marker_max_len: int, force_download: bool):
         super().__init__(strain_id, seq_accession, marker_max_len, force_download, data_dir)
 
@@ -187,7 +181,7 @@ class CachedMarkerSource(MarkerSource):
         return Marker(
             id=marker_id,
             name=marker_name,
-            seq=nucleotides_to_z4(seq),
+            seq=AllocatedSequence(seq),
             canonical=is_canonical,
             metadata=MarkerMetadata(
                 parent_strain=self.strain_id,

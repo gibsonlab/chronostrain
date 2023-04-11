@@ -5,4 +5,3 @@ from .inference import AbstractModelSolver, \
     ADVIGaussianSolver
     # ADVISolverFullPosterior, \
     # ADVIDirichletSolver
-from .variants import GloppVariantSolver, GloppExhaustiveVariantSolver

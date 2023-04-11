@@ -20,7 +20,7 @@ def bowtie2_inspect(basename: str,
     exit_code = call_command(
         command_path,
         args=[basename],
-        output_path=out_path
+        stdout=out_path
     )
     if exit_code != 0:
         raise CommandLineException("bowtie2-inspect", exit_code)

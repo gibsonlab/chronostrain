@@ -8,8 +8,7 @@ import math
 import numpy as np
 from Bio import SeqIO
 from sklearn.cluster import AgglomerativeClustering
-
-from chronostrain.util.sequences import nucleotides_to_z4
+from chronostrain.util.sequences.z4 import nucleotides_to_z4
 
 
 def prune_db(input_json_path: Path, output_json_path: Path, alignments_path: Path, logger: Logger):

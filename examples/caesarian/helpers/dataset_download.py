@@ -32,34 +32,55 @@ def download_fastq(target_url: str, target_path: Path):
         )
 
 
-def download_all(dataset: pd.DataFrame, out_dir: Path):
+def download_all(dataset: pd.DataFrame, out_dir: Path, target_participant: str):
+    df_entries = []
     for _, row in dataset.iterrows():
         sample_accession = row['sample_accession']
         sample_title = row['sample_title']
         tokens = sample_title.split('_')
-        if len(tokens) != 2:
-            raise ValueError("Unparsable sample title `{}`".format(sample_title))
-
-        participant, timepoint = tokens
-
-        # ================== testing on one participant only, for development:
-        if participant != '513122':
+        if len(tokens) == 2:
+            participant, timepoint = tokens
+            sample_id = "*"
+        elif len(tokens) == 3:
+            participant, timepoint, sample_id = tokens
+        else:
+            logger.error("Unparsable sample title `{}`".format(sample_title))
             continue
 
-        logger.debug(f"Fetching sample {sample_accession} [participant {participant}, timepoint {timepoint}]")
-        target_dir = out_dir / participant / 'reads'
-        target_dir.mkdir(exist_ok=True, parents=True)
+        try:
+            timepoint = float(timepoint)
+        except ValueError:
+            logger.error(f"Unparseable timepoint string `{timepoint}`")
+            continue
+
+        # ================== testing on one participant only, for development:
+        if participant != target_participant:
+            continue
+
+        logger.debug(f"Fetching sample {sample_accession} "
+                     f"[participant {participant}, timepoint {timepoint}, sample_id {sample_id}]")
+        out_dir.mkdir(exist_ok=True, parents=True)
 
         urls = row['fastq_ftp'].split(';')
-        fastq1 = target_dir / '{}_{}_1.fastq.gz'.format(timepoint, sample_accession)
-        fastq2 = target_dir / '{}_{}_2.fastq.gz'.format(timepoint, sample_accession)
+        fastq1 = out_dir / '{}_1.fastq.gz'.format(sample_accession)
+        fastq2 = out_dir / '{}_2.fastq.gz'.format(sample_accession)
         download_fastq(urls[0], fastq1)
         download_fastq(urls[1], fastq2)
+
+        df_entries.append({
+            "Participant": target_participant,
+            "T": timepoint,
+            "SampleId": sample_accession,
+            "Read1": str(fastq1),
+            "Read2": str(fastq2)
+        })
+
+    return pd.DataFrame(df_entries)
 
 
 @click.command()
 @click.option(
-    '--project-tsv', '-p', 'project_tsv',
+    '--metagenomic-tsv', '-m', 'metagenomic_tsv',
     type=click.Path(path_type=Path, dir_okay=False, exists=True, readable=True),
     required=True,
     help="Path to the ENA-derived Project TSV file."
@@ -70,14 +91,24 @@ def download_all(dataset: pd.DataFrame, out_dir: Path):
     required=True,
     help="The target output directory."
 )
+@click.option(
+    '--participant', '-p', 'target_participant',
+    type=str,
+    required=True,
+    help="The participant ID."
+)
 def main(
-        project_tsv: Path,
-        out_dir: Path
+        metagenomic_tsv: Path,
+        out_dir: Path,
+        target_participant: str
 ):
-    download_all(
-        pd.read_csv(project_tsv, sep='\t'),
-        out_dir
+    target_dir = out_dir / target_participant
+    dataset_df = download_all(
+        pd.read_csv(metagenomic_tsv, sep='\t'),
+        target_dir / "reads",
+        target_participant
     )
+    dataset_df.to_csv(target_dir / "dataset.tsv", sep='\t', index=False)
 
 
 if __name__ == "__main__":

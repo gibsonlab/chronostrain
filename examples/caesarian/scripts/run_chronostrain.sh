@@ -2,28 +2,39 @@
 set -e
 
 source settings.sh
-SEED=31415
+
+participant=$1
+
+if [ -z "$participant" ]
+then
+	echo "var \"participant\" is empty"
+	exit 1
+fi
 
 # =========== Run chronostrain. ==================
-echo "Running inference."
+echo "Running inference on participant ${participant}."
 
-export CHRONOSTRAIN_LOG_FILEPATH="/mnt/e/caesarian_data/513122/chronostrain/inference.log"
-export CHRONOSTRAIN_CACHE_DIR="/mnt/e/caesarian_data/513122/chronostrain/.cache"
+run_dir=${DATA_DIR}/${participant}/chronostrain
+export CHRONOSTRAIN_LOG_FILEPATH="${run_dir}/inference.log"
+export CHRONOSTRAIN_CACHE_DIR="${run_dir}/.cache"
+export CHRONOSTRAIN_DB_SPECIFICATION="${DATA_DIR}/${participant}/isolate_assemblies/metadata.tsv"
+export CHRONOSTRAIN_DB_NAME="P-${participant}"
 cd ${BASE_DIR}
 
 
-#python helpers/filter.py \
-#	-r /mnt/e/caesarian_data/513122/chronostrain/reads.csv \
-#	-o /mnt/e/caesarian_data/513122/chronostrain/filtered \
-#  --db-pickle /home/youn/.chronostrain/databases/mlst.pkl \
-#	--aligner "bowtie2"
+if ! [ -f ${run_dir}/filtered/FILTER_DONE.txt ]
+then
+  chronostrain filter \
+    -r ${run_dir}/reads.csv \
+    -o ${run_dir}/filtered \
+    --aligner "bowtie2"
+  touch ${run_dir}/filtered/FILTER_DONE.txt
+fi
 
-
-python helpers/inference.py \
-  -r /mnt/e/caesarian_data/513122/chronostrain/filtered/filtered_reads.csv \
-  -o /mnt/e/caesarian_data/513122/chronostrain \
+chronostrain infer \
+  -r ${run_dir}/filtered/filtered_reads.csv \
+  -o ${run_dir}/inference \
   --seed $INFERENCE_SEED \
-  --db-pickle /home/youn/.chronostrain/databases/mlst.pkl \
   --correlation-mode "time" \
   --iters $CHRONOSTRAIN_NUM_ITERS \
   --epochs $CHRONOSTRAIN_NUM_EPOCHS \

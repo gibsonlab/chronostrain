@@ -4,8 +4,7 @@ from enum import Enum
 from typing import List
 
 import numpy as np
-
-from chronostrain.util.sequences import SeqType, nucleotide_GAP_z4
+from chronostrain.util.sequences import *
 
 
 class CigarOp(Enum):
@@ -68,9 +67,9 @@ def parse_cigar(cigar: str) -> List[CigarElement]:
     return elements
 
 
-def generate_cigar(ref_align: SeqType, query_align: SeqType) -> str:
+def generate_cigar(ref_align: np.ndarray, query_align: np.ndarray) -> str:
     assert len(ref_align) == len(query_align)
-    assert np.sum((ref_align == nucleotide_GAP_z4) & (query_align == nucleotide_GAP_z4)) == 0
+    assert np.sum((ref_align == bytes_GAP) & (query_align == bytes_GAP)) == 0
 
     cigar_elements: List[CigarElement] = []
 
@@ -81,9 +80,9 @@ def generate_cigar(ref_align: SeqType, query_align: SeqType) -> str:
             cigar_elements.append(CigarElement(op, 1))
 
     for x, y in zip(ref_align, query_align):
-        if x == nucleotide_GAP_z4:
+        if x == bytes_GAP:
             append_cigar(CigarOp.INSERTION)
-        elif y == nucleotide_GAP_z4:
+        elif y == bytes_GAP:
             append_cigar(CigarOp.DELETION)
         else:
             append_cigar(CigarOp.ALIGN)

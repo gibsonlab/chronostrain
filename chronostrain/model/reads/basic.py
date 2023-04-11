@@ -2,13 +2,12 @@
     Classes written for simple toy examples, modelling deterministic Q scores
     and noisy reads (conditioned on these q-scores).
 """
-from typing import Optional
-
 import numpy as np
 from chronostrain.model import Fragment
 from chronostrain.model.reads.base import SequenceRead, AbstractErrorModel, AbstractQScoreDistribution
 from chronostrain.util.numpy_helpers import choice_vectorized
 import chronostrain.util.sequences as cseq
+from chronostrain.util.sequences import AllocatedSequence
 
 
 class RampUpRampDownDistribution(AbstractQScoreDistribution):
@@ -188,13 +187,13 @@ class BasicErrorModel(AbstractErrorModel):
         insertion_ll = np.sum(insertions) * self.insertion_error_ll
         deletion_ll = np.sum(deletions) * self.deletion_error_ll
 
-        read_qual = read.quality
-        read_seq = read.seq
-        fragment_seq = fragment.seq
-
+        fragment_seq = fragment.seq.bytes()
         if read_reverse_complemented:
-            read_qual = read_qual[::-1]
-            read_seq = cseq.reverse_complement_seq(read_seq)
+            read_qual = read.quality[::-1]
+            read_seq = read.seq.revcomp_bytes()
+        else:
+            read_qual = read.quality
+            read_seq = read.seq.bytes()
 
         # take care of insertions/deletions/clipping.
         _slice = slice(read_start_clip, len(read_seq) - read_end_clip)
@@ -213,4 +212,4 @@ class BasicErrorModel(AbstractErrorModel):
             axis=1,
             dtype=cseq.NucleotideDtype
         )
-        return SequenceRead(read_id=read_id, seq=random_seq, quality=quality_score_vector, metadata=metadata)
+        return SequenceRead(read_id=read_id, seq=AllocatedSequence(random_seq), quality=quality_score_vector, metadata=metadata)

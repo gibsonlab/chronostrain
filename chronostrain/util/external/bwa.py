@@ -84,7 +84,7 @@ def bwa_fastmap(output_path: Path,
     exit_code = call_command(
         command='bwa',
         args=args,
-        output_path=output_path
+        stdout=output_path
     )
     if exit_code != 0:
         raise CommandLineException("bwa fastmap", exit_code)

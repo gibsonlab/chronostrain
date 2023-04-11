@@ -66,7 +66,7 @@ def art_illumina(reference_path: Path,
         'art_illumina',
         args=cmd_args,
         cwd=output_dir,
-        output_path=stdout_path
+        stdout=stdout_path
     )
     if exit_code != 0:
         raise CommandLineException("art_illumina", exit_code)

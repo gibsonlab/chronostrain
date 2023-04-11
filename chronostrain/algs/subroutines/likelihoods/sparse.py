@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Dict, Iterator, Tuple, Set
+from typing import List, Dict, Tuple, Set
 from collections import defaultdict
 import numpy as np
 import torch
@@ -7,13 +7,14 @@ import torch
 from joblib import Parallel, delayed
 
 from chronostrain.database import StrainDatabase
-from chronostrain.model import Fragment, Marker, SequenceRead, AbstractMarkerVariant
+from chronostrain.model import Fragment, SequenceRead
 from chronostrain.util.alignments.multiple import MarkerMultipleFragmentAlignment
 from chronostrain.util.filesystem import convert_size
 from chronostrain.util.math.matrices import *
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.config import cfg
 from chronostrain.model.generative import GenerativeModel
+from chronostrain.util.sequences import AllocatedSequence
 
 from .base import DataLikelihoods, AbstractLogLikelihoodComputer
 from ..alignments import CachedReadMultipleAlignments, CachedReadPairwiseAlignments
@@ -103,19 +104,6 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         # ==== Cache.
         self.cache = ReadsPopulationCache(reads, model.bacteria_pop)
 
-        # ==== Marker variants present in population.
-        self.variants_present: Dict[Marker, Set[AbstractMarkerVariant]] = {
-            marker: set()
-            for marker in db.all_canonical_markers()
-        }
-
-        for marker in model.bacteria_pop.markers_iterator():
-            if isinstance(marker, AbstractMarkerVariant):
-                self.variants_present[marker.base_marker].add(marker)
-
-    def marker_variants_of(self, marker: Marker) -> Iterator[AbstractMarkerVariant]:
-        yield from self.variants_present[marker]
-
     def _compute_read_frag_alignments(self, t_idx: int) -> Dict[str, List[Tuple[Fragment, float]]]:
         # Note: this method used to have multiple implementations.
         # Now we provide a default one which uses multiple alignment.
@@ -188,7 +176,7 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         for aln in self.pairwise_reference_alignments.alignments_by_timepoint(t_idx):
             if self.model.bacteria_pop.contains_marker(aln.marker):
                 add_subseq_likelihood(
-                    aln.marker_frag,
+                    AllocatedSequence(aln.marker_frag.bytes()),
                     aln.read,
                     aln.read_insertion_locs(),
                     aln.marker_deletion_locs(),
@@ -206,61 +194,63 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         :param t_idx: the timepoint index to use.
         :return: A defaultdict representing the map (Read ID) -> {Fragments that the read aligns to}
         """
-        read_to_frag_likelihoods: Dict[str, List[Tuple[Fragment, float]]] = defaultdict(list)
+        raise NotImplementedError()
 
-        logger.debug(f"(t = {t_idx}) Retrieving multiple alignments.")
-        if self._multi_align_instances is None:
-            self._multi_align_instances = list(self.multiple_alignments.get_alignments(num_cores=self.num_cores))
-
-        time_slice = self.reads[t_idx]
-        included_pairs: Set[str] = set()
-        ll_threshold = -500
-
-        """
-        Helper function (Given subseq/read pair (and other relevant information), compute likelihood and insert into matrix.
-        """
-        def add_subseq_likelihood(subseq, read, insertions, deletions, revcomp, start_clip: int, end_clip: int):
-            frag = self.model.fragments.get_fragment(subseq)
-
-            pair_identifier = f"{read.id}->{frag.index}"
-            if pair_identifier in included_pairs:
-                return
-            else:
-                included_pairs.add(pair_identifier)
-
-            ll = self.read_frag_ll(
-                frag,
-                read,
-                insertions, deletions,
-                reverse_complemented=revcomp,
-                start_clip=start_clip,
-                end_clip=end_clip
-            )
-
-            if ll < ll_threshold:
-                return
-            read_to_frag_likelihoods[read.id].append((frag, ll))
-
-        """
-        Main loop
-        """
-        for multi_align in self._multi_align_instances:
-            logger.debug(f"[{multi_align.canonical_marker.name}] Processing alignment of reads "
-                         f"({len(multi_align.forward_read_index_map)} forward, "
-                         f"{len(multi_align.reverse_read_index_map)} reverse) "
-                         f"into likelihoods.")
-
-            for frag_entry in multi_align.all_mapped_fragments(target_time_idx=t_idx):
-                marker, read, subseq, insertions, deletions, start_clip, end_clip, revcomp = frag_entry
-                add_subseq_likelihood(subseq, read, insertions, deletions, revcomp, start_clip, end_clip)
-
-            # Next, take care of the variant markers (if applicable).
-            for variant in self.marker_variants_of(multi_align.canonical_marker):
-                for read in time_slice:
-                    for subseq, revcomp, insertions, deletions, start_clip, end_clip in variant.subseq_from_read(read):
-                        add_subseq_likelihood(subseq, read, insertions, deletions, revcomp, start_clip, end_clip)
-
-        return read_to_frag_likelihoods
+        # read_to_frag_likelihoods: Dict[str, List[Tuple[Fragment, float]]] = defaultdict(list)
+        #
+        # logger.debug(f"(t = {t_idx}) Retrieving multiple alignments.")
+        # if self._multi_align_instances is None:
+        #     self._multi_align_instances = list(self.multiple_alignments.get_alignments(num_cores=self.num_cores))
+        #
+        # time_slice = self.reads[t_idx]
+        # included_pairs: Set[str] = set()
+        # ll_threshold = -500
+        #
+        # """
+        # Helper function (Given subseq/read pair (and other relevant information), compute likelihood and insert into matrix.
+        # """
+        # def add_subseq_likelihood(subseq, read, insertions, deletions, revcomp, start_clip: int, end_clip: int):
+        #     frag = self.model.fragments.get_fragment(subseq)
+        #
+        #     pair_identifier = f"{read.id}->{frag.index}"
+        #     if pair_identifier in included_pairs:
+        #         return
+        #     else:
+        #         included_pairs.add(pair_identifier)
+        #
+        #     ll = self.read_frag_ll(
+        #         frag,
+        #         read,
+        #         insertions, deletions,
+        #         reverse_complemented=revcomp,
+        #         start_clip=start_clip,
+        #         end_clip=end_clip
+        #     )
+        #
+        #     if ll < ll_threshold:
+        #         return
+        #     read_to_frag_likelihoods[read.id].append((frag, ll))
+        #
+        # """
+        # Main loop
+        # """
+        # for multi_align in self._multi_align_instances:
+        #     logger.debug(f"[{multi_align.canonical_marker.name}] Processing alignment of reads "
+        #                  f"({len(multi_align.forward_read_index_map)} forward, "
+        #                  f"{len(multi_align.reverse_read_index_map)} reverse) "
+        #                  f"into likelihoods.")
+        #
+        #     for frag_entry in multi_align.all_mapped_fragments():
+        #         marker, read, subseq, insertions, deletions, start_clip, end_clip, revcomp = frag_entry
+        #         add_subseq_likelihood(subseq, read, insertions, deletions, revcomp, start_clip, end_clip)
+        #
+        #     # Next, take care of the variant markers (if applicable).
+        #     for variant in self.marker_variants_of(multi_align.canonical_marker):
+        #         for read in time_slice:
+        #             for subseq, revcomp, insertions, deletions, start_clip, end_clip in variant.subseq_from_read(read):
+        #                 add_subseq_likelihood(subseq, read, insertions, deletions, revcomp, start_clip, end_clip)
+        #
+        # return read_to_frag_likelihoods
 
     def create_sparse_matrix(self, t_idx: int) -> SparseMatrix:
         """
@@ -279,7 +269,7 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         for read_idx, read in enumerate(self.reads[t_idx]):
             for frag, log_likelihood in read_to_frag_likelihoods[read.id]:
                 read_indices.append(read_idx)
-                frag_indices.append(frag.index)
+                frag_indices.append(frag.id)
                 log_likelihood_values.append(log_likelihood)
 
         return SparseMatrix(
@@ -293,7 +283,7 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                 device=cfg.torch_cfg.device,
                 dtype=cfg.torch_cfg.default_dtype
             ),
-            dims=(self.model.fragments.size(), len(self.reads[t_idx])),
+            dims=(len(self.model.fragments), len(self.reads[t_idx])),
             force_coalesce=True
         )
 

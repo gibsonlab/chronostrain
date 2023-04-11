@@ -5,7 +5,7 @@ from typing import List, Union, Iterator, Tuple
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
-from chronostrain.util.sequences import SeqType, z4_to_nucleotides
+from chronostrain.util.sequences import Sequence
 from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
@@ -39,7 +39,7 @@ class StrainMetadata:
 class Marker:
     id: str  # A unique identifier.
     name: str  # A human-readable name.
-    seq: SeqType
+    seq: Sequence
     canonical: bool
     metadata: Union[MarkerMetadata, None] = None
 
@@ -59,19 +59,12 @@ class Marker:
         return self.id == other.id
 
     @property
-    def nucleotide_content(self) -> str:
-        """
-        The ACGT nucleotide sequence of this marker.
-        """
-        return z4_to_nucleotides(self.seq)
-
-    @property
     def is_canonical(self) -> bool:
         return self.canonical
 
     def to_seqrecord(self, description: str = "") -> SeqRecord:
         return SeqRecord(
-            Seq(self.nucleotide_content),
+            Seq(self.seq.nucleotides()),
             id=f"{self.name}|{self.id}",
             description=description
         )

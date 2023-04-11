@@ -10,6 +10,7 @@ from Bio.SeqIO.QualityIO import phred_quality_from_solexa
 
 from chronostrain.model.reads import SequenceRead, PairedEndRead
 from chronostrain.util.filesystem import convert_size
+from chronostrain.util.sequences import AllocatedSequence
 
 from chronostrain.logging import create_logger
 from chronostrain.util.io import read_seq_file
@@ -77,7 +78,7 @@ class TimeSliceReads(object):
 
         for i, read in enumerate(self.reads):
             # Code from https://biopython.org/docs/1.74/api/Bio.SeqRecord.html
-            record = SeqRecord(Seq(read.nucleotide_content()), id="Read#{}".format(i), description=read.metadata)
+            record = SeqRecord(Seq(read.seq.nucleotides()), id="Read#{}".format(i), description=read.metadata)
             record.letter_annotations["phred_quality"] = read.quality
             records.append(record)
         SeqIO.write(records, target_path, quality_format)
@@ -119,14 +120,14 @@ class TimeSliceReads(object):
                 if src.read_type == ReadType.SINGLE_END:
                     read = SequenceRead(
                         read_id=record.id,
-                        seq=str(record.seq),
+                        seq=AllocatedSequence(str(record.seq)),
                         quality=quality,
                         metadata=record.description
                     )
                 elif src.read_type == ReadType.PAIRED_END_1:
-                    read = PairedEndRead(record.id, str(record.seq), quality, record.description, forward=True)
+                    read = PairedEndRead(record.id, AllocatedSequence(str(record.seq)), quality, record.description, forward=True)
                 elif src.read_type == ReadType.PAIRED_END_2:
-                    read = PairedEndRead(record.id, str(record.seq), quality, record.description, forward=False)
+                    read = PairedEndRead(record.id, AllocatedSequence(str(record.seq)), quality, record.description, forward=False)
                 else:
                     raise NotImplementedError("Unimplemented ReadType instantiation for `{}`".format(src.read_type))
                 reads.append(read)

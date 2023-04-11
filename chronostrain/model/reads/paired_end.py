@@ -1,14 +1,12 @@
-from typing import Union
-
 import numpy as np
 from .phred import PhredErrorModel
 from .base import SequenceRead
-from ...util.sequences import SeqType
+from ...util.sequences import Sequence
 
 
 class PairedEndRead(SequenceRead):
     def __init__(self,
-                 read_id: str, seq: Union[str, SeqType], quality: np.ndarray, metadata: str,
+                 read_id: str, seq: Sequence, quality: np.ndarray, metadata: str,
                  forward: bool):
         super().__init__(read_id, seq, quality, metadata)
         self.forward = forward

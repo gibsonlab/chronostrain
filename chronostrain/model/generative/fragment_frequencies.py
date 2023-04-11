@@ -1,11 +1,9 @@
 from abc import abstractmethod
-from collections import defaultdict
 from pathlib import Path
-from typing import Union, List, Tuple, Iterator, Dict
+from typing import Union, List, Tuple, Iterator
 
 import torch
 import pandas as pd
-from Bio import SeqIO
 import numpy as np
 from scipy.stats import rv_discrete
 from scipy.special import logsumexp
@@ -97,7 +95,7 @@ class FragmentFrequencyComputer(object):
         bwa_index(self.db.multifasta_file, bwa_cmd='bwa')
 
         output_path.parent.mkdir(exist_ok=True, parents=True)
-        fragments_path = self.fragments_to_fasta(fragments, output_path.parent)
+        fragments_path = fragments.to_fasta(output_path.parent)
         bwa_fastmap(
             output_path=output_path,
             reference_path=self.db.multifasta_file,
@@ -105,16 +103,6 @@ class FragmentFrequencyComputer(object):
             max_interval_size=max_num_hits,
             min_smem_len=min(len(f) for f in fragments)
         )
-
-    @staticmethod
-    def fragments_to_fasta(fragments: FragmentSpace, data_dir: Path) -> Path:
-        out_path = data_dir / "all_fragments.fasta"
-
-        logger.debug(f"Writing {len(fragments)} records to fasta.")
-        with open(out_path, 'w') as f:
-            for fragment in fragments:
-                SeqIO.write([fragment.to_seqrecord()], f, 'fasta')
-        return out_path
 
     def parse(self,
               fragments: FragmentSpace,
@@ -142,8 +130,7 @@ class FragmentFrequencyComputer(object):
                     raise ValueError(f"Expected header line to start with `SQ`. Got: {fragment_line}")
 
                 # Parse fragment
-                frag_idx = int(frag_line_tokens[1][len('FRAGMENT_'):])
-                fragment = fragments.get_fragment_by_index(frag_idx)
+                fragment = fragments.from_fasta_record_id(frag_line_tokens[1])
                 fragment_mapping_locations: List[Tuple[Marker, Strain, int]] = []
 
                 # Parse matches
@@ -193,7 +180,7 @@ class FragmentFrequencyComputer(object):
                                 )
                 if not exact_match_found:
                     logger.warning(
-                        f"No exact matches found for fragment {fragment.index} [{fragment.nucleotide_content()}]."
+                        f"No exact matches found for fragment ID={fragment.id}."
                         f"Validate the output of bwa fastmap!"
                     )
                 else:

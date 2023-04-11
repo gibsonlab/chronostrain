@@ -12,7 +12,7 @@ from chronostrain.util.numpy_helpers import first_nonoccurrence_of, last_nonoccu
 from chronostrain.database import StrainDatabase
 from chronostrain.model import Marker, SequenceRead
 from ...external import clustal_omega, mafft_fragment, mafft_global
-from ...sequences import *
+from ...sequences import Sequence, bytes_GAP, AllocatedSequence, NucleotideDtype
 
 from chronostrain.logging import create_logger
 logger = create_logger(__name__)
@@ -28,8 +28,8 @@ class MarkerMultipleFragmentAlignment(object):
     """
     def __init__(self,
                  marker_idxs: Dict[Marker, int],
-                 aligned_marker_seqs: SeqType,
-                 read_multi_alignment: SeqType,
+                 aligned_marker_seqs: np.ndarray,
+                 read_multi_alignment: np.ndarray,
                  forward_read_index_map: Dict[SequenceRead, int],
                  reverse_read_index_map: Dict[SequenceRead, int],
                  start_clips: List[int],
@@ -76,9 +76,8 @@ class MarkerMultipleFragmentAlignment(object):
 
     def all_mapped_fragments(
             self,
-            target_time_idx: Optional[int] = None,
             min_subseq_length: int = 50
-    ) -> Iterator[Tuple[Marker, SequenceRead, SeqType, np.ndarray, np.ndarray, int, int, bool]]:
+    ) -> Iterator[Tuple[Marker, SequenceRead, Sequence, np.ndarray, np.ndarray, int, int, bool]]:
         for marker, marker_idx in self.marker_idxs.items():
             for revcomp, mapping in [(False, self.forward_read_index_map), (True, self.reverse_read_index_map)]:
                 for read, read_idx in mapping.items():
@@ -101,23 +100,23 @@ class MarkerMultipleFragmentAlignment(object):
         else:
             return read in self.forward_read_index_map
 
-    def get_aligned_read_seq(self, read: SequenceRead, revcomp: bool) -> SeqType:
+    def get_aligned_read_seq(self, read: SequenceRead, revcomp: bool) -> np.ndarray:
         return self.get_aligned_read_seq__indexed(self.get_index_of_read(read, revcomp))
 
-    def get_aligned_read_seq__indexed(self, read_idx: int) -> SeqType:
+    def get_aligned_read_seq__indexed(self, read_idx: int) -> np.ndarray:
         return self.read_multi_alignment[read_idx, :]
 
-    def get_aligned_marker_seq(self, marker: Marker) -> SeqType:
+    def get_aligned_marker_seq(self, marker: Marker) -> np.ndarray:
         return self.get_aligned_marker_seq__indexed(self.get_index_of_marker(marker))
 
-    def get_aligned_marker_seq__indexed(self, marker_idx: int) -> SeqType:
+    def get_aligned_marker_seq__indexed(self, marker_idx: int) -> np.ndarray:
         return self.aligned_marker_seqs[marker_idx]
 
     def get_alignment(self,
                       marker: Marker,
                       read: SequenceRead,
                       revcomp: bool,
-                      delete_double_gaps: bool = True) -> SeqType:
+                      delete_double_gaps: bool = True) -> np.ndarray:
         read_seq = self.get_aligned_read_seq(read, revcomp)
         marker_seq = self.get_aligned_marker_seq(marker)
 
@@ -131,7 +130,7 @@ class MarkerMultipleFragmentAlignment(object):
     def get_alignment__indexed(self,
                                marker_idx: int,
                                read_idx: int,
-                               delete_double_gaps: bool = True) -> SeqType:
+                               delete_double_gaps: bool = True) -> np.ndarray:
         read_seq = self.get_aligned_read_seq__indexed(read_idx)
         marker_seq = self.get_aligned_marker_seq__indexed(marker_idx)
 
@@ -151,16 +150,16 @@ class MarkerMultipleFragmentAlignment(object):
         return self.get_boundary_of_aligned_seq(self.get_aligned_read_seq(read, revcomp))
 
     @staticmethod
-    def get_boundary_of_aligned_seq(aln_seq: SeqType):
+    def get_boundary_of_aligned_seq(aln_seq: np.ndarray):
         return (
-            first_nonoccurrence_of(aln_seq, nucleotide_GAP_z4),
-            last_nonoccurrence_of(aln_seq, nucleotide_GAP_z4)
+            first_nonoccurrence_of(aln_seq, bytes_GAP),
+            last_nonoccurrence_of(aln_seq, bytes_GAP)
         )
 
     def get_aligned_reference_region(self,
                                      marker: Marker,
                                      read: SequenceRead,
-                                     revcomp: bool) -> Tuple[SeqType, np.ndarray, np.ndarray, int, int]:
+                                     revcomp: bool) -> Tuple[np.ndarray, np.ndarray, np.ndarray, int, int]:
         """
         Returns the aligned fragment (with gaps removed), and a pair of boolean arrays (insertion, deletion).
         The insertion array indicates which positions of the read (with gaps removed) are insertions,
@@ -174,7 +173,7 @@ class MarkerMultipleFragmentAlignment(object):
     def get_aligned_reference_region__indexed(self,
                                               marker_idx: int,
                                               read_idx: int
-                                              ) -> Tuple[SeqType, np.ndarray, np.ndarray, int, int]:
+                                              ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, int, int]:
         """
         Returns the aligned fragment (with gaps removed), and a pair of boolean arrays (insertion, deletion).
         The insertion array indicates which positions of the read (with gaps removed) are insertions,
@@ -187,17 +186,17 @@ class MarkerMultipleFragmentAlignment(object):
         marker_section = aln[0]
         read_section = aln[1]
 
-        insertion_locs = np.equal(marker_section, nucleotide_GAP_z4)
+        insertion_locs = np.equal(marker_section, bytes_GAP)
         # Get rid of indices corresponding to deletions.
-        insertion_locs = insertion_locs[read_section != nucleotide_GAP_z4]
+        insertion_locs = insertion_locs[read_section != bytes_GAP]
 
-        deletion_locs = np.equal(read_section, nucleotide_GAP_z4)
+        deletion_locs = np.equal(read_section, bytes_GAP)
         # Get rid of indices corresponding to insertions.
-        deletion_locs = deletion_locs[marker_section != nucleotide_GAP_z4]
+        deletion_locs = deletion_locs[marker_section != bytes_GAP]
 
         start_clip, end_clip = self.num_clipped_bases__indexed(read_idx)
 
-        return marker_section[marker_section != nucleotide_GAP_z4], insertion_locs, deletion_locs, start_clip, end_clip
+        return marker_section[marker_section != bytes_GAP], insertion_locs, deletion_locs, start_clip, end_clip
 
     def reads(self, revcomp: bool) -> Iterator[SequenceRead]:
         if revcomp:
@@ -206,11 +205,11 @@ class MarkerMultipleFragmentAlignment(object):
             yield from self.forward_read_index_map.keys()
 
     @staticmethod
-    def delete_double_gaps(marker_aln: SeqType, read_aln: SeqType) -> SeqType:
+    def delete_double_gaps(marker_aln: np.ndarray, read_aln: np.ndarray) -> np.ndarray:
         """
         Eliminate from the pair of alignment strings the indices where both sequences simultaneously have gaps.
         """
-        ungapped_indices = (marker_aln != nucleotide_GAP_z4) | (read_aln != nucleotide_GAP_z4)
+        ungapped_indices = (marker_aln != bytes_GAP) | (read_aln != np.ndarray)
         return np.stack([
             marker_aln[ungapped_indices], read_aln[ungapped_indices]
         ], axis=0)
@@ -228,17 +227,17 @@ def parse(db: StrainDatabase,
           aln_path: Path
           ) -> MarkerMultipleFragmentAlignment:
     forward_reads: List[SequenceRead] = []
-    forward_seqs: List[SeqType] = []
+    forward_seqs: List[np.ndarray] = []
     forward_start_clips: List[int] = []
     forward_end_clips: List[int] = []
 
     reverse_reads: List[SequenceRead] = []
-    reverse_seqs: List[SeqType] = []
+    reverse_seqs: List[np.ndarray] = []
     reverse_start_clips: List[int] = []
     reverse_end_clips: List[int] = []
 
     marker_idxs: Dict[Marker, int] = {}
-    marker_seqs: List[SeqType] = []
+    marker_seqs: List[np.ndarray] = []
     marker_regions: List[Tuple[int, int]] = []
 
     # ============================ BEGIN HELPERS ============================
@@ -249,7 +248,7 @@ def parse(db: StrainDatabase,
         if target_marker_name != parsed_marker_name:
             raise ValueError(f"Expected marker `{target_marker_name}`, "
                              f"but instead found `{parsed_marker_name}` in alignment file.")
-        aligned_marker_seq = nucleotides_to_z4(str(marker_record.seq))
+        aligned_marker_seq = AllocatedSequence(str(marker_record.seq)).bytes()
 
         # The marker sequence's aligned region. Keep track of this to clip off the start/end edge effects.
         marker_start, marker_end = MarkerMultipleFragmentAlignment.get_boundary_of_aligned_seq(aligned_marker_seq)
@@ -268,9 +267,9 @@ def parse(db: StrainDatabase,
         read_obj = read_getter(read_id)
 
         # Check if alignment is clipped off the edges of the marker.
-        aln_seq = nucleotides_to_z4(str(read_record.seq))
-        n_start_clip = np.sum(aln_seq[:start_clip] != nucleotide_GAP_z4).item()
-        n_end_clip = np.sum(aln_seq[end_clip + 1:] != nucleotide_GAP_z4).item()
+        aln_seq = AllocatedSequence(str(read_record.seq)).bytes()
+        n_start_clip = np.sum(aln_seq[:start_clip] != bytes_GAP).item()
+        n_end_clip = np.sum(aln_seq[end_clip + 1:] != bytes_GAP).item()
 
         aln_seq = aln_seq[start_clip:end_clip + 1]
 
@@ -395,20 +394,17 @@ def align_mafft(marker_profile_path: Path,
 
     for read, should_reverse_comp in read_descriptions:
         if should_reverse_comp:
-            read_seq = reverse_complement_seq(read.seq)
+            record = SeqRecord(
+                Seq(read.seq.revcomp_nucleotides()),
+                id=f"{_READ_PREFIX}{_SEPARATOR}1{_SEPARATOR}{read.id}",
+                description=f"REVCOMP:1"
+            )
         else:
-            read_seq = read.seq
-
-        if should_reverse_comp:
-            revcomp_flag = 1
-        else:
-            revcomp_flag = 0
-
-        record = SeqRecord(
-            Seq(z4_to_nucleotides(read_seq)),
-            id=f"{_READ_PREFIX}{_SEPARATOR}{revcomp_flag}{_SEPARATOR}{read.id}",
-            description=f"REVCOMP:{int(should_reverse_comp)}"
-        )
+            record = SeqRecord(
+                Seq(read.seq.nucleotides),
+                id=f"{_READ_PREFIX}{_SEPARATOR}0{_SEPARATOR}{read.id}",
+                description=f"REVCOMP:0"
+            )
         records.append(record)
     SeqIO.write(records, intermediate_fasta_path, "fasta")
     num_reads = len(records)
@@ -451,30 +447,21 @@ def align_clustalo(marker_profile_path: Path,
     records = []
     record_ids = []
 
-    # record = marker.to_seqrecord()
-    # records.append(record)
-    # record_ids.append(record.id)
-
     for read, should_reverse_comp in read_descriptions:
         if should_reverse_comp:
-            read_seq = reverse_complement_seq(read.seq)
+            record = SeqRecord(
+                Seq(read.seq.revcomp_nucleotides()),
+                id=f"{_READ_PREFIX}{_SEPARATOR}1{_SEPARATOR}{read.id}",
+                description=f"REVCOMP:1"
+            )
         else:
-            read_seq = read.seq
-
-        if should_reverse_comp:
-            revcomp_flag = 1
-        else:
-            revcomp_flag = 0
-
-        read_id = f"{_READ_PREFIX}{_SEPARATOR}{revcomp_flag}{_SEPARATOR}{read.id}"
-
-        record = SeqRecord(
-            Seq(z4_to_nucleotides(read_seq)),
-            id=read_id,
-            description=f"REVCOMP:{int(should_reverse_comp)}"
-        )
+            record = SeqRecord(
+                Seq(read.seq.nucleotides()),
+                id=f"{_READ_PREFIX}{_SEPARATOR}0{_SEPARATOR}{read.id}",
+                description=f"REVCOMP:0"
+            )
         records.append(record)
-        record_ids.append(read_id)
+        record_ids.append(record.id)
     SeqIO.write(records, intermediate_fasta_path, "fasta")
 
     if len(record_ids) >= 2:

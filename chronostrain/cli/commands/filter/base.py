@@ -11,7 +11,7 @@ from chronostrain.model.io import ReadType
 from chronostrain.util.alignments.sam import SamFile
 from chronostrain.util.external import call_command
 from chronostrain.util.alignments.pairwise import *
-from chronostrain.util.sequences import nucleotide_GAP_z4
+from chronostrain.util.sequences import bytes_GAP
 
 from chronostrain.config import cfg
 from chronostrain.logging import create_logger
@@ -151,7 +151,7 @@ class Filter(object):
 
                 # Write SeqRecord to file.
                 record = SeqIO.SeqRecord(
-                    Seq(aln.read.nucleotide_content()),
+                    Seq(aln.read.seq.nucleotides()),
                     id=aln.read.id,
                     description="{}_{}:{}".format(aln.marker.id, aln.marker_start, aln.marker_end)
                 )
@@ -162,7 +162,7 @@ class Filter(object):
         result_fq.close()
 
     def filter_on_ungapped_bases(self, aln: SequenceReadPairwiseAlignment):
-        return np.sum(aln.aln_matrix[1] != nucleotide_GAP_z4) / len(aln.read) > self.min_hit_ratio
+        return np.sum(aln.aln_matrix[1] != bytes_GAP) / len(aln.read) > self.min_hit_ratio
 
     @staticmethod
     def num_expected_errors(aln: SequenceReadPairwiseAlignment):
@@ -175,7 +175,7 @@ class Filter(object):
         _slice = slice(read_start_clip, len(read_qual) - read_end_clip)
 
         marker_aln, read_aln = aln.aln_matrix[0], aln.aln_matrix[1]
-        insertion_locs = np.equal(marker_aln, nucleotide_GAP_z4)[read_aln != nucleotide_GAP_z4]
+        insertion_locs = np.equal(marker_aln, bytes_GAP)[read_aln != bytes_GAP]
         read_qual = read_qual[_slice][~insertion_locs]
 
         return np.sum(

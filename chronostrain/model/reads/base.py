@@ -1,19 +1,17 @@
 """
     Contains abstract classes. See the other python files for implementations.
 """
-from typing import Union
-
 import numpy as np
 from abc import abstractmethod, ABCMeta
 from chronostrain.model import Fragment
-from chronostrain.util.sequences import nucleotides_to_z4, z4_to_nucleotides, SeqType, reverse_complement_seq
+from chronostrain.util.sequences import Sequence
 
 
 class SequenceRead:
     """
     A class representing a sequence-quality vector pair.
     """
-    def __init__(self, read_id: str, seq: Union[str, SeqType], quality: np.ndarray, metadata: str):
+    def __init__(self, read_id: str, seq: Sequence, quality: np.ndarray, metadata: str):
         self.id: str = read_id
         if len(seq) != len(quality):
             raise ValueError(
@@ -25,24 +23,13 @@ class SequenceRead:
         """
         The sequence content of the read is stored as a numpy-optimized array of ubyte.
         """
-        if isinstance(seq, str):
-            self.seq: np.ndarray = nucleotides_to_z4(seq)
-        elif isinstance(seq, np.ndarray):
-            self.seq = seq
-        else:
-            raise TypeError("Unexpected type for argument `seq` (got `{}`)".format(type(seq)))
+        self.seq = seq
         self.quality: np.array = quality
         self.metadata: str = metadata
 
-    def nucleotide_content(self, reverse_complement: bool = False) -> str:
-        if reverse_complement:
-            return z4_to_nucleotides(reverse_complement_seq(self.seq))
-        else:
-            return z4_to_nucleotides(self.seq)
-
     def __str__(self):
         return "[SEQ:{},QUAL:{}]".format(
-            z4_to_nucleotides(self.seq),
+            self.seq.nucleotides(),
             self.quality
         )
 
@@ -53,7 +40,7 @@ class SequenceRead:
         )
 
     def __len__(self):
-        return self.seq.shape[0]
+        return len(self.seq)
 
     def __eq__(self, other):
         if not isinstance(other, SequenceRead):

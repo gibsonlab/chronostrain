@@ -29,7 +29,7 @@ def mafft_global(
     exit_code = call_command(
         command='mafft',
         args=params,
-        output_path=output_path
+        stdout=output_path
     )
 
     if exit_code != 0:
@@ -75,7 +75,7 @@ def mafft_fragment(
     exit_code = call_command(
         command='mafft',
         args=params,
-        output_path=output_path
+        stdout=output_path
     )
 
     if exit_code != 0:

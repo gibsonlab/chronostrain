@@ -1,2 +1,0 @@
-from .glopp_with_corr import GloppVariantSolver
-from .glopp_exhaustive import GloppExhaustiveVariantSolver

@@ -7,7 +7,6 @@ import numpy as np
 import seaborn as sns
 import pandas as pd
 
-from chronostrain.model import StrainVariant
 from chronostrain.model.bacteria import Population
 from chronostrain.model.io import load_abundances
 
@@ -234,11 +233,7 @@ def plot_posterior_abundances(
         # This is (T x N), for the particular strain.
         traj_samples = posterior_samples[:, :, s_idx]
 
-        if isinstance(strain, StrainVariant):
-            label = f"{s_idx}_{strain.base_strain}_variant"
-        else:
-            label = strain.id
-
+        label = strain.id
         render_posterior_abundances(
             times=times,
             label=label,

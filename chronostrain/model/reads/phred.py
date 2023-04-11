@@ -2,7 +2,7 @@ import numpy as np
 from chronostrain.model import Fragment
 from chronostrain.model.reads.base import AbstractErrorModel, SequenceRead
 from chronostrain.model.reads.basic import RampUpRampDownDistribution
-from chronostrain.util.sequences import nucleotide_N_z4, NucleotideDtype, reverse_complement_seq
+from chronostrain.util.sequences import NucleotideDtype, bytes_N, AllocatedSequence
 
 
 class BasicPhredScoreDistribution(RampUpRampDownDistribution):
@@ -49,13 +49,13 @@ class PhredErrorModel(AbstractErrorModel):
         """
         Uses phred scores to compute Pr(Read | Fragment, Quality).
         """
-        read_qual = read.quality
-        read_seq = read.seq
-        fragment_seq = fragment.seq
-
+        fragment_seq = fragment.seq.bytes()
         if read_reverse_complemented:
-            read_qual = read_qual[::-1]
-            read_seq = reverse_complement_seq(read_seq)
+            read_qual = read.quality[::-1]
+            read_seq = read.seq.revcomp_bytes()
+        else:
+            read_qual = read.quality
+            read_seq = read.seq.bytes()
 
         # take care of insertions/deletions/clipping
         # (NOTE: after reverse complement transformation of read, if necessary)
@@ -66,7 +66,7 @@ class PhredErrorModel(AbstractErrorModel):
 
         error_log10_prob = -0.1 * read_qual
         matches: np.ndarray = (fragment_seq == read_seq) & (read_qual > 0)
-        mismatches: np.ndarray = (fragment_seq != read_seq) & (read_seq != nucleotide_N_z4)
+        mismatches: np.ndarray = (fragment_seq != read_seq) & (read_seq != bytes_N)
 
         """
         Phred model: Pr(measured base = 'A', true base = 'G' | q) = ( 1/3 * 10^{-q/10} )
@@ -77,15 +77,15 @@ class PhredErrorModel(AbstractErrorModel):
 
     def sample_noisy_read(self, read_id: str, fragment: Fragment, metadata="") -> SequenceRead:
         qvec = self.q_dist.sample_qvec()
-        read = SequenceRead(read_id=read_id, seq=fragment.seq, quality=qvec, metadata=metadata)
 
         # Random shift by an integer mod 4.
         error_probs = np.power(10, -0.1 * qvec)
         error_locations: np.ndarray = np.less(np.random.rand(error_probs.shape[0]), error_probs)
 
         rand_shift = np.random.randint(low=0, high=4, size=np.sum(error_locations), dtype=NucleotideDtype)
-        read.seq[np.where(error_locations)] = np.mod(
-            read.seq[np.where(error_locations)] + rand_shift,
+        read_bytes = fragment.seq.bytes()
+        read_bytes[np.where(error_locations)] = np.mod(
+            read_bytes[np.where(error_locations)] + rand_shift,
             4
         )
-        return read
+        return SequenceRead(read_id=read_id, seq=AllocatedSequence(read_bytes), quality=qvec, metadata=metadata)

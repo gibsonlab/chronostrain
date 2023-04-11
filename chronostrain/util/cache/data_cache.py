@@ -122,10 +122,13 @@ class ComputationCache(object):
         """
         """
         self.cache_tag = cache_tag
-        self.cache_dir = cache_tag.directory
         self.cache_dir.mkdir(exist_ok=True, parents=True)
         if cfg.model_cfg.cache_enabled:
             logger.debug("Using cache dir {}.".format(self.cache_dir))
+
+    @property
+    def cache_dir(self) -> Path:
+        return self.cache_tag.directory
 
     def call(self,
              relative_filepath: Union[str, Path],

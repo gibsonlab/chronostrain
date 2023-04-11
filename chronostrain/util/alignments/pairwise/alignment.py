@@ -4,7 +4,7 @@ import numpy as np
 
 from chronostrain.database import StrainDatabase, QueryNotFoundError
 from chronostrain.model import Marker, SequenceRead
-from chronostrain.util.sequences import *
+from chronostrain.util.sequences import AllocatedSequence, bytes_GAP, NucleotideDtype
 
 from ..sam import *
 
@@ -64,9 +64,9 @@ class SequenceReadPairwiseAlignment(object):
         self.reverse_complemented: bool = reverse_complemented
 
     @property
-    def marker_frag(self) -> SeqType:
+    def marker_frag(self) -> AllocatedSequence:
         frag_with_gaps = self.aln_matrix[0]
-        return frag_with_gaps[frag_with_gaps != nucleotide_GAP_z4]
+        return AllocatedSequence(frag_with_gaps[frag_with_gaps != bytes_GAP])
 
     @property
     def is_clipped(self) -> bool:
@@ -77,21 +77,21 @@ class SequenceReadPairwiseAlignment(object):
         return (self.marker_start == 0) or (self.marker_end == len(self.marker) - 1)
 
     @property
-    def read_aligned_section(self) -> Tuple[SeqType, SeqType]:
+    def read_aligned_section(self) -> Tuple[np.ndarray, np.ndarray]:
         """
         Returns the section of the read corresponding to the alignment.
         """
         section = slice(self.read_start, self.read_end + 1)
-        return self.read.seq[section], self.read.quality[section]
+        return self.read.seq.bytes()[section], self.read.quality[section]
 
     @property
     def num_aligned_bases(self) -> int:
-        m_bases, r_bases = np.not_equal(self.aln_matrix, nucleotide_GAP_z4)
+        m_bases, r_bases = np.not_equal(self.aln_matrix, bytes_GAP)
         return np.sum(np.logical_and(m_bases, r_bases)).item()
 
     @property
     def num_mismatches(self) -> int:
-        m_bases, r_bases = np.not_equal(self.aln_matrix, nucleotide_GAP_z4)
+        m_bases, r_bases = np.not_equal(self.aln_matrix, bytes_GAP)
         mismatches = np.not_equal(self.aln_matrix[0], self.aln_matrix[1])
         return np.sum(
             np.logical_and(
@@ -106,12 +106,12 @@ class SequenceReadPairwiseAlignment(object):
         return np.sum(np.equal(m_bases, r_bases)).item()
 
     def read_insertion_locs(self) -> np.ndarray:
-        insertion_locs = np.equal(self.aln_matrix[0], nucleotide_GAP_z4)
-        return insertion_locs[self.aln_matrix[1] != nucleotide_GAP_z4]
+        insertion_locs = np.equal(self.aln_matrix[0], bytes_GAP)
+        return insertion_locs[self.aln_matrix[1] != bytes_GAP]
 
     def marker_deletion_locs(self) -> np.ndarray:
-        deletion_locs = np.equal(self.aln_matrix[1], nucleotide_GAP_z4)
-        return deletion_locs[self.aln_matrix[0] != nucleotide_GAP_z4]
+        deletion_locs = np.equal(self.aln_matrix[1], bytes_GAP)
+        return deletion_locs[self.aln_matrix[0] != bytes_GAP]
 
     def __eq__(self, other: 'SequenceReadPairwiseAlignment') -> bool:
         return self.unique_id == other.unique_id
@@ -131,7 +131,7 @@ def parse_line_into_alignment(sam_path: Path,
         if samline.is_reverse_complemented:
             read = SequenceRead(
                 read_id=samline.readname,
-                seq=reverse_complement_seq(samline.read_seq),
+                seq=samline.read_seq.revcomp_seq(),
                 quality=samline.read_phred[::-1],
                 metadata=f"Sam_parsed(f={str(sam_path)},L={samline.lineno},revcomp)"
             )
@@ -162,9 +162,9 @@ def parse_line_into_alignment(sam_path: Path,
     cigar_els: List[CigarElement] = samline.cigar
 
     if samline.is_reverse_complemented:
-        read_seq = reverse_complement_seq(read.seq)
+        read_seq = read.seq.revcomp_bytes()
     else:
-        read_seq = read.seq
+        read_seq = read.seq.bytes()
 
     read_tokens = []
     marker_tokens = []
@@ -199,18 +199,18 @@ def parse_line_into_alignment(sam_path: Path,
         if cigar_el.op == CigarOp.ALIGN or cigar_el.op == CigarOp.MATCH or cigar_el.op == CigarOp.MISMATCH:
             # Consume both query and marker.
             read_tokens.append(read_seq[current_read_idx:current_read_idx + cigar_el.num])
-            marker_tokens.append(marker.seq[current_marker_idx:current_marker_idx + cigar_el.num])
+            marker_tokens.append(marker.seq.bytes()[current_marker_idx:current_marker_idx + cigar_el.num])
             current_read_idx += cigar_el.num
             current_marker_idx += cigar_el.num
         elif cigar_el.op == CigarOp.INSERTION:
             # Consume query but not marker.
             read_tokens.append(read_seq[current_read_idx:current_read_idx + cigar_el.num])
-            marker_tokens.append(nucleotide_GAP_z4 * np.ones(cigar_el.num, dtype=NucleotideDtype))
+            marker_tokens.append(bytes_GAP * np.ones(cigar_el.num, dtype=NucleotideDtype))
             current_read_idx += cigar_el.num
         elif cigar_el.op == CigarOp.DELETION:
             # consume marker but not query.
-            read_tokens.append(nucleotide_GAP_z4 * np.ones(cigar_el.num, dtype=NucleotideDtype))
-            marker_tokens.append(marker.seq[current_marker_idx:current_marker_idx + cigar_el.num])
+            read_tokens.append(bytes_GAP * np.ones(cigar_el.num, dtype=NucleotideDtype))
+            marker_tokens.append(marker.seq.bytes()[current_marker_idx:current_marker_idx + cigar_el.num])
             current_marker_idx += cigar_el.num
         elif cigar_el.op == CigarOp.SKIPREF:
             raise ValueError(
@@ -268,12 +268,12 @@ def reattach_clipped_bases_to_aln(aln: SequenceReadPairwiseAlignment):
     aligned_read_seq = aln.aln_matrix[1]
 
     if aln.reverse_complemented:
-        read_seq = reverse_complement_seq(aln.read.seq)
+        read_seq = aln.read.seq.revcomp_bytes()
     else:
-        read_seq = aln.read.seq
+        read_seq = aln.read.seq.bytes()
 
     if not is_left_edge_mapped and n_start_clip > 0:
-        marker_prefix = aln.marker.seq[(aln.marker_start - n_start_clip):aln.marker_start]
+        marker_prefix = aln.marker.seq.bytes()[(aln.marker_start - n_start_clip):aln.marker_start]
         aligned_marker_seq = np.concatenate([marker_prefix, aligned_marker_seq])
 
         read_prefix = read_seq[(aln.read_start - n_start_clip):aln.read_start]
@@ -287,7 +287,7 @@ def reattach_clipped_bases_to_aln(aln: SequenceReadPairwiseAlignment):
 
     n_end_clip = min(aln.soft_clip_end + aln.hard_clip_end, len(aln.marker) - aln.marker_end - 1)
     if not is_right_edge_mapped and n_end_clip > 0:
-        marker_suffix = aln.marker.seq[(aln.marker_end + 1):(aln.marker_end + 1 + n_end_clip)]
+        marker_suffix = aln.marker.seq.bytes()[(aln.marker_end + 1):(aln.marker_end + 1 + n_end_clip)]
         aligned_marker_seq = np.concatenate([aligned_marker_seq, marker_suffix])
 
         read_suffix = read_seq[(aln.read_end + 1):(aln.read_end + 1 + n_end_clip)]

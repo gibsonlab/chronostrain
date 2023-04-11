@@ -1,15 +1,14 @@
 import time
-import os
+import pickle, os
 from collections import defaultdict
 from pathlib import Path
-from typing import List, Union, Set, Optional
-import pickle
+from typing import List, Set, Optional
 
 from Bio import SeqIO
 
 from chronostrain.model import Strain, Marker
-from .parser import AbstractDatabaseParser, JSONParser
-from .backend import AbstractStrainDatabaseBackend, PandasAssistedBackend
+from .parser import AbstractDatabaseParser
+from .backend import AbstractStrainDatabaseBackend
 from .error import QueryNotFoundError
 
 from chronostrain.logging import create_logger
@@ -25,12 +24,10 @@ class StrainDatabase(object):
                  force_refresh: bool = False):
         self.backend = backend
         self.name = name
-
+        self.work_dir = data_dir / f'__{name}_MARKERS'
+        self.marker_multifasta_file = self.work_dir / f'all_markers.fasta'
         if parser is not None:
             self.initialize(parser, force_refresh)
-
-        all_markers_base_name = f'__{name}_MARKERS'
-        self.marker_multifasta_file = data_dir / all_markers_base_name / f'all_markers.fasta'
         self._save_markers_to_multifasta(force_refresh=force_refresh)
 
     def initialize(self, parser: AbstractDatabaseParser, force_refresh: bool):
@@ -157,29 +154,7 @@ class StrainDatabase(object):
     def num_canonical_markers(self) -> int:
         return self.backend.num_canonical_markers()
 
-
-class JSONStrainDatabase(StrainDatabase):
-    def __init__(self,
-                 entries_file: Union[str, Path],
-                 marker_max_len: int,
-                 data_dir: Path,
-                 force_refresh: bool = False):
-        if isinstance(entries_file, str):
-            entries_file = Path(entries_file)
-
-        self.entries_file = entries_file
-        parser = JSONParser(entries_file,
-                            data_dir,
-                            marker_max_len,
-                            force_refresh)
-        backend = PandasAssistedBackend()
-        super().__init__(
-            parser=parser,
-            backend=backend,
-            data_dir=data_dir,
-            name=parser.entries_file.stem
-        )
-
+    # ========= Save/load from disk.
     @property
     def pickle_path(self) -> Path:
         """
@@ -190,28 +165,15 @@ class JSONStrainDatabase(StrainDatabase):
         """
         if os.name == 'nt':
             # Windows paths
-            return self.entries_file.with_suffix('.windows.pkl')
+            return self.work_dir / 'database.windows.pkl'
         else:
             # Posix paths
-            return self.entries_file.with_suffix('.posix.pkl')
-
-    def pickle_is_stale(self):
-        if not self.pickle_path.exists():
-            return True
-        else:
-            return self.entries_file.stat().st_mtime > self.pickle_path.stat().st_mtime
-
-    def initialize(self, parser: AbstractDatabaseParser, force_refresh: bool):
-        if self.pickle_is_stale():
-            logger.info("Populating database.")
-            super().initialize(parser, force_refresh)
-            self.save_to_disk()
-            logger.debug(f"Saved database to {self.pickle_path}.")
-        else:
-            logger.debug(f"Loaded database from disk ({self.pickle_path}).")
-            self.load_from_disk()
+            return self.work_dir / 'database.posix.pkl'
 
     def save_to_disk(self):
+        if not self.pickle_path.parent.parent.exists():
+            raise FileNotFoundError(f"Data directory {self.pickle_path.parent.parent} does not exist!")
+        self.pickle_path.parent.mkdir(exist_ok=True, parents=False)
         with open(self.pickle_path, 'wb') as f:
             pickle.dump(self.backend, f)
 

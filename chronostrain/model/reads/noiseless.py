@@ -1,6 +1,7 @@
 import math
 
 from chronostrain.model.reads.base import *
+from chronostrain.util.sequences import AllocatedSequence
 
 
 class NoiselessErrorModel(AbstractErrorModel):
@@ -24,9 +25,9 @@ class NoiselessErrorModel(AbstractErrorModel):
             return self.mismatch_log_likelihood
 
         if read_reverse_complemented:
-            read_seq = reverse_complement_seq(read.seq)
+            read_seq = read.seq.revcomp_bytes()
         else:
-            read_seq = read.seq
+            read_seq = read.seq.bytes()
 
         _slice = slice(read_start_clip, len(read_seq) - read_end_clip)
         read_seq = read_seq[_slice]
@@ -37,4 +38,9 @@ class NoiselessErrorModel(AbstractErrorModel):
             return self.mismatch_log_likelihood
 
     def sample_noisy_read(self, read_id: str, fragment: Fragment, metadata: str = "") -> SequenceRead:
-        return SequenceRead(read_id=read_id, seq=fragment.seq, quality=np.ones(len(fragment))*1000, metadata=metadata)
+        return SequenceRead(
+            read_id=read_id,
+            seq=AllocatedSequence(fragment.seq.bytes()),
+            quality=np.ones(len(fragment))*1000,
+            metadata=metadata
+        )

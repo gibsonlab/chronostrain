@@ -8,7 +8,7 @@ import json
 from Bio import SeqIO
 
 import numpy as np
-from chronostrain.util.sequences import nucleotides_to_z4
+from chronostrain.util.sequences.z4 import nucleotides_to_z4
 from sklearn.cluster import AgglomerativeClustering
 from chronostrain.logging import create_logger
 logger = create_logger("chronostrain.prune_db")

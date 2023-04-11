@@ -1,13 +1,15 @@
 from pathlib import Path
-from typing import Any, List
+from typing import Any, List, Optional, TextIO
 
 from .commandline import CommandLineException, call_command
 
 
-def _samtools(params: List[Any]):
+def _samtools(params: List[Any], silent: bool = False, stdout: Optional[TextIO] = None):
     exit_code = call_command(
         command='samtools',
-        args=params
+        args=params,
+        silent=silent,
+        stdout=stdout
     )
 
     if exit_code != 0:
@@ -64,3 +66,16 @@ def sam_mapped_only(sam_path: Path, output_path: Path):
     ]
 
     return _samtools(params)
+
+
+def faidx(
+        fasta_path: Path,
+        query_regions: Optional[List[str]] = None,
+        buf: Optional[TextIO] = None,
+        silent: bool = False
+):
+    params = ['faidx']
+    params.append(fasta_path)
+    if query_regions is not None and len(query_regions) > 0:
+        params += query_regions
+    return _samtools(params, stdout=buf, silent=silent)

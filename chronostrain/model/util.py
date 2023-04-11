@@ -1,18 +1,19 @@
 from typing import Iterator, Tuple
-from chronostrain.util.sequences import SeqType
-from .fragments import FragmentSpace
+from chronostrain.util.sequences import Sequence, AllocatedSequence
+from chronostrain.model import FragmentSpace
 from .bacteria import Population
 
+import numpy as np
 from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
 
-def sliding_window(seq: SeqType, width: int) -> Iterator[Tuple[SeqType, int]]:
+def sliding_window_bytes(seq: Sequence, width: int) -> Iterator[Tuple[np.ndarray, int]]:
     """
     A generator for the subsequences produced by a sliding window of specified width.
     """
     for i in range(len(seq) - width + 1):
-        yield seq[i:i + width], i
+        yield seq.bytes[i:i + width], i
 
 
 def construct_fragment_space_uniform_length(window_size: int, population: Population) -> FragmentSpace:
@@ -24,8 +25,11 @@ def construct_fragment_space_uniform_length(window_size: int, population: Popula
     fragment_space = FragmentSpace()
     for strain in population.strains:
         for marker in strain.markers:
-            for seq, pos in sliding_window(marker.seq, window_size):
-                fragment_space.add_seq(seq, metadata="{}_{}_Pos({})".format(strain.id, marker.id, pos))
+            for seq_bytes, pos in sliding_window_bytes(marker.seq, window_size):
+                fragment_space.add_seq(
+                    AllocatedSequence(seq_bytes),
+                    metadata="{}_{}_Pos({})".format(strain.id, marker.id, pos)
+                )
 
-    logger.debug("Finished constructing fragment space. (Size={})".format(fragment_space.size()))
+    logger.debug("Finished constructing fragment space. (Size={})".format(len(fragment_space)))
     return fragment_space

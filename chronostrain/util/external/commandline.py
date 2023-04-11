@@ -1,6 +1,7 @@
 from pathlib import Path
 import subprocess
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
+from io import TextIOBase
 
 from chronostrain.logging import create_logger
 logger = create_logger(__name__)
@@ -18,7 +19,7 @@ def call_command(command: str,
                  cwd: Path = None,
                  shell: bool = False,
                  environment: Optional[Dict[str, str]] = None,
-                 output_path: Path = None,
+                 stdout: Union[None, Path, TextIOBase] = None,
                  stdin: int = subprocess.PIPE,
                  stderr: int = subprocess.PIPE,
                  silent: bool = False) -> int:
@@ -28,9 +29,12 @@ def call_command(command: str,
     :param args: The command-line arguments.
     :param cwd: The `cwd param in subprocess. If not `None`, the function changes
     the working directory to cwd prior to execution.
-    :param shell: Indicates whether or not to instantiate a shell from which to invoke the command (not recommended!)
+    :param shell: Indicates whether to instantiate a shell from which to invoke the command (not recommended!)
     :param environment: A key-value pair representing an environment with necessary variables set.
-    :param output_path: A path to print the contents of STDOUT to. (If None, logs STDOUT instead.)
+    :param stdout: Specifies where to direct the contents of STDOUT to.
+    If None, does nothing with output (other than logging, unless silent = True which suppresses all logging).
+    If a file path is specified, dumps the contents onto the file.
+    If a StringIO object is specified, dumps the contents into this stream.
     :param stdin: (default: subprocess.PIPE)
     :param stderr: (default: subprocess.PIPE)
     :param silent: Determines whether to send debug messages to the logger.
@@ -45,28 +49,19 @@ def call_command(command: str,
             arguments=" ".join(args)
         ))
 
-    if output_path is not None:
+    if stdout is None:
+        p = _run_subprocess(command, args, cwd, shell, environment, subprocess.PIPE, stdin, stderr)
+    elif isinstance(stdout, Path):
         if not silent:
-            logger.debug("STDOUT redirect to {}.".format(output_path))
-        output_file = open(output_path, 'w')
+            logger.debug("STDOUT redirect to {}.".format(stdout))
+        with open(stdout, 'wt') as f:
+            p = _run_subprocess(command, args, cwd, shell, environment, f, stdin, stderr)
+    elif isinstance(stdout, TextIOBase):
+        # Some other arbitrary textio (which might not have a fileno)
+        p = _run_subprocess(command, args, cwd, shell, environment, subprocess.PIPE, stdin, stderr)
+        stdout.write(p.stdout.decode('utf-8'))
     else:
-        output_file = None
-
-    try:
-        p = subprocess.run(
-            [command] + args,
-            stdin=stdin,
-            stderr=stderr,
-            stdout=output_file if output_file is not None else subprocess.PIPE,
-            shell=shell,
-            cwd=None if cwd is None else str(cwd),
-            env=environment
-        )
-    except FileNotFoundError as e:
-        raise RuntimeError(f"Encountered file error running subprocess. Is `{command}` installed?") from e
-
-    if output_file is not None:
-        output_file.close()
+        raise RuntimeError("Unsupported `stdout` argument type: {}".format(type(stdout)))
 
     stdout_bytes = p.stdout
     stderr_bytes = p.stderr
@@ -78,3 +73,27 @@ def call_command(command: str,
             logger.debug("STDERR: {}".format(stderr_bytes.decode("utf-8").strip()))
 
     return p.returncode
+
+
+def _run_subprocess(
+        command: str,
+        args: List[Any],
+        cwd: Path = None,
+        shell: bool = False,
+        environment: Optional[Dict[str, str]] = None,
+        stdout: Union[int, TextIOBase] = None,
+        stdin: int = subprocess.PIPE,
+        stderr: int = subprocess.PIPE,
+) -> subprocess.CompletedProcess:
+    try:
+        return subprocess.run(
+            [command] + args,
+            stdin=stdin,
+            stderr=stderr,
+            stdout=stdout,
+            shell=shell,
+            cwd=None if cwd is None else str(cwd),
+            env=environment
+        )
+    except FileNotFoundError as e:
+        raise RuntimeError(f"Encountered file error running subprocess. Is `{command}` installed?") from e

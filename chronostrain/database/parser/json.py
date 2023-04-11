@@ -7,7 +7,7 @@ from typing import Iterator, List, Tuple, Dict, Any
 from chronostrain.model import Strain, StrainMetadata, Marker
 
 from .base import AbstractDatabaseParser, StrainDatabaseParseError
-from .marker_sources import CachedMarkerSource, MarkerSource
+from .marker_sources import CachedSingleFastaMarkerSource, SingleFastaMarkerSource
 from ...util.sequences import UnknownNucleotideError
 
 from chronostrain.logging import create_logger
@@ -302,7 +302,7 @@ class JSONParser(AbstractDatabaseParser):
             elif seq_entry.is_contig:
                 contig_accs.append(seq_entry.accession)
 
-            marker_src = CachedMarkerSource(
+            marker_src = CachedSingleFastaMarkerSource(
                 strain_id=strain_entry.id,
                 data_dir=self.data_dir,
                 seq_accession=seq_entry.accession,
@@ -343,7 +343,7 @@ class JSONParser(AbstractDatabaseParser):
             )
         )
 
-    def parse_marker(self, marker_entry: MarkerEntry, marker_src: MarkerSource) -> Marker:
+    def parse_marker(self, marker_entry: MarkerEntry, marker_src: SingleFastaMarkerSource) -> Marker:
         if isinstance(marker_entry, TagMarkerEntry):
             marker = marker_src.extract_from_locus_tag(
                 marker_entry.marker_id,
