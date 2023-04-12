@@ -73,6 +73,12 @@ from ..base import option
     help='If using a variational method, specify the number of samples to generate as output.'
 )
 @option(
+    '--allocate-fragments/--no-allocate-fragments', 'allocate_fragments',
+    is_flag=True, default=True,
+    help='Specify whether or not to store fragment sequences in memory '
+         '(if False, will attempt to use disk-allocation instead).'
+)
+@option(
     '--plot-format', 'plot_format', type=str, default='pdf',
     help='The format to use for saving posterior plots.'
 )
@@ -102,6 +108,7 @@ def main(
         read_batch_size: int,
         correlation_mode: str,
         num_posterior_samples: int,
+        allocate_fragments: bool,
         plot_format: str,
         draw_training_history: bool,
         plot_elbo: bool
@@ -119,7 +126,7 @@ def main(
     from chronostrain.model import Population
     from chronostrain.model.io import TimeSeriesReads
     import chronostrain.visualizations as viz
-    from .initializers import load_fragments, perform_advi
+    from .initializers import load_fragments, load_fragments_dynamic, perform_advi
 
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -142,7 +149,10 @@ def main(
     # ============ Parse input reads.
     logger.info("Loading time-series read files.")
     reads = TimeSeriesReads.load_from_csv(reads_input)
-    fragments = load_fragments(reads, db, logger)
+    if allocate_fragments:
+        fragments = load_fragments(reads, db, logger)
+    else:
+        fragments = load_fragments_dynamic(reads, db, logger)
 
     # ============ Create model instance
     solver, posterior, elbo_history, (uppers, lowers, medians) = perform_advi(

@@ -102,7 +102,7 @@ class TimeSliceReads(object):
         reads = []
         for src in sources:
             n_reads_in_src = 0
-            for record in read_seq_file(src.path, src.quality_format):
+            for record_idx, record in enumerate(read_seq_file(src.path, src.quality_format)):
                 if (src.quality_format == "fastq") \
                         or (src.quality_format == "fastq-sanger") \
                         or (src.quality_format == "fastq-illumina"):
@@ -120,14 +120,15 @@ class TimeSliceReads(object):
                 if src.read_type == ReadType.SINGLE_END:
                     read = SequenceRead(
                         read_id=record.id,
+                        read_index=record_idx,
                         seq=AllocatedSequence(str(record.seq)),
                         quality=quality,
                         metadata=record.description
                     )
                 elif src.read_type == ReadType.PAIRED_END_1:
-                    read = PairedEndRead(record.id, AllocatedSequence(str(record.seq)), quality, record.description, forward=True)
+                    read = PairedEndRead(record.id, record_idx, AllocatedSequence(str(record.seq)), quality, record.description, forward=True)
                 elif src.read_type == ReadType.PAIRED_END_2:
-                    read = PairedEndRead(record.id, AllocatedSequence(str(record.seq)), quality, record.description, forward=False)
+                    read = PairedEndRead(record.id, record_idx, AllocatedSequence(str(record.seq)), quality, record.description, forward=False)
                 else:
                     raise NotImplementedError("Unimplemented ReadType instantiation for `{}`".format(src.read_type))
                 reads.append(read)

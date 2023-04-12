@@ -6,9 +6,9 @@ from ...util.sequences import Sequence
 
 class PairedEndRead(SequenceRead):
     def __init__(self,
-                 read_id: str, seq: Sequence, quality: np.ndarray, metadata: str,
+                 read_id: str, read_index: int, seq: Sequence, quality: np.ndarray, metadata: str,
                  forward: bool):
-        super().__init__(read_id, seq, quality, metadata)
+        super().__init__(read_id, read_index, seq, quality, metadata)
         self.forward = forward
 
     @property

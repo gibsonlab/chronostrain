@@ -183,17 +183,37 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
             )  # (S x R)
 
             # Locate and filter out reads with no good alignments.
-            bad_indices = set(
-                float(x.cpu())
-                for x in torch.where(torch.sum(~torch.isinf(strain_read_lls_t), dim=0) == 0)[0]
-            )
-            good_indices = [i for i in range(data_ll_t.shape[1]) if i not in bad_indices]
+            bad_indices = {
+                int(x)
+                for x in torch.where(
+                    torch.eq(
+                        torch.sum(~torch.isinf(strain_read_lls_t), dim=0).cpu(),
+                        torch.tensor(0)
+                    )
+                )[0]
+            }
             if len(bad_indices) > 0:
                 logger.warning("(t = {}) Found {} reads without good alignments: {}".format(
                     t_idx,
                     len(bad_indices),
                     [self.data[t_idx][int(i)].id for i in bad_indices]
                 ))
+
+            # Locate and filter out reads that are non-discriminatory
+            # (e.g. are not helpful for inference/contribute little to the posterior)
+            nondisc_indices = {
+                int(x)
+                for x in torch.where(
+                    torch.le(
+                        torch.var(strain_read_lls_t, dim=0, keepdim=False).cpu(),
+                        torch.tensor(0.01)
+                    )
+                )[0]
+            }
+
+            indices_to_prune = bad_indices.union(nondisc_indices)
+            if len(indices_to_prune) > 0:
+                good_indices = [i for i in range(data_ll_t.shape[1]) if i not in indices_to_prune]
                 strain_read_lls_t = strain_read_lls_t[:, good_indices]
 
             self.strain_read_lls.append(strain_read_lls_t)

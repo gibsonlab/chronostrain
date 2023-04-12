@@ -131,6 +131,7 @@ def parse_line_into_alignment(sam_path: Path,
         if samline.is_reverse_complemented:
             read = SequenceRead(
                 read_id=samline.readname,
+                read_index=-1,
                 seq=samline.read_seq.revcomp_seq(),
                 quality=samline.read_phred[::-1],
                 metadata=f"Sam_parsed(f={str(sam_path)},L={samline.lineno},revcomp)"
@@ -138,6 +139,7 @@ def parse_line_into_alignment(sam_path: Path,
         else:
             read = SequenceRead(
                 read_id=samline.readname,
+                read_index=-1,
                 seq=samline.read_seq,
                 quality=samline.read_phred,
                 metadata=f"Sam_parsed(f={str(sam_path)},L={samline.lineno})"
@@ -316,7 +318,8 @@ def parse_alignments(sam_file: SamFile,
     """
     n_alns = sam_file.num_mapped_lines()
     logger.debug(f"Parsing {n_alns} alignments from {sam_file.file_path.name}")
-    for samline in sam_file.mapped_lines():
+    from tqdm import tqdm
+    for samline in tqdm(sam_file.mapped_lines(), total=n_alns, desc=sam_file.file_path.name):
         try:
             if read_getter is not None:
                 # Apply min_hit_ratio criterion.

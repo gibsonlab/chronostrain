@@ -6,7 +6,6 @@ from chronostrain.algs.subroutines.cache import ReadsComputationCache
 from chronostrain.database import StrainDatabase
 from chronostrain.model import FragmentSpace, UnallocatedFragmentSpace
 from chronostrain.model.io import TimeSeriesReads
-from chronostrain.util.sequences import FastaIndexedResource
 
 
 def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase, logger: Logger, mode: str = 'pairwise') -> FragmentSpace:
@@ -42,10 +41,9 @@ def aligned_exact_fragments_dynamic(reads: TimeSeriesReads,
                                     db: StrainDatabase,
                                     work_dir: Path,
                                     logger: Logger, mode: str = 'pairwise') -> UnallocatedFragmentSpace:
-    logger.info("Constructing fragments from alignments.")
+    logger.info("Constructing fragments from alignments (disk-allocation).")
     fasta_path = work_dir / "fragments.fasta"
-    frag_fasta = FastaIndexedResource(fasta_path, use_gzip=True)
-    fragment_space = UnallocatedFragmentSpace(fasta=frag_fasta)
+    fragment_space = UnallocatedFragmentSpace(fasta_path=fasta_path)
 
     if mode == 'pairwise':
         alignments = CachedReadPairwiseAlignments(reads, db)
@@ -54,6 +52,8 @@ def aligned_exact_fragments_dynamic(reads: TimeSeriesReads,
 
             if len(aln.marker_frag) < 15:
                 raise Exception("UNEXPECTED ERROR! found frag of length smaller than 15")
+
+    fragment_space.write_fasta_records()
     return fragment_space
 
 
@@ -69,7 +69,7 @@ def load_fragments(reads: TimeSeriesReads, db: StrainDatabase, logger: Logger) -
 def load_fragments_dynamic(reads: TimeSeriesReads, db: StrainDatabase, logger: Logger) -> UnallocatedFragmentSpace:
     cache = ReadsComputationCache(reads)
     return cache.call(
-        relative_filepath="inference_fragments.pkl",
+        relative_filepath="inference_fragments_dynamic.pkl",
         fn=aligned_exact_fragments_dynamic,
         call_args=[reads, db, cache.cache_dir, logger]
     )

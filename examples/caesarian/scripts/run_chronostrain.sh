@@ -17,8 +17,9 @@ echo "Running inference on participant ${participant}."
 run_dir=${DATA_DIR}/${participant}/chronostrain
 export CHRONOSTRAIN_LOG_FILEPATH="${run_dir}/inference.log"
 export CHRONOSTRAIN_CACHE_DIR="${run_dir}/.cache"
-export CHRONOSTRAIN_DB_SPECIFICATION="${DATA_DIR}/${participant}/isolate_assemblies/metadata.tsv"
-export CHRONOSTRAIN_DB_NAME="P-${participant}"
+#export CHRONOSTRAIN_DB_SPECIFICATION="${DATA_DIR}/${participant}/isolate_assemblies/metadata.tsv"
+#export CHRONOSTRAIN_DB_NAME="P-${participant}"
+export CHRONOSTRAIN_DB_JSON="${DATA_DIR}/${participant}/${participant}_chronostrain.json"
 cd ${BASE_DIR}
 
 
@@ -29,9 +30,11 @@ then
     -o ${run_dir}/filtered \
     --aligner "bowtie2"
   touch ${run_dir}/filtered/FILTER_DONE.txt
+else
+  echo "[*] Skipping filter (already done!)"
 fi
 
-chronostrain infer \
+chronostrain advi \
   -r ${run_dir}/filtered/filtered_reads.csv \
   -o ${run_dir}/inference \
   --seed $INFERENCE_SEED \
@@ -43,6 +46,7 @@ chronostrain infer \
   --min-lr ${CHRONOSTRAIN_MIN_LR} \
   --learning-rate $CHRONOSTRAIN_LR \
   --num-samples $CHRONOSTRAIN_NUM_SAMPLES \
+  --no-allocate-fragments \
   --read-batch-size $CHRONOSTRAIN_READ_BATCH_SZ \
   --plot-format "pdf" \
   --plot-elbo

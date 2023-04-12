@@ -1,9 +1,12 @@
+import json
 from typing import Dict
 from pathlib import Path
 import gzip
 import click
 import pandas as pd
 from urllib import error as urlerror, request as urlrequest, parse as urlparse
+
+from Bio import SeqIO
 
 from chronostrain.config import cfg
 from chronostrain.util.filesystem import convert_size
@@ -101,7 +104,9 @@ def main(
     metadata_df = download_for_patient(merged_df, target_participant, target_download_dir)
     metadata_path = target_download_dir / 'metadata.tsv'
     metadata_df.to_csv(metadata_path, sep='\t', index=False)
-    initialize_db(metadata_path, db_name=f"P-{target_participant}")
+
+    json_path = output_dir / target_participant / f'{target_participant}_chronostrain.json'
+    initialize_db(metadata_df, json_path)
 
 
 def download_for_patient(sample_df: pd.DataFrame, target_participant: str, target_dir: Path):
@@ -123,7 +128,7 @@ def download_for_patient(sample_df: pd.DataFrame, target_participant: str, targe
 
         fasta_path = target_dir / f'{assembly_acc}.fasta'
         logger.info(f"Downloading assembly {assembly_acc} [{genus} {species}]")
-        download_fasta(assembly_acc, fasta_path, do_gzip=False)
+        # download_fasta(assembly_acc, fasta_path, do_gzip=False)
         metadata_df_entries.append({
             'Participant': target_participant,
             'Accession': assembly_acc,
@@ -136,13 +141,48 @@ def download_for_patient(sample_df: pd.DataFrame, target_participant: str, targe
     return pd.DataFrame(metadata_df_entries)
 
 
-def initialize_db(metadata_path: Path, db_name: str):
-    from chronostrain.database import IsolateAssemblyDatabase
-    _ = IsolateAssemblyDatabase(
-        db_name=db_name,
-        specs=metadata_path,
-        data_dir=cfg.database_cfg.data_dir
-    )
+def initialize_db(metadata_df: pd.DataFrame, json_path: Path):
+    db_records = []
+    for _, row in metadata_df.iterrows():
+        # create symlink so it is accessible by database parser.
+        accession = row['Accession']
+        target_path = cfg.database_cfg.data_dir / "assemblies" / f"{accession}.fasta"
+        if not target_path.exists():
+            target_path.parent.mkdir(exist_ok=True, parents=True)
+            target_path.symlink_to(Path(row['FastaPath']))
+
+        # create serialized version of database.
+        marker_entries = [
+            {
+                "id": f'{accession}_contig_{i+1}',
+                "name": f'{accession}_contig_{i+1}',
+                "type": "fasta",
+                "source": accession,
+                "record_id": record.id
+            }
+            for i, record in enumerate(SeqIO.parse(target_path, "fasta"))
+        ]
+        strain_entry = {
+            'id': row['Accession'],
+            'genus': row['Genus'],
+            'species': row['Species'],
+            'name': '{}:{}__{}_{}'.format(row['Participant'], row['Accession'], row['Genus'], row['Species']),
+            'genome_length': 0,
+            'seqs': [{'accession': row['Accession'], 'seq_type': 'assembly'}],
+            'markers': marker_entries
+        }
+        db_records.append(strain_entry)
+
+    with open(json_path, 'w') as outfile:
+        json.dump(db_records, outfile, indent=4)
+    logger.info(f"Wrote output to {str(json_path)}.")
+
+    # from chronostrain.database import IsolateAssemblyDatabase
+    # _ = IsolateAssemblyDatabase(
+    #     db_name=db_name,
+    #     specs=metadata_path,
+    #     data_dir=cfg.database_cfg.data_dir
+    # )
 
 
 if __name__ == "__main__":

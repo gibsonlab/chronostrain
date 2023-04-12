@@ -93,7 +93,7 @@ def main(
     if skip_symlink:
         pass
     else:
-        from chronostrain.database.parser.marker_sources import SingleFastaMarkerSource
+        from chronostrain.database.parser.marker_sources import EntrezMarkerSource
         from chronostrain.util.entrez import fasta_filename
 
         logger.info(f"Creating symbolic links to reference catalog (target dir: {cfg.database_cfg.data_dir})")
@@ -102,7 +102,7 @@ def main(
             seq_path = Path(row['SeqPath'])
             if not seq_path.exists():
                 raise FileNotFoundError("Reference index pointed to `{seq_path}`, but it does not exist.")
-            target_dir = SingleFastaMarkerSource.assembly_subdir(cfg.database_cfg.data_dir, strain_id)
+            target_dir = EntrezMarkerSource.assembly_subdir(cfg.database_cfg.data_dir, strain_id)
             target_dir.mkdir(exist_ok=True, parents=True)
 
             target_path = fasta_filename(strain_id, target_dir)

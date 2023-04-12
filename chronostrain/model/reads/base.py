@@ -3,7 +3,6 @@
 """
 import numpy as np
 from abc import abstractmethod, ABCMeta
-from chronostrain.model import Fragment
 from chronostrain.util.sequences import Sequence
 
 
@@ -11,7 +10,7 @@ class SequenceRead:
     """
     A class representing a sequence-quality vector pair.
     """
-    def __init__(self, read_id: str, seq: Sequence, quality: np.ndarray, metadata: str):
+    def __init__(self, read_id: str, read_index: int, seq: Sequence, quality: np.ndarray, metadata: str):
         self.id: str = read_id
         if len(seq) != len(quality):
             raise ValueError(
@@ -19,6 +18,7 @@ class SequenceRead:
                     len(seq), len(quality)
                 )
             )
+        self.index: int = read_index
 
         """
         The sequence content of the read is stored as a numpy-optimized array of ubyte.
@@ -59,7 +59,7 @@ class AbstractErrorModel(metaclass=ABCMeta):
 
     @abstractmethod
     def compute_log_likelihood(self,
-                               fragment: Fragment,
+                               fragment: np.ndarray,
                                read: SequenceRead,
                                read_reverse_complemented: bool,
                                insertions: np.ndarray,
@@ -68,7 +68,7 @@ class AbstractErrorModel(metaclass=ABCMeta):
                                read_end_clip: int = 0) -> float:
         """
         Compute the log probability of observing the read, conditional on the fragment.
-        :param fragment: The source fragment (a String)
+        :param fragment: The source fragment
         :param read: The read (of type SequenceRead)
         :param read_reverse_complemented: Indicates whether the read ought to be reverse complemented.
         :param insertions: A boolean array that indicates inserted nucleotides of the read.
@@ -80,18 +80,6 @@ class AbstractErrorModel(metaclass=ABCMeta):
         :return: the value P(read | fragment).
 
         Note: If `reverse complement` is specified, this will apply first BEFORE applying insertions/deletions/clipping.
-        """
-        pass
-
-    @abstractmethod
-    def sample_noisy_read(self, read_id: str, fragment: Fragment, metadata: str = "") -> SequenceRead:
-        """
-        Obtain a random read (q-vec and sequence pair) from a given fragment.
-
-        :param read_id: The ID of the read.
-        :param fragment: The source fragment.
-        :param metadata: The metadata to store in the read.
-        :return: A list of reads sampled according to their probabilities.
         """
         pass
 

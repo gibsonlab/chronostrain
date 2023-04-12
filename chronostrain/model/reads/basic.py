@@ -177,7 +177,7 @@ class BasicErrorModel(AbstractErrorModel):
         self.deletion_error_ll = deletion_error_ll
 
     def compute_log_likelihood(self,
-                               fragment: Fragment,
+                               fragment: np.ndarray,
                                read: SequenceRead,
                                read_reverse_complemented: bool,
                                insertions: np.ndarray,
@@ -187,7 +187,6 @@ class BasicErrorModel(AbstractErrorModel):
         insertion_ll = np.sum(insertions) * self.insertion_error_ll
         deletion_ll = np.sum(deletions) * self.deletion_error_ll
 
-        fragment_seq = fragment.seq.bytes()
         if read_reverse_complemented:
             read_qual = read.quality[::-1]
             read_seq = read.seq.revcomp_bytes()
@@ -199,17 +198,8 @@ class BasicErrorModel(AbstractErrorModel):
         _slice = slice(read_start_clip, len(read_seq) - read_end_clip)
         read_qual = read_qual[_slice][~insertions]
         read_seq = read_seq[_slice][~insertions]
-        fragment_seq = fragment_seq[~deletions]
+        fragment_seq = fragment[~deletions]
 
         return insertion_ll + deletion_ll + np.log(
             BasicErrorModel.Q_SCORE_BASE_CHANGE_MATRICES[read_qual, fragment_seq, read_seq]
         ).sum()
-
-    def sample_noisy_read(self, read_id: str, fragment: Fragment, metadata: str = "") -> SequenceRead:
-        quality_score_vector = self.q_dist.sample_qvec()
-        random_seq = choice_vectorized(
-            p=BasicErrorModel.Q_SCORE_BASE_CHANGE_MATRICES[quality_score_vector, fragment.seq, :],
-            axis=1,
-            dtype=cseq.NucleotideDtype
-        )
-        return SequenceRead(read_id=read_id, seq=AllocatedSequence(random_seq), quality=quality_score_vector, metadata=metadata)

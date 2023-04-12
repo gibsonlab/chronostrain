@@ -14,13 +14,18 @@ _genbank_filename = "{accession}.gb"
 _INITIALIZED = False
 
 
-def init_entrez(email: str):
+def initialize_entrez():
+    global _INITIALIZED
     if not _INITIALIZED:
+        from chronostrain.config import cfg
+        email = cfg.entrez_cfg.email
         if len(email) == 0:
-            raise RuntimeError("To meet NCBI's Entrez API conventions [https://www.ncbi.nlm.nih.gov/books/NBK25497/#chapter2.Usage_Guidelines_and_Requiremen], please specify an Email address in the configuration (We do not store or use your e-mail for any other purpose).")
+            raise RuntimeError(
+                "To meet NCBI's Entrez API conventions [https://www.ncbi.nlm.nih.gov/books/NBK25497/#chapter2.Usage_Guidelines_and_Requiremen], please specify an Email address in the configuration (We do not store or use your e-mail for any other purpose).")
         logger.info(f"Using email `{email}` for Entrez.")
         Entrez.email = email
         Entrez.tool = "chronostrain"
+        _INITIALIZED = True
 
 
 def fasta_filename(accession: str, base_dir: Path) -> Path:
@@ -64,6 +69,7 @@ def fetch_entrez(entrez_db: str,
         ))
     else:
         file_path.parent.mkdir(exist_ok=True, parents=True)
+        initialize_entrez()
         logger.debug("[{}] Downloading entrez file ({})...".format(
             accession[0] if isinstance(accession, list) else accession,
             str(file_path.name)

@@ -39,7 +39,7 @@ class PhredErrorModel(AbstractErrorModel):
         return insertion_ll + deletion_ll
 
     def compute_log_likelihood(self,
-                               fragment: Fragment,
+                               fragment: np.ndarray,
                                read: SequenceRead,
                                read_reverse_complemented: bool,
                                insertions: np.ndarray,
@@ -49,7 +49,6 @@ class PhredErrorModel(AbstractErrorModel):
         """
         Uses phred scores to compute Pr(Read | Fragment, Quality).
         """
-        fragment_seq = fragment.seq.bytes()
         if read_reverse_complemented:
             read_qual = read.quality[::-1]
             read_seq = read.seq.revcomp_bytes()
@@ -62,7 +61,7 @@ class PhredErrorModel(AbstractErrorModel):
         _slice = slice(read_start_clip, len(read_seq) - read_end_clip)
         read_qual = read_qual[_slice][~insertions]
         read_seq = read_seq[_slice][~insertions]
-        fragment_seq = fragment_seq[~deletions]
+        fragment_seq = fragment[~deletions]
 
         error_log10_prob = -0.1 * read_qual
         matches: np.ndarray = (fragment_seq == read_seq) & (read_qual > 0)
@@ -74,18 +73,3 @@ class PhredErrorModel(AbstractErrorModel):
         log_p_errors = -np.log(3) + np.log(10) * error_log10_prob[np.where(mismatches)]
         log_p_matches = np.log(1 - np.power(10, error_log10_prob[np.where(matches)]))
         return self.indel_ll(read, insertions, deletions) + log_p_matches.sum() + log_p_errors.sum()
-
-    def sample_noisy_read(self, read_id: str, fragment: Fragment, metadata="") -> SequenceRead:
-        qvec = self.q_dist.sample_qvec()
-
-        # Random shift by an integer mod 4.
-        error_probs = np.power(10, -0.1 * qvec)
-        error_locations: np.ndarray = np.less(np.random.rand(error_probs.shape[0]), error_probs)
-
-        rand_shift = np.random.randint(low=0, high=4, size=np.sum(error_locations), dtype=NucleotideDtype)
-        read_bytes = fragment.seq.bytes()
-        read_bytes[np.where(error_locations)] = np.mod(
-            read_bytes[np.where(error_locations)] + rand_shift,
-            4
-        )
-        return SequenceRead(read_id=read_id, seq=AllocatedSequence(read_bytes), quality=qvec, metadata=metadata)

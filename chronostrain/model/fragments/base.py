@@ -65,7 +65,7 @@ class FragmentSpace:
         self.frag_list: List[Fragment] = list()
         self.min_frag_len = 0
 
-    def contains_seq(self, seq: Sequence) -> bool:
+    def _contains_seq(self, seq: Sequence) -> bool:
         return self._seq_to_key(seq) in self.seq_to_frag
 
     @staticmethod
@@ -92,7 +92,7 @@ class FragmentSpace:
         :param metadata: The fragment-specific metadata to add (useful for record-keeping on toy data).
         :return: the Fragment instance that got added.
         """
-        if self.contains_seq(seq):
+        if self._contains_seq(seq):
             frag = self.get_fragment(seq)
         else:
             frag = self._create_frag(seq)
@@ -103,6 +103,9 @@ class FragmentSpace:
 
     def get_fragments(self) -> Iterable[Fragment]:
         return self.seq_to_frag.values()
+
+    def get_fragment_index(self, seq: Sequence) -> int:
+        return self.seq_to_frag[self._seq_to_key(seq)].index
 
     def get_fragment(self, seq: Sequence) -> Fragment:
         """

@@ -1,6 +1,5 @@
 from pathlib import Path
-from typing import List, Dict, Tuple, Set
-from collections import defaultdict
+from typing import List, Dict, Tuple, Set, Iterator
 import numpy as np
 import torch
 
@@ -14,7 +13,6 @@ from chronostrain.util.math.matrices import *
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.config import cfg
 from chronostrain.model.generative import GenerativeModel
-from chronostrain.util.sequences import AllocatedSequence
 
 from .base import DataLikelihoods, AbstractLogLikelihoodComputer
 from ..alignments import CachedReadMultipleAlignments, CachedReadPairwiseAlignments
@@ -104,16 +102,8 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         # ==== Cache.
         self.cache = ReadsPopulationCache(reads, model.bacteria_pop)
 
-    def _compute_read_frag_alignments(self, t_idx: int) -> Dict[str, List[Tuple[Fragment, float]]]:
-        # Note: this method used to have multiple implementations.
-        # Now we provide a default one which uses multiple alignment.
-        # See _compute_read_frag_alignments_pairwise for the defunct implementation.
-
-        # return self._compute_read_frag_alignments_multiple(t_idx)
-        return self._compute_read_frag_alignments_pairwise(t_idx)
-
     def read_frag_ll(self,
-                     frag: Fragment,
+                     frag_seq: np.ndarray,
                      read: SequenceRead,
                      insertions: np.ndarray,
                      deletions: np.ndarray,
@@ -126,7 +116,7 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         approximately zero given the actual alignment.
         """
         forward_ll = self.model.error_model.compute_log_likelihood(
-            frag, read,
+            frag_seq, read,
             read_reverse_complemented=reverse_complemented,
             insertions=insertions,
             deletions=deletions,
@@ -135,48 +125,36 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         )
         return forward_ll - np.log(2)
 
-    def _compute_read_frag_alignments_pairwise(self, t_idx: int) -> Dict[str, List[Tuple[Fragment, float]]]:
+    def _compute_read_frag_alignments_pairwise(self, t_idx: int) -> Iterator[Tuple[SequenceRead, str, float]]:
         """
         Iterate through the timepoint's SamHandler instances (if the reads of t_idx came from more than one path).
         Each of these SamHandlers provides alignment information.
         :param t_idx: the timepoint index to use.
-        :return: A defaultdict representing the map
-            (Read ID) -> {Fragments that the read aligns to}, {Frag->Read log likelihood}
+        :return: An iterator over triples (read_id, frag_seq, error_ll).
         """
-        read_to_frag_likelihoods: Dict[str, List[Tuple[Fragment, float]]] = defaultdict(list)
+
+        # :return: A defaultdict representing the map
+        #     (Read ID) -> {Fragments that the read aligns to}, {Frag->Read log likelihood}
+        # """
+        # read_to_frag_likelihoods: Dict[str, List[Tuple[Fragment, float]]] = defaultdict(list)
 
         """
         Does NOT handle alignment of indels to indels! (e.g. for marker variant construction). By definition, 
         that requires multiple alignment.
         """
         ll_threshold = -500
-        included_pairs: Set[str] = set()
-        def add_subseq_likelihood(subseq, read, insertions, deletions, revcomp, start_clip: int, end_clip: int):
-            frag = self.model.fragments.get_fragment(subseq)
-
-            pair_identifier = f"{read.id}->{frag.index}"
-            if pair_identifier in included_pairs:
-                return
-            else:
-                included_pairs.add(pair_identifier)
-
-            ll = self.read_frag_ll(
-                frag,
-                read,
-                insertions, deletions,
-                reverse_complemented=revcomp,
-                start_clip=start_clip,
-                end_clip=end_clip
-            )
-
-            if ll < ll_threshold:
-                return
-            read_to_frag_likelihoods[read.id].append((frag, ll))
-
         for aln in self.pairwise_reference_alignments.alignments_by_timepoint(t_idx):
+            included_pairs: Set[str] = set()
+
             if self.model.bacteria_pop.contains_marker(aln.marker):
-                add_subseq_likelihood(
-                    AllocatedSequence(aln.marker_frag.bytes()),
+                pair_identifier = f"{aln.read.id}->{aln.marker_frag.nucleotides()}"
+                if pair_identifier in included_pairs:
+                    continue
+                else:
+                    included_pairs.add(pair_identifier)
+
+                error_ll = self.read_frag_ll(
+                    aln.marker_frag.bytes(),
                     aln.read,
                     aln.read_insertion_locs(),
                     aln.marker_deletion_locs(),
@@ -184,7 +162,9 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                     aln.soft_clip_start + aln.hard_clip_start,
                     aln.soft_clip_end + aln.hard_clip_end
                 )
-        return read_to_frag_likelihoods
+
+                if error_ll > ll_threshold:
+                    yield aln.read, aln.marker_frag, error_ll
 
     def _compute_read_frag_alignments_multiple(self, t_idx: int) -> Dict[str, List[Tuple[Fragment, float]]]:
         """
@@ -261,16 +241,16 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         log P(read | frag).
         """
         # Perform alignment for approximate fine-grained search.
-        read_to_frag_likelihoods: Dict[str, List[Tuple[Fragment, float]]] = self._compute_read_frag_alignments(t_idx)
+        # read_to_frag_likelihoods: Dict[str, List[Tuple[Fragment, float]]] = self._compute_read_frag_alignments(t_idx)
 
         read_indices: List[int] = []
         frag_indices: List[int] = []
         log_likelihood_values: List[float] = []
-        for read_idx, read in enumerate(self.reads[t_idx]):
-            for frag, log_likelihood in read_to_frag_likelihoods[read.id]:
-                read_indices.append(read_idx)
-                frag_indices.append(frag.id)
-                log_likelihood_values.append(log_likelihood)
+
+        for read, frag_seq, error_ll in self._compute_read_frag_alignments_pairwise(t_idx):
+            read_indices.append(read.index)
+            frag_indices.append(self.model.fragments.get_fragment_index(frag_seq))
+            log_likelihood_values.append(error_ll)
 
         return SparseMatrix(
             indices=torch.tensor(

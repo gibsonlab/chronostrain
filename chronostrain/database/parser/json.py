@@ -7,7 +7,7 @@ from typing import Iterator, List, Tuple, Dict, Any
 from chronostrain.model import Strain, StrainMetadata, Marker
 
 from .base import AbstractDatabaseParser, StrainDatabaseParseError
-from .marker_sources import CachedSingleFastaMarkerSource, SingleFastaMarkerSource
+from .marker_sources import CachedEntrezMarkerSource, ExistingFastaMarkerSource, AbstractMarkerSource
 from ...util.sequences import UnknownNucleotideError
 
 from chronostrain.logging import create_logger
@@ -127,6 +127,10 @@ class SeqEntry:
     def is_contig(self) -> bool:
         return self.seq_type == "contig"
 
+    @property
+    def is_assembly(self) -> bool:
+        return self.seq_type == "assembly"
+
 
 class MarkerEntry:
     def __init__(self, marker_id: str, name: str, is_canonical: bool, source_accession: str):
@@ -145,6 +149,8 @@ class MarkerEntry:
             return PrimerMarkerEntry.deserialize(entry_dict)
         elif marker_type == 'subseq':
             return SubseqMarkerEntry.deserialize(entry_dict)
+        elif marker_type == 'fasta':
+            return FastaRecordEntry.deserialize(entry_dict)
         else:
             raise StrainDatabaseParseError("Unexpected type `{}` in marker entry {}".format(
                 marker_type, entry_dict
@@ -263,6 +269,27 @@ class SubseqMarkerEntry(MarkerEntry):
         )
 
 
+class FastaRecordEntry(MarkerEntry):
+    def __init__(self, marker_id: str, name: str, record_id: str, source_accession: str):
+        super().__init__(marker_id, name, True, source_accession)
+        self.record_id = record_id
+
+    def __str__(self):
+        return repr(self)
+
+    def __repr__(self):
+        return f"FastaRecord[{self.source_accession}__{self.record_id}]"
+
+    @staticmethod
+    def deserialize(entry_dict: dict) -> "FastaRecordEntry":
+        return FastaRecordEntry(
+            marker_id=extract_key_from_json(entry_dict, 'id'),
+            name=extract_key_from_json(entry_dict, 'name'),
+            source_accession=extract_key_from_json(entry_dict, 'source'),
+            record_id=extract_key_from_json(entry_dict, 'record_id')
+        )
+
+
 class UnknownSourceNucleotideError(BaseException):
     def __init__(self, e: UnknownNucleotideError, src: str, marker_entry: MarkerEntry):
         self.nucleotide = e.nucleotide
@@ -294,6 +321,7 @@ class JSONParser(AbstractDatabaseParser):
         chromosome_accs = []
         scaffold_accs = []
         contig_accs = []
+        assembly_accs = []
         for seq_entry, marker_entries in strain_entry.marker_entries_by_seq():
             if seq_entry.is_chromosome:
                 chromosome_accs.append(seq_entry.accession)
@@ -301,14 +329,23 @@ class JSONParser(AbstractDatabaseParser):
                 scaffold_accs.append(seq_entry.accession)
             elif seq_entry.is_contig:
                 contig_accs.append(seq_entry.accession)
+            elif seq_entry.is_assembly:
+                assembly_accs.append(seq_entry.accession)
 
-            marker_src = CachedSingleFastaMarkerSource(
-                strain_id=strain_entry.id,
-                data_dir=self.data_dir,
-                seq_accession=seq_entry.accession,
-                marker_max_len=self.marker_max_len,
-                force_download=self.force_refresh
-            )
+            if seq_entry.is_assembly:
+                marker_src = ExistingFastaMarkerSource(
+                    data_dir=self.data_dir,
+                    strain_id=strain_entry.id,
+                    accession=seq_entry.accession
+                )
+            else:
+                marker_src = CachedEntrezMarkerSource(
+                    strain_id=strain_entry.id,
+                    data_dir=self.data_dir,
+                    seq_accession=seq_entry.accession,
+                    marker_max_len=self.marker_max_len,
+                    force_download=self.force_refresh
+                )
 
             for marker_entry in marker_entries:
                 try:
@@ -343,7 +380,7 @@ class JSONParser(AbstractDatabaseParser):
             )
         )
 
-    def parse_marker(self, marker_entry: MarkerEntry, marker_src: SingleFastaMarkerSource) -> Marker:
+    def parse_marker(self, marker_entry: MarkerEntry, marker_src: AbstractMarkerSource) -> Marker:
         if isinstance(marker_entry, TagMarkerEntry):
             marker = marker_src.extract_from_locus_tag(
                 marker_entry.marker_id,
@@ -367,6 +404,13 @@ class JSONParser(AbstractDatabaseParser):
                 marker_entry.start_pos,
                 marker_entry.end_pos,
                 marker_entry.is_negative_strand
+            )
+        elif isinstance(marker_entry, FastaRecordEntry):
+            marker = marker_src.extract_fasta_record(
+                marker_entry.marker_id,
+                marker_entry.name,
+                marker_entry.record_id,
+                allocate=True
             )
         else:
             raise NotImplementedError(
