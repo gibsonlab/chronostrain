@@ -15,7 +15,6 @@ from chronostrain.util.sequences import Sequence
 class Fragment:
     def __init__(self, seq: Sequence, index: int, metadata: List[str] = None):
         self.seq: Sequence = seq
-        self.seq_len = len(seq)
         self.index: int = index
         self.metadata: List[str] = metadata
 
@@ -52,7 +51,7 @@ class Fragment:
         )
 
     def __len__(self):
-        return self.seq_len
+        return len(self.seq)
 
 
 class FragmentSpace:

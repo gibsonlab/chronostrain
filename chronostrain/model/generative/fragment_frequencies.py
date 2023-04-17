@@ -180,7 +180,7 @@ class FragmentFrequencyComputer(object):
                                 )
                 if not exact_match_found:
                     logger.warning(
-                        f"No exact matches found for fragment ID={fragment.id}."
+                        f"No exact matches found for fragment ID={fragment.index}."
                         f"Validate the output of bwa fastmap!"
                     )
                 else:

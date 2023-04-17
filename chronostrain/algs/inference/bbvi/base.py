@@ -193,10 +193,10 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
                 )[0]
             }
             if len(bad_indices) > 0:
-                logger.warning("(t = {}) Found {} reads without good alignments: {}".format(
+                logger.warning("(t = {}) Found {} reads without good alignments.".format(
                     t_idx,
-                    len(bad_indices),
-                    [self.data[t_idx][int(i)].id for i in bad_indices]
+                    len(bad_indices)
+                    # [self.data[t_idx][int(i)].id for i in bad_indices]
                 ))
 
             # Locate and filter out reads that are non-discriminatory
@@ -210,6 +210,13 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
                     )
                 )[0]
             }
+            if len(nondisc_indices) > 0:
+                logger.warning("(t = {}) Found {} non-discriminatory reads.".format(
+                    t_idx,
+                    len(nondisc_indices)
+                    # [self.data[t_idx][int(i)].id for i in bad_indices]
+                ))
+
 
             indices_to_prune = bad_indices.union(nondisc_indices)
             if len(indices_to_prune) > 0:
