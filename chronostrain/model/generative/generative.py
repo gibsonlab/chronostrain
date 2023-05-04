@@ -9,7 +9,7 @@ from scipy.stats import rv_discrete, nbinom
 
 from chronostrain.model.bacteria import Population
 from chronostrain.model import FragmentSpace
-from chronostrain.model.reads import AbstractErrorModel, SequenceRead
+from chronostrain.model.reads import AbstractErrorModel
 from chronostrain.model.io import TimeSeriesReads, TimeSliceReads
 from chronostrain.util.math.distributions import *
 from chronostrain.util.math.matrices import RowSectionedSparseMatrix
@@ -70,11 +70,9 @@ class GenerativeModel:
 
         logger.debug(f"Model has inverse temperature = {cfg.model_cfg.inverse_temperature}")
         self.latent_conversion = lambda x: torch.softmax(cfg.model_cfg.inverse_temperature * x, dim=-1)
+
         # self.log_latent_conversion = lambda x: torch.log(sparsemax(x, dim=-1))
-        def _log_softmax(x):
-            _x = cfg.model_cfg.inverse_temperature * x
-            return _x - torch.logsumexp(_x, dim=-1, keepdim=True)
-        self.log_latent_conversion = _log_softmax
+        self.log_latent_conversion = lambda x: torch.log_softmax(cfg.model_cfg.inverse_temperature * x, dim=-1)
 
         self.dt_sqrt_inverse = torch.tensor(
             [
@@ -204,7 +202,7 @@ class GenerativeModel:
         _rest_prior = JeffreysGaussian(
             mean=torch.zeros(n_samples, collapsed_size,
                              dtype=cfg.torch_cfg.default_dtype,
-                             device=cfg.torch_cfg.device)
+                             device=X.device)
         )
 
         log_likelihood_first = _first_prior.log_likelihood(x=X[0, :, :])

@@ -17,6 +17,7 @@ def perform_advi(
         population: Population,
         fragments: FragmentSpace,
         reads: TimeSeriesReads,
+        with_zeros: bool,
         num_epochs: int,
         lr_decay_factor: float,
         lr_patience: int,
@@ -48,13 +49,29 @@ def perform_advi(
         db=db,
         logger=logger
     )
-    solver = ADVIGaussianSolver(
-        model=model,
-        data=reads,
-        correlation_type=correlation_type,
-        db=db,
-        read_batch_size=read_batch_size
-    )
+
+    if with_zeros:
+        from chronostrain.model.zeros import PopulationGlobalZeros, PopulationLocalZeros
+
+        # zero_model = PopulationLocalZeros(model.times, model.bacteria_pop.num_strains())
+        zero_model = PopulationGlobalZeros(model.bacteria_pop.num_strains())
+        solver = ADVIGaussianZerosSolver(
+        # solver = ADVIGaussianLocalZerosSolver(
+            model=model,
+            zero_model=zero_model,
+            data=reads,
+            correlation_type=correlation_type,
+            db=db,
+            read_batch_size=read_batch_size
+        )
+    else:
+        solver = ADVIGaussianSolver(
+            model=model,
+            data=reads,
+            correlation_type=correlation_type,
+            db=db,
+            read_batch_size=read_batch_size
+        )
 
     callbacks = []
     uppers = [[] for _ in range(model.num_strains())]
@@ -63,7 +80,6 @@ def perform_advi(
     elbo_history = []
 
     if save_training_history:
-        from chronostrain.util.math.activations import sparsemax
         def anim_callback(x_samples, uppers_buf, lowers_buf, medians_buf):
             # Plot VI posterior.
             y_samples = model.latent_conversion(x_samples)

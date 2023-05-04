@@ -15,7 +15,7 @@ def init_diag(x: torch.Tensor, scale: float):
     return x
 
 
-class TrilLinear(torch.nn.Linear):
+class TrilLinear(torch.nn.Module):
     """
     Represents transformation by a lower triangular (with strictly positive diagonal entries) matrix, with optional
     bias term.
@@ -23,21 +23,30 @@ class TrilLinear(torch.nn.Linear):
     covariance matrix.
     """
     def __init__(self, n_features: int, bias: bool, device=None, dtype=None):
-        super().__init__(
-            in_features=n_features,
-            out_features=n_features,
-            bias=bias,
-            device=device,
-            dtype=dtype
-        )
+        super().__init__()
+        nnz = n_features * (n_features - 1) // 2
+        self.tril_weights = torch.nn.Parameter(torch.zeros(nnz, device=device, dtype=dtype))
+        self.diag_weights = torch.nn.Parameter(torch.zeros(n_features, device=device, dtype=dtype))
+        self.tril_ind = torch.tril_indices(n_features, n_features, -1)
+        if bias:
+            self.bias = torch.nn.Parameter(torch.zeros(n_features, device=device, dtype=dtype))
+        else:
+            self.bias = torch.zeros(n_features, device=device, dtype=dtype)
         self.n_features = n_features
+        self.device = device
+        self.dtype = dtype
 
     @property
-    def cholesky_part(self) -> torch.Tensor:
-        return torch.tril(self.weight, diagonal=-1) + torch.diag(torch.exp(torch.diag(self.weight)))
+    def weight(self) -> torch.Tensor:
+        A = torch.zeros(size=(self.n_features, self.n_features), device=self.device, dtype=self.dtype)
+        tril_r, tril_c = self.tril_ind
+        diag_r = torch.arange(0, self.n_features)
+        A[tril_r, tril_c] = self.tril_weights
+        A[diag_r, diag_r] = torch.exp(self.diag_weights)
+        return A
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return functional.linear(x, self.cholesky_part, self.bias)
+        return functional.linear(x, self.weight, self.bias)
 
 
 class BatchedTrilLinear(torch.nn.Module):

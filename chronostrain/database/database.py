@@ -121,11 +121,12 @@ class StrainDatabase(object):
             logger.debug("Forcing re-creation of multi-fasta file.")
             _generate()
         elif self.multifasta_file.exists():
-            if self._multifasta_is_stale():
-                logger.debug("Multi-fasta file exists, but is stale. Re-creating.")
-                _generate()
-            else:
-                logger.debug("Multi-fasta file already exists. Skipping creation.")
+            logger.debug("TODO: provide a more efficient implementation if staleness checking.")
+            # if self._multifasta_is_stale():
+            #     logger.debug("Multi-fasta file exists, but is stale. Re-creating.")
+            #     _generate()
+            # else:
+            logger.debug("Multi-fasta file already exists. Skipping creation.")
         else:
             _generate()
 

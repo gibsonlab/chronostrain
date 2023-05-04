@@ -5,6 +5,7 @@ from typing import Union, List, Tuple, Iterator
 import torch
 import pandas as pd
 import numpy as np
+import multiprocessing
 from scipy.stats import rv_discrete
 from scipy.special import logsumexp
 
@@ -188,6 +189,31 @@ class FragmentFrequencyComputer(object):
                 pbar.update(1)
 
 
+def frag_log_ll_numpy(strain_idx:int, frag_idx: int, frag_len_rv: rv_discrete, min_overlap: float, frag_len: int, strain_marker_lengths: np.ndarray, hit_marker_lens: np.ndarray, hit_pos: np.ndarray) -> float:
+    window_lens = np.arange(
+        frag_len,
+        1 + max(int(frag_len_rv.mean() + 2 * frag_len_rv.std()), frag_len)
+    )  # length-W
+
+    n_windows = np.sum(strain_marker_lengths) + len(strain_marker_lengths) * (
+            (2 * (1 - min_overlap) - 1) * window_lens + 1
+    )  # length-W
+
+    cond1 = window_lens == frag_len
+    cond2 = (hit_pos == 1) | (hit_pos == hit_marker_lens - frag_len + 1)
+    n_matching_windows = np.sum(cond1[None, :] | cond2[:, None], axis=0)
+    _mask = n_matching_windows > 0
+    result: np.ndarray = logsumexp(
+        frag_len_rv.logpmf(window_lens[_mask]) + np.log(n_matching_windows[_mask]) - np.log(n_windows[_mask]),
+        keepdims=False
+    )
+    return strain_idx, frag_idx, float(result)
+
+
+def _ll_wrapper(args):
+    return frag_log_ll_numpy(*args)
+
+
 class SparseFragmentFrequencyComputer(FragmentFrequencyComputer):
     def __init__(self, frag_length_rv: rv_discrete, db: StrainDatabase, fragments: FragmentSpace, min_overlap_ratio: float):
         super().__init__(frag_length_rv, db)
@@ -197,29 +223,6 @@ class SparseFragmentFrequencyComputer(FragmentFrequencyComputer):
 
     def relative_matrix_path(self) -> Path:
         return Path('fragment_frequencies') / 'sparse_frag_freqs.npz'
-
-    # def construct_matrix_fast(self,
-    #                           fragments: FragmentSpace,
-    #                           population: Population,
-    #                           all_frag_hits: np.ndarray,
-    #                           ) -> RowSectionedSparseMatrix:
-    #     prior_lls = {
-    #         self.frag_length_rv.logpmf()
-    #         for fl in set(frag_lens)
-    #     }
-    #
-    #
-    #     # Use acceleration/multithreading-enabled libraries.
-    #     strain_indices = []
-    #     frag_indices = []
-    #     matrix_values = []
-    #
-    #     return RowSectionedSparseMatrix(
-    #         indices=torch.tensor([frag_indices, strain_indices], device=cfg.torch_cfg.device, dtype=torch.long),
-    #         values=torch.tensor(matrix_values, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype),
-    #         dims=(len(fragments), population.num_strains()),
-    #         force_coalesce=False
-    #     )
 
     def construct_matrix(self,
                          fragments: FragmentSpace,
@@ -242,25 +245,33 @@ class SparseFragmentFrequencyComputer(FragmentFrequencyComputer):
             for idx, strain in enumerate(self.strains)
         }
 
-        for fragment, frag_hits in all_frag_hits:
-            hits_df = pd.DataFrame([
-                {'strain_idx': strain_index_mapping[hit_strain.id], 'hit_marker_len': len(hit_marker), 'hit_pos': hit_pos}
-                for hit_marker, hit_strain, hit_pos in frag_hits
-            ])
-            for strain_idx, section in hits_df.groupby('strain_idx'):
-                if strain_idx not in all_strain_marker_lengths:
-                    all_strain_marker_lengths[strain_idx] = np.array([len(m) for m in self.strains[strain_idx].markers])
+        logger.debug("Using {} cores for fragment frequency task.".format(cfg.model_cfg.num_cores))
+        p = multiprocessing.Pool(cfg.model_cfg.num_cores)
+        def _arg_gen():
+            for fragment, frag_hits in all_frag_hits:
+                hits_df = pd.DataFrame([
+                    {'strain_idx': strain_index_mapping[hit_strain.id], 'hit_marker_len': len(hit_marker), 'hit_pos': hit_pos}
+                    for hit_marker, hit_strain, hit_pos in frag_hits
+                ])
+                for strain_idx, section in hits_df.groupby('strain_idx'):
+                    if strain_idx not in all_strain_marker_lengths:
+                        all_strain_marker_lengths[strain_idx] = np.array([len(m) for m in self.strains[strain_idx].markers])
+                    yield [
+                        strain_idx,
+                        fragment.index,
+                        self.frag_length_rv,
+                        self.min_overlap_ratio,
+                        len(fragment),
+                        all_strain_marker_lengths[strain_idx],
+                        section['hit_marker_len'].to_numpy(),
+                        section['hit_pos'].to_numpy()
+                    ]
 
-                try:
-                    strain_indices.append(strain_idx)
-                except KeyError:
-                    continue
-                frag_indices.append(fragment.index)
-                matrix_values.append(
-                    self.frag_log_ll_numpy(
-                        len(fragment), all_strain_marker_lengths[strain_idx], section['hit_marker_len'].to_numpy(), section['hit_pos'].to_numpy()
-                    )
-                )
+        for strain_idx, fragment_idx, ll in p.imap_unordered(_ll_wrapper, _arg_gen()):
+            strain_indices.append(strain_idx)
+            frag_indices.append(fragment_idx)
+            matrix_values.append(ll)
+
         return RowSectionedSparseMatrix(
             indices=torch.tensor([frag_indices, strain_indices], device=cfg.torch_cfg.device, dtype=torch.long),
             values=torch.tensor(matrix_values, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype),
@@ -304,25 +315,25 @@ class SparseFragmentFrequencyComputer(FragmentFrequencyComputer):
     #         keepdim=False
     #     ).item())
 
-    def frag_log_ll_numpy(self, frag_len: int, strain_marker_lengths: np.ndarray, hit_marker_lens: np.ndarray, hit_pos: np.ndarray) -> float:
-        window_lens = np.arange(
-            frag_len,
-            1 + max(int(self.frag_length_rv.mean() + 2 * self.frag_length_rv.std()), frag_len)
-        )  # length-W
-
-        n_windows = np.sum(strain_marker_lengths) + len(strain_marker_lengths) * (
-                (2 * (1 - self.min_overlap_ratio) - 1) * window_lens + 1
-        )  # length-W
-
-        cond1 = window_lens == frag_len
-        cond2 = (hit_pos == 1) | (hit_pos == hit_marker_lens - frag_len + 1)
-        n_matching_windows = np.sum(cond1[None, :] | cond2[:, None], axis=0)
-        _mask = n_matching_windows > 0
-        result: np.ndarray = logsumexp(
-            self.frag_length_rv.logpmf(window_lens[_mask]) + np.log(n_matching_windows[_mask]) - np.log(n_windows[_mask]),
-            keepdims=False
-        )
-        return float(result)
+    # def frag_log_ll_numpy(self, frag_len: int, strain_marker_lengths: np.ndarray, hit_marker_lens: np.ndarray, hit_pos: np.ndarray) -> float:
+    #     window_lens = np.arange(
+    #         frag_len,
+    #         1 + max(int(self.frag_length_rv.mean() + 2 * self.frag_length_rv.std()), frag_len)
+    #     )  # length-W
+    #
+    #     n_windows = np.sum(strain_marker_lengths) + len(strain_marker_lengths) * (
+    #             (2 * (1 - self.min_overlap_ratio) - 1) * window_lens + 1
+    #     )  # length-W
+    #
+    #     cond1 = window_lens == frag_len
+    #     cond2 = (hit_pos == 1) | (hit_pos == hit_marker_lens - frag_len + 1)
+    #     n_matching_windows = np.sum(cond1[None, :] | cond2[:, None], axis=0)
+    #     _mask = n_matching_windows > 0
+    #     result: np.ndarray = logsumexp(
+    #         self.frag_length_rv.logpmf(window_lens[_mask]) + np.log(n_matching_windows[_mask]) - np.log(n_windows[_mask]),
+    #         keepdims=False
+    #     )
+    #     return float(result)
     #
     #
     # def frag_log_ll(self, frag: Fragment, strain: Strain, hits: List[Tuple[Marker, int]]) -> float:

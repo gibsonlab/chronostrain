@@ -26,9 +26,7 @@ class ADVIGaussianSolver(AbstractADVISolver):
                  data: TimeSeriesReads,
                  db: StrainDatabase,
                  read_batch_size: int = 5000,
-                 num_cores: int = 1,
-                 correlation_type: str = "time",
-                 precomputed_data_likelihoods: Optional[DataLikelihoods] = None):
+                 correlation_type: str = "time"):
         logger.info("Initializing solver with Gaussian posterior")
         if correlation_type == "time":
             posterior = GaussianPosteriorTimeCorrelation(model)
@@ -44,9 +42,7 @@ class ADVIGaussianSolver(AbstractADVISolver):
             data=data,
             db=db,
             posterior=posterior,
-            read_batch_size=read_batch_size,
-            num_cores=num_cores,
-            precomputed_data_likelihoods=precomputed_data_likelihoods
+            read_batch_size=read_batch_size
         )
 
         self.log_total_marker_lens = torch.tensor([

@@ -1,10 +1,11 @@
-from abc import abstractmethod, ABC
+from abc import abstractmethod, ABC, ABCMeta
+from pathlib import Path
 from typing import Optional, List, Callable, Iterator, Type, Dict, Any
 
 import numpy as np
 import torch
+from torch.nn import Parameter
 
-from chronostrain.algs.subroutines.likelihoods import DataLikelihoods
 from chronostrain.database import StrainDatabase
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
@@ -13,11 +14,61 @@ from chronostrain.util.benchmarking import RuntimeEstimator
 from chronostrain.util.math.matrices import *
 
 from .. import AbstractModelSolver
-from .posteriors.base import AbstractReparametrizedPosterior
-from .util import divide_columns_into_batches
+from .util import divide_columns_into_batches_sparse
 
 from chronostrain.logging import create_logger
 logger = create_logger(__name__)
+
+
+class AbstractPosterior(metaclass=ABCMeta):
+    @abstractmethod
+    def sample(self, num_samples: int = 1) -> torch.Tensor:
+        """
+        Returns a sample from this posterior distribution.
+        :param num_samples: the number of samples (N).
+        :return: A time-indexed, simplex-valued (T x N x S) abundance tensor.
+        """
+        pass
+
+    @abstractmethod
+    def mean(self) -> torch.Tensor:
+        """
+        Returns the mean of this posterior distribution.
+        :return: A time-indexed (T x S) abundance tensor.
+        """
+        pass
+
+    @abstractmethod
+    def log_likelihood(self, x: torch.Tensor) -> float:
+        pass
+
+    @abstractmethod
+    def save(self, target_path: Path):
+        pass
+
+
+class AbstractReparametrizedPosterior(AbstractPosterior, ABC):
+    def log_likelihood(self, samples: torch.Tensor) -> torch.Tensor:
+        pass
+
+    @abstractmethod
+    def trainable_parameters(self) -> List[Parameter]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def mean(self) -> torch.Tensor:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def entropy(self) -> torch.Tensor:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def differentiable_sample(self, num_samples: int) -> torch.Tensor:
+        """
+        Return reparametrized (differentiable) samples, to be used for autograd.
+        """
+        raise NotImplementedError()
 
 
 class AbstractADVI(ABC):
@@ -47,7 +98,7 @@ class AbstractADVI(ABC):
             epoch_elbos = []
             time_est.stopwatch_click()
             for it in range(1, iters + 1, 1):
-                reparam_samples = self.posterior.reparametrized_sample(
+                reparam_samples = self.posterior.differentiable_sample(
                     num_samples=num_samples
                 )
 
@@ -110,7 +161,7 @@ class AbstractADVI(ABC):
 
     def optimize_step(self, samples: torch.Tensor,
                       optimizer: torch.optim.Optimizer) -> float:
-        optimizer.zero_grad()
+        optimizer.zero_grad(set_to_none=True)
         elbo_value = 0.0
 
         # Accumulate overall gradient estimator in batches.
@@ -138,16 +189,12 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
                  data: TimeSeriesReads,
                  db: StrainDatabase,
                  posterior: AbstractReparametrizedPosterior,
-                 read_batch_size: int = 5000,
-                 num_cores: int = 1,
-                 precomputed_data_likelihoods: Optional[DataLikelihoods] = None):
+                 read_batch_size: int = 5000):
         AbstractModelSolver.__init__(
             self,
             model,
             data,
-            db,
-            num_cores=num_cores,
-            precomputed_data_likelihoods=precomputed_data_likelihoods
+            db
         )
         self.read_batch_size = read_batch_size
 
@@ -162,7 +209,6 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
             raise NotImplementedError("ADVI only supports sparse data structures.")
 
         # (S x R) matrices: Contains P(R = r | S = s) for each read r, strain s.
-        self.strain_read_lls: List[torch.Tensor] = []
         self.batches: List[List[torch.Tensor]] = [
             [] for _ in range(model.num_times())
         ]
@@ -170,64 +216,68 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
 
         # Precompute this (only possible in V1).
         logger.debug("Precomputing likelihood products.")
+        data_likelihoods = self.data_likelihoods
         for t_idx in range(model.num_times()):
-            data_ll_t = self.data_likelihoods.matrices[t_idx]  # F_ x R
-            self.total_reads += data_ll_t.shape[1]
+            data_ll_t = data_likelihoods.matrices[t_idx]  # F_ x R, sparse CPU
+            projector = data_likelihoods.projectors[t_idx]  # sparse CPU
 
-            projector = self.data_likelihoods.projectors[t_idx]
-            strain_read_lls_t = log_spspmm_exp(
-                ColumnSectionedSparseMatrix.from_sparse_matrix(
-                    projector.sparse_mul(self.model.fragment_frequencies_sparse).t()
-                ),  # (S x F_), note the transpose!
-                data_ll_t  # (F_ x R)
-            )  # (S x R)
+            for batch_idx, data_t_batch in enumerate(divide_columns_into_batches_sparse(data_ll_t, self.read_batch_size)):
+                # ========= Pre-compute likelihood calculations.
+                strain_batch_lls_t = log_spspmm_exp(
+                    ColumnSectionedSparseMatrix.from_sparse_matrix(
+                        projector.sparse_mul(self.model.fragment_frequencies_sparse).t()
+                    ),  # (S x F_), note the transpose!
+                    RowSectionedSparseMatrix.from_sparse_matrix(data_t_batch)  # (F_ x R_batch)
+                )  # (S x R_batch)
 
-            # Locate and filter out reads with no good alignments.
-            bad_indices = {
-                int(x)
-                for x in torch.where(
-                    torch.eq(
-                        torch.sum(~torch.isinf(strain_read_lls_t), dim=0).cpu(),
-                        torch.tensor(0)
-                    )
-                )[0]
-            }
-            if len(bad_indices) > 0:
-                logger.warning("(t = {}) Found {} reads without good alignments.".format(
-                    t_idx,
-                    len(bad_indices)
-                    # [self.data[t_idx][int(i)].id for i in bad_indices]
-                ))
+                # ========= Locate and filter out reads with no good alignments.
+                bad_indices = {
+                    int(x)
+                    for x in torch.where(
+                        torch.eq(
+                            torch.sum(~torch.isinf(strain_batch_lls_t), dim=0).cpu(),
+                            torch.tensor(0)
+                        )
+                    )[0]
+                }
+                if len(bad_indices) > 0:
+                    logger.warning("(t = {}, batch {}) Found {} reads without good alignments.".format(
+                        t_idx, batch_idx, len(bad_indices)
+                    ))
 
-            # Locate and filter out reads that are non-discriminatory
-            # (e.g. are not helpful for inference/contribute little to the posterior)
-            nondisc_indices = {
-                int(x)
-                for x in torch.where(
-                    torch.le(
-                        torch.var(strain_read_lls_t, dim=0, keepdim=False).cpu(),
-                        torch.tensor(0.01)
-                    )
-                )[0]
-            }
-            if len(nondisc_indices) > 0:
-                logger.warning("(t = {}) Found {} non-discriminatory reads.".format(
-                    t_idx,
-                    len(nondisc_indices)
-                    # [self.data[t_idx][int(i)].id for i in bad_indices]
-                ))
+                # =========== Locate and filter out reads that are non-discriminatory
+                # (e.g. are not helpful for inference/contribute little to the posterior)
+                # nondisc_indices = {
+                #     int(x)
+                #     for x in torch.where(
+                #         torch.le(
+                #             torch.var(strain_batch_lls_t, dim=0, keepdim=False).cpu(),
+                #             torch.tensor(0.01)
+                #         )
+                #     )[0]
+                # }
+                # if len(nondisc_indices) > 0:
+                #     logger.warning("(t = {}, batch {}) Found {} non-discriminatory reads.".format(
+                #         t_idx, batch_idx, len(nondisc_indices)
+                #     ))
+                #
+                # indices_to_prune = bad_indices.union(nondisc_indices)
+                if len(bad_indices) == strain_batch_lls_t.shape[1]:
+                    continue
+                elif len(bad_indices) > 0:
+                    good_indices = [i for i in range(strain_batch_lls_t.shape[1]) if i not in bad_indices]
+                    strain_batch_lls_t = strain_batch_lls_t[:, good_indices]
 
-
-            indices_to_prune = bad_indices.union(nondisc_indices)
-            if len(indices_to_prune) > 0:
-                good_indices = [i for i in range(data_ll_t.shape[1]) if i not in indices_to_prune]
-                strain_read_lls_t = strain_read_lls_t[:, good_indices]
-
-            self.strain_read_lls.append(strain_read_lls_t)
+                # ============= Store result.
+                self.total_reads += strain_batch_lls_t.shape[1]
+                self.batches[t_idx].append(strain_batch_lls_t.to(cfg.torch_cfg.device))
 
     def advance_epoch(self):
-        for t_idx in range(self.model.num_times()):
-            self.batches[t_idx] = list(divide_columns_into_batches(self.strain_read_lls[t_idx], self.read_batch_size))
+        """
+        Allow for callbacks in-between epochs, to enable any intermediary state updates.
+        @return:
+        """
+        pass
 
     def solve(self,
               optimizer_class: Type[torch.optim.Optimizer],
@@ -282,7 +332,7 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
         for batch_idx in range(num_batches):
             batch_start_idx = batch_idx * batch_size
             this_batch_sz = min(num_importance_samples - batch_start_idx, batch_size)
-            batch_samples = self.posterior.reparametrized_sample(num_samples=this_batch_sz).detach()
+            batch_samples = self.posterior.differentiable_sample(num_samples=this_batch_sz).detach()
             approx_posterior_ll = self.posterior.log_likelihood(batch_samples).detach()
             log_importance_ratios = (
                     self.model_ll(batch_samples).detach()
@@ -293,7 +343,7 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
 
         # normalize (for numerical stability).
         log_importance_weights = np.concatenate(log_importance_weights)
-        log_importance_weights = log_importance_weights - logsumexp(log_importance_weights)
+        log_importance_weights = log_importance_weights - torch.logsumexp(log_importance_weights, dim=0)
         log_smoothed_weights, k_hat = psis_smooth_ratios(log_importance_weights)
 
         logger.debug(f"Estimated Pareto k-hat: {k_hat}")

@@ -6,10 +6,8 @@ import torch
 import matplotlib.pyplot as plt
 
 from chronostrain import logger
-from chronostrain.algs import AbstractPosterior
 from chronostrain.model import Population
 from chronostrain.model.generative import GenerativeModel
-from chronostrain.util import filesystem
 
 from .plot_abundances import plot_posterior_abundances
 
@@ -96,25 +94,15 @@ def plot_training_animation(
 
 def plot_vi_posterior(times: List[float],
                       population: Population,
-                      posterior: AbstractPosterior,
+                      samples: torch.Tensor,
                       plot_path: Path,
-                      samples_path: Path,
                       plot_format: str,
                       ground_truth_path: Optional[Path] = None,
                       draw_legend: bool = False,
-                      num_samples: int = 10000,
                       width: int = 16,
                       height: int = 10,
                       title: str = "Posterior relative abundances"):
     logger.info("Generating plot of posterior.")
-
-    # Generate and save posterior samples.
-    samples = posterior.sample(num_samples).detach().cpu()
-    torch.save(samples, samples_path)
-    logger.info("Posterior samples saved to {}. [{}]".format(
-        samples_path,
-        filesystem.convert_size(samples_path.stat().st_size)
-    ))
 
     # Plotting.
     plot_posterior_abundances(

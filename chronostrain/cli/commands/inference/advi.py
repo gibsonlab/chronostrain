@@ -2,6 +2,7 @@ import click
 from logging import Logger
 from pathlib import Path
 
+from chronostrain.util import filesystem
 from ..base import option
 
 
@@ -18,6 +19,11 @@ from ..base import option
     type=click.Path(path_type=Path, file_okay=False),
     required=True,
     help="The directory to save all outputs to."
+)
+@option(
+    '--with-zeros/--without-zeros', 'with_zeros',
+    is_flag=True, default=False,
+    help='Specify whether to include zeros into the model..'
 )
 @option(
     '--iters', 'iters', type=int, default=50,
@@ -97,6 +103,7 @@ def main(
         reads_input: Path,
         out_dir: Path,
         true_abundance_path: Path,
+        with_zeros: bool,
         seed: int,
         iters: int,
         epochs: int,
@@ -160,6 +167,7 @@ def main(
         population=population,
         fragments=fragments,
         reads=reads,
+        with_zeros=with_zeros,
         num_epochs=epochs,
         iters=iters,
         min_lr=min_lr,
@@ -192,15 +200,20 @@ def main(
         )
 
     # ==== Plot the posterior.
+    # Generate and save posterior samples.
+    samples = posterior.sample(num_posterior_samples).detach().cpu()
+    torch.save(samples, samples_path)
+    logger.info("Posterior samples saved to {}. [{}]".format(
+        samples_path,
+        filesystem.convert_size(samples_path.stat().st_size)
+    ))
     viz.plot_vi_posterior(
         times=solver.model.times,
         population=population,
-        posterior=posterior,
+        samples=samples.cpu(),
         plot_path=plot_path,
-        samples_path=samples_path,
         plot_format=plot_format,
         ground_truth_path=true_abundance_path,
-        num_samples=num_posterior_samples,
         draw_legend=False
     )
 

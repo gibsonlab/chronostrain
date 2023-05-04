@@ -2,12 +2,12 @@ import click
 from logging import Logger
 from pathlib import Path
 
-from chronostrain.cli.commands.inference.initializers import create_model
+from chronostrain.cli.commands.inference.initializers import create_model, load_fragments_dynamic
 from chronostrain.algs import *
 from chronostrain.database import StrainDatabase
 from chronostrain.model import *
 from chronostrain.model.io import TimeSeriesReads
-
+from chronostrain.util import filesystem
 
 
 def option(*deco_args, **deco_kwargs):
@@ -37,6 +37,11 @@ def option(*deco_args, **deco_kwargs):
     type=click.Path(path_type=Path, file_okay=False),
     required=True,
     help="The directory to save all outputs to."
+)
+@option(
+    '--with-zeros/--without-zeros', 'with_zeros',
+    is_flag=True, default=False,
+    help='Specify whether to include zeros into the model..'
 )
 @option(
     '--db-pickle', '-db', 'db_pickle_path',
@@ -92,6 +97,12 @@ def option(*deco_args, **deco_kwargs):
     help='If using a variational method, specify the number of samples to generate as output.'
 )
 @option(
+    '--allocate-fragments/--no-allocate-fragments', 'allocate_fragments',
+    is_flag=True, default=True,
+    help='Specify whether or not to store fragment sequences in memory '
+         '(if False, will attempt to use disk-allocation instead).'
+)
+@option(
     '--plot-format', 'plot_format', type=str, default='pdf',
     help='The format to use for saving posterior plots.'
 )
@@ -110,6 +121,7 @@ def main(
         reads_input: Path,
         out_dir: Path,
         db_pickle_path: Path,
+        with_zeros: bool,
         seed: int,
         iters: int,
         epochs: int,
@@ -121,6 +133,7 @@ def main(
         read_batch_size: int,
         correlation_mode: str,
         num_posterior_samples: int,
+        allocate_fragments: bool,
         plot_format: str,
         draw_training_history: bool,
         plot_elbo: bool
@@ -170,7 +183,10 @@ def main(
     # ============ Parse input reads.
     logger.info("Loading time-series read files.")
     reads = TimeSeriesReads.load_from_csv(reads_input)
-    fragments = load_fragments(reads, db, logger)
+    if allocate_fragments:
+        fragments = load_fragments(reads, db, logger)
+    else:
+        fragments = load_fragments_dynamic(reads, db, logger)
 
     # # ==== TEST: EM Solution
     # estimate = perform_em(reads, population, fragments, db, logger)
@@ -183,6 +199,7 @@ def main(
         population=population,
         fragments=fragments,
         reads=reads,
+        with_zeros=with_zeros,
         num_epochs=epochs,
         iters=iters,
         min_lr=min_lr,
@@ -214,15 +231,21 @@ def main(
             elbo_history=elbo_history,
         )
 
-    # ==== Plot the posterior.
+    # ==== Plot the posterior and save samples.
+    # Generate and save posterior samples.
+    samples = posterior.sample(num_posterior_samples).detach().cpu()
+    torch.save(samples, samples_path)
+    logger.info("Posterior samples saved to {}. [{}]".format(
+        samples_path,
+        filesystem.convert_size(samples_path.stat().st_size)
+    ))
+
     viz.plot_vi_posterior(
         times=solver.model.times,
         population=population,
-        posterior=posterior,
+        samples=samples.cpu(),
         plot_path=plot_path,
-        samples_path=samples_path,
         plot_format=plot_format,
-        num_samples=num_posterior_samples,
         draw_legend=False
     )
 

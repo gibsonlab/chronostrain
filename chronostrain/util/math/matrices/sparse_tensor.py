@@ -22,7 +22,7 @@ class SparseMatrix(object):
     def __init__(self,
                  indices: torch.Tensor,
                  values: torch.Tensor,
-                 dims: Tuple[int, int],
+                 dims: Union[List[int], Tuple[int, int]],
                  force_coalesce: bool = False):
         self.rows: int = int(dims[0])
         self.columns: int = int(dims[1])

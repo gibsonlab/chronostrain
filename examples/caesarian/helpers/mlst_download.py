@@ -15,7 +15,7 @@ from chronostrain import create_logger
 from chronostrain.database.backend import PandasAssistedBackend
 from chronostrain.util.filesystem import convert_size
 from chronostrain.model import Strain, Marker
-from chronostrain.util.sequences import Sequence, DynamicFastaSequence
+from chronostrain.util.sequences import Sequence, DynamicFastaSequence, FastaIndexedResource, AllocatedSequence
 
 logger = create_logger('script.mlst_download')
 
@@ -80,11 +80,10 @@ class LocusContainer:
             if not rec.id.startswith(f'{self.locus_name}_'):
                 raise ValueError(f"Found fasta record ID {rec.id}; expected prefix `{self.locus_name}_`")
             rec_id = rec.id[len(self.locus_name)+1:]
-            self._fasta_contents[rec_id] = DynamicFastaSequence(seq_bank, rec_id)
+            self._fasta_contents[rec_id] = AllocatedSequence(str(rec.seq))
 
         fasta_io.close()
         self._fasta_loaded = True
-
 
 
 def parse_taxa_id(xml_taxa_text: str, profile_url: str) -> TaxaIdentifier:

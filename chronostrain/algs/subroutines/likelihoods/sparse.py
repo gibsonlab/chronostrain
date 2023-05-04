@@ -63,7 +63,7 @@ class SparseDataLikelihoods(DataLikelihoods):
             )
 
             projected_indices = torch.stack([
-                torch.bucketize(self.matrices[t_idx].indices[0], row_support),
+                torch.bucketize(self.matrices[t_idx].indices[0], row_support),  # Assumes row_support is sorted.
                 self.matrices[t_idx].indices[1]
             ])  # Simply call bucketize() to project, faster than multiplying by the projector matrix.
 

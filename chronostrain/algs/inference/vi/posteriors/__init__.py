@@ -1,5 +1,4 @@
-from .base import AbstractReparametrizedPosterior
 from .gaussians import GaussianPosteriorStrainCorrelation, \
     GaussianPosteriorFullReparametrizedCorrelation, \
     GaussianPosteriorTimeCorrelation
-# from .dirichlet import ReparametrizedDirichletPosterior
+from .gaussians_zeroes import GaussianWithLocalZeros, GaussianWithGlobalZerosPosterior, GaussianWithGlobalZerosPosteriorSparsified
