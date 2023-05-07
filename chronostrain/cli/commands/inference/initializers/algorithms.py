@@ -1,9 +1,7 @@
 import time
 from logging import Logger
 
-import numpy as np
-import torch
-
+import jax.numpy as np
 from chronostrain.algs import *
 from chronostrain.database import StrainDatabase
 from chronostrain.model import *
@@ -42,7 +40,7 @@ def perform_advi(
     model = create_model(
         population=population,
         read_types=read_types,
-        mean=torch.zeros(population.num_strains(), device=cfg.torch_cfg.device),
+        mean=np.zeros(population.num_strains()),
         fragments=fragments,
         time_points=time_points,
         disable_quality=not cfg.model_cfg.use_quality_scores,
@@ -51,23 +49,38 @@ def perform_advi(
     )
 
     if with_zeros:
-        from chronostrain.model.zeros import PopulationGlobalZeros, PopulationLocalZeros
-
+        # from chronostrain.model.zeros import PopulationGlobalZeros, PopulationLocalZeros
         # zero_model = PopulationLocalZeros(model.times, model.bacteria_pop.num_strains())
-        zero_model = PopulationGlobalZeros(model.bacteria_pop.num_strains())
-        solver = ADVIGaussianZerosSolver(
-        # solver = ADVIGaussianLocalZerosSolver(
-            model=model,
-            zero_model=zero_model,
-            data=reads,
-            correlation_type=correlation_type,
-            db=db,
-            read_batch_size=read_batch_size
-        )
+        # zero_model = PopulationGlobalZeros(model.bacteria_pop.num_strains())
+        # solver = ADVIGaussianZerosSolver(
+        # # solver = ADVIGaussianLocalZerosSolver(
+        #     model=model,
+        #     zero_model=zero_model,
+        #     data=reads,
+        #     correlation_type=correlation_type,
+        #     db=db,
+        #     read_batch_size=read_batch_size
+        # )
+        raise NotImplementedError("TODO implement this for Jax.")
     else:
+        from chronostrain.util.optimization import Adam, ReduceLROnPlateauLast
+        lr_scheduler = ReduceLROnPlateauLast(
+            initial_lr=learning_rate,
+            mode='max',
+            min_lr=min_lr,
+            factor=lr_decay_factor,
+            patience=lr_patience,
+            threshold=1e-4,
+            threshold_mode='rel'
+        )
+        optimizer = Adam(
+            lr_scheduler=lr_scheduler,
+            weight_decay=0.
+        )
         solver = ADVIGaussianSolver(
             model=model,
             data=reads,
+            optimizer=optimizer,
             correlation_type=correlation_type,
             db=db,
             read_batch_size=read_batch_size
@@ -82,8 +95,7 @@ def perform_advi(
     if save_training_history:
         def anim_callback(x_samples, uppers_buf, lowers_buf, medians_buf):
             # Plot VI posterior.
-            y_samples = model.latent_conversion(x_samples)
-            abund_samples = y_samples.cpu().detach().numpy()
+            abund_samples = model.latent_conversion(x_samples)
 
             for s_idx in range(model.num_strains()):
                 traj_samples = abund_samples[:, :, s_idx]  # (T x N)
@@ -103,8 +115,6 @@ def perform_advi(
 
     start_time = time.time()
     solver.solve(
-        optimizer_class=torch.optim.Adam,
-        optimizer_args={'lr': learning_rate, 'betas': (0.9, 0.999), 'eps': 1e-7, 'weight_decay': 0.0},
         iters=iters,
         num_epochs=num_epochs,
         num_samples=num_samples,

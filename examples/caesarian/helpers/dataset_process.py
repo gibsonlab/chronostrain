@@ -9,6 +9,27 @@ from chronostrain import create_logger
 logger = create_logger('script.dataset_download')
 
 
+def download_from_ftp(ftp_url: str, target_path: Path):
+    if ftp_url.startswith('ftp://'):
+        url_parsed = urlparse(ftp_url)
+    else:
+        url_parsed = urlparse(f'ftp://{ftp_url}')
+
+    logger.debug(f"Downloading resource {ftp_url}")
+
+    ftp = FTP(url_parsed.netloc)
+    ftp.login()
+    with open(target_path, 'wb') as f:
+        ftp.retrbinary(f'RETR {url_parsed.path}', f.write)
+
+def download_fastq(target_url: str, target_path: Path):
+    if target_path.exists():
+        logger.debug('File {} already exists; skipping download.'.format(target_path))
+    else:
+        download_from_ftp(
+            target_url, target_path
+        )
+
 
 def download_all(dataset: pd.DataFrame, out_dir: Path):
     for _, row in dataset.iterrows():

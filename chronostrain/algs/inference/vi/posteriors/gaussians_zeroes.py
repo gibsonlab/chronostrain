@@ -56,7 +56,7 @@ class GaussianWithGlobalZerosPosterior(ReparametrizedGaussianWithZerosPosterior)
         self.reparam_network = TrilLinear(
             n_features=n_features,
             bias=True,
-            device=cfg.torch_cfg.device
+            device=cfg.engine_cfg.device
         )
         init_diag(self.reparam_network.weight, scale=np.log(INIT_SCALE))
         torch.nn.init.constant_(self.reparam_network.bias, 0)
@@ -65,18 +65,18 @@ class GaussianWithGlobalZerosPosterior(ReparametrizedGaussianWithZerosPosterior)
         self.gumbel_means = torch.nn.parameter.Parameter(
             torch.zeros(
                 2, self.num_strains,
-                device=cfg.torch_cfg.device
+                device=cfg.engine_cfg.device
             )
         )
 
         # ========== Utility
         self.standard_normal = Normal(
-            loc=torch.tensor(0.0, device=cfg.torch_cfg.device),
-            scale=torch.tensor(1.0, device=cfg.torch_cfg.device)
+            loc=torch.tensor(0.0, device=cfg.engine_cfg.device),
+            scale=torch.tensor(1.0, device=cfg.engine_cfg.device)
         )
         self.standard_gumbel = torch.distributions.gumbel.Gumbel(
-            loc=torch.tensor(0.0, device=cfg.torch_cfg.device),
-            scale=torch.tensor(1.0, device=cfg.torch_cfg.device)
+            loc=torch.tensor(0.0, device=cfg.engine_cfg.device),
+            scale=torch.tensor(1.0, device=cfg.engine_cfg.device)
         )
 
         self.inv_temp = inv_temp
@@ -147,11 +147,11 @@ class GaussianWithGlobalZerosPosteriorSparsified(ReparametrizedGaussianWithZeros
 
         # ========== Reparametrization network (standard Gaussians -> nonstandard Gaussians)
         self.reparam_networks = [
-            TrilLinear(n_features=self.num_strains, bias=True, device=cfg.torch_cfg.device)
+            TrilLinear(n_features=self.num_strains, bias=True, device=cfg.engine_cfg.device)
             for _ in range(self.num_times)
         ]
         self.cond_networks = [
-            TrilLinear(n_features=self.num_strains, bias=False, device=cfg.torch_cfg.device)
+            TrilLinear(n_features=self.num_strains, bias=False, device=cfg.engine_cfg.device)
             for _ in range(self.num_times - 1)
         ]
 
@@ -159,18 +159,18 @@ class GaussianWithGlobalZerosPosteriorSparsified(ReparametrizedGaussianWithZeros
         self.gumbel_means = torch.nn.parameter.Parameter(
             torch.zeros(
                 2, self.num_strains,
-                device=cfg.torch_cfg.device
+                device=cfg.engine_cfg.device
             )
         )
 
         # ========== Utility
         self.standard_normal = Normal(
-            loc=torch.tensor(0.0, device=cfg.torch_cfg.device),
-            scale=torch.tensor(1.0, device=cfg.torch_cfg.device)
+            loc=torch.tensor(0.0, device=cfg.engine_cfg.device),
+            scale=torch.tensor(1.0, device=cfg.engine_cfg.device)
         )
         self.standard_gumbel = torch.distributions.gumbel.Gumbel(
-            loc=torch.tensor(0.0, device=cfg.torch_cfg.device),
-            scale=torch.tensor(1.0, device=cfg.torch_cfg.device)
+            loc=torch.tensor(0.0, device=cfg.engine_cfg.device),
+            scale=torch.tensor(1.0, device=cfg.engine_cfg.device)
         )
 
         self.inv_temp = inv_temp
@@ -272,7 +272,7 @@ class GaussianWithLocalZeros(ReparametrizedGaussianWithZerosPosterior):
         self.reparam_network = TrilLinear(
             n_features=n_features,
             bias=True,
-            device=cfg.torch_cfg.device
+            device=cfg.engine_cfg.device
         )
         init_diag(self.reparam_network.weight, scale=np.log(INIT_SCALE))
         torch.nn.init.constant_(self.reparam_network.bias, 0)
@@ -281,25 +281,25 @@ class GaussianWithLocalZeros(ReparametrizedGaussianWithZerosPosterior):
         self.gumbel_means = torch.nn.parameter.Parameter(
             torch.zeros(
                 2, self.num_times, self.num_strains,
-                device=cfg.torch_cfg.device
+                device=cfg.engine_cfg.device
             )
         )
         self.gumbel_between_means = torch.nn.parameter.Parameter(
             torch.zeros(
                 2, self.num_times - 1, self.num_strains,
-                device=cfg.torch_cfg.device
+                device=cfg.engine_cfg.device
             )
         )
 
         # ========== Utility
         self.parameters = list(self.reparam_network.parameters()) + [self.gumbel_means, self.gumbel_between_means]
         self.standard_normal = Normal(
-            loc=torch.tensor(0.0, device=cfg.torch_cfg.device),
-            scale=torch.tensor(1.0, device=cfg.torch_cfg.device)
+            loc=torch.tensor(0.0, device=cfg.engine_cfg.device),
+            scale=torch.tensor(1.0, device=cfg.engine_cfg.device)
         )
         self.standard_gumbel = torch.distributions.gumbel.Gumbel(
-            loc=torch.tensor(0.0, device=cfg.torch_cfg.device),
-            scale=torch.tensor(1.0, device=cfg.torch_cfg.device)
+            loc=torch.tensor(0.0, device=cfg.engine_cfg.device),
+            scale=torch.tensor(1.0, device=cfg.engine_cfg.device)
         )
 
     def sample_gumbels(self, num_samples: int) -> Tuple[Tensor, Tensor]:

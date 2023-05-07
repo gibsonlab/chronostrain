@@ -1,5 +1,5 @@
 import torch
-
+print("DEPRECATED MODULE: mappings.py")
 
 def log_spherical(x: torch.Tensor, dim: int, eps=1e-30, keepdim: bool = True) -> torch.Tensor:
     square = torch.pow(x, 2) + eps

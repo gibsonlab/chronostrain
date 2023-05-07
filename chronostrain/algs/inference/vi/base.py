@@ -1,17 +1,16 @@
 from abc import abstractmethod, ABC, ABCMeta
 from pathlib import Path
-from typing import Optional, List, Callable, Iterator, Type, Dict, Any
+from typing import *
 
-import numpy as np
-import torch
-from torch.nn import Parameter
+import jax.numpy as np
 
 from chronostrain.database import StrainDatabase
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.config import cfg
 from chronostrain.util.benchmarking import RuntimeEstimator
-from chronostrain.util.math.matrices import *
+from chronostrain.util.math import log_spspmm_exp
+from chronostrain.util.optimization import LossOptimizer
 
 from .. import AbstractModelSolver
 from .util import divide_columns_into_batches_sparse
@@ -20,9 +19,14 @@ from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
 
+_GENERIC_PARAM_TYPE = Dict[str, np.ndarray]
+_GENERIC_GRAD_TYPE = _GENERIC_PARAM_TYPE  # the two types usually tend to match.
+_GENERIC_SAMPLE_TYPE = Dict[Any, np.ndarray]
+
+
 class AbstractPosterior(metaclass=ABCMeta):
     @abstractmethod
-    def sample(self, num_samples: int = 1) -> torch.Tensor:
+    def sample(self, num_samples: int = 1) -> np.ndarray:
         """
         Returns a sample from this posterior distribution.
         :param num_samples: the number of samples (N).
@@ -31,7 +35,7 @@ class AbstractPosterior(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def mean(self) -> torch.Tensor:
+    def mean(self) -> np.ndarray:
         """
         Returns the mean of this posterior distribution.
         :return: A time-indexed (T x S) abundance tensor.
@@ -39,7 +43,7 @@ class AbstractPosterior(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def log_likelihood(self, x: torch.Tensor) -> float:
+    def log_likelihood(self, x: np.ndarray) -> float:
         pass
 
     @abstractmethod
@@ -48,26 +52,43 @@ class AbstractPosterior(metaclass=ABCMeta):
 
 
 class AbstractReparametrizedPosterior(AbstractPosterior, ABC):
-    def log_likelihood(self, samples: torch.Tensor) -> torch.Tensor:
+    def log_likelihood(self, samples: np.ndarray, params: _GENERIC_PARAM_TYPE = None) -> np.ndarray:
         pass
 
+    def sample(self, num_samples: int = 1) -> np.ndarray:
+        return self.reparametrize(self.random_sample(num_samples=num_samples))
+
     @abstractmethod
-    def trainable_parameters(self) -> List[Parameter]:
+    def get_parameters(self) -> _GENERIC_PARAM_TYPE:
         raise NotImplementedError()
 
     @abstractmethod
-    def mean(self) -> torch.Tensor:
+    def mean(self, params: _GENERIC_PARAM_TYPE = None) -> np.ndarray:
         raise NotImplementedError()
 
     @abstractmethod
-    def entropy(self) -> torch.Tensor:
+    def entropy(self, params: _GENERIC_PARAM_TYPE = None) -> np.ndarray:
         raise NotImplementedError()
 
     @abstractmethod
-    def differentiable_sample(self, num_samples: int) -> torch.Tensor:
+    def random_sample(self, num_samples: int) -> _GENERIC_SAMPLE_TYPE:
         """
-        Return reparametrized (differentiable) samples, to be used for autograd.
+        Return randomized samples (before reparametrization.)
+        :param num_samples:
+        :return:
         """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def set_parameters(self, params: _GENERIC_PARAM_TYPE):
+        """
+        Store the value of these params internally as the state of this posterior.
+        :param params: A list of parameter arrays (the implementation should decide the ordering.)
+        :return:
+        """
+        pass
+
+    def reparametrize(self, random_samples: _GENERIC_SAMPLE_TYPE, params: _GENERIC_PARAM_TYPE = None) -> np.ndarray:
         raise NotImplementedError()
 
 
@@ -76,39 +97,50 @@ class AbstractADVI(ABC):
     An abstraction of the autograd-driven (black-box) VI implementation.
     """
 
-    def __init__(self, posterior: AbstractReparametrizedPosterior, device: torch.device):
+    def __init__(
+            self,
+            posterior: AbstractReparametrizedPosterior,
+            optimizer: LossOptimizer
+    ):
         self.posterior = posterior
-        self.device = device
+        self.optim = optimizer
+        self.optim.initialize(self.posterior.get_parameters())
 
     def optimize(self,
-                 optimizer: torch.optim.Optimizer,
-                 lr_scheduler,
                  num_epochs: int = 1,
                  iters: int = 50,
                  num_samples: int = 150,
                  min_lr: float = 1e-4,
-                 callbacks: Optional[List[Callable[[int, torch.Tensor, float], None]]] = None):
+                 callbacks: Optional[List[Callable[[int, np.ndarray, float], None]]] = None):
         time_est = RuntimeEstimator(total_iters=num_epochs, horizon=10)
-        reparam_samples = None
         elbo_value = 0.0
 
         logger.info("Starting ELBO optimization.")
+
         for epoch in range(1, num_epochs + 1, 1):
+            # =========== Necessary preprocessing for new epoch.
             self.advance_epoch()
+
+            # =========== Store ELBO values for reporting.
             epoch_elbos = []
             time_est.stopwatch_click()
             for it in range(1, iters + 1, 1):
-                reparam_samples = self.posterior.differentiable_sample(
-                    num_samples=num_samples
-                )
+                # ========== Perform optimization for each iteration.
+                # random nodes pre-reparam
+                random_samples = self.posterior.random_sample(num_samples=num_samples)
 
-                elbo_value = self.optimize_step(reparam_samples, optimizer)
+                # optimize and output ELBO.
+                elbo_value = self.optimize_step(random_samples)
+
+                # Store for reporting.
                 epoch_elbos.append(elbo_value)
 
             # ===========  End of epoch
-            epoch_elbo_avg = np.mean(epoch_elbos)
+            epoch_elbo_avg = np.mean(epoch_elbos).item()
 
             if callbacks is not None:
+                random_samples = self.posterior.random_sample(num_samples=num_samples)
+                reparam_samples = self.posterior.reparametrize(random_samples)
                 for callback in callbacks:
                     callback(epoch, reparam_samples, elbo_value)
 
@@ -120,28 +152,16 @@ class AbstractADVI(ABC):
                     epoch=epoch,
                     t=time_est.time_left() / 60000,
                     elbo=epoch_elbo_avg,
-                    lr=optimizer.param_groups[-1]['lr']
+                    lr=self.optim.current_learning_rate()
                 )
             )
 
-            lr_scheduler.step(-epoch_elbo_avg)
-            if optimizer.param_groups[-1]['lr'] < min_lr:
+            if self.optim.current_learning_rate() < min_lr:
                 logger.info("Stopping criteria met after {} epochs.".format(epoch))
                 break
 
         # ========== End of optimization
         logger.info("Finished.")
-
-        if self.device == torch.device("cuda"):
-            logger.info(
-                "ADVI CUDA memory -- [MaxAlloc: {} MiB]".format(
-                    torch.cuda.max_memory_allocated(self.device) / 1048576
-                )
-            )
-        else:
-            logger.debug(
-                "ADVI CPU memory usage -- [Not implemented]"
-            )
 
     @abstractmethod
     def advance_epoch(self):
@@ -149,33 +169,28 @@ class AbstractADVI(ABC):
         Do any pre-processing required for a new epoch (e.g. mini-batch data).
         Called at the start of every epoch, including the first one.
         """
-        pass
+        raise NotImplementedError()
 
     @abstractmethod
-    def elbo(self, samples: torch.Tensor) -> Iterator[torch.Tensor]:
+    def elbo_with_grad(
+            self,
+            params: _GENERIC_PARAM_TYPE,
+            random_samples: _GENERIC_SAMPLE_TYPE
+    ) -> Tuple[np.ndarray, _GENERIC_GRAD_TYPE]:
         """
         :return: The ELBO value, logically separated into `batches` if necessary.
         In implementations, save memory by yielding batches instead of returning a list.
         """
-        pass
+        raise NotImplementedError()
 
-    def optimize_step(self, samples: torch.Tensor,
-                      optimizer: torch.optim.Optimizer) -> float:
-        optimizer.zero_grad(set_to_none=True)
-        elbo_value = 0.0
-
-        # Accumulate overall gradient estimator in batches.
-        for elbo_chunk in self.elbo(samples):
-            # Save float value for callbacks.
-            elbo_value += elbo_chunk.item()
-
-            # Gradient accumulation: Maximize ELBO by minimizing (-ELBO) over this chunk.
-            elbo_loss_chunk = -elbo_chunk
-            elbo_loss_chunk.backward(retain_graph=True)
-
-        # Use the accumulated gradient to update.
-        optimizer.step()
-        return elbo_value
+    def optimize_step(
+            self,
+            random_samples: _GENERIC_SAMPLE_TYPE
+    ) -> np.ndarray:
+        elbo_value, elbo_grad = self.elbo_with_grad(self.optim.params, random_samples)
+        assert self.optim.grad_sign == -1
+        self.optim.update(elbo_value, elbo_grad)
+        return np.concatenate(elbo_value)
 
 
 class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
@@ -189,6 +204,7 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
                  data: TimeSeriesReads,
                  db: StrainDatabase,
                  posterior: AbstractReparametrizedPosterior,
+                 optimizer: LossOptimizer,
                  read_batch_size: int = 5000):
         AbstractModelSolver.__init__(
             self,
@@ -198,45 +214,47 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
         )
         self.read_batch_size = read_batch_size
 
-        AbstractADVI.__init__(
-            self,
-            posterior,
-            device=cfg.torch_cfg.device
-        )
+        AbstractADVI.__init__(self, posterior, optimizer)
 
         logger.debug("Initializing ADVI data structures.")
         if not cfg.model_cfg.use_sparse:
             raise NotImplementedError("ADVI only supports sparse data structures.")
 
         # (S x R) matrices: Contains P(R = r | S = s) for each read r, strain s.
-        self.batches: List[List[torch.Tensor]] = [
+        self.batches: List[List[np.ndarray]] = [
             [] for _ in range(model.num_times())
         ]
         self.total_reads: int = 0
 
-        # Precompute this (only possible in V1).
-        logger.debug("Precomputing likelihood products.")
+        # Precompute likelihood products.
+        logger.debug("Precomputing likelihood marginalization.")
         data_likelihoods = self.data_likelihoods
         for t_idx in range(model.num_times()):
-            data_ll_t = data_likelihoods.matrices[t_idx]  # F_ x R, sparse CPU
-            projector = data_likelihoods.projectors[t_idx]  # sparse CPU
+            data_ll_t = data_likelihoods.reduce_supported_fragments(
+                data_likelihoods.matrices[t_idx],
+                t_idx,
+                fragment_dim=0
+            )
+            frag_freqs_reduced = data_likelihoods.reduce_supported_fragments(
+                self.model.fragment_frequencies_sparse,
+                t_idx,
+                fragment_dim=0
+            )
 
             for batch_idx, data_t_batch in enumerate(divide_columns_into_batches_sparse(data_ll_t, self.read_batch_size)):
                 # ========= Pre-compute likelihood calculations.
                 strain_batch_lls_t = log_spspmm_exp(
-                    ColumnSectionedSparseMatrix.from_sparse_matrix(
-                        projector.sparse_mul(self.model.fragment_frequencies_sparse).t()
-                    ),  # (S x F_), note the transpose!
-                    RowSectionedSparseMatrix.from_sparse_matrix(data_t_batch)  # (F_ x R_batch)
+                    frag_freqs_reduced.T,  # (S x F_), note the transpose!
+                    data_ll_t  # F_ x R_batch
                 )  # (S x R_batch)
 
                 # ========= Locate and filter out reads with no good alignments.
                 bad_indices = {
                     int(x)
-                    for x in torch.where(
-                        torch.eq(
-                            torch.sum(~torch.isinf(strain_batch_lls_t), dim=0).cpu(),
-                            torch.tensor(0)
+                    for x in np.where(
+                        np.equal(
+                            np.sum(~np.isinf(strain_batch_lls_t), axis=0),
+                            0
                         )
                     )[0]
                 }
@@ -270,7 +288,7 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
 
                 # ============= Store result.
                 self.total_reads += strain_batch_lls_t.shape[1]
-                self.batches[t_idx].append(strain_batch_lls_t.to(cfg.torch_cfg.device))
+                self.batches[t_idx].append(strain_batch_lls_t)
 
     def advance_epoch(self):
         """
@@ -280,75 +298,49 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
         pass
 
     def solve(self,
-              optimizer_class: Type[torch.optim.Optimizer],
-              optimizer_args: Dict[str, Any],
               num_epochs: int = 1,
               iters: int = 4000,
               num_samples: int = 8000,
               min_lr: float = 1e-4,
               lr_decay_factor: float = 0.25,
               lr_patience: int = 10,
-              callbacks: Optional[List[Callable[[int, torch.Tensor, float], None]]] = None):
-        optimizer_args['params'] = self.posterior.trainable_parameters()
-        optimizer = optimizer_class(**optimizer_args)
-
-        logger.debug("LR scheduler parameters: decay={}, patience={}".format(
-            lr_decay_factor,
-            lr_patience
-        ))
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer,
-            factor=lr_decay_factor,
-            patience=lr_patience,
-            threshold=1e-4,
-            threshold_mode='rel',
-            mode='min'  # track (-ELBO) and decrease LR when it stops decreasing.
-        )
-
+              callbacks: Optional[List[Callable[[int, np.ndarray, float], None]]] = None):
         self.optimize(
-            optimizer=optimizer,
-            lr_scheduler=lr_scheduler,
             iters=iters,
             num_epochs=num_epochs,
             num_samples=num_samples,
             min_lr=min_lr,
             callbacks=callbacks
         )
-
-    @abstractmethod
-    def data_ll(self, samples: torch.Tensor) -> torch.Tensor:
-        pass
-
-    @abstractmethod
-    def model_ll(self, samples: torch.Tensor) -> torch.Tensor:
-        pass
+        self.posterior.set_parameters(self.optim.params)
 
     def diagnostic(self, num_importance_samples: int = 10000, batch_size: int = 500):
-        from chronostrain.util.math import psis_smooth_ratios
-        logger.debug("Running diagnostic...")
-
-        log_importance_weights = []
-        num_batches = int(np.ceil(num_importance_samples / batch_size))
-        for batch_idx in range(num_batches):
-            batch_start_idx = batch_idx * batch_size
-            this_batch_sz = min(num_importance_samples - batch_start_idx, batch_size)
-            batch_samples = self.posterior.differentiable_sample(num_samples=this_batch_sz).detach()
-            approx_posterior_ll = self.posterior.log_likelihood(batch_samples).detach()
-            log_importance_ratios = (
-                    self.model_ll(batch_samples).detach()
-                    + self.data_ll(batch_samples).detach()
-                    - approx_posterior_ll
-            )
-            log_importance_weights.append(log_importance_ratios.cpu().numpy())
-
-        # normalize (for numerical stability).
-        log_importance_weights = np.concatenate(log_importance_weights)
-        log_importance_weights = log_importance_weights - torch.logsumexp(log_importance_weights, dim=0)
-        log_smoothed_weights, k_hat = psis_smooth_ratios(log_importance_weights)
-
-        logger.debug(f"Estimated Pareto k-hat: {k_hat}")
-        if k_hat > 0.7:
-            # Extremely large number of samples are needed for stable gradient estimates!
-            logger.warning(f"Pareto k-hat estimate ({k_hat}) exceeds safe threshold (0.7). "
-                           "Estimates may be biased/overfit to the variational family. "
-                           "Perform some empirical testing before proceeding.")
+        pass
+        # from chronostrain.util.math import psis_smooth_ratios
+        # logger.debug("Running diagnostic...")
+        #
+        # log_importance_weights = []
+        # num_batches = int(np.ceil(num_importance_samples / batch_size))
+        # for batch_idx in range(num_batches):
+        #     batch_start_idx = batch_idx * batch_size
+        #     this_batch_sz = min(num_importance_samples - batch_start_idx, batch_size)
+        #     batch_samples = self.posterior.differentiable_sample(num_samples=this_batch_sz).detach()
+        #     approx_posterior_ll = self.posterior.log_likelihood(batch_samples).detach()
+        #     log_importance_ratios = (
+        #             self.model_ll(batch_samples).detach()
+        #             + self.data_ll(batch_samples).detach()
+        #             - approx_posterior_ll
+        #     )
+        #     log_importance_weights.append(log_importance_ratios.cpu().numpy())
+        #
+        # # normalize (for numerical stability).
+        # log_importance_weights = np.concatenate(log_importance_weights)
+        # log_importance_weights = log_importance_weights - torch.logsumexp(log_importance_weights, dim=0)
+        # log_smoothed_weights, k_hat = psis_smooth_ratios(log_importance_weights)
+        #
+        # logger.debug(f"Estimated Pareto k-hat: {k_hat}")
+        # if k_hat > 0.7:
+        #     # Extremely large number of samples are needed for stable gradient estimates!
+        #     logger.warning(f"Pareto k-hat estimate ({k_hat}) exceeds safe threshold (0.7). "
+        #                    "Estimates may be biased/overfit to the variational family. "
+        #                    "Perform some empirical testing before proceeding.")

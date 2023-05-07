@@ -127,16 +127,12 @@ def main(
     logger = ctx.obj
 
     logger.info("Pipeline for inference started.")
-    import numpy as np
-    import torch
+    import jax.numpy as np
     from chronostrain.config import cfg
     from chronostrain.model import Population
     from chronostrain.model.io import TimeSeriesReads
     import chronostrain.visualizations as viz
     from .initializers import load_fragments, load_fragments_dynamic, perform_advi
-
-    torch.manual_seed(seed)
-    np.random.seed(seed)
 
     # ============ Create database instance.
     db = cfg.database_cfg.get_database()
@@ -202,7 +198,7 @@ def main(
     # ==== Plot the posterior.
     # Generate and save posterior samples.
     samples = posterior.sample(num_posterior_samples).detach().cpu()
-    torch.save(samples, samples_path)
+    np.save(str(samples_path), samples)
     logger.info("Posterior samples saved to {}. [{}]".format(
         samples_path,
         filesystem.convert_size(samples_path.stat().st_size)

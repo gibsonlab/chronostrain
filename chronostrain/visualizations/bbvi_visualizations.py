@@ -2,7 +2,6 @@ from pathlib import Path
 from typing import List, Optional, Union
 
 import numpy as np
-import torch
 import matplotlib.pyplot as plt
 
 from chronostrain import logger
@@ -94,7 +93,7 @@ def plot_training_animation(
 
 def plot_vi_posterior(times: List[float],
                       population: Population,
-                      samples: torch.Tensor,
+                      samples: np.ndarray,
                       plot_path: Path,
                       plot_format: str,
                       ground_truth_path: Optional[Path] = None,

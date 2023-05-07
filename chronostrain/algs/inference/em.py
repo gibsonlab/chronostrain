@@ -1,7 +1,8 @@
 from typing import Tuple
 
-import torch
-from torch.nn.functional import softmax
+import jax
+import jax.numpy as np
+import jax.experimental.sparse as jsparse
 
 from chronostrain.config import cfg
 from chronostrain.model.io.reads import TimeSeriesReads
@@ -11,8 +12,10 @@ from .base import AbstractModelSolver
 
 from chronostrain.logging import create_logger
 from chronostrain.database import StrainDatabase
+from chronostrain.util.math import *
 
 logger = create_logger(__name__)
+spmm = jsparse.sparsify(np.matmul)
 
 
 # ===========================================================================================
@@ -64,10 +67,9 @@ class EMSolver(AbstractModelSolver):
         """
 
         if initialization is None:
-            # T x S array representing a time-indexed, S-dimensional brownian motion.
-            brownian_motion = torch.ones(
-                size=[len(self.model.times), len(self.model.bacteria_pop.strains)],
-                device=cfg.torch_cfg.device
+            # T x S array representing a time-indexed, S-axisensional brownian motion.
+            brownian_motion = np.ones(
+                shape=[len(self.model.times), len(self.model.bacteria_pop.strains)]
             )
         else:
             brownian_motion = initialization
@@ -95,8 +97,8 @@ class EMSolver(AbstractModelSolver):
             secs_elapsed = time_est.stopwatch_click()
             time_est.increment(secs_elapsed)
 
-            softmax_diff = torch.norm(
-                softmax(updated_brownian_motion, dim=1) - softmax(brownian_motion, dim=1),
+            softmax_diff = np.linalg.norm(
+                jax.nn.softmax(updated_brownian_motion, axis=1) - jax.nn.softmax(brownian_motion, axis=1),
                 p='fro'
             ).item()
 
@@ -121,18 +123,17 @@ class EMSolver(AbstractModelSolver):
             var=var
         ))
 
-        return softmax(brownian_motion, dim=1), var_1, var
+        return jax.nn.softmax(brownian_motion, axis=1), var_1, var
 
     def em_update(
             self,
-            x: torch.Tensor,
+            x: np.ndarray,
             var: float,
             var_1: float,
             gradient_clip: float
-    ) -> Tuple[torch.Tensor, float, float]:
-        T, S = x.size()
-        F = self.model.num_fragments()
-        x_gradient = torch.zeros(size=x.size(), device=cfg.torch_cfg.device)  # T x S tensor.
+    ) -> Tuple[np.ndarray, float, float]:
+        T, S = x.shape
+        x_gradient = np.zeros(size=x.shape)  # T x S tensor.
 
         # ====== Gaussian part
         if T > 1:
@@ -149,36 +150,37 @@ class EMSolver(AbstractModelSolver):
                     x_gradient[t] = variance_scaling_prev * (x[t] - x[t-1]) + variance_scaling_next * (x[t] - x[t+1])
 
         # ====== Sigmoidal part
-        y = softmax(x, dim=1)
+        y = jax.nn.softmax(x, axis=1)
+        frag_log_freq = self.model.fragment_frequencies_sparse
+        frag_freq = jsparse.BCOO(
+            (np.exp(frag_log_freq.data), frag_log_freq.indices),
+            shape=frag_log_freq.shape
+        )
         for t in range(T):
             # Scale each row by Z_t, and normalize.
             if cfg.model_cfg.use_sparse:
-                Z_t = self.model.strain_abundance_to_frag_abundance(y[t].view(S, 1)).view(F)
-                Q = self.data_likelihoods.matrices[t].scale_row(Z_t, dim=0)
-                Q = Q.column_normed_row_sum() / Z_t.view(F)
+                Z_t = np.exp(densesp_mm(y[t], frag_freq))
+                Q = column_normed_row_sum(
+                    scale_row(self.data_likelihoods.matrices[t], Z_t)
+                ) / Z_t
 
                 sigmoid = y[t]
-                sigmoid_jacobian = torch.diag(sigmoid) - torch.ger(sigmoid, sigmoid)  # symmetric matrix.
+                sigmoid_jacobian = np.diag(sigmoid) - np.outer(sigmoid, sigmoid)  # symmetric matrix.
 
                 x_gradient[t] = x_gradient[t] + sigmoid_jacobian.mv(
-                    self.model.fragment_frequencies_sparse.t().dense_mul(Q.view(F, 1)).view(S)
+                    jsparse.bcoo_multiply_dense(
+                        self.model.fragment_frequencies_sparse.T,
+                        Q
+                    )
                 )
             else:
-                Z_t = self.model.strain_abundance_to_frag_abundance(y[t].view(S, 1))
-                Q = self.data_likelihoods.matrices[t] * Z_t
-                Q = (Q / Q.sum(dim=0)[None, :]).sum(dim=1) / Z_t.view(F)
-
-                sigmoid = y[t]
-                sigmoid_jacobian = torch.diag(sigmoid) - torch.ger(sigmoid, sigmoid)  # symmetric matrix.
-                x_gradient[t] = x_gradient[t] + sigmoid_jacobian.mv(
-                    self.model.fragment_frequencies_dense.t().mv(Q)
-                )
+                raise NotImplementedError("Dense version of this is not implemented for JAX.")
 
         # ==== Gradient clipping.
         x_gradient[x_gradient > gradient_clip] = gradient_clip
         x_gradient[x_gradient < -gradient_clip] = -gradient_clip
 
-        updated_x: torch.Tensor = x + self.lr * x_gradient
+        updated_x: np.ndarray = x + self.lr * x_gradient
 
         # ==== Estimate variances from new posterior.
         updated_var_1, updated_var = self.estimate_posterior_variances(updated_x)
@@ -188,23 +190,22 @@ class EMSolver(AbstractModelSolver):
         """
         Outputs the posterior modes (maximum posterior likelihood), using the conjugacy of SICS/Gaussian distributions.
 
-        :param x: a (T x S) tensor of gaussians, representing a realization of the S-dimensional brownian motion.
+        :param x: a (T x S) tensor of gaussians, representing a realization of the S-axisensional brownian motion.
         """
         diffs_1 = x[0, :] - self.model.mu
         dof_1 = self.model.tau_1_dof + diffs_1.numel()
         scale_1 = (1 / dof_1) * (
             self.model.tau_1_dof * self.model.tau_1_scale
-            + torch.sum(torch.pow(diffs_1, 2))
+            + np.sum(np.square(diffs_1))
         )
 
-        diffs = (x[1:, :] - x[:-1, :]) * torch.tensor(
+        diffs = (x[1:, :] - x[:-1, :]) * np.expand_dims(np.power(np.array(
             [self.model.dt(t_idx) for t_idx in range(1, self.model.num_times())],
-            device=cfg.torch_cfg.device
-        ).pow(-0.5).unsqueeze(1)
+        ), -0.5), axis=1)
         dof = self.model.tau_dof + diffs.numel()
         scale = (1 / dof) * (
             self.model.tau_dof * self.model.tau_scale
-            + torch.sum(torch.pow(diffs, 2))
+            + np.sum(np.square(diffs))
         )
 
         return _sics_mode(dof_1, scale_1), _sics_mode(dof, scale)

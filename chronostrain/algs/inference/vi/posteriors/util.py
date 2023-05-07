@@ -1,74 +1,61 @@
-import torch
-from torch.nn import functional
+import jax
+import jax.numpy as np
+
+import numpy as cnp
+_NORMAL_LOG_FACTOR = cnp.log(2 * cnp.pi)
+
+@jax.jit
+def tril_matrix_of(tril_weights: np.ndarray, diag_weights: np.ndarray):
+    n_features = len(diag_weights)
+    A = np.zeros(shape=(n_features, n_features), dtype='float32')
+    tril_r, tril_c = np.tril_indices(n_features, n_features, -1)
+    diag_r = np.arange(0, n_features)
+    A[tril_r, tril_c] = tril_weights
+    A[diag_r, diag_r] = diag_weights
+    return A
 
 
-def init_diag(x: torch.Tensor, scale: float):
+@jax.jit
+def tril_linear_transform_with_bias(
+        tril_weights: np.ndarray,
+        diag_weights: np.ndarray,
+        bias: np.ndarray,
+        x: np.ndarray
+):
     """
-    A reimplementation of torch.nn.init.eye_, so that the diagonal is an arbitrary value.
-    :param x:
-    :param scale:
-    :return:
+    :param tril_weights: (N x (N-1) / 2)-length array. (lower triangular elements)
+    :param diag_weights: length N array (log-diagonal elements)
+    :param bias: length N array (vector 'b')
+    :param x: (M x N) array
+    :return: Computes x @ A.T + b, where A is the lower-triangular matrix specified by the weights.
     """
-    with torch.no_grad():
-        torch.eye(*x.shape, out=x, requires_grad=x.requires_grad)
-        torch.mul(x, scale, out=x)
-    return x
+    return np.matmul(
+        x,
+        tril_matrix_of(tril_weights, diag_weights).T
+    ) + bias
 
 
-class TrilLinear(torch.nn.Module):
+@jax.jit
+def tril_linear_transform_no_bias(
+        tril_weights: np.ndarray,
+        diag_weights: np.ndarray,
+        x: np.ndarray
+):
     """
-    Represents transformation by a lower triangular (with strictly positive diagonal entries) matrix, with optional
-    bias term.
-    Used for reparametrizing a Gaussian by multiplying a standard normal by the Cholesky factor of the target
-    covariance matrix.
+    :param tril_weights: (N x (N-1) / 2)-length array. (lower triangular elements)
+    :param diag_weights: length N array (log-diagonal elements)
+    :param bias: length N array (vector 'b')
+    :param x: (M x N) array
+    :return: Computes x @ A.T + b, where A is the lower-triangular matrix specified by the weights.
     """
-    def __init__(self, n_features: int, bias: bool, device=None, dtype=None):
-        super().__init__()
-        nnz = n_features * (n_features - 1) // 2
-        self.tril_weights = torch.nn.Parameter(torch.zeros(nnz, device=device, dtype=dtype))
-        self.diag_weights = torch.nn.Parameter(torch.zeros(n_features, device=device, dtype=dtype))
-        self.tril_ind = torch.tril_indices(n_features, n_features, -1)
-        if bias:
-            self.bias = torch.nn.Parameter(torch.zeros(n_features, device=device, dtype=dtype))
-        else:
-            self.bias = torch.zeros(n_features, device=device, dtype=dtype)
-        self.n_features = n_features
-        self.device = device
-        self.dtype = dtype
-
-    @property
-    def weight(self) -> torch.Tensor:
-        A = torch.zeros(size=(self.n_features, self.n_features), device=self.device, dtype=self.dtype)
-        tril_r, tril_c = self.tril_ind
-        diag_r = torch.arange(0, self.n_features)
-        A[tril_r, tril_c] = self.tril_weights
-        A[diag_r, diag_r] = torch.exp(self.diag_weights)
-        return A
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return functional.linear(x, self.weight, self.bias)
+    return np.matmul(
+        x,
+        tril_matrix_of(tril_weights, diag_weights).T
+    )
 
 
-class BatchedTrilLinear(torch.nn.Module):
-    """
-    Applies a batched linear transformation to the incoming data by block-diagonal transformation.
-    Amounts to a single (N x Bp) @ (Bp x Bq) -> (BN x q) multiplication
-    where N is the number of samples in the input, and B is the number of batches
-    (the input must be reshaped accordingly beforehand.)
-
-    weight: the learnable weights of the module of shape (in_features) x (out_features).
-    """
-
-    def __init__(self, in_features: int, out_features: int, n_batches: int, device=None, dtype=None):
-        super().__init__()
-        self.weights = torch.nn.Parameter(
-            torch.empty(n_batches, out_features, in_features, device=device, dtype=dtype)
-        )
-
-    @property
-    def cholesky_part(self) -> torch.Tensor:
-        w = torch.block_diag(*self.weights)
-        return torch.tril(w, diagonal=-1) + torch.diag(torch.exp(torch.diag(w)))
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return torch.nn.functional.linear(x, self.cholesky_part)
+@jax.jit
+def gaussian_entropy(tril_weights: np.ndarray, diag_weights: np.ndarray):
+    n = len(diag_weights)
+    half_log_det_cov = np.log(diag_weights).sum()
+    return 0.5 * n * (1 + _NORMAL_LOG_FACTOR) + half_log_det_cov

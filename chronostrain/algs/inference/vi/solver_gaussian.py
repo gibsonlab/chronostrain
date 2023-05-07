@@ -1,16 +1,15 @@
-from typing import Iterator, Optional
+from typing import *
 
-import numpy as np
-import torch
-
+import jax
+import jax.numpy as np
 from chronostrain.database import StrainDatabase
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.util.math.matrices import log_mm_exp
+from chronostrain.util.optimization import LossOptimizer
 
-from .base import AbstractADVISolver
+from .base import AbstractADVISolver, _GENERIC_SAMPLE_TYPE, _GENERIC_PARAM_TYPE, _GENERIC_GRAD_TYPE
 from .posteriors import *
-from ...subroutines.likelihoods import DataLikelihoods
 
 from chronostrain.logging import create_logger
 logger = create_logger(__name__)
@@ -25,13 +24,16 @@ class ADVIGaussianSolver(AbstractADVISolver):
                  model: GenerativeModel,
                  data: TimeSeriesReads,
                  db: StrainDatabase,
+                 optimizer: LossOptimizer,
                  read_batch_size: int = 5000,
                  correlation_type: str = "time"):
         logger.info("Initializing solver with Gaussian posterior")
         if correlation_type == "time":
-            posterior = GaussianPosteriorTimeCorrelation(model)
+            raise NotImplementedError("TODO implement this posterior for Jax.")
+            # posterior = GaussianPosteriorTimeCorrelation(model)
         elif correlation_type == "strain":
-            posterior = GaussianPosteriorStrainCorrelation(model)
+            raise NotImplementedError("TODO implement this posterior for Jax.")
+            # posterior = GaussianPosteriorStrainCorrelation(model)
         elif correlation_type == "full":
             posterior = GaussianPosteriorFullReparametrizedCorrelation(model)
         else:
@@ -42,17 +44,59 @@ class ADVIGaussianSolver(AbstractADVISolver):
             data=data,
             db=db,
             posterior=posterior,
+            optimizer=optimizer,
             read_batch_size=read_batch_size
         )
 
-        self.log_total_marker_lens = torch.tensor([
-            [np.log(sum(len(m) for m in strain.markers))]
+        self.log_total_marker_lens = np.array([
+            np.log(sum(len(m) for m in strain.markers))
             for strain in self.model.bacteria_pop.strains
-        ], device=self.device)  # (S x 1)
+        ])  # total marker nucleotide length of each strain
 
-    def elbo(self,
-             x_samples: torch.Tensor
-             ) -> Iterator[torch.Tensor]:
+        self.precompile_elbo_components()
+
+    # noinspection PyAttributeOutsideInit
+    def precompile_elbo_components(self):
+        self.entropy_grad = jax.value_and_grad(self.posterior.entropy, argnums=0)
+
+        @jax.jit
+        def model_ll(params, rand_samples):
+            x = self.posterior.reparametrize(rand_samples, params)
+            self.model.log_likelihood_x(x=x).mean()
+        self.model_ll_grad = jax.value_and_grad(model_ll, argnums=0)
+
+        self.data_ll_grad: List[List[Callable]] = []
+        self.conditional_correction_t_grad = []
+        for t_idx in range(self.model.num_times()):
+            data_ll_t_grad = []
+            for batch_idx, batch_lls in enumerate(self.batches[t_idx]):
+                batch_sz = batch_lls.shape[1]
+                n_data = len(self.data.time_slices[t_idx])
+
+                @jax.jit
+                def data_ll_t_fn(params, rand_samples):
+                    x = self.posterior.reparametrize(rand_samples, params)
+                    log_y_t = jax.nn.log_softmax(x, axis=-1)
+                    return batch_sz * log_mm_exp(log_y_t, batch_lls).mean()
+                data_ll_t_grad.append(
+                    jax.value_and_grad(data_ll_t_fn)
+                )
+            self.data_ll_grad.append(data_ll_t_grad)
+
+            @jax.jit
+            def conditional_correction_t_fn(params, rand_samples):
+                x = self.posterior.reparametrize(rand_samples, params)
+                log_y_t = jax.nn.log_softmax(x, axis=1)
+                return n_data * -log_mm_exp(log_y_t, self.log_total_marker_lens).mean()
+            self.conditional_correction_t_grad.append(
+                jax.value_and_grad(conditional_correction_t_fn)
+            )
+
+    def accumulate_elbos(
+            self,
+            params: _GENERIC_PARAM_TYPE,
+            random_samples: _GENERIC_SAMPLE_TYPE
+    ) -> Iterator[np.ndarray, _GENERIC_GRAD_TYPE]:
         """
         Computes the ADVI approximation to the ELBO objective, holding the read-to-fragment posteriors
         fixed. The entropic term is computed in closed-form, while the cross-entropy is given a monte-carlo estimate.
@@ -62,14 +106,14 @@ class ADVIGaussianSolver(AbstractADVISolver):
                 = E_{X~Q}(log P(X) + P(R|X)) - E_{X~Qx}(log Q(X))
                 = E_{X~Q}(log P(X) + P(R|X)) + H(Q)
 
-        :param x_samples: A (T x N x S) tensor, where T = # of timepoints, N = # of samples, S = # of strains.
-        :return: An estimate of the ELBO, using the provided samples via the above formula.
+        :param params: The value of parameters to use for reparametrization.
+        :param random_samples: A dict of the random samples before reparametrization.
+        :return: An estimate of the ELBO, yielded piece by piece.
         """
-
         """
         ELBO original formula:
             E_Q[P(X)] - E_Q[Q(X)] + E_{F ~ phi} [log P(F | X)]
-        
+
         To obtain monte carlo estimates of ELBO, need to be able to compute:
         1. p(x)
         2. q(x), or more directly the entropy H(Q) = -E_Q[Q(X)]
@@ -77,42 +121,30 @@ class ADVIGaussianSolver(AbstractADVISolver):
 
         To save memory on larger inputs, split the ELBO up into several pieces.
         """
-        model_ll = self.model.log_likelihood_x(X=x_samples).mean()
-        yield model_ll
+        yield self.entropy_grad(params)
+        yield self.model_ll_grad(params, random_samples)
 
-        entropic = self.posterior.entropy()
-        yield entropic
+        for data_ll_t_grad in self.data_ll_grad:
+            for t_batch_fn in data_ll_t_grad:
+                yield t_batch_fn(params, random_samples)
 
-        for t_idx in range(self.model.num_times()):
-            log_y_t = self.model.log_latent_conversion(x_samples[t_idx])  # (N x S)
+        for corrs_t_fn in self.conditional_correction_t_grad:
+            yield corrs_t_fn(params, random_samples)
 
-            # Iterate over reads at timepoint t, pre-divided into batches.
-            for batch_idx, batch_lls in enumerate(self.batches[t_idx]):
-                batch_sz = batch_lls.shape[1]
-
-                # Average of (N x R_batch) entries, we only want to divide by 1/N and not 1/(N*R_batch)
-                # [but still call torch.mean() for numerical stability instead of torch.sum()]
-                data_ll = batch_sz * torch.mean(
-                    # (N x S) @ (S x R_batch)   ->  Raw data likelihood (up to proportionality)
-                    log_mm_exp(log_y_t, batch_lls)
-                )
-                yield data_ll
-
-            # (N x S) @ (S x 1)
-            # -> Approx. conditional correction term for conditioning on markers. (note the minus sign)
-            correction = len(self.data.time_slices[t_idx]) * torch.mean(
-                -log_mm_exp(log_y_t, self.log_total_marker_lens)
-            )
-            yield correction
-
-    def data_ll(self, x_samples: torch.Tensor) -> torch.Tensor:
-        ans = torch.zeros(size=(x_samples.shape[1],), device=x_samples.device)
-        for t_idx in range(self.model.num_times()):
-            log_y_t = self.model.log_latent_conversion(x_samples[t_idx]).detach()
-            for batch_lls in self.batches[t_idx]:
-                batch_matrix = log_mm_exp(log_y_t, batch_lls) - log_mm_exp(log_y_t, self.log_total_marker_lens)
-                ans = ans + torch.sum(batch_matrix, dim=1)
-        return ans
-
-    def model_ll(self, x_samples: torch.Tensor):
-        return self.model.log_likelihood_x(X=x_samples).detach()
+    def elbo_with_grad(
+            self,
+            params: _GENERIC_PARAM_TYPE,
+            random_samples: _GENERIC_SAMPLE_TYPE
+    ) -> Tuple[np.ndarray, _GENERIC_GRAD_TYPE]:
+        total_elbo = None
+        # noinspection PyTypeChecker
+        total_grad: _GENERIC_GRAD_TYPE = None
+        for elbo_chunk, elbo_chunk_grad in self.accumulate_elbos(params, random_samples):
+            if total_elbo is None:
+                total_elbo = elbo_chunk
+                total_grad = elbo_chunk_grad
+            else:
+                total_elbo += elbo_chunk
+                for k, g in total_grad.items():
+                    total_grad[k] = total_grad[k] + elbo_chunk_grad[k]
+        return total_elbo, total_grad

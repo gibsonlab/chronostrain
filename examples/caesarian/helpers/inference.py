@@ -273,7 +273,7 @@ def perform_em(reads: TimeSeriesReads, population: Population, fragments: Fragme
     model = create_model(
         population=population,
         read_types=read_types,
-        mean=torch.zeros(population.num_strains(), device=cfg.torch_cfg.device),
+        mean=torch.zeros(population.num_strains(), device=cfg.engine_cfg.device),
         fragments=fragments,
         time_points=time_points,
         disable_quality=False,

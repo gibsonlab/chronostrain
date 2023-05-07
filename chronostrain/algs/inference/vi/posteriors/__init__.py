@@ -1,4 +1,4 @@
-from .gaussians import GaussianPosteriorStrainCorrelation, \
-    GaussianPosteriorFullReparametrizedCorrelation, \
-    GaussianPosteriorTimeCorrelation
-from .gaussians_zeroes import GaussianWithLocalZeros, GaussianWithGlobalZerosPosterior, GaussianWithGlobalZerosPosteriorSparsified
+from .gaussians import GaussianPosteriorFullReparametrizedCorrelation
+# from .gaussians import GaussianPosteriorStrainCorrelation
+# from .gaussians import GaussianPosteriorTimeCorrelation
+# from .gaussians_zeroes import GaussianWithLocalZeros, GaussianWithGlobalZerosPosterior, GaussianWithGlobalZerosPosteriorSparsified

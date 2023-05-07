@@ -1,7 +1,7 @@
 from logging import Logger
 from typing import List, Set
-import torch
 
+import jax.numpy as np
 from chronostrain.database import StrainDatabase
 from chronostrain.model import *
 from chronostrain.config import cfg
@@ -11,7 +11,7 @@ from chronostrain.model.io import ReadType
 
 def create_model(population: Population,
                  read_types: Set[ReadType],
-                 mean: torch.Tensor,
+                 mean: np.ndarray,
                  fragments: FragmentSpace,
                  time_points: List[float],
                  disable_quality: bool,
@@ -25,7 +25,6 @@ def create_model(population: Population,
     :param time_points: List of time points for which samples are taken from.
     :param disable_quality: A flag to indicate whether or not to use NoiselessErrorModel.
     :param db: A Strain database instance.
-    :param pair_ended: Indicates whether the read model is paired-end or single-ended.
     :return A Generative model object.
     """
     if disable_quality:

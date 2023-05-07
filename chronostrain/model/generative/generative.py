@@ -2,31 +2,29 @@
  generative.py
  Contains classes for representing the generative model.
 """
-from typing import List, Tuple
+from typing import List
 
-from torch.distributions.multivariate_normal import MultivariateNormal
+import jax
+import jax.numpy as np
+import jax.experimental.sparse as jsparse
 from scipy.stats import rv_discrete, nbinom
 
 from chronostrain.model.bacteria import Population
 from chronostrain.model import FragmentSpace
 from chronostrain.model.reads import AbstractErrorModel
-from chronostrain.model.io import TimeSeriesReads, TimeSliceReads
-from chronostrain.util.math.distributions import *
-from chronostrain.util.math.matrices import RowSectionedSparseMatrix
 from chronostrain.database import StrainDatabase
 from chronostrain.config import cfg
 
-from .fragment_frequencies import SparseFragmentFrequencyComputer
+from .fragment_frequencies import FragmentFrequencyComputer
 from chronostrain.logging import create_logger
 
 logger = create_logger(__name__)
 
 
-# noinspection PyPep8Naming,DuplicatedCode
 class GenerativeModel:
     def __init__(self,
                  times: List[float],
-                 mu: torch.Tensor,
+                 mu: np.ndarray,
                  tau_1_dof: float,
                  tau_1_scale: float,
                  tau_dof: float,
@@ -52,7 +50,7 @@ class GenerativeModel:
         """
 
         self.times: List[float] = times  # array of time points
-        self.mu: torch.Tensor = mu  # mean for X_1
+        self.mu: np.ndarray = mu  # mean for X_1
         self.tau_1_dof: float = tau_1_dof
         self.tau_1_scale: float = tau_1_scale
         self.tau_dof: float = tau_dof
@@ -69,18 +67,17 @@ class GenerativeModel:
         self._frag_freqs_dense = None
 
         logger.debug(f"Model has inverse temperature = {cfg.model_cfg.inverse_temperature}")
-        self.latent_conversion = lambda x: torch.softmax(cfg.model_cfg.inverse_temperature * x, dim=-1)
+        self.latent_conversion = lambda x: jax.nn.softmax(cfg.model_cfg.inverse_temperature * x, axis=-1)
 
         # self.log_latent_conversion = lambda x: torch.log(sparsemax(x, dim=-1))
-        self.log_latent_conversion = lambda x: torch.log_softmax(cfg.model_cfg.inverse_temperature * x, dim=-1)
+        self.log_latent_conversion = lambda x: jax.nn.log_softmax(cfg.model_cfg.inverse_temperature * x, axis=-1)
 
-        self.dt_sqrt_inverse = torch.tensor(
+        self.dt_sqrt_inverse = np.power(np.array(
             [
                 self.dt(t_idx)
                 for t_idx in range(1, self.num_times())
-            ],
-            device=cfg.torch_cfg.device
-        ).pow(-0.5)
+            ]
+        ), -0.5)
 
     def num_times(self) -> int:
         return len(self.times)
@@ -92,14 +89,14 @@ class GenerativeModel:
         return len(self.fragments)
 
     @property
-    def fragment_frequencies_sparse(self) -> RowSectionedSparseMatrix:
+    def fragment_frequencies_sparse(self) -> jsparse.BCOO:
         """
         Outputs the (F x S) matrix representing the strain-specific fragment (LOG-)frequencies.
         Is a wrapper for Population.construct_strain_fragment_frequencies().
         (Corresponds to the matrix "W" in writeup.)
         """
         if self._frag_freqs_sparse is None:
-            self._frag_freqs_sparse = SparseFragmentFrequencyComputer(
+            self._frag_freqs_sparse = FragmentFrequencyComputer(
                 frag_length_rv=self.frag_length_distribution,
                 db=self.db,
                 fragments=self.fragments,
@@ -108,7 +105,7 @@ class GenerativeModel:
         return self._frag_freqs_sparse
 
     @property
-    def fragment_frequencies_dense(self) -> torch.Tensor:
+    def fragment_frequencies_dense(self) -> np.ndarray:
         """
         Outputs the (F x S) matrix representing the strain-specific fragment (LOG-)frequencies.
         Is a wrapper for Population.construct_strain_fragment_frequencies().
@@ -116,206 +113,26 @@ class GenerativeModel:
         """
         raise NotImplementedError("TODO implement `DenseFragmentFrequencyComputer` class.")
 
-    def log_likelihood_x(self, X: torch.Tensor) -> torch.Tensor:
+    def log_likelihood_x(self, x: np.ndarray) -> np.ndarray:
         """
         Given an (T x N x S) tensor where N = # of instances/samples of X, compute the N different log-likelihoods.
         """
-        if len(X.size()) == 2:
-            r, c = X.size()
-            X = X.view(r, 1, c)
-        return self.log_likelihood_x_jeffreys_prior(X)
+        if len(x.shape) == 2:
+            r, c = x.shape
+            x = x.reshape(r, 1, c)
+        return self.log_likelihood_x_jeffreys_prior(x)
 
-    def log_likelihood_x_halfcauchy_prior(self, X: torch.Tensor) -> torch.Tensor:
-        """
-        Implementation of log_likelihood_x using HalfCauchy prior for the variance.
-        """
-        log_likelihood_first = HalfCauchyVarianceGaussian(
-            mean=self.mu,
-            cauchy_scale=100.0,
-            n_samples=200
-        ).empirical_log_likelihood(x=X[0, :, :])
-
-        collapsed_size = (self.num_times() - 1) * self.num_strains()
-        n_samples = X.size()[1]
-
-        dt_sqrt_inverse = torch.tensor(
-            [
-                self.dt(t_idx)
-                for t_idx in range(1, self.num_times())
-            ],
-            device=cfg.torch_cfg.device
-        ).pow(-0.5)
-        diffs = (X[1:, :, ] - X[:-1, :, ]) * dt_sqrt_inverse.unsqueeze(1).unsqueeze(2)
-
-        log_likelihood_rest = HalfCauchyVarianceGaussian(
-            mean=torch.zeros(n_samples, collapsed_size, dtype=cfg.torch_cfg.default_dtype),
-            cauchy_scale=1.0,
-            n_samples=200
-        ).empirical_log_likelihood(
-            x=diffs.transpose(0, 1).reshape(n_samples, collapsed_size)
-        )
-
-        return log_likelihood_first + log_likelihood_rest
-
-    def log_likelihood_x_uniform_prior(self, X: torch.Tensor) -> torch.Tensor:
-        """
-        Implementation of log_likelihood_x using Uniform prior for the variance.
-        """
-        log_likelihood_first = UniformVarianceGaussian(
-            mean=self.mu,
-            lower=0.1,
-            upper=20.0,
-            steps=25
-        ).log_likelihood(x=X[0, :, :])
-
-        collapsed_size = (self.num_times() - 1) * self.num_strains()
-        n_samples = X.size()[1]
-
-        dt_sqrt_inverse = torch.tensor(
-            [
-                self.dt(t_idx)
-                for t_idx in range(1, self.num_times())
-            ]
-        ).pow(-0.5)
-        diffs = (X[1:, :, ] - X[:-1, :, ]) * dt_sqrt_inverse.unsqueeze(1).unsqueeze(2)
-
-        log_likelihood_rest = UniformVarianceGaussian(
-            mean=torch.zeros(n_samples, collapsed_size, dtype=cfg.torch_cfg.default_dtype),
-            lower=0.1,
-            upper=20.0,
-            steps=25
-        ).log_likelihood(
-            x=diffs.transpose(0, 1).reshape(n_samples, collapsed_size)
-        )
-
-        return log_likelihood_first + log_likelihood_rest
-
-    def log_likelihood_x_jeffreys_prior(self, X: torch.Tensor) -> torch.Tensor:
+    def log_likelihood_x_jeffreys_prior(self, x: np.ndarray) -> np.ndarray:
         """
         Implementation of log_likelihood_x using Jeffrey's prior (for the Gaussian with known mean) for the variance.
+        Assumes that the shape of X is constant (and only returns the non-constant part.)
         """
-        n_samples = X.size()[1]
-        n_strains = X.size()[2]
-        collapsed_size = (self.num_times() - 1) * n_strains
-
-        _first_prior = JeffreysGaussian(mean=self.mu)
-        _rest_prior = JeffreysGaussian(
-            mean=torch.zeros(n_samples, collapsed_size,
-                             dtype=cfg.torch_cfg.default_dtype,
-                             device=X.device)
-        )
-
-        log_likelihood_first = _first_prior.log_likelihood(x=X[0, :, :])
+        n_times, n_samples, n_strains = x.shape
+        ll_first = 0.5 * n_strains * np.log(np.square(x[0, :, :] - self.mu, 2).sum(axis=-1))
         if self.num_times() == 1:
-            return log_likelihood_first
-        diffs = (X[1:, :, ] - X[:-1, :, ]) * self.dt_sqrt_inverse.unsqueeze(1).unsqueeze(2)
-        log_likelihood_rest = _rest_prior.log_likelihood(
-            x=diffs.transpose(0, 1).reshape(n_samples, collapsed_size)
-        )
-
-        return log_likelihood_first + log_likelihood_rest
-
-    def log_likelihood_x_sics_prior(self, X: torch.Tensor) -> torch.Tensor:
-        ans = torch.zeros(size=[X[0].size()[0]], device=X[0].device)
-        X_prev = None
-        for t_idx, X_t in enumerate(X):
-            ans = ans + self.log_likelihood_xt_sics_prior_helper(
-                t_idx=t_idx,
-                X=X_t,
-                X_prev=X_prev
-            )
-            X_prev = X_t
-        return ans
-
-    def log_likelihood_xt_sics_prior_helper(self,
-                                            t_idx: int,
-                                            X: torch.Tensor,
-                                            X_prev: torch.Tensor):
-        """
-        Computes the Gaussian + Data likelihood at timepoint t, given previous timepoint X_prev.
-
-        :param t_idx: the time index (0 thru T-1)
-        :param X: (N x S) tensor of time (t) samples.
-        :param X_prev: (N x S) tensor of time (t-1) samples. (None if t=0).
-        :return: The joint log-likelihood p(X_t, Reads_t | X_{t-1}).
-        """
-        # Gaussian part
-        N = X.size()[0]
-        if t_idx == 0:
-            center = self.mu.repeat(N, 1)
-            dof = self.tau_1_dof
-            scale = self.tau_1_scale
-            dt = 1
-        else:
-            center = X_prev
-            dof = self.tau_dof
-            scale = self.tau_scale
-            dt = self.dt(t_idx)
-
-        return SICSGaussian(mean=center, dof=dof, scale=scale).log_likelihood(x=X, t=dt)
-
-    def sample_abundances_and_reads(
-            self,
-            read_depths: List[int]
-    ) -> Tuple[torch.Tensor, TimeSeriesReads]:
-        """
-        Generate a time-indexed list of read collections and strain abundances.
-
-         :param read_depths: the number of reads per time point. A time-indexed array of ints.
-         :return: a tuple of (abundances, reads) where
-             strain_abundances is
-                 a time-indexed list of 1D numpy arrays of fragment abundances based on the
-                 corresponding time index strain abundances and the fragments' relative
-                 frequencies in each strain's sequence.
-             reads is
-                a time-indexed list of lists of SequenceRead objects, where the i-th
-                inner list corresponds to a reads taken at time index i (self.times[i])
-                and contains num_samples[i] read objects.
-        """
-        if len(read_depths) != len(self.times):
-            raise ValueError("Length of num_samples ({}) must agree with number of time points ({})".format(
-                len(read_depths), len(self.times))
-            )
-
-        abundances = self.sample_abundances()
-        reads = self.sample_timed_reads(abundances, read_depths)
-        return abundances, reads
-
-    def sample_timed_reads(self,
-                           abundances: torch.Tensor,
-                           read_depths: List[int],
-                           read_length: int = 150
-                           ) -> TimeSeriesReads:
-        S = self.num_strains()
-        F = self.num_fragments()
-        num_timepoints = len(read_depths)
-
-        logger.debug("Sampling reads, conditioned on abundances.")
-
-        if abundances.size()[0] != len(self.times):
-            raise ValueError(
-                "Argument abundances (len {}) must must have specified number of time points (len {})".format(
-                    abundances.size()[0], len(self.times)
-                )
-            )
-
-        # For each time point, convert to fragment abundances and sample each read.
-        time_slices = []
-
-        for t in range(num_timepoints):
-            read_depth = read_depths[t]
-            strain_abundance = abundances[t]
-            frag_abundance = self.strain_abundance_to_frag_abundance(strain_abundance.view(S, 1)).view(F)
-            reads_arr = self.sample_reads(frag_abundance, read_depth,
-                                          read_length=read_length,
-                                          metadata="SIM_t{}".format(self.times[t]))
-            time_slices.append(TimeSliceReads(
-                reads=reads_arr,
-                time_point=self.times[t],
-                read_depth=read_depth
-            ))
-
-        return TimeSeriesReads(time_slices)
+            return ll_first
+        ll_rest = 0.5 * (n_times - 1) * n_strains * np.log(np.square(x[1:, :, ] - x[:-1, :, ]).sum(axis=0).sum(axis=-1))
+        return ll_first + ll_rest
 
     def dt(self, time_idx: int) -> float:
         """
@@ -345,42 +162,15 @@ class GenerativeModel:
         else:
             raise IndexError("Can't reference time at index {}.".format(time_idx))
 
-    def _sample_brownian_motion(self) -> torch.Tensor:
-        """
-        Generates an S-dimensional brownian motion, S = # of strains, centered at mu.
-        Initial covariance is tau_1, while subsequent variance scaling is tau.
-        """
-        brownian_motion = []
-        covariance = torch.eye(list(self.mu.size())[0], device=cfg.torch_cfg.device)  # Initialize covariance matrix
-        center = self.mu  # Initialize mean vector.
-        var_1 = ScaleInverseChiSquared(dof=self.tau_1_dof, scale=self.tau_1_scale).sample().item()
-        var = ScaleInverseChiSquared(dof=self.tau_dof, scale=self.tau_scale).sample().item()
-
-        for time_idx in range(len(self.times)):
-            variance_scaling = self.time_scaled_variance(time_idx, var_1=var_1, var=var)
-            center = MultivariateNormal(loc=center, covariance_matrix=variance_scaling * covariance).sample()
-            brownian_motion.append(center)
-
-        return torch.stack(brownian_motion, dim=0)
-
-    def sample_abundances(self) -> torch.Tensor:
-        """
-        Samples abundances from a Gaussian Process.
-
-        :return: A T x S tensor; each row is an abundance profile for a time point.
-        """
-        gaussians = self._sample_brownian_motion()
-        return self.latent_conversion(gaussians)
-
-    def strain_abundance_to_frag_abundance(self, strain_abundances: torch.Tensor) -> torch.Tensor:
-        """
-        Convert strain abundance to fragment abundance, via the matrix multiplication F = WZ.
-        Assumes strain_abundance is an S x T tensor, so that the output is an F x T tensor.
-        """
-        if cfg.model_cfg.use_sparse:
-            return self.fragment_frequencies_sparse.exp().dense_mul(strain_abundances)
-        else:
-            return self.fragment_frequencies_dense.exp().mm(strain_abundances)
+    # def strain_abundance_to_frag_abundance(self, strain_abundances: np.ndarray) -> np.ndarray:
+    #     """
+    #     Convert strain abundance to fragment abundance, via the matrix multiplication F = WZ.
+    #     Assumes strain_abundance is an S x T tensor, so that the output is an F x T tensor.
+    #     """
+    #     if cfg.model_cfg.use_sparse:
+    #         return self.fragment_frequencies_sparse.exp().dense_mul(strain_abundances)
+    #     else:
+    #         return self.fragment_frequencies_dense.exp().mm(strain_abundances)
 
     # def sample_reads(
     #         self,

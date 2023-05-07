@@ -1,29 +1,26 @@
-from pathlib import Path
 from typing import List, Dict, Tuple, Set, Iterator
-import numpy as np
-import torch
 
+import jax.numpy as np
+import jax.experimental.sparse as jsparse
 from joblib import Parallel, delayed
 
 from chronostrain.database import StrainDatabase
 from chronostrain.model import Fragment, SequenceRead
 from chronostrain.util.alignments.multiple import MarkerMultipleFragmentAlignment
 from chronostrain.util.filesystem import convert_size
-from chronostrain.util.math.matrices import *
 from chronostrain.model.io import TimeSeriesReads
-from chronostrain.config import cfg
 from chronostrain.model.generative import GenerativeModel
 
-from .base import DataLikelihoods, AbstractLogLikelihoodComputer
-from ..alignments import CachedReadMultipleAlignments, CachedReadPairwiseAlignments
-from ..cache import ReadsPopulationCache
+from .alignments import CachedReadMultipleAlignments, CachedReadPairwiseAlignments
+from .cache import ReadsPopulationCache
 
 from chronostrain.logging import create_logger
+
 logger = create_logger(__name__)
 
 
 # noinspection PyPep8Naming
-class SparseDataLikelihoods(DataLikelihoods):
+class SparseDataLikelihoods:
     def __init__(
             self,
             model: GenerativeModel,
@@ -32,61 +29,52 @@ class SparseDataLikelihoods(DataLikelihoods):
             read_likelihood_lower_bound: float = 1e-30,
             num_cores: int = 1
     ):
+        self.model = model
+        self.data = data
         self.db = db
+        self.read_likelihood_lower_bound = read_likelihood_lower_bound
         self.num_cores = num_cores
-        super().__init__(model, data, read_likelihood_lower_bound=read_likelihood_lower_bound)
-        self.supported_frags: List[torch.Tensor] = []
-        self.projectors: List[ColumnSectionedSparseMatrix] = []
 
-        # Delete empty rows (Fragments)
+        log_likelihoods_tensors = SparseLogLikelihoodComputer(
+            self.model, self.data, self.db, self.num_cores
+        ).compute_likelihood_tensors()
+
+        self.matrices: List[jsparse.BCOO] = [
+            ll_tensor for ll_tensor in log_likelihoods_tensors
+        ]
+        self.supported_frags: List[np.ndarray] = []
+
+        # Pre-compute supported fragments for each timepoint t.
         for t_idx, t in enumerate(self.model.times):
-            F, R = self.matrices[t_idx].size()
-            row_support = self.matrices[t_idx].indices[0, :].unique(
-                sorted=True, return_inverse=False, return_counts=False
+            F, R = self.matrices[t_idx].shape
+            row_support = np.unique(
+                self.matrices[t_idx].indices[:, 0],
+                sorted=True, return_inverse=False, return_counts=False  # np.unique sorts by default
             )
             _F = len(row_support)
             logger.debug("(t = {}) # of supported fragments: {} out of {} ({:.2e}) ({} reads)".format(
                 t, _F, F, _F / F, len(data[t_idx])
             ))
-
-            _support_indices = torch.tensor([
-                [i for i in range(len(row_support))],
-                [row_support[i] for i in range(_F)]
-            ], dtype=torch.long, device=cfg.torch_cfg.device)
-
-            projector = ColumnSectionedSparseMatrix(
-                indices=_support_indices,
-                values=torch.ones(_support_indices.size()[1],
-                                  device=cfg.torch_cfg.device,
-                                  dtype=cfg.torch_cfg.default_dtype),
-                dims=(_F, F)
-            )
-
-            projected_indices = torch.stack([
-                torch.bucketize(self.matrices[t_idx].indices[0], row_support),  # Assumes row_support is sorted.
-                self.matrices[t_idx].indices[1]
-            ])  # Simply call bucketize() to project, faster than multiplying by the projector matrix.
-
-            self.matrices[t_idx] = RowSectionedSparseMatrix(
-                indices=projected_indices,
-                values=self.matrices[t_idx].values,
-                dims=(_F, R)
-            )
-
-            self.projectors.append(projector)
             self.supported_frags.append(row_support)
 
-    def _likelihood_computer(self) -> AbstractLogLikelihoodComputer:
-        return SparseLogLikelihoodComputer(self.model, self.data, self.db, self.num_cores)
+    def reduce_supported_fragments(self, x: jsparse.BCOO, t_idx: int, fragment_dim: int) -> jsparse.BCOO:
+        indices = np.copy(x.indices)
+        indices[:, fragment_dim] = np.digitize(
+            x.indices[:, fragment_dim],
+            bins=self.supported_frags[t_idx],
+            right=True
+        )
+        return jsparse.BCOO((indices, x.values), shape=x.shape)
 
 
-class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
+class SparseLogLikelihoodComputer:
     def __init__(self,
                  model: GenerativeModel,
                  reads: TimeSeriesReads,
                  db: StrainDatabase,
                  num_cores: int = 1):
-        super().__init__(model, reads)
+        self.model = model
+        self.reads = reads
         self._bwa_index_finished = False
         self.num_cores = num_cores
 
@@ -232,7 +220,7 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         #
         # return read_to_frag_likelihoods
 
-    def create_sparse_matrix(self, t_idx: int) -> SparseMatrix:
+    def create_sparse_matrix(self, t_idx: int) -> jsparse.BCOO:
         """
         For the specified time point, evaluate the (F x N_t) array of fragment-to-read likelihoods.
 
@@ -243,51 +231,36 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
         # Perform alignment for approximate fine-grained search.
         # read_to_frag_likelihoods: Dict[str, List[Tuple[Fragment, float]]] = self._compute_read_frag_alignments(t_idx)
 
-        read_indices: List[int] = []
-        frag_indices: List[int] = []
+        indices: List[List[int]] = []
         log_likelihood_values: List[float] = []
 
         for read, frag_seq, error_ll in self._compute_read_frag_alignments_pairwise(t_idx):
-            read_indices.append(read.index)
-            frag_indices.append(self.model.fragments.get_fragment_index(frag_seq))
+            indices.append([read.index, self.model.fragments.get_fragment_index(frag_seq)])
             log_likelihood_values.append(error_ll)
 
-        return SparseMatrix(
-            indices=torch.tensor(
-                [frag_indices, read_indices],
-                device=cfg.torch_cfg.device,
-                dtype=torch.long
+        return jsparse.BCOO(
+            (
+                np.array(log_likelihood_values),
+                np.array(indices)
             ),
-            values=torch.tensor(
-                log_likelihood_values,
-                device=cfg.torch_cfg.device,
-                dtype=cfg.torch_cfg.default_dtype
-            ),
-            dims=(len(self.model.fragments), len(self.reads[t_idx])),
-            force_coalesce=True
+            shape=(len(self.model.fragments), len(self.reads[t_idx])),
         )
 
-    def compute_likelihood_tensors(self) -> List[SparseMatrix]:
+    def compute_likelihood_tensors(self) -> List[jsparse.BCOO]:
         """
         Invokes create_sparse_matrix by passing it through the cache.
         :return:
         """
         logger.debug("Computing read-fragment likelihoods...")
+        from ...util.math import save_sparse_matrix, load_sparse_matrix
 
-        # Save each sparse tensor as a tuple of indices/values/shape into a compressed numpy file (.npz).
-        def save_(path: Path, sparse_matrix: SparseMatrix):
-            sparse_matrix.save(path)
-
-        def load_(path: Path) -> SparseMatrix:
-            return SparseMatrix.load(path, device=cfg.torch_cfg.device, dtype=cfg.torch_cfg.default_dtype)
-
-        def callback_(matrix: SparseMatrix):
-            _, counts_per_read = torch.unique(matrix.indices[1], sorted=False, return_inverse=False, return_counts=True)
+        def callback_(matrix: jsparse.BCOO):
+            _, counts_per_read = np.unique(matrix.indices[1], return_counts=True)
             logger.debug(
                 "Read-likelihood matrix (size {r} x {c}) has {nz} nonzero entries. "
                 "(~{meanct:.2f} hits per read, density={dens:.1e}, physical({dev})={phys})".format(
-                    r=matrix.size()[0],
-                    c=matrix.size()[1],
+                    r=matrix.shape[0],
+                    c=matrix.shape[1],
                     nz=len(matrix.values),
                     meanct=counts_per_read.float().mean(),
                     dens=matrix.density(),
@@ -302,8 +275,8 @@ class SparseLogLikelihoodComputer(AbstractLogLikelihoodComputer):
                 "fn": lambda t: self.create_sparse_matrix(t),
                 "call_args": [],
                 "call_kwargs": {"t": t_idx},
-                "save": save_,
-                "load": load_,
+                "save": save_sparse_matrix,
+                "load": load_sparse_matrix,
                 "success_callback": callback_
             }
             for t_idx in range(self.model.num_times())
