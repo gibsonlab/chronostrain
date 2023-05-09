@@ -75,7 +75,7 @@ def perform_advi(
         )
         optimizer = Adam(
             lr_scheduler=lr_scheduler,
-            weight_decay=0.
+            minimize_objective=False
         )
         solver = ADVIGaussianSolver(
             model=model,

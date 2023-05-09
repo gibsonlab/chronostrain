@@ -82,9 +82,10 @@ class ReduceLROnPlateauLast(LearningRateScheduler):
 
     def get_current_lr(self) -> float:
         return self.lr
+
     def get_optax_scheduler(self) -> optax.Schedule:
         # Silly, but helpful in case we decide to switch abstraction from optax to something else
-        def _schedule():
+        def _schedule(step_num):
             return self.lr
         return _schedule
 

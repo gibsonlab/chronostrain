@@ -52,18 +52,43 @@ def column_normed_row_sum(x: jsparse.BCOO) -> np.ndarray:
     ).todense()
 
 
-@jax.jit
-def log_spspmm_exp(x: jsparse.BCOO, y: jsparse.BCOO) -> np.ndarray:
-    buf = []
-    for i in range(x.shape[0]):
-        buf_row = []
-        for j in range(y.shape[1]):
-            tmp = x[i] + y[:, j]
-            buf_row.append(
-                jax.scipy.special.logsumexp(tmp.todense())
-            )
-        buf.append(buf_row)
-    return np.array(buf)
+import numba
+import numpy as cnp
+
+
+# @numba.jit(nopython=False)
+def _log_spspmm_exp_numba(x_indices: cnp.ndarray, x_values: cnp.ndarray,
+                          y_indices: cnp.ndarray, y_values: cnp.ndarray,
+                          x_rows: int, y_cols: int) -> cnp.ndarray:
+    z = cnp.full(shape=(x_rows, y_cols), fill_value=-cnp.inf)
+
+    for _b in range(len(y_values)):
+        k = y_indices[_b, 0]
+        tgt_y_col = y_indices[_b, 1]
+        tgt_y_val = y_values[_b]
+
+        tgt_x_locs = x_indices[:, 1] == k
+        tgt_x_vals = x_values[tgt_x_locs]
+        tgt_x_rows = x_indices[tgt_x_locs, 0]
+
+        newvals = tgt_x_vals + tgt_y_val
+        z[tgt_x_rows, tgt_y_col] = cnp.logaddexp(
+            z[tgt_x_rows, tgt_y_col], newvals
+        )
+    return z
+
+
+def log_spspmm_exp_sparsey(x: jsparse.BCOO, y: jsparse.BCOO):
+    """
+    same idea as log_spspmm_exp, but assumes y is far sparser than x. Tries to use this to leverage an easier calculation.
+    """
+    return np.array(
+        _log_spspmm_exp_numba(
+            cnp.array(x.indices), cnp.array(x.data),
+            cnp.array(y.indices), cnp.array(y.data),
+            x.shape[0], y.shape[1]
+        )
+    )
 
 
 @jax.jit

@@ -1,7 +1,8 @@
 from pathlib import Path
 from typing import List, Tuple, Iterator
 
-import jax.numpy as np
+import jax.numpy as jnp
+import numpy as cnp
 import jax.experimental.sparse as jsparse
 import pandas as pd
 import multiprocessing
@@ -96,7 +97,7 @@ class FragmentFrequencyComputer(object):
                     # noinspection PyTypeChecker
                     _sidx = int(_sidx)
                     if _sidx not in all_strain_marker_lengths:
-                        all_strain_marker_lengths[_sidx] = np.array([len(m) for m in self.strains[_sidx].markers])
+                        all_strain_marker_lengths[_sidx] = cnp.array([len(m) for m in self.strains[_sidx].markers])
                     yield [
                         _sidx,
                         fragment.index,
@@ -104,8 +105,8 @@ class FragmentFrequencyComputer(object):
                         self.min_overlap_ratio,
                         len(fragment),
                         all_strain_marker_lengths[_sidx],
-                        section['hit_marker_len'].to_numpy(),
-                        section['hit_pos'].to_numpy()
+                        cnp.array(section['hit_marker_len']),
+                        cnp.array(section['hit_pos'])
                     ]
 
         for strain_idx, fragment_idx, ll in p.imap_unordered(_ll_wrapper, _arg_gen()):
@@ -113,8 +114,8 @@ class FragmentFrequencyComputer(object):
             frag_indices.append(fragment_idx)
             matrix_values.append(ll)
 
-        indices = np.stack([frag_indices, strain_indices], axis=1)
-        matrix_values = np.array(matrix_values)
+        indices = jnp.array(list(zip(frag_indices, strain_indices)))
+        matrix_values = jnp.array(matrix_values)
         return jsparse.BCOO(
             (matrix_values, indices),
             shape=(len(fragments), population.num_strains())
@@ -230,23 +231,30 @@ class FragmentFrequencyComputer(object):
                 pbar.update(1)
 
 
-def frag_log_ll_numpy(strain_idx:int, frag_idx: int, frag_len_rv: rv_discrete, min_overlap: float, frag_len: int, strain_marker_lengths: np.ndarray, hit_marker_lens: np.ndarray, hit_pos: np.ndarray) -> Tuple[float, float, float]:
-    window_lens = np.arange(
+def frag_log_ll_numpy(strain_idx:int,
+                      frag_idx: int,
+                      frag_len_rv: rv_discrete,
+                      min_overlap: float,
+                      frag_len: int,
+                      strain_marker_lengths: cnp.ndarray,
+                      hit_marker_lens: cnp.ndarray,
+                      hit_pos: cnp.ndarray) -> Tuple[float, float, float]:
+    window_lens = cnp.arange(
         frag_len,
         1 + max(int(frag_len_rv.mean() + 2 * frag_len_rv.std()), frag_len)
     )  # length-W
 
-    n_windows = np.sum(strain_marker_lengths) + len(strain_marker_lengths) * (
+    n_windows = cnp.sum(strain_marker_lengths) + len(strain_marker_lengths) * (
             (2 * (1 - min_overlap) - 1) * window_lens + 1
     )  # length-W
 
     cond1 = window_lens == frag_len
     cond2 = (hit_pos == 1) | (hit_pos == hit_marker_lens - frag_len + 1)
-    n_matching_windows = np.sum(cond1[None, :] | cond2[:, None], axis=0)
+    n_matching_windows = cnp.sum(cond1[None, :] | cond2[:, None], axis=0)
     _mask = n_matching_windows > 0
     # noinspection PyTypeChecker
-    result: np.ndarray = scipy.special.logsumexp(
-        a=frag_len_rv.logpmf(window_lens[_mask]) + np.log(n_matching_windows[_mask]) - np.log(n_windows[_mask]),
+    result: cnp.ndarray = scipy.special.logsumexp(
+        a=frag_len_rv.logpmf(window_lens[_mask]) + cnp.log(n_matching_windows[_mask]) - cnp.log(n_windows[_mask]),
         keepdims=False
     )
     return strain_idx, frag_idx, float(result)

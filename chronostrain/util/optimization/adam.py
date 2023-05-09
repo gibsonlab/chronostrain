@@ -1,4 +1,4 @@
-from jax.example_libraries.optimizers import adam
+from optax import adam
 from .optimizers import LossOptimizer
 from .scheduler import LearningRateScheduler
 
@@ -9,16 +9,14 @@ class Adam(LossOptimizer):
                  minimize_objective: bool = True,
                  beta1: float = 0.9,
                  beta2: float = 0.999,
-                 eps: float = 1e-8,
-                 weight_decay: float = 1e-4):
+                 eps: float = 1e-8):
         super().__init__(
             adam,
-            lr_scheduler=lr_scheduler,
             minimize_objective=minimize_objective,
+            lr_scheduler=lr_scheduler,
             hyperparameters={
-                'beta1': beta1,
-                'beta2': beta2,
-                'eps': eps,
-                'weight_decay': weight_decay
+                'b1': beta1,
+                'b2': beta2,
+                'eps': eps
             }
         )

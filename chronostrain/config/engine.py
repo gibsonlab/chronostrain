@@ -10,7 +10,7 @@ class EngineConfig(AbstractConfig):
         super().__init__("PyTorch", cfg)
         device_token = self.get_str("DEVICE")
         if device_token == "cuda":
-            if len(jax.devices("cuda") == 0):
+            if len(jax.devices("cuda")) == 0:
                 raise RuntimeError("No CUDA devices found.")
             self.device = jax.devices("cuda")[0]
         elif device_token == "cpu":
@@ -20,7 +20,7 @@ class EngineConfig(AbstractConfig):
                 "Field `DEVICE`:Invalid or unsupported device token `{}`".format(device_token)
             )
 
-        self.prng_key = jax.random.PRNGKey(self.get_int("PRNGKey"))
+        self.prng_key = jax.random.PRNGKey(self.get_int("PRNG_Key"))
 
     def generate_prng_keys(self, num_keys: int = 1) -> Iterator[jax.random.PRNGKey]:
         new_keys = jax.random.split(self.prng_key, num=num_keys + 1)

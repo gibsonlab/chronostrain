@@ -27,8 +27,8 @@ class ReparametrizedGaussianPosterior(AbstractReparametrizedPosterior, ABC):
     def random_sample(self, num_samples: int) -> _GENERIC_SAMPLE_TYPE:
         return {
             'std_gaussians': jax.random.normal(
-                shape=[self.num_times, num_samples, self.num_strains],
-                key=cfg.engine_cfg.generate_prng_keys()
+                shape=[num_samples, self.num_times * self.num_strains],
+                key=next(cfg.engine_cfg.generate_prng_keys(num_keys=1))
             )
         }
 
@@ -56,11 +56,11 @@ class GaussianPosteriorFullReparametrizedCorrelation(ReparametrizedGaussianPoste
 
     def reparametrize(self, random_samples: _GENERIC_SAMPLE_TYPE, params: _GENERIC_PARAM_TYPE = None) -> np.ndarray:
         return tril_linear_transform_with_bias(
-            self.parameters['tril_weights'],
-            np.exp(self.parameters['diag_weights']),
-            self.parameters['bias'],
+            params['tril_weights'],
+            np.exp(params['diag_weights']),
+            params['bias'],
             random_samples['std_gaussians']
-        )
+        ).reshape(self.num_times, random_samples['std_gaussians'].shape[0], self.num_strains)
 
     def get_parameters(self) -> Dict[str, np.ndarray]:
         return self.parameters

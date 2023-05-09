@@ -127,11 +127,12 @@ class GenerativeModel:
         Implementation of log_likelihood_x using Jeffrey's prior (for the Gaussian with known mean) for the variance.
         Assumes that the shape of X is constant (and only returns the non-constant part.)
         """
-        n_times, n_samples, n_strains = x.shape
-        ll_first = 0.5 * n_strains * np.log(np.square(x[0, :, :] - self.mu, 2).sum(axis=-1))
-        if self.num_times() == 1:
-            return ll_first
-        ll_rest = 0.5 * (n_times - 1) * n_strains * np.log(np.square(x[1:, :, ] - x[:-1, :, ]).sum(axis=0).sum(axis=-1))
+        n_times, _, n_strains = x.shape
+
+        ll_first = -0.5 * n_strains * np.log(np.square(x[0, :, :] - self.mu).sum(axis=-1))
+        ll_rest = -0.5 * (n_times - 1) * n_strains * np.log(np.square(
+            np.diff(x, n=1, axis=0)
+        ).sum(axis=0).sum(axis=-1))
         return ll_first + ll_rest
 
     def dt(self, time_idx: int) -> float:

@@ -2,7 +2,6 @@ from typing import List, Dict, Tuple, Set, Iterator
 
 import jax.numpy as np
 import jax.experimental.sparse as jsparse
-from joblib import Parallel, delayed
 
 from chronostrain.database import StrainDatabase
 from chronostrain.model import Fragment, SequenceRead
@@ -11,6 +10,7 @@ from chronostrain.util.filesystem import convert_size
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.model.generative import GenerativeModel
 
+from chronostrain.util.math import save_sparse_matrix, load_sparse_matrix
 from .alignments import CachedReadMultipleAlignments, CachedReadPairwiseAlignments
 from .cache import ReadsPopulationCache
 
@@ -49,7 +49,7 @@ class SparseDataLikelihoods:
             F, R = self.matrices[t_idx].shape
             row_support = np.unique(
                 self.matrices[t_idx].indices[:, 0],
-                sorted=True, return_inverse=False, return_counts=False  # np.unique sorts by default
+                return_inverse=False, return_counts=False  # np.unique sorts by default
             )
             _F = len(row_support)
             logger.debug("(t = {}) # of supported fragments: {} out of {} ({:.2e}) ({} reads)".format(
@@ -58,13 +58,24 @@ class SparseDataLikelihoods:
             self.supported_frags.append(row_support)
 
     def reduce_supported_fragments(self, x: jsparse.BCOO, t_idx: int, fragment_dim: int) -> jsparse.BCOO:
-        indices = np.copy(x.indices)
+        import numpy as cnp
+        F_REDUCED = len(self.supported_frags[t_idx])
+        if fragment_dim == 0:
+            shape = (F_REDUCED, x.shape[1])
+        elif fragment_dim == 1:
+            shape = (x.shape[0], F_REDUCED)
+        else:
+            raise ValueError("Unexpected fragment_dim argument. Must be 0 or 1.")
+
+        indices = cnp.array(x.indices)
         indices[:, fragment_dim] = np.digitize(
             x.indices[:, fragment_dim],
             bins=self.supported_frags[t_idx],
             right=True
         )
-        return jsparse.BCOO((indices, x.values), shape=x.shape)
+        indices = np.array(indices, dtype=int)
+
+        return jsparse.BCOO((x.data, indices), shape=shape)
 
 
 class SparseLogLikelihoodComputer:
@@ -235,7 +246,7 @@ class SparseLogLikelihoodComputer:
         log_likelihood_values: List[float] = []
 
         for read, frag_seq, error_ll in self._compute_read_frag_alignments_pairwise(t_idx):
-            indices.append([read.index, self.model.fragments.get_fragment_index(frag_seq)])
+            indices.append([self.model.fragments.get_fragment_index(frag_seq), read.index])
             log_likelihood_values.append(error_ll)
 
         return jsparse.BCOO(
@@ -252,43 +263,30 @@ class SparseLogLikelihoodComputer:
         :return:
         """
         logger.debug("Computing read-fragment likelihoods...")
-        from ...util.math import save_sparse_matrix, load_sparse_matrix
 
-        def callback_(matrix: jsparse.BCOO):
+        def _matrix_load_callback(matrix: jsparse.BCOO):
             _, counts_per_read = np.unique(matrix.indices[1], return_counts=True)
             logger.debug(
                 "Read-likelihood matrix (size {r} x {c}) has {nz} nonzero entries. "
-                "(~{meanct:.2f} hits per read, density={dens:.1e}, physical({dev})={phys})".format(
+                "(~{meanct:.2f} hits per read, physical({dev})={phys})".format(
                     r=matrix.shape[0],
                     c=matrix.shape[1],
-                    nz=len(matrix.values),
-                    meanct=counts_per_read.float().mean(),
-                    dens=matrix.density(),
-                    dev=str(matrix.values.device),
-                    phys=convert_size(matrix.physical_size())
+                    nz=len(matrix.data),
+                    meanct=counts_per_read.mean().item(),
+                    dev="todo",
+                    phys="todo"
                 )
             )
 
-        jobs = [
-            {
-                "relative_filepath": "sparse_log_likelihoods_{}.npz".format(t_idx),
-                "fn": lambda t: self.create_sparse_matrix(t),
-                "call_args": [],
-                "call_kwargs": {"t": t_idx},
-                "save": save_sparse_matrix,
-                "load": load_sparse_matrix,
-                "success_callback": callback_
-            }
+        return [
+            self.cache.call(
+                "sparse_log_likelihoods_{}.npz".format(t_idx),
+                self.create_sparse_matrix,
+                [],
+                {"t_idx": t_idx},
+                save_sparse_matrix,
+                load_sparse_matrix,
+                _matrix_load_callback
+            )
             for t_idx in range(self.model.num_times())
         ]
-
-        parallel = (self.num_cores > 1)
-        if parallel:
-            logger.debug("Computing read likelihoods with parallel pool size = {}.".format(self.num_cores))
-
-            return Parallel(n_jobs=self.num_cores)(
-                delayed(self.cache.call)(**cache_kwargs_t)
-                for cache_kwargs_t in jobs
-            )
-        else:
-            return [self.cache.call(**cache_kwargs_t) for cache_kwargs_t in jobs]

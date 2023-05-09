@@ -3,13 +3,14 @@ from pathlib import Path
 from typing import *
 
 import jax.numpy as np
+import numpy as cnp
 
 from chronostrain.database import StrainDatabase
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.config import cfg
 from chronostrain.util.benchmarking import RuntimeEstimator
-from chronostrain.util.math import log_spspmm_exp
+from chronostrain.util.math import log_spspmm_exp_sparsey
 from chronostrain.util.optimization import LossOptimizer
 
 from .. import AbstractModelSolver
@@ -136,17 +137,18 @@ class AbstractADVI(ABC):
                 epoch_elbos.append(elbo_value)
 
             # ===========  End of epoch
-            epoch_elbo_avg = np.mean(epoch_elbos).item()
+            epoch_elbo_avg = cnp.mean(epoch_elbos).item()
 
             if callbacks is not None:
                 random_samples = self.posterior.random_sample(num_samples=num_samples)
                 reparam_samples = self.posterior.reparametrize(random_samples)
                 for callback in callbacks:
-                    callback(epoch, reparam_samples, elbo_value)
+                    callback(epoch, reparam_samples, epoch_elbo_avg)
 
             secs_elapsed = time_est.stopwatch_click()
             time_est.increment(secs_elapsed)
 
+            self.optim.scheduler.step(epoch_elbo_avg)
             logger.info(
                 "Epoch {epoch} | time left: {t:.2f} min. | Average ELBO = {elbo:.2f} | LR = {lr}".format(
                     epoch=epoch,
@@ -189,8 +191,8 @@ class AbstractADVI(ABC):
     ) -> np.ndarray:
         elbo_value, elbo_grad = self.elbo_with_grad(self.optim.params, random_samples)
         assert self.optim.grad_sign == -1
-        self.optim.update(elbo_value, elbo_grad)
-        return np.concatenate(elbo_value)
+        self.optim.update(elbo_grad)
+        return elbo_value
 
 
 class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
@@ -230,7 +232,7 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
         logger.debug("Precomputing likelihood marginalization.")
         data_likelihoods = self.data_likelihoods
         for t_idx in range(model.num_times()):
-            data_ll_t = data_likelihoods.reduce_supported_fragments(
+            data_ll_t_reduced = data_likelihoods.reduce_supported_fragments(
                 data_likelihoods.matrices[t_idx],
                 t_idx,
                 fragment_dim=0
@@ -241,11 +243,11 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
                 fragment_dim=0
             )
 
-            for batch_idx, data_t_batch in enumerate(divide_columns_into_batches_sparse(data_ll_t, self.read_batch_size)):
+            for batch_idx, data_t_batch_reduced in enumerate(divide_columns_into_batches_sparse(data_ll_t_reduced, self.read_batch_size)):
                 # ========= Pre-compute likelihood calculations.
-                strain_batch_lls_t = log_spspmm_exp(
+                strain_batch_lls_t = log_spspmm_exp_sparsey(
                     frag_freqs_reduced.T,  # (S x F_), note the transpose!
-                    data_ll_t  # F_ x R_batch
+                    data_t_batch_reduced  # F_ x R_batch
                 )  # (S x R_batch)
 
                 # ========= Locate and filter out reads with no good alignments.

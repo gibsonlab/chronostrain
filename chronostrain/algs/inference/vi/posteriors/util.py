@@ -6,16 +6,12 @@ _NORMAL_LOG_FACTOR = cnp.log(2 * cnp.pi)
 
 @jax.jit
 def tril_matrix_of(tril_weights: np.ndarray, diag_weights: np.ndarray):
-    n_features = len(diag_weights)
-    A = np.zeros(shape=(n_features, n_features), dtype='float32')
-    tril_r, tril_c = np.tril_indices(n_features, n_features, -1)
-    diag_r = np.arange(0, n_features)
-    A[tril_r, tril_c] = tril_weights
-    A[diag_r, diag_r] = diag_weights
-    return A
+    d = len(diag_weights)
+    idx = cnp.tril_indices(d, k=-1)
+    return np.zeros((d, d), dtype=tril_weights.dtype).at[idx].set(tril_weights)
 
 
-@jax.jit
+# @jax.jit
 def tril_linear_transform_with_bias(
         tril_weights: np.ndarray,
         diag_weights: np.ndarray,
@@ -31,7 +27,7 @@ def tril_linear_transform_with_bias(
     """
     return np.matmul(
         x,
-        tril_matrix_of(tril_weights, diag_weights).T
+        tril_matrix_of(tril_weights, diag_weights).T + np.diag(diag_weights)
     ) + bias
 
 
@@ -50,12 +46,10 @@ def tril_linear_transform_no_bias(
     """
     return np.matmul(
         x,
-        tril_matrix_of(tril_weights, diag_weights).T
+        tril_matrix_of(tril_weights, diag_weights).T + np.diag(diag_weights)  # A.t is triu, so A is tril.
     )
 
 
 @jax.jit
 def gaussian_entropy(tril_weights: np.ndarray, diag_weights: np.ndarray):
-    n = len(diag_weights)
-    half_log_det_cov = np.log(diag_weights).sum()
-    return 0.5 * n * (1 + _NORMAL_LOG_FACTOR) + half_log_det_cov
+    return np.log(diag_weights).sum()
