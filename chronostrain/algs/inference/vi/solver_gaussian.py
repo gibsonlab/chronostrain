@@ -50,7 +50,7 @@ class ADVIGaussianSolver(AbstractADVISolver):
         self.precompile_elbo()
 
     def precompile_elbo(self):
-        from chronostrain.algs.inference.vi.posteriors.util import tril_linear_transform_with_bias
+        logger.info("The first ELBO iteration will take longer due to JIT compilation.")
         n_times = self.model.num_times()
         n_data = np.expand_dims(
             np.array([len(self.data.time_slices[t_idx]) for t_idx in range(self.model.num_times())]),  # length T
@@ -63,30 +63,12 @@ class ADVIGaussianSolver(AbstractADVISolver):
 
         # @jax.jit
         def _elbo(params, rand_samples):
-            # print("***************************")
             # entropic
             elbo = params['diag_weights'].sum()
-            # print(params['diag_weights'].sum())
 
             # model ll
-
-            # x = tril_linear_transform_with_bias(
-            #     params['tril_weights'],
-            #     np.exp(params['diag_weights']),
-            #     params['bias'],
-            #     rand_samples['std_gaussians']
-            # )
-            # print(x)
-            # x = x.reshape(n_times, rand_samples['std_gaussians'].shape[0], self.num_strains)
-
             x = self.posterior.reparametrize(rand_samples, params)
-            # print(x)
-            # print(self.model.log_likelihood_x(x=x).shape)
-            # print(self.model.log_likelihood_x(x=x).mean())
             elbo += self.model.log_likelihood_x(x=x).mean()
-            # print(self.model.log_likelihood_x(x=x).mean())
-
-            # print("sum so far: {}".format(elbo))
 
             # data ll
             log_y = jax.nn.log_softmax(x, axis=-1)
@@ -97,11 +79,6 @@ class ADVIGaussianSolver(AbstractADVISolver):
                 for batch_idx, batch_lls in enumerate(self.batches[t_idx]):
                     batch_sz = batch_lls.shape[1]
                     elbo += batch_sz * log_mm_exp(log_y_t, batch_lls).mean()
-                    # print("t = {}, batch = {} --> {}".format(
-                    #         t_idx,
-                    #         batch_idx,
-                    #         batch_sz * log_mm_exp(log_y_t, batch_lls).mean()
-                    # ))
 
             elbo += np.mean(-n_data * jax.scipy.special.logsumexp(log_y + log_total_marker_lens, axis=-1))
             return elbo

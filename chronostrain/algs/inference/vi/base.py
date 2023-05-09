@@ -57,7 +57,7 @@ class AbstractReparametrizedPosterior(AbstractPosterior, ABC):
         pass
 
     def sample(self, num_samples: int = 1) -> np.ndarray:
-        return self.reparametrize(self.random_sample(num_samples=num_samples))
+        return self.reparametrize(self.random_sample(num_samples=num_samples), self.get_parameters())
 
     @abstractmethod
     def get_parameters(self) -> _GENERIC_PARAM_TYPE:
@@ -89,7 +89,7 @@ class AbstractReparametrizedPosterior(AbstractPosterior, ABC):
         """
         pass
 
-    def reparametrize(self, random_samples: _GENERIC_SAMPLE_TYPE, params: _GENERIC_PARAM_TYPE = None) -> np.ndarray:
+    def reparametrize(self, random_samples: _GENERIC_SAMPLE_TYPE, params: _GENERIC_PARAM_TYPE) -> np.ndarray:
         raise NotImplementedError()
 
 
@@ -112,9 +112,8 @@ class AbstractADVI(ABC):
                  iters: int = 50,
                  num_samples: int = 150,
                  min_lr: float = 1e-4,
-                 callbacks: Optional[List[Callable[[int, np.ndarray, float], None]]] = None):
+                 callbacks: Optional[List[Callable[[int, float], None]]] = None):
         time_est = RuntimeEstimator(total_iters=num_epochs, horizon=10)
-        elbo_value = 0.0
 
         logger.info("Starting ELBO optimization.")
 
@@ -140,10 +139,8 @@ class AbstractADVI(ABC):
             epoch_elbo_avg = cnp.mean(epoch_elbos).item()
 
             if callbacks is not None:
-                random_samples = self.posterior.random_sample(num_samples=num_samples)
-                reparam_samples = self.posterior.reparametrize(random_samples)
                 for callback in callbacks:
-                    callback(epoch, reparam_samples, epoch_elbo_avg)
+                    callback(epoch, epoch_elbo_avg)
 
             secs_elapsed = time_est.stopwatch_click()
             time_est.increment(secs_elapsed)
@@ -306,7 +303,7 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
               min_lr: float = 1e-4,
               lr_decay_factor: float = 0.25,
               lr_patience: int = 10,
-              callbacks: Optional[List[Callable[[int, np.ndarray, float], None]]] = None):
+              callbacks: Optional[List[Callable[[int, float], None]]] = None):
         self.optimize(
             iters=iters,
             num_epochs=num_epochs,

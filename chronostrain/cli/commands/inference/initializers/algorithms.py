@@ -93,25 +93,26 @@ def perform_advi(
     elbo_history = []
 
     if save_training_history:
-        def anim_callback(x_samples, uppers_buf, lowers_buf, medians_buf):
-            # Plot VI posterior.
-            abund_samples = model.latent_conversion(x_samples)
-
-            for s_idx in range(model.num_strains()):
-                traj_samples = abund_samples[:, :, s_idx]  # (T x N)
-                upper_quantile = np.quantile(traj_samples, q=0.975, axis=1)
-                lower_quantile = np.quantile(traj_samples, q=0.025, axis=1)
-                median = np.quantile(traj_samples, q=0.5, axis=1)
-                uppers_buf[s_idx].append(upper_quantile)
-                lowers_buf[s_idx].append(lower_quantile)
-                medians_buf[s_idx].append(median)
-
-        callbacks.append(lambda epoch, x_samples, elbo: anim_callback(x_samples, uppers, lowers, medians))
+        logger.warning("Currently, save_training_history has been disabled to make callbacks more efficient.")
+    #     def anim_callback(x_samples, uppers_buf, lowers_buf, medians_buf):
+    #         # Plot VI posterior.
+    #         abund_samples = model.latent_conversion(x_samples)
+    #
+    #         for s_idx in range(model.num_strains()):
+    #             traj_samples = abund_samples[:, :, s_idx]  # (T x N)
+    #             upper_quantile = np.quantile(traj_samples, q=0.975, axis=1)
+    #             lower_quantile = np.quantile(traj_samples, q=0.025, axis=1)
+    #             median = np.quantile(traj_samples, q=0.5, axis=1)
+    #             uppers_buf[s_idx].append(upper_quantile)
+    #             lowers_buf[s_idx].append(lower_quantile)
+    #             medians_buf[s_idx].append(median)
+    #
+    #     callbacks.append(lambda epoch, elbo: anim_callback(x_samples, uppers, lowers, medians))
 
     if save_elbo_history:
         def elbo_callback(elbo, elbo_buf):
             elbo_buf.append(elbo)
-        callbacks.append(lambda epoch, x_samples, elbo: elbo_callback(elbo, elbo_history))
+        callbacks.append(lambda epoch, elbo: elbo_callback(elbo, elbo_history))
 
     start_time = time.time()
     solver.solve(

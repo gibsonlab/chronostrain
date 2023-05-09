@@ -54,7 +54,7 @@ class GaussianPosteriorFullReparametrizedCorrelation(ReparametrizedGaussianPoste
     def set_parameters(self, params: _GENERIC_PARAM_TYPE):
         self.parameters = params
 
-    def reparametrize(self, random_samples: _GENERIC_SAMPLE_TYPE, params: _GENERIC_PARAM_TYPE = None) -> np.ndarray:
+    def reparametrize(self, random_samples: _GENERIC_SAMPLE_TYPE, params: _GENERIC_PARAM_TYPE) -> np.ndarray:
         return tril_linear_transform_with_bias(
             params['tril_weights'],
             np.exp(params['diag_weights']),
