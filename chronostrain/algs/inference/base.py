@@ -27,7 +27,7 @@ class AbstractModelSolver(metaclass=ABCMeta):
     @property
     def data_likelihoods(self) -> SparseDataLikelihoods:
         return SparseDataLikelihoods(
-            self.model, self.data, self.db, num_cores=cfg.model_cfg.num_cores
+            self.model, self.data, self.db, num_cores=cfg.model_cfg.num_cores, dtype=cfg.engine_cfg.dtype
         )
 
     @abstractmethod

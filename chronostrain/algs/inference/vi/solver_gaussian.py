@@ -26,7 +26,8 @@ class ADVIGaussianSolver(AbstractADVISolver):
                  db: StrainDatabase,
                  optimizer: LossOptimizer,
                  read_batch_size: int = 5000,
-                 correlation_type: str = "time"):
+                 correlation_type: str = "time",
+                 dtype='bfloat16'):
         logger.info("Initializing solver with Gaussian posterior")
         if correlation_type == "time":
             raise NotImplementedError("TODO implement this posterior for Jax.")
@@ -35,9 +36,10 @@ class ADVIGaussianSolver(AbstractADVISolver):
             raise NotImplementedError("TODO implement this posterior for Jax.")
             # posterior = GaussianPosteriorStrainCorrelation(model)
         elif correlation_type == "full":
-            posterior = GaussianPosteriorFullReparametrizedCorrelation(model)
+            posterior = GaussianPosteriorFullReparametrizedCorrelation(model, dtype=dtype)
         else:
             raise ValueError("Unrecognized `correlation_type` argument {}.".format(correlation_type))
+        self.dtype = dtype
 
         super().__init__(
             model=model,
@@ -52,16 +54,19 @@ class ADVIGaussianSolver(AbstractADVISolver):
     def precompile_elbo(self):
         logger.info("The first ELBO iteration will take longer due to JIT compilation.")
         n_times = self.model.num_times()
-        n_data = np.expand_dims(
-            np.array([len(self.data.time_slices[t_idx]) for t_idx in range(self.model.num_times())]),  # length T
-            axis=1
-        )
+        n_data = np.array([
+            len(self.data.time_slices[t_idx])
+            for t_idx in range(self.model.num_times())
+        ], dtype=self.dtype)  # length T
         log_total_marker_lens = np.array([
             np.log(sum(len(m) for m in strain.markers))
             for strain in self.model.bacteria_pop.strains
-        ])  # length S: total marker nucleotide length of each strain
+        ], dtype=self.dtype)  # length S: total marker nucleotide length of each strain
+        log_total_marker_lens = np.expand_dims(
+            log_total_marker_lens, axis=[0, 1]
+        )
 
-        # @jax.jit
+        @jax.jit
         def _elbo(params, rand_samples):
             # entropic
             elbo = params['diag_weights'].sum()
@@ -74,68 +79,18 @@ class ADVIGaussianSolver(AbstractADVISolver):
             log_y = jax.nn.log_softmax(x, axis=-1)
             for t_idx in range(n_times):  # this loop is OK to flatten via JIT
                 # (1 x N x S)
-                log_y_t = jax.lax.dynamic_slice_in_dim(log_y, start_index=t_idx, slice_size=1, axis=0)
+                log_y_t = jax.lax.dynamic_slice_in_dim(log_y, start_index=t_idx, slice_size=1, axis=0).squeeze(0)
 
                 for batch_idx, batch_lls in enumerate(self.batches[t_idx]):
                     batch_sz = batch_lls.shape[1]
-                    elbo += batch_sz * log_mm_exp(log_y_t, batch_lls).mean()
+                    data_ll_part = batch_sz * log_mm_exp(log_y_t, batch_lls).mean()
+                    elbo += data_ll_part
 
-            elbo += np.mean(-n_data * jax.scipy.special.logsumexp(log_y + log_total_marker_lens, axis=-1))
+            # correction term
+            correction = -n_data * jax.scipy.special.logsumexp(log_y + log_total_marker_lens, axis=-1).mean(axis=1)  # mean across samples
+            elbo += correction.sum()  # sum across timepoints
             return elbo
-
         self.elbo_grad = jax.value_and_grad(_elbo, argnums=0)
-
-
-
-
-
-
-    #     self.precompile_elbo_components()
-    #
-    # # noinspection PyAttributeOutsideInit
-    # def precompile_elbo_components(self):
-    #     logger.info("Invoking JIT. Note that compilation doesn't actually occur until first invocation. "
-    #                 "Thus, runtimes from the first iteration will not be accurate.")
-    #     @jax.jit
-    #     def entropy(params):
-    #         diag_log_weights = params['diag_weights']
-    #         return diag_log_weights.sum()
-    #     self.entropy_grad = jax.value_and_grad(entropy, argnums=0)
-    #
-    #     @jax.jit
-    #     def model_ll(params, rand_samples):
-    #         x = self.posterior.reparametrize(rand_samples, params)
-    #         return self.model.log_likelihood_x(x=x).mean()
-    #     self.model_ll_grad = jax.value_and_grad(model_ll, argnums=0)
-    #
-    #     self.data_ll_grad: List[List[Callable]] = []
-    #     self.conditional_correction_t_grad = []
-    #     for t_idx in range(self.model.num_times()):
-    #         data_ll_t_grad = []
-    #         n_data = len(self.data.time_slices[t_idx])
-    #         for batch_idx, batch_lls in enumerate(self.batches[t_idx]):
-    #             batch_sz = batch_lls.shape[1]
-    #
-    #             @jax.jit
-    #             def data_ll_t_fn(params, rand_samples):
-    #                 x = self.posterior.reparametrize(rand_samples, params)
-    #                 log_y_t = jax.nn.log_softmax(x, axis=-1)  # TODO: this is not right; only take index t
-    #                 # (N x S) @ (S x R_batch)   ->  Raw data likelihood (up to proportionality)
-    #                 return batch_sz * log_mm_exp(log_y_t, batch_lls).mean()
-    #             data_ll_t_grad.append(
-    #                 jax.value_and_grad(data_ll_t_fn)
-    #             )
-    #         self.data_ll_grad.append(data_ll_t_grad)
-    #
-    #         @jax.jit
-    #         def conditional_correction_t_fn(params, rand_samples):
-    #             x = self.posterior.reparametrize(rand_samples, params)
-    #             log_y_t = jax.nn.log_softmax(x, axis=1)  # TODO: this is not right; only take index t
-    #             # (N x S) @ (S x 1)   -> Approx. correction term for conditioning on markers.
-    #             return -n_data * jax.scipy.special.logsumexp(log_y_t + self.log_total_marker_lens, axis=-1).mean()
-    #         self.conditional_correction_t_grad.append(
-    #             jax.value_and_grad(conditional_correction_t_fn)
-    #         )
 
     def elbo_with_grad(
             self,

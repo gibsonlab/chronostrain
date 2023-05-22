@@ -34,7 +34,8 @@ class ReparametrizedGaussianPosterior(AbstractReparametrizedPosterior, ABC):
 
 
 class GaussianPosteriorFullReparametrizedCorrelation(ReparametrizedGaussianPosterior):
-    def __init__(self, model: GenerativeModel):
+
+    def __init__(self, model: GenerativeModel, dtype):
         """
         Mean-field assumption:
         1) Parametrize the (T x S) trajectory as a (TS)-dimensional Gaussian.
@@ -46,48 +47,34 @@ class GaussianPosteriorFullReparametrizedCorrelation(ReparametrizedGaussianPoste
         # ========== Reparametrization network (standard Gaussians -> nonstandard Gaussians)
         n_features = self.num_times * self.num_strains
         self.parameters = {
-            'tril_weights': np.zeros((n_features * (n_features - 1)) // 2, dtype='float32'),
-            'diag_weights': np.full(n_features, fill_value=cnp.log(INIT_SCALE), dtype='float32'),
-            'bias': np.zeros(n_features, dtype='float32')
+            'tril_weights': np.zeros((n_features * (n_features + 1)) // 2, dtype=dtype),
+            'diag_weights': np.full(n_features, fill_value=cnp.log(INIT_SCALE), dtype=dtype),
+            'bias': np.zeros(n_features, dtype=dtype)
         }
 
     def set_parameters(self, params: _GENERIC_PARAM_TYPE):
         self.parameters = params
 
+    def get_parameters(self) -> Dict[str, np.ndarray]:
+        return self.parameters
+
     def reparametrize(self, random_samples: _GENERIC_SAMPLE_TYPE, params: _GENERIC_PARAM_TYPE) -> np.ndarray:
+        n_samples = random_samples['std_gaussians'].shape[0]
         return tril_linear_transform_with_bias(
             params['tril_weights'],
             np.exp(params['diag_weights']),
             params['bias'],
             random_samples['std_gaussians']
-        ).reshape(self.num_times, random_samples['std_gaussians'].shape[0], self.num_strains)
+        ).reshape(n_samples, self.num_times, self.num_strains).transpose([1, 0, 2])
 
-    def get_parameters(self) -> Dict[str, np.ndarray]:
-        return self.parameters
+    def abundance_sample(self, num_samples: int = 1) -> np.ndarray:
+        x = self.reparametrize(self.random_sample(num_samples), self.get_parameters())
+        return jax.nn.softmax(x, axis=-1)
 
-    def mean(self, params: Dict[str, np.ndarray] = None) -> np.ndarray:
-        return params['bias']
-
-    def entropy(self, params: Dict[str, np.ndarray] = None) -> np.ndarray:
+    def entropy(self, params: Dict[str, np.ndarray]) -> np.ndarray:
         return gaussian_entropy(
             params['tril_weights'], np.exp(params['diag_weights'])
         )
-
-    def save(self, path: Path):
-        np.savez(
-            str(path),
-            tril_weights=self.parameters['tril_weights'],
-            diag_weights=self.parameters['diag_weights'],
-            bias=self.parameters['bias']
-        )
-
-    def load(self, path: Path):
-        f = np.load(str(path))
-        self.parameters = {
-            'tril_weights': f['tril_weights'],
-            'diag_weights': f['diag_weights'],
-            'bias': f['bias']
-        }
 
 
 # class GaussianPosteriorStrainCorrelation(ReparametrizedGaussianPosterior):

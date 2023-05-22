@@ -6,6 +6,9 @@ import pandas as pd
 from .base import AbstractDatabaseParser
 from chronostrain.model import Strain, Marker, MarkerMetadata, StrainMetadata
 from chronostrain.util.io import read_seq_file
+
+from .. import StrainDatabase
+from ..backend import PandasAssistedBackend
 from ...util.sequences import FastaIndexedResource, DynamicFastaSequence
 
 from chronostrain.logging import create_logger
@@ -84,9 +87,26 @@ def parse_strain_from_assembly(spec: AssemblySpecification) -> Strain:
 
 
 class IsolateAssemblyParser(AbstractDatabaseParser):
-    def __init__(self, specs: Path):
+    def __init__(self, db_name: str, specs: Path, data_dir: Path):
+        super().__init__(
+            db_name=db_name,
+            data_dir=data_dir
+        )
         self.specifications: List[AssemblySpecification] = list(parse_specification(specs))
 
     def strains(self) -> Iterator[Strain]:
         for spec in self.specifications:
             yield parse_strain_from_assembly(spec)
+
+    def parse(self) -> StrainDatabase:
+        if self.pickle_path().exists():
+            return self.load_from_disk()
+
+        backend = PandasAssistedBackend()
+        backend.add_strains(self.strains())
+        return StrainDatabase(
+            backend=backend,
+            name=self.db_name,
+            data_dir=self.data_dir,
+            force_refresh=True
+        )

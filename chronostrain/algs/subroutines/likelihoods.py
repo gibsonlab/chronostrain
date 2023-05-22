@@ -6,7 +6,6 @@ import jax.experimental.sparse as jsparse
 from chronostrain.database import StrainDatabase
 from chronostrain.model import Fragment, SequenceRead
 from chronostrain.util.alignments.multiple import MarkerMultipleFragmentAlignment
-from chronostrain.util.filesystem import convert_size
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.model.generative import GenerativeModel
 
@@ -27,7 +26,8 @@ class SparseDataLikelihoods:
             data: TimeSeriesReads,
             db: StrainDatabase,
             read_likelihood_lower_bound: float = 1e-30,
-            num_cores: int = 1
+            num_cores: int = 1,
+            dtype='bfloat16'
     ):
         self.model = model
         self.data = data
@@ -36,46 +36,13 @@ class SparseDataLikelihoods:
         self.num_cores = num_cores
 
         log_likelihoods_tensors = SparseLogLikelihoodComputer(
-            self.model, self.data, self.db, self.num_cores
+            self.model, self.data, self.db, self.num_cores,
+            dtype=dtype
         ).compute_likelihood_tensors()
 
         self.matrices: List[jsparse.BCOO] = [
             ll_tensor for ll_tensor in log_likelihoods_tensors
         ]
-        self.supported_frags: List[np.ndarray] = []
-
-        # Pre-compute supported fragments for each timepoint t.
-        for t_idx, t in enumerate(self.model.times):
-            F, R = self.matrices[t_idx].shape
-            row_support = np.unique(
-                self.matrices[t_idx].indices[:, 0],
-                return_inverse=False, return_counts=False  # np.unique sorts by default
-            )
-            _F = len(row_support)
-            logger.debug("(t = {}) # of supported fragments: {} out of {} ({:.2e}) ({} reads)".format(
-                t, _F, F, _F / F, len(data[t_idx])
-            ))
-            self.supported_frags.append(row_support)
-
-    def reduce_supported_fragments(self, x: jsparse.BCOO, t_idx: int, fragment_dim: int) -> jsparse.BCOO:
-        import numpy as cnp
-        F_REDUCED = len(self.supported_frags[t_idx])
-        if fragment_dim == 0:
-            shape = (F_REDUCED, x.shape[1])
-        elif fragment_dim == 1:
-            shape = (x.shape[0], F_REDUCED)
-        else:
-            raise ValueError("Unexpected fragment_dim argument. Must be 0 or 1.")
-
-        indices = cnp.array(x.indices)
-        indices[:, fragment_dim] = np.digitize(
-            x.indices[:, fragment_dim],
-            bins=self.supported_frags[t_idx],
-            right=True
-        )
-        indices = np.array(indices, dtype=int)
-
-        return jsparse.BCOO((x.data, indices), shape=shape)
 
 
 class SparseLogLikelihoodComputer:
@@ -83,14 +50,16 @@ class SparseLogLikelihoodComputer:
                  model: GenerativeModel,
                  reads: TimeSeriesReads,
                  db: StrainDatabase,
-                 num_cores: int = 1):
+                 num_cores: int = 1,
+                 dtype='bfloat16'):
         self.model = model
         self.reads = reads
         self._bwa_index_finished = False
         self.num_cores = num_cores
+        self.dtype = dtype
 
         # ==== Alignments of reads to the database reference markers.
-        self.pairwise_reference_alignments = CachedReadPairwiseAlignments(reads, db)
+        self.pairwise_reference_alignments = CachedReadPairwiseAlignments(reads, db, num_cores=self.num_cores)
 
         # ==== Multiple alignment of all reads to a single reference marker at a time.
         self.multiple_alignments = CachedReadMultipleAlignments(reads, db)
@@ -251,7 +220,7 @@ class SparseLogLikelihoodComputer:
 
         return jsparse.BCOO(
             (
-                np.array(log_likelihood_values),
+                np.array(log_likelihood_values, dtype=self.dtype),
                 np.array(indices)
             ),
             shape=(len(self.model.fragments), len(self.reads[t_idx])),
@@ -280,7 +249,7 @@ class SparseLogLikelihoodComputer:
 
         return [
             self.cache.call(
-                "sparse_log_likelihoods_{}.npz".format(t_idx),
+                "sparse_log_likelihoods_{}.{}.npz".format(t_idx, self.dtype),
                 self.create_sparse_matrix,
                 [],
                 {"t_idx": t_idx},

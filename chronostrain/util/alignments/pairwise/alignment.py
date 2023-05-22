@@ -316,10 +316,13 @@ def parse_alignments(sam_file: SamFile,
     :param db: The database to create.
     :param read_getter:
     """
-    n_alns = sam_file.num_mapped_lines()
+    n_alns = sam_file.num_lines()
     logger.debug(f"Parsing {n_alns} alignments from {sam_file.file_path.name}")
     from tqdm import tqdm
+
+    n_mapped_lines = 0
     for samline in tqdm(sam_file.mapped_lines(), total=n_alns, desc=sam_file.file_path.name):
+        n_mapped_lines += 1
         try:
             if read_getter is not None:
                 # Apply min_hit_ratio criterion.
@@ -340,6 +343,9 @@ def parse_alignments(sam_file: SamFile,
             yield aln
         except NotImplementedError as e:
             logger.warning(str(e))
+    logger.debug(f"{sam_file.file_path.name} -- "
+                 f"Total # SAM lines parsed: {n_alns}; "
+                 f"# mapped lines: {n_mapped_lines}")
 
 
 def marker_categorized_alignments(sam_file: SamFile,

@@ -2,12 +2,14 @@ import json
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator, List, Tuple, Dict, Any
+from typing import Iterator, List, Tuple, Dict, Any, Union
 
 from chronostrain.model import Strain, StrainMetadata, Marker
 
 from .base import AbstractDatabaseParser, StrainDatabaseParseError
 from .marker_sources import CachedEntrezMarkerSource, ExistingFastaMarkerSource, AbstractMarkerSource
+from .. import StrainDatabase
+from ..backend import PandasAssistedBackend
 from ...util.sequences import UnknownNucleotideError
 
 from chronostrain.logging import create_logger
@@ -299,12 +301,17 @@ class UnknownSourceNucleotideError(BaseException):
 
 class JSONParser(AbstractDatabaseParser):
     def __init__(self,
-                 entries_file: Path,
                  data_dir: Path,
+                 entries_file: Union[str, Path],
                  marker_max_len: int,
                  force_refresh: bool = False):
+        if isinstance(entries_file, str):
+            entries_file = Path(entries_file)
+        super().__init__(
+            db_name=entries_file.stem,
+            data_dir=data_dir
+        )
         self.entries_file = entries_file
-        self.data_dir = data_dir
         self.marker_max_len = marker_max_len
         self.force_refresh = force_refresh
 
@@ -430,3 +437,17 @@ class JSONParser(AbstractDatabaseParser):
                     f"Skipping strain {strain_entry.id}."
                 )
                 continue
+
+    def parse(self) -> StrainDatabase:
+        if self.pickle_path().exists():
+            logger.debug("Loaded database instance from {}.".format(self.pickle_path()))
+            return self.load_from_disk()
+
+        backend = PandasAssistedBackend()
+        backend.add_strains(self.strains())
+        return StrainDatabase(
+            backend=backend,
+            name=self.db_name,
+            data_dir=self.data_dir,
+            force_refresh=True
+        )

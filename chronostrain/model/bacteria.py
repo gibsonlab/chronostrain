@@ -1,6 +1,6 @@
 from pathlib import Path
 from dataclasses import dataclass
-from typing import List, Union, Iterator, Tuple
+from typing import List, Union, Iterator, Tuple, Dict
 
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord

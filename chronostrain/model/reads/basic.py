@@ -2,6 +2,7 @@
     Classes written for simple toy examples, modelling deterministic Q scores
     and noisy reads (conditioned on these q-scores).
 """
+import jax.numpy
 import numpy as np
 from chronostrain.model import Fragment
 from chronostrain.model.reads.base import SequenceRead, AbstractErrorModel, AbstractQScoreDistribution
@@ -72,7 +73,7 @@ class RampUpRampDownDistribution(AbstractQScoreDistribution):
         each element is a quality score from self.quality_score_values
         """
 
-        lengths = np.zeros(shape=len(self.quality_score_values)*2-1)
+        lengths = np.zeros(shape=len(self.quality_score_values)*2-1, dtype=jax.numpy.uint16)
 
         # Iterate over each quality score and find the length of each chunk it will
         # span in the return vector.

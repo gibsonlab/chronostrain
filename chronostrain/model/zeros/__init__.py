@@ -1,1 +1,1 @@
-from .gumbel import PopulationLocalZeros, PopulationGlobalZeros
+from .gumbel import PopulationGlobalZeros

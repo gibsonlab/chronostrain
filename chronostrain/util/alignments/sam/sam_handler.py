@@ -141,13 +141,11 @@ class SamFile:
         self.file_path = file_path
         self.quality_format = quality_format
 
-    def num_mapped_lines(self) -> int:
+    def num_lines(self) -> int:
         with open(self.file_path, 'r') as f:
             return sum(1 for line in f if not sam_line_is_header(line))
 
     def mapped_lines(self) -> Iterator[SamLine]:
-        n_lines = 0
-        n_mapped_lines = 0
         prev_sam_line: Union[SamLine, None] = None
         with open(self.file_path, 'r') as f:
             for line_idx, line in enumerate(f):
@@ -167,9 +165,6 @@ class SamFile:
                         f"while reading {self.file_path}, line {line_idx+1}"
                     )
                 if sam_line.is_mapped:
-                    n_mapped_lines += 1
                     yield sam_line
 
                 prev_sam_line = sam_line
-                n_lines += 1
-        logger.debug(f"{self.file_path.name} -- Total # SAM lines parsed: {n_lines}; # mapped lines: {n_mapped_lines}")

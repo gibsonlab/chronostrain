@@ -20,7 +20,7 @@ def plot_elbo_history(
         np.arange(1, len(elbos) + 1, 1),
         elbos
     )
-    ax.set_xlabel("Iteration")
+    ax.set_xlabel("Epoch")
     ax.set_ylabel("ELBO")
     plt.savefig(out_path, format=plot_format)
 
@@ -106,7 +106,7 @@ def plot_vi_posterior(times: List[float],
     # Plotting.
     plot_posterior_abundances(
         times=times,
-        posterior_samples=samples.cpu().numpy(),
+        posterior_samples=samples,
         population=population,
         title=title,
         plots_out_path=plot_path,

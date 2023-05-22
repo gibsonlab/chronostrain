@@ -92,7 +92,8 @@ class BwaAligner(AbstractPairwiseAligner):
                 str(self.index_trace_path)
             ))
 
-    def post_process(self, sam_path: Path, output_path: Path, id_suffix: str):
+    def post_process_attach_id_suffix(self, sam_path: Path, id_suffix: str):
+        output_path = sam_path.parent / f'{sam_path.name}.processed'
         with open(sam_path, 'r') as in_f, open(output_path, 'w') as out_f:
             # only keep mapped reads.
             for line in cull_repetitive_templates(mapped_only(skip_headers(in_f))):
@@ -102,12 +103,12 @@ class BwaAligner(AbstractPairwiseAligner):
                 read_id = tokens[0]
                 tokens[0] = f'{read_id}{id_suffix}'
                 print('\t'.join(tokens), file=out_f)
+        sam_path.unlink()
+        output_path.rename(sam_path)
 
-    def align(self, query_path: Path, output_path: Path, read_type: ReadType):
-        tmp_sam = output_path.parent / (f'{output_path.stem}_bwa.sam')
-
+    def align(self, query_path: Path, output_path: Path, read_type: ReadType, exclude_unmapped: bool = True):
         bwa_mem(
-            output_path=tmp_sam,
+            output_path=output_path,
             reference_path=self.reference_path,
             read_path=query_path,
             min_seed_length=self.min_seed_len,
@@ -124,17 +125,14 @@ class BwaAligner(AbstractPairwiseAligner):
             unpaired_penalty=0,
             soft_clip_for_supplementary=True,
             score_threshold=self.score_threshold,
-            bwa_cmd=self.bwa_command
+            bwa_cmd=self.bwa_command,
+            exclude_unmapped=exclude_unmapped
         )
 
         if read_type == ReadType.PAIRED_END_1:
-            self.post_process(tmp_sam, output_path, '/1')
-            tmp_sam.unlink()
+            self.post_process_attach_id_suffix(output_path, '/1')
         elif read_type == ReadType.PAIRED_END_2:
-            self.post_process(tmp_sam, output_path, '/2')
-            tmp_sam.unlink()
-        else:
-            tmp_sam.rename(output_path)
+            self.post_process_attach_id_suffix(output_path, '/2')
 
 
 logger.info("If invoked, bowtie2 will initialize using default setting `phred33`. "
@@ -175,7 +173,7 @@ class BowtieAligner(AbstractPairwiseAligner):
         self.score_read_gap_penalty = score_read_gap_penalty
         self.score_ref_gap_penalty = score_ref_gap_penalty
 
-        self.index_trace_path = self.index_basepath / f"{index_basename}.bt2trace"
+        self.index_trace_path = self.index_basepath / f"{index_basename}.bt2_trace"
 
         self.quality_format = 'phred33'
 

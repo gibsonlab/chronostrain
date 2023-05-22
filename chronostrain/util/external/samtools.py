@@ -28,7 +28,6 @@ def sam_to_bam(
         sam_path,
         '-o', output_path
     ]
-
     return _samtools(params)
 
 

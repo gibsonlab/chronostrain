@@ -7,7 +7,6 @@ from typing import List
 import jax
 import jax.numpy as np
 import jax.experimental.sparse as jsparse
-from scipy.stats import rv_discrete, nbinom
 
 from chronostrain.model.bacteria import Population
 from chronostrain.model import FragmentSpace
@@ -35,7 +34,7 @@ class GenerativeModel:
                  frag_negbin_p: float,
                  read_error_model: AbstractErrorModel,
                  min_overlap_ratio: float,
-                 db: StrainDatabase
+                 db: StrainDatabase,
                  ):
         """
         :param times: A list of time points.
@@ -50,7 +49,7 @@ class GenerativeModel:
         """
 
         self.times: List[float] = times  # array of time points
-        self.mu: np.ndarray = mu  # mean for X_1
+        self.mu: np.ndarray = mu.astype(cfg.engine_cfg.dtype)  # mean for X_1
         self.tau_1_dof: float = tau_1_dof
         self.tau_1_scale: float = tau_1_scale
         self.tau_dof: float = tau_dof
@@ -58,7 +57,8 @@ class GenerativeModel:
         self.error_model: AbstractErrorModel = read_error_model
         self.bacteria_pop: Population = bacteria_pop
         self.fragments: FragmentSpace = fragments
-        self.frag_length_distribution: rv_discrete = nbinom(frag_negbin_n, frag_negbin_p)
+        self.frag_nbinom_n = frag_negbin_n
+        self.frag_nbinom_p = frag_negbin_p
 
         self.min_overlap_ratio: float = min_overlap_ratio
 
@@ -76,7 +76,8 @@ class GenerativeModel:
             [
                 self.dt(t_idx)
                 for t_idx in range(1, self.num_times())
-            ]
+            ],
+            dtype=cfg.engine_cfg.dtype
         ), -0.5)
 
     def num_times(self) -> int:
@@ -97,10 +98,12 @@ class GenerativeModel:
         """
         if self._frag_freqs_sparse is None:
             self._frag_freqs_sparse = FragmentFrequencyComputer(
-                frag_length_rv=self.frag_length_distribution,
+                frag_nbinom_n=self.frag_nbinom_n,
+                frag_nbinom_p=self.frag_nbinom_p,
                 db=self.db,
                 fragments=self.fragments,
-                min_overlap_ratio=self.min_overlap_ratio
+                min_overlap_ratio=self.min_overlap_ratio,
+                dtype=cfg.engine_cfg.dtype
             ).get_frequencies(self.fragments, self.bacteria_pop)
         return self._frag_freqs_sparse
 

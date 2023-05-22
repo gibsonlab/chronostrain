@@ -5,6 +5,9 @@ from pathlib import Path
 from chronostrain.util import filesystem
 from ..base import option
 
+from jax_smi import initialise_tracking
+initialise_tracking()
+
 
 @click.command()
 @click.pass_context
@@ -43,8 +46,12 @@ from ..base import option
          'improvements before decaying lr.'
 )
 @option(
-    '--min-lr', 'min_lr', type=float, default=1e-4,
+    '--min-lr', 'min_lr', type=float, default=1e-5,
     help='Stop the algorithm when the LR is below this threshold.'
+)
+@option(
+    '--loss-tol', 'loss_tol', type=float, default=1e-5,
+    help='Stop the algorithm when the relative change in ELBO is smaller than this fraction.'
 )
 @option(
     '--learning-rate', '-lr', 'learning_rate', type=float, default=0.001,
@@ -110,6 +117,7 @@ def main(
         decay_lr: float,
         lr_patience: int,
         min_lr: float,
+        loss_tol: float,
         learning_rate: float,
         num_samples: int,
         read_batch_size: int,
@@ -143,14 +151,14 @@ def main(
     elbo_path = out_dir / "elbo.{}".format(plot_format)
     animation_path = out_dir / "training.gif"
     plot_path = out_dir / "plot.{}".format(plot_format)
-    samples_path = out_dir / "samples.pt"
+    samples_path = out_dir / "samples.npy"
     strains_path = out_dir / "strains.txt"
-    model_out_path = out_dir / "posterior.pt"
+    model_out_path = out_dir / "posterior.{}.npz".format(cfg.engine_cfg.dtype)
 
     population = Population(strains=db.all_strains())
 
     # ============ Parse input reads.
-    logger.info("Loading time-series read files.")
+    logger.info("Loading time-series read files from {}".format(reads_input))
     reads = TimeSeriesReads.load_from_csv(reads_input)
     if allocate_fragments:
         fragments = load_fragments(reads, db, logger)
@@ -167,6 +175,7 @@ def main(
         num_epochs=epochs,
         iters=iters,
         min_lr=min_lr,
+        loss_tol=loss_tol,
         lr_decay_factor=decay_lr,
         lr_patience=lr_patience,
         learning_rate=learning_rate,
@@ -197,8 +206,8 @@ def main(
 
     # ==== Plot the posterior.
     # Generate and save posterior samples.
-    samples = posterior.sample(num_posterior_samples).detach().cpu()
-    np.save(str(samples_path), samples)
+    samples = posterior.abundance_sample(num_posterior_samples)
+    np.save(str(samples_path), samples.astype(np.float32))
     logger.info("Posterior samples saved to {}. [{}]".format(
         samples_path,
         filesystem.convert_size(samples_path.stat().st_size)
@@ -206,7 +215,7 @@ def main(
     viz.plot_vi_posterior(
         times=solver.model.times,
         population=population,
-        samples=samples.cpu(),
+        samples=samples,
         plot_path=plot_path,
         plot_format=plot_format,
         ground_truth_path=true_abundance_path,

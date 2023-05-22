@@ -1,6 +1,7 @@
 from typing import List
 import jax
 import jax.numpy as np
+import numpy as cnp
 import jax.scipy as scipy
 
 
@@ -43,9 +44,8 @@ def _smooth_max(x: np.ndarray, inv_temp: float, axis: int) -> np.ndarray:
 class PopulationGlobalZeros(object):
     def __init__(self, num_strains: int):
         self.num_strains = num_strains
-
-        import numpy as np
-        self.p = np.power(0.5, num_strains)
+        n = self.num_strains
+        self.logp = -cnp.log(2.) * n - cnp.log1p(-cnp.power(2., -n))
 
     def log_likelihood(self, zeros: np.ndarray) -> np.ndarray:
         """
@@ -54,99 +54,99 @@ class PopulationGlobalZeros(object):
         """
         # likelihood actually doesn't depend on the actual zeros/ones since prior is Bernoulli(0.5),
         # conditioned on not all being zero.
-        return np.full(zeros.shape, fill_value=self.p, device=zeros.device)
+        return np.full(zeros.shape[0], fill_value=self.logp)
 
 
-class PopulationLocalZeros(object):
-    def __init__(self, time_points: List[float], num_strains: int):
-        self.time_points = time_points
-        self.num_strains = num_strains
-
-    def _validate_shapes(self, main_nodes: np.ndarray, between_nodes: np.ndarray):
-        n_samples = main_nodes.shape[2]
-        _expect_tensor_shape(main_nodes, "main_nodes", [2, len(self.time_points), n_samples, self.num_strains])
-        _expect_tensor_shape(between_nodes, "between_nodes", [2, len(self.time_points) - 1, n_samples, self.num_strains])
-
-    def log_likelihood(self, main_nodes: np.ndarray, between_nodes: np.ndarray) -> np.ndarray:
-        # both tensors are (2 x T x N x S).
-        self._validate_shapes(main_nodes, between_nodes)
-        return _gumbel_logpdf(
-            main_nodes
-        ).sum(axis=0).sum(axis=0).sum(axis=-1) + _gumbel_logpdf(
-            between_nodes
-        ).sum(axis=0).sum(axis=0).sum(axis=-1)
-
-    def zeroes_of_gumbels(self, main_nodes: np.ndarray, between_nodes: np.ndarray) -> np.ndarray:
-        # both tensors are (2 x T x N x S).
-        self._validate_shapes(main_nodes, between_nodes)
-        n_samples = main_nodes.shape[2]
-        padding = np.full(shape=(1, n_samples, self.num_strains), fill_value=-np.inf)
-        slice_0 = np.max(np.stack([
-            main_nodes[0],
-            np.concatenate([between_nodes[0], padding], axis=0),
-            np.concatenate([padding, between_nodes[0]], axis=0),
-        ]), axis=0)  # T x N x S
-        slice_1 = np.max(np.stack([
-            main_nodes[1],
-            np.concatenate([between_nodes[1], padding], axis=0),
-            np.concatenate([padding, between_nodes[1]], axis=0),
-        ]), axis=0)  # T x N x S
-        return np.greater(slice_0, slice_1)
-
-    def smooth_log_zeroes_of_gumbels(self, main_nodes: np.ndarray, between_nodes: np.ndarray, inv_temperature: float) -> np.ndarray:
-        """
-        @param main_nodes: (2 x T x N x S)
-        @param between_nodes: (2 x T-1 x N x S)
-        @param inv_temperature:
-        @return:
-        """
-        self._validate_shapes(main_nodes, between_nodes)
-        timeseries_pieces = []
-
-        # First timepoint
-        slice_0 = _smooth_max(
-            np.stack([main_nodes[0, 0], between_nodes[0, 0]], axis=0),
-            inv_temp=inv_temperature,
-            axis=0
-        )
-        slice_1 = _smooth_max(
-            np.stack([main_nodes[1, 0], between_nodes[1, 0]], axis=0),
-            inv_temp=inv_temperature,
-            axis=0
-        )
-        timeseries_pieces.append(
-            np.expand_dims(_smooth_log_p(np.stack([slice_0, slice_1], axis=0), inv_temperature), axis=0)
-        )
-
-        # In-between timepoints
-        if len(self.time_points) > 2:
-            slice_0 = _smooth_max(
-                np.stack([main_nodes[0, 1:-1], between_nodes[0, 1:], between_nodes[0, :-1]], axis=0),
-                inv_temp=inv_temperature,
-                axis=0
-            )
-            slice_1 = _smooth_max(
-                np.stack([main_nodes[1, 1:-1], between_nodes[1, 1:], between_nodes[1, :-1]], axis=0),
-                inv_temp=inv_temperature,
-                axis=0
-            )
-            timeseries_pieces.append(
-                _smooth_log_p(np.stack([slice_0, slice_1], axis=0), inv_temperature)
-            )
-
-        # Last timepoint
-        slice_0 = _smooth_max(
-            np.stack([main_nodes[0, -1], between_nodes[0, -1]], axis=0),
-            inv_temp=inv_temperature,
-            axis=0
-        )
-        slice_1 = _smooth_max(
-            np.stack([main_nodes[1, -1], between_nodes[1, -1]], axis=0),
-            inv_temp=inv_temperature,
-            axis=0
-        )
-        timeseries_pieces.append(
-            np.expand_dims(_smooth_log_p(np.stack([slice_0, slice_1], axis=0), inv_temperature), axis=0)
-        )
-        return np.concatenate(timeseries_pieces, axis=0)
+# class PopulationLocalZeros(object):
+#     def __init__(self, time_points: List[float], num_strains: int):
+#         self.time_points = time_points
+#         self.num_strains = num_strains
+#
+#     def _validate_shapes(self, main_nodes: np.ndarray, between_nodes: np.ndarray):
+#         n_samples = main_nodes.shape[2]
+#         _expect_tensor_shape(main_nodes, "main_nodes", [2, len(self.time_points), n_samples, self.num_strains])
+#         _expect_tensor_shape(between_nodes, "between_nodes", [2, len(self.time_points) - 1, n_samples, self.num_strains])
+#
+#     def log_likelihood(self, main_nodes: np.ndarray, between_nodes: np.ndarray) -> np.ndarray:
+#         # both tensors are (2 x T x N x S).
+#         self._validate_shapes(main_nodes, between_nodes)
+#         return _gumbel_logpdf(
+#             main_nodes
+#         ).sum(axis=0).sum(axis=0).sum(axis=-1) + _gumbel_logpdf(
+#             between_nodes
+#         ).sum(axis=0).sum(axis=0).sum(axis=-1)
+#
+#     def zeroes_of_gumbels(self, main_nodes: np.ndarray, between_nodes: np.ndarray) -> np.ndarray:
+#         # both tensors are (2 x T x N x S).
+#         self._validate_shapes(main_nodes, between_nodes)
+#         n_samples = main_nodes.shape[2]
+#         padding = np.full(shape=(1, n_samples, self.num_strains), fill_value=-np.inf)
+#         slice_0 = np.max(np.stack([
+#             main_nodes[0],
+#             np.concatenate([between_nodes[0], padding], axis=0),
+#             np.concatenate([padding, between_nodes[0]], axis=0),
+#         ]), axis=0)  # T x N x S
+#         slice_1 = np.max(np.stack([
+#             main_nodes[1],
+#             np.concatenate([between_nodes[1], padding], axis=0),
+#             np.concatenate([padding, between_nodes[1]], axis=0),
+#         ]), axis=0)  # T x N x S
+#         return np.greater(slice_0, slice_1)
+#
+#     def smooth_log_zeroes_of_gumbels(self, main_nodes: np.ndarray, between_nodes: np.ndarray, inv_temperature: float) -> np.ndarray:
+#         """
+#         @param main_nodes: (2 x T x N x S)
+#         @param between_nodes: (2 x T-1 x N x S)
+#         @param inv_temperature:
+#         @return:
+#         """
+#         self._validate_shapes(main_nodes, between_nodes)
+#         timeseries_pieces = []
+#
+#         # First timepoint
+#         slice_0 = _smooth_max(
+#             np.stack([main_nodes[0, 0], between_nodes[0, 0]], axis=0),
+#             inv_temp=inv_temperature,
+#             axis=0
+#         )
+#         slice_1 = _smooth_max(
+#             np.stack([main_nodes[1, 0], between_nodes[1, 0]], axis=0),
+#             inv_temp=inv_temperature,
+#             axis=0
+#         )
+#         timeseries_pieces.append(
+#             np.expand_dims(_smooth_log_p(np.stack([slice_0, slice_1], axis=0), inv_temperature), axis=0)
+#         )
+#
+#         # In-between timepoints
+#         if len(self.time_points) > 2:
+#             slice_0 = _smooth_max(
+#                 np.stack([main_nodes[0, 1:-1], between_nodes[0, 1:], between_nodes[0, :-1]], axis=0),
+#                 inv_temp=inv_temperature,
+#                 axis=0
+#             )
+#             slice_1 = _smooth_max(
+#                 np.stack([main_nodes[1, 1:-1], between_nodes[1, 1:], between_nodes[1, :-1]], axis=0),
+#                 inv_temp=inv_temperature,
+#                 axis=0
+#             )
+#             timeseries_pieces.append(
+#                 _smooth_log_p(np.stack([slice_0, slice_1], axis=0), inv_temperature)
+#             )
+#
+#         # Last timepoint
+#         slice_0 = _smooth_max(
+#             np.stack([main_nodes[0, -1], between_nodes[0, -1]], axis=0),
+#             inv_temp=inv_temperature,
+#             axis=0
+#         )
+#         slice_1 = _smooth_max(
+#             np.stack([main_nodes[1, -1], between_nodes[1, -1]], axis=0),
+#             inv_temp=inv_temperature,
+#             axis=0
+#         )
+#         timeseries_pieces.append(
+#             np.expand_dims(_smooth_log_p(np.stack([slice_0, slice_1], axis=0), inv_temperature), axis=0)
+#         )
+#         return np.concatenate(timeseries_pieces, axis=0)
 

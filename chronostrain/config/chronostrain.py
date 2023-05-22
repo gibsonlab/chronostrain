@@ -11,7 +11,7 @@ class ChronostrainConfig(AbstractConfig):
         super().__init__("ChronoStrain", cfg)
         self.database_cfg: DatabaseConfig = DatabaseConfig(
             cfg=self.get_item("Database"),
-            database_kwargs=self.get_item("Database.args")
+            database_kwargs=self.get_item("Database.ParserArgs")
         )
         self.model_cfg: ModelConfig = ModelConfig(self.get_item("Model"))
         self.engine_cfg: EngineConfig = EngineConfig(self.get_item("Engine"))

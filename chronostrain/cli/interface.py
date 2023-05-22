@@ -17,7 +17,8 @@ logger = create_logger("chronostrain.cli")
         'filter': filter_timeseries,
         'filter-single': filter_single,
         'advi': run_advi,
-        'make-db': make_db
+        'make-db': make_db,
+        'prune-pickle': prune_pickle
     }
 )
 @click.option(
@@ -29,7 +30,7 @@ logger = create_logger("chronostrain.cli")
 @click.pass_context
 def main(ctx, config_path: Optional[Path]):
     """
-    ChronoStrain (Time-Series Metagenomic Abundance Estimation)
+    ChronoStrain (Time-Series Abundance Estimation from Metagenomic Shotgun Sequencing)
     Contact: Younhun Kim (younhun@mit.edu)
     """
     ctx.obj = logger

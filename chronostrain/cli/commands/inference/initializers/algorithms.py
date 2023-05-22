@@ -1,4 +1,3 @@
-import time
 from logging import Logger
 
 import jax.numpy as np
@@ -23,7 +22,8 @@ def perform_advi(
         learning_rate: float,
         num_samples: int,
         logger: Logger,
-        min_lr: float = 1e-4,
+        min_lr: float = 1e-6,
+        loss_tol: float = 1e-5,
         read_batch_size: int = 5000,
         correlation_type: str = "strain",
         save_elbo_history: bool = False,
@@ -40,7 +40,7 @@ def perform_advi(
     model = create_model(
         population=population,
         read_types=read_types,
-        mean=np.zeros(population.num_strains()),
+        mean=np.zeros(population.num_strains(), dtype=cfg.engine_cfg.dtype),
         fragments=fragments,
         time_points=time_points,
         disable_quality=not cfg.model_cfg.use_quality_scores,
@@ -49,21 +49,9 @@ def perform_advi(
     )
 
     if with_zeros:
-        # from chronostrain.model.zeros import PopulationGlobalZeros, PopulationLocalZeros
-        # zero_model = PopulationLocalZeros(model.times, model.bacteria_pop.num_strains())
-        # zero_model = PopulationGlobalZeros(model.bacteria_pop.num_strains())
-        # solver = ADVIGaussianZerosSolver(
-        # # solver = ADVIGaussianLocalZerosSolver(
-        #     model=model,
-        #     zero_model=zero_model,
-        #     data=reads,
-        #     correlation_type=correlation_type,
-        #     db=db,
-        #     read_batch_size=read_batch_size
-        # )
-        raise NotImplementedError("TODO implement this for Jax.")
-    else:
         from chronostrain.util.optimization import Adam, ReduceLROnPlateauLast
+        from chronostrain.model.zeros import PopulationGlobalZeros
+        zero_model = PopulationGlobalZeros(model.bacteria_pop.num_strains())
         lr_scheduler = ReduceLROnPlateauLast(
             initial_lr=learning_rate,
             mode='max',
@@ -75,7 +63,39 @@ def perform_advi(
         )
         optimizer = Adam(
             lr_scheduler=lr_scheduler,
-            minimize_objective=False
+            minimize_objective=False,
+            eps=1e-4
+        )
+        import time
+        print("TODO implement an option for elbo_mode argument.")
+        time.sleep(3)
+
+        solver = ADVIGaussianZerosSolver(
+            model=model,
+            zero_model=zero_model,
+            data=reads,
+            db=db,
+            optimizer=optimizer,
+            correlation_type=correlation_type,
+            elbo_mode="default",
+            read_batch_size=read_batch_size,
+            dtype=cfg.engine_cfg.dtype
+        )
+    else:
+        from chronostrain.util.optimization import ConstantLearningRate, SGD, Adam, ReduceLROnPlateauLast, DistributedShampoo
+        lr_scheduler = ReduceLROnPlateauLast(
+            initial_lr=learning_rate,
+            mode='max',
+            min_lr=min_lr,
+            factor=lr_decay_factor,
+            patience=lr_patience,
+            threshold=1e-4,
+            threshold_mode='rel'
+        )
+        optimizer = Adam(
+            lr_scheduler=lr_scheduler,
+            minimize_objective=False,
+            eps=1e-4
         )
         solver = ADVIGaussianSolver(
             model=model,
@@ -83,7 +103,8 @@ def perform_advi(
             optimizer=optimizer,
             correlation_type=correlation_type,
             db=db,
-            read_batch_size=read_batch_size
+            read_batch_size=read_batch_size,
+            dtype=cfg.engine_cfg.dtype
         )
 
     callbacks = []
@@ -114,12 +135,14 @@ def perform_advi(
             elbo_buf.append(elbo)
         callbacks.append(lambda epoch, elbo: elbo_callback(elbo, elbo_history))
 
+    import time
     start_time = time.time()
     solver.solve(
         iters=iters,
         num_epochs=num_epochs,
         num_samples=num_samples,
         min_lr=min_lr,
+        loss_tol=loss_tol,
         lr_decay_factor=lr_decay_factor,
         lr_patience=lr_patience,
         callbacks=callbacks

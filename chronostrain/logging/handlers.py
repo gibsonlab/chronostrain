@@ -1,6 +1,4 @@
-import os
 import logging.handlers
-import errno
 from pathlib import Path
 
 
@@ -18,7 +16,7 @@ class MakeDirTimedRotatingFileHandler(logging.handlers.TimedRotatingFileHandler)
                  utc=False,
                  atTime=None):
         path = Path(filename).resolve()
-        MakeDirTimedRotatingFileHandler.mkdir_path(path.parent)
+        path.parent.mkdir(exist_ok=True, parents=True)
         super().__init__(filename=filename,
                          when=when,
                          interval=interval,
@@ -27,17 +25,3 @@ class MakeDirTimedRotatingFileHandler(logging.handlers.TimedRotatingFileHandler)
                          delay=delay,
                          utc=utc,
                          atTime=atTime)
-
-    @staticmethod
-    def mkdir_path(path):
-        """http://stackoverflow.com/a/600612/190597 (tzot)"""
-        try:
-            os.makedirs(path, exist_ok=True)  # Python>3.2
-        except TypeError:
-            try:
-                os.makedirs(path)
-            except OSError as exc:  # Python >2.5
-                if exc.errno == errno.EEXIST and Path(path).is_dir():
-                    pass
-                else:
-                    raise

@@ -1,21 +1,20 @@
-from typing import Iterator, Optional, Tuple
+from typing import *
 
-import numpy as np
-import torch
-from torch import Tensor
+import jax
+import jax.numpy as np
+import numpy as cnp
 
 from chronostrain.database import StrainDatabase
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
-from chronostrain.util.math.matrices import log_mm_exp
+from chronostrain.util.optimization import LossOptimizer
 
-from .base import AbstractADVISolver
-from .posteriors import GaussianWithGlobalZerosPosterior, GaussianWithLocalZeros, GaussianWithGlobalZerosPosteriorSparsified
-from ...subroutines.likelihoods import DataLikelihoods
+from .base import AbstractADVISolver, _GENERIC_PARAM_TYPE, _GENERIC_SAMPLE_TYPE, _GENERIC_GRAD_TYPE
+from .posteriors import GaussianStrainCorrelatedWithGlobalZerosPosterior, GaussianWithGlobalZerosPosteriorDense, GaussianTimeCorrelatedWithGlobalZerosPosterior
 
 from chronostrain.logging import create_logger
-from chronostrain.model.zeros.gumbel import PopulationGlobalZeros, \
-    PopulationLocalZeros  # TODO replace this with upper-level package import.
+from chronostrain.model.zeros.gumbel import PopulationGlobalZeros
+from .util import log_mm_exp
 
 logger = create_logger(__name__)
 
@@ -31,234 +30,204 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
                  zero_model: PopulationGlobalZeros,
                  data: TimeSeriesReads,
                  db: StrainDatabase,
+                 optimizer: LossOptimizer,
                  read_batch_size: int = 5000,
-                 correlation_type: str = "full"):
-        logger.info("Initializing solver with Gaussian posterior")
+                 elbo_mode: str = "default",
+                 correlation_type: str = "full",
+                 dtype='bfloat16'):
         if correlation_type == "full":
-            # posterior = GaussianWithGlobalZerosPosterior(model, zero_model, 1e-5)
-            posterior = GaussianWithGlobalZerosPosteriorSparsified(model, zero_model, 1e-5)
+            posterior = GaussianWithGlobalZerosPosteriorDense(model.num_strains(), model.num_times(), dtype=dtype)
+        elif correlation_type == "time":
+            posterior = GaussianTimeCorrelatedWithGlobalZerosPosterior(model.num_strains(), model.num_times(), dtype=dtype)
+        elif correlation_type == "strain":
+            posterior = GaussianStrainCorrelatedWithGlobalZerosPosterior(model.num_strains(), model.num_times(), dtype=dtype)
         else:
             raise ValueError("Unrecognized `correlation_type` argument {}.".format(correlation_type))
 
+        self.posterior = posterior
+        self.dtype = dtype
         super().__init__(
             model=model,
             data=data,
             db=db,
             posterior=posterior,
+            optimizer=optimizer,
             read_batch_size=read_batch_size
         )
+        self.temperature = np.array(100, dtype=dtype)
+        self.n_epochs_at_current_temp = 0
         self.zero_model = zero_model
 
-        self.log_total_marker_lens = torch.tensor([
-            [np.log(sum(len(m) for m in strain.markers))]
-            for strain in self.model.bacteria_pop.strains
-        ], device=self.device)  # (S x 1)
-
-    def advance_epoch(self):
-        super().advance_epoch()
-        self.posterior.inv_temp += 0.1
-
-    def elbo(self,
-             samples: Tuple[Tensor, Tensor]
-             ) -> Iterator[Tensor]:
-        """
-        Computes the ADVI approximation to the ELBO objective, holding the read-to-fragment posteriors
-        fixed. The entropic term is computed in closed-form, while the cross-entropy is given a monte-carlo estimate.
-
-        The formula is:
-            ELBO = E_Q(log P - log Q)
-                = E_{X~Q}(log P(X) + P(R|X)) - E_{X~Qx}(log Q(X))
-                = E_{X~Q}(log P(X) + P(R|X)) + H(Q)
-
-        :param samples: A tuple of tensors.
-            [0]: (T x N x S) tensor, representing the gaussian samples.
-            [1]: (T x N x S) tensor, representing the Gumbel samples.
-            [2]: (T-1 x N x S) tensor, representing the correlation Gumbels.
-        :return: An estimate of the ELBO, using the provided samples via the above formula.
-        """
-
-        """
-        ELBO original formula:
-            E_Q[P(X)] - E_Q[Q(X)] + E_{F ~ phi} [log P(F | X)]
-
-        To obtain monte carlo estimates of ELBO, need to be able to compute:
-        1. p(x)
-        2. q(x), or more directly the entropy H(Q) = -E_Q[Q(X)]
-        3. p(f|x) --> implemented via sparse log-likelihood matmul
-
-        To save memory on larger inputs, split the ELBO up into several pieces.
-        """
-        import time
-
-        gaussian_samples, smooth_log_zeros = samples
-        start = time.time()
-        yield self.model.log_likelihood_x(X=gaussian_samples).mean()  # Model Gaussian LL
-        logger.debug("1: {} seconds".format(time.time() - start))
-
-        start = time.time()
-        zero_ll = self.zero_model.log_likelihood(smooth_log_zeros).mean()
-        if zero_ll.requires_grad:
-            yield zero_ll
-        logger.debug("2: {} seconds".format(time.time() - start))
-
-        start = time.time()
-        yield self.posterior.entropy()
-        logger.debug("3: {} seconds".format(time.time() - start))
-
-        for t_idx in range(self.model.num_times()):
-            start = time.time()
-            log_y_t = self.model.log_latent_conversion(gaussian_samples[t_idx] + smooth_log_zeros)
-
-            # Iterate over reads at timepoint t, pre-divided into batches.
-            for batch_idx, batch_lls in enumerate(self.batches[t_idx]):
-                batch_sz = batch_lls.shape[1]
-
-                # Average of (N x R_batch) entries, we only want to divide by 1/N and not 1/(N*R_batch)
-                # [but still call torch.mean() for numerical stability instead of torch.sum()]
-                data_ll = batch_sz * torch.mean(
-                    # (N x S) @ (S x R_batch)   ->  Raw data likelihood (up to proportionality)
-                    log_mm_exp(log_y_t, batch_lls)
-                )
-                yield data_ll
-            logger.debug("4 t={}: {} seconds".format(t_idx, time.time() - start))
-
-            # (N x S) @ (S x 1)
-            # -> Approx. conditional correction term for conditioning on markers. (note the minus sign)
-            start = time.time()
-            correction = len(self.data.time_slices[t_idx]) * torch.mean(
-                -log_mm_exp(log_y_t, self.log_total_marker_lens)
-            )
-            yield correction
-            logger.debug("5 t={}: {} seconds".format(t_idx, time.time() - start))
-
-        # log_zeros = self.zero_model.smooth_log_zeroes_of_gumbels(gumbels, gumbels_between, self.zeros_inv_temperature)
-        # for t_idx in range(self.model.num_times()):
-        #     log_y_t = self.model.log_latent_conversion(gaussian_samples[t_idx] + log_zeros[t_idx])  # (N x S)
-        #
-        #     # Iterate over reads at timepoint t, pre-divided into batches.
-        #     for batch_idx, batch_lls in enumerate(self.batches[t_idx]):
-        #         batch_sz = batch_lls.shape[1]
-        #
-        #         # Average of (N x R_batch) entries, we only want to divide by 1/N and not 1/(N*R_batch)
-        #         # [but still call torch.mean() for numerical stability instead of torch.sum()]
-        #         data_ll = batch_sz * torch.mean(
-        #             # (N x S) @ (S x R_batch)   ->  Raw data likelihood (up to proportionality)
-        #             log_mm_exp(log_y_t, batch_lls)
-        #         )
-        #         yield data_ll
-        #
-        #     # (N x S) @ (S x 1)
-        #     # -> Approx. conditional correction term for conditioning on markers. (note the minus sign)
-        #     correction = len(self.data.time_slices[t_idx]) * torch.mean(
-        #         -log_mm_exp(log_y_t, self.log_total_marker_lens)
-        #     )
-        #     yield correction
-
-    def data_ll(self, x_samples: Tensor) -> Tensor:
-        raise NotImplementedError()
-
-    def model_ll(self, x_samples: Tensor):
-        raise NotImplementedError()
-
-
-class ADVIGaussianLocalZerosSolver(AbstractADVISolver):
-    """
-    A basic implementation of ADVI estimating the posterior p(X|R), with fragments
-    F marginalized out.
-    """
-
-    def __init__(self,
-                 model: GenerativeModel,
-                 zero_model: PopulationLocalZeros,
-                 data: TimeSeriesReads,
-                 db: StrainDatabase,
-                 read_batch_size: int = 5000,
-                 correlation_type: str = "full"):
-        logger.info("Initializing solver with Gaussian posterior (Time-localized zeros)")
-        if correlation_type == "full":
-            posterior = GaussianWithLocalZeros(model, zero_model)
-            self.inv_temp = 1e-5
+        self.elbo_accumulate = elbo_mode == "accumulate"
+        if self.elbo_accumulate:
+            logger.debug("Using ELBO gradient accumulation strategy.")
+            self.precompile_elbo_pieces()
         else:
-            raise ValueError("Unrecognized `correlation_type` argument {}.".format(correlation_type))
-
-        super().__init__(
-            model=model,
-            data=data,
-            db=db,
-            posterior=posterior,
-            read_batch_size=read_batch_size
-        )
-        self.zero_model = zero_model
-
-        self.log_total_marker_lens = torch.tensor([
-            [np.log(sum(len(m) for m in strain.markers))]
-            for strain in self.model.bacteria_pop.strains
-        ], device=self.device)  # (S x 1)
+            logger.debug("Using default ELBO calculation strategy.")
+            self.precompile_elbo()
+        logger.info("The first ELBO iteration will take longer due to JIT compilation.")
 
     def advance_epoch(self):
-        super().advance_epoch()
-        self.inv_temp += 0.1
+        if self.n_epochs_at_current_temp > 20:
+            self.temperature = 0.5 * self.temperature
+            self.n_epochs_at_current_temp = 0
+        else:
+            self.n_epochs_at_current_temp += 1
 
-    def elbo(self,
-             samples: Tuple[Tensor, Tensor, Tensor]
-             ) -> Iterator[Tensor]:
-        """
-        Computes the ADVI approximation to the ELBO objective, holding the read-to-fragment posteriors
-        fixed. The entropic term is computed in closed-form, while the cross-entropy is given a monte-carlo estimate.
+    def precompile_elbo(self):
+        n_times = self.model.num_times()
+        n_data = np.expand_dims(
+            np.array([
+                len(self.data.time_slices[t_idx])
+                for t_idx in range(self.model.num_times())
+            ], dtype=self.dtype),  # length T
+            axis=1
+        )
+        log_total_marker_lens = np.array([
+            cnp.log(sum(len(m) for m in strain.markers))
+            for strain in self.model.bacteria_pop.strains
+        ], dtype=self.dtype)  # length S: total marker nucleotide length of each strain
 
-        The formula is:
-            ELBO = E_Q(log P - log Q)
-                = E_{X~Q}(log P(X) + P(R|X)) - E_{X~Qx}(log Q(X))
-                = E_{X~Q}(log P(X) + P(R|X)) + H(Q)
+        @jax.jit
+        def _elbo(params, rand_samples, temperature):
+            reparam_samples = self.posterior.reparametrize(rand_samples, params, temperature)
+            x = reparam_samples['gaussians']
+            logits = reparam_samples['smooth_log_zeros']  # 2 x N x S
 
-        :param samples: A tuple of tensors.
-            [0]: (T x N x S) tensor, representing the gaussian samples.
-            [1]: (T x N x S) tensor, representing the Gumbel samples.
-            [2]: (T-1 x N x S) tensor, representing the correlation Gumbels.
-        :return: An estimate of the ELBO, using the provided samples via the above formula.
-        """
+            # entropic
+            elbo = self.posterior.entropy(params, logits, temperature)
 
-        """
-        ELBO original formula:
-            E_Q[P(X)] - E_Q[Q(X)] + E_{F ~ phi} [log P(F | X)]
+            # model ll
+            elbo += self.model.log_likelihood_x(x=x).mean()
+            # elbo += self.zero_model.log_likelihood(logz).mean()  # Note that this is actually a constant.
 
-        To obtain monte carlo estimates of ELBO, need to be able to compute:
-        1. p(x)
-        2. q(x), or more directly the entropy H(Q) = -E_Q[Q(X)]
-        3. p(f|x) --> implemented via sparse log-likelihood matmul
-
-        To save memory on larger inputs, split the ELBO up into several pieces.
-        """
-        gaussian_samples, gumbels, gumbels_between = samples
-        yield self.model.log_likelihood_x(X=gaussian_samples).mean()  # Model Gaussian LL
-        yield self.zero_model.log_likelihood(gumbels, gumbels_between).mean()
-        yield self.posterior.entropy()
-
-        log_zeros = self.zero_model.smooth_log_zeroes_of_gumbels(gumbels, gumbels_between, self.inv_temp)
-        for t_idx in range(self.model.num_times()):
-            log_y_t = self.model.log_latent_conversion(gaussian_samples[t_idx] + log_zeros[t_idx])  # (N x S)
-
-            # Iterate over reads at timepoint t, pre-divided into batches.
-            for batch_idx, batch_lls in enumerate(self.batches[t_idx]):
-                batch_sz = batch_lls.shape[1]
-
-                # Average of (N x R_batch) entries, we only want to divide by 1/N and not 1/(N*R_batch)
-                # [but still call torch.mean() for numerical stability instead of torch.sum()]
-                data_ll = batch_sz * torch.mean(
-                    # (N x S) @ (S x R_batch)   ->  Raw data likelihood (up to proportionality)
-                    log_mm_exp(log_y_t, batch_lls)
-                )
-                yield data_ll
-
-            # (N x S) @ (S x 1)
-            # -> Approx. conditional correction term for conditioning on markers. (note the minus sign)
-            correction = len(self.data.time_slices[t_idx]) * torch.mean(
-                -log_mm_exp(log_y_t, self.log_total_marker_lens)
+            # data ll
+            log_y = jax.nn.log_softmax(
+                # (T x N x S) plus (1 x N x S)  ->  latter was obtained via slicing a 2 x N x S at the second "row".
+                x + jax.lax.dynamic_slice_in_dim(logits, start_index=1, slice_size=1, axis=0),
+                axis=-1
             )
-            yield correction
 
-    def data_ll(self, x_samples: Tensor) -> Tensor:
-        raise NotImplementedError()
+            # both loops here are OK to flatten by JIT (data-dependent but fixed throughout inference)
+            for t_idx in range(n_times):
+                log_y_t = jax.lax.dynamic_slice_in_dim(log_y, start_index=t_idx, slice_size=1, axis=0).squeeze(0)
 
-    def model_ll(self, x_samples: Tensor):
-        raise NotImplementedError()
+                for batch_idx, batch_lls in enumerate(self.batches[t_idx]):
+                    batch_sz = batch_lls.shape[1]
+                    data_ll_part = batch_sz * log_mm_exp(log_y_t, batch_lls).mean()
+                    elbo += data_ll_part
+
+            # correction term
+            correction = -n_data * jax.scipy.special.logsumexp(log_y + log_total_marker_lens, axis=-1).mean(axis=1)  # mean across samples
+            elbo += correction.sum()  # sum across timepoints
+            return elbo
+        self.elbo_grad = jax.value_and_grad(_elbo, argnums=0)
+
+    def precompile_elbo_pieces(self):
+        # ================ JITted reparametrizations
+        @jax.jit
+        def _reparametrize_gaussian(params, rand_samples):
+            return self.posterior.reparametrized_gaussians(
+                rand_samples['std_gaussians'],
+                params
+            )
+
+        @jax.jit
+        def _reparametrize_logzeros(params, rand_samples, temperature):
+            return self.posterior.reparametrized_log_zeros_smooth(
+                rand_samples['std_gumbels'],
+                params,
+                temperature
+            )
+
+        @jax.jit
+        def _reparametrize_abundance(params, rand_samples, temperature):
+            x = _reparametrize_gaussian(params, rand_samples)
+            logits = _reparametrize_logzeros(params, rand_samples, temperature)
+            return jax.nn.log_softmax(
+                # (T x N x S) plus (1 x N x S)  ->  latter was obtained via slicing a 2 x N x S at the second "row".
+                x + jax.lax.dynamic_slice_in_dim(logits, start_index=1, slice_size=1, axis=0),
+                axis=-1
+            )
+
+        @jax.jit
+        def _reparametrize_abundance_t(params, rand_samples, temperature, t_idx):
+            x = _reparametrize_gaussian(params, rand_samples)
+            logits = _reparametrize_logzeros(params, rand_samples, temperature)
+            return jax.nn.log_softmax(
+                jax.lax.dynamic_slice_in_dim(x, start_index=t_idx, slice_size=1, axis=0).squeeze(0)
+                +
+                jax.lax.dynamic_slice_in_dim(logits, start_index=1, slice_size=1, axis=0).squeeze(0),
+                axis=-1
+            )
+
+        # ================== ELBO components
+        @jax.jit
+        def _elbo_entropy(params, rand_samples, temperature):
+            logits = _reparametrize_logzeros(params, rand_samples, temperature)
+            return self.posterior.entropy(params, logits, temperature)
+        self.elbo_entropy = jax.value_and_grad(_elbo_entropy, argnums=0)
+
+        @jax.jit
+        def _elbo_model_prior(params, rand_samples):
+            x = _reparametrize_gaussian(params, rand_samples)
+            return self.model.log_likelihood_x(x=x).mean()
+        self.elbo_model_prior = jax.value_and_grad(_elbo_model_prior, argnums=0)
+
+        @jax.jit
+        def _elbo_data_ll_t_batch(params, rand_samples, temperature, t_idx, batch_lls):
+            batch_sz = batch_lls.shape[1]
+            log_y_t = _reparametrize_abundance_t(params, rand_samples, temperature, t_idx)
+            return batch_sz * log_mm_exp(log_y_t, batch_lls).mean()
+        self.elbo_data_ll_t_batch = jax.value_and_grad(_elbo_data_ll_t_batch)
+
+        @jax.jit
+        def _elbo_data_correction(params, rand_samples, temperature, n_data, _log_total_marker_lens):
+            log_y = _reparametrize_abundance(params, rand_samples, temperature)
+            correction = -n_data * jax.scipy.special.logsumexp(log_y + _log_total_marker_lens, axis=-1).mean(axis=1)  # mean across samples
+            return correction.sum()
+        self.elbo_data_correction = jax.value_and_grad(_elbo_data_correction, argnums=0)
+
+        self.n_data = np.expand_dims(
+            np.array([
+                len(self.data.time_slices[t_idx])
+                for t_idx in range(self.model.num_times())
+            ], dtype=self.dtype),  # length T
+            axis=1
+        )
+        log_total_marker_lens = np.array([
+            cnp.log(sum(len(m) for m in strain.markers))
+            for strain in self.model.bacteria_pop.strains
+        ], dtype=self.dtype)  # length S: total marker nucleotide length of each strain
+        self.log_total_marker_lens = np.expand_dims(log_total_marker_lens, axis=[0, 1])
+
+    def elbo_with_grad(self,
+                       params: _GENERIC_PARAM_TYPE,
+                       random_samples: _GENERIC_SAMPLE_TYPE
+                       ) -> Tuple[np.ndarray, _GENERIC_GRAD_TYPE]:
+        if self.elbo_accumulate:
+            acc_elbo_value, acc_elbo_grad = self.elbo_entropy(params, random_samples, self.temperature)
+
+            _e, _g = self.elbo_model_prior(params, random_samples)
+            acc_elbo_value += _e
+            acc_elbo_grad = accumulate_gradients(acc_elbo_grad, _g)
+
+            for t_idx in range(self.model.num_times()):
+                for batch_lls in self.batches[t_idx]:
+                    _e, _g = self.elbo_data_ll_t_batch(params, random_samples, self.temperature, t_idx, batch_lls)
+                    acc_elbo_value += _e
+                    acc_elbo_grad = accumulate_gradients(acc_elbo_grad, _g)
+
+            _e, _g = self.elbo_data_correction(params, random_samples, self.temperature, self.n_data, self.log_total_marker_lens)
+            acc_elbo_value += _e
+            acc_elbo_grad = accumulate_gradients(acc_elbo_grad, _g)
+            return acc_elbo_value, acc_elbo_grad
+        else:
+            return self.elbo_grad(params, random_samples, self.temperature)
+
+
+def accumulate_gradients(grad1: _GENERIC_GRAD_TYPE, grad2: _GENERIC_GRAD_TYPE):
+    return {
+        k: grad1[k] + grad2[k]
+        for k in grad1.keys()
+    }

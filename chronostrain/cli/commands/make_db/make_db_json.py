@@ -147,7 +147,8 @@ def main(
     # ==== Initialize database instance.
     logger.info(f"Loading DB instance, using data directory: {cfg.database_cfg.data_dir}")
     raw_db = JSONStrainDatabase(
-        entries_file=raw_json_path,
+        load_as='json',
+        source_file=raw_json_path,
         data_dir=cfg.database_cfg.data_dir,
         marker_max_len=cfg.database_cfg.db_kwargs['marker_max_len'],
         force_refresh=False

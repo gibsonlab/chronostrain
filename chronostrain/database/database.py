@@ -1,13 +1,10 @@
-import time
-import pickle, os
 from collections import defaultdict
 from pathlib import Path
-from typing import List, Set, Optional
+from typing import List, Set
 
 from Bio import SeqIO
 
 from chronostrain.model import Strain, Marker
-from .parser import AbstractDatabaseParser
 from .backend import AbstractStrainDatabaseBackend
 from .error import QueryNotFoundError
 
@@ -20,25 +17,22 @@ class StrainDatabase(object):
                  backend: AbstractStrainDatabaseBackend,
                  data_dir: Path,
                  name: str,
-                 parser: Optional[AbstractDatabaseParser] = None,
                  force_refresh: bool = False):
         self.backend = backend
         self.name = name
-        self.work_dir = data_dir / f'__{name}_MARKERS'
+        logger.info("Instantiating database `{}`.".format(name))
+
+        self.work_dir = self.database_named_dir(data_dir, name)
         self.marker_multifasta_file = self.work_dir / f'all_markers.fasta'
-        if parser is not None:
-            self.initialize(parser, force_refresh)
-        self._save_markers_to_multifasta(force_refresh=force_refresh)
+        self.save_markers_to_multifasta(force_refresh=force_refresh)
 
-    def initialize(self, parser: AbstractDatabaseParser, force_refresh: bool):
-        logger.debug("Initializing db backend `{}`".format(self.backend.__class__.__name__))
+    @property
+    def multifasta_file(self) -> Path:
+        return self.marker_multifasta_file
 
-        start = time.time()
-        self.backend.add_strains(parser.strains())
-        logger.info("Loaded {} strains in {:.1f} minutes.".format(
-            self.backend.num_strains(),
-            (time.time() - start) / 60.0
-        ))
+    @staticmethod
+    def database_named_dir(data_dir, db_name):
+        return data_dir / f'__{db_name}_MARKERS'
 
     def get_strain(self, strain_id: str) -> Strain:
         return self.backend.get_strain(strain_id)
@@ -97,11 +91,7 @@ class StrainDatabase(object):
 
         return self.get_strain(best_hits[0])
 
-    @property
-    def multifasta_file(self) -> Path:
-        return self.marker_multifasta_file
-
-    def _save_markers_to_multifasta(self, force_refresh: bool = True):
+    def save_markers_to_multifasta(self, force_refresh: bool = True):
         """
         Save all markers to a single, concatenated multi-fasta file.
         The file will be automatically re-populated if force_refresh is True, or if the existing file is stale (e.g.
@@ -121,7 +111,7 @@ class StrainDatabase(object):
             logger.debug("Forcing re-creation of multi-fasta file.")
             _generate()
         elif self.multifasta_file.exists():
-            logger.debug("TODO: provide a more efficient implementation if staleness checking.")
+            # TODO: provide a more efficient implementation of staleness checking.
             # if self._multifasta_is_stale():
             #     logger.debug("Multi-fasta file exists, but is stale. Re-creating.")
             #     _generate()
@@ -154,30 +144,3 @@ class StrainDatabase(object):
 
     def num_canonical_markers(self) -> int:
         return self.backend.num_canonical_markers()
-
-    # ========= Save/load from disk.
-    @property
-    def pickle_path(self) -> Path:
-        """
-        Certain object attributes (such as marker metadata) uses pathlib.Path, which is specific to the OS.
-        Therefore, save/load each separately.
-
-        :return: The target path to save the database.
-        """
-        if os.name == 'nt':
-            # Windows paths
-            return self.work_dir / 'database.windows.pkl'
-        else:
-            # Posix paths
-            return self.work_dir / 'database.posix.pkl'
-
-    def save_to_disk(self):
-        if not self.pickle_path.parent.parent.exists():
-            raise FileNotFoundError(f"Data directory {self.pickle_path.parent.parent} does not exist!")
-        self.pickle_path.parent.mkdir(exist_ok=True, parents=False)
-        with open(self.pickle_path, 'wb') as f:
-            pickle.dump(self.backend, f)
-
-    def load_from_disk(self):
-        with open(self.pickle_path, 'rb') as f:
-            self.backend = pickle.load(f)

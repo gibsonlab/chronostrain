@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from abc import ABC
 
 import jax.numpy as np
 import optax
@@ -7,12 +7,26 @@ import optax
 class LearningRateScheduler(ABC):
     def get_current_lr(self) -> float:
         raise NotImplementedError()
-    @abstractmethod
-    def get_optax_scheduler(self) -> optax.Schedule:
-        raise NotImplementedError()
 
     def step(self, obj_metric: float):
         raise NotImplementedError()
+
+    def get_optax_scheduler(self) -> optax.Schedule:
+        # Silly, but helpful in case we decide to switch abstraction from optax to something else
+        def _schedule(step_num):
+            return self.get_current_lr()
+        return _schedule
+
+
+class ConstantLearningRate(LearningRateScheduler):
+    def __init__(self, lr: float):
+        self.lr = lr
+
+    def get_current_lr(self) -> float:
+        return self.lr
+
+    def step(self, obj_metric: float):
+        pass  # do nothing
 
 
 class ReduceLROnPlateauLast(LearningRateScheduler):
@@ -83,22 +97,22 @@ class ReduceLROnPlateauLast(LearningRateScheduler):
     def get_current_lr(self) -> float:
         return self.lr
 
-    def get_optax_scheduler(self) -> optax.Schedule:
-        # Silly, but helpful in case we decide to switch abstraction from optax to something else
-        def _schedule(step_num):
-            return self.lr
-        return _schedule
-
     def is_better(self, a, best):
         if self.mode == 'min' and self.threshold_mode == 'rel':
-            rel_epsilon = 1. - self.threshold
+            if best > 0:
+                rel_epsilon = 1. - self.threshold
+            else:
+                rel_epsilon = 1 + self.threshold
             return a < best * rel_epsilon
 
         elif self.mode == 'min' and self.threshold_mode == 'abs':
             return a < best - self.threshold
 
         elif self.mode == 'max' and self.threshold_mode == 'rel':
-            rel_epsilon = self.threshold + 1.
+            if best > 0:
+                rel_epsilon = self.threshold + 1.
+            else:
+                rel_epsilon = 1 - self.threshold  # negative values improve the other way.
             return a > best * rel_epsilon
 
         else:  # mode == 'max' and epsilon_mode == 'abs':

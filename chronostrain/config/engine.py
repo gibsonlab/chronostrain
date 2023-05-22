@@ -21,6 +21,8 @@ class EngineConfig(AbstractConfig):
             )
 
         self.prng_key = jax.random.PRNGKey(self.get_int("PRNG_Key"))
+        # self.dtype = 'float16'
+        self.dtype = 'float32'
 
     def generate_prng_keys(self, num_keys: int = 1) -> Iterator[jax.random.PRNGKey]:
         new_keys = jax.random.split(self.prng_key, num=num_keys + 1)

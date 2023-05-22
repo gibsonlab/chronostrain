@@ -22,24 +22,16 @@ logger = create_logger(__name__)
 
 _GENERIC_PARAM_TYPE = Dict[str, np.ndarray]
 _GENERIC_GRAD_TYPE = _GENERIC_PARAM_TYPE  # the two types usually tend to match.
-_GENERIC_SAMPLE_TYPE = Dict[Any, np.ndarray]
+_GENERIC_SAMPLE_TYPE = Union[Dict[Any, np.ndarray], np.ndarray]
 
 
 class AbstractPosterior(metaclass=ABCMeta):
     @abstractmethod
-    def sample(self, num_samples: int = 1) -> np.ndarray:
+    def abundance_sample(self, num_samples: int = 1) -> np.ndarray:
         """
         Returns a sample from this posterior distribution.
         :param num_samples: the number of samples (N).
         :return: A time-indexed, simplex-valued (T x N x S) abundance tensor.
-        """
-        pass
-
-    @abstractmethod
-    def mean(self) -> np.ndarray:
-        """
-        Returns the mean of this posterior distribution.
-        :return: A time-indexed (T x S) abundance tensor.
         """
         pass
 
@@ -56,19 +48,12 @@ class AbstractReparametrizedPosterior(AbstractPosterior, ABC):
     def log_likelihood(self, samples: np.ndarray, params: _GENERIC_PARAM_TYPE = None) -> np.ndarray:
         pass
 
-    def sample(self, num_samples: int = 1) -> np.ndarray:
-        return self.reparametrize(self.random_sample(num_samples=num_samples), self.get_parameters())
-
     @abstractmethod
     def get_parameters(self) -> _GENERIC_PARAM_TYPE:
         raise NotImplementedError()
 
     @abstractmethod
-    def mean(self, params: _GENERIC_PARAM_TYPE = None) -> np.ndarray:
-        raise NotImplementedError()
-
-    @abstractmethod
-    def entropy(self, params: _GENERIC_PARAM_TYPE = None) -> np.ndarray:
+    def entropy(self, params: _GENERIC_PARAM_TYPE) -> np.ndarray:
         raise NotImplementedError()
 
     @abstractmethod
@@ -89,8 +74,18 @@ class AbstractReparametrizedPosterior(AbstractPosterior, ABC):
         """
         pass
 
-    def reparametrize(self, random_samples: _GENERIC_SAMPLE_TYPE, params: _GENERIC_PARAM_TYPE) -> np.ndarray:
+    def reparametrize(self, random_samples: _GENERIC_SAMPLE_TYPE, params: _GENERIC_PARAM_TYPE) -> _GENERIC_SAMPLE_TYPE:
         raise NotImplementedError()
+
+    def save(self, path: Path):
+        np.savez(
+            str(path),
+            **self.parameters
+        )
+
+    def load(self, path: Path):
+        f = np.load(str(path))
+        self.parameters = dict(f)
 
 
 class AbstractADVI(ABC):
@@ -111,12 +106,14 @@ class AbstractADVI(ABC):
                  num_epochs: int = 1,
                  iters: int = 50,
                  num_samples: int = 150,
-                 min_lr: float = 1e-4,
+                 min_lr: Optional[float] = None,
+                 loss_tol: Optional[float] = None,
                  callbacks: Optional[List[Callable[[int, float], None]]] = None):
         time_est = RuntimeEstimator(total_iters=num_epochs, horizon=10)
 
         logger.info("Starting ELBO optimization.")
 
+        epoch_elbo_prev = -cnp.inf
         for epoch in range(1, num_epochs + 1, 1):
             # =========== Necessary preprocessing for new epoch.
             self.advance_epoch()
@@ -144,8 +141,6 @@ class AbstractADVI(ABC):
 
             secs_elapsed = time_est.stopwatch_click()
             time_est.increment(secs_elapsed)
-
-            self.optim.scheduler.step(epoch_elbo_avg)
             logger.info(
                 "Epoch {epoch} | time left: {t:.2f} min. | Average ELBO = {elbo:.2f} | LR = {lr}".format(
                     epoch=epoch,
@@ -155,9 +150,17 @@ class AbstractADVI(ABC):
                 )
             )
 
-            if self.optim.current_learning_rate() < min_lr:
-                logger.info("Stopping criteria met after {} epochs.".format(epoch))
-                break
+            self.optim.scheduler.step(epoch_elbo_avg)
+            if min_lr is not None:
+                if self.optim.current_learning_rate() <= min_lr:
+                    logger.info("Stopping criteria (lr < {}) met after {} epochs.".format(min_lr, epoch))
+                    break
+            if loss_tol is not None:
+                if cnp.abs(epoch_elbo_avg - epoch_elbo_prev) < loss_tol * cnp.abs(epoch_elbo_prev):
+                    logger.info("Stopping criteria (Elbo rel. diff < {}) met after {} epochs.".format(loss_tol, epoch))
+                    break
+                epoch_elbo_prev = epoch_elbo_avg
+
 
         # ========== End of optimization
         logger.info("Finished.")
@@ -229,22 +232,17 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
         logger.debug("Precomputing likelihood marginalization.")
         data_likelihoods = self.data_likelihoods
         for t_idx in range(model.num_times()):
-            data_ll_t_reduced = data_likelihoods.reduce_supported_fragments(
-                data_likelihoods.matrices[t_idx],
-                t_idx,
-                fragment_dim=0
-            )
-            frag_freqs_reduced = data_likelihoods.reduce_supported_fragments(
-                self.model.fragment_frequencies_sparse,
-                t_idx,
-                fragment_dim=0
-            )
 
-            for batch_idx, data_t_batch_reduced in enumerate(divide_columns_into_batches_sparse(data_ll_t_reduced, self.read_batch_size)):
+            for batch_idx, data_t_batch in enumerate(
+                    divide_columns_into_batches_sparse(
+                        data_likelihoods.matrices[t_idx],
+                        self.read_batch_size
+                    )
+            ):
                 # ========= Pre-compute likelihood calculations.
                 strain_batch_lls_t = log_spspmm_exp_sparsey(
-                    frag_freqs_reduced.T,  # (S x F_), note the transpose!
-                    data_t_batch_reduced  # F_ x R_batch
+                    self.model.fragment_frequencies_sparse.T,  # (S x F_), note the transpose!
+                    data_t_batch  # F_ x R_batch
                 )  # (S x R_batch)
 
                 # ========= Locate and filter out reads with no good alignments.
@@ -262,23 +260,6 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
                         t_idx, batch_idx, len(bad_indices)
                     ))
 
-                # =========== Locate and filter out reads that are non-discriminatory
-                # (e.g. are not helpful for inference/contribute little to the posterior)
-                # nondisc_indices = {
-                #     int(x)
-                #     for x in torch.where(
-                #         torch.le(
-                #             torch.var(strain_batch_lls_t, dim=0, keepdim=False).cpu(),
-                #             torch.tensor(0.01)
-                #         )
-                #     )[0]
-                # }
-                # if len(nondisc_indices) > 0:
-                #     logger.warning("(t = {}, batch {}) Found {} non-discriminatory reads.".format(
-                #         t_idx, batch_idx, len(nondisc_indices)
-                #     ))
-                #
-                # indices_to_prune = bad_indices.union(nondisc_indices)
                 if len(bad_indices) == strain_batch_lls_t.shape[1]:
                     continue
                 elif len(bad_indices) > 0:
@@ -300,7 +281,8 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
               num_epochs: int = 1,
               iters: int = 4000,
               num_samples: int = 8000,
-              min_lr: float = 1e-4,
+              min_lr: Optional[float] = None,
+              loss_tol: Optional[float] = None,
               lr_decay_factor: float = 0.25,
               lr_patience: int = 10,
               callbacks: Optional[List[Callable[[int, float], None]]] = None):
@@ -309,6 +291,7 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
             num_epochs=num_epochs,
             num_samples=num_samples,
             min_lr=min_lr,
+            loss_tol=loss_tol,
             callbacks=callbacks
         )
         self.posterior.set_parameters(self.optim.params)
