@@ -5,6 +5,7 @@ from chronostrain.algs import *
 from chronostrain.database import StrainDatabase
 from chronostrain.model import *
 from chronostrain.model.io import TimeSeriesReads
+from chronostrain.util.optimization import *
 from chronostrain.config import cfg
 from .model import create_model
 
@@ -15,6 +16,7 @@ def perform_advi(
         fragments: FragmentSpace,
         reads: TimeSeriesReads,
         with_zeros: bool,
+        initialize_with_map: bool,
         num_epochs: int,
         lr_decay_factor: float,
         lr_patience: int,
@@ -48,8 +50,23 @@ def perform_advi(
         logger=logger
     )
 
+    if initialize_with_map:
+        raise NotImplementedError("initialize_with_map option is not implemented.")
+        # logger.debug("Running MAP solver, to initialize VI optimization.")
+        # map_solver = AutogradMAPSolver(
+        #     generative_model=model,
+        #     data=reads,
+        #     db=db,
+        #     dtype=cfg.engine_cfg.dtype
+        # )
+        # initial_bias = map_solver.solve(iters=5, num_epochs=1000, loss_tol=1e-7, stepsize=1e-5)
+        # np.save("map_soln.npy", initial_bias)
+        # exit(1)
+        # initial_bias, _, _ = em_solver.solve(iters=1000, thresh=1e-5, gradient_clip=1e3, print_debug_every=1)
+    else:
+        initial_bias = None
+
     if with_zeros:
-        from chronostrain.util.optimization import Adam, ReduceLROnPlateauLast
         from chronostrain.model.zeros import PopulationGlobalZeros
         zero_model = PopulationGlobalZeros(model.bacteria_pop.num_strains())
         lr_scheduler = ReduceLROnPlateauLast(
@@ -79,10 +96,10 @@ def perform_advi(
             correlation_type=correlation_type,
             elbo_mode="default",
             read_batch_size=read_batch_size,
-            dtype=cfg.engine_cfg.dtype
+            dtype=cfg.engine_cfg.dtype,
+            initial_gaussian_bias=initial_bias
         )
     else:
-        from chronostrain.util.optimization import ConstantLearningRate, SGD, Adam, ReduceLROnPlateauLast, DistributedShampoo
         lr_scheduler = ReduceLROnPlateauLast(
             initial_lr=learning_rate,
             mode='max',
@@ -104,7 +121,8 @@ def perform_advi(
             correlation_type=correlation_type,
             db=db,
             read_batch_size=read_batch_size,
-            dtype=cfg.engine_cfg.dtype
+            dtype=cfg.engine_cfg.dtype,
+            initial_gaussian_bias=initial_bias
         )
 
     callbacks = []
@@ -143,8 +161,6 @@ def perform_advi(
         num_samples=num_samples,
         min_lr=min_lr,
         loss_tol=loss_tol,
-        lr_decay_factor=lr_decay_factor,
-        lr_patience=lr_patience,
         callbacks=callbacks
     )
     end_time = time.time()

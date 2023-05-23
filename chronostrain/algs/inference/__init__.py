@@ -1,3 +1,3 @@
 from .base import AbstractModelSolver
-from .em import EMSolver
+from .map import *
 from .vi import *

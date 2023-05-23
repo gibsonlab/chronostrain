@@ -132,9 +132,11 @@ class GenerativeModel:
         """
         n_times, _, n_strains = x.shape
 
-        ll_first = -0.5 * n_strains * np.log(np.square(x[0, :, :] - self.mu).sum(axis=-1))
+        ll_first = -0.5 * n_strains * np.log(np.square(
+            x[0, :, :] - self.mu
+        ).sum(axis=-1))
         ll_rest = -0.5 * (n_times - 1) * n_strains * np.log(np.square(
-            np.diff(x, n=1, axis=0)
+            np.expand_dims(self.dt_sqrt_inverse, axis=[1, 2]) * np.diff(x, n=1, axis=0)
         ).sum(axis=0).sum(axis=-1))
         return ll_first + ll_rest
 

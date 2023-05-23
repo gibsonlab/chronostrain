@@ -161,7 +161,6 @@ class AbstractADVI(ABC):
                     break
                 epoch_elbo_prev = epoch_elbo_avg
 
-
         # ========== End of optimization
         logger.info("Finished.")
 
@@ -283,8 +282,6 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
               num_samples: int = 8000,
               min_lr: Optional[float] = None,
               loss_tol: Optional[float] = None,
-              lr_decay_factor: float = 0.25,
-              lr_patience: int = 10,
               callbacks: Optional[List[Callable[[int, float], None]]] = None):
         self.optimize(
             iters=iters,

@@ -1,3 +1,5 @@
+from typing import Optional
+
 import jax
 import jax.numpy as np
 import numpy as cnp
@@ -18,7 +20,7 @@ class GaussianStrainCorrelatedWithGlobalZerosPosterior(AbstractReparametrizedPos
     A zero-model posterior, where there is a posterior indicator for each strain (to be applied across all timepoints).
     """
 
-    def __init__(self, num_strains, num_times, dtype):
+    def __init__(self, num_strains, num_times, dtype, initial_gaussian_bias: Optional[np.ndarray] = None):
         logger.info("Initializing Strain-correlated (time-factorized) posterior with Global Zeros")
         self.num_strains = num_strains
         self.num_times = num_times
@@ -34,12 +36,14 @@ class GaussianStrainCorrelatedWithGlobalZerosPosterior(AbstractReparametrizedPos
                 self.num_strains, fill_value=cnp.log(INIT_SCALE),
                 dtype=dtype
             )
-            # if t_idx > 0:
-            #     self.parameters[f'cond_matrix_{t_idx}'] = np.zeros((self.num_strains, self.num_strains), dtype='float32')
-        self.parameters['bias'] = np.zeros(
-            (self.num_times, 1, self.num_strains),
-            dtype=dtype
-        )
+
+        if initial_gaussian_bias is None:
+            self.parameters['bias'] = np.zeros(
+                (self.num_times, 1, self.num_strains),
+                dtype=dtype
+            )
+        else:
+            self.parameters['bias'] = np.expand_dims(initial_gaussian_bias, axis=1)
         self.parameters['gumbel_mean'] = np.zeros(
             (2, self.num_strains),
             dtype=dtype
@@ -160,7 +164,7 @@ class GaussianTimeCorrelatedWithGlobalZerosPosterior(AbstractReparametrizedPoste
     A zero-model posterior, where there is a posterior indicator for each strain (to be applied across all timepoints).
     """
 
-    def __init__(self, num_strains, num_times, dtype):
+    def __init__(self, num_strains, num_times, dtype, initial_gaussian_bias: Optional[np.ndarray] = None):
         logger.info("Initializing Time-correlated (strain-factorized) posterior with Global Zeros")
         self.num_strains = num_strains
         self.num_times = num_times
@@ -176,10 +180,14 @@ class GaussianTimeCorrelatedWithGlobalZerosPosterior(AbstractReparametrizedPoste
                 self.num_times, fill_value=cnp.log(INIT_SCALE),
                 dtype=dtype
             )
-        self.parameters['bias'] = np.zeros(
-            (self.num_times, 1, self.num_strains),
-            dtype=dtype
-        )
+
+        if initial_gaussian_bias is None:
+            self.parameters['bias'] = np.zeros(
+                (self.num_times, 1, self.num_strains),
+                dtype=dtype
+            )
+        else:
+            self.parameters['bias'] = np.expand_dims(initial_gaussian_bias, axis=1)
         self.parameters['gumbel_mean'] = np.zeros(
             (2, self.num_strains),
             dtype=dtype
@@ -280,7 +288,7 @@ class GaussianWithGlobalZerosPosteriorDense(AbstractReparametrizedPosterior):
     A zero-model posterior, where there is a posterior indicator for each strain (to be applied across all timepoints).
     """
 
-    def __init__(self, num_strains, num_times, dtype):
+    def __init__(self, num_strains, num_times, dtype, initial_gaussian_bias: Optional[np.ndarray] = None):
         logger.info("Initializing Fully joint posterior with Global Zeros")
         self.num_strains = num_strains
         self.num_times = num_times
@@ -292,6 +300,11 @@ class GaussianWithGlobalZerosPosteriorDense(AbstractReparametrizedPosterior):
         self.parameters['diag_weights'] = np.full(n_features, fill_value=cnp.log(INIT_SCALE), dtype=dtype)
         self.parameters['bias'] = np.zeros(n_features, dtype=dtype)
         self.parameters['gumbel_mean'] = np.zeros((2, self.num_strains), dtype=dtype)
+
+        if initial_gaussian_bias is None:
+            self.parameters['bias'] = np.zeros(n_features, dtype=dtype)
+        else:
+            self.parameters['bias'] = np.flatten(initial_gaussian_bias)  # Assumes shape is (n_times, n_strains)
 
     def set_parameters(self, params: _GENERIC_PARAM_TYPE):
         self.parameters = params

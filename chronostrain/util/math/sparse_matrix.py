@@ -28,9 +28,9 @@ def load_sparse_matrix(path: Path) -> jsparse.BCOO:
     p1, p2, p3 = sparse_matrix_paths(path)
     indices = np.load(p1)
     data = np.load(p2)
-    shape = np.load(p3)
+    shape = cnp.load(str(p3)).astype(int).tolist()
     return jsparse.BCOO(
-        (data, indices), shape=list(shape)
+        (data, indices), shape=shape
     )
 
 

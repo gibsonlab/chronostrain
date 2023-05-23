@@ -100,6 +100,7 @@ class TimeSliceReads(object):
         :return:
         """
         reads = []
+        offset = 0
         for src in sources:
             n_reads_in_src = 0
             for record_idx, record in enumerate(read_seq_file(src.path, src.quality_format)):
@@ -120,19 +121,20 @@ class TimeSliceReads(object):
                 if src.read_type == ReadType.SINGLE_END:
                     read = SequenceRead(
                         read_id=record.id,
-                        read_index=record_idx,
+                        read_index=record_idx + offset,
                         seq=AllocatedSequence(str(record.seq)),
                         quality=quality,
                         metadata=record.description
                     )
                 elif src.read_type == ReadType.PAIRED_END_1:
-                    read = PairedEndRead(record.id, record_idx, AllocatedSequence(str(record.seq)), quality, record.description, forward=True)
+                    read = PairedEndRead(record.id, record_idx + offset, AllocatedSequence(str(record.seq)), quality, record.description, forward=True)
                 elif src.read_type == ReadType.PAIRED_END_2:
-                    read = PairedEndRead(record.id, record_idx, AllocatedSequence(str(record.seq)), quality, record.description, forward=False)
+                    read = PairedEndRead(record.id, record_idx + offset, AllocatedSequence(str(record.seq)), quality, record.description, forward=False)
                 else:
                     raise NotImplementedError("Unimplemented ReadType instantiation for `{}`".format(src.read_type))
                 reads.append(read)
                 n_reads_in_src += 1
+            offset += n_reads_in_src
 
             logger.debug(
                 "Loaded {r} reads from fastQ file {f}. ({sz})".format(
@@ -152,7 +154,6 @@ class TimeSliceReads(object):
         except KeyError as e:
             i = 0
             for k in self._ids_to_reads.keys():
-                print(k)
                 i += 1
                 if i == 10:
                     break

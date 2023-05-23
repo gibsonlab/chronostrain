@@ -35,7 +35,7 @@ class ReparametrizedGaussianPosterior(AbstractReparametrizedPosterior, ABC):
 
 class GaussianPosteriorFullReparametrizedCorrelation(ReparametrizedGaussianPosterior):
 
-    def __init__(self, model: GenerativeModel, dtype):
+    def __init__(self, model: GenerativeModel, dtype, initial_gaussian_bias: Optional[np.ndarray] = None):
         """
         Mean-field assumption:
         1) Parametrize the (T x S) trajectory as a (TS)-dimensional Gaussian.
@@ -47,10 +47,13 @@ class GaussianPosteriorFullReparametrizedCorrelation(ReparametrizedGaussianPoste
         # ========== Reparametrization network (standard Gaussians -> nonstandard Gaussians)
         n_features = self.num_times * self.num_strains
         self.parameters = {
-            'tril_weights': np.zeros((n_features * (n_features + 1)) // 2, dtype=dtype),
+            'tril_weights': np.zeros((n_features * (n_features - 1)) // 2, dtype=dtype),
             'diag_weights': np.full(n_features, fill_value=cnp.log(INIT_SCALE), dtype=dtype),
-            'bias': np.zeros(n_features, dtype=dtype)
         }
+        if initial_gaussian_bias is None:
+            self.parameters['bias'] = np.zeros(n_features, dtype=dtype)
+        else:
+            self.parameters['bias'] = initial_gaussian_bias.flatten()
 
     def set_parameters(self, params: _GENERIC_PARAM_TYPE):
         self.parameters = params

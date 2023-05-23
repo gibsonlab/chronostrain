@@ -26,7 +26,12 @@ initialise_tracking()
 @option(
     '--with-zeros/--without-zeros', 'with_zeros',
     is_flag=True, default=False,
-    help='Specify whether to include zeros into the model..'
+    help='Specify whether to include zeros into the model.'
+)
+@option(
+    '--with-map-init/--without-map-init', 'initialize_with_map',
+    is_flag=True, default=False,
+    help='Specify whether to initialize the VI optimization at the MAP solution using Expectation-Maximization.'
 )
 @option(
     '--iters', 'iters', type=int, default=50,
@@ -72,10 +77,6 @@ initialise_tracking()
          'factorized across time.'
 )
 @option(
-    '--seed', '-s', 'seed', type=int, default=31415,
-    help='Seed for randomness, specified for reproducibility.'
-)
-@option(
     '--true-abundances', '-truth', 'true_abundance_path',
     type=click.Path(path_type=Path, dir_okay=False, exists=True, readable=True),
     help='A CSV file path containing the ground truth relative abundances for each strain by time point. '
@@ -111,7 +112,7 @@ def main(
         out_dir: Path,
         true_abundance_path: Path,
         with_zeros: bool,
-        seed: int,
+        initialize_with_map: bool,
         iters: int,
         epochs: int,
         decay_lr: float,
@@ -172,6 +173,7 @@ def main(
         fragments=fragments,
         reads=reads,
         with_zeros=with_zeros,
+        initialize_with_map=initialize_with_map,
         num_epochs=epochs,
         iters=iters,
         min_lr=min_lr,

@@ -34,13 +34,14 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
                  read_batch_size: int = 5000,
                  elbo_mode: str = "default",
                  correlation_type: str = "full",
-                 dtype='bfloat16'):
+                 dtype='bfloat16',
+                 initial_gaussian_bias: Optional[np.ndarray] = None):
         if correlation_type == "full":
-            posterior = GaussianWithGlobalZerosPosteriorDense(model.num_strains(), model.num_times(), dtype=dtype)
+            posterior = GaussianWithGlobalZerosPosteriorDense(model.num_strains(), model.num_times(), dtype=dtype, initial_gaussian_bias=initial_gaussian_bias)
         elif correlation_type == "time":
-            posterior = GaussianTimeCorrelatedWithGlobalZerosPosterior(model.num_strains(), model.num_times(), dtype=dtype)
+            posterior = GaussianTimeCorrelatedWithGlobalZerosPosterior(model.num_strains(), model.num_times(), dtype=dtype, initial_gaussian_bias=initial_gaussian_bias)
         elif correlation_type == "strain":
-            posterior = GaussianStrainCorrelatedWithGlobalZerosPosterior(model.num_strains(), model.num_times(), dtype=dtype)
+            posterior = GaussianStrainCorrelatedWithGlobalZerosPosterior(model.num_strains(), model.num_times(), dtype=dtype, initial_gaussian_bias=initial_gaussian_bias)
         else:
             raise ValueError("Unrecognized `correlation_type` argument {}.".format(correlation_type))
 

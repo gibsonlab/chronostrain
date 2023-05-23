@@ -27,7 +27,8 @@ class ADVIGaussianSolver(AbstractADVISolver):
                  optimizer: LossOptimizer,
                  read_batch_size: int = 5000,
                  correlation_type: str = "time",
-                 dtype='bfloat16'):
+                 dtype='bfloat16',
+                 initial_gaussian_bias: Optional[np.ndarray] = None):
         logger.info("Initializing solver with Gaussian posterior")
         if correlation_type == "time":
             raise NotImplementedError("TODO implement this posterior for Jax.")
@@ -36,7 +37,8 @@ class ADVIGaussianSolver(AbstractADVISolver):
             raise NotImplementedError("TODO implement this posterior for Jax.")
             # posterior = GaussianPosteriorStrainCorrelation(model)
         elif correlation_type == "full":
-            posterior = GaussianPosteriorFullReparametrizedCorrelation(model, dtype=dtype)
+            posterior = GaussianPosteriorFullReparametrizedCorrelation(model, dtype=dtype,
+                                                                       initial_gaussian_bias=initial_gaussian_bias)
         else:
             raise ValueError("Unrecognized `correlation_type` argument {}.".format(correlation_type))
         self.dtype = dtype
