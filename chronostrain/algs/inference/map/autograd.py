@@ -76,6 +76,7 @@ class AutogradMAPSolver(AbstractModelSolver):
         x_init = np.zeros(x_init.shape)
 
         logger.info("Running autograd MAP solver.")
+
         # ================ MAIN OPTIMIZER =================
         # import jax.scipy.optimize as jsp_opt
         # res = jsp_opt.minimize(
