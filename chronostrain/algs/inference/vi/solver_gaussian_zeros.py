@@ -9,7 +9,8 @@ from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.util.optimization import LossOptimizer
 
-from .base import AbstractADVISolver, _GENERIC_PARAM_TYPE, _GENERIC_SAMPLE_TYPE, _GENERIC_GRAD_TYPE
+from .base import AbstractADVISolver, _GENERIC_PARAM_TYPE, _GENERIC_SAMPLE_TYPE, _GENERIC_GRAD_TYPE, \
+    AbstractReparametrizedPosterior
 from .posteriors import GaussianStrainCorrelatedWithGlobalZerosPosterior, GaussianWithGlobalZerosPosteriorDense, GaussianTimeCorrelatedWithGlobalZerosPosterior
 
 from chronostrain.logging import create_logger
@@ -31,42 +32,58 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
                  data: TimeSeriesReads,
                  db: StrainDatabase,
                  optimizer: LossOptimizer,
+                 prune_strains: bool,
                  read_batch_size: int = 5000,
-                 elbo_mode: str = "default",
+                 accumulate_gradients: bool = False,
                  correlation_type: str = "full",
                  dtype='bfloat16',
                  initial_gaussian_bias: Optional[np.ndarray] = None):
-        if correlation_type == "full":
-            posterior = GaussianWithGlobalZerosPosteriorDense(model.num_strains(), model.num_times(), dtype=dtype, initial_gaussian_bias=initial_gaussian_bias)
-        elif correlation_type == "time":
-            posterior = GaussianTimeCorrelatedWithGlobalZerosPosterior(model.num_strains(), model.num_times(), dtype=dtype, initial_gaussian_bias=initial_gaussian_bias)
-        elif correlation_type == "strain":
-            posterior = GaussianStrainCorrelatedWithGlobalZerosPosterior(model.num_strains(), model.num_times(), dtype=dtype, initial_gaussian_bias=initial_gaussian_bias)
-        else:
-            raise ValueError("Unrecognized `correlation_type` argument {}.".format(correlation_type))
-
-        self.posterior = posterior
+        logger.info("Initializing solver with Gaussian-Zero posterior")
         self.dtype = dtype
+        self.correlation_type = correlation_type
+        self.initial_gaussian_bias = initial_gaussian_bias
         super().__init__(
             model=model,
             data=data,
             db=db,
-            posterior=posterior,
             optimizer=optimizer,
+            prune_strains=prune_strains,
             read_batch_size=read_batch_size
         )
         self.temperature = np.array(100, dtype=dtype)
         self.n_epochs_at_current_temp = 0
         self.zero_model = zero_model
 
-        self.elbo_accumulate = elbo_mode == "accumulate"
-        if self.elbo_accumulate:
-            logger.debug("Using ELBO gradient accumulation strategy.")
+        self.accumulate_gradients = accumulate_gradients
+        if self.accumulate_gradients:
             self.precompile_elbo_pieces()
         else:
-            logger.debug("Using default ELBO calculation strategy.")
             self.precompile_elbo()
         logger.info("The first ELBO iteration will take longer due to JIT compilation.")
+
+    def create_posterior(self) -> AbstractReparametrizedPosterior:
+        if self.correlation_type == "full":
+            return GaussianWithGlobalZerosPosteriorDense(
+                self.model.num_strains(),
+                self.model.num_times(),
+                dtype=self.dtype, initial_gaussian_bias=self.initial_gaussian_bias
+            )
+        elif self.correlation_type == "time":
+            return GaussianTimeCorrelatedWithGlobalZerosPosterior(
+                self.model.num_strains(),
+                self.model.num_times(),
+                dtype=self.dtype,
+                initial_gaussian_bias=self.initial_gaussian_bias
+            )
+        elif self.correlation_type == "strain":
+            return GaussianStrainCorrelatedWithGlobalZerosPosterior(
+                self.model.num_strains(),
+                self.model.num_times(),
+                dtype=self.dtype,
+                initial_gaussian_bias=self.initial_gaussian_bias
+            )
+        else:
+            raise ValueError("Unrecognized `correlation_type` argument {}.".format(self.correlation_type))
 
     def advance_epoch(self):
         if self.n_epochs_at_current_temp > 20:
@@ -206,7 +223,7 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
                        params: _GENERIC_PARAM_TYPE,
                        random_samples: _GENERIC_SAMPLE_TYPE
                        ) -> Tuple[np.ndarray, _GENERIC_GRAD_TYPE]:
-        if self.elbo_accumulate:
+        if self.accumulate_gradients:
             acc_elbo_value, acc_elbo_grad = self.elbo_entropy(params, random_samples, self.temperature)
 
             _e, _g = self.elbo_model_prior(params, random_samples)

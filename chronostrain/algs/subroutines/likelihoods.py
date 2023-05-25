@@ -234,14 +234,15 @@ class SparseLogLikelihoodComputer:
         logger.debug("Computing read-fragment likelihoods...")
 
         def _matrix_load_callback(matrix: jsparse.BCOO):
-            _, counts_per_read = np.unique(matrix.indices[1], return_counts=True)
+            _, counts_per_read = np.unique(matrix.indices[:, 1], return_counts=True)
             logger.debug(
                 "Read-likelihood matrix (size {r} x {c}) has {nz} nonzero entries. "
-                "(~{meanct:.2f} hits per read".format(
+                "(~{meanct:.2f}±{stdct:.2f} hits per read)".format(
                     r=matrix.shape[0],
                     c=matrix.shape[1],
                     nz=len(matrix.data),
-                    meanct=counts_per_read.mean().item()
+                    meanct=counts_per_read.mean().item(),
+                    stdct=counts_per_read.std().item()
                 )
             )
 

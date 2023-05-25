@@ -1,10 +1,8 @@
-from typing import *
 from pathlib import Path
 from logging import Logger
-
-import numpy as np
 import click
 
+from chronostrain.database.backend import PandasAssistedBackend
 from chronostrain.model import StrainMetadata
 from chronostrain.database import StrainDatabase, PickleParser
 from ..base import option
@@ -21,16 +19,17 @@ from ..base import option
     type=str, required=True, help="The target database file to prune (assumes a pickle exists)."
 )
 @option(
-    '--distance-threshold', '-t', 'distance_threshold',
-    type=float, required=False, default=0.0005,
+    '--ident-threshold', '-t', 'identity_threshold',
+    type=float, required=False, default=0.002,
     help="The distance threshold to use for Agglomerative clustering (a fraction between 0 and 1), representing"
-         "one minus the percent identity in the concatenated multiple alignment."
+         "one minus the percent identity (converted to decimals) in the concatenated multiple alignment. "
+         "Default is 0.002, which represents 99.8% sequence similarity."
 )
 def main(
         ctx: click.Context,
         input_db_name: str,
         output_db_name: str,
-        distance_threshold: float,
+        identity_threshold: float,
 ):
     """
     Perform posterior estimation using ADVI.
@@ -46,12 +45,12 @@ def main(
 
     # ============== Step 2: prune using multiple alignments.
     logger.info("Pruning database by constructing multiple alignments.")
-    from .multiple_alignments import marker_concatenated_multiple_alignments
+    from chronostrain.cli.commands.make_db.helpers.multiple_alignments import marker_concatenated_multiple_alignments
 
     marker_names = sorted(input_db.all_marker_names())
     align_path = input_db.work_dir / "multiple_alignment.fasta"
     marker_concatenated_multiple_alignments(input_db, align_path, marker_names, logger)
-    prune_db(input_db, output_db_name, align_path, distance_threshold, logger, cfg)
+    prune_db(input_db, output_db_name, align_path, identity_threshold, logger, cfg)
 
 
 if __name__ == "__main__":
@@ -64,49 +63,15 @@ if __name__ == "__main__":
         exit(1)
 
 
-def prune_db(input_db: StrainDatabase, output_db_name: str, alignments_path: Path, distance_threshold: float, logger: Logger, cfg):
-    import itertools
-    import math
-    from Bio import SeqIO
-    from sklearn.cluster import AgglomerativeClustering
-    from chronostrain.util.sequences.z4 import nucleotides_to_z4
-    from chronostrain.database.backend import PandasAssistedBackend
-    from .prune import pick_cluster_representatives
-
-    logger.info("Preprocessing for pruning.")
-    # Read the alignments.
-    alignments: Dict[str, np.ndarray] = {}
-    align_len = 0
-    for record in SeqIO.parse(alignments_path, "fasta"):
-        accession = record.id
-        alignments[accession] = nucleotides_to_z4(str(record.seq))
-        align_len = len(record.seq)
-
+def prune_db(input_db: StrainDatabase, output_db_name: str, alignments_path: Path, identity_threshold: float, logger: Logger, cfg):
+    from .helpers import cluster_db
     strains = input_db.all_strains()
-
-    logger.info("Computing distances.")
-    distances = np.zeros(shape=(len(strains), len(strains)), dtype=int)
-    for (i1, strain1), (i2, strain2) in itertools.combinations(enumerate(strains), r=2):
-        hamming_dist = np.sum(alignments[strain1.id] != alignments[strain2.id])
-        distances[i1, i2] = hamming_dist
-        distances[i2, i1] = hamming_dist
-
-    logger.info("Computing clusters.")
-    clustering = AgglomerativeClustering(
-        affinity='precomputed',
-        linkage='average',
-        distance_threshold=math.ceil(distance_threshold * align_len),
-        n_clusters=None
-    ).fit(distances)
-
-    # noinspection PyUnresolvedReferences
-    n_clusters, cluster_labels = clustering.n_clusters_, clustering.labels_
-    clusters: List[List[int]] = [
-        [s_idx for s_idx in np.where(cluster_labels == c)[0]]
-        for c in range(n_clusters)
-    ]
-
-    cluster_reps = pick_cluster_representatives(clusters, distances)
+    clusters, cluster_reps = cluster_db(
+        strain_ids=[s.id for s in strains],
+        alignments_path=alignments_path,
+        logger=logger,
+        ident_fraction=identity_threshold
+    )
 
     # Create the clustered database.
     new_strains = []
@@ -139,4 +104,4 @@ def prune_db(input_db: StrainDatabase, output_db_name: str, alignments_path: Pat
     logger.info("Before clustering: {} strains".format(input_db.num_strains()))
     logger.info("After clustering: {} strains".format(new_db.num_strains()))
     logger.info("Successfully created new database instance `{}`.".format(output_db_name))
-    logger.info("Pickle path: {}".format(serializer.pickle_path()))
+    logger.info("Pickle path: {}".format(serializer.disk_path()))

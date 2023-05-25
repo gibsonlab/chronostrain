@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Dict, Any
 
 import click
 from logging import Logger
@@ -50,6 +50,13 @@ from ..base import option
     help="The minimum percent identity cutoff to use for BLAST (blastn's -perc_identity argument)"
 )
 @option(
+    '--ident-threshold', '-t', 'identity_threshold',
+    type=float, required=False, default=0.002,
+    help="The distance threshold to use for Agglomerative clustering (a fraction between 0 and 1), representing"
+         "one minus the percent identity (converted to decimals) in the concatenated multiple alignment. "
+         "Default is 0.002, which represents 99.8% sequence similarity."
+)
+@option(
     '--min-marker-len', 'min_marker_len',
     type=int, required=False, default=150,
     help="The minimum length for a BLAST hit to be considered a marker sequence. "
@@ -72,6 +79,7 @@ def main(
         blast_db_dir: Optional[Path],
         json_output_path: Path,
         min_pct_idty: int,
+        identity_threshold: float,
         min_marker_len: int,
         skip_symlink: bool
 ):
@@ -81,10 +89,10 @@ def main(
     ctx.ensure_object(Logger)
     logger = ctx.obj
 
-    from .strain_creation import create_chronostrain_db
+    from .helpers import create_chronostrain_db, marker_concatenated_multiple_alignments
     import pandas as pd
     from typing import Dict
-    from chronostrain.database import JSONStrainDatabase
+    from chronostrain.database import JSONParser
     from chronostrain.config import cfg
     reference_df = pd.read_csv(ref_index_path, sep="\t")
     json_output_path.touch(exist_ok=True)
@@ -146,34 +154,69 @@ def main(
 
     # ==== Initialize database instance.
     logger.info(f"Loading DB instance, using data directory: {cfg.database_cfg.data_dir}")
-    raw_db = JSONStrainDatabase(
-        load_as='json',
-        source_file=raw_json_path,
+    raw_db = JSONParser(
+        entries_file=raw_json_path,
         data_dir=cfg.database_cfg.data_dir,
         marker_max_len=cfg.database_cfg.db_kwargs['marker_max_len'],
         force_refresh=False
-    )
+    ).parse()
 
     # ============== Step 2: prune using multiple alignments.
     logger.info("Pruning database by constructing multiple alignments.")
-    from .multiple_alignments import marker_concatenated_multiple_alignments
-    from .prune import prune_db
 
     align_path = json_output_path.parent / f"_ALIGN_{json_output_path.stem}" / "multiple_alignment.fasta"
     pruned_json_path = json_output_path.with_stem(f'{json_output_path.stem}-2pruned')
     marker_names = set(gene_paths.keys())
     marker_concatenated_multiple_alignments(raw_db, align_path, sorted(marker_names), logger)
-    prune_db(raw_json_path, pruned_json_path, align_path, logger)
+    prune_json_db(raw_json_path, pruned_json_path, align_path, logger, identity_threshold)
 
     # ============== Step 3: check for overlaps.
     logger.info("Resolving overlaps.")
-    from .resolve_overlaps import find_and_resolve_overlaps
+    from chronostrain.cli.commands.make_db.helpers.resolve_overlaps import find_and_resolve_overlaps
     with open(pruned_json_path, "r") as f:
         db_json = json.load(f)
     for strain in db_json:
         find_and_resolve_overlaps(strain, reference_df, logger)
     with open(json_output_path, 'w') as o:
         json.dump(db_json, o, indent=4)
+
+
+def prune_json_db(raw_json_path: Path,
+                  tgt_json_path: Path,
+                  align_path: Path, logger: Logger,
+                  identity_threshold: float):
+    # parse json entries.
+    entries: Dict[str, Dict[str, Any]] = {}
+    strain_ids = []
+    with open(raw_json_path, "r") as f:
+        _initial_strain_entries = json.load(f)
+        for strain_entry in _initial_strain_entries:
+            accession = strain_entry['id']
+            entries[accession] = strain_entry
+            strain_ids.append(accession)
+
+    # perform clustering.
+    from .helpers import cluster_db
+    clusters, cluster_reps = cluster_db(strain_ids, align_path, logger, ident_fraction=identity_threshold)
+
+    # Create the clustered json.
+    result_entries = []
+    for cluster, rep in zip(clusters, cluster_reps):
+        rep_strain_idx = cluster[rep]
+        rep_strain = strain_ids[rep_strain_idx]
+
+        cluster_entry = entries[rep_strain]
+        cluster_entry['cluster'] = [
+            "{}({})".format(strain_ids[s_idx], entries[strain_ids[s_idx]]['name'])
+            for s_idx in cluster
+        ]
+        result_entries.append(cluster_entry)
+
+    with open(tgt_json_path, 'w') as outfile:
+        json.dump(result_entries, outfile, indent=4)
+
+    logger.info("Before clustering: {} strains".format(len(entries)))
+    logger.info("After clustering: {} strains".format(len(result_entries)))
 
 
 if __name__ == "__main__":

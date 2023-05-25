@@ -24,7 +24,7 @@ class AbstractDatabaseParser(object):
             # Posix paths
             return 'database.posix.pkl'
 
-    def pickle_path(self) -> Path:
+    def disk_path(self) -> Path:
         """
         Certain object attributes (such as marker metadata) uses pathlib.Path, which is specific to the OS.
         Therefore, save/load each separately.
@@ -34,7 +34,7 @@ class AbstractDatabaseParser(object):
         return StrainDatabase.database_named_dir(self.data_dir, self.db_name) / AbstractDatabaseParser.database_pkl_name()
 
     def save_to_disk(self, db: StrainDatabase):
-        pkl_path = self.pickle_path()
+        pkl_path = self.disk_path()
         if not pkl_path.parent.parent.exists():
             raise FileNotFoundError(f"Data directory {pkl_path.parent.parent} does not exist!")
         pkl_path.parent.mkdir(exist_ok=True, parents=False)
@@ -42,10 +42,9 @@ class AbstractDatabaseParser(object):
             pickle.dump(db.backend, f)
 
     def load_from_disk(self) -> StrainDatabase:
-        return self.load_from_pkl(self.pickle_path())
-
-    def load_from_pkl(self, pkl_path: Path):
-        with open(pkl_path, 'rb') as f:
+        """Default implementation: use pickle format."""
+        print(self.disk_path())
+        with open(self.disk_path(), 'rb') as f:
             backend = pickle.load(f)
         return StrainDatabase(
             backend=backend,
@@ -53,7 +52,6 @@ class AbstractDatabaseParser(object):
             name=self.db_name,
             force_refresh=False
         )
-
 
 class StrainDatabaseParseError(Exception):
     pass

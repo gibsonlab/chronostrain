@@ -23,7 +23,6 @@ logger = create_logger(__name__)
 class GenerativeModel:
     def __init__(self,
                  times: List[float],
-                 mu: np.ndarray,
                  tau_1_dof: float,
                  tau_1_scale: float,
                  tau_dof: float,
@@ -38,7 +37,6 @@ class GenerativeModel:
                  ):
         """
         :param times: A list of time points.
-        :param mu: The prior mean E[X_1] of the first time point.
         :param tau_1_dof: The scale-inverse-chi-squared DOF of the first time point.
         :param tau_1_scale: The scale-inverse-chi-squared scale of the first time point.
         :param tau_dof: The scale-inverse-chi-squared DOF of the rest of the Gaussian process.
@@ -49,7 +47,6 @@ class GenerativeModel:
         """
 
         self.times: List[float] = times  # array of time points
-        self.mu: np.ndarray = mu.astype(cfg.engine_cfg.dtype)  # mean for X_1
         self.tau_1_dof: float = tau_1_dof
         self.tau_1_scale: float = tau_1_scale
         self.tau_dof: float = tau_dof
@@ -133,7 +130,7 @@ class GenerativeModel:
         n_times, _, n_strains = x.shape
 
         ll_first = -0.5 * n_strains * np.log(np.square(
-            x[0, :, :] - self.mu
+            x[0, :, :]
         ).sum(axis=-1))
         ll_rest = -0.5 * (n_times - 1) * n_strains * np.log(np.square(
             np.expand_dims(self.dt_sqrt_inverse, axis=[1, 2]) * np.diff(x, n=1, axis=0)

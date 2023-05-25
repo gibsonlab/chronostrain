@@ -204,8 +204,8 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
                  model: GenerativeModel,
                  data: TimeSeriesReads,
                  db: StrainDatabase,
-                 posterior: AbstractReparametrizedPosterior,
                  optimizer: LossOptimizer,
+                 prune_strains: bool,
                  read_batch_size: int = 5000):
         AbstractModelSolver.__init__(
             self,
@@ -213,68 +213,103 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
             data,
             db
         )
-        self.read_batch_size = read_batch_size
+        self.initialize_data(prune_strains, read_batch_size)
+        if prune_strains:
+            self.prune_strains()
+        AbstractADVI.__init__(self, self.create_posterior(), optimizer)
 
-        AbstractADVI.__init__(self, posterior, optimizer)
-
+    # noinspection PyAttributeOutsideInit
+    def initialize_data(self, prune_strains, read_batch_size):
         logger.debug("Initializing ADVI data structures.")
         if not cfg.model_cfg.use_sparse:
             raise NotImplementedError("ADVI only supports sparse data structures.")
 
         # (S x R) matrices: Contains P(R = r | S = s) for each read r, strain s.
         self.batches: List[List[np.ndarray]] = [
-            [] for _ in range(model.num_times())
+            [] for _ in range(self.model.num_times())
         ]
         self.total_reads: int = 0
 
         # Precompute likelihood products.
         logger.debug("Precomputing likelihood marginalization.")
         data_likelihoods = self.data_likelihoods
-        for t_idx in range(model.num_times()):
-
+        for t_idx in range(self.model.num_times()):
             for batch_idx, data_t_batch in enumerate(
                     divide_columns_into_batches_sparse(
                         data_likelihoods.matrices[t_idx],
-                        self.read_batch_size
+                        read_batch_size
                     )
             ):
+                logger.debug("Precomputing marginalization for t = {}, batch {}".format(t_idx, batch_idx))
                 # ========= Pre-compute likelihood calculations.
                 strain_batch_lls_t = log_spspmm_exp_sparsey(
-                    self.model.fragment_frequencies_sparse.T,  # (S x F_), note the transpose!
-                    data_t_batch  # F_ x R_batch
+                    self.model.fragment_frequencies_sparse.T,  # (S x F), note the transpose!
+                    data_t_batch  # F x R_batch
                 )  # (S x R_batch)
 
                 # ========= Locate and filter out reads with no good alignments.
-                bad_indices = {
-                    int(x)
-                    for x in np.where(
-                        np.equal(
-                            np.sum(~np.isinf(strain_batch_lls_t), axis=0),
-                            0
-                        )
-                    )[0]
-                }
-                if len(bad_indices) > 0:
-                    logger.warning("(t = {}, batch {}) Found {} reads without good alignments.".format(
-                        t_idx, batch_idx, len(bad_indices)
+                read_mask = ~np.equal(
+                    np.sum(~np.isinf(strain_batch_lls_t), axis=0),
+                    0
+                )
+                n_good_read_indices = np.sum(read_mask)
+                if n_good_read_indices < strain_batch_lls_t.shape[1]:
+                    logger.warning("(t = {}, batch {}) Found {} of {} reads without good alignments.".format(
+                        t_idx, batch_idx,
+                        strain_batch_lls_t.shape[1] - n_good_read_indices, strain_batch_lls_t.shape[1]
                     ))
-
-                if len(bad_indices) == strain_batch_lls_t.shape[1]:
-                    continue
-                elif len(bad_indices) > 0:
-                    good_indices = [i for i in range(strain_batch_lls_t.shape[1]) if i not in bad_indices]
-                    strain_batch_lls_t = strain_batch_lls_t[:, good_indices]
+                strain_batch_lls_t = strain_batch_lls_t[:, read_mask]
 
                 # ============= Store result.
-                self.total_reads += strain_batch_lls_t.shape[1]
                 self.batches[t_idx].append(strain_batch_lls_t)
+                self.total_reads += strain_batch_lls_t.shape[1]
+
+    def prune_strains(self, tau=0.1):
+        """
+        Summary:
+        Consider the (S x R) likelihood matrix "A", where R is all reads concatenated, so that A[s,r] = log p(r|s).
+        Compute the altered matrix B[s,r] = A[s,r] - (max_s A[s,r]).
+        Compute the row-wise maximum b[s] = max_r B[s,r]
+        Remove all strains s for which "max_r B[s,r] < \tau", where \tau < 0.
+
+        Effectively, all strains s for which ALL reads satisfy "p(r|s) < \tau * p(r|s_best)" is removed.
+        """
+        from chronostrain.model import Population
+
+        start_num = self.model.num_strains()
+        log_tau = cnp.log(tau)
+        b = np.full(self.model.num_strains(), fill_value=-cnp.inf)
+
+        for t in range(self.model.num_times()):
+            for batch_ll in self.batches[t]:
+                batch_ll = batch_ll - np.max(batch_ll, axis=0)  # compute matrix "B" for this batch
+                batch_maxes = np.max(batch_ll, axis=1)  # compute max over reads in this batch
+                b = np.where(batch_maxes > b, batch_maxes, b)  # update maximum
+        pruned_strains = [
+            s
+            for s_idx, s in enumerate(self.model.bacteria_pop.strains)
+            if b[s_idx] > log_tau
+        ]
+
+        # Update data structures
+        self.model.bacteria_pop = Population(pruned_strains)
+        for t in range(self.model.num_times()):
+            for batch_idx in range(len(self.batches[t])):
+                batch_ll = self.batches[t][batch_idx]
+                self.batches[t][batch_idx] = batch_ll[b > log_tau, :]
+
+        logger.debug("Pruned {} strains into {}.".format(start_num, self.model.num_strains()))
 
     def advance_epoch(self):
         """
         Allow for callbacks in-between epochs, to enable any intermediary state updates.
         @return:
         """
-        pass
+        pass  # do nothing by default
+
+    @abstractmethod
+    def create_posterior(self) -> AbstractReparametrizedPosterior:
+        raise NotImplementedError()
 
     def solve(self,
               num_epochs: int = 1,

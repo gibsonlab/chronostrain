@@ -11,7 +11,6 @@ from chronostrain.model.io import ReadType
 
 def create_model(population: Population,
                  read_types: Set[ReadType],
-                 mean: np.ndarray,
                  fragments: FragmentSpace,
                  time_points: List[float],
                  disable_quality: bool,
@@ -66,7 +65,6 @@ def create_model(population: Population,
     model = GenerativeModel(
         bacteria_pop=population,
         times=time_points,
-        mu=mean,
         tau_1_dof=cfg.model_cfg.sics_dof_1,
         tau_1_scale=cfg.model_cfg.sics_scale_1,
         tau_dof=cfg.model_cfg.sics_dof,

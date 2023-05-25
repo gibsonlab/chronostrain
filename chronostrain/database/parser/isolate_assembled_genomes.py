@@ -99,14 +99,20 @@ class IsolateAssemblyParser(AbstractDatabaseParser):
             yield parse_strain_from_assembly(spec)
 
     def parse(self) -> StrainDatabase:
-        if self.pickle_path().exists():
-            return self.load_from_disk()
+        try:
+            db = self.load_from_disk()
+            logger.debug("Loaded database instance from {}.".format(self.disk_path()))
+            return db
+        except FileNotFoundError:
+            pass
 
         backend = PandasAssistedBackend()
         backend.add_strains(self.strains())
-        return StrainDatabase(
+        db = StrainDatabase(
             backend=backend,
             name=self.db_name,
             data_dir=self.data_dir,
             force_refresh=True
         )
+        self.save_to_disk(db)
+        return db

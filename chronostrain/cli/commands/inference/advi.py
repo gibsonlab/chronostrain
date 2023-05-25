@@ -5,9 +5,6 @@ from pathlib import Path
 from chronostrain.util import filesystem
 from ..base import option
 
-from jax_smi import initialise_tracking
-initialise_tracking()
-
 
 @click.command()
 @click.pass_context
@@ -32,6 +29,11 @@ initialise_tracking()
     '--with-map-init/--without-map-init', 'initialize_with_map',
     is_flag=True, default=False,
     help='Specify whether to initialize the VI optimization at the MAP solution using Expectation-Maximization.'
+)
+@option(
+    '--prune-strains/--dont-prune-strains', 'prune_strains',
+    is_flag=True, default=False,
+    help='Specify whether to prune the input database strains based on the data.'
 )
 @option(
     '--iters', 'iters', type=int, default=50,
@@ -83,7 +85,7 @@ initialise_tracking()
          'Reserved for sanity checks or debugging.'
 )
 @option(
-    '--num-posterior-samples', '-p', type=int, default=5000,
+    '--num-posterior-samples', '-p', 'num_output_samples', type=int, default=5000,
     help='If using a variational method, specify the number of samples to generate as output.'
 )
 @option(
@@ -102,6 +104,13 @@ initialise_tracking()
     help='Specify whether or not to render a GIF of the posterior mid-training.'
 )
 @option(
+    '--accumulate-gradients/--dont-accumulate-gradients', 'accumulate_gradients',
+    is_flag=True, default=False,
+    help='Specify whether to accumulate gradients (for saving memory, at slight cost of runtime).'
+         'Results are expected to be completely identical in either mode; this just changes the '
+         'way the ELBO function is JIT-compiled.'
+)
+@option(
     '--plot-elbo/--no-plot-elbo', 'plot_elbo',
     is_flag=True, default=False,
     help='Specify whether or not to render a plot of the ELBO objective.'
@@ -113,6 +122,7 @@ def main(
         true_abundance_path: Path,
         with_zeros: bool,
         initialize_with_map: bool,
+        prune_strains: bool,
         iters: int,
         epochs: int,
         decay_lr: float,
@@ -123,10 +133,11 @@ def main(
         num_samples: int,
         read_batch_size: int,
         correlation_mode: str,
-        num_posterior_samples: int,
+        num_output_samples: int,
         allocate_fragments: bool,
         plot_format: str,
         draw_training_history: bool,
+        accumulate_gradients: bool,
         plot_elbo: bool
 ):
     """
@@ -156,8 +167,6 @@ def main(
     strains_path = out_dir / "strains.txt"
     model_out_path = out_dir / "posterior.{}.npz".format(cfg.engine_cfg.dtype)
 
-    population = Population(strains=db.all_strains())
-
     # ============ Parse input reads.
     logger.info("Loading time-series read files from {}".format(reads_input))
     reads = TimeSeriesReads.load_from_csv(reads_input)
@@ -169,11 +178,12 @@ def main(
     # ============ Create model instance
     solver, posterior, elbo_history, (uppers, lowers, medians) = perform_advi(
         db=db,
-        population=population,
+        population=Population(strains=db.all_strains()),
         fragments=fragments,
         reads=reads,
         with_zeros=with_zeros,
         initialize_with_map=initialize_with_map,
+        prune_strains=prune_strains,
         num_epochs=epochs,
         iters=iters,
         min_lr=min_lr,
@@ -186,6 +196,7 @@ def main(
         correlation_type=correlation_mode,
         save_elbo_history=plot_elbo,
         save_training_history=draw_training_history,
+        accumulate_gradients=accumulate_gradients,
         logger=logger
     )
 
@@ -208,7 +219,7 @@ def main(
 
     # ==== Plot the posterior.
     # Generate and save posterior samples.
-    samples = posterior.abundance_sample(num_posterior_samples)
+    samples = posterior.abundance_sample(num_output_samples)
     np.save(str(samples_path), samples.astype(np.float32))
     logger.info("Posterior samples saved to {}. [{}]".format(
         samples_path,
@@ -216,7 +227,7 @@ def main(
     ))
     viz.plot_vi_posterior(
         times=solver.model.times,
-        population=population,
+        population=solver.model.bacteria_pop,
         samples=samples,
         plot_path=plot_path,
         plot_format=plot_format,
@@ -226,7 +237,7 @@ def main(
 
     # ==== Output strain ordering.
     with open(strains_path, "w") as f:
-        for strain in population.strains:
+        for strain in solver.model.bacteria_pop.strains:
             print(strain.id, file=f)
 
     # ==== Save the posterior distribution.

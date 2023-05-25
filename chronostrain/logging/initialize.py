@@ -58,3 +58,4 @@ def meta_create_logger(ini_path: Path) -> Callable[[str], logging.Logger]:
 
 
 create_logger = meta_create_logger(Path(__ini_path__))
+logging.getLogger("jax").setLevel(logging.INFO)

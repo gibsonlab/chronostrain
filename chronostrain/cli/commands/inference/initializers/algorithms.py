@@ -17,6 +17,7 @@ def perform_advi(
         reads: TimeSeriesReads,
         with_zeros: bool,
         initialize_with_map: bool,
+        prune_strains: bool,
         num_epochs: int,
         lr_decay_factor: float,
         lr_patience: int,
@@ -24,6 +25,7 @@ def perform_advi(
         learning_rate: float,
         num_samples: int,
         logger: Logger,
+        accumulate_gradients: bool,
         min_lr: float = 1e-6,
         loss_tol: float = 1e-5,
         read_batch_size: int = 5000,
@@ -42,7 +44,6 @@ def perform_advi(
     model = create_model(
         population=population,
         read_types=read_types,
-        mean=np.zeros(population.num_strains(), dtype=cfg.engine_cfg.dtype),
         fragments=fragments,
         time_points=time_points,
         disable_quality=not cfg.model_cfg.use_quality_scores,
@@ -83,9 +84,6 @@ def perform_advi(
             minimize_objective=False,
             eps=1e-4
         )
-        import time
-        print("TODO implement an option for elbo_mode argument.")
-        time.sleep(3)
 
         solver = ADVIGaussianZerosSolver(
             model=model,
@@ -94,10 +92,11 @@ def perform_advi(
             db=db,
             optimizer=optimizer,
             correlation_type=correlation_type,
-            elbo_mode="default",
+            accumulate_gradients=accumulate_gradients,
             read_batch_size=read_batch_size,
             dtype=cfg.engine_cfg.dtype,
-            initial_gaussian_bias=initial_bias
+            initial_gaussian_bias=initial_bias,
+            prune_strains=prune_strains
         )
     else:
         lr_scheduler = ReduceLROnPlateauLast(
@@ -119,10 +118,12 @@ def perform_advi(
             data=reads,
             optimizer=optimizer,
             correlation_type=correlation_type,
+            accumulate_gradients=accumulate_gradients,
             db=db,
             read_batch_size=read_batch_size,
             dtype=cfg.engine_cfg.dtype,
-            initial_gaussian_bias=initial_bias
+            initial_gaussian_bias=initial_bias,
+            prune_strains=prune_strains
         )
 
     callbacks = []

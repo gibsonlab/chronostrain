@@ -9,6 +9,8 @@ import pandas as pd
 
 from chronostrain.model.bacteria import Population
 from chronostrain.model.io import load_abundances
+from chronostrain.logging import create_logger
+logger = create_logger(__name__)
 
 
 def plot_abundances_comparison(
@@ -278,7 +280,7 @@ def render_posterior_abundances(
     quantile_values = parse_quantiles(traj_samples, quantiles)  # size Q x T
 
     if np.sum(quantile_values[-1, :] > strain_trunc_level) == 0:
-        print(f"Strain label `{label}` didn't meet criteria for plotting.")
+        logger.debug(f"Strain label `{label}` didn't meet criteria for plotting.")
         return
 
     median = np.quantile(traj_samples, q=0.5, axis=1)

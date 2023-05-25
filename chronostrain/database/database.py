@@ -32,7 +32,7 @@ class StrainDatabase(object):
 
     @staticmethod
     def database_named_dir(data_dir, db_name):
-        return data_dir / f'__{db_name}_MARKERS'
+        return data_dir / f'__{db_name}_'
 
     def get_strain(self, strain_id: str) -> Strain:
         return self.backend.get_strain(strain_id)

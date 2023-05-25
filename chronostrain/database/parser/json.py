@@ -439,15 +439,20 @@ class JSONParser(AbstractDatabaseParser):
                 continue
 
     def parse(self) -> StrainDatabase:
-        if self.pickle_path().exists():
-            logger.debug("Loaded database instance from {}.".format(self.pickle_path()))
-            return self.load_from_disk()
+        try:
+            db = self.load_from_disk()
+            logger.debug("Loaded database instance from {}.".format(self.disk_path()))
+            return db
+        except FileNotFoundError:
+            pass
 
         backend = PandasAssistedBackend()
         backend.add_strains(self.strains())
-        return StrainDatabase(
+        db = StrainDatabase(
             backend=backend,
             name=self.db_name,
             data_dir=self.data_dir,
             force_refresh=True
         )
+        self.save_to_disk(db)
+        return db

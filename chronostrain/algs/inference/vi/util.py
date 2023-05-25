@@ -13,10 +13,16 @@ def divide_columns_into_batches_sparse(x: jsparse.BCOO, batch_size: int) -> Iter
         start = i
         end = min(x_cols, i + batch_size)
         sz = end - start
-        locs, = jnp.where((c >= start) & (c < end))
+        locs, = cnp.where((c >= start) & (c < end))
+
+        if len(locs) == 0:
+            continue
 
         yield jsparse.BCOO(
-            (x.data[locs], x.indices[locs, :]),
+            (
+                x.data[locs],
+                x.indices[locs, :] - jnp.array([0, start], dtype=x.indices.dtype)
+            ),
             shape=(x.shape[0], sz)
         )
 

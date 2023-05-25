@@ -12,10 +12,12 @@ class PickleParser(AbstractDatabaseParser):
         super().__init__(db_name, data_dir)
         self.direct_pkl_path = direct_pkl_path
 
-    def parse(self) -> StrainDatabase:
+    def disk_path(self) -> Path:
         if self.direct_pkl_path is None:
-            logger.debug("Loading database instance from {}.".format(self.pickle_path()))
-            return self.load_from_disk()
+            return super().disk_path()
         else:
-            logger.debug("Loading database instance from {}.".format(self.direct_pkl_path))
-            return self.load_from_pkl(self.direct_pkl_path)
+            return self.direct_pkl_path
+
+    def parse(self) -> StrainDatabase:
+        logger.debug("Loading database instance from {}.".format(self.disk_path()))
+        return self.load_from_disk()

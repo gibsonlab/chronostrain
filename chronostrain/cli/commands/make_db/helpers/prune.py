@@ -1,7 +1,6 @@
-from typing import Dict, Any, List
+from typing import Dict, List
 from pathlib import Path
 from logging import Logger
-import json
 import itertools
 import math
 
@@ -11,8 +10,13 @@ from sklearn.cluster import AgglomerativeClustering
 from chronostrain.util.sequences.z4 import nucleotides_to_z4
 
 
-def prune_db(input_json_path: Path, output_json_path: Path, alignments_path: Path, logger: Logger):
-    logger.info("Preprocessing for pruning.")
+def cluster_db(
+        strain_ids: List[str],
+        alignments_path: Path,
+        logger: Logger,
+        ident_fraction: float = 0.002  # corresponds to 99.8% seq identity
+):
+    logger.info("Performing clustering using multiple alignments.")
 
     # Read the alignments.
     alignments: Dict[str, np.ndarray] = {}
@@ -22,23 +26,6 @@ def prune_db(input_json_path: Path, output_json_path: Path, alignments_path: Pat
         alignments[accession] = nucleotides_to_z4(str(record.seq))
         align_len = len(record.seq)
 
-    # parse json entries.
-    entries: Dict[str, Dict[str, Any]] = {}
-    strain_ids = []
-    with open(input_json_path, "r") as f:
-        _initial_strain_entries = json.load(f)
-        for strain_entry in _initial_strain_entries:
-            accession = strain_entry['id']
-            if accession not in alignments:
-                logger.warning(
-                    f"Strain `{accession} not found in the multiple alignments. "
-                    f"This is to be expected, if it wasn't parseable. "
-                    f"Check the logs which first loaded the database."
-                )
-                continue
-            entries[accession] = strain_entry
-            strain_ids.append(accession)
-
     logger.info("Computing distances.")
     distances = np.zeros(shape=(len(strain_ids), len(strain_ids)), dtype=int)
     for (i1, strain1_id), (i2, strain2_id) in itertools.combinations(enumerate(strain_ids), r=2):
@@ -47,7 +34,6 @@ def prune_db(input_json_path: Path, output_json_path: Path, alignments_path: Pat
         distances[i2, i1] = hamming_dist
 
     logger.info("Computing clusters.")
-    ident_fraction = 0.01  # corresponds to 1% identity
     clustering = AgglomerativeClustering(
         affinity='precomputed',
         linkage='average',
@@ -62,25 +48,7 @@ def prune_db(input_json_path: Path, output_json_path: Path, alignments_path: Pat
     ]
 
     cluster_reps = pick_cluster_representatives(clusters, distances)
-
-    # Create the clustered json.
-    result_entries = []
-    for cluster, rep in zip(clusters, cluster_reps):
-        rep_strain_idx = cluster[rep]
-        rep_strain = strain_ids[rep_strain_idx]
-
-        cluster_entry = entries[rep_strain]
-        cluster_entry['cluster'] = [
-            "{}({})".format(strain_ids[s_idx], entries[strain_ids[s_idx]]['name'])
-            for s_idx in cluster
-        ]
-        result_entries.append(cluster_entry)
-
-    with open(output_json_path, 'w') as outfile:
-        json.dump(result_entries, outfile, indent=4)
-
-    logger.info("Before clustering: {} strains".format(len(entries)))
-    logger.info("After clustering: {} strains".format(len(result_entries)))
+    return clusters, cluster_reps
 
 
 def pick_cluster_representatives(clusters: List[List[int]], distances: np.ndarray) -> List[int]:

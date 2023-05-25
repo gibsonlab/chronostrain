@@ -27,8 +27,13 @@ logger = create_logger("chronostrain.cli")
     required=False,
     help="The path to a chronostrain INI configuration file."
 )
+@click.option(
+    '--profile-jax/--dont-profile-jax', 'jax_profile',
+    is_flag=True, default=False,
+    help='Specify whether to profile JAX memory usage using jax-smi.'
+)
 @click.pass_context
-def main(ctx, config_path: Optional[Path]):
+def main(ctx, config_path: Optional[Path], jax_profile: bool = False):
     """
     ChronoStrain (Time-Series Abundance Estimation from Metagenomic Shotgun Sequencing)
     Contact: Younhun Kim (younhun@mit.edu)
@@ -36,6 +41,9 @@ def main(ctx, config_path: Optional[Path]):
     ctx.obj = logger
     if config_path is not None:
         os.environ['CHRONOSTRAIN_INI'] = str(config_path)
+    if jax_profile:
+        from jax_smi import initialise_tracking
+        initialise_tracking()
 
 
 if __name__ == "__main__":

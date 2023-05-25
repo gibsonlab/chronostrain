@@ -106,7 +106,7 @@ class FastaIndexedResource(object):
         with open(self.fasta_path, 'a') as f:
             SeqIO.write(self._new_records, f, format='fasta')
             self._new_records = []
-        self.create_index(silent=False)
+        self.create_index(silent=True)
 
     def index_of(self, record_id: str) -> int:
         if record_id not in self._id_indices:
