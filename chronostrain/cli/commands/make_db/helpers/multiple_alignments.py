@@ -20,6 +20,7 @@ def marker_concatenated_multiple_alignments(db: StrainDatabase, out_path: Path, 
     If multiple hits are found, then the first available one is used (found in the same order as BLAST hits).
     """
     all_marker_alignments = get_all_alignments(db, out_path.parent / out_path.stem, set(marker_names), logger)
+    marker_names = [m for m in marker_names if len(all_marker_alignments[m]) > 0]
 
     records: List[SeqRecord] = []
     for strain in db.all_strains():
@@ -97,7 +98,7 @@ def get_all_alignments(db: StrainDatabase, work_dir: Path, marker_names: Set[str
     work_dir.mkdir(exist_ok=True, parents=True)
     all_alignments = {}
     for gene_name in marker_names:
-        logger.info("Aligning instances of {gene_name}")
+        logger.info(f"Aligning instances of {gene_name}")
         alignment_records = multi_align_markers(
             output_path=work_dir / f"{gene_name}.fasta",
             markers=db.get_markers_by_name(gene_name),

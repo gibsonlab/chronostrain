@@ -40,7 +40,7 @@ from ..base import option
 )
 @option(
     '--out-path', '-o', 'json_output_path',
-    type=click.Path(path_type=Path, file_okay=False),
+    type=click.Path(path_type=Path, file_okay=True, dir_okay=False),
     required=True,
     help="The target path to output the database into (JSON format, so .json extension is suggested)"
 )
@@ -71,6 +71,11 @@ from ..base import option
     help="If specified, then skips a pre-processing step which uses the reference index (--references) and populates "
          "ChronoStrain's DATA_DIR with the specified assembled sequence FASTA files."
 )
+@option(
+    "--skip-prune", "skip_prune",
+    is_flag=True, default=False,
+    help="If specified, skip the pruning step."
+)
 def main(
         ctx: click.Context,
         marker_seeds_path: Path,
@@ -81,7 +86,8 @@ def main(
         min_pct_idty: int,
         identity_threshold: float,
         min_marker_len: int,
-        skip_symlink: bool
+        skip_symlink: bool,
+        skip_prune: bool
 ):
     """
     Perform posterior estimation using ADVI.
@@ -95,7 +101,7 @@ def main(
     from chronostrain.database import JSONParser
     from chronostrain.config import cfg
     reference_df = pd.read_csv(ref_index_path, sep="\t")
-    json_output_path.touch(exist_ok=True)
+    json_output_path.parent.mkdir(exist_ok=True, parents=True)
 
     # ============== Optional: preprocess reference_df into
     if skip_symlink:
@@ -157,18 +163,25 @@ def main(
     raw_db = JSONParser(
         entries_file=raw_json_path,
         data_dir=cfg.database_cfg.data_dir,
-        marker_max_len=cfg.database_cfg.db_kwargs['marker_max_len'],
+        marker_max_len=cfg.database_cfg.parser_kwargs['marker_max_len'],
         force_refresh=False
     ).parse()
 
-    # ============== Step 2: prune using multiple alignments.
-    logger.info("Pruning database by constructing multiple alignments.")
-
-    align_path = json_output_path.parent / f"_ALIGN_{json_output_path.stem}" / "multiple_alignment.fasta"
     pruned_json_path = json_output_path.with_stem(f'{json_output_path.stem}-2pruned')
-    marker_names = set(gene_paths.keys())
-    marker_concatenated_multiple_alignments(raw_db, align_path, sorted(marker_names), logger)
-    prune_json_db(raw_json_path, pruned_json_path, align_path, logger, identity_threshold)
+    if not skip_prune:
+        # ============== Step 2: prune using multiple alignments.
+        logger.info("Pruning database by constructing multiple alignments.")
+        logger.debug(f"Target: {pruned_json_path}")
+        exit(1)
+
+        align_path = json_output_path.parent / f"_ALIGN_{json_output_path.stem}" / "multiple_alignment.fasta"
+        marker_names = set(gene_paths.keys())
+        marker_concatenated_multiple_alignments(raw_db, align_path, sorted(marker_names), logger)
+        prune_json_db(raw_json_path, pruned_json_path, align_path, logger, identity_threshold)
+    else:
+        logger.info("Skipping pruning.")
+        import shutil
+        shutil.copy(raw_json_path, pruned_json_path)
 
     # ============== Step 3: check for overlaps.
     logger.info("Resolving overlaps.")
@@ -179,6 +192,7 @@ def main(
         find_and_resolve_overlaps(strain, reference_df, logger)
     with open(json_output_path, 'w') as o:
         json.dump(db_json, o, indent=4)
+    logger.info("Finished.")
 
 
 def prune_json_db(raw_json_path: Path,

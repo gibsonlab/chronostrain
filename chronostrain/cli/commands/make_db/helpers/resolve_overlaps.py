@@ -1,4 +1,5 @@
 from typing import Dict, List, Tuple, Iterator
+import gzip
 from pathlib import Path
 import pandas as pd
 
@@ -84,7 +85,7 @@ def merge_markers(refseq_index: pd.DataFrame, strain: Dict, start: int, end: int
 
 
 def resolve_overlap(refseq_index: pd.DataFrame, offending_strain: str, start: int, end: int) -> str:
-    gff_path = refseq_index.loc[refseq_index['Accession'] == offending_strain, 'GFF'].item()
+    gff_path = Path(refseq_index.loc[refseq_index['Accession'] == offending_strain, 'GFF'].item())
     hits = search_gff_annotation(gff_path, start, end, target_accession=offending_strain)
     gene_names = sorted(list(hits.keys()), key=lambda g: hits[g][1] - hits[g][0], reverse=True)  # Descending order
     new_name = '-'.join(gene_names)
@@ -106,31 +107,40 @@ def read_gff_file(file_path: Path) -> Iterator[str]:
 
 
 def search_gff_annotation(gff_path: Path, target_start: int, target_end: int, target_accession: str) -> Dict[str, Tuple[int, int]]:
-    with open(gff_path, "rt") as f:
-        key_to_coords = {}
-        for line in f:
-            tokens = line.strip().split('\t')
-            acc = tokens[0]
-            if acc != target_accession:
-                continue
+    if gff_path.suffix == '.gz':
+        f = gzip.open(gff_path, 'r')
+        decode_bytes = True
+    else:
+        f = open(gff_path, 'r')
+        decode_bytes = False
 
-            datum = {}
-            for entry in tokens[8].split(';'):
-                k, v = entry.split('=')
-                datum[k] = v
+    key_to_coords = {}
+    for line in f:
+        if decode_bytes:
+            line = line.decode('utf-8')
+        tokens = line.strip().split('\t')
+        acc = tokens[0]
+        if acc != target_accession:
+            continue
 
-            if datum['gbkey'] != 'Gene':
-                continue
+        datum = {}
+        for entry in tokens[8].split(';'):
+            k, v = entry.split('=')
+            datum[k] = v
 
-            item_start = int(tokens[3])
-            item_end = int(tokens[4])
-            try:
-                item_key = datum['gene']
-            except KeyError:
-                item_key = datum['Name']
+        if datum['gbkey'] != 'Gene':
+            continue
 
-            if has_overlap(target_start, target_end, item_start, item_end):
-                overlap_start = max(item_start, target_start)
-                overlap_end = min(item_end, target_end)
-                key_to_coords[item_key] = (overlap_start, overlap_end)
-        return key_to_coords
+        item_start = int(tokens[3])
+        item_end = int(tokens[4])
+        try:
+            item_key = datum['gene']
+        except KeyError:
+            item_key = datum['Name']
+
+        if has_overlap(target_start, target_end, item_start, item_end):
+            overlap_start = max(item_start, target_start)
+            overlap_end = min(item_end, target_end)
+            key_to_coords[item_key] = (overlap_start, overlap_end)
+    f.close()
+    return key_to_coords

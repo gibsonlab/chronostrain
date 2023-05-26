@@ -14,7 +14,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument('-t', '--taxon_label', type=str)
     parser.add_argument('-i', '--input_metaphlan_pkl', type=str)
-    parser.add_argument('-o', '--output_dir', type=str)
+    parser.add_argument('-o', '--output_index', type=str)
     return parser.parse_args()
 
 
@@ -26,7 +26,7 @@ class MetaphlanParser(object):
             raise FileNotFoundError(f"Expected {self.marker_fasta} to exist, but not found.")
 
     def retrieve_marker_seeds(self, taxon_key: str) -> Iterator[Tuple[str, SeqRecord]]:
-        print(f"Searching for E.coli markers from MetaPhlAn database: {self.pkl_path.stem}.")
+        print(f"Searching for marker seeds from MetaPhlAn database: {self.pkl_path.stem}.")
         with bz2.open(self.pkl_path, "r") as f:
             db = pickle.load(f)
 
@@ -59,8 +59,8 @@ class MetaphlanParser(object):
 
 def main():
     args = parse_args()
-    out_dir = Path(args.output_dir)
-    out_dir.mkdir(exist_ok=True, parents=True)
+    output_index_path = Path(args.output_index)
+    output_index_path.parent.mkdir(exist_ok=True, parents=True)
 
     parser = MetaphlanParser(Path(args.input_metaphlan_pkl))
 
@@ -70,20 +70,19 @@ def main():
         marker_len = len(record.seq)
         print(f"Found marker `{marker_name}` (length {marker_len})")
 
-        fasta_path = out_dir / f"{marker_name}.fasta"
+        fasta_path = output_index_path.parent / f"{marker_name}.fasta"
         SeqIO.write(record, fasta_path, "fasta")
 
         target_markers[marker_name] = fasta_path
 
     # Create TSV index.
-    index_path = out_dir / "marker_seed_index.tsv"
-    with open(index_path, "w") as f:
+    with open(output_index_path, "w") as f:
         for marker_name, marker_path in target_markers.items():
             print(
                 f"{marker_name}\t{marker_path}\tMetaPhlAn:{parser.pkl_path.stem}",
                 file=f
             )
-    print(f"Wrote marker seed index {index_path}")
+    print(f"Wrote marker seed index {output_index_path}")
 
 
 if __name__ == "__main__":
