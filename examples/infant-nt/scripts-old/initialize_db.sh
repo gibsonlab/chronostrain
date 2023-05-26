@@ -2,8 +2,8 @@
 set -e
 source settings.sh
 
-check_program "curl"
-check_program "pigz"
+require_program "curl"
+require_program "pigz"
 
 
 participant=$1

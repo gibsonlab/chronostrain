@@ -4,9 +4,9 @@ source settings.sh
 
 # ======================================== Functions ===============================
 # REQUIRES: sratools (prefetch + fasterq-dump), pigz
-check_program 'prefetch'
-check_program 'fasterq-dump'
-check_program 'pigz'
+require_program 'prefetch'
+require_program 'fasterq-dump'
+require_program 'pigz'
 
 # ================================= Main script ==================================
 mkdir -p ${SAMPLES_DIR}

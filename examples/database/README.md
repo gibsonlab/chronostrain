@@ -1,9 +1,9 @@
 # 1. Summary
 
 This contains an example of a database generation pipeline; there are multiple ways to 
-arrive at the end product.
-None of these are "core" to the package; thus we have provided a family of scripts instead.
-(These ought to be modified/customized based on your needs)
+arrive at a "valid" database.
+None of these scripts are "core" to the package; thus we have provided this recipe as an example (and as an end-to-end pipeline).
+In general, the pipeline ought to be modified/customized based on your needs.
 
 
 ## Try it out!

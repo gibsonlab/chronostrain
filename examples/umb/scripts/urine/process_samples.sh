@@ -4,9 +4,9 @@ source settings.sh
 
 # ======================================== Functions ===============================
 # REQUIRES: kneaddata, trimmomatic, gzip
-check_program 'kneaddata'
-check_program 'trimmomatic'
-check_program 'pigz'
+require_program 'kneaddata'
+require_program 'trimmomatic'
+require_program 'pigz'
 
 # Gzips the input fastq file, and appends the fastq-timepoint pair as an entry.
 append_fastq()

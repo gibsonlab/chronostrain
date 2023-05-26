@@ -4,9 +4,9 @@ source settings.sh
 
 
 export PATH=${PATH}:${KMC_BIN_DIR}:${CALLM_BIN_DIR}:${GT_PRO_BIN_DIR}
-check_program kmc_dump
-check_program CallM
-check_program GT_Pro
+require_program kmc_dump
+require_program CallM
+require_program GT_Pro
 
 cd ${GT_PRO_DB_DIR}
 

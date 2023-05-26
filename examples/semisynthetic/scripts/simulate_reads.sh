@@ -3,9 +3,9 @@ set -e
 source settings.sh
 
 seed=0
-check_program 'art_illumina'
-check_program 'prefetch'
-check_program 'fasterq-dump'
+require_program 'art_illumina'
+require_program 'prefetch'
+require_program 'fasterq-dump'
 
 # First, download the background samples.
 mkdir -p ${BACKGROUND_FASTQ_DIR}

@@ -1,5 +1,5 @@
 # Modify these before running.
-export PROJECT_DIR="/home/lactis/chronostrain"
+export PROJECT_DIR="/home/youn/chronostrain"
 export BASE_DIR="${PROJECT_DIR}/examples/semisynthetic"
 export DATA_DIR="/mnt/e/semisynthetic_data"
 export UMB_DB_DIR="/mnt/e/chronostrain/umb_database"
@@ -25,8 +25,8 @@ export READ_PROFILE_PATH="${BASE_DIR}/files/HiSeqReference"
 
 # ========= Kneaddata
 export KNEADDATA_DB_DIR="/mnt/e/kneaddata_db"
-export NEXTERA_ADAPTER_PATH="/home/lactis/anaconda3/envs/chronostrain/share/trimmomatic/adapters/NexteraPE-PE.fa"
-export TRIMMOMATIC_DIR="/home/lactis/anaconda3/envs/chronostrain/share/trimmomatic-0.39-2"
+export NEXTERA_ADAPTER_PATH="/home/youn/anaconda3/envs/chronostrain/share/trimmomatic/adapters/NexteraPE-PE.fa"
+export TRIMMOMATIC_DIR="/home/youn/anaconda3/envs/chronostrain/share/trimmomatic-0.39-2"
 
 # ================= StrainGST settings
 export STRAINGST_DB_DIR=${MISC_DB_DIR}/straingst
@@ -40,9 +40,9 @@ export STRAINEST_BT2_DB=ecoli_db
 export SYNTHETIC_COVERAGES=(2500 5000 10000 25000 50000)
 
 # ================= StrainFacts+gt-pro settings
-export CALLM_BIN_DIR=/home/lactis/CallM
-export KMC_BIN_DIR=/home/lactis/KMC/bin
-export GT_PRO_BIN_DIR=/home/lactis/gt-pro
+export CALLM_BIN_DIR=/home/youn/CallM
+export KMC_BIN_DIR=/home/youn/KMC/bin
+export GT_PRO_BIN_DIR=/home/youn/gt-pro
 export GT_PRO_DB_DIR=/mnt/e/gt-pro_db
 export GT_PRO_DB_NAME=ecoli_db
 
@@ -55,7 +55,7 @@ export CHRONOSTRAIN_NUM_EPOCHS=1000
 export CHRONOSTRAIN_DECAY_LR=0.25
 export CHRONOSTRAIN_LR=0.001
 export CHRONOSTRAIN_LR_PATIENCE=5
-export CHRONOSTRAIN_MIN_LR=1e-5
+export CHRONOSTRAIN_MIN_LR=1e-6
 export CHRONOSTRAIN_OUTPUT_FILENAME="abundances.out"
 
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)
@@ -66,7 +66,7 @@ export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
 export CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"
 
 
-check_program()
+require_program()
 {
 	command -v ${1} >/dev/null 2>&1 || {
 		echo >&2 "I require ${1} but it's not installed.  Aborting.";
@@ -83,4 +83,4 @@ get_trial_dir()
 	echo ${trial_dir}
 }
 
-export check_program
+export require_program

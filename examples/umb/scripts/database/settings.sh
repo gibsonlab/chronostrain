@@ -45,11 +45,11 @@ echo "Logging config: ${CHRONOSTRAIN_LOG_INI}"
 echo "Logging dir: ${LOGDIR}"
 echo "======================================================="
 
-check_program()
+require_program()
 {
 	command -v ${1} >/dev/null 2>&1 || {
 		echo >&2 "I require ${1} but it's not installed.  Aborting.";
 		exit 1;
 	}
 }
-export check_program
+export require_program

@@ -3,7 +3,7 @@ set -e
 source settings.sh
 
 seed=0
-check_program 'art_illumina'
+require_program 'art_illumina'
 
 for n_reads in 10000 50000 100000 500000 1000000
 do

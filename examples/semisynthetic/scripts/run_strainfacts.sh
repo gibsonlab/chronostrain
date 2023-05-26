@@ -2,7 +2,7 @@
 set -e
 source settings.sh
 
-check_program "sfacts"
+require_program "sfacts"
 
 n_reads=$1
 trial=$2

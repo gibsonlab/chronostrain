@@ -172,7 +172,6 @@ def main(
         # ============== Step 2: prune using multiple alignments.
         logger.info("Pruning database by constructing multiple alignments.")
         logger.debug(f"Target: {pruned_json_path}")
-        exit(1)
 
         align_path = json_output_path.parent / f"_ALIGN_{json_output_path.stem}" / "multiple_alignment.fasta"
         marker_names = set(gene_paths.keys())

@@ -3,10 +3,10 @@ set -e
 source settings.sh
 
 
-check_program bowtie2
-check_program samtools
-check_program strainest
-check_program pigz
+require_program bowtie2
+require_program samtools
+require_program strainest
+require_program pigz
 
 
 n_reads=$1

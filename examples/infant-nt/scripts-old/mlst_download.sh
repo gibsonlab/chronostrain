@@ -7,6 +7,9 @@ source settings.sh
 
 cd ${BASE_DIR}
 export CHRONOSTRAIN_LOG_FILEPATH="${OUTPUT_DIR}/logs/mlst_download.log"
+export CHRONOSTRAIN_DB_NAME="mlst"
+
 python helpers/mlst_download.py \
-  -o ${CHRONOSTRAIN_DB_DIR}/mlst.pkl \
+  -n mlst \
+  -o mlst \
   -t files/target_genera.txt
