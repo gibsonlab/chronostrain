@@ -12,10 +12,10 @@ dependencies:
   - scipy
   - pandas
   - numba
-  - nvidia::cudatoolkit=11.6
-  - pytorch::pytorch
-  - pyg::pytorch-scatter
-  - pyg::pytorch-sparse
+  - intervaltree
+  - jax
+  - jaxlib=*=*cuda*
+  - cuda-nvcc
   - scikit-learn
   - matplotlib
   - seaborn
@@ -25,7 +25,9 @@ dependencies:
   - samtools=1.14
   - mafft
   - bwa
+  - bwa-mem2
   - bowtie2
+  - cdbtools
   - blast
   - pigz
   - fasttree
@@ -33,6 +35,5 @@ dependencies:
   - kneaddata
   - trimmomatic
   - strainge
-  - bwa-mem2
   - pip:
     - ./

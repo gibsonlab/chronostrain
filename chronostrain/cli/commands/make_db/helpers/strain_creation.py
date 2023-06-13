@@ -50,6 +50,7 @@ def run_blast_local(db_dir: Optional[Path],
                     gene_paths: Dict[str, Path],
                     max_target_seqs: int,
                     min_pct_idty: int,
+                    num_threads: int,
                     logger: Logger) -> Dict[str, Path]:
     # Run BLAST.
     result_paths: Dict[str, Path] = {}
@@ -63,10 +64,10 @@ def run_blast_local(db_dir: Optional[Path],
             query_fasta=ref_gene_path,
             perc_identity_cutoff=min_pct_idty,
             out_path=blast_result_path,
-            num_threads=cfg.model_cfg.num_cores,
+            num_threads=num_threads,
             out_fmt=_BLAST_OUT_FMT,
             max_target_seqs=max_target_seqs,
-            strand="both"
+            strand="both",
         )
         result_paths[gene_name] = blast_result_path
     return result_paths
@@ -215,6 +216,7 @@ def create_chronostrain_db(
         blast_db_name: str,
         min_pct_idty: int,
         min_marker_len: int,
+        num_threads: int,
         logger: Logger
 ) -> List[Dict[str, Any]]:
     """
@@ -229,6 +231,7 @@ def create_chronostrain_db(
         gene_paths=gene_paths,
         min_pct_idty=min_pct_idty,
         max_target_seqs=10 * num_ref_genomes,
+        num_threads=num_threads,
         logger=logger
     )
 

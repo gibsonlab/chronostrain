@@ -3,23 +3,33 @@ set -e
 source settings.sh
 
 
-for f in /mnt/e/infant_nt/*; do
-  if [[ ! -d $f ]]; then
+python ${BASE_DIR}/helpers/list_all_participants.py ${ENA_ISOLATE_ASSEMBLY_CATALOG} | while read line
+do
+  participant=$line
+  echo $participant
+  participant_dir=${DATA_DIR}/${participant}
+
+  if [[ ! -d $participant_dir ]]; then
     continue
   fi
 
-  if [[ ! -f "${f}/chronostrain/process_reads.DONE" ]]; then
+  if [[ ! -f "${participant_dir}/chronostrain/process_reads.DONE" ]]; then
     continue
   fi
 
-  participant="$(basename ${f})"
-  chronostrain_analysis_mark=${f}/chronostrain/analysis.DONE
-  if [[ -f ${chronostrain_analysis_mark} ]]; then
-    echo "[*] Skipping analysis for participant ${participant}"
-    continue
+  filter_mark=${participant_dir}/chronostrain/filter.DONE
+  if [[ -f ${filter_mark} ]]; then
+    echo "[*] Skipping filter for participant ${participant}"
+  else
+    bash filter_chronostrain.sh ${participant}
+    touch $filter_mark
   fi
 
-  echo "[*] Running analysis for participant ${participant}"
-  bash run_chronostrain.sh ${participant}
-  touch $chronostrain_analysis_mark
+  inference_mark=${participant_dir}/chronostrain/inference.DONE
+  if [[ -f ${inference_mark} ]]; then
+    echo "[*] Skipping inference for participant ${participant}"
+  else
+    bash run_chronostrain.sh ${participant}
+    touch $inference_mark
+  fi
 done

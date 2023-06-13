@@ -164,7 +164,7 @@ def main():
 
     if args.target_taxa is not None:
         target_taxa = {x.strip().lower() for x in args.target_taxa.split(',')}
-        print("Targeting {} genera.".format(len(target_taxa)))
+        print("Targeting {} taxa using MLST scheme.".format(len(target_taxa)))
     else:
         target_taxa = None
 

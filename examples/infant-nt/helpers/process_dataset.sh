@@ -38,7 +38,7 @@ append_fastq()
 
 {
   read
-  while IFS=$'\t' read -r participant time_point sample_id fq1 fq2
+  while IFS=$'\t' read -r parsed_participant time_point sample_id fq1 fq2
   do
     echo "[*] -=-=-=-=-=-=-=-= Handling ${sample_id} (timepoint ${time_point}). =-=-=-=-=-=-=-=-"
     # Target files
@@ -54,7 +54,6 @@ append_fastq()
     if [ -f "${trimmed_1_paired_gz}" ] && [ -f "${trimmed_2_paired_gz}" ]
     then
       echo "[*] Processed outputs already found!"
-      continue
     else
       tmp_file_1="${outdir}/${target_prefix}_1.fastq"
       tmp_file_2="${outdir}/${target_prefix}_2.fastq"
@@ -68,7 +67,7 @@ append_fastq()
         --reference-db /mnt/e/kneaddata_db \
         --output ${outdir} \
         --trimmomatic-options "SLIDINGWINDOW:4:20 MINLEN:87" \
-        --threads 8 \
+        --threads 16 \
         --quality-scores phred33 \
         --bypass-trf \
         --trimmomatic ${TRIMMOMATIC_PATH} \
@@ -95,5 +94,3 @@ append_fastq()
     append_fastq ${trimmed_2_unpaired_gz} $time_point "paired_2" "fastq"
   done
 } < ${patient_index_file}
-
-touch ${DATA_DIR}/${participant}/chronostrain/process_reads.DONE

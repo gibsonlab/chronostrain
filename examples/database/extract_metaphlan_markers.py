@@ -1,4 +1,4 @@
-from typing import Iterator, Tuple, Set, Dict
+from typing import Iterator, Tuple, Set, Dict, List
 from pathlib import Path
 
 import pickle
@@ -25,7 +25,7 @@ class MetaphlanParser(object):
         if not self.marker_fasta.exists():
             raise FileNotFoundError(f"Expected {self.marker_fasta} to exist, but not found.")
 
-    def retrieve_marker_seeds(self, taxon_key: str) -> Iterator[Tuple[str, SeqRecord]]:
+    def retrieve_marker_seeds(self, taxon_keys: List[str]) -> Iterator[Tuple[str, SeqRecord]]:
         print(f"Searching for marker seeds from MetaPhlAn database: {self.pkl_path.stem}.")
         with bz2.open(self.pkl_path, "r") as f:
             db = pickle.load(f)
@@ -33,8 +33,9 @@ class MetaphlanParser(object):
         markers = db['markers']
         target_keys = set()
         for marker_key, marker_dict in markers.items():
-            if taxon_key in marker_dict['taxon']:
-                target_keys.add(marker_key)
+            for taxon_key in taxon_keys:
+                if taxon_key in marker_dict['taxon']:
+                    target_keys.add(marker_key)
 
         print(f"Target # of markers: {len(target_keys)}")
         for marker_key, seq in self._retrieve_from_fasta(target_keys):
@@ -66,7 +67,7 @@ def main():
 
     # Extract reference seqs
     target_markers: Dict[str, Path] = {}
-    for marker_name, record in parser.retrieve_marker_seeds(args.taxon_label):
+    for marker_name, record in parser.retrieve_marker_seeds(args.taxon_label.split(",")):
         marker_len = len(record.seq)
         print(f"Found marker `{marker_name}` (length {marker_len})")
 

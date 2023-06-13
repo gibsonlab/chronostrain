@@ -2,6 +2,7 @@ from abc import abstractmethod, ABC, ABCMeta
 from pathlib import Path
 from typing import *
 
+import jax
 import jax.numpy as np
 import numpy as cnp
 
@@ -10,11 +11,11 @@ from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.config import cfg
 from chronostrain.util.benchmarking import RuntimeEstimator
-from chronostrain.util.math import log_spspmm_exp_sparsey
+from chronostrain.util.math import log_spspmm_exp
 from chronostrain.util.optimization import LossOptimizer
 
 from .. import AbstractModelSolver
-from .util import divide_columns_into_batches_sparse
+from .util import divide_columns_into_batches_sparse, log_mm_exp
 
 from chronostrain.logging import create_logger
 logger = create_logger(__name__)
@@ -213,13 +214,16 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
             data,
             db
         )
-        self.initialize_data(prune_strains, read_batch_size)
+        self.initialize_data(read_batch_size)
+        self.prune_reads()
         if prune_strains:
-            self.prune_strains()
+            self.prune_strains_by_read_max()
+            # self.prune_strains_by_correlation()
+            self.prune_reads()  # do this again to ensure all reads are still useful.
         AbstractADVI.__init__(self, self.create_posterior(), optimizer)
 
     # noinspection PyAttributeOutsideInit
-    def initialize_data(self, prune_strains, read_batch_size):
+    def initialize_data(self, read_batch_size):
         logger.debug("Initializing ADVI data structures.")
         if not cfg.model_cfg.use_sparse:
             raise NotImplementedError("ADVI only supports sparse data structures.")
@@ -240,65 +244,183 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
                         read_batch_size
                     )
             ):
-                logger.debug("Precomputing marginalization for t = {}, batch {}".format(t_idx, batch_idx))
+                logger.debug("Precomputing marginalization for t = {}, batch {} ({} reads)".format(
+                    t_idx, batch_idx, data_t_batch.shape[1]
+                ))
                 # ========= Pre-compute likelihood calculations.
-                strain_batch_lls_t = log_spspmm_exp_sparsey(
+                strain_batch_lls_t = log_spspmm_exp(
                     self.model.fragment_frequencies_sparse.T,  # (S x F), note the transpose!
                     data_t_batch  # F x R_batch
                 )  # (S x R_batch)
-
-                # ========= Locate and filter out reads with no good alignments.
-                read_mask = ~np.equal(
-                    np.sum(~np.isinf(strain_batch_lls_t), axis=0),
-                    0
-                )
-                n_good_read_indices = np.sum(read_mask)
-                if n_good_read_indices < strain_batch_lls_t.shape[1]:
-                    logger.warning("(t = {}, batch {}) Found {} of {} reads without good alignments.".format(
-                        t_idx, batch_idx,
-                        strain_batch_lls_t.shape[1] - n_good_read_indices, strain_batch_lls_t.shape[1]
-                    ))
-                strain_batch_lls_t = strain_batch_lls_t[:, read_mask]
 
                 # ============= Store result.
                 self.batches[t_idx].append(strain_batch_lls_t)
                 self.total_reads += strain_batch_lls_t.shape[1]
 
-    def prune_strains(self, tau=0.1):
+    def prune_reads(self):
         """
-        Summary:
-        Consider the (S x R) likelihood matrix "A", where R is all reads concatenated, so that A[s,r] = log p(r|s).
-        Compute the altered matrix B[s,r] = A[s,r] - (max_s A[s,r]).
-        Compute the row-wise maximum b[s] = max_r B[s,r]
-        Remove all strains s for which "max_r B[s,r] < \tau", where \tau < 0.
+        Locate and filter out reads with no good alignments.
+        """
+        for t in range(self.model.num_times()):
+            for batch_idx in range(len(self.batches[t])):
+                batch_ll = self.batches[t][batch_idx]
 
-        Effectively, all strains s for which ALL reads satisfy "p(r|s) < \tau * p(r|s_best)" is removed.
+                read_mask = ~np.equal(
+                    np.sum(~np.isinf(batch_ll), axis=0),
+                    0
+                )
+                n_good_read_indices = np.sum(read_mask)
+                if n_good_read_indices < batch_ll.shape[1]:
+                    logger.debug("(t = {}, batch {}) Found {} of {} reads without good alignments.".format(
+                        t, batch_idx,
+                        batch_ll.shape[1] - n_good_read_indices, batch_ll.shape[1]
+                    ))
+                self.batches[t][batch_idx] = batch_ll[:, read_mask]
+
+    def prune_strains_by_read_max(self):
+        """
+        Prune out strains that are not the highest likelihood prior for any read.
         """
         from chronostrain.model import Population
 
         start_num = self.model.num_strains()
-        log_tau = cnp.log(tau)
-        b = np.full(self.model.num_strains(), fill_value=-cnp.inf)
+        b = np.zeros(self.model.num_strains())
 
         for t in range(self.model.num_times()):
             for batch_ll in self.batches[t]:
-                batch_ll = batch_ll - np.max(batch_ll, axis=0)  # compute matrix "B" for this batch
-                batch_maxes = np.max(batch_ll, axis=1)  # compute max over reads in this batch
-                b = np.where(batch_maxes > b, batch_maxes, b)  # update maximum
-        pruned_strains = [
-            s
-            for s_idx, s in enumerate(self.model.bacteria_pop.strains)
-            if b[s_idx] > log_tau
-        ]
+                batch_ll_max = np.max(batch_ll, axis=0)
+                max_hit = np.equal(batch_ll, batch_ll_max[None, :])
+                b += np.sum(max_hit, axis=1)
+        # good_indices = np.sort(np.argsort(b)[-top_n_to_keep:])
+        good_indices, = np.where(b > 0)
+        pruned_strains = [self.model.bacteria_pop.strains[i] for i in good_indices]
 
         # Update data structures
         self.model.bacteria_pop = Population(pruned_strains)
         for t in range(self.model.num_times()):
             for batch_idx in range(len(self.batches[t])):
                 batch_ll = self.batches[t][batch_idx]
-                self.batches[t][batch_idx] = batch_ll[b > log_tau, :]
+                self.batches[t][batch_idx] = batch_ll[good_indices, :]
 
-        logger.debug("Pruned {} strains into {}.".format(start_num, self.model.num_strains()))
+        logger.debug("Pruned {} strains into {} using argmax heuristic.".format(start_num, self.model.num_strains()))
+
+    def prune_strains_by_correlation(self, correlation_threshold: float = 0.99):
+        """
+        Prune out strains via clustering on the data likelihoods.
+        Computes the correlation matrix of the data likelihood values: Corr[p(r|s1), p(r|s2)].
+        """
+        from chronostrain.model import Population
+
+        S = self.model.bacteria_pop.num_strains()
+        dtype = self.batches[0][0].dtype
+        corr_min = None
+        for t in range(self.model.num_times()):
+            first_moment = np.full(S, dtype=dtype, fill_value=-cnp.inf)
+            second_moment = np.full((S, S), dtype=dtype, fill_value=-cnp.inf)
+            n = 0
+            for batch_ll in self.batches[t]:
+                first_moment = np.logaddexp(
+                    first_moment,
+                    jax.nn.logsumexp(batch_ll, axis=-1)
+                )
+                second_moment = np.logaddexp(
+                    second_moment,
+                    log_mm_exp(batch_ll, batch_ll.T)
+                )
+                n += batch_ll.shape[-1]
+            first_moment = np.exp(first_moment) / n
+            second_moment = np.exp(second_moment) / n
+            cov = second_moment - np.outer(first_moment, first_moment)
+            del first_moment
+            del second_moment
+            std = np.sqrt(np.diag(cov))
+            corr = cov / np.outer(std, std)
+            del cov
+            del std
+            corr = np.where(np.isnan(corr), 0., corr)
+            corr = np.where(np.isinf(corr), 0., corr)
+            if corr_min is None:
+                corr_min = corr
+            else:
+                corr_min = np.minimum(corr_min, corr)
+
+        # perform clustering
+        from sklearn.cluster import AgglomerativeClustering
+        clustering = AgglomerativeClustering(
+            metric='precomputed',
+            linkage='complete',
+            distance_threshold=1 - correlation_threshold,
+            n_clusters=None
+        ).fit(1 - corr_min)
+
+        n_clusters, cluster_labels = clustering.n_clusters_, clustering.labels_
+        cluster_representatives = np.array([
+            np.where(cluster_labels == c)[0][0]  # Cluster rep is the first by index.
+            for c in range(n_clusters)
+        ])
+
+        for c in range(n_clusters):
+            clust = np.where(cluster_labels == c)[0]
+            if len(clust) == 1:
+                continue
+            clust_members = [self.model.bacteria_pop.strains[i] for i in clust]
+            logger.debug("Formed cluster [{}] due to data correlation greater than {}.".format(
+                ",".join(f'{s.id}({s.metadata.genus[0]}. {s.metadata.species} {s.name})' for s in clust_members),
+                correlation_threshold
+            ))
+
+        pruned_strains = [self.model.bacteria_pop.strains[i] for i in np.sort(cluster_representatives)]
+
+        # Update data structures
+        self.model.bacteria_pop = Population(pruned_strains)
+        for t in range(self.model.num_times()):
+            for batch_idx in range(len(self.batches[t])):
+                batch_ll = self.batches[t][batch_idx]
+                self.batches[t][batch_idx] = batch_ll[cluster_representatives, :]
+        logger.debug("Pruned {} strains into {} using correlation-clustering heuristic.".format(S, len(cluster_representatives)))
+
+
+
+
+
+
+
+    # def prune_strains(self, tau=1.0):
+    #     """
+    #     Summary:
+    #     Consider the (S x R) likelihood matrix "A", where R is all reads concatenated, so that A[s,r] = log p(r|s).
+    #     Compute the altered matrix B[s,r] = A[s,r] - (max_s A[s,r]).
+    #     Compute the row-wise maximum b[s] = max_r B[s,r]
+    #     Remove all strains s for which "max_r B[s,r] < log(\tau)", where \tau < 0.
+    #
+    #     Effectively, all strains s for which ALL reads satisfy "p(r|s) < \tau * p(r|s_best)" is removed.
+    #     """
+    #     from chronostrain.model import Population
+    #
+    #     start_num = self.model.num_strains()
+    #     log_tau = cnp.log(tau)
+    #     b = np.full(self.model.num_strains(), fill_value=-cnp.inf)
+    #
+    #     for t in range(self.model.num_times()):
+    #         for batch_ll in self.batches[t]:
+    #             batch_ll_max = np.max(batch_ll, axis=0)
+    #             batch_ll_diff = batch_ll - batch_ll_max  # compute matrix "B" for this batch
+    #             batch_diff_maxes = np.max(batch_ll_diff, axis=1)  # compute max over reads in this batch
+    #             b = np.where(batch_diff_maxes > b, batch_diff_maxes, b)  # update maximum over all reads seen so far
+    #     pruned_strains = [
+    #         s
+    #         for s_idx, s in enumerate(self.model.bacteria_pop.strains)
+    #         if b[s_idx] >= log_tau
+    #     ]
+    #
+    #     # Update data structures
+    #     self.model.bacteria_pop = Population(pruned_strains)
+    #     for t in range(self.model.num_times()):
+    #         for batch_idx in range(len(self.batches[t])):
+    #             batch_ll = self.batches[t][batch_idx]
+    #             self.batches[t][batch_idx] = batch_ll[b >= log_tau, :]
+    #
+    #     logger.debug("Pruned {} strains into {}.".format(start_num, self.model.num_strains()))
 
     def advance_epoch(self):
         """

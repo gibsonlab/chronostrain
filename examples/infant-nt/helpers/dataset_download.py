@@ -40,13 +40,15 @@ def download_all(dataset: pd.DataFrame, out_dir: Path, target_participant: str):
 
         if not sample_title.startswith(target_participant):
             continue
+        if not "_T" in target_participant and "_T" in sample_title:
+            continue
 
-        tokens = sample_title.split('_')
+        tokens = sample_title[len(target_participant):].split('_')
         if len(tokens) == 2:
-            participant, timepoint = tokens
+            _, timepoint = tokens
             sample_id = "*"
         elif len(tokens) == 3:
-            participant, timepoint, sample_id = tokens
+            _, timepoint, sample_id = tokens
         else:
             print(f"Unparsable sample title `{sample_title}`")
             continue
@@ -58,7 +60,7 @@ def download_all(dataset: pd.DataFrame, out_dir: Path, target_participant: str):
             continue
 
         print(f"Fetching sample {sample_accession} "
-              f"[participant {participant}, timepoint {timepoint}, sample_id {sample_id}]")
+              f"[participant {target_participant}, timepoint {timepoint}, sample_id {sample_id}]")
         out_dir.mkdir(exist_ok=True, parents=True)
 
         urls = row['fastq_ftp'].split(';')
@@ -108,7 +110,9 @@ def main(
         target_dir / "reads",
         target_participant
     )
-    dataset_df.to_csv(target_dir / "dataset.tsv", sep='\t', index=False)
+    dataset_tsv_path = target_dir / "dataset.tsv"
+    if dataset_df.shape[0] > 0:
+        dataset_df.to_csv(dataset_tsv_path, sep='\t', index=False)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any
+from typing import Optional, List
 
 import click
 from logging import Logger
@@ -66,6 +66,11 @@ from ..base import option
          "(to be addressed in a future version.)"
 )
 @option(
+    '--threads', 'num_threads',
+    type=int, required=False, default=1,
+    help="The number of threads to use (e.g. for blast)."
+)
+@option(
     "--skip-symlink", "skip_symlink",
     is_flag=True, default=False,
     help="If specified, then skips a pre-processing step which uses the reference index (--references) and populates "
@@ -86,6 +91,7 @@ def main(
         min_pct_idty: int,
         identity_threshold: float,
         min_marker_len: int,
+        num_threads: int,
         skip_symlink: bool,
         skip_prune: bool
 ):
@@ -115,7 +121,7 @@ def main(
             strain_id = row['Accession']
             seq_path = Path(row['SeqPath'])
             if not seq_path.exists():
-                raise FileNotFoundError("Reference index pointed to `{seq_path}`, but it does not exist.")
+                raise FileNotFoundError(f"Reference index pointed to `{seq_path}`, but it does not exist.")
             target_dir = EntrezMarkerSource.assembly_subdir(cfg.database_cfg.data_dir, strain_id)
             target_dir.mkdir(exist_ok=True, parents=True)
 
@@ -150,6 +156,7 @@ def main(
         blast_db_name=blast_db_name,
         min_pct_idty=min_pct_idty,
         min_marker_len=min_marker_len,
+        num_threads=num_threads,
         logger=logger
     )
 
@@ -171,12 +178,17 @@ def main(
     if not skip_prune:
         # ============== Step 2: prune using multiple alignments.
         logger.info("Pruning database by constructing multiple alignments.")
-        logger.debug(f"Target: {pruned_json_path}")
+        logger.debug(f"Src: {raw_json_path}, Dest: {pruned_json_path}")
 
         align_path = json_output_path.parent / f"_ALIGN_{json_output_path.stem}" / "multiple_alignment.fasta"
         marker_names = set(gene_paths.keys())
         marker_concatenated_multiple_alignments(raw_db, align_path, sorted(marker_names), logger)
-        prune_json_db(raw_json_path, pruned_json_path, align_path, logger, identity_threshold)
+        prune_json_db(raw_json_path, 
+                      [s.id for s in raw_db.all_strains()], 
+                      pruned_json_path, 
+                      align_path, 
+                      logger, 
+                      identity_threshold)
     else:
         logger.info("Skipping pruning.")
         import shutil
@@ -184,6 +196,7 @@ def main(
 
     # ============== Step 3: check for overlaps.
     logger.info("Resolving overlaps.")
+    logger.debug(f"Src: {pruned_json_path}, Dest: {json_output_path}")
     from chronostrain.cli.commands.make_db.helpers.resolve_overlaps import find_and_resolve_overlaps
     with open(pruned_json_path, "r") as f:
         db_json = json.load(f)
@@ -195,32 +208,35 @@ def main(
 
 
 def prune_json_db(raw_json_path: Path,
+                  raw_strain_ids: List[str],
                   tgt_json_path: Path,
                   align_path: Path, logger: Logger,
                   identity_threshold: float):
     # parse json entries.
-    entries: Dict[str, Dict[str, Any]] = {}
-    strain_ids = []
+    raw_strain_id_set = set(raw_strain_ids)
     with open(raw_json_path, "r") as f:
         _initial_strain_entries = json.load(f)
-        for strain_entry in _initial_strain_entries:
-            accession = strain_entry['id']
-            entries[accession] = strain_entry
-            strain_ids.append(accession)
+        entries = {
+            strain_entry['id']: strain_entry
+            for strain_entry in _initial_strain_entries
+            if strain_entry['id'] in raw_strain_id_set
+        }
 
     # perform clustering.
     from .helpers import cluster_db
-    clusters, cluster_reps = cluster_db(strain_ids, align_path, logger, ident_fraction=identity_threshold)
+    import numpy as np
+    clusters, cluster_reps, distances = cluster_db(raw_strain_ids, align_path, logger, ident_fraction=identity_threshold)
+    np.save(str(tgt_json_path.parent / "distances.npy"), distances)
 
     # Create the clustered json.
     result_entries = []
     for cluster, rep in zip(clusters, cluster_reps):
         rep_strain_idx = cluster[rep]
-        rep_strain = strain_ids[rep_strain_idx]
+        rep_strain = raw_strain_ids[rep_strain_idx]
 
         cluster_entry = entries[rep_strain]
         cluster_entry['cluster'] = [
-            "{}({})".format(strain_ids[s_idx], entries[strain_ids[s_idx]]['name'])
+            "{}({})".format(raw_strain_ids[s_idx], entries[raw_strain_ids[s_idx]]['name'])
             for s_idx in cluster
         ]
         result_entries.append(cluster_entry)

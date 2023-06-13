@@ -52,7 +52,7 @@ class AutogradMAPSolver(AbstractModelSolver):
             nz = ~np.equal(np.sum(~np.isinf(data_ll_t), axis=0), 0)
             n_good_indices = np.sum(nz)
             if n_good_indices < data_ll_t.shape[1]:
-                logger.warning("(t = {}) Found {} of {} reads without good alignments.".format(
+                logger.debug("(t = {}) Found {} of {} reads without good alignments.".format(
                     t, data_ll_t.shape[1] - n_good_indices, data_ll_t.shape[1]
                 ))
                 data_ll_t = data_ll_t[:, nz]

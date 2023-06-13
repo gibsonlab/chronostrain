@@ -35,7 +35,7 @@ def cluster_db(
 
     logger.info("Computing clusters.")
     clustering = AgglomerativeClustering(
-        affinity='precomputed',
+        metric='precomputed',
         linkage='average',
         distance_threshold=math.ceil(ident_fraction * align_len),
         n_clusters=None
@@ -48,7 +48,7 @@ def cluster_db(
     ]
 
     cluster_reps = pick_cluster_representatives(clusters, distances)
-    return clusters, cluster_reps
+    return clusters, cluster_reps, distances
 
 
 def pick_cluster_representatives(clusters: List[List[int]], distances: np.ndarray) -> List[int]:

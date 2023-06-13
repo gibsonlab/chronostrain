@@ -124,6 +124,7 @@ class GenerativeModel:
 
     def log_likelihood_x_jeffreys_prior(self, x: np.ndarray) -> np.ndarray:
         """
+
         Implementation of log_likelihood_x using Jeffrey's prior (for the Gaussian with known mean) for the variance.
         Assumes that the shape of X is constant (and only returns the non-constant part.)
         """
@@ -132,10 +133,14 @@ class GenerativeModel:
         ll_first = -0.5 * n_strains * np.log(np.square(
             x[0, :, :]
         ).sum(axis=-1))
-        ll_rest = -0.5 * (n_times - 1) * n_strains * np.log(np.square(
-            np.expand_dims(self.dt_sqrt_inverse, axis=[1, 2]) * np.diff(x, n=1, axis=0)
-        ).sum(axis=0).sum(axis=-1))
-        return ll_first + ll_rest
+
+        if n_times > 1:
+            ll_rest = -0.5 * (n_times - 1) * n_strains * np.log(np.square(
+                np.expand_dims(self.dt_sqrt_inverse, axis=[1, 2]) * np.diff(x, n=1, axis=0)
+            ).sum(axis=0).sum(axis=-1))
+            return ll_first + ll_rest
+        else:
+            return ll_first
 
     def dt(self, time_idx: int) -> float:
         """
