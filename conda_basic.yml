@@ -15,11 +15,11 @@ dependencies:
   - intervaltree
   - jax
   - jaxlib=*=*cuda*
+  - optax
   - cuda-nvcc
   - scikit-learn
   - matplotlib
   - seaborn
-  - joblib
   - biopython
   - click
   - samtools=1.14
