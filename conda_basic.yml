@@ -28,7 +28,6 @@ dependencies:
   - bwa-mem2
   - bowtie2
   - cdbtools
-  - blast
   - pigz
   - pip:
     - ./

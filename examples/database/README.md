@@ -29,15 +29,18 @@ then perhaps those should be used instead of downloading a consortium of referen
 
 
 # 2. Requirements
-- The user must separately install the tool `ncbi-genome-download`, which can be obtained from the original
+## Software/Package requirements
+These are included in the full conda recipe `conda_full.yml`.
+1. `blast`
+2. `ncbi-genome-download`: This can be obtained from the original
 author's <a href="https://github.com/kblin/ncbi-genome-download">github repo</a> or through
 <a href="https://anaconda.org/bioconda/ncbi-genome-download">conda</a>.
-- Since we will be extracting marker seeds from MetaPhlan (we will use version 4 as an example), the user should
-also install <a href="https://huttenhower.sph.harvard.edu/metaphlan/">MetaPhlAn</a> and know where the 
+3. `MetaPhlAn`: Since we will be extracting marker seeds from MetaPhlan (we will use version 4 as an example), the user should
+also install it <a href="https://huttenhower.sph.harvard.edu/metaphlan/">(LINK)</a> and know where the 
 database files are located. 
-  
-  By default (as of Oct. 2022), according to the MetaPhlAn documentation, one runs `metaphlan --install`, which downloads/extracts a tarball into 
-  `<PYTHON_LIBS>/site-packages/metaphlan/metaphlan_databases`.
+*Note: By default (as of Oct. 2022), one can follow the MetaPhlAn documentation and run `metaphlan --install`, which downloads/extracts a tarball into 
+  `<PYTHON_LIBS>/site-packages/metaphlan/metaphlan_databases`.*
+This path must be included into `settings.sh`.
   
 
 # 3. The Recipe, Explained

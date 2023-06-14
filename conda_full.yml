@@ -28,12 +28,13 @@ dependencies:
   - bwa-mem2
   - bowtie2
   - cdbtools
-  - blast
   - pigz
+  - blast
   - fasttree
   - sra-tools=2.11
   - kneaddata
   - trimmomatic
   - strainge
+  - fastmlst
   - pip:
     - ./
