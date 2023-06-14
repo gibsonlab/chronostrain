@@ -1,8 +1,11 @@
+#!/bin/bash
+set -e
+
 export NUM_CORES=8
 
-export TARGET_TAXA="Bavariicoccus,Catellicoccus,Enterococcus,Melissococcus,Pilibacter,Tetragenococcus,Vagococcus"
-export METAPHLAN_TAXONOMIC_KEY='s__Enterococcus_faecalis'
-export TARGET_DIR=./efaecalis_db  # all intermediate and final DB files will go here.
+export TARGET_TAXA="Bavariicoccus,Catellicoccus,Enterococcus,Melissococcus,Pilibacter,Tetragenococcus,Vagococcus,Biostraticola,Buttiauxella,Cedecea,Citrobacter,Cronobacter,Enterobacillus,Enterobacter,Escherichia,Franconibacter,Gibbsiella,Izhakiella,Klebsiella,Kluyvera,Kosakonia,Leclercia,Lelliottia,Limnobaculum,Mangrovibacter,Metakosakonia,Phytobacter,Pluralibacter,Pseudescherichia,Pseudocitrobacter,Raoultella,Rosenbergiella,Saccharobacter,Salmonella,Scandinavium,Shigella,Shimwellia,Siccibacter,Trabulsiella,Yokenella"
+export METAPHLAN_TAXONOMIC_KEY='s__Enterococcus_faecalis,s__Escherichia_coli'
+export TARGET_DIR=/mnt/e/infant_nt/database  # all intermediate and final DB files will go here.
 
 export NCBI_REFSEQ_DIR=${TARGET_DIR}/ref_genomes  # Directory to place the refseq assembly seqs.
 export REFSEQ_INDEX=${TARGET_DIR}/ref_genomes/index.tsv  # The TSV index of the downloaded NCBI refseq assemblies.
@@ -26,11 +29,11 @@ then
 fi
 
 
-#bash download_ncbi.sh
-#bash create_blast_db.sh
-#python extract_metaphlan_markers.py -t $METAPHLAN_TAXONOMIC_KEY -i $METAPHLAN_DB_PATH -o ${TARGET_DIR}/marker_seeds/metaphlan_seeds.tsv
-#python mlst_download.py -t "Enterococcus faecalis" -w ${TARGET_DIR}/mlst_schema -o ${TARGET_DIR}/marker_seeds/mlst_seeds.tsv
-#cat ${TARGET_DIR}/marker_seeds/*.tsv > ${MARKER_SEED_INDEX}
+bash download_ncbi.sh
+bash create_blast_db.sh
+python extract_metaphlan_markers.py -t $METAPHLAN_TAXONOMIC_KEY -i $METAPHLAN_DB_PATH -o ${TARGET_DIR}/marker_seeds/metaphlan_seeds.tsv
+python mlst_download.py -t "Enterococcus faecalis,Escherichia coli" -w ${TARGET_DIR}/mlst_schema -o ${TARGET_DIR}/marker_seeds/mlst_seeds.tsv
+cat ${TARGET_DIR}/marker_seeds/*.tsv > ${MARKER_SEED_INDEX}
 
 chronostrain -c chronostrain.ini \
   make-db \
@@ -39,4 +42,5 @@ chronostrain -c chronostrain.ini \
   -b $BLAST_DB_NAME -bd $BLAST_DB_DIR \
   --min-pct-idty $MIN_PCT_IDTY \
   --ident-threshold 0.002 \
+  --threads $NUM_CORES \
   -o $CHRONOSTRAIN_TARGET_JSON

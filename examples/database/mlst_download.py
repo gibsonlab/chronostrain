@@ -2,7 +2,6 @@ from typing import Tuple, Iterator, List, Set, Optional
 import argparse
 import math
 
-from io import StringIO
 from pathlib import Path
 from xml.etree import ElementTree
 import urllib.error
@@ -67,15 +66,19 @@ class LocusContainer:
     def __str__(self):
         return f"{self.locus_name}[{self.url}]"
 
-    def variants(self) -> Iterator[Tuple[str, str]]:
-        fasta_txt = download_from_url(self.url)
-        fasta_io = StringIO(fasta_txt)
-        records = SeqIO.parse(fasta_io, "fasta")
+    def variants(self, target_dir: Path) -> Iterator[Tuple[str, str]]:
+        fasta_path = self.save_fasta(target_dir)
+        records = SeqIO.parse(fasta_path, "fasta")
         for rec in records:
             if not rec.id.startswith(f'{self.locus_name}_'):
                 raise ValueError(f"Found fasta record ID {rec.id}; expected prefix `{self.locus_name}_`")
             yield rec.id, str(rec.seq)
-        fasta_io.close()
+
+    def save_fasta(self, target_dir: Path):
+        out_path = target_dir / f'{self.locus_name}.fasta'
+        with open(out_path, 'w') as f:
+            f.write(download_from_url(self.url))
+        return out_path
 
 
 def parse_taxa_id(xml_taxa_text: str, profile_url: str) -> TaxaIdentifier:
@@ -122,8 +125,7 @@ def generate_marker_index(mlst_xml_path: Path, target_taxa: Optional[Set[str]], 
             print(f'Schema type id: {taxon.typeid}')
             for locus in loci:
                 print(f"Handling locus {locus.locus_name}")
-
-                first_variant_id, first_variant_seq = next(iter(locus.variants()))
+                first_variant_id, first_variant_seq = next(iter(locus.variants(target_dir=mlst_xml_path.parent)))
                 fasta_path = index_path.parent / f"{taxon.genus}_{taxon.species}_{taxon.typeid}_{locus.locus_name}.fasta"
                 SeqIO.write(
                     SeqRecord(seq=Seq(first_variant_seq), id=locus.locus_name, description=first_variant_id),
