@@ -6,6 +6,23 @@ participant=$1
 require_variable 'participant' $participant
 require_file ${CHRONOSTRAIN_DB_JSON}
 
+# =========== Check for breadcrumb. ==================
+inference_breadcrumb=${participant_dir}/chronostrain/inference.DONE
+if [[ -f ${inference_breadcrumb} ]]; then
+  echo "[*] Skipping inference for participant ${participant}"
+  exit 0
+fi
+
+# =========== Run filter. ==================
+filter_breadcrumb=${participant_dir}/chronostrain/filter.DONE
+if [[ -f ${filter_breadcrumb} ]]; then
+  echo "[*] Skipping filter for participant ${participant}"
+else
+  bash filter_chronostrain.sh ${participant}
+  touch $filter_breadcrumb
+fi
+
+
 # =========== Run chronostrain. ==================
 echo "Running inference on participant ${participant}."
 
@@ -14,8 +31,6 @@ export CHRONOSTRAIN_LOG_FILEPATH="${run_dir}/inference.log"
 export CHRONOSTRAIN_CACHE_DIR="${run_dir}/.cache"
 cd ${BASE_DIR}
 
-
-#env CUDA_VISIBLE_DEVICES='' chronostrain advi \
 chronostrain --profile-jax advi \
   -r ${run_dir}/filtered/filtered_reads.csv \
   -o ${run_dir}/inference \
@@ -34,3 +49,4 @@ chronostrain --profile-jax advi \
 	--prune-strains \
 	--with-zeros \
   --accumulate-gradients
+touch $inference_breadcrumb

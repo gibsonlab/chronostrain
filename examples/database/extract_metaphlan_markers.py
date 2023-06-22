@@ -25,35 +25,40 @@ class MetaphlanParser(object):
         if not self.marker_fasta.exists():
             raise FileNotFoundError(f"Expected {self.marker_fasta} to exist, but not found.")
 
-    def retrieve_marker_seeds(self, taxon_keys: List[str]) -> Iterator[Tuple[str, SeqRecord]]:
+    def retrieve_marker_seeds(self, taxon_keys: List[str]) -> Iterator[Tuple[str, str, SeqRecord]]:
+        """
+        Generator over Tuples (metaphlan marker ID, metaphlan taxonomic token, SeqRecord)
+        """
         print(f"Searching for marker seeds from MetaPhlAn database: {self.pkl_path.stem}.")
         with bz2.open(self.pkl_path, "r") as f:
             db = pickle.load(f)
 
         markers = db['markers']
-        target_keys = set()
-        for marker_key, marker_dict in markers.items():
-            for taxon_key in taxon_keys:
+        keys_to_taxonomy = dict()  # The fasta record IDs to retrieve from FASTA. (values are corresponding taxonomic labels).
+        for marker_key, marker_dict in markers.items():  # Iterate through metaphlan markers
+            for taxon_key in taxon_keys:  #
                 if taxon_key in marker_dict['taxon']:
-                    target_keys.add(marker_key)
+                    keys_to_taxonomy[marker_key] = taxon_key
 
-        print(f"Target # of markers: {len(target_keys)}")
-        for marker_key, seq in self._retrieve_from_fasta(target_keys):
-            print(f"Found metaphlan marker ID {marker_key}.")
-            record = SeqRecord(seq, id=marker_key, description=self.pkl_path.stem)
-            yield marker_key, record
+        print(f"Target # of markers: {len(keys_to_taxonomy)}")
+        for record in self._retrieve_from_fasta(set(keys_to_taxonomy.keys())):
+            print(f"Found metaphlan marker ID {record.id}.")
+            marker_key = record.id
+            taxonomy_str = keys_to_taxonomy[marker_key]
+            record = SeqRecord(record.seq, id=marker_key, description=self.pkl_path.stem)
+            yield marker_key, taxonomy_str, record
 
-    def _retrieve_from_fasta(self, marker_keys: Set[str]) -> Tuple[str, Seq]:
+    def _retrieve_from_fasta(self, marker_keys: Set[str]) -> SeqRecord:
         remaining = set(marker_keys)
         with open(self.marker_fasta, "r") as f:
             for record in SeqIO.parse(f, "fasta"):
                 if len(remaining) == 0:
-                    break
+                    break  # Terminate early if we finished the search.
                 if record.id not in remaining:
                     continue
 
                 remaining.remove(record.id)
-                yield record.id, record.seq
+                yield record
         if len(remaining) > 0:
             print(f"For some reason, couldn't locate {len(remaining)} markers from Fasta: {remaining}")
 
@@ -66,21 +71,16 @@ def main():
     parser = MetaphlanParser(Path(args.input_metaphlan_pkl))
 
     # Extract reference seqs
-    target_markers: Dict[str, Path] = {}
-    for marker_name, record in parser.retrieve_marker_seeds(args.taxon_label.split(",")):
-        marker_len = len(record.seq)
-        print(f"Found marker `{marker_name}` (length {marker_len})")
-
-        fasta_path = output_index_path.parent / f"{marker_name}.fasta"
-        SeqIO.write(record, fasta_path, "fasta")
-
-        target_markers[marker_name] = fasta_path
-
-    # Create TSV index.
     with open(output_index_path, "w") as f:
-        for marker_name, marker_path in target_markers.items():
+        for marker_name, tax_str, record in parser.retrieve_marker_seeds(args.taxon_label.split(",")):
+            marker_len = len(record.seq)
+            print(f"Found marker `{marker_name}` (length {marker_len})")
+
+            fasta_path = output_index_path.parent / f"{marker_name}.fasta"
+            SeqIO.write(record, fasta_path, "fasta")
+
             print(
-                f"{marker_name}\t{marker_path}\tMetaPhlAn:{parser.pkl_path.stem}",
+                f"{marker_name}\t{fasta_path}\tMetaPhlAn:{tax_str}:{parser.pkl_path.stem}",
                 file=f
             )
     print(f"Wrote marker seed index {output_index_path}")

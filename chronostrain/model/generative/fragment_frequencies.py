@@ -51,19 +51,13 @@ class FragmentFrequencyComputer(object):
 
     def get_frequencies(self,
                         fragments: FragmentSpace,
-                        population: Population
+                        population: Population,
+                        cache: ComputationCache
                         ) -> jsparse.BCOO:
         logger.debug("Loading fragment frequencies of {} fragments on {} strains.".format(
             len(fragments),
             population.num_strains()
         ))
-        cache = ComputationCache(
-            CacheTag(
-                markers=self.db.multifasta_file,
-                strains=population.strains,
-                fragments=fragments
-            )
-        )
 
         bwa_output_path = cache.cache_dir / self.relative_matrix_path().with_name('bwa_fastmap.output')
 
@@ -155,6 +149,9 @@ class FragmentFrequencyComputer(object):
 
         output_path.parent.mkdir(exist_ok=True, parents=True)
         fragments_path = fragments.to_fasta(output_path.parent)
+        if not fragments_path.exists():
+            raise FileNotFoundError("Expected fragments file, but it does not exist. "
+                                    "This is an unexpected bug. Verify the cache to continue.")
         bwa_fastmap(
             output_path=output_path,
             reference_path=self.db.multifasta_file,

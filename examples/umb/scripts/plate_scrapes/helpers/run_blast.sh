@@ -12,14 +12,12 @@ if [ -f ${out_dir}/_BLAST_FINISHED.txt ]; then
 	exit 0;
 fi
 
-export BLASTDB="${CHRONOSTRAIN_MARKERS_DIR}"
-
 if [ ! -f ${CHRONOSTRAIN_MARKERS_DIR}/${BLAST_DB_NAME}.ndb ]; then
 	bash helpers/create_blast_db.sh
 fi
 
 cd ${out_dir}
-blastn \
+env BLASTDB=${CHRONOSTRAIN_MARKERS_DIR} blastn \
     -db ${BLAST_DB_NAME} \
     -query spades_output/scaffolds.fasta \
     -outfmt "6 saccver sstart send slen qseqid qstart qend qlen evalue pident gaps qcovhsp" \

@@ -50,5 +50,5 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        logger.exception(e)
+        logger.critical(e, exc_info=True)
         exit(1)

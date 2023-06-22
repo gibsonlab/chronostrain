@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Optional, List, Iterator, Tuple, Dict
 
 import chronostrain.util.alignments.multiple as multialign
-from chronostrain.algs.subroutines.cache import ReadsComputationCache
+from chronostrain.algs.subroutines.cache import ReadsPopulationCache
 from chronostrain.database import StrainDatabase
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.util.alignments.pairwise import SequenceReadPairwiseAlignment
@@ -34,7 +34,7 @@ class CachedReadMultipleAlignments(object):
         if cache_override is not None:
             self.cache = cache_override
         else:
-            self.cache = ReadsComputationCache(reads)
+            self.cache = ReadsPopulationCache(reads, db)
 
     @staticmethod
     def get_path(reads_path: Path) -> Path:

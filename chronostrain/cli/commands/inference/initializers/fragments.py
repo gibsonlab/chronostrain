@@ -2,7 +2,7 @@ from logging import Logger
 from pathlib import Path
 
 from chronostrain.algs.subroutines.alignments import CachedReadPairwiseAlignments
-from chronostrain.algs.subroutines.cache import ReadsComputationCache
+from chronostrain.algs.subroutines.cache import ReadsPopulationCache
 from chronostrain.database import StrainDatabase
 from chronostrain.model import FragmentSpace, UnallocatedFragmentSpace
 from chronostrain.model.io import TimeSeriesReads
@@ -58,7 +58,7 @@ def aligned_exact_fragments_dynamic(reads: TimeSeriesReads,
 
 
 def load_fragments(reads: TimeSeriesReads, db: StrainDatabase, logger: Logger) -> FragmentSpace:
-    cache = ReadsComputationCache(reads)
+    cache = ReadsPopulationCache(reads, db)
     return cache.call(
         relative_filepath="inference_fragments.pkl",
         fn=aligned_exact_fragments,
@@ -67,7 +67,7 @@ def load_fragments(reads: TimeSeriesReads, db: StrainDatabase, logger: Logger) -
 
 
 def load_fragments_dynamic(reads: TimeSeriesReads, db: StrainDatabase, logger: Logger) -> UnallocatedFragmentSpace:
-    cache = ReadsComputationCache(reads)
+    cache = ReadsPopulationCache(reads, db)
     return cache.call(
         relative_filepath="inference_fragments_dynamic.pkl",
         fn=aligned_exact_fragments_dynamic,

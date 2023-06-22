@@ -228,14 +228,27 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
         if not cfg.model_cfg.use_sparse:
             raise NotImplementedError("ADVI only supports sparse data structures.")
 
-        # (S x R) matrices: Contains P(R = r | S = s) for each read r, strain s.
+        from chronostrain.algs.subroutines.cache import ReadsPopulationCache
+        cache = ReadsPopulationCache(self.data, self.db)
+
         self.batches: List[List[np.ndarray]] = [
             [] for _ in range(self.model.num_times())
         ]
-        self.total_reads: int = 0
+
+        def _compute_marginalization(_t_idx, _batch_idx, _data_t_batch):
+            logger.debug("Precomputing marginalization for t = {}, batch {} ({} reads)".format(
+                _t_idx, _batch_idx, _data_t_batch.shape[1]
+            ))
+            # ========= Pre-compute likelihood calculations.
+            return log_spspmm_exp(
+                self.model.fragment_frequencies_sparse.T,  # (S x F), note the transpose!
+                _data_t_batch  # F x R_batch
+            )  # (S x R_batch)
 
         # Precompute likelihood products.
         logger.debug("Precomputing likelihood marginalization.")
+
+        cache.create_subdir('marginalizations')
         data_likelihoods = self.data_likelihoods
         for t_idx in range(self.model.num_times()):
             for batch_idx, data_t_batch in enumerate(
@@ -244,18 +257,14 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
                         read_batch_size
                     )
             ):
-                logger.debug("Precomputing marginalization for t = {}, batch {} ({} reads)".format(
-                    t_idx, batch_idx, data_t_batch.shape[1]
-                ))
-                # ========= Pre-compute likelihood calculations.
-                strain_batch_lls_t = log_spspmm_exp(
-                    self.model.fragment_frequencies_sparse.T,  # (S x F), note the transpose!
-                    data_t_batch  # F x R_batch
-                )  # (S x R_batch)
-
-                # ============= Store result.
+                strain_batch_lls_t = cache.call(
+                    relative_filepath=f'marginalizations/t_{t_idx}_batch_{batch_idx}.npy',
+                    fn=_compute_marginalization,
+                    call_args=[t_idx, batch_idx, data_t_batch],
+                    save=lambda p, x: np.save(p, x),
+                    load=lambda p: np.load(p),
+                )
                 self.batches[t_idx].append(strain_batch_lls_t)
-                self.total_reads += strain_batch_lls_t.shape[1]
 
     def prune_reads(self):
         """

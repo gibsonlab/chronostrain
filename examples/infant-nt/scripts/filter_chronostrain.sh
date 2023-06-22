@@ -15,7 +15,7 @@ export CHRONOSTRAIN_CACHE_DIR="${run_dir}/.cache"
 cd ${BASE_DIR}
 
 
-env CUDA_VISIBLE_DEVICES='' chronostrain filter \
+env JAX_PLATFORM_NAME=cpu chronostrain filter \
   -r ${run_dir}/reads.csv \
   -o ${run_dir}/filtered \
   --aligner "bwa-mem2"

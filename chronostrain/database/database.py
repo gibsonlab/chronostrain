@@ -30,6 +30,10 @@ class StrainDatabase(object):
     def multifasta_file(self) -> Path:
         return self.marker_multifasta_file
 
+    @property
+    def signature(self) -> str:
+        return self.backend.signature()
+
     @staticmethod
     def database_named_dir(data_dir, db_name):
         return data_dir / f'__{db_name}_'

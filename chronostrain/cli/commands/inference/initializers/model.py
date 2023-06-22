@@ -1,16 +1,15 @@
 from logging import Logger
-from typing import List, Set
+from typing import List
 
-import jax.numpy as np
 from chronostrain.database import StrainDatabase
 from chronostrain.model import *
 from chronostrain.config import cfg
 from chronostrain.model.generative import GenerativeModel
-from chronostrain.model.io import ReadType
+from chronostrain.model.io import ReadType, TimeSeriesReads
 
 
 def create_model(population: Population,
-                 read_types: Set[ReadType],
+                 source_reads: TimeSeriesReads,
                  fragments: FragmentSpace,
                  time_points: List[float],
                  disable_quality: bool,
@@ -18,7 +17,6 @@ def create_model(population: Population,
                  logger: Logger) -> GenerativeModel:
     """
     Simple wrapper for creating a generative model.
-    :param mean: The prior mean for the underlying gaussian process.
     :param population: The bacteria population.
     :param fragments: The collection of fragments coming from the population.
     :param time_points: List of time points for which samples are taken from.
@@ -26,6 +24,12 @@ def create_model(population: Population,
     :param db: A Strain database instance.
     :return A Generative model object.
     """
+    read_types = {
+        src.read_type
+        for reads_t in source_reads.time_slices
+        for src in reads_t.sources
+    }
+
     if disable_quality:
         logger.info("Using NoiselessErrorModel (Are you trying to debug?).")
         error_model = NoiselessErrorModel(mismatch_likelihood=0.)
@@ -62,6 +66,7 @@ def create_model(population: Population,
                 deletion_error_ll=cfg.model_cfg.get_float("DELETION_LL")
             )
 
+    from chronostrain.algs.subroutines.cache import ReadsPopulationCache
     model = GenerativeModel(
         bacteria_pop=population,
         times=time_points,
@@ -74,7 +79,8 @@ def create_model(population: Population,
         frag_negbin_n=cfg.model_cfg.frag_len_negbin_n,
         frag_negbin_p=cfg.model_cfg.frag_len_negbin_p,
         min_overlap_ratio=cfg.model_cfg.min_overlap_ratio,
-        db=db
+        db=db,
+        computation_cache=ReadsPopulationCache(source_reads, db)
     )
 
     return model

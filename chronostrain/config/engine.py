@@ -1,6 +1,6 @@
 from typing import Iterator
 
-from .base import AbstractConfig, ConfigurationParseError
+from .base import AbstractConfig
 import jax
 
 

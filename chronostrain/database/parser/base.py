@@ -43,7 +43,6 @@ class AbstractDatabaseParser(object):
 
     def load_from_disk(self) -> StrainDatabase:
         """Default implementation: use pickle format."""
-        print(self.disk_path())
         with open(self.disk_path(), 'rb') as f:
             backend = pickle.load(f)
         return StrainDatabase(

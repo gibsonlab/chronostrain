@@ -68,7 +68,7 @@ class SparseLogLikelihoodComputer:
         self._multi_align_instances: List[MarkerMultipleFragmentAlignment] = None  # lazy loading
 
         # ==== Cache.
-        self.cache = ReadsPopulationCache(reads, model.bacteria_pop)
+        self.cache = ReadsPopulationCache(reads, db)
 
     def read_frag_ll(self,
                      frag_seq: np.ndarray,
@@ -246,9 +246,10 @@ class SparseLogLikelihoodComputer:
                 )
             )
 
+        self.cache.create_subdir('log_likelihoods')
         return [
             self.cache.call(
-                "sparse_log_likelihoods_{}.{}.npz".format(t_idx, self.dtype),
+                "log_likelihoods/sparse_log_likelihoods_{}.{}.npz".format(t_idx, self.dtype),
                 self.create_sparse_matrix,
                 [],
                 {"t_idx": t_idx},

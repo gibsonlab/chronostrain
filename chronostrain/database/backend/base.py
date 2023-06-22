@@ -80,6 +80,9 @@ class AbstractStrainDatabaseBackend(object):
         """
         pass
 
+    def signature(self) -> str:
+        pass
+
     def all_canonical_markers(self) -> List[Marker]:
         pass
 

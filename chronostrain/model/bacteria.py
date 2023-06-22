@@ -113,7 +113,7 @@ class Population:
         if not all([isinstance(s, Strain) for s in strains]):
             raise ValueError("All elements in strains must be Strain instances")
 
-        self.strains = list(strains)  # A list of Strain objects.
+        self.strains = strains  # A list of Strain objects.
         self.strain_indices = {strain: s_idx for s_idx, strain in enumerate(self.strains)}
         self.all_markers = {
             marker

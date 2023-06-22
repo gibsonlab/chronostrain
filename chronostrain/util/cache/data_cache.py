@@ -130,6 +130,11 @@ class ComputationCache(object):
     def cache_dir(self) -> Path:
         return self.cache_tag.directory
 
+    def create_subdir(self, subdir_name: str):
+        subdir = self.cache_dir / subdir_name
+        if not subdir.exists():
+            subdir.mkdir(exist_ok=True)
+
     def call(self,
              relative_filepath: Union[str, Path],
              fn: Callable,
@@ -170,7 +175,10 @@ class ComputationCache(object):
                     self.cache_tag.encoding, cache_path
                 ))
 
-            self.cache_tag.write_readable_attributes_to_disk(self.cache_dir / "attributes.txt")
+            metadata_path = self.cache_dir / "metadata.txt"
+            if not metadata_path.exists():
+                self.cache_tag.write_readable_attributes_to_disk(metadata_path)
+
             data = fn(*call_args, **call_kwargs)
 
             if cfg.model_cfg.cache_enabled:

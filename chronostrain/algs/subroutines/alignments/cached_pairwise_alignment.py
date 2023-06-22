@@ -7,7 +7,7 @@ from typing import Dict, List, Iterator, Tuple
 
 import numpy as np
 
-from chronostrain.algs.subroutines.cache import ReadsComputationCache
+from chronostrain.algs.subroutines.cache import ReadsPopulationCache
 from chronostrain.model import Marker
 from chronostrain.model.io import TimeSeriesReads, TimeSliceReadSource, ReadType
 from chronostrain.util.alignments.sam import SamFile
@@ -31,7 +31,7 @@ class CachedReadPairwiseAlignments(object):
         self.db = db
         self.num_cores = num_cores
         self.marker_reference_path = db.multifasta_file
-        self.cache = ReadsComputationCache(reads)
+        self.cache = ReadsPopulationCache(reads, db)
 
     def get_aligner(self, read_src: TimeSliceReadSource):
         if cfg.external_tools_cfg.pairwise_align_cmd == "ssw-align":

@@ -14,9 +14,16 @@ These are already included in the "full" conda recipe `conda_full.yml`.
 - KneadData
 - (Requirements from `database` example)
 
+# Important note about KneadData & Trimmomatic interaction on linux conda-forge setup
+
+If one runs into the KneadData error that the jarfile for trimmomatic is invalid or corrupt, one needs to
+edit `trimmomatic_jar=“trimmomatic*` to `trimmomatic_jar=trimmomatic.jar` in python script `<CONDA_ENV>/kneaddata/lib/<PYTHON>/site-packages/kneaddata/config.py` to explicitly point
+to the jar file instead of the executable python wrapper.
+
 # Pipeline walkthrough
 
-All scripts are meant to be run from within the `scripts` subdirectory.
+All scripts are meant to be run from within the `scripts` subdirectory (so first do `cd scripts`)
+
 Files are downloaded to the directory pointed to by the `DATA_DIR` environment variable, specified in `settings.sh`.
 
 ## 1. Download the dataset.

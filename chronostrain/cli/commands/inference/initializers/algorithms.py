@@ -33,17 +33,11 @@ def perform_advi(
         save_elbo_history: bool = False,
         save_training_history: bool = False
 ):
-    read_types = {
-        src.read_type
-        for reads_t in reads.time_slices
-        for src in reads_t.sources
-    }
-
     # ==== Run the solver.
     time_points = [time_slice.time_point for time_slice in reads]
     model = create_model(
         population=population,
-        read_types=read_types,
+        source_reads=reads,
         fragments=fragments,
         time_points=time_points,
         disable_quality=not cfg.model_cfg.use_quality_scores,

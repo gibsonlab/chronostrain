@@ -264,3 +264,6 @@ class TimeSeriesReads(object):
 
     def __getitem__(self, idx: int) -> TimeSliceReads:
         return self.time_slices[idx]
+
+    def total_number_reads(self) -> int:
+        return sum(len(t) for t in self.time_slices)

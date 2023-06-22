@@ -136,3 +136,9 @@ class PandasAssistedBackend(AbstractStrainDatabaseBackend):
             (self.marker_df['IsCanonical']),
             "MarkerIdx"
         ].shape[0]
+
+    def signature(self) -> str:
+        import hashlib
+        strain_hash = hashlib.sha256(self.strain_df.to_json().encode()).hexdigest()
+        marker_hash = hashlib.sha256(self.marker_df.to_json().encode()).hexdigest()
+        return f'strain:{strain_hash}|marker:{marker_hash}'

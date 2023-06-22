@@ -16,6 +16,7 @@ from chronostrain.config import cfg
 
 from .fragment_frequencies import FragmentFrequencyComputer
 from chronostrain.logging import create_logger
+from ...util.cache import ComputationCache
 
 logger = create_logger(__name__)
 
@@ -34,6 +35,7 @@ class GenerativeModel:
                  read_error_model: AbstractErrorModel,
                  min_overlap_ratio: float,
                  db: StrainDatabase,
+                 computation_cache: ComputationCache
                  ):
         """
         :param times: A list of time points.
@@ -76,6 +78,7 @@ class GenerativeModel:
             ],
             dtype=cfg.engine_cfg.dtype
         ), -0.5)
+        self.computation_cache = computation_cache
 
     def num_times(self) -> int:
         return len(self.times)
@@ -101,7 +104,7 @@ class GenerativeModel:
                 fragments=self.fragments,
                 min_overlap_ratio=self.min_overlap_ratio,
                 dtype=cfg.engine_cfg.dtype
-            ).get_frequencies(self.fragments, self.bacteria_pop)
+            ).get_frequencies(self.fragments, self.bacteria_pop, self.computation_cache)
         return self._frag_freqs_sparse
 
     @property
