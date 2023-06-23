@@ -17,5 +17,19 @@ do
     continue
   fi
 
-  bash run_chronostrain.sh ${participant}
+  filter_mark=${participant_dir}/chronostrain/filter.DONE
+  if [[ -f ${filter_mark} ]]; then
+    echo "[*] Skipping filter for participant ${participant}"
+  else
+    bash filter_chronostrain.sh ${participant}
+    touch $filter_mark
+  fi
+
+  inference_mark=${participant_dir}/chronostrain/inference.DONE
+  if [[ -f ${inference_mark} ]]; then
+    echo "[*] Skipping inference for participant ${participant}"
+  else
+    bash run_chronostrain.sh ${participant}
+    touch $inference_mark
+  fi
 done
