@@ -289,11 +289,11 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
                     data_t_batch  # F x R_batch
                 )  # (S x R_batch)
                 np.save(str(target_dir / f't_{t_idx}_batch_{batch_idx}.npy'), strain_batch_lls_t)
-                self.batches[t_idx].append(strain_batch_lls_t)
+                batches[t_idx].append(strain_batch_lls_t)
                 total_sz_t += strain_batch_lls_t.shape[1]
             total_sizes[t_idx] = total_sz_t
         pd.DataFrame([
-            {'T_IDX': t_idx, 'N_BATCHES': len(self.batches[t_idx]), 'N_READS': total_sizes[t_idx]}
+            {'T_IDX': t_idx, 'N_BATCHES': len(batches[t_idx]), 'N_READS': total_sizes[t_idx]}
             for t_idx in range(self.model.num_times())
         ]).to_csv(batch_metadata_path, sep='\t', index=False)
         return batches
