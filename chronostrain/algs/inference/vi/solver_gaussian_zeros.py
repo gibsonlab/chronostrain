@@ -50,7 +50,7 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
             prune_strains=prune_strains,
             read_batch_size=read_batch_size
         )
-        self.temperature = np.array(10, dtype=dtype)
+        self.temperature = np.array(10., dtype=dtype)
         self.n_epochs_at_current_temp = 0
         self.zero_model = zero_model
 
@@ -87,7 +87,7 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
 
     def advance_epoch(self):
         if self.n_epochs_at_current_temp >= 10:
-            self.temperature = 0.5 * self.temperature
+            self.temperature = 0.25 * self.temperature
             logger.debug("Temperature reduced to {}".format(self.temperature))
             self.n_epochs_at_current_temp = 0
         else:
