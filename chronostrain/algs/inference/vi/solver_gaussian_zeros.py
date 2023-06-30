@@ -92,9 +92,6 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
         if epoch % 10 == 0:
             logger.debug("Temperature = {}".format(self.temperature))
 
-    def okay_to_terminate(self):
-        return self.temperature < 0.1
-
     def precompile_elbo(self):
         n_times = self.model.num_times()
         n_data = np.expand_dims(
