@@ -1,4 +1,4 @@
-import numpy as np
+import numpy as np  # Not using jax
 
 # ================================= Constants.
 NucleotideDtype = np.ubyte

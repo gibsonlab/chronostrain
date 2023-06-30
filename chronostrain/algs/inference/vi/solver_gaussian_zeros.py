@@ -15,7 +15,7 @@ from .posteriors import GaussianStrainCorrelatedWithGlobalZerosPosterior, Gaussi
 
 from chronostrain.logging import create_logger
 from chronostrain.model.zeros.gumbel import PopulationGlobalZeros
-from .util import log_mm_exp
+from .util import log_mm_exp, log_mv_exp
 
 logger = create_logger(__name__)
 
@@ -50,7 +50,7 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
             prune_strains=prune_strains,
             read_batch_size=read_batch_size
         )
-        self.temperature = np.array(100, dtype=dtype)
+        self.temperature = np.array(10, dtype=dtype)
         self.n_epochs_at_current_temp = 0
         self.zero_model = zero_model
 
@@ -86,8 +86,9 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
             raise ValueError("Unrecognized `correlation_type` argument {}.".format(self.correlation_type))
 
     def advance_epoch(self):
-        if self.n_epochs_at_current_temp > 20:
+        if self.n_epochs_at_current_temp >= 10:
             self.temperature = 0.5 * self.temperature
+            logger.debug("Temperature reduced to {}".format(self.temperature))
             self.n_epochs_at_current_temp = 0
         else:
             self.n_epochs_at_current_temp += 1
@@ -110,19 +111,24 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
         def _elbo(params, rand_samples, temperature):
             reparam_samples = self.posterior.reparametrize(rand_samples, params, temperature)
             x = reparam_samples['gaussians']
-            logits = reparam_samples['smooth_log_zeros']  # 2 x N x S
+            log_zeros = reparam_samples['smooth_log_zeros']  # 2 x N x S
 
             # entropic
-            elbo = self.posterior.entropy(params, logits, temperature)
+            elbo = self.posterior.entropy(params, log_zeros, temperature)
 
             # model ll
             elbo += self.model.log_likelihood_x(x=x).mean()
-            # elbo += self.zero_model.log_likelihood(logz).mean()  # Note that this is actually a constant.
+            if self.zero_model.prior_p != 0.5:
+                elbo += self.zero_model.log_likelihood(
+                    np.exp(
+                        jax.lax.dynamic_slice_in_dim(log_zeros, start_index=1, slice_size=1, axis=0)
+                    )
+                ).mean()
 
             # data ll
             log_y = jax.nn.log_softmax(
                 # (T x N x S) plus (1 x N x S)  ->  latter was obtained via slicing a 2 x N x S at the second "row".
-                x + jax.lax.dynamic_slice_in_dim(logits, start_index=1, slice_size=1, axis=0),
+                x + jax.lax.dynamic_slice_in_dim(log_zeros, start_index=1, slice_size=1, axis=0),
                 axis=-1
             )
 
@@ -186,10 +192,24 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
             return self.posterior.entropy(params, logits, temperature)
         self.elbo_entropy = jax.value_and_grad(_elbo_entropy, argnums=0)
 
-        @jax.jit
-        def _elbo_model_prior(params, rand_samples):
-            x = _reparametrize_gaussian(params, rand_samples)
-            return self.model.log_likelihood_x(x=x).mean()
+        if self.zero_model.prior_p == 0.5:
+            logger.debug("Precompiling with symmetric prior ELBO (p=0.5)")
+            @jax.jit
+            def _elbo_model_prior(params, rand_samples, temperature):
+                x = _reparametrize_gaussian(params, rand_samples)
+                return self.model.log_likelihood_x(x=x).mean()
+        else:
+            logger.debug("Precompiling with asymmetric prior ELBO (p={})".format(self.zero_model.prior_p))
+            @jax.jit
+            def _elbo_model_prior(params, rand_samples, temperature):
+                x = _reparametrize_gaussian(params, rand_samples)
+                gaussian_ll = self.model.log_likelihood_x(x=x).mean()
+                log_zeros = _reparametrize_logzeros(params, rand_samples, temperature)
+                return gaussian_ll + self.zero_model.log_likelihood(
+                    np.exp(
+                        jax.lax.dynamic_slice_in_dim(log_zeros, start_index=1, slice_size=1, axis=0)
+                    )
+                ).mean()
         self.elbo_model_prior = jax.value_and_grad(_elbo_model_prior, argnums=0)
 
         @jax.jit
@@ -226,7 +246,7 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
         if self.accumulate_gradients:
             acc_elbo_value, acc_elbo_grad = self.elbo_entropy(params, random_samples, self.temperature)
 
-            _e, _g = self.elbo_model_prior(params, random_samples)
+            _e, _g = self.elbo_model_prior(params, random_samples, self.temperature)
             acc_elbo_value += _e
             acc_elbo_grad = accumulate_gradients(acc_elbo_grad, _g)
 
@@ -249,3 +269,49 @@ def accumulate_gradients(grad1: _GENERIC_GRAD_TYPE, grad2: _GENERIC_GRAD_TYPE):
         k: grad1[k] + grad2[k]
         for k in grad1.keys()
     }
+
+
+# ============== JAX-specific optimizations.
+def log_mm_exp2(x, y):
+    return jax.lax.map(
+        lambda _y: log_mv_exp(x, _y),
+        y.T
+    ).T
+
+def recursive_checkpoint(funs):
+    """From JAX documentation page of jax.checkpoint() implementing a binary recursive strategy."""
+    if len(funs) == 1:
+        return jax.checkpoint(funs[0])
+    else:
+        f1 = recursive_checkpoint(funs[:len(funs)//2])
+        f2 = recursive_checkpoint(funs[len(funs)//2:])
+        f12 = lambda x: f1(f2(x))
+        return jax.checkpoint(f12)
+
+
+def timepoint_recursive_checkpoint_fn(n_batches: int) -> Callable:
+    """
+    Uses the binary recursion to implement memory-efficient version of
+    f(batches) = log_p(batch_1) + log_p(batch_2) + ... + log_p(batch_N).
+    """
+    if n_batches == 0:
+        raise ValueError("Timepoint must contain at least one batch.")
+
+    return recursive_checkpoint([
+        aggregate_timepoint_data_ll_checkpoint
+        for _ in range(n_batches)
+    ])
+
+
+def aggregate_timepoint_data_ll_checkpoint(
+        args: Tuple[np.ndarray, List[np.ndarray], np.ndarray]
+) -> Tuple[np.ndarray, List[np.ndarray], np.ndarray]:
+    log_y_t, batch_lls, elbo_acc = args  # Unpack args.
+
+    # Unwraps a single batch, and adds it to the elbo. Serves as a helper for the recursive strategy.
+    return log_y_t, batch_lls[1:], elbo_acc + aggregate_single_batch(log_y_t, batch_lls[0])
+
+
+def aggregate_single_batch(log_y_t: np.ndarray, batch_ll: np.ndarray):
+    batch_sz = batch_ll.shape[1]
+    return batch_sz * log_mm_exp(log_y_t, batch_ll).mean()

@@ -26,6 +26,10 @@ from ..base import option
     help='Specify whether to include zeros into the model.'
 )
 @option(
+    '--prior-p', 'prior_p', type=float, default=0.5,
+    help='The prior bias for the indicator variables, where bias = P(strain included in model).'
+)
+@option(
     '--with-map-init/--without-map-init', 'initialize_with_map',
     is_flag=True, default=False,
     help='Specify whether to initialize the VI optimization at the MAP solution using Expectation-Maximization.'
@@ -121,6 +125,7 @@ def main(
         out_dir: Path,
         true_abundance_path: Path,
         with_zeros: bool,
+        prior_p: float,
         initialize_with_map: bool,
         prune_strains: bool,
         iters: int,
@@ -182,6 +187,7 @@ def main(
         fragments=fragments,
         reads=reads,
         with_zeros=with_zeros,
+        prior_p=prior_p,
         initialize_with_map=initialize_with_map,
         prune_strains=prune_strains,
         num_epochs=epochs,

@@ -96,7 +96,8 @@ def main(
         skip_prune: bool
 ):
     """
-    Perform posterior estimation using ADVI.
+    Create a database using marker seeds.
+    Requires BLAST, and as input takes an index TSV file of reference assemblies.
     """
     ctx.ensure_object(Logger)
     logger = ctx.obj

@@ -5,6 +5,7 @@ from typing import *
 import jax
 import jax.numpy as np
 import numpy as cnp
+import pandas as pd
 
 from chronostrain.database import StrainDatabase
 from chronostrain.model.generative import GenerativeModel
@@ -214,7 +215,7 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
             data,
             db
         )
-        self.initialize_data(read_batch_size)
+        self.batches = self.initialize_data(read_batch_size)
         self.prune_reads()
         if prune_strains:
             self.prune_strains_by_read_max()
@@ -223,48 +224,79 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
         AbstractADVI.__init__(self, self.create_posterior(), optimizer)
 
     # noinspection PyAttributeOutsideInit
-    def initialize_data(self, read_batch_size):
+    def initialize_data(self, read_batch_size: int) -> List[List[np.ndarray]]:
         logger.debug("Initializing ADVI data structures.")
         if not cfg.model_cfg.use_sparse:
             raise NotImplementedError("ADVI only supports sparse data structures.")
 
         from chronostrain.algs.subroutines.cache import ReadsPopulationCache
+        from collections import namedtuple
         cache = ReadsPopulationCache(self.data, self.db)
+        cache.create_subdir('marginalizations')
+        subdir = cache.cache_dir / 'marginalizations'
+        batch_metadata = subdir / 'batches.tsv'
 
-        self.batches: List[List[np.ndarray]] = [
+        if batch_metadata.exists():
+            batch_df = pd.read_csv(batch_metadata, sep='\t')
+            TimepointBatches = namedtuple('TimepointBatches', ['n_batches', 'n_reads'])
+            n_batches_per: Dict[int, TimepointBatches] = {
+                row['T_IDX']: TimepointBatches(row['N_BATCHES'], row['N_READS'])
+                for _, row in batch_df.iterrows()
+            }
+
+            # Safety/Data consistency check
+            cache_is_corrupt = False
+            for t_idx in range(self.model.num_times()):
+                if (t_idx not in n_batches_per) or (n_batches_per[t_idx].n_reads != len(self.data[t_idx])):
+                    cache_is_corrupt = True
+                    break
+            if cache_is_corrupt:
+                return self.compute_marginalization(batch_metadata, subdir, read_batch_size)
+            else:
+                return [
+                    [
+                        np.load(subdir / f't_{t_idx}_batch_{batch_idx}.npy')
+                        for batch_idx in range(n_batches_per[t_idx].n_batches)
+                    ]
+                    for t_idx in range(self.model.num_times())
+                ]
+        else:
+            return self.compute_marginalization(batch_metadata, subdir, read_batch_size)
+
+    def compute_marginalization(self, batch_metadata_path: Path, target_dir: Path, read_batch_size: int) -> List[List[np.ndarray]]:
+        batches = [
             [] for _ in range(self.model.num_times())
         ]
 
-        def _compute_marginalization(_t_idx, _batch_idx, _data_t_batch):
-            logger.debug("Precomputing marginalization for t = {}, batch {} ({} reads)".format(
-                _t_idx, _batch_idx, _data_t_batch.shape[1]
-            ))
-            # ========= Pre-compute likelihood calculations.
-            return log_spspmm_exp(
-                self.model.fragment_frequencies_sparse.T,  # (S x F), note the transpose!
-                _data_t_batch  # F x R_batch
-            )  # (S x R_batch)
-
         # Precompute likelihood products.
         logger.debug("Precomputing likelihood marginalization.")
-
-        cache.create_subdir('marginalizations')
         data_likelihoods = self.data_likelihoods
+        total_sizes = {}
         for t_idx in range(self.model.num_times()):
+            total_sz_t = 0
             for batch_idx, data_t_batch in enumerate(
                     divide_columns_into_batches_sparse(
                         data_likelihoods.matrices[t_idx],
                         read_batch_size
                     )
             ):
-                strain_batch_lls_t = cache.call(
-                    relative_filepath=f'marginalizations/t_{t_idx}_batch_{batch_idx}.npy',
-                    fn=_compute_marginalization,
-                    call_args=[t_idx, batch_idx, data_t_batch],
-                    save=lambda p, x: np.save(p, x),
-                    load=lambda p: np.load(p),
-                )
+                logger.debug("Precomputing marginalization for t = {}, batch {} ({} reads)".format(
+                    t_idx, batch_idx, data_t_batch.shape[1]
+                ))
+                # ========= Pre-compute likelihood calculations.
+                strain_batch_lls_t = log_spspmm_exp(
+                    self.model.fragment_frequencies_sparse.T,  # (S x F), note the transpose!
+                    data_t_batch  # F x R_batch
+                )  # (S x R_batch)
+                np.save(str(target_dir / f't_{t_idx}_batch_{batch_idx}.npy'), strain_batch_lls_t)
                 self.batches[t_idx].append(strain_batch_lls_t)
+                total_sz_t += strain_batch_lls_t.shape[1]
+            total_sizes[t_idx] = total_sz_t
+        pd.DataFrame([
+            {'T_IDX': t_idx, 'N_BATCHES': len(self.batches[t_idx]), 'N_READS': total_sizes[t_idx]}
+            for t_idx in range(self.model.num_times())
+        ]).to_csv(batch_metadata_path, sep='\t', index=False)
+        return batches
 
     def prune_reads(self):
         """

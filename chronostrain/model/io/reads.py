@@ -91,14 +91,20 @@ class TimeSliceReads(object):
         return file_size
 
     @staticmethod
-    def load(time_point: float, sources: List[TimeSliceReadSource]) -> "TimeSliceReads":
+    def load(time_point: float, sources: List[TimeSliceReadSource], partial_load: bool = False) -> "TimeSliceReads":
         """
         Creates an instance of TimeSliceReads() from the specified file path.
 
         :param time_point: The timepoint that this source corresponds to.
         :param sources: A List of TimeSliceReadSource instances pointing to the files on disk.
+        :param partial_load: DEBUG feature only. If True, does not load any records (only metadata).
         :return:
         """
+        if partial_load:
+            logger.info(f"Invoking `partial_load = True` on timepoint {time_point}. Records will not be parsed.")
+            total_read_depth = sum(src.read_depth for src in sources)
+            return TimeSliceReads([], time_point, total_read_depth, sources=sources)
+
         reads = []
         offset = 0
         for src in sources:
@@ -196,19 +202,20 @@ class TimeSeriesReads(object):
 
     @staticmethod
     def load(time_points: List[float],
-             sources: List[List[TimeSliceReadSource]]) -> 'TimeSeriesReads':
+             sources: List[List[TimeSliceReadSource]],
+             partial_load: bool = False) -> 'TimeSeriesReads':
         if len(time_points) != len(sources):
             raise ValueError("Number of time points ({}) do not match number of read sources. ({})".format(
                 len(time_points), len(sources)
             ))
 
         return TimeSeriesReads([
-            TimeSliceReads.load(t, src_t)
+            TimeSliceReads.load(t, src_t, partial_load=partial_load)
             for t, src_t in zip(time_points, sources)
         ])
 
     @staticmethod
-    def load_from_csv(csv_path: Path) -> 'TimeSeriesReads':
+    def load_from_csv(csv_path: Path, partial_load: bool = False) -> 'TimeSeriesReads':
         import csv
         time_points_to_reads: Dict[float, List[Tuple[int, Path, ReadType, str]]] = {}
         if not csv_path.exists():
@@ -253,7 +260,7 @@ class TimeSeriesReads(object):
             for t in time_points
         ]
 
-        return TimeSeriesReads.load(time_points, time_slice_sources)
+        return TimeSeriesReads.load(time_points, time_slice_sources, partial_load=partial_load)
 
     def __iter__(self) -> Iterator[TimeSliceReads]:
         for time_slice in self.time_slices:

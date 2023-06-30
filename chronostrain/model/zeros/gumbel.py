@@ -3,6 +3,7 @@ import jax
 import jax.numpy as np
 import numpy as cnp
 import jax.scipy as scipy
+from scipy.special import log_expit as c_log_expit
 
 
 def _expect_tensor_shape(x: np.ndarray, name: str, shape: List[int]):
@@ -42,19 +43,24 @@ def _smooth_max(x: np.ndarray, inv_temp: float, axis: int) -> np.ndarray:
 
 
 class PopulationGlobalZeros(object):
-    def __init__(self, num_strains: int):
+    def __init__(self, num_strains: int, prior_p: float=0.5):
         self.num_strains = num_strains
-        n = self.num_strains
-        self.logp = -cnp.log(2.) * n - cnp.log1p(-cnp.power(2., -n))
+        self.prior_p = prior_p
+        self.ONE_logp = cnp.log(prior_p)
+        self.ZERO_logp = cnp.log(1 - prior_p)
+        self.log_denominator = c_log_expit(-self.num_strains * cnp.log(1 - prior_p))  # LOG[1 / (1 - p(all zeros))]
 
-    def log_likelihood(self, zeros: np.ndarray) -> np.ndarray:
+    def log_likelihood(self, booleans: np.ndarray) -> np.ndarray:
         """
-        @param zeros: An (N x S) tensor of zeros or ones. (likelihood won't depend on smoothness)
+        @param booleans: An (N x S) tensor of zeros or ones. (likelihood won't depend on smoothness)
         @return: a length-N tensor of likelihoods, one per sample.
         """
         # likelihood actually doesn't depend on the actual zeros/ones since prior is Bernoulli(0.5),
         # conditioned on not all being zero.
-        return np.full(zeros.shape[0], fill_value=self.logp)
+        return np.sum(
+            self.ONE_logp * booleans + self.ZERO_logp * (1 - booleans),
+            axis=-1
+        ) + self.log_denominator
 
 
 # class PopulationLocalZeros(object):

@@ -32,7 +32,7 @@ def main(
         identity_threshold: float,
 ):
     """
-    Perform posterior estimation using ADVI.
+    Prune an existing pickle file using multiple alignment & clustering.
     """
     ctx.ensure_object(Logger)
     logger = ctx.obj

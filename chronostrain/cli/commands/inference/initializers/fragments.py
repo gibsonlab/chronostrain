@@ -68,8 +68,19 @@ def load_fragments(reads: TimeSeriesReads, db: StrainDatabase, logger: Logger) -
 
 def load_fragments_dynamic(reads: TimeSeriesReads, db: StrainDatabase, logger: Logger) -> UnallocatedFragmentSpace:
     cache = ReadsPopulationCache(reads, db)
-    return cache.call(
+    frags: UnallocatedFragmentSpace = cache.call(
         relative_filepath="inference_fragments_dynamic.pkl",
         fn=aligned_exact_fragments_dynamic,
         call_args=[reads, db, cache.cache_dir, logger]
     )
+    if not frags.fasta_resource.fasta_path.exists():
+        # Cache is corrupted; clear and recompute
+        p = cache.cache_dir / "inference_fragments_dynamic.pkl"
+        p.unlink()
+        frags: UnallocatedFragmentSpace = cache.call(
+            relative_filepath="inference_fragments_dynamic.pkl",
+            fn=aligned_exact_fragments_dynamic,
+            call_args=[reads, db, cache.cache_dir, logger]
+        )
+
+    return frags

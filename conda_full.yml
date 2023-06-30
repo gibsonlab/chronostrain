@@ -3,7 +3,7 @@ name: chronostrain_full
 channels:
   - conda-forge
   - bioconda
-  - pytorch
+  - nvidia
 
 dependencies:
   - python=3.10

@@ -26,6 +26,7 @@ def perform_advi(
         num_samples: int,
         logger: Logger,
         accumulate_gradients: bool,
+        prior_p: float = 0.5,
         min_lr: float = 1e-6,
         loss_tol: float = 1e-5,
         read_batch_size: int = 5000,
@@ -63,7 +64,7 @@ def perform_advi(
 
     if with_zeros:
         from chronostrain.model.zeros import PopulationGlobalZeros
-        zero_model = PopulationGlobalZeros(model.bacteria_pop.num_strains())
+        zero_model = PopulationGlobalZeros(model.bacteria_pop.num_strains(), prior_p=prior_p)
         lr_scheduler = ReduceLROnPlateauLast(
             initial_lr=learning_rate,
             mode='max',
