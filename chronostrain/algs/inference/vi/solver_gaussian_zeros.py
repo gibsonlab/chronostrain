@@ -92,6 +92,8 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
             inv_temp += 1
             self.temperature = 1 / inv_temp
             logger.debug("Temperature {} -> {}".format(old_temp, self.temperature))
+
+            self.optim.scheduler.reset()
             self.n_epochs_at_current_temp = 0
         else:
             self.n_epochs_at_current_temp += 1

@@ -17,6 +17,9 @@ class LearningRateScheduler(ABC):
             return self.get_current_lr()
         return _schedule
 
+    def reset(self):
+        raise NotImplementedError()
+
 
 class ConstantLearningRate(LearningRateScheduler):
     def __init__(self, lr: float):
@@ -27,6 +30,9 @@ class ConstantLearningRate(LearningRateScheduler):
 
     def step(self, obj_metric: float):
         pass  # do nothing
+
+    def reset(self):
+        pass
 
 
 class ReduceLROnPlateauLast(LearningRateScheduler):
@@ -62,7 +68,7 @@ class ReduceLROnPlateauLast(LearningRateScheduler):
         self.eps = eps
         self._init_is_better(mode=mode, threshold=threshold,
                              threshold_mode=threshold_mode)
-        self._reset()
+        self.reset()
 
     def _init_is_better(self, mode, threshold, threshold_mode):
         if mode not in {'min', 'max'}:
@@ -79,7 +85,7 @@ class ReduceLROnPlateauLast(LearningRateScheduler):
         self.threshold = threshold
         self.threshold_mode = threshold_mode
 
-    def _reset(self):
+    def reset(self):
         """Resets num_bad_epochs counter and cooldown counter."""
         self.best = self.mode_worse
         self.cooldown_counter = 0
