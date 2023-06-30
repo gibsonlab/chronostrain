@@ -373,21 +373,27 @@ class GaussianWithGlobalZerosPosteriorDense(AbstractReparametrizedPosterior):
         # for t in range(self.num_times):
         #     ans += params[f'diag_weights_{t}'].sum()
 
-        # # bernoulli entropy
-        # gm = params['gumbel_mean']
-        # p = jax.nn.softmax(gm, axis=0)  # 2 x S, [p, 1-p] along axis 0
-        # logp = jax.nn.log_softmax(gm, axis=0)  # 2 x S, [log(p), log(1-p)] along axis 0
-        # ans += -np.sum(p * logp)
+        # bernoulli entropy
+        gm = params['gumbel_mean']
+        p = jax.nn.softmax(gm, axis=0)  # 2 x S, [p, 1-p] along axis 0
+        logp = jax.nn.log_softmax(gm, axis=0)  # 2 x S, [log(p), log(1-p)] along axis 0
+        ans += -np.sum(p * logp)
+
+        # bernoulli entropy merely tries to keep the two mean parameters equal; regularize to prevent blowups.
+        # Regularization here merely tries to keep MU_0 close to zero;
+        # Note: the only determining factor in softmax is the gap (MU_1 - MU_0)
+        ans += np.square(jax.lax.dynamic_slice_in_dim(gm, start_index=0, slice_size=1, axis=0)).sum()
 
         # concrete entropy, empirical
         # logits: 2 x N x S
-        gm = params['gumbel_mean']  # 2 x S
-        ans += -gm.sum()
-        ans += (temp + 1) * logits.mean(axis=1).sum()
-        ans += 2 * jax.nn.logsumexp(   # logsumexp yields (N x S)
-            np.expand_dims(gm, axis=1) - temp * logits,  # (2 x 1 x S) minus (2 x N x S)
-            axis=0,
-            keepdims=False
-        ).sum(axis=-1).mean()
+
+        # gm = params['gumbel_mean']  # 2 x S
+        # ans += -gm.sum()
+        # ans += (temp + 1) * logits.mean(axis=1).sum()
+        # ans += 2 * jax.nn.logsumexp(   # logsumexp yields (N x S)
+        #     np.expand_dims(gm, axis=1) - temp * logits,  # (2 x 1 x S) minus (2 x N x S)
+        #     axis=0,
+        #     keepdims=False
+        # ).sum(axis=-1).mean()
 
         return ans
