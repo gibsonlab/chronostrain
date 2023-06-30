@@ -153,15 +153,16 @@ class AbstractADVI(ABC):
             )
 
             self.optim.scheduler.step(epoch_elbo_avg)
-            if min_lr is not None:
-                if self.optim.current_learning_rate() <= min_lr:
-                    logger.info("Stopping criteria (lr < {}) met after {} epochs.".format(min_lr, epoch))
-                    break
-            if loss_tol is not None:
-                if cnp.abs(epoch_elbo_avg - epoch_elbo_prev) < loss_tol * cnp.abs(epoch_elbo_prev):
-                    logger.info("Stopping criteria (Elbo rel. diff < {}) met after {} epochs.".format(loss_tol, epoch))
-                    break
-                epoch_elbo_prev = epoch_elbo_avg
+            if self.okay_to_terminate():
+                if min_lr is not None:
+                    if self.optim.current_learning_rate() <= min_lr:
+                        logger.info("Stopping criteria (lr < {}) met after {} epochs.".format(min_lr, epoch))
+                        break
+                if loss_tol is not None:
+                    if cnp.abs(epoch_elbo_avg - epoch_elbo_prev) < loss_tol * cnp.abs(epoch_elbo_prev):
+                        logger.info("Stopping criteria (Elbo rel. diff < {}) met after {} epochs.".format(loss_tol, epoch))
+                        break
+                    epoch_elbo_prev = epoch_elbo_avg
 
         # ========== End of optimization
         logger.info("Finished.")
@@ -173,6 +174,13 @@ class AbstractADVI(ABC):
         Called at the start of every epoch, including the first one.
         """
         raise NotImplementedError()
+
+    def okay_to_terminate(self):
+        """
+        Override this if needed.
+        Returns "False" if internal state of the posterior model deems it not ready for termination.
+        """
+        return True
 
     @abstractmethod
     def elbo_with_grad(
