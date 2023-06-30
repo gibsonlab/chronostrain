@@ -86,8 +86,8 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
             raise ValueError("Unrecognized `correlation_type` argument {}.".format(self.correlation_type))
 
     def advance_epoch(self):
-        if self.n_epochs_at_current_temp >= 10:
-            self.temperature = 0.25 * self.temperature
+        if self.n_epochs_at_current_temp >= 5:
+            self.temperature = 0.5 * self.temperature
             logger.debug("Temperature reduced to {}".format(self.temperature))
             self.n_epochs_at_current_temp = 0
         else:
