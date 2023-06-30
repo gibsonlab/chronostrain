@@ -321,7 +321,7 @@ class GaussianWithGlobalZerosPosteriorDense(AbstractReparametrizedPosterior):
         self.parameters['tril_weights'] = np.zeros((n_features * (n_features - 1)) // 2, dtype=dtype)
         self.parameters['diag_weights'] = np.full(n_features, fill_value=cnp.log(INIT_SCALE), dtype=dtype)
         self.parameters['bias'] = np.zeros(n_features, dtype=dtype)
-        self.parameters['gumbel_mean'] = np.zeros((2, self.num_strains), dtype=dtype)
+        self.parameters['gumbel_diff'] = np.zeros(self.num_strains, dtype=dtype)  # mu_0 - mu_1
 
         if initial_gaussian_bias is None:
             self.parameters['bias'] = np.zeros(n_features, dtype=dtype)
@@ -360,18 +360,14 @@ class GaussianWithGlobalZerosPosteriorDense(AbstractReparametrizedPosterior):
         # g1 = mu_1 + G1
         # g2 = mu_2 + G2
         return jax.nn.log_softmax(
-            (1 / temp) * (
-                    g    # (2 x N x S)
-                    +
-                    np.expand_dims(params['gumbel_mean'], 1)   # (2 x S)
-            ),
+            (1 / temp) * g.at[0].add(params['gumbel_diff']),
             axis=0
         )
 
     def reparametrized_zeros(self, g: np.ndarray, params: _GENERIC_PARAM_TYPE) -> np.ndarray:
         return np.less(
-            g[0] + params['gumbel_mean'][0],
-            g[1] + params['gumbel_mean'][1]
+            g[0] + params['gumbel_diff'],
+            g[1]
         )
 
     # noinspection PyMethodOverriding
@@ -396,26 +392,12 @@ class GaussianWithGlobalZerosPosteriorDense(AbstractReparametrizedPosterior):
         #     ans += params[f'diag_weights_{t}'].sum()
 
         # bernoulli entropy
-        gm = params['gumbel_mean']
-        p = jax.nn.softmax(gm, axis=0)  # 2 x S, [p, 1-p] along axis 0
-        logp = jax.nn.log_softmax(gm, axis=0)  # 2 x S, [log(p), log(1-p)] along axis 0
+        g_diff = params['gumbel_diff']
+        p = jax.scipy.special.expit(-g_diff)  # 1 / (1 + exp(delta_g = mu_0-mu_1)), note the minus sign!
+        logp = -np.logaddexp(
+            np.zeros(g_diff.shape, dtype=g_diff.dtype),
+            g_diff
+        )
         ans += -np.sum(p * logp)
-
-        # bernoulli entropy merely tries to keep the two mean parameters equal; regularize to prevent blowups.
-        # Regularization here merely tries to keep MU_0 close to zero;
-        # Note: the only determining factor in softmax is the gap (MU_1 - MU_0)
-        ans += -np.square(jax.lax.dynamic_slice_in_dim(gm, start_index=0, slice_size=1, axis=0)).sum()
-
-        # concrete entropy, empirical
-        # logits: 2 x N x S
-
-        # gm = params['gumbel_mean']  # 2 x S
-        # ans += -gm.sum()
-        # ans += (temp + 1) * logits.mean(axis=1).sum()
-        # ans += 2 * jax.nn.logsumexp(   # logsumexp yields (N x S)
-        #     np.expand_dims(gm, axis=1) - temp * logits,  # (2 x 1 x S) minus (2 x N x S)
-        #     axis=0,
-        #     keepdims=False
-        # ).sum(axis=-1).mean()
 
         return ans
