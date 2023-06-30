@@ -77,7 +77,9 @@ def perform_advi(
         optimizer = Adam(
             lr_scheduler=lr_scheduler,
             minimize_objective=False,
-            eps=1e-4
+            eps=1e-4,
+            beta1=0.5,
+            beta2=0.999
         )
 
         solver = ADVIGaussianZerosSolver(

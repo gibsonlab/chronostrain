@@ -118,7 +118,7 @@ class AbstractADVI(ABC):
         epoch_elbo_prev = -cnp.inf
         for epoch in range(1, num_epochs + 1, 1):
             # =========== Necessary preprocessing for new epoch.
-            self.advance_epoch()
+            self.advance_epoch(epoch)
 
             # =========== Store ELBO values for reporting.
             epoch_elbos = []
@@ -168,7 +168,7 @@ class AbstractADVI(ABC):
         logger.info("Finished.")
 
     @abstractmethod
-    def advance_epoch(self):
+    def advance_epoch(self, epoch: int):
         """
         Do any pre-processing required for a new epoch (e.g. mini-batch data).
         Called at the start of every epoch, including the first one.
@@ -471,7 +471,7 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
     #
     #     logger.debug("Pruned {} strains into {}.".format(start_num, self.model.num_strains()))
 
-    def advance_epoch(self):
+    def advance_epoch(self, epoch):
         """
         Allow for callbacks in-between epochs, to enable any intermediary state updates.
         @return:

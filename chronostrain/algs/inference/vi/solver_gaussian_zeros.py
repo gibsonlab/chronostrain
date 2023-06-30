@@ -51,6 +51,7 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
             read_batch_size=read_batch_size
         )
         self.temperature = np.array(10., dtype=dtype)
+        self.temp_min = 0.01
         self.n_epochs_at_current_temp = 0
         self.zero_model = zero_model
 
@@ -85,18 +86,11 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
         else:
             raise ValueError("Unrecognized `correlation_type` argument {}.".format(self.correlation_type))
 
-    def advance_epoch(self):
-        if self.n_epochs_at_current_temp >= 5:
-            old_temp = self.temperature
-            inv_temp = 1 / self.temperature
-            inv_temp += 1
-            self.temperature = 1 / inv_temp
-            logger.debug("Temperature {} -> {}".format(old_temp, self.temperature))
-
-            self.optim.scheduler.reset()
-            self.n_epochs_at_current_temp = 0
-        else:
-            self.n_epochs_at_current_temp += 1
+    def advance_epoch(self, epoch):
+        ANNEAL_RATE = 0.95
+        self.temperature = np.maximum(self.temperature * ANNEAL_RATE, self.temp_min)
+        if epoch % 10 == 0:
+            logger.debug("Temperature = {}".format(self.temperature))
 
     def okay_to_terminate(self):
         return self.temperature < 0.1
