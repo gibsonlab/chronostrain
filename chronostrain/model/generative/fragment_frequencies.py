@@ -69,6 +69,9 @@ class FragmentFrequencyComputer(object):
             load=load_sparse_matrix
         )
 
+        logger.debug("Cleaning up. (Deleting fastmap output to save disk space)")
+        bwa_output_path.unlink()
+
         # Validate the matrix.
         if not isinstance(matrix, jsparse.BCOO):
             raise ValueError("Expected fragment frequencies to be jsparse.BCOO, but got {}".format(type(matrix)))
