@@ -36,7 +36,7 @@ do
   fi
 
   quantify_breadcrumb=${participant_dir}/chronostrain/quantify.DONE
-  if [[ -f ${quantify_breadcrumb} ]]; then
+  if [[ ! -f ${quantify_breadcrumb} ]]; then
     bash quantify_chronostrain.sh ${participant}
   fi
 done
