@@ -3,7 +3,9 @@ set -e
 source settings.sh
 
 
-python ${BASE_DIR}/helpers/list_all_participants.py ${ENA_ISOLATE_ASSEMBLY_CATALOG} | while read line
+#python ${BASE_DIR}/helpers/list_all_participants.py ${ENA_ISOLATE_ASSEMBLY_CATALOG} | while read line
+
+cat /home/youn/work/split-jobs/lactis.txt | while read line
 do
   participant=$line
   echo $participant
@@ -31,5 +33,10 @@ do
   else
     bash run_chronostrain.sh ${participant}
     touch $inference_mark
+  fi
+
+  quantify_breadcrumb=${participant_dir}/chronostrain/quantify.DONE
+  if [[ -f ${quantify_breadcrumb} ]]; then
+    bash quantify_chronostrain.sh ${participant}
   fi
 done
