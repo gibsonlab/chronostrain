@@ -184,11 +184,11 @@ def main(
         align_path = json_output_path.parent / f"_ALIGN_{json_output_path.stem}" / "multiple_alignment.fasta"
         marker_names = set(gene_paths.keys())
         marker_concatenated_multiple_alignments(raw_db, align_path, sorted(marker_names), logger)
-        prune_json_db(raw_json_path, 
-                      [s.id for s in raw_db.all_strains()], 
-                      pruned_json_path, 
-                      align_path, 
-                      logger, 
+        prune_json_db(raw_json_path,
+                      [s.id for s in raw_db.all_strains()],
+                      pruned_json_path,
+                      align_path,
+                      logger,
                       identity_threshold)
     else:
         logger.info("Skipping pruning.")

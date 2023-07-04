@@ -227,7 +227,7 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
         self.prune_reads()
         if prune_strains:
             self.prune_strains_by_read_max()
-            # self.prune_strains_by_correlation()
+            self.prune_strains_by_correlation()
             self.prune_reads()  # do this again to ensure all reads are still useful.
         AbstractADVI.__init__(self, self.create_posterior(), optimizer)
 
@@ -364,21 +364,16 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
         dtype = self.batches[0][0].dtype
         corr_min = None
         for t in range(self.model.num_times()):
-            first_moment = np.full(S, dtype=dtype, fill_value=-cnp.inf)
-            second_moment = np.full((S, S), dtype=dtype, fill_value=-cnp.inf)
+            first_moment = np.zeros(S, dtype=dtype)
+            second_moment = np.zeros((S, S), dtype=dtype)
             n = 0
             for batch_ll in self.batches[t]:
-                first_moment = np.logaddexp(
-                    first_moment,
-                    jax.nn.logsumexp(batch_ll, axis=-1)
-                )
-                second_moment = np.logaddexp(
-                    second_moment,
-                    log_mm_exp(batch_ll, batch_ll.T)
-                )
+                p_normalized = jax.nn.softmax(batch_ll, axis=0)
+                first_moment += np.sum(p_normalized, axis=1)
+                second_moment += p_normalized @ p_normalized.T
                 n += batch_ll.shape[-1]
-            first_moment = np.exp(first_moment) / n
-            second_moment = np.exp(second_moment) / n
+            first_moment = first_moment / n
+            second_moment = second_moment / n
             cov = second_moment - np.outer(first_moment, first_moment)
             del first_moment
             del second_moment
@@ -403,10 +398,10 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
         ).fit(1 - corr_min)
 
         n_clusters, cluster_labels = clustering.n_clusters_, clustering.labels_
-        cluster_representatives = np.array([
+        cluster_representatives = np.sort(np.array([
             np.where(cluster_labels == c)[0][0]  # Cluster rep is the first by index.
             for c in range(n_clusters)
-        ])
+        ]))
 
         for c in range(n_clusters):
             clust = np.where(cluster_labels == c)[0]
@@ -418,58 +413,13 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
                 correlation_threshold
             ))
 
-        pruned_strains = [self.model.bacteria_pop.strains[i] for i in np.sort(cluster_representatives)]
-
         # Update data structures
-        self.model.bacteria_pop = Population(pruned_strains)
+        self.model.bacteria_pop = Population([self.model.bacteria_pop.strains[i] for i in cluster_representatives])
         for t in range(self.model.num_times()):
             for batch_idx in range(len(self.batches[t])):
                 batch_ll = self.batches[t][batch_idx]
                 self.batches[t][batch_idx] = batch_ll[cluster_representatives, :]
         logger.debug("Pruned {} strains into {} using correlation-clustering heuristic.".format(S, len(cluster_representatives)))
-
-
-
-
-
-
-
-    # def prune_strains(self, tau=1.0):
-    #     """
-    #     Summary:
-    #     Consider the (S x R) likelihood matrix "A", where R is all reads concatenated, so that A[s,r] = log p(r|s).
-    #     Compute the altered matrix B[s,r] = A[s,r] - (max_s A[s,r]).
-    #     Compute the row-wise maximum b[s] = max_r B[s,r]
-    #     Remove all strains s for which "max_r B[s,r] < log(\tau)", where \tau < 0.
-    #
-    #     Effectively, all strains s for which ALL reads satisfy "p(r|s) < \tau * p(r|s_best)" is removed.
-    #     """
-    #     from chronostrain.model import Population
-    #
-    #     start_num = self.model.num_strains()
-    #     log_tau = cnp.log(tau)
-    #     b = np.full(self.model.num_strains(), fill_value=-cnp.inf)
-    #
-    #     for t in range(self.model.num_times()):
-    #         for batch_ll in self.batches[t]:
-    #             batch_ll_max = np.max(batch_ll, axis=0)
-    #             batch_ll_diff = batch_ll - batch_ll_max  # compute matrix "B" for this batch
-    #             batch_diff_maxes = np.max(batch_ll_diff, axis=1)  # compute max over reads in this batch
-    #             b = np.where(batch_diff_maxes > b, batch_diff_maxes, b)  # update maximum over all reads seen so far
-    #     pruned_strains = [
-    #         s
-    #         for s_idx, s in enumerate(self.model.bacteria_pop.strains)
-    #         if b[s_idx] >= log_tau
-    #     ]
-    #
-    #     # Update data structures
-    #     self.model.bacteria_pop = Population(pruned_strains)
-    #     for t in range(self.model.num_times()):
-    #         for batch_idx in range(len(self.batches[t])):
-    #             batch_ll = self.batches[t][batch_idx]
-    #             self.batches[t][batch_idx] = batch_ll[b >= log_tau, :]
-    #
-    #     logger.debug("Pruned {} strains into {}.".format(start_num, self.model.num_strains()))
 
     def advance_epoch(self, epoch):
         """

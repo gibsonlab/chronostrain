@@ -47,7 +47,8 @@ def find_and_resolve_overlaps(strain, refseq_index: pd.DataFrame, logger: Logger
             interval.begin,
             interval.end - 1,
             interval.data,
-            f"MERGED_{n_merged}_{strain_id}"
+            f"MERGED_{n_merged}_{strain_id}",
+            logger
         )
 
     if n_merged > 0:
@@ -60,12 +61,16 @@ def find_and_resolve_overlaps(strain, refseq_index: pd.DataFrame, logger: Logger
                 ))
 
 
-def merge_markers(refseq_index: pd.DataFrame, strain: Dict, start: int, end: int, to_merge: List[Dict], new_id: str):
+def merge_markers(refseq_index: pd.DataFrame, strain: Dict, start: int, end: int, to_merge: List[Dict], new_id: str, logger: Logger):
     """
     Merge a collection of markers, given a pre-computed leftmost position and rightmost position.
     Substitutes in-place the marker entries within the strain.
     """
-    new_name = resolve_overlap(refseq_index, strain['id'], start, end - 1)
+    try:
+        new_name = genomic_name_from_gff(refseq_index, strain['id'], start, end - 1)
+    except FileNotFoundError:
+        logger.warning("GFF file not found for {}.".format(strain['id']))
+        new_name = "-".join(m['name'] for m in to_merge)
     ids_to_remove = set([m['id'] for m in to_merge])
 
     strain['markers'] = [m for m in strain['markers'] if m['id'] not in ids_to_remove] + [{
@@ -84,7 +89,7 @@ def merge_markers(refseq_index: pd.DataFrame, strain: Dict, start: int, end: int
     }]
 
 
-def resolve_overlap(refseq_index: pd.DataFrame, offending_strain: str, start: int, end: int) -> str:
+def genomic_name_from_gff(refseq_index: pd.DataFrame, offending_strain: str, start: int, end: int) -> str:
     gff_path = Path(refseq_index.loc[refseq_index['Accession'] == offending_strain, 'GFF'].item())
     hits = search_gff_annotation(gff_path, start, end, target_accession=offending_strain)
     gene_names = sorted(list(hits.keys()), key=lambda g: hits[g][1] - hits[g][0], reverse=True)  # Descending order

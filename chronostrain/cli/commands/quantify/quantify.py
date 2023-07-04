@@ -35,9 +35,12 @@ def main(
 
     from chronostrain.model.io import TimeSeriesReads
     from chronostrain.config import cfg
+    from chronostrain.algs.subroutines.cache import ReadsPopulationCache
     from .helpers.evidence import quantify_evidence
+
     reads = TimeSeriesReads.load_from_csv(reads_input, partial_load=False)
     db = cfg.database_cfg.get_database()
+    cache = ReadsPopulationCache(reads, db)
 
     try:
         with open(inference_outdir / "strains.txt", "rt") as f:
@@ -45,7 +48,7 @@ def main(
 
         dataframes = []
         for t_idx, time_slice in enumerate(reads):
-            df_t = quantify_evidence(db, reads, strains, t_idx, logger)
+            df_t = quantify_evidence(db, reads, cache, strains, t_idx, logger)
             dataframes.append(df_t.assign(T=time_slice.time_point))
     except FileNotFoundError as e:
         logger.error("Could not find file {}. Check whether the inference actually finished.".format(e.filename))
