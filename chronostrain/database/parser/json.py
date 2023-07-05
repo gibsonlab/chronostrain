@@ -444,7 +444,7 @@ class JSONParser(AbstractDatabaseParser):
             logger.debug("Loaded database instance from {}.".format(self.disk_path()))
             return db
         except FileNotFoundError:
-            pass
+            logger.debug("Couldn't find instance ({}).".format(self.disk_path()))
 
         backend = PandasAssistedBackend()
         backend.add_strains(self.strains())
