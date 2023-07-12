@@ -218,13 +218,22 @@ class SparseLogLikelihoodComputer:
             indices.append([self.model.fragments.get_fragment_index(frag_seq), read.index])
             log_likelihood_values.append(error_ll)
 
-        return jsparse.BCOO(
-            (
-                np.array(log_likelihood_values, dtype=self.dtype),
-                np.array(indices, dtype=int)
-            ),
-            shape=(len(self.model.fragments), len(self.reads[t_idx])),
-        )
+        if len(indices) > 0:
+            return jsparse.BCOO(
+                (
+                    np.array(log_likelihood_values, dtype=self.dtype),
+                    np.array(indices, dtype=int)
+                ),
+                shape=(len(self.model.fragments), len(self.reads[t_idx])),
+            )
+        else:
+            return jsparse.BCOO(
+                (
+                    np.empty(shape=(0,), dtype=self.dtype),
+                    np.empty(shape=(0, 2), dtype=int),
+                ),
+                shape=(len(self.model.fragments), len(self.reads[t_idx])),
+            )
 
     def compute_likelihood_tensors(self) -> List[jsparse.BCOO]:
         """
