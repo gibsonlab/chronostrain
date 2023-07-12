@@ -221,7 +221,7 @@ class SparseLogLikelihoodComputer:
         return jsparse.BCOO(
             (
                 np.array(log_likelihood_values, dtype=self.dtype),
-                np.array(indices)
+                np.array(indices, dtype=int)
             ),
             shape=(len(self.model.fragments), len(self.reads[t_idx])),
         )
