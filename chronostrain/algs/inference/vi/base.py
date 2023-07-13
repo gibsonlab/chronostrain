@@ -361,7 +361,7 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
         from chronostrain.model import Population
 
         S = self.model.bacteria_pop.num_strains()
-        dtype = self.batches[0][0].dtype
+        dtype = cfg.engine_cfg.dtype
         corr_min = None
         for t in range(self.model.num_times()):
             first_moment = np.zeros(S, dtype=dtype)
