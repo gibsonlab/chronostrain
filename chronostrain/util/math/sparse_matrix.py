@@ -169,7 +169,7 @@ def _log_spspmm_exp_lax_sparsex(x_indices: np.ndarray, x_values: np.ndarray,
         )
 
     return jax.lax.fori_loop(
-        0, len(y_values),
+        0, len(x_values),
         _helper,
         (ans_buf, x_indices, x_values, y_indices, y_values)
     )[0]

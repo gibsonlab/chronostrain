@@ -157,7 +157,7 @@ def main(
     from chronostrain.model import Population
     from chronostrain.model.io import TimeSeriesReads
     import chronostrain.visualizations as viz
-    from .initializers import load_fragments, load_fragments_dynamic, perform_advi
+    from .helpers import load_fragments, load_fragments_dynamic, perform_advi
 
     # ============ Create database instance.
     db = cfg.database_cfg.get_database()
