@@ -68,10 +68,10 @@ def main(
     )
 
     with open(inference_outdir / "strains.txt", "rt") as f:
-        target_strains = db.get_strains([line.strip() for line in f])
+        target_strain_ids = [line.strip() for line in f]
 
     df = quantify_evidence(
-        db, model, reads, logger, target_strains, read_batch_size=read_batch_size
+        db, model, reads, logger, target_strain_ids, read_batch_size=read_batch_size
     )
     df.to_feather(inference_outdir / "evidence.feather")
 
