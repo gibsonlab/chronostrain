@@ -16,7 +16,7 @@ from chronostrain.util.math import log_spspmm_exp
 from chronostrain.util.optimization import LossOptimizer
 
 from .. import AbstractModelSolver
-from .util import divide_columns_into_batches_sparse, log_mm_exp
+from .util import divide_columns_into_batches_sparse
 
 from chronostrain.logging import create_logger
 logger = create_logger(__name__)
@@ -227,8 +227,10 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
         self.prune_reads()
         if prune_strains:
             self.prune_strains_by_read_max()
-            self.prune_strains_by_correlation()
+            self.adhoc_clusters = self.prune_strains_by_correlation()
             self.prune_reads()  # do this again to ensure all reads are still useful.
+        else:
+            self.adhoc_clusters = {}
         AbstractADVI.__init__(self, self.create_posterior(), optimizer)
 
     # noinspection PyAttributeOutsideInit
@@ -403,6 +405,7 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
             for c in range(n_clusters)
         ]))
 
+        adhoc_clusters = {}
         for c in range(n_clusters):
             clust = np.where(cluster_labels == c)[0]
             if len(clust) == 1:
@@ -413,6 +416,14 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
                 correlation_threshold
             ))
 
+            # Record it into a data structure
+            rep_idx = cluster_representatives[c]
+            rep_strain = self.model.bacteria_pop.strains[rep_idx]
+            adhoc_clusters[rep_strain.id] = [
+                self.model.bacteria_pop.strains[c_idx].id
+                for c_idx in clust
+            ]
+
         # Update data structures
         self.model.bacteria_pop = Population([self.model.bacteria_pop.strains[i] for i in cluster_representatives])
         for t in range(self.model.num_times()):
@@ -420,6 +431,7 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
                 batch_ll = self.batches[t][batch_idx]
                 self.batches[t][batch_idx] = batch_ll[cluster_representatives, :]
         logger.debug("Pruned {} strains into {} using correlation-clustering heuristic.".format(S, len(cluster_representatives)))
+        return adhoc_clusters
 
     def advance_epoch(self, epoch):
         """

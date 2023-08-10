@@ -67,24 +67,11 @@ def main(
         logger=logger
     )
 
-    # try:
-    #     with open(inference_outdir / "strains.txt", "rt") as f:
-    #         strains = db.get_strains([line.strip() for line in f])
-    #
-    #     dataframes = []
-    #     for t_idx, time_slice in enumerate(reads):
-    #         df_t = quantify_evidence(db, reads, cache, strains, t_idx, logger)
-    #         dataframes.append(df_t.assign(T=time_slice.time_point))
-    # except FileNotFoundError as e:
-    #     logger.error("Could not find file {}. Check whether the inference actually finished.".format(e.filename))
-    #     exit(1)
-    #
-    # df_concat = pd.concat(dataframes, axis=0, ignore_index=True)
-    # del dataframes
+    with open(inference_outdir / "strains.txt", "rt") as f:
+        target_strains = db.get_strains([line.strip() for line in f])
 
-    # df_concat.to_feather(inference_outdir / "evidence.feather")
     df = quantify_evidence(
-        db, model, reads, logger, read_batch_size=read_batch_size
+        db, model, reads, logger, target_strains, read_batch_size=read_batch_size
     )
     df.to_feather(inference_outdir / "evidence.feather")
 

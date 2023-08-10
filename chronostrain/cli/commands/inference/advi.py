@@ -246,6 +246,15 @@ def main(
         for strain in solver.model.bacteria_pop.strains:
             print(strain.id, file=f)
 
+    # ==== Report any ad-hoc clustering.
+    if len(solver.adhoc_clusters) > 0:
+        with open(out_dir / "adhoc_cluster.txt", "wt") as f:
+            for rep, clust in solver.adhoc_clusters.items():
+                print("{}:{}".format(
+                    rep,
+                    ",".join(clust)
+                ), file=f)
+
     # ==== Save the posterior distribution.
     posterior.save(model_out_path)
     logger.debug(f"Saved model to `{model_out_path}`.")

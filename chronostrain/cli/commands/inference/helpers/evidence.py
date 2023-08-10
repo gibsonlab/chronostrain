@@ -1,7 +1,6 @@
-from typing import List
+from typing import Set
 from logging import Logger
 
-from pathlib import Path
 import numpy as cnp
 import scipy.special
 import pandas as pd
@@ -12,10 +11,8 @@ import jax.experimental.sparse as jsparse
 from chronostrain.config import cfg
 from chronostrain.algs.subroutines import SparseDataLikelihoods
 from chronostrain.database import StrainDatabase
-from chronostrain.model import Strain
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
-from chronostrain.util.cache import ComputationCache
 
 
 @jax.jit
@@ -121,9 +118,15 @@ def quantify_evidence(
         model: GenerativeModel,
         data: TimeSeriesReads,
         logger: Logger,
+        target_strains: Set[str],
         read_batch_size: int = 5000
 ):
     """Quantify evidence by calculating the best alignment score (according to the phred/random indel model)."""
+    target_strain_idx = [
+        i
+        for i, s in enumerate(db.all_strains())
+        if s.id in target_strains
+    ]
 
     from chronostrain.algs.inference.vi.util import divide_columns_into_batches_sparse
     data_likelihoods = SparseDataLikelihoods(
@@ -134,7 +137,6 @@ def quantify_evidence(
 
     df_entries = []
     for t_idx in range(model.num_times()):
-        total_sz_t = 0
         true_r_idx = -1
         for batch_idx, data_t_batch in enumerate(
                 divide_columns_into_batches_sparse(
@@ -147,6 +149,8 @@ def quantify_evidence(
             )
 
             batch_result = spsp_tropical_mm(model.fragment_frequencies_sparse.T, data_t_batch)  # (S,R_batch) -> Raw LL
+            batch_result = batch_result[target_strain_idx, :]
+
             batch_result_norm = scipy.special.softmax(batch_result, axis=0)  # (S,R_batch) -> Normalized Ratios
             batch_argsorted = np.argsort(batch_result, axis=0)
             batch_argmax = batch_argsorted[-1, :]  # highest idx
@@ -168,11 +172,12 @@ def quantify_evidence(
                     'TopStrainIdx': int(batch_argmax[batch_r_idx]),
                     'LLScore': float(batch_result[s_idx, batch_r_idx]),
                     'NormScore': float(batch_result_norm[s_idx, batch_r_idx]),
-                    'NormScore2': float(batch_result_norm[s_idx2, batch_r_idx])
+                    'NormScore2': float(batch_result_norm[s_idx2, batch_r_idx]),
+                    'TopStrainIdx2': int(batch_argmax2[batch_r_idx]),
                 })
     return pd.DataFrame(
         df_entries,
-        columns=['T', 'Read', 'TopStrainIdx', 'LLScore', 'NormScore', 'NormScore2']
+        columns=['T', 'Read', 'TopStrainIdx', 'LLScore', 'NormScore', 'NormScore2', 'TopStrainIdx2']
     )
 
 
