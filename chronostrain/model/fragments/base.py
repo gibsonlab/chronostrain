@@ -4,7 +4,7 @@
 from pathlib import Path
 
 import numpy as np
-from typing import Dict, List, Iterable
+from typing import Dict, List, Iterable, Iterator, Tuple
 
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
@@ -93,6 +93,8 @@ class FragmentSpace:
         """
         if self._contains_seq(seq):
             frag = self.get_fragment(seq)
+        elif self._contains_seq(seq.revcomp_seq()):
+            frag = self.get_fragment(seq.revcomp_seq())
         else:
             frag = self._create_frag(seq)
 
@@ -104,7 +106,7 @@ class FragmentSpace:
         return self.seq_to_frag.values()
 
     def get_fragment_index(self, seq: Sequence) -> int:
-        return self.seq_to_frag[self._seq_to_key(seq)].index
+        return self.get_fragment(seq).index
 
     def get_fragment(self, seq: Sequence) -> Fragment:
         """
@@ -117,7 +119,10 @@ class FragmentSpace:
         try:
             return self.seq_to_frag[self._seq_to_key(seq)]
         except KeyError:
-            raise KeyError("Sequence query (len={}) not in dictionary.".format(len(seq))) from None
+            try:
+                return self.seq_to_frag[self._seq_to_key(seq.revcomp_seq())]
+            except KeyError:
+                raise KeyError("Sequence query (len={}) not in dictionary.".format(len(seq))) from None
 
     def __str__(self):
         return ",".join(str(frag) for frag in self.frag_list)
@@ -141,6 +146,19 @@ class FragmentSpace:
             for fragment in self:
                 SeqIO.write([self.__to_fasta_record(fragment)], f, 'fasta')
         return out_path
+
+    def fragment_files_by_length(self, out_dir: Path) -> Iterator[Tuple[int, Path]]:
+        # First, assort fragments by length.
+        frag_lens = sorted(set(len(f) for f in self))
+
+        from Bio import SeqIO
+        for frag_len in frag_lens:
+            out_path = out_dir / f"__fragments_length_{frag_len}.fasta"
+            with open(out_path, "w") as f:
+                for fragment in self:
+                    if len(fragment) == frag_len:
+                        SeqIO.write([self.__to_fasta_record(fragment)], f, 'fasta')
+            yield frag_len, out_path
 
     def __to_fasta_record(self, fragment: Fragment) -> SeqRecord:
         return SeqRecord(

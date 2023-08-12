@@ -18,19 +18,20 @@ from chronostrain.util.math import save_sparse_matrix, load_sparse_matrix
 logger = create_logger(__name__)
 
 
-def convert_tabs_to_newlines(target_path: Path):
+def convert_tabs_to_newlines(src_path: Path, target_path: Path, append: bool):
     import subprocess
-    src_path = target_path.parent / '{}.original'.format(target_path.name)
-    target_path.rename(src_path)
 
-    with open(src_path, 'r') as infile, open(target_path, 'w') as outfile:
+    if append:
+        write_mode = 'a'
+    else:
+        write_mode = 'w'
+    with open(src_path, 'r') as infile, open(target_path, write_mode) as outfile:
         process = subprocess.Popen(
             ['tr', '\"\t\"', '\"\n\"'],
             stdin=infile,
             stdout=outfile
         )
         process.communicate()
-    src_path.unlink()
 
 
 class FragmentFrequencyComputer(object):
@@ -149,22 +150,25 @@ class FragmentFrequencyComputer(object):
 
     def search(self, fragments: FragmentSpace, output_path: Path, max_num_hits: int):
         logger.debug("Creating index for exact matches.")
-        bwa_index(self.db.multifasta_file, bwa_cmd='bwa')
+        bwa_index(self.db.multifasta_file, bwa_cmd='bwa', check_suffix='bwt')
 
         output_path.parent.mkdir(exist_ok=True, parents=True)
-        fragments_path = fragments.to_fasta(output_path.parent)
-        if not fragments_path.exists():
-            raise FileNotFoundError("Expected fragments file, but it does not exist. "
-                                    "This is an unexpected bug. Verify the cache to continue.")
-        bwa_fastmap(
-            output_path=output_path,
-            reference_path=self.db.multifasta_file,
-            query_path=fragments_path,
-            max_interval_size=max_num_hits,
-            min_smem_len=min(len(f) for f in fragments)
-        )
-        logger.debug("Converting tabs to newlines for parsing.")
-        convert_tabs_to_newlines(output_path)
+        output_path.unlink(missing_ok=True)
+        for frag_len, frag_fasta in fragments.fragment_files_by_length(output_path.parent):
+            fastmap_output_path = output_path.with_stem(
+                f'{output_path.stem}.{frag_len}'
+            )
+            bwa_fastmap(
+                output_path=fastmap_output_path,
+                reference_path=self.db.multifasta_file,
+                query_path=frag_fasta,
+                max_interval_size=max_num_hits,
+                min_smem_len=frag_len
+            )
+
+            logger.debug("Converting tabs to newlines for parsing.")
+            convert_tabs_to_newlines(fastmap_output_path, output_path, append=True)
+            fastmap_output_path.unlink()
 
     def parse(self,
               fragments: FragmentSpace,
@@ -207,41 +211,46 @@ class FragmentFrequencyComputer(object):
                 frag_len = int(f.readline().strip())
 
                 em_line = f.readline()
-                if em_line is None or (not em_line.startswith("EM")):
-                    raise RuntimeError("Expected `EM` tag, but found {}".format(em_line))
+                while em_line.startswith("EM"):
+                    frag_start = int(f.readline().strip())
+                    frag_end = int(f.readline().strip())
+                    num_hits = int(f.readline().strip())
 
-                frag_start = int(f.readline().strip())
-                frag_end = int(f.readline().strip())
-                num_hits = int(f.readline().strip())
+                    # Parse all hits on this "EM" record.
+                    for hit_idx in range(num_hits):
+                        marker_hit_token = f.readline().strip()
+                        if frag_end - frag_start != frag_len:
+                            continue  # don't do anything if it's not exact hits.
 
-                for hit_idx in range(num_hits):
-                    marker_hit_token = f.readline().strip()
-                    marker_desc, pos = marker_hit_token.split(':')
-                    pos = int(pos)
-                    gene_name, marker_id = marker_desc.split('|')
+                        marker_desc, pos = marker_hit_token.split(':')
+                        pos = int(pos)
+                        gene_name, marker_id = marker_desc.split('|')
 
-                    if frag_end - frag_start != frag_len:
-                        continue  # don't do anything if it's not exact hits.
-
-                    if pos < 0:
-                        continue  # Skip `-` strands (since fragments are canonically defined using the forward strand)
-
-                    res = marker_id_dataframe.loc[marker_id]
-                    if isinstance(res, pd.DataFrame):
-                        for _, row in res.iterrows():
-                            strain_id = row['StrainId']
-                            marker_idx = row['MarkerIdx']
+                        res = marker_id_dataframe.loc[marker_id]
+                        if isinstance(res, pd.DataFrame):
+                            for _, row in res.iterrows():
+                                strain_id = row['StrainId']
+                                marker_idx = row['MarkerIdx']
+                                strain_idx = strain_id_to_idx[strain_id]
+                                marker = self.db.backend.markers[marker_idx]
+                                hit_marker_len = len(marker)
+                        else:
+                            strain_id = res['StrainId']
+                            marker_idx = res['MarkerIdx']
                             strain_idx = strain_id_to_idx[strain_id]
                             marker = self.db.backend.markers[marker_idx]
                             hit_marker_len = len(marker)
-                            fragment_mapping_locations.append((hit_marker_len, strain_idx, pos))
-                    else:
-                        strain_id = res['StrainId']
-                        marker_idx = res['MarkerIdx']
-                        strain_idx = strain_id_to_idx[strain_id]
-                        marker = self.db.backend.markers[marker_idx]
-                        hit_marker_len = len(marker)
+
+                        if pos < 0:
+                            """
+                            Note: BWA fastmap output convention is to write +/-[position], where position is the first
+                            base on the FORWARD strand. The sign tells us whether or not to apply revcomp afterwards.
+                            """
+                            pos = -pos  # minus means negative strand; just flip the sign.
+
                         fragment_mapping_locations.append((hit_marker_len, strain_idx, pos))
+                    # Attempt to read next section. Either another "EM" or a break "//".
+                    em_line = f.readline()
 
                 if len(fragment_mapping_locations) > 0:
                     yield fragment, fragment_mapping_locations
@@ -250,11 +259,6 @@ class FragmentFrequencyComputer(object):
                         f"No exact matches found for fragment ID={fragment.index}."
                         f"Validate the output of bwa fastmap!"
                     )
-
-                break_line = f.readline().strip()
-                if break_line is None or break_line != "//":
-                    raise RuntimeError("Expected break token `//`, but  found {}".format(break_line))
-
 
 
 def frag_log_ll_numpy(frag_len_mean: float,

@@ -14,6 +14,7 @@ from .alignments import CachedReadMultipleAlignments, CachedReadPairwiseAlignmen
 from .cache import ReadsPopulationCache
 
 from chronostrain.logging import create_logger
+from ...util.sequences import Sequence
 
 logger = create_logger(__name__)
 
@@ -93,7 +94,7 @@ class SparseLogLikelihoodComputer:
         )
         return forward_ll - np.log(2)
 
-    def _compute_read_frag_alignments_pairwise(self, t_idx: int) -> Iterator[Tuple[SequenceRead, str, float]]:
+    def _compute_read_frag_alignments_pairwise(self, t_idx: int) -> Iterator[Tuple[SequenceRead, Sequence, float]]:
         """
         Iterate through the timepoint's SamHandler instances (if the reads of t_idx came from more than one path).
         Each of these SamHandlers provides alignment information.
@@ -110,7 +111,7 @@ class SparseLogLikelihoodComputer:
         Does NOT handle alignment of indels to indels! (e.g. for marker variant construction). By definition, 
         that requires multiple alignment.
         """
-        ll_threshold = -500
+        ll_threshold = -100
         for aln in self.pairwise_reference_alignments.alignments_by_timepoint(t_idx):
             included_pairs: Set[str] = set()
 

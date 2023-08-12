@@ -1,7 +1,11 @@
 from .commandline import *
 
 
-def bwa_index(reference_path: Path, bwa_cmd='bwa-mem2'):
+def bwa_index(reference_path: Path, bwa_cmd='bwa-mem2', check_suffix: str = None):
+    if check_suffix is not None:
+        if reference_path.with_suffix(f'{reference_path.suffix}.{check_suffix}').exists():
+            return
+
     exit_code = call_command(
         bwa_cmd,
         ['index', reference_path]
