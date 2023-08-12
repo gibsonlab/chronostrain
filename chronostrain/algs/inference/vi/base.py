@@ -408,13 +408,6 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
         adhoc_clusters = {}
         for c in range(n_clusters):
             clust = np.where(cluster_labels == c)[0]
-            if len(clust) == 1:
-                continue
-            clust_members = [self.model.bacteria_pop.strains[i] for i in clust]
-            logger.debug("Formed cluster [{}] due to data correlation greater than {}.".format(
-                ",".join(f'{s.id}({s.metadata.genus[0]}. {s.metadata.species} {s.name})' for s in clust_members),
-                correlation_threshold
-            ))
 
             # Record it into a data structure
             rep_idx = cluster_representatives[c]
@@ -423,6 +416,13 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
                 self.model.bacteria_pop.strains[c_idx].id
                 for c_idx in clust
             ]
+
+            if len(clust) > 1:
+                clust_members = [self.model.bacteria_pop.strains[i] for i in clust]
+                logger.debug("Formed cluster [{}] due to data correlation greater than {}.".format(
+                    ",".join(f'{s.id}({s.metadata.genus[0]}. {s.metadata.species} {s.name})' for s in clust_members),
+                    correlation_threshold
+                ))
 
         # Update data structures
         self.model.bacteria_pop = Population([self.model.bacteria_pop.strains[i] for i in cluster_representatives])
