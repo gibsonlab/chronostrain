@@ -36,7 +36,7 @@ if [ ! -f $filter_file ]; then
 fi
 
 mkdir -p $output_dir
-export CHRONOSTRAIN_CACHE_DIR="${trial_dir}/cache"
+export CHRONOSTRAIN_CACHE_DIR="${output_dir}/cache"
 export CHRONOSTRAIN_LOG_FILEPATH="${output_dir}/chronostrain.log"
 
 if [ -d $CHRONOSTRAIN_CACHE_DIR ]; then
@@ -52,17 +52,20 @@ chronostrain advi \
 	-r "${output_dir}/filtered/filtered_input_files.csv" \
 	-o ${output_dir} \
 	--correlation-mode "full" \
-	--seed ${INFERENCE_SEED} \
 	--iters $CHRONOSTRAIN_NUM_ITERS \
 	--epochs $CHRONOSTRAIN_NUM_EPOCHS \
 	--decay-lr $CHRONOSTRAIN_DECAY_LR \
 	--lr-patience ${CHRONOSTRAIN_LR_PATIENCE} \
-	--min-lr ${CHRONOSTRAIN_MIN_LR} \
+	--loss-tol ${CHRONOSTRAIN_LOSS_TOL} \
 	--learning-rate $CHRONOSTRAIN_LR \
 	--num-samples $CHRONOSTRAIN_NUM_SAMPLES \
 	--read-batch-size $CHRONOSTRAIN_READ_BATCH_SZ \
+	--min-lr ${CHRONOSTRAIN_MIN_LR} \
 	--plot-format "pdf" \
-	--plot-elbo
+	--plot-elbo \
+	--prune-strains \
+	--with-zeros \
+	--accumulate-gradients
 
 
 # ====== Record runtime
