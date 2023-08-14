@@ -54,7 +54,7 @@ reads_csv="${output_dir}/input_files.csv"
 echo "[*] Filtering reads..."
 start_time=$(date +%s%N)  # nanoseconds
 
-chronostrain filter \
+env JAX_PLATFORM_NAME=cpu chronostrain filter \
 -r ${reads_csv} \
 -o "${output_dir}/filtered" \
 --aligner bowtie2
