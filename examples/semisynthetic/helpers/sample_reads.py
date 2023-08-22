@@ -23,8 +23,8 @@ def parse_args():
                         help='<Required> The directory to which the reads should be output to.')
     parser.add_argument('-a', '--abundance_path', dest='abundance_path', required=True, type=str,
                         help='<Required> The path to the abundance CSV file.')
-    parser.add_argument('-i', '--index_path', dest='index_path', required=True, type=str,
-                        help='<Required> The path to the RefSeq index TSV file.')
+    parser.add_argument('-g', '--genome_dir', dest='genome_dir', type=str,
+                        help='<Required> The directory contaiing the genomes to simulate reads from.')
     parser.add_argument('-n', '--num_reads', dest='num_reads', required=True, type=int,
                         help='<Required> The number of synthetic reads to sample per time point.')
     parser.add_argument('-p', '--profiles', dest='profiles', required=True, nargs=2,
@@ -100,11 +100,9 @@ def main():
     index_path = out_dir / "input_files.csv"
     logger.info(f"Reads will be sampled to {index_path}.")
 
-    index_df = pd.read_csv(args.index_path, sep='\t')
-
     # Invoke art sampler on each time point.
     index_entries = sample_reads_from_rel_abundances(
-        index_df=index_df,
+        genome_dir=Path(args.genome_dir),
         time_points=time_points,
         read_counts=read_counts,
         out_dir=out_dir,
@@ -178,7 +176,7 @@ def parse_abundance_profile(abundance_path: str) -> List[Tuple[float, Dict]]:
 
 
 def sample_reads_from_rel_abundances(
-        index_df: pd.DataFrame,
+        genome_dir: Path,
         time_points: List[float],
         read_counts: List[Dict[str, int]],
         out_dir: Path,
@@ -198,11 +196,10 @@ def sample_reads_from_rel_abundances(
         index_entries = []
         for t_idx, (time_point, read_counts_t) in enumerate(zip(time_points, read_counts)):
             for strain_id, n_reads in read_counts_t.items():
-                refseq_rows = index_df.loc[index_df['Accession'] == strain_id]
-                if refseq_rows.shape[0] == 0:
-                    raise RuntimeError(f"Unable to locate strain id `{strain_id}`.")
-
-                fasta_path = Path(refseq_rows.head(1)['SeqPath'].item())
+                fasta_path = genome_dir / f'{strain_id}.fasta'
+                if not fasta_path.exists():
+                    logger.error(f"Fasta file {fasta_path} does not exist!")
+                    exit(1)
                 output_path_1, out_path_2 = art_illumina(
                     reference_path=fasta_path,
                     num_reads=n_reads,
@@ -227,11 +224,10 @@ def sample_reads_from_rel_abundances(
         configs = []
         for t_idx, (time_point, read_counts_t) in enumerate(zip(time_points, read_counts)):
             for strain_id, n_reads in read_counts_t.items():
-                refseq_rows = index_df.loc[index_df['Accession'] == strain_id]
-                if refseq_rows.shape[0] == 0:
-                    raise RuntimeError(f"Unable to locate strain id `{strain_id}`.")
-
-                fasta_path = Path(refseq_rows.head(1)['SeqPath'].item())
+                fasta_path = genome_dir / f'{strain_id}.fasta'
+                if not fasta_path.exists():
+                    logger.error(f"Fasta file {fasta_path} does not exist!")
+                    exit(1)
                 configs.append((
                     fasta_path,
                     n_reads,

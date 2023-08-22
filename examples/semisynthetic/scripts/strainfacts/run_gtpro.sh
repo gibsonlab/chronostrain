@@ -2,7 +2,6 @@
 set -e
 source settings.sh
 
-export PATH=${PATH}:${GT_PRO_BIN_DIR}
 n_reads=$1
 trial=$2
 
@@ -46,7 +45,7 @@ done
 echo "[*] Running 'GT_Pro genotype'..."
 start_time=$(date +%s%N)  # nanoseconds
 
-GT_Pro genotype -f \
+${GT_PRO_BIN_DIR}/GT_Pro genotype -f \
 -d ${GT_PRO_DB_DIR}/${GT_PRO_DB_NAME}/${GT_PRO_DB_NAME} \
 -t ${N_CORES} \
 -o ${output_dir}/%{n}_reads \
@@ -58,7 +57,7 @@ echo "[*] Parsing GT_Pro outputs..."
 
 for t_idx in 0 1 2 3 4; do
 	metagenotype="${t_idx}_reads.tsv"
-	GT_Pro parse --dict ${GT_PRO_DB_DIR}/${GT_PRO_DB_NAME}/${GT_PRO_DB_NAME}.snp_dict.noheader.tsv --in $metagenotype \
+	${GT_PRO_BIN_DIR}/GT_Pro parse --dict ${GT_PRO_DB_DIR}/${GT_PRO_DB_NAME}/${GT_PRO_DB_NAME}.snp_dict.noheader.tsv --in $metagenotype \
 	| awk -v t="${t_idx}" '{if (NR!=1) {print t "\t" $0;}}' >> $metagenotype_all
 done
 

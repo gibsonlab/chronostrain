@@ -36,7 +36,8 @@ download_sra()
 		--progress \
 		--outdir . \
 		--skip-technical \
-		--print-read-nr \
+		--seq-defline '@$ac.$si/$ri' \
+		--qual-defline '+' \
 		--force \
 		-t ${FASTERQ_TMP_DIR} \
 		"${SRA_PREFETCH_DIR}/${sra_id}/${sra_id}.sra"
@@ -142,7 +143,7 @@ do
 			python ${BASE_DIR}/helpers/sample_reads.py \
 			--out_dir $read_dir \
 			--abundance_path $RELATIVE_GROUND_TRUTH \
-			--index_path ${REFSEQ_INDEX} \
+			--genome_dir ${DATA_DIR}/sim_genomes \
 			--num_reads $n_reads \
 			--profiles $READ_PROFILE_PATH $READ_PROFILE_PATH \
 			--read_len $READ_LEN \

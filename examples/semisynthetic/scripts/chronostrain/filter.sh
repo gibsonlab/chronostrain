@@ -57,7 +57,7 @@ start_time=$(date +%s%N)  # nanoseconds
 env JAX_PLATFORM_NAME=cpu chronostrain filter \
 -r ${reads_csv} \
 -o "${output_dir}/filtered" \
---aligner bowtie2
+--aligner bwa-mem2
 
 # ====== Record runtime
 end_time=$(date +%s%N)

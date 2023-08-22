@@ -6,7 +6,6 @@ source settings.sh
 n_reads=$1
 trial=$2
 time_point=$3
-mode=$4
 
 if [ -z "$n_reads" ]
 then
@@ -23,17 +22,6 @@ fi
 if [ -z "$time_point" ]
 then
 	echo "var \"time_point\" is empty"
-	exit 1
-fi
-
-if [[ "$mode" == "chromosome" ]]
-then
-	straingst_db=${STRAINGST_CHROMOSOME_DB_HDF5}
-elif [[ "$mode" == "marker" ]]
-then
-	straingst_db=${STRAINGST_MARKER_DB_HDF5}
-else
-	echo "var \"mode\" must be either \"chromosome\" or \"marker\"."
 	exit 1
 fi
 
@@ -70,7 +58,7 @@ echo "[*] Running StrainGST."
 mkdir -p ${output_dir}/${mode}
 straingst run \
 -o ${output_dir}/${mode}/output_mash_${time_point}.tsv \
-${straingst_db} \
+${STRAINGST_CHROMOSOME_DB_HDF5} \
 ${read_kmers}
 
 # ====== Record runtime

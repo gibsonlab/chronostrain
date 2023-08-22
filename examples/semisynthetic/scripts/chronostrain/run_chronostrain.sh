@@ -31,7 +31,7 @@ if [ -f $runtime_file ]; then
 fi
 
 if [ ! -f $filter_file ]; then
-	echo "[*] Filtered result not found."
+	echo "[*] Filtered result not found for (n_reads: ${n_reads}, trial: ${trial})"
 	exit 1
 fi
 
@@ -63,9 +63,9 @@ chronostrain advi \
 	--min-lr ${CHRONOSTRAIN_MIN_LR} \
 	--plot-format "pdf" \
 	--plot-elbo \
-	--prune-strains \
-	--with-zeros \
-	--accumulate-gradients
+	--prune-strains
+#	--with-zeros \
+#	--accumulate-gradients
 
 
 # ====== Record runtime
