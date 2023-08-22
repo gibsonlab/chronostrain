@@ -400,18 +400,20 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
         ).fit(1 - corr_min)
 
         n_clusters, cluster_labels = clustering.n_clusters_, clustering.labels_
-        cluster_representatives = np.sort(np.array([
+        cluster_representatives = np.array([
             np.where(cluster_labels == c)[0][0]  # Cluster rep is the first by index.
             for c in range(n_clusters)
-        ]))
+        ])
+
+        clust_order = np.argsort(cluster_representatives)
+        cluster_representatives = cluster_representatives[clust_order]
 
         adhoc_clusters = {}
-        for c in range(n_clusters):
-            clust = np.where(cluster_labels == c)[0]
+        for clust_idx, clust_rep_idx in zip(clust_order, cluster_representatives):
+            clust = np.where(cluster_labels == clust_idx)[0]
 
             # Record it into a data structure
-            rep_idx = cluster_representatives[c]
-            rep_strain = self.model.bacteria_pop.strains[rep_idx]
+            rep_strain = self.model.bacteria_pop.strains[clust_rep_idx]
             adhoc_clusters[rep_strain.id] = [
                 self.model.bacteria_pop.strains[c_idx].id
                 for c_idx in clust
