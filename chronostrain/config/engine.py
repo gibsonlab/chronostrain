@@ -7,7 +7,7 @@ import jax
 class EngineConfig(AbstractConfig):
 
     def __init__(self, cfg: dict):
-        super().__init__("PyTorch", cfg)
+        super().__init__("Engine", cfg)
         self.prng_key = jax.random.PRNGKey(self.get_int("PRNG_Key"))
         self.dtype = self.get_str("DTYPE")
 
