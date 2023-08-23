@@ -51,7 +51,7 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
             read_batch_size=read_batch_size
         )
         self.temperature = np.array(10., dtype=dtype)
-        self.temp_min = 0.01
+        self.temp_min = 1e-4
         self.n_epochs_at_current_temp = 0
         self.zero_model = zero_model
 

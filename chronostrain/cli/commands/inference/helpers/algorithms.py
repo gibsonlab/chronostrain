@@ -62,26 +62,24 @@ def perform_advi(
     else:
         initial_bias = None
 
+    lr_scheduler = ReduceLROnPlateauLast(
+        initial_lr=learning_rate,
+        mode='max',
+        min_lr=0.1 * min_lr,
+        factor=lr_decay_factor,
+        patience=lr_patience,
+        threshold=loss_tol * 1e1,
+        threshold_mode='rel',
+        eps=0.01 * min_lr
+    )
+    optimizer = Adam(
+        lr_scheduler=lr_scheduler,
+        minimize_objective=False
+    )
+
     if with_zeros:
         from chronostrain.model.zeros import PopulationGlobalZeros
         zero_model = PopulationGlobalZeros(model.bacteria_pop.num_strains(), prior_p=prior_p)
-        lr_scheduler = ReduceLROnPlateauLast(
-            initial_lr=learning_rate,
-            mode='max',
-            min_lr=min_lr,
-            factor=lr_decay_factor,
-            patience=lr_patience,
-            threshold=1e-4,
-            threshold_mode='rel'
-        )
-        optimizer = Adam(
-            lr_scheduler=lr_scheduler,
-            minimize_objective=False,
-            eps=1e-4,
-            beta1=0.5,
-            beta2=0.999
-        )
-
         solver = ADVIGaussianZerosSolver(
             model=model,
             zero_model=zero_model,
@@ -96,20 +94,6 @@ def perform_advi(
             prune_strains=prune_strains
         )
     else:
-        lr_scheduler = ReduceLROnPlateauLast(
-            initial_lr=learning_rate,
-            mode='max',
-            min_lr=min_lr,
-            factor=lr_decay_factor,
-            patience=lr_patience,
-            threshold=1e-4,
-            threshold_mode='rel'
-        )
-        optimizer = Adam(
-            lr_scheduler=lr_scheduler,
-            minimize_objective=False,
-            eps=1e-4
-        )
         solver = ADVIGaussianSolver(
             model=model,
             data=reads,

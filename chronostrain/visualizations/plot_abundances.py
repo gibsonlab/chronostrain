@@ -280,7 +280,6 @@ def render_posterior_abundances(
     quantile_values = parse_quantiles(traj_samples, quantiles)  # size Q x T
 
     if np.sum(quantile_values[-1, :] > strain_trunc_level) == 0:
-        logger.debug(f"Strain label `{label}` didn't meet criteria for plotting.")
         return
 
     median = np.quantile(traj_samples, q=0.5, axis=1)

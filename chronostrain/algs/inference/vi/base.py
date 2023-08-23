@@ -405,11 +405,8 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
             for c in range(n_clusters)
         ])
 
-        clust_order = np.argsort(cluster_representatives)
-        cluster_representatives = cluster_representatives[clust_order]
-
         adhoc_clusters = {}
-        for clust_idx, clust_rep_idx in zip(clust_order, cluster_representatives):
+        for clust_idx, clust_rep_idx in enumerate(cluster_representatives):
             clust = np.where(cluster_labels == clust_idx)[0]
 
             # Record it into a data structure
@@ -427,6 +424,7 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
                 ))
 
         # Update data structures
+        cluster_representatives = np.sort(cluster_representatives)
         self.model.bacteria_pop = Population([self.model.bacteria_pop.strains[i] for i in cluster_representatives])
         for t in range(self.model.num_times()):
             for batch_idx in range(len(self.batches[t])):
