@@ -60,6 +60,7 @@ cat ${pseudoalignment_dir}/${time_point}_background_2.output.txt >> $rev_input
 echo "[*] Running mSWEEP"
 cd ${output_dir}
 start_time=$(date +%s%N)  # nanoseconds
+echo "USING CLUSTERS FROM ${THEMISTO_DB_DIR}"
 mSWEEP \
   --themisto-1 ${fwd_input} \
   --themisto-2 ${rev_input} \
