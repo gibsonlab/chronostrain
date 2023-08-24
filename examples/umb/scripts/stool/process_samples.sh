@@ -19,10 +19,11 @@ append_fastq()
 
 	num_lines=$(pigz -dc $gzip_fq_path | wc -l | awk '{print $1}')
 	num_reads=$((${num_lines} / 4))
+  mkdir -p ${OUTPUT_DIR}/${umb_id}
 
 	if [[ -s "${gzip_fq_path}" ]] && [[ ${num_reads} > 0 ]]; then
-		echo "Adding record ${gzip_fq_path} to ${READS_DIR}/${umb_id}_inputs.csv"
-		echo "${time},${num_reads},\"${gzip_fq_path}\",${read_type},${qual_fmt}" >> "${READS_DIR}/${umb_id}_inputs.csv"
+		echo "Adding record ${gzip_fq_path} to ${OUTPUT_DIR}/${umb_id}/reads.csv"
+		echo "${time},${num_reads},\"${gzip_fq_path}\",${read_type},${qual_fmt}" >> ${OUTPUT_DIR}/${umb_id}/reads.csv
 	else
 		echo "Skipping empty record ${gzip_fq_path}"
 	fi
@@ -31,8 +32,8 @@ append_fastq()
 # ================================= Main script ==================================
 
 # Clear index file.
-mkdir -p ${READS_DIR}
-find ${READS_DIR} -maxdepth 1 -name *_inputs.csv -type f -exec rm '{}' \;
+mkdir -p ${OUTPUT_DIR}
+find ${OUTPUT_DIR} -maxdepth 2 -name reads.csv -type f -exec rm '{}' \;
 
 SRA_CSV_PATH="${BASE_DIR}/files/umb_samples.csv"
 

@@ -9,11 +9,20 @@ SEED=31415
 
 for umb_id in UMB01 UMB02 UMB03 UMB04 UMB05 UMB06 UMB07 UMB08 UMB09 UMB10 UMB11 UMB12 UMB13 UMB14 UMB15 UMB16 UMB17 UMB18 UMB19 UMB20 UMB21 UMB22 UMB23 UMB24 UMB25 UMB26 UMB27 UMB28 UMB29 UMB30 UMB31
 do
-	export CHRONOSTRAIN_LOG_FILEPATH="${LOGDIR}/filter_${umb_id}.log"
+  run_dir=${OUTPUT_DIR}/${umb_id}
+  breadcrumb=${run_dir}/filter.DONE
+	export CHRONOSTRAIN_LOG_FILEPATH="${run_dir}/logs/chronostrain_filter.log"
 
-	echo "Filtering reads for ${umb_id}"
-	chronostrain filter \
-	-r "${READS_DIR}/${umb_id}_inputs.csv" \
-	-o "${READS_DIR}/${umb_id}_filtered" \
-	--aligner "bowtie2"
+	if [ -f $breadcrumb ]
+	then
+	  echo "Skipping filter for ${umb_id}."
+	else
+    echo "[*] Filtering reads for ${umb_id}"
+    env JAX_PLATFORM_NAME=cpu chronostrain filter \
+    -r "${run_dir}/reads.csv" \
+    -o "${run_dir}/filtered" \
+    --aligner "bwa-mem2"
+
+	  touch $breadcrumb
+	fi
 done
