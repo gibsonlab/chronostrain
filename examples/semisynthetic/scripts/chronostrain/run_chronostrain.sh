@@ -63,8 +63,8 @@ chronostrain advi \
 	--min-lr ${CHRONOSTRAIN_MIN_LR} \
 	--plot-format "pdf" \
 	--plot-elbo \
-	--prune-strains
-#	--with-zeros \
+	--prune-strains \
+	--with-zeros
 #	--accumulate-gradients
 
 

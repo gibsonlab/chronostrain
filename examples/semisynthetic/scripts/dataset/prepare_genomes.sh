@@ -16,21 +16,35 @@ do
 done < ${REFSEQ_INDEX}
 
 
-python ${BASE_DIR}/helpers/mutate_genome.py \
-  -i ${DATA_DIR}/sim_genomes/NZ_CP092452.1.fasta \
-  -o ${DATA_DIR}/sim_genomes/NZ_CP092452.1.sim_mutant.fasta \
-  -j ${CHRONOSTRAIN_DB_JSON_SRC} \
-  -d 0.002 \
-  -sid NZ_CP092452.1 \
-  -tid NZ_CP092452.1.sim_mutant \
-  -s 31415
+create_mutant()
+{
+  src_acc=$1
+  tgt_acc=$2
+  seed=$3
+  mutation_rate=$4
+  db_json=$5
+  python ${BASE_DIR}/helpers/mutate_genome.py \
+    -i ${DATA_DIR}/sim_genomes/${src_acc}.fasta \
+    -o ${DATA_DIR}/sim_genomes/${tgt_acc}.fasta \
+    -j ${db_json} \
+    -d ${mutation_rate} \
+    -sid ${src_acc} \
+    -tid ${tgt_acc} \
+    -s ${seed}
+}
 
 
-python ${BASE_DIR}/helpers/mutate_genome.py \
-  -i ${DATA_DIR}/sim_genomes/NZ_CP024859.1.fasta \
-  -o ${DATA_DIR}/sim_genomes/NZ_CP024859.1.sim_mutant.fasta \
-  -j ${CHRONOSTRAIN_DB_JSON_SRC} \
-  -d 0.002 \
-  -sid NZ_CP024859.1 \
-  -tid NZ_CP024859.1.sim_mutant \
-  -s 27182
+# ======================== genomes to include in database
+create_mutant NZ_CP092452.1 NZ_CP092452.1.sim_mutant 31415 0.002 ${CHRONOSTRAIN_DB_JSON_SRC}
+create_mutant NZ_CP024859.1 NZ_CP024859.1.sim_mutant 27182 0.002 ${CHRONOSTRAIN_DB_JSON_SRC}
+
+
+# ======================== Update chronostrain JSON.
+bash chronostrain/prepare_chronostrain.sh  # this initializes the JSON file at CHRONOSTRAIN_DB_JSON
+
+
+# ======================== genomes to simulate reads from
+create_mutant NZ_CP092452.1 NZ_CP092452.1.READSIM_MUTANT 1 0.001 ${CHRONOSTRAIN_DB_JSON}
+create_mutant NZ_CP024859.1 NZ_CP024859.1.READSIM_MUTANT 2 0.001 ${CHRONOSTRAIN_DB_JSON}
+create_mutant NZ_CP092452.1.sim_mutant NZ_CP092452.1.sim_mutant.READSIM_MUTANT 3 0.001 ${CHRONOSTRAIN_DB_JSON}
+create_mutant NZ_CP024859.1.sim_mutant NZ_CP024859.1.sim_mutant.READSIM_MUTANT 4 0.001 ${CHRONOSTRAIN_DB_JSON}

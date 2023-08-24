@@ -52,6 +52,11 @@ base_alphabet = ['A', 'C', 'G', 'T']
     type=int, required=True,
     help='The random seed to use for simulation. Required for reproducibility.'
 )
+@click.option(
+    '--marker-only/--whole-genome', 'marker_only',
+    is_flag=True, default=False,
+    help='Specify whether to include zeros into the model..'
+)
 def main(
         input_genome_path: Path,
         output_genome_path: Path,
@@ -59,7 +64,8 @@ def main(
         snv_density: float,
         source_id: str,
         target_id: str,
-        seed: int
+        seed: int,
+        marker_only: bool
 ):
     if snv_density < 0.0 or snv_density > 1.0:
         print("snv density must be between 0.0 and 1.0.")
@@ -70,11 +76,16 @@ def main(
 
     strain_entry = search_json(json_chronostrain_db, source_id)
 
-    marker_regions = [
-        (m['start'], m['end'])
-        for m in strain_entry['markers']
-    ]
-    mutated_seq = mutate(record.seq, snv_density, rng, markers=marker_regions)
+    if marker_only:
+        print("Mutating marker regions only.")
+        marker_regions = [
+            (m['start'], m['end'])
+            for m in strain_entry['markers']
+        ]
+        mutated_seq = mutate(record.seq, snv_density, rng, markers=marker_regions)
+    else:
+        print("Mutating across whole genome.")
+        mutated_seq = mutate(record.seq, snv_density, rng, markers=None)
 
     if len(target_id) == 0:
         target_id = f'{record.id}.sim_mutant'
@@ -110,7 +121,7 @@ def mutate(genome: Seq, density: float, rng: np.random.Generator, markers: List[
             np.sum(mask) / len(mask)
         ))
     else:
-        mask = np.ones(len(buf), dtype=bool)
+        mask = np.full(shape=len(buf), fill_value=True, dtype=bool)
     rng_coins = rng.uniform(low=0, high=1.0, size=len(buf)) < density
     rng_coins = rng_coins & mask
 
