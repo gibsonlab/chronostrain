@@ -102,7 +102,7 @@ do
 
 	if [ -f "${tidx}_background_1.fq" ] && [ -f "${tidx}_background_2.fq" ]
 	then
-		echo "[*] Background reads already found!"
+		echo "[*] Background reads for t_idx=${tidx} already found!"
 	else
 		raw_gz1=${raw_sample_dir}/${sra_id}_1.fastq.gz
 		raw_gz2=${raw_sample_dir}/${sra_id}_2.fastq.gz
@@ -120,35 +120,37 @@ done < ${BACKGROUND_CSV}
 
 
 # =============== Sample synthetic reads
-for (( trial = 1; trial < ${N_TRIALS}+1; trial++ ));
-do
-	for n_reads in "${SYNTHETIC_COVERAGES[@]}"
-	do
-		seed=$((seed+1))
+for (( replicate = 1; replicate < ${N_GENOME_REPLICATES}+1; replicate++ )); do
+  replicate_dir=${DATA_DIR}/replicate_${replicate}
 
-		trial_dir=$(get_trial_dir $n_reads $trial)
-		read_dir=${trial_dir}/reads
-		log_dir=${trial_dir}/logs
+  for (( trial = 1; trial < ${N_TRIALS}+1; trial++ )); do
+    for n_reads in "${SYNTHETIC_COVERAGES[@]}"; do
+      seed=$((seed+1))
 
-		if [[ -d "${read_dir}" ]]; then
-			echo "[*] Skipping reads: ${n_reads}, trial #${trial}] -> ${trial_dir}"
-		else
-			echo "Sampling [Number of reads: ${n_reads}, trial #${trial}] -> ${trial_dir}"
+      trial_dir=$(get_trial_dir $replicate $n_reads $trial)
+      read_dir=${trial_dir}/reads
 
-			mkdir -p $log_dir
-			mkdir -p $read_dir
-			export CHRONOSTRAIN_LOG_FILEPATH="${log_dir}/read_sample.log"
-			export CHRONOSTRAIN_CACHE_DIR="${trial_dir}/cache"
+      if [[ -d "${read_dir}" ]]; then
+        echo "[*] Skipping reads: ${n_reads}, trial #${trial}] -> ${trial_dir}"
+      else
+        echo "Sampling [Number of reads: ${n_reads}, trial #${trial}] -> ${trial_dir}"
 
-			python ${BASE_DIR}/helpers/sample_reads.py \
-			--out_dir $read_dir \
-			--abundance_path $RELATIVE_GROUND_TRUTH \
-			--genome_dir ${DATA_DIR}/sim_genomes \
-			--num_reads $n_reads \
-			--profiles $READ_PROFILE_PATH $READ_PROFILE_PATH \
-			--read_len $READ_LEN \
-			--seed ${seed} \
-			--num_cores $N_CORES
-		fi
-	done
+        mkdir -p $read_dir
+        export CHRONOSTRAIN_DB_JSON=${replicate_dir}/databases/chronostrain/ecoli.json
+        export CHRONOSTRAIN_DB_DIR=${replicate_dir}/databases/chronostrain
+        export CHRONOSTRAIN_LOG_FILEPATH="${read_dir}/read_simulation.log"
+        export CHRONOSTRAIN_CACHE_DIR="${trial_dir}/cache"
+
+        python ${BASE_DIR}/helpers/sample_reads.py \
+        --out_dir $read_dir \
+        --abundance_path $RELATIVE_GROUND_TRUTH \
+        --genome_dir ${DATA_DIR}/replicate_${replicate}/sim_genomes \
+        --num_reads $n_reads \
+        --profiles $READ_PROFILE_PATH $READ_PROFILE_PATH \
+        --read_len $READ_LEN \
+        --seed ${seed} \
+        --num_cores $N_CORES
+      fi
+    done
+  done
 done

@@ -3,15 +3,23 @@ set -e
 source settings.sh
 
 
-mkdir -p ${DATA_DIR}/sim_genomes
+base_seed=$1
+replicate=$2
+require_variable "base_seed" $base_seed
+require_variable "replicate" $replicate
+
+
+replicate_dir=${DATA_DIR}/replicate_${replicate}
+genome_dir=${replicate_dir}/sim_genomes
+mkdir -p $genome_dir
 
 # Copy existing reference genomes
 while IFS=$'\t' read -r -a columns
 do
   acc="${columns[3]}"
   seq_path="${columns[5]}"
-  if [ "${acc}" == "NZ_CP092452.1" ] || [ "${acc}" == "NZ_CP024859.1" ]; then
-    cp ${seq_path} ${DATA_DIR}/sim_genomes/${acc}.fasta
+  if [ "${acc}" == "NZ_CP022154.1" ] || [ "${acc}" == "NZ_LR536430.1" ]; then
+    ln -s ${seq_path} ${genome_dir}/${acc}.fasta
   fi
 done < ${REFSEQ_INDEX}
 
@@ -24,8 +32,8 @@ create_mutant()
   mutation_rate=$4
   db_json=$5
   python ${BASE_DIR}/helpers/mutate_genome.py \
-    -i ${DATA_DIR}/sim_genomes/${src_acc}.fasta \
-    -o ${DATA_DIR}/sim_genomes/${tgt_acc}.fasta \
+    -i ${genome_dir}/${src_acc}.fasta \
+    -o ${genome_dir}/${tgt_acc}.fasta \
     -j ${db_json} \
     -d ${mutation_rate} \
     -sid ${src_acc} \
@@ -35,16 +43,17 @@ create_mutant()
 
 
 # ======================== genomes to include in database
-create_mutant NZ_CP092452.1 NZ_CP092452.1.sim_mutant 31415 0.002 ${CHRONOSTRAIN_DB_JSON_SRC}
-create_mutant NZ_CP024859.1 NZ_CP024859.1.sim_mutant 27182 0.002 ${CHRONOSTRAIN_DB_JSON_SRC}
+create_mutant NZ_CP022154.1 NZ_CP022154.1.sim_mutant "${base_seed}1" 0.002 ${CHRONOSTRAIN_DB_JSON_SRC}
+create_mutant NZ_LR536430.1 NZ_LR536430.1.sim_mutant "${base_seed}2" 0.002 ${CHRONOSTRAIN_DB_JSON_SRC}
 
 
 # ======================== Update chronostrain JSON.
-bash chronostrain/prepare_chronostrain.sh  # this initializes the JSON file at CHRONOSTRAIN_DB_JSON
+bash dataset/append_chronostrain_json.sh $replicate  # this initializes the JSON file at CHRONOSTRAIN_DB_JSON
 
 
 # ======================== genomes to simulate reads from
-create_mutant NZ_CP092452.1 NZ_CP092452.1.READSIM_MUTANT 1 0.001 ${CHRONOSTRAIN_DB_JSON}
-create_mutant NZ_CP024859.1 NZ_CP024859.1.READSIM_MUTANT 2 0.001 ${CHRONOSTRAIN_DB_JSON}
-create_mutant NZ_CP092452.1.sim_mutant NZ_CP092452.1.sim_mutant.READSIM_MUTANT 3 0.001 ${CHRONOSTRAIN_DB_JSON}
-create_mutant NZ_CP024859.1.sim_mutant NZ_CP024859.1.sim_mutant.READSIM_MUTANT 4 0.001 ${CHRONOSTRAIN_DB_JSON}
+db_json_replicate=${replicate_dir}/databases/chronostrain/ecoli.json
+create_mutant NZ_CP022154.1 NZ_CP022154.1.READSIM_MUTANT "${base_seed}3" 0.001 ${db_json_replicate}
+create_mutant NZ_LR536430.1 NZ_LR536430.1.READSIM_MUTANT "${base_seed}4" 0.001 ${db_json_replicate}
+create_mutant NZ_CP022154.1.sim_mutant NZ_CP022154.1.sim_mutant.READSIM_MUTANT "${base_seed}5" 0.001 ${db_json_replicate}
+create_mutant NZ_LR536430.1.sim_mutant NZ_LR536430.1.sim_mutant.READSIM_MUTANT "${base_seed}6" 0.001 ${db_json_replicate}

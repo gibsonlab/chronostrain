@@ -3,68 +3,68 @@ set -e
 source settings.sh
 
 # ============ Requires arguments:
-n_reads=$1
-trial=$2
+replicate=$1
+n_reads=$2
+trial=$3
 
-if [ -z "$n_reads" ]
-then
-	echo "var \"n_reads\" is empty"
-	exit 1
-fi
-
-if [ -z "$trial" ]
-then
-	echo "var \"trial\" is empty"
-	exit 1
-fi
+require_variable "replicate" $replicate
+require_variable "n_reads" $n_reads
+require_variable "trial" $trial
 
 # ============ script body:
-trial_dir=$(get_trial_dir $n_reads $trial)
+replicate_dir=$(get_replicate_dir "$replicate")
+trial_dir=$(get_trial_dir $replicate $n_reads $trial)
 read_dir=${trial_dir}/reads
 output_dir=${trial_dir}/output/chronostrain
 runtime_file=${trial_dir}/output/chronostrain_runtime.txt
 filter_file=${trial_dir}/output/chronostrain_filter_runtime.txt
 
 if [ -f $runtime_file ]; then
-	echo "[*] Skipping Chronostrain Inference (n_reads: ${n_reads}, trial: ${trial})"
+	echo "[*] Skipping Chronostrain Inference (replicate: ${replicate}, n_reads: ${n_reads}, trial: ${trial})"
 	exit 0
 fi
 
 if [ ! -f $filter_file ]; then
-	echo "[*] Filtered result not found for (n_reads: ${n_reads}, trial: ${trial})"
+	echo "[*] Filtered result not found for (replicate: ${replicate}, n_reads: ${n_reads}, trial: ${trial})"
 	exit 1
 fi
 
-mkdir -p $output_dir
-export CHRONOSTRAIN_CACHE_DIR="${output_dir}/cache"
-export CHRONOSTRAIN_LOG_FILEPATH="${output_dir}/chronostrain.log"
 
-if [ -d $CHRONOSTRAIN_CACHE_DIR ]; then
+mkdir -p $output_dir
+cache_dir="${output_dir}/cache"
+
+if [ -d ${cache_dir} ]; then
 	echo "[*] Clearing cache."
-	rm -rf $CHRONOSTRAIN_CACHE_DIR
+	rm -rf ${cache_dir}
 fi
 
 echo "[*] Using database ${CHRONOSTRAIN_DB_JSON}"
-echo "[*] Running Chronostrain inference for n_reads: ${n_reads}, trial: ${trial}"
+echo "[*] Running Chronostrain inference for replicate: ${replicate}, n_reads: ${n_reads}, trial: ${trial}"
 start_time=$(date +%s%N)  # nanoseconds
 
-chronostrain advi \
-	-r "${output_dir}/filtered/filtered_input_files.csv" \
-	-o ${output_dir} \
-	--correlation-mode "full" \
-	--iters $CHRONOSTRAIN_NUM_ITERS \
-	--epochs $CHRONOSTRAIN_NUM_EPOCHS \
-	--decay-lr $CHRONOSTRAIN_DECAY_LR \
-	--lr-patience ${CHRONOSTRAIN_LR_PATIENCE} \
-	--loss-tol ${CHRONOSTRAIN_LOSS_TOL} \
-	--learning-rate $CHRONOSTRAIN_LR \
-	--num-samples $CHRONOSTRAIN_NUM_SAMPLES \
-	--read-batch-size $CHRONOSTRAIN_READ_BATCH_SZ \
-	--min-lr ${CHRONOSTRAIN_MIN_LR} \
-	--plot-format "pdf" \
-	--plot-elbo \
-	--prune-strains \
-	--with-zeros
+env \
+  CHRONOSTRAIN_DB_JSON=${replicate_dir}/databases/chronostrain/ecoli.json \
+  CHRONOSTRAIN_DB_DIR=${replicate_dir}/databases/chronostrain \
+  CHRONOSTRAIN_LOG_FILEPATH=${output_dir}/inference.log \
+  CHRONOSTRAIN_CACHE_DIR=${cache_dir} \
+  chronostrain advi \
+  -r "${output_dir}/filtered/filtered_input_files.csv" \
+  -o ${output_dir} \
+  --correlation-mode "full" \
+  --iters ${CHRONOSTRAIN_NUM_ITERS} \
+  --epochs ${CHRONOSTRAIN_NUM_EPOCHS} \
+  --decay-lr ${CHRONOSTRAIN_DECAY_LR} \
+  --lr-patience ${CHRONOSTRAIN_LR_PATIENCE} \
+  --loss-tol ${CHRONOSTRAIN_LOSS_TOL} \
+  --learning-rate ${CHRONOSTRAIN_LR} \
+  --num-samples ${CHRONOSTRAIN_NUM_SAMPLES} \
+  --read-batch-size ${CHRONOSTRAIN_READ_BATCH_SZ} \
+  --min-lr ${CHRONOSTRAIN_MIN_LR} \
+  --plot-format "pdf" \
+  --plot-elbo \
+  --prune-strains \
+  --with-zeros \
+  --prior-p 0.5
 #	--accumulate-gradients
 
 

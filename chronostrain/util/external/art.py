@@ -17,7 +17,8 @@ def art_illumina(reference_path: Path,
                  output_aln: bool = True,
                  quality_shift: Optional[int] = None,
                  quality_shift_2: Optional[int] = None,
-                 stdout_path: Optional[Path] = None) -> Tuple[Path, Path]:
+                 stdout_path: Optional[Path] = None,
+                 silent: bool = False) -> Tuple[Path, Path]:
     """
     Call art_illumina.
 
@@ -35,6 +36,7 @@ def art_illumina(reference_path: Path,
     :param quality_shift:
     :param quality_shift_2:
     :param stdout_path:
+    :param silent:
     :return: The filepaths to the synthetic paired-end reads.
     """
 
@@ -66,7 +68,8 @@ def art_illumina(reference_path: Path,
         'art_illumina',
         args=cmd_args,
         cwd=output_dir,
-        stdout=stdout_path
+        stdout=stdout_path,
+        silent=silent
     )
     if exit_code != 0:
         raise CommandLineException("art_illumina", exit_code)

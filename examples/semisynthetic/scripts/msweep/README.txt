@@ -1,6 +1,5 @@
-Step 1: run `run_poppunk.sh` to cluster the genomes.
-Step 2: run `prepare_pseudoalignment_index.sh` to create the dbg/kmer index.
-Step 3: run `run_pseudoalignment_all.sh`
-Step 4: run `run_msweep_all.sh`
+Step 1: run `run_poppunk.sh` to cluster the genomes (this occurs independently of any replicate.)
+Step 2: run `prepare_all.sh` to create the dbg/kmer index. (a separate dbg is created for each replicate.)
+Step 3: run `analyze_all.sh` (perform themisto pseudoalign + msweep inference for each replicate/trial.)
 
 This completes the analysis pipeline.

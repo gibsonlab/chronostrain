@@ -1,35 +1,31 @@
 #!/bin/bash
 set -e
 source settings.sh
+source msweep/settings.sh
 
-n_reads=$1
-trial=$2
+replicate=$1
+n_reads=$2
+trial=$3
 
-if [ -z "$n_reads" ]
-then
-	echo "var \"n_reads\" is empty"
-	exit 1
-fi
+require_variable "replicate" $replicate
+require_variable "n_reads" $n_reads
+require_variable "trial" $trial
 
-if [ -z "$trial" ]
-then
-	echo "var \"trial\" is empty"
-	exit 1
-fi
 
-trial_dir=$(get_trial_dir $n_reads $trial)
+themisto_db_dir=$(get_themisto_db_dir "${replicate}")
+trial_dir=$(get_trial_dir $replicate $n_reads $trial)
 read_dir=${trial_dir}/reads
 output_dir=${trial_dir}/output/themisto
 runtime_file=${trial_dir}/output/themisto_runtime.txt
 
 
 if [ -f $runtime_file ]; then
-	echo "[*] Skipping Themisto Pseudoalignment (n_reads: ${n_reads}, trial: ${trial})"
+	echo "[*] Skipping Themisto Pseudoalignment (replicate: ${replicate}, n_reads: ${n_reads}, trial: ${trial})"
 	exit 0
 fi
 
 
-echo "[*] Running Themisto pseudoalignment for n_reads: ${n_reads}, trial: ${trial}"
+echo "[*] Running Themisto pseudoalignment for replicate: ${replicate}, n_reads: ${n_reads}, trial: ${trial}"
 mkdir -p ${output_dir}
 
 
@@ -67,10 +63,10 @@ for t_idx in 0 1 2 3 4; do
 done
 
 
-echo "[**] Running pseudoalignment."
+echo "[**] Running pseudoalignment (target database: ${themisto_db_dir})"
 start_time=$(date +%s%N)  # nanoseconds
 tmp_dir="${output_dir}/_tmp"
-cd ${THEMISTO_DB_DIR}
+cd ${themisto_db_dir}
 ${THEMISTO_BIN_DIR}/themisto pseudoalign \
   --query-file-list $input_file \
   --out-file-list $output_file \

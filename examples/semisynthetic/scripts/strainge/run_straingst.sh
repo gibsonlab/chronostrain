@@ -1,47 +1,39 @@
 #!/bin/bash
 set -e
 source settings.sh
+source strainge/settings.sh
 
 # ============ Requires arguments:
-n_reads=$1
-trial=$2
-time_point=$3
+replicate=$1
+n_reads=$2
+trial=$3
+time_point=$4
 
-if [ -z "$n_reads" ]
-then
-	echo "var \"n_reads\" is empty"
-	exit 1
-fi
+require_variable "replicate" $replicate
+require_variable "n_reads" $n_reads
+require_variable "trial" $trial
+require_variable "time_point" $time_point
 
-if [ -z "$trial" ]
-then
-	echo "var \"trial\" is empty"
-	exit 1
-fi
 
-if [ -z "$time_point" ]
-then
-	echo "var \"time_point\" is empty"
-	exit 1
-fi
 
-trial_dir=$(get_trial_dir $n_reads $trial)
+
+straingst_db_dir=$(get_straingst_db_dir "${replicate}")
+trial_dir=$(get_trial_dir $replicate $n_reads $trial)
 read_dir=${trial_dir}/reads
 output_dir=${trial_dir}/output/straingst
 
-mkdir -p ${output_dir}
-
 
 # ========== Run
-runtime_file=${trial_dir}/output/straingst_runtime.${time_point}.${mode}.txt
+runtime_file=${trial_dir}/output/straingst_runtime.${time_point}.txt
 if [[ -f $runtime_file ]]; then
-	echo "[*] Skipping StrainGST run (n_reads: ${n_reads}, trial: ${trial}, timepoint #${time_point})"
+	echo "[*] Skipping StrainGST run (replicate: ${replicate}, n_reads: ${n_reads}, trial: ${trial}, timepoint #${time_point})"
 	exit 0
 fi
 
-echo "[*] Running inference for n_reads: ${n_reads}, trial: ${trial}, timepoint #${time_point}"
+echo "[*] Running inference for replicate: ${replicate}, n_reads: ${n_reads}, trial: ${trial}, timepoint #${time_point}"
 start_time=$(date +%s%N)  # nanoseconds
-read_kmers=${output_dir}/reads.hdf5
+read_kmers=${output_dir}/reads.${time_point}.hdf5
+mkdir -p ${output_dir}
 
 
 echo "[*] Kmerizing..."
@@ -55,10 +47,10 @@ ${BACKGROUND_FASTQ_DIR}/${time_point}_background_2.fq
 
 
 echo "[*] Running StrainGST."
-mkdir -p ${output_dir}/${mode}
+mkdir -p ${output_dir}
 straingst run \
--o ${output_dir}/${mode}/output_mash_${time_point}.tsv \
-${STRAINGST_CHROMOSOME_DB_HDF5} \
+-o ${output_dir}/output_${time_point}.tsv \
+${straingst_db_dir}/db.hdf5 \
 ${read_kmers}
 
 # ====== Record runtime

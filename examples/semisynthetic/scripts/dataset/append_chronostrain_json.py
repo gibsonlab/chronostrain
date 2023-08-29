@@ -75,7 +75,7 @@ def main(
         json.dump(strain_entries + mutant_entries, out_f, indent=4)
 
     # ==== Symlink genome FASTA files.
-    print("Creating symlinks to genome files.")
+    print("Creating symlinks to reference genome files.")
     database_tgt_dir.mkdir(exist_ok=True, parents=True)
     for strain_entry in strain_entries:
         strain_id = strain_entry['id']
@@ -91,6 +91,7 @@ def main(
             if not target_path.exists():
                 target_path.symlink_to(fasta_path)
 
+    print("Creating symlinks to mutant genome files.")
     for m in mutant_strains:
         fasta_path = sim_genome_dir / f'{m}.fasta'
         target_path = database_tgt_dir / 'assemblies' / m / f'{m}.fasta'

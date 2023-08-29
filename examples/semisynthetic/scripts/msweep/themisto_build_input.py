@@ -44,7 +44,7 @@ def fix_accession(broken_acc):
 @click.option(
     '--sim-genome', '-g', 'sim_genome_paths',
     type=click.Path(path_type=Path, dir_okay=False, exists=True, readable=True),
-    multiple=True, required=True
+    multiple=True, required=False
 )
 @click.option(
     '--outdir', '-o', 'out_dir',
@@ -57,7 +57,7 @@ def fix_accession(broken_acc):
 def main(refseq_index: Path, sim_genome_paths: List[Path], out_dir: Path, clustering_poppunk: Path):
     if len(sim_genome_paths) == 0:
         print("No simulated genomes to add.")
-        exit(1)
+
     for p in sim_genome_paths:
         if not p.exists():
             print("Simulated genome file {} does not exist.".format(p))

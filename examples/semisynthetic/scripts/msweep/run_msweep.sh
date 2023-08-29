@@ -1,33 +1,23 @@
 #!/bin/bash
 set -e
 source settings.sh
+source msweep/settings.sh
 
 require_program mSWEEP
 
 # ============ Requires arguments:
-n_reads=$1
-trial=$2
-time_point=$3
+replicate=$1
+n_reads=$2
+trial=$3
+time_point=$4
 
-if [ -z "$n_reads" ]
-then
-	echo "var \"n_reads\" is empty"
-	exit 1
-fi
+require_variable "replicate" $replicate
+require_variable "n_reads" $n_reads
+require_variable "trial" $trial
+require_variable "time_point" $time_point
 
-if [ -z "$trial" ]
-then
-	echo "var \"trial\" is empty"
-	exit 1
-fi
-
-if [ -z "$time_point" ]
-then
-	echo "var \"time_point\" is empty"
-	exit 1
-fi
-
-trial_dir=$(get_trial_dir $n_reads $trial)
+themisto_db_dir=$(get_themisto_db_dir "${replicate}")
+trial_dir=$(get_trial_dir $replicate $n_reads $trial)
 read_dir=${trial_dir}/reads
 output_dir=${trial_dir}/output/msweep
 pseudoalignment_dir=${trial_dir}/output/themisto
@@ -36,12 +26,12 @@ mkdir -p $output_dir
 
 
 if [ -f $runtime_file ]; then
-	echo "[*] Skipping mSWEEP (n_reads: ${n_reads}, trial: ${trial}, time_point: ${time_point})"
+	echo "[*] Skipping mSWEEP (replicate: ${replicate}, n_reads: ${n_reads}, trial: ${trial}, time_point: ${time_point})"
 	exit 0
 fi
 
 
-echo "[*] Preparing mSWEEP input for timepoint ${time_point} (n_reads=${n_reads}, trial=${trial})"
+echo "[*] Preparing mSWEEP input for timepoint ${time_point} (replicate: ${replicate}, n_reads=${n_reads}, trial=${trial})"
 fwd_input=${output_dir}/${time_point}_pseudoaligns_1.txt
 rev_input=${output_dir}/${time_point}_pseudoaligns_2.txt
 
@@ -60,11 +50,11 @@ cat ${pseudoalignment_dir}/${time_point}_background_2.output.txt >> $rev_input
 echo "[*] Running mSWEEP"
 cd ${output_dir}
 start_time=$(date +%s%N)  # nanoseconds
-echo "USING CLUSTERS FROM ${THEMISTO_DB_DIR}"
+echo "USING CLUSTERS FROM ${themisto_db_dir}"
 mSWEEP \
   --themisto-1 ${fwd_input} \
   --themisto-2 ${rev_input} \
-  -i ${THEMISTO_DB_DIR}/clusters.txt \
+  -i ${themisto_db_dir}/clusters.txt \
   -t ${N_CORES} \
   -o ${time_point}
 

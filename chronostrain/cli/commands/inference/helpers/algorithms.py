@@ -80,6 +80,8 @@ def perform_advi(
     if with_zeros:
         from chronostrain.model.zeros import PopulationGlobalZeros
         zero_model = PopulationGlobalZeros(model.bacteria_pop.num_strains(), prior_p=prior_p)
+        if prior_p != 0.5:
+            logger.info(f"Initialized model inclusion prior with p={prior_p}")
         solver = ADVIGaussianZerosSolver(
             model=model,
             zero_model=zero_model,
