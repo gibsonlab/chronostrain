@@ -7,7 +7,9 @@ export MISC_DB_DIR="${DATA_DIR}/databases"
 export CHRONOSTRAIN_CACHE_DIR="${DATA_DIR}/cache"  # Default for all scripts; specify per script if desired!
 
 # ==================== Read sampling settings
-export N_TRIALS=10
+export N_GENOME_REPLICATES=5
+export N_TRIALS=5
+export SYNTHETIC_COVERAGES=(2500 5000 10000 25000 50000)
 export READ_LEN=150
 export N_CORES=12
 export BACKGROUND_N_READS=1000000
@@ -26,26 +28,12 @@ export KNEADDATA_DB_DIR="/mnt/e/kneaddata_db"
 export NEXTERA_ADAPTER_PATH="/home/youn/mambaforge/envs/chronostrain/share/trimmomatic/adapters/NexteraPE-PE.fa"
 export TRIMMOMATIC_DIR="/home/youn/mambaforge/envs/chronostrain/share/trimmomatic-0.39-2"
 
-# ================= StrainGST settings
-export STRAINGST_DB_DIR=${MISC_DB_DIR}/straingst
-export STRAINGST_CHROMOSOME_DB_HDF5=${STRAINGST_DB_DIR}/chromosome_db.hdf5
-
-# ================= StrainEst settings
-export STRAIN_REP_FASTA=/mnt/e/ref_genomes/human_readable/refseq/bacteria/Escherichia/coli/K-12_MG1655/NZ_CP010438.1.chrom.fna
-export STRAINEST_DB_DIR=${MISC_DB_DIR}/strainest
-export STRAINEST_BT2_DB=ecoli_db
-export SYNTHETIC_COVERAGES=(2500 5000 10000 25000 50000)
-
 # ================= StrainFacts+gt-pro settings
 export CALLM_BIN_DIR=/home/youn/CallM
 export KMC_BIN_DIR=/home/youn/KMC/bin
 export GT_PRO_BIN_DIR=/home/youn/gt-pro
 export GT_PRO_DB_DIR=/mnt/e/gt-pro_db
 export GT_PRO_DB_NAME=ecoli_db
-
-# ================= Themisto + mSWEEP settings
-export THEMISTO_BIN_DIR=~/work/themisto/build/bin
-export THEMISTO_DB_DIR=${MISC_DB_DIR}/themisto
 
 # ========= Chronostrain settings
 export CHRONOSTRAIN_NUM_ITERS=100
@@ -63,8 +51,6 @@ export CHRONOSTRAIN_OUTPUT_FILENAME="abundances.out"
 export REFSEQ_INDEX="/mnt/e/ecoli_db/ref_genomes/index.tsv"
 export CHRONOSTRAIN_DB_JSON_SRC="/mnt/e/ecoli_db/ecoli.json"
 export CHRONOSTRAIN_DB_DIR_SRC="/mnt/e/ecoli_db/chronostrain_files"
-export CHRONOSTRAIN_DB_JSON="${MISC_DB_DIR}/chronostrain/ecoli.json"
-export CHRONOSTRAIN_DB_DIR="${MISC_DB_DIR}/chronostrain"
 export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
 export CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"
 
@@ -78,12 +64,50 @@ require_program()
 }
 
 
-get_trial_dir()
+require_variable()
 {
-	n_reads=$1
-	trial=$2
-	trial_dir="${DATA_DIR}/reads_${n_reads}/trial_${trial}"
-	echo ${trial_dir}
+	var_name=$1
+	value=$2
+	if [ -z "$value" ]
+	then
+		echo "Environment variable \"$var_name\" is empty"
+		exit 1
+	fi
 }
 
-export require_program
+require_file()
+{
+	path=$1
+	if [ ! -f $path ]
+	then
+		echo "File ${path} not found."
+		exit 1
+	fi
+}
+
+require_dir()
+{
+	path=$1
+	if [ ! -d $path ]
+	then
+		echo "Directory ${path} not found."
+		exit 1
+	fi
+}
+
+
+get_replicate_dir()
+{
+  replicate=$1
+	echo "${DATA_DIR}/replicate_${replicate}"
+}
+
+
+get_trial_dir()
+{
+  replicate=$1
+	n_reads=$2
+	trial=$3
+	rep_dir=$(get_replicate_dir "$replicate")
+	echo "${rep_dir}/reads_${n_reads}/trial_${trial}"
+}
