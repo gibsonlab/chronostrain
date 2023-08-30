@@ -9,7 +9,7 @@ export CHRONOSTRAIN_CACHE_DIR="${DATA_DIR}/cache"  # Default for all scripts; sp
 # ==================== Read sampling settings
 export N_GENOME_REPLICATES=5
 export N_TRIALS=5
-export MUTATION_RATIOS=(1.0)
+export MUTATION_RATIOS=("1.0")
 export SYNTHETIC_COVERAGES=(2500 5000 10000 20000 40000)
 export READ_LEN=150
 export N_CORES=12
