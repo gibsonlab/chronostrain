@@ -3,29 +3,33 @@ set -e
 source settings.sh
 source msweep/settings.sh
 
-replicate=$1
-n_reads=$2
-trial=$3
+# ============ Requires arguments:
+mutation_ratio=$1
+replicate=$2
+n_reads=$3
+trial=$4
 
+require_variable "mutation_ratio" $mutation_ratio
 require_variable "replicate" $replicate
 require_variable "n_reads" $n_reads
 require_variable "trial" $trial
 
 
-themisto_db_dir=$(get_themisto_db_dir "${replicate}")
-trial_dir=$(get_trial_dir $replicate $n_reads $trial)
+# ============ script body:
+themisto_db_dir=$(get_themisto_db_dir "${mutation_ratio}" "${replicate}")
+trial_dir=$(get_trial_dir "${mutation_ratio}" "$replicate" "$n_reads" "$trial")
 read_dir=${trial_dir}/reads
 output_dir=${trial_dir}/output/themisto
 runtime_file=${trial_dir}/output/themisto_runtime.txt
 
 
 if [ -f $runtime_file ]; then
-	echo "[*] Skipping Themisto Pseudoalignment (replicate: ${replicate}, n_reads: ${n_reads}, trial: ${trial})"
+	echo "[*] Skipping Themisto Pseudoalignment (mut_ratio: ${mutation_ratio} | replicate: ${replicate} |  n_reads: ${n_reads} | trial: ${trial})"
 	exit 0
 fi
 
 
-echo "[*] Running Themisto pseudoalignment for replicate: ${replicate}, n_reads: ${n_reads}, trial: ${trial}"
+echo "[*] Running Themisto pseudoalignment (mut_ratio: ${mutation_ratio} | replicate: ${replicate} |  n_reads: ${n_reads} | trial: ${trial})"
 mkdir -p ${output_dir}
 
 

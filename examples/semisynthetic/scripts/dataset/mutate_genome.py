@@ -31,7 +31,13 @@ base_alphabet = ['A', 'C', 'G', 'T']
 @click.option(
     '--density-snv', '-d', 'snv_density',
     type=float,
-    help='A float between 0.0 and 1.0 indicating the density of SNVs. '
+    help='A float between 0.0 and 1.0 indicating the density of SNVs on non-marker regions only. '
+         'Each base will be mutated independently via a biased coin flip.'
+)
+@click.option(
+    '--density-snv-marker', '-dm', 'marker_snv_density',
+    type=float,
+    help='A float between 0.0 and 1.0 indicating the density of SNVs across the marker regions only. '
          'Each base will be mutated independently via a biased coin flip.'
 )
 @click.option(
@@ -52,23 +58,21 @@ base_alphabet = ['A', 'C', 'G', 'T']
     type=int, required=True,
     help='The random seed to use for simulation. Required for reproducibility.'
 )
-@click.option(
-    '--marker-only/--whole-genome', 'marker_only',
-    is_flag=True, default=False,
-    help='Specify whether to include zeros into the model..'
-)
 def main(
         input_genome_path: Path,
         output_genome_path: Path,
         json_chronostrain_db: Path,
         snv_density: float,
+        marker_snv_density: float,
         source_id: str,
         target_id: str,
         seed: int,
-        marker_only: bool
 ):
     if snv_density < 0.0 or snv_density > 1.0:
-        print("snv density must be between 0.0 and 1.0.")
+        print("SNV density must be between 0.0 and 1.0.")
+        exit(1)
+    if marker_snv_density < 0.0 or marker_snv_density > 1.0:
+        print("marker SNV density must be between 0.0 and 1.0.")
         exit(1)
 
     record = SeqIO.read(input_genome_path, "fasta")
@@ -76,16 +80,13 @@ def main(
 
     strain_entry = search_json(json_chronostrain_db, source_id)
 
-    if marker_only:
-        print("Mutating marker regions only.")
-        marker_regions = [
-            (m['start'], m['end'])
-            for m in strain_entry['markers']
-        ]
-        mutated_seq = mutate(record.seq, snv_density, rng, markers=marker_regions)
-    else:
-        print("Mutating across whole genome.")
-        mutated_seq = mutate(record.seq, snv_density, rng, markers=None)
+    mutated_seq = mutate(
+        genome=record.seq,
+        density=snv_density,
+        marker_specific_density=marker_snv_density,
+        markers=[(m['start'], m['end']) for m in strain_entry['markers']],
+        rng=rng
+    )
 
     if len(target_id) == 0:
         target_id = f'{record.id}.sim_mutant'
@@ -107,35 +108,58 @@ def search_json(json_chronostrain_db: Path, source_id: str) -> Dict:
         ))
 
 
-def mutate(genome: Seq, density: float, rng: np.random.Generator, markers: List[Tuple[int, int]] = None) -> Seq:
+def mutate(
+        genome: Seq,
+        density: float,
+        marker_specific_density: float,
+        markers: List[Tuple[int, int]],
+        rng: np.random.Generator
+) -> Seq:
     buf = list(str(genome))
-    if markers is not None:
-        mask = np.zeros(len(buf), dtype=bool)
-        for start, end in markers:
-            assert start < end
-            mask[start-1:end] = True
-        print("Found {} marker regions, spanning {} / {} bases. (ratio={:.7f})".format(
-            len(markers),
-            np.sum(mask),
-            len(mask),
-            np.sum(mask) / len(mask)
-        ))
-    else:
-        mask = np.full(shape=len(buf), fill_value=True, dtype=bool)
-    rng_coins = rng.uniform(low=0, high=1.0, size=len(buf)) < density
-    rng_coins = rng_coins & mask
 
-    print(
-        "Mutating {} bases out of {} (rate={})".format(
-            np.sum(rng_coins), len(rng_coins),
-            np.sum(rng_coins) / np.sum(mask)
+    # Identify markers.
+    mask = np.zeros(len(buf), dtype=bool)
+    for start, end in markers:
+        assert start < end
+        mask[start-1:end] = True
+    print("Found {} target regions, spanning {} / {} bases. (ratio={:.7f})".format(
+        len(markers),
+        np.sum(mask),
+        len(mask),
+        np.sum(mask) / len(mask)
+    ))
+
+    # Generate RNG coins.
+    genome_rng_coins = rng.uniform(low=0, high=1.0, size=len(buf)) < density
+    genome_rng_coins = genome_rng_coins & (~mask)
+
+    marker_rng_coins = rng.uniform(low=0, high=1.0, size=len(buf)) < marker_specific_density
+    marker_rng_coins = marker_rng_coins & mask
+
+    def print_summary(_coins, _mask, prefix=""):
+        print(
+            "\t{}: Mutating {} bases out of {} (rate={})".format(
+                prefix,
+                np.sum(_coins),
+                np.sum(_mask),
+                np.sum(_coins) / np.sum(_mask)
+            )
         )
-    )
+    print_summary(genome_rng_coins, ~mask, "Non-Markers")
+    print_summary(marker_rng_coins, mask, "Markers")
 
-    return Seq(''.join([
+    buf = [
         mutate_base(base, rng) if coin else base
-        for base, coin in zip(buf, rng_coins)
-    ]))
+        for base, coin in
+        zip(buf, genome_rng_coins)
+    ]  # mutate non-markers
+    buf = [
+        mutate_base(base, rng) if coin else base
+        for base, coin in
+        zip(buf, marker_rng_coins)
+    ]  # mutate markers only
+
+    return Seq(''.join(buf))
 
 
 def mutate_base(base: str, rng: np.random.Generator) -> str:

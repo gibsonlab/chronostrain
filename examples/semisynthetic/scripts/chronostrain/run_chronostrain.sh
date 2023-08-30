@@ -3,29 +3,30 @@ set -e
 source settings.sh
 
 # ============ Requires arguments:
-replicate=$1
-n_reads=$2
-trial=$3
+mutation_ratio=$1
+replicate=$2
+n_reads=$3
+trial=$4
 
+require_variable "mutation_ratio" $mutation_ratio
 require_variable "replicate" $replicate
 require_variable "n_reads" $n_reads
 require_variable "trial" $trial
 
 # ============ script body:
-replicate_dir=$(get_replicate_dir "$replicate")
-trial_dir=$(get_trial_dir $replicate $n_reads $trial)
-read_dir=${trial_dir}/reads
+replicate_dir=$(get_replicate_dir "${mutation_ratio}" "${replicate}")
+trial_dir=$(get_trial_dir "${mutation_ratio}" $replicate $n_reads $trial)
 output_dir=${trial_dir}/output/chronostrain
 runtime_file=${trial_dir}/output/chronostrain_runtime.txt
 filter_file=${trial_dir}/output/chronostrain_filter_runtime.txt
 
 if [ -f $runtime_file ]; then
-	echo "[*] Skipping Chronostrain Inference (replicate: ${replicate}, n_reads: ${n_reads}, trial: ${trial})"
+	echo "[*] Skipping Chronostrain Inference (mut_ratio: ${mutation_ratio} | replicate: ${replicate} |  n_reads: ${n_reads} | trial: ${trial})"
 	exit 0
 fi
 
 if [ ! -f $filter_file ]; then
-	echo "[*] Filtered result not found for (replicate: ${replicate}, n_reads: ${n_reads}, trial: ${trial})"
+	echo "[*] Filtered result not found for (mut_ratio: ${mutation_ratio} | replicate: ${replicate} |  n_reads: ${n_reads} | trial: ${trial})"
 	exit 1
 fi
 
@@ -39,7 +40,7 @@ if [ -d ${cache_dir} ]; then
 fi
 
 echo "[*] Using database ${CHRONOSTRAIN_DB_JSON}"
-echo "[*] Running Chronostrain inference for replicate: ${replicate}, n_reads: ${n_reads}, trial: ${trial}"
+echo "[*] Running Chronostrain inference (mut_ratio: ${mutation_ratio} | replicate: ${replicate} |  n_reads: ${n_reads} | trial: ${trial})"
 start_time=$(date +%s%N)  # nanoseconds
 
 env \

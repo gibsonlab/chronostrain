@@ -3,17 +3,19 @@ set -e
 source settings.sh
 
 # ============ Requires arguments:
-replicate=$1
-n_reads=$2
-trial=$3
+mutation_ratio=$1
+replicate=$2
+n_reads=$3
+trial=$4
 
+require_variable "mutation_ratio" $mutation_ratio
 require_variable "replicate" $replicate
 require_variable "n_reads" $n_reads
 require_variable "trial" $trial
 
 # ============ script body:
-replicate_dir=$(get_replicate_dir "$replicate")
-trial_dir=$(get_trial_dir $replicate $n_reads $trial)
+replicate_dir=$(get_replicate_dir "${mutation_ratio}" "${replicate}")
+trial_dir=$(get_trial_dir "${mutation_ratio}" $replicate $n_reads $trial)
 read_dir=${trial_dir}/reads
 output_dir=${trial_dir}/output/chronostrain
 runtime_file=${trial_dir}/output/chronostrain_filter_runtime.txt
@@ -23,12 +25,12 @@ mkdir -p $read_dir
 
 
 if [[ -f $runtime_file ]]; then
-	echo "[*] Skipping Filter (replicate: ${replicate}, n_reads: ${n_reads}, trial: ${trial})"
+	echo "[*] Skipping Filter (mut_ratio: ${mutation_ratio} | replicate: ${replicate} |  n_reads: ${n_reads} | trial: ${trial})"
 	exit 0
 fi
 
 
-echo "[*] Preparing input for replicate: ${replicate}, n_reads: ${n_reads}, trial: ${trial}"
+echo "[*] Preparing input for (mut_ratio: ${mutation_ratio} | replicate: ${replicate} |  n_reads: ${n_reads} | trial: ${trial})"
 reads_csv="${output_dir}/input_files.csv"
 >$reads_csv
 {
@@ -43,7 +45,7 @@ reads_csv="${output_dir}/input_files.csv"
 } < $BACKGROUND_CSV
 
 
-echo "[*] Filtering reads..."
+echo "[*] Filtering reads (mut_ratio: ${mutation_ratio} | replicate: ${replicate} |  n_reads: ${n_reads} | trial: ${trial})"
 start_time=$(date +%s%N)  # nanoseconds
 
 env JAX_PLATFORM_NAME=cpu \

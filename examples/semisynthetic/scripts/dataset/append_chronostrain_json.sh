@@ -3,11 +3,13 @@ set -e
 source settings.sh
 
 
-replicate=$1
+mutation_ratio=$1
+replicate=$2
+require_variable "mutation_ratio" $mutation_ratio
 require_variable "replicate" $replicate
 
 
-replicate_dir=${DATA_DIR}/replicate_${replicate}
+replicate_dir=$(get_replicate_dir "${mutation_ratio}" "${replicate}")
 python dataset/append_chronostrain_json.py \
   -i ${CHRONOSTRAIN_DB_JSON_SRC} \
   -o ${replicate_dir}/databases/chronostrain/ecoli.json \

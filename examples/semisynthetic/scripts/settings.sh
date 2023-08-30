@@ -9,10 +9,10 @@ export CHRONOSTRAIN_CACHE_DIR="${DATA_DIR}/cache"  # Default for all scripts; sp
 # ==================== Read sampling settings
 export N_GENOME_REPLICATES=5
 export N_TRIALS=5
-export SYNTHETIC_COVERAGES=(2500 5000 10000 25000 50000)
+export MUTATION_RATIOS=(1.0 1.5 2.0 2.5 3.0)
+export SYNTHETIC_COVERAGES=(5000 50000)
 export READ_LEN=150
 export N_CORES=12
-export BACKGROUND_N_READS=1000000
 
 export RELATIVE_GROUND_TRUTH="${BASE_DIR}/files/ground_truth.csv"
 export BACKGROUND_CSV="${BASE_DIR}/files/background.csv"
@@ -98,16 +98,18 @@ require_dir()
 
 get_replicate_dir()
 {
-  replicate=$1
-	echo "${DATA_DIR}/replicate_${replicate}"
+  mutation_ratio=$1
+  replicate=$2
+	echo "${DATA_DIR}/mutratio_${mutation_ratio}/replicate_${replicate}"
 }
 
 
 get_trial_dir()
 {
-  replicate=$1
-	n_reads=$2
-	trial=$3
-	rep_dir=$(get_replicate_dir "$replicate")
-	echo "${rep_dir}/reads_${n_reads}/trial_${trial}"
+  mutation_ratio=$1
+  replicate=$2
+  read_depth=$3
+  trial=$4
+	rep_dir=$(get_replicate_dir "$mutation_ratio" "$replicate")
+	echo "${rep_dir}/reads_${read_depth}/trial_${trial}"
 }

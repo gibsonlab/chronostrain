@@ -120,37 +120,39 @@ done < ${BACKGROUND_CSV}
 
 
 # =============== Sample synthetic reads
-for (( replicate = 1; replicate < ${N_GENOME_REPLICATES}+1; replicate++ )); do
-  replicate_dir=${DATA_DIR}/replicate_${replicate}
+for mutation_ratio in "${MUTATION_RATIOS[@]}"; do
+  for (( replicate = 1; replicate < ${N_GENOME_REPLICATES}+1; replicate++ )); do
+    replicate_dir=$(get_replicate_dir "${mutation_ratio}" "${replicate}")
 
-  for (( trial = 1; trial < ${N_TRIALS}+1; trial++ )); do
-    for n_reads in "${SYNTHETIC_COVERAGES[@]}"; do
-      seed=$((seed+1))
+    for (( trial = 1; trial < ${N_TRIALS}+1; trial++ )); do
+      for n_reads in "${SYNTHETIC_COVERAGES[@]}"; do
+        seed=$((seed+1))
 
-      trial_dir=$(get_trial_dir $replicate $n_reads $trial)
-      read_dir=${trial_dir}/reads
+        trial_dir=$(get_trial_dir $mutation_ratio $replicate $n_reads $trial)
+        read_dir=${trial_dir}/reads
 
-      if [[ -d "${read_dir}" ]]; then
-        echo "[*] Skipping reads: ${n_reads}, trial #${trial}] -> ${trial_dir}"
-      else
-        echo "Sampling [Number of reads: ${n_reads}, trial #${trial}] -> ${trial_dir}"
+        if [[ -d "${read_dir}" ]]; then
+          echo "[*] Skipping reads: ${n_reads}, trial #${trial}] -> ${trial_dir}"
+        else
+          echo "Sampling [Number of reads: ${n_reads}, trial #${trial}] -> ${trial_dir}"
 
-        mkdir -p $read_dir
-        export CHRONOSTRAIN_DB_JSON=${replicate_dir}/databases/chronostrain/ecoli.json
-        export CHRONOSTRAIN_DB_DIR=${replicate_dir}/databases/chronostrain
-        export CHRONOSTRAIN_LOG_FILEPATH="${read_dir}/read_simulation.log"
-        export CHRONOSTRAIN_CACHE_DIR="${trial_dir}/cache"
+          mkdir -p $read_dir
+          export CHRONOSTRAIN_DB_JSON=${replicate_dir}/databases/chronostrain/ecoli.json
+          export CHRONOSTRAIN_DB_DIR=${replicate_dir}/databases/chronostrain
+          export CHRONOSTRAIN_LOG_FILEPATH="${read_dir}/read_simulation.log"
+          export CHRONOSTRAIN_CACHE_DIR="${trial_dir}/cache"
 
-        python ${BASE_DIR}/helpers/sample_reads.py \
-        --out_dir $read_dir \
-        --abundance_path $RELATIVE_GROUND_TRUTH \
-        --genome_dir ${DATA_DIR}/replicate_${replicate}/sim_genomes \
-        --num_reads $n_reads \
-        --profiles $READ_PROFILE_PATH $READ_PROFILE_PATH \
-        --read_len $READ_LEN \
-        --seed ${seed} \
-        --num_cores $N_CORES
-      fi
+          python ${BASE_DIR}/helpers/sample_reads.py \
+          --out_dir $read_dir \
+          --abundance_path $RELATIVE_GROUND_TRUTH \
+          --genome_dir ${replicate_dir}/sim_genomes \
+          --num_reads $n_reads \
+          --profiles $READ_PROFILE_PATH $READ_PROFILE_PATH \
+          --read_len $READ_LEN \
+          --seed ${seed} \
+          --num_cores $N_CORES
+        fi
+      done
     done
   done
 done

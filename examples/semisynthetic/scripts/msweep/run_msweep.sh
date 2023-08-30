@@ -6,19 +6,20 @@ source msweep/settings.sh
 require_program mSWEEP
 
 # ============ Requires arguments:
-replicate=$1
-n_reads=$2
-trial=$3
-time_point=$4
+mutation_ratio=$1
+replicate=$2
+n_reads=$3
+trial=$4
+time_point=$5
 
+require_variable "mutation_ratio" $mutation_ratio
 require_variable "replicate" $replicate
 require_variable "n_reads" $n_reads
 require_variable "trial" $trial
 require_variable "time_point" $time_point
 
-themisto_db_dir=$(get_themisto_db_dir "${replicate}")
-trial_dir=$(get_trial_dir $replicate $n_reads $trial)
-read_dir=${trial_dir}/reads
+themisto_db_dir=$(get_themisto_db_dir "${mutation_ratio}" "${replicate}")
+trial_dir=$(get_trial_dir "${mutation_ratio}" "$replicate" "$n_reads" "$trial")
 output_dir=${trial_dir}/output/msweep
 pseudoalignment_dir=${trial_dir}/output/themisto
 runtime_file=${trial_dir}/output/msweep_runtime.${time_point}.txt
@@ -26,12 +27,12 @@ mkdir -p $output_dir
 
 
 if [ -f $runtime_file ]; then
-	echo "[*] Skipping mSWEEP (replicate: ${replicate}, n_reads: ${n_reads}, trial: ${trial}, time_point: ${time_point})"
+	echo "[*] Skipping mSWEEP (mut_ratio: ${mutation_ratio} | replicate: ${replicate} |  n_reads: ${n_reads} | trial: ${trial})"
 	exit 0
 fi
 
 
-echo "[*] Preparing mSWEEP input for timepoint ${time_point} (replicate: ${replicate}, n_reads=${n_reads}, trial=${trial})"
+echo "[*] Preparing mSWEEP input (mut_ratio: ${mutation_ratio} | replicate: ${replicate} |  n_reads: ${n_reads} | trial: ${trial})"
 fwd_input=${output_dir}/${time_point}_pseudoaligns_1.txt
 rev_input=${output_dir}/${time_point}_pseudoaligns_2.txt
 
