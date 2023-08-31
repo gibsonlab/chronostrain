@@ -52,10 +52,13 @@ output_file=${output_dir}/output_files.txt
 > $output_file
 
 for t_idx in 0 1 2 3 4; do
+	background_sra_id="$(timepoint_sra_id ${t_idx})"
+	trimmomatic_outdir="${BACKGROUND_FASTQ_DIR}/trimmomatic/${background_sra_id}"
+
   echo "${read_dir}/${t_idx}_sim_1.fq" >> $input_file
 	echo "${read_dir}/${t_idx}_sim_2.fq" >> $input_file
-  echo "${BACKGROUND_FASTQ_DIR}/${t_idx}_background_1.fq" >> $input_file
-  echo "${BACKGROUND_FASTQ_DIR}/${t_idx}_background_2.fq" >> $input_file
+  echo "${trimmomatic_outdir}/${background_sra_id}_paired_1.fastq" >> $input_file
+  echo "${trimmomatic_outdir}/${background_sra_id}_paired_2.fastq" >> $input_file
 
   echo "${output_dir}/${t_idx}_sim_1.output.txt" >> $output_file
 	echo "${output_dir}/${t_idx}_sim_2.output.txt" >> $output_file
