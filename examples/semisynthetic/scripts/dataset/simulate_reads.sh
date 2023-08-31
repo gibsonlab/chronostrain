@@ -131,7 +131,8 @@ for mutation_ratio in "${MUTATION_RATIOS[@]}"; do
         trial_dir=$(get_trial_dir $mutation_ratio $replicate $n_reads $trial)
         read_dir=${trial_dir}/reads
 
-        if [[ -d "${read_dir}" ]]; then
+        breadcrumb=${trial_dir}/read_sample.DONE
+        if [[ -f "${breadcrumb}" ]]; then
           echo "[*] Skipping reads: ${n_reads}, trial #${trial}] -> ${trial_dir}"
         else
           echo "Sampling [Number of reads: ${n_reads}, trial #${trial}] -> ${trial_dir}"
@@ -151,6 +152,8 @@ for mutation_ratio in "${MUTATION_RATIOS[@]}"; do
           --read_len $READ_LEN \
           --seed ${seed} \
           --num_cores $N_CORES
+
+          touch "${breadcrumb}"
         fi
       done
     done
