@@ -135,10 +135,9 @@ class SeqEntry:
 
 
 class MarkerEntry:
-    def __init__(self, marker_id: str, name: str, is_canonical: bool, source_accession: str):
+    def __init__(self, marker_id: str, name: str, source_accession: str):
         self.marker_id = marker_id
         self.name = name
-        self.is_canonical = is_canonical
         self.source_accession = source_accession
 
     @staticmethod
@@ -160,31 +159,24 @@ class MarkerEntry:
 
 
 class TagMarkerEntry(MarkerEntry):
-    def __init__(self, marker_id: str, name: str, is_canonical: bool, source_accession: str, locus_tag: str):
-        super().__init__(marker_id, name, is_canonical, source_accession)
+    def __init__(self, marker_id: str, name: str, source_accession: str, locus_tag: str):
+        super().__init__(marker_id, name, source_accession)
         self.locus_tag = locus_tag
 
     def __str__(self):
         return repr(self)
 
     def __repr__(self):
-        return "TagMarker[{}:locus={},{}]".format(
+        return "TagMarker[{}:locus={}]".format(
             self.source_accession,
-            self.locus_tag,
-            ":canonical" if self.is_canonical else ""
+            self.locus_tag
         )
 
     @staticmethod
     def deserialize(entry_dict: dict) -> "TagMarkerEntry":
-        try:
-            is_canonical = str(extract_key_from_json(entry_dict, 'canonical')).strip().lower() == "true"
-        except StrainDatabaseParseError:
-            is_canonical = False
-
         return TagMarkerEntry(
             marker_id=extract_key_from_json(entry_dict, 'id'),
             name=extract_key_from_json(entry_dict, 'name'),
-            is_canonical=is_canonical,
             source_accession=extract_key_from_json(entry_dict, 'source'),
             locus_tag=extract_key_from_json(entry_dict, 'locus_tag')
         )
@@ -192,9 +184,9 @@ class TagMarkerEntry(MarkerEntry):
 
 class PrimerMarkerEntry(MarkerEntry):
     def __init__(self,
-                 marker_id: str, name: str, is_canonical: bool, source_accession: str,
+                 marker_id: str, name: str, source_accession: str,
                  forward: str, reverse: str):
-        super().__init__(marker_id, name, is_canonical, source_accession)
+        super().__init__(marker_id, name, source_accession)
         self.forward = forward
         self.reverse = reverse
 
@@ -202,11 +194,10 @@ class PrimerMarkerEntry(MarkerEntry):
         return repr(self)
 
     def __repr__(self):
-        return "PrimerMarker(parent={},fwd={},rev={},Canonical={})".format(
+        return "PrimerMarker(parent={},fwd={},rev={})".format(
             self.source_accession,
             self.forward,
-            self.reverse,
-            self.is_canonical
+            self.reverse
         )
 
     def entry_id(self) -> str:
@@ -220,7 +211,6 @@ class PrimerMarkerEntry(MarkerEntry):
         return PrimerMarkerEntry(
             marker_id=extract_key_from_json(entry_dict, 'id'),
             name=extract_key_from_json(entry_dict, 'name'),
-            is_canonical=str(extract_key_from_json(entry_dict, 'canonical')).strip().lower() == "true",
             source_accession=extract_key_from_json(entry_dict, 'source'),
             forward=extract_key_from_json(entry_dict, 'forward'),
             reverse=extract_key_from_json(entry_dict, 'reverse')
@@ -228,9 +218,9 @@ class PrimerMarkerEntry(MarkerEntry):
 
 
 class SubseqMarkerEntry(MarkerEntry):
-    def __init__(self, marker_id: str, name: str, is_canonical: bool, source_accession: str,
+    def __init__(self, marker_id: str, name: str, source_accession: str,
                  start: int, end: int, is_negative_strand: bool):
-        super().__init__(marker_id, name, is_canonical, source_accession)
+        super().__init__(marker_id, name, source_accession)
         self.start_pos = start
         self.end_pos = end
         self.is_negative_strand = is_negative_strand
@@ -239,11 +229,10 @@ class SubseqMarkerEntry(MarkerEntry):
         return repr(self)
 
     def __repr__(self):
-        return "SubSeq(parent={},start={},end={},Canonical={})".format(
+        return "SubSeq(parent={},start={},end={})".format(
             self.source_accession,
             self.start_pos,
-            self.end_pos,
-            self.is_canonical
+            self.end_pos
         )
 
     @staticmethod
@@ -263,7 +252,6 @@ class SubseqMarkerEntry(MarkerEntry):
         return SubseqMarkerEntry(
             marker_id=extract_key_from_json(entry_dict, 'id'),
             name=extract_key_from_json(entry_dict, 'name'),
-            is_canonical=str(extract_key_from_json(entry_dict, 'canonical')).strip().lower() == "true",
             source_accession=extract_key_from_json(entry_dict, 'source'),
             start=start_pos,
             end=end_pos,
@@ -273,7 +261,7 @@ class SubseqMarkerEntry(MarkerEntry):
 
 class FastaRecordEntry(MarkerEntry):
     def __init__(self, marker_id: str, name: str, record_id: str, source_accession: str):
-        super().__init__(marker_id, name, True, source_accession)
+        super().__init__(marker_id, name, source_accession)
         self.record_id = record_id
 
     def __str__(self):
@@ -392,14 +380,12 @@ class JSONParser(AbstractDatabaseParser):
             marker = marker_src.extract_from_locus_tag(
                 marker_entry.marker_id,
                 marker_entry.name,
-                marker_entry.is_canonical,
                 marker_entry.locus_tag
             )
         elif isinstance(marker_entry, PrimerMarkerEntry):
             marker = marker_src.extract_from_primer(
                 marker_entry.marker_id,
                 marker_entry.name,
-                marker_entry.is_canonical,
                 marker_entry.forward,
                 marker_entry.reverse
             )
@@ -407,7 +393,6 @@ class JSONParser(AbstractDatabaseParser):
             marker = marker_src.extract_subseq(
                 marker_entry.marker_id,
                 marker_entry.name,
-                marker_entry.is_canonical,
                 marker_entry.start_pos,
                 marker_entry.end_pos,
                 marker_entry.is_negative_strand

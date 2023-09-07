@@ -1,2 +1,1 @@
 from .cached_pairwise_alignment import CachedReadPairwiseAlignments
-from .cached_multiple_alignment import CachedReadMultipleAlignments

@@ -15,7 +15,7 @@ from chronostrain.util.alignments.pairwise import *
 from chronostrain.database import StrainDatabase
 
 from chronostrain.config import cfg
-from chronostrain.util.external import bt2_func_constant
+from chronostrain.util.external import bt2_func_constant, bt2_func_linear, bt2_func_sqrt
 
 
 class CachedReadPairwiseAlignments(object):
@@ -78,6 +78,7 @@ class CachedReadPairwiseAlignments(object):
                 bwa_command='bwa'
             )
         elif cfg.external_tools_cfg.pairwise_align_cmd == "bowtie2":
+            match_bonus = 2
             return BowtieAligner(
                 reference_path=self.marker_reference_path,
                 index_basepath=self.marker_reference_path.parent,
@@ -87,8 +88,9 @@ class CachedReadPairwiseAlignments(object):
                 seed_length=22,
                 seed_extend_failures=15,
                 num_reseeds=5,
-                score_min_fn=bt2_func_constant(const=50),
-                score_match_bonus=2,
+                # score_min_fn=bt2_func_constant(const=75),
+                score_min_fn=bt2_func_sqrt(const=0., coef=16),  # wiggle room is probably somewhere around 50 less than the maximal possible score, but bowtie2 doesn't allow functions that can be negative (if match_bonus > 0). This is kind of a dumb restriction, so let's approximate it using the function 16 * sqrt(x).
+                score_match_bonus=match_bonus,
                 score_mismatch_penalty=np.floor(
                     [5, 0]
                 ).astype(int),

@@ -152,10 +152,7 @@ def create_strain_entries(
         blast_hits = parse_blast_hits(blast_result_path, min_marker_len)
 
         # Parse the entries.
-        canonical_gene_found = False
         ref_gene_path = ref_gene_paths[gene_name]
-        ref_gene_len = len(next(iter(read_seq_file(ref_gene_path, 'fasta'))).seq)
-        min_canonical_length = ref_gene_len * 0.95
 
         logger.debug(f"Parsing BLAST hits for gene `{gene_name}`.")
         for subj_acc in blast_hits.keys():
@@ -165,12 +162,6 @@ def create_strain_entries(
             strain_entry = strain_entries[subj_acc]
             seq_accession = strain_entry['seqs'][0]['accession']
             for blast_hit in blast_hits[seq_accession]:
-                is_canonical = (
-                        (blast_hit.subj_end - blast_hit.subj_start) >= min_canonical_length
-                        and
-                        not canonical_gene_found
-                )
-
                 gene_id = f"{gene_name}_BLASTIDX_{blast_hit.line_idx}"
                 strain_entry['markers'].append(
                     {
@@ -180,11 +171,9 @@ def create_strain_entries(
                         'source': seq_accession,
                         'start': blast_hit.subj_start,
                         'end': blast_hit.subj_end,
-                        'strand': blast_hit.strand,
-                        'canonical': is_canonical
+                        'strand': blast_hit.strand
                     }
                 )
-                canonical_gene_found = canonical_gene_found or is_canonical
 
     return prune_entries([entry for _, entry in strain_entries.items()], logger)
 

@@ -139,12 +139,3 @@ class StrainDatabase(object):
             records.append(marker.to_seqrecord(description=""))
         with open(out_path, file_mode) as out_file:
             SeqIO.write(records, out_file, "fasta")
-
-    def get_canonical_marker(self, marker_name: str) -> Marker:
-        return self.backend.get_canonical_marker(marker_name)
-
-    def all_canonical_markers(self) -> List[Marker]:
-        return self.backend.all_canonical_markers()
-
-    def num_canonical_markers(self) -> int:
-        return self.backend.num_canonical_markers()

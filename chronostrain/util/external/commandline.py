@@ -8,10 +8,11 @@ logger = create_logger(__name__)
 
 
 class CommandLineException(Exception):
-    def __init__(self, cmd, exit_code):
+    def __init__(self, cmd, exit_code, stderr_msg: str = ''):
         super().__init__("`{}` encountered an error. (code: {})".format(cmd, exit_code))
         self.cmd = cmd
         self.exit_code = exit_code
+        self.stderr_msg = stderr_msg
 
 
 def call_command(command: str,

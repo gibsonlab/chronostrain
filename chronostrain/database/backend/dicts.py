@@ -62,23 +62,3 @@ class DictionaryBackend(AbstractStrainDatabaseBackend):
             return self.markers_by_name[marker_name]
         except KeyError:
             return []
-
-    def get_canonical_marker(self, marker_name: str) -> Marker:
-        markers = self.get_markers_by_name(marker_name)
-
-        for marker in markers:
-            if marker.is_canonical:
-                return marker
-
-        raise RuntimeError("No canonical markers found with name `{}`.".format(marker_name))
-
-    def all_canonical_markers(self) -> List[Marker]:
-        ans = []
-        for marker in self.all_markers():
-            if marker.is_canonical:
-                ans.append(marker)
-
-        return ans
-
-    def num_canonical_markers(self) -> int:
-        return len(self.all_canonical_markers())

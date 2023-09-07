@@ -10,7 +10,7 @@ from chronostrain.model.io import TimeSeriesReads
 from chronostrain.model.generative import GenerativeModel
 
 from chronostrain.util.math import save_sparse_matrix, load_sparse_matrix
-from .alignments import CachedReadMultipleAlignments, CachedReadPairwiseAlignments
+from .alignments import CachedReadPairwiseAlignments
 from .cache import ReadsPopulationCache
 
 from chronostrain.logging import create_logger
@@ -61,9 +61,6 @@ class SparseLogLikelihoodComputer:
 
         # ==== Alignments of reads to the database reference markers.
         self.pairwise_reference_alignments = CachedReadPairwiseAlignments(reads, db, num_cores=self.num_cores)
-
-        # ==== Multiple alignment of all reads to a single reference marker at a time.
-        self.multiple_alignments = CachedReadMultipleAlignments(reads, db)
 
         # noinspection PyTypeChecker
         self._multi_align_instances: List[MarkerMultipleFragmentAlignment] = None  # lazy loading
@@ -144,62 +141,6 @@ class SparseLogLikelihoodComputer:
         :return: A defaultdict representing the map (Read ID) -> {Fragments that the read aligns to}
         """
         raise NotImplementedError()
-
-        # read_to_frag_likelihoods: Dict[str, List[Tuple[Fragment, float]]] = defaultdict(list)
-        #
-        # logger.debug(f"(t = {t_idx}) Retrieving multiple alignments.")
-        # if self._multi_align_instances is None:
-        #     self._multi_align_instances = list(self.multiple_alignments.get_alignments(num_cores=self.num_cores))
-        #
-        # time_slice = self.reads[t_idx]
-        # included_pairs: Set[str] = set()
-        # ll_threshold = -500
-        #
-        # """
-        # Helper function (Given subseq/read pair (and other relevant information), compute likelihood and insert into matrix.
-        # """
-        # def add_subseq_likelihood(subseq, read, insertions, deletions, revcomp, start_clip: int, end_clip: int):
-        #     frag = self.model.fragments.get_fragment(subseq)
-        #
-        #     pair_identifier = f"{read.id}->{frag.index}"
-        #     if pair_identifier in included_pairs:
-        #         return
-        #     else:
-        #         included_pairs.add(pair_identifier)
-        #
-        #     ll = self.read_frag_ll(
-        #         frag,
-        #         read,
-        #         insertions, deletions,
-        #         reverse_complemented=revcomp,
-        #         start_clip=start_clip,
-        #         end_clip=end_clip
-        #     )
-        #
-        #     if ll < ll_threshold:
-        #         return
-        #     read_to_frag_likelihoods[read.id].append((frag, ll))
-        #
-        # """
-        # Main loop
-        # """
-        # for multi_align in self._multi_align_instances:
-        #     logger.debug(f"[{multi_align.canonical_marker.name}] Processing alignment of reads "
-        #                  f"({len(multi_align.forward_read_index_map)} forward, "
-        #                  f"{len(multi_align.reverse_read_index_map)} reverse) "
-        #                  f"into likelihoods.")
-        #
-        #     for frag_entry in multi_align.all_mapped_fragments():
-        #         marker, read, subseq, insertions, deletions, start_clip, end_clip, revcomp = frag_entry
-        #         add_subseq_likelihood(subseq, read, insertions, deletions, revcomp, start_clip, end_clip)
-        #
-        #     # Next, take care of the variant markers (if applicable).
-        #     for variant in self.marker_variants_of(multi_align.canonical_marker):
-        #         for read in time_slice:
-        #             for subseq, revcomp, insertions, deletions, start_clip, end_clip in variant.subseq_from_read(read):
-        #                 add_subseq_likelihood(subseq, read, insertions, deletions, revcomp, start_clip, end_clip)
-        #
-        # return read_to_frag_likelihoods
 
     def create_sparse_matrix(self, t_idx: int) -> jsparse.BCOO:
         """

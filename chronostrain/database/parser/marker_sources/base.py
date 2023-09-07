@@ -7,7 +7,7 @@ class AbstractMarkerSource(ABC):
     @abstractmethod
     def extract_from_primer(
             self,
-            marker_id: str, marker_name: str, is_canonical: bool,
+            marker_id: str, marker_name: str,
             forward: str, reverse: str
     ) -> Marker:
         raise NotImplementedError()
@@ -15,7 +15,7 @@ class AbstractMarkerSource(ABC):
     @abstractmethod
     def extract_subseq(
             self,
-            marker_id: str, marker_name: str, is_canonical: bool,
+            marker_id: str, marker_name: str,
             start_pos: int, end_pos: int, from_negative_strand: bool
     ) -> Marker:
         raise NotImplementedError()
@@ -23,7 +23,7 @@ class AbstractMarkerSource(ABC):
     @abstractmethod
     def extract_from_locus_tag(
             self,
-            marker_id: str, marker_name: str, is_canonical: bool,
+            marker_id: str, marker_name: str,
             locus_tag: str
     ) -> Marker:
         raise NotImplementedError()

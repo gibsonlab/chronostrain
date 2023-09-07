@@ -18,9 +18,8 @@ class PandasAssistedBackend(AbstractStrainDatabaseBackend):
         self.marker_df = pd.DataFrame({
             'MarkerIdx': pd.Series(dtype='int'),
             'MarkerId': pd.Series(dtype='str'),
-            'MarkerName': pd.Series(dtype='str'),
-            'IsCanonical': pd.Series(dtype='bool')
-        })
+            'MarkerName': pd.Series(dtype='str')
+        }).set_index(['MarkerId'])
 
     def add_strains(self, strains: Iterator[Strain]):
         strain_df_entries = []
@@ -41,15 +40,15 @@ class PandasAssistedBackend(AbstractStrainDatabaseBackend):
         Add a marker and return its id, automatically handle duplicates.
         Pandas-specific implementation.
         """
-        hits = self.marker_df.loc[self.marker_df['MarkerId'] == marker.id, 'MarkerIdx']
-        if hits.shape[0] > 0:
+        try:
+            hits = self.marker_df.loc[marker.id, 'MarkerIdx']
             return hits.head(1).item()
-
-        new_idx = len(self.marker_df.index)
-        self.marker_df.loc[new_idx] = [
-            new_idx, marker.id, marker.name, marker.is_canonical
-        ]
-        return new_idx
+        except KeyError:
+            new_idx = self.marker_df.shape[0]
+            self.marker_df.loc[marker.id] = [
+                new_idx, marker.name
+            ]
+            return new_idx
 
     def get_strain(self, strain_id: str) -> Strain:
         try:
@@ -61,10 +60,16 @@ class PandasAssistedBackend(AbstractStrainDatabaseBackend):
         return [self.get_strain(strain_id) for strain_id in strain_ids]
 
     def _get_marker_index(self, marker_id: str) -> int:
-        hits = self.marker_df.loc[self.marker_df['MarkerId'] == marker_id, 'MarkerIdx']
-        if hits.shape[0] == 0:
-            raise RuntimeError(f'Database does not contain marker with ID {marker_id}.')
-        return hits.head(1).item()
+        hits = self.marker_df.loc[marker_id, :]
+        if isinstance(hits, pd.Series):
+            return hits['MarkerIdx']
+        elif isinstance(hits, pd.DataFrame):
+            if hits.shape[0] == 0:
+                raise RuntimeError(f'Database does not contain marker with ID {marker_id}.')
+            elif hits.shape[0] > 1:
+                raise RuntimeError(f'Multiple hits found with marker ID {marker_id}.')
+            else:
+                return hits.head(1)['MarkerIdx'].item()
 
     def get_marker(self, marker_id: str) -> Marker:
         try:
@@ -86,9 +91,9 @@ class PandasAssistedBackend(AbstractStrainDatabaseBackend):
 
     def get_strains_with_marker(self, marker: Marker) -> List[Strain]:
         m_idx = self.marker_df.loc[
-            self.marker_df['MarkerId'] == marker.id,
+            marker.id,
             "MarkerIdx"
-        ].head(1).item()
+        ]
 
         hits = self.strain_df.loc[
             self.strain_df['MarkerIdx'] == m_idx,
@@ -108,34 +113,6 @@ class PandasAssistedBackend(AbstractStrainDatabaseBackend):
             self.markers[marker_idx]
             for idx, marker_idx in hits.items()
         ]
-
-    def get_canonical_marker(self, marker_name: str) -> Marker:
-        hits = self.marker_df.loc[
-            (self.marker_df['MarkerName'] == marker_name) & (self.marker_df['IsCanonical']),
-            "MarkerIdx"
-        ]
-
-        if hits.shape[0] == 0:
-            raise RuntimeError("No canonical markers found with name `{}`.".format(marker_name))
-
-        for idx, marker_idx in hits.items():
-            return self.get_marker(marker_idx)
-
-    def all_canonical_markers(self) -> List[Marker]:
-        hits = self.marker_df.loc[
-            (self.marker_df['IsCanonical']),
-            "MarkerIdx"
-        ]
-        return [
-            self.markers[marker_idx]
-            for idx, marker_idx in hits.items()
-        ]
-
-    def num_canonical_markers(self) -> int:
-        return self.marker_df.loc[
-            (self.marker_df['IsCanonical']),
-            "MarkerIdx"
-        ].shape[0]
 
     def signature(self) -> str:
         import hashlib

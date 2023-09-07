@@ -40,7 +40,6 @@ class Marker:
     id: str  # A unique identifier.
     name: str  # A human-readable name.
     seq: Sequence
-    canonical: bool
     metadata: Union[MarkerMetadata, None] = None
 
     def __repr__(self):
@@ -57,10 +56,6 @@ class Marker:
 
     def __eq__(self, other):
         return self.id == other.id
-
-    @property
-    def is_canonical(self) -> bool:
-        return self.canonical
 
     def to_seqrecord(self, description: str = "") -> SeqRecord:
         return SeqRecord(

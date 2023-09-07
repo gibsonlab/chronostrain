@@ -59,7 +59,7 @@ class EntrezMarkerSource(AbstractMarkerSource):
 
     def extract_from_primer(
             self,
-            marker_id: str, marker_name: str, is_canonical: bool,
+            marker_id: str, marker_name: str,
             forward: str, reverse: str
     ) -> Marker:
         result = regex_match_primers(self.seq_nucleotide, self.seq_accession, forward, reverse, self.marker_max_len)
@@ -68,7 +68,6 @@ class EntrezMarkerSource(AbstractMarkerSource):
             id=marker_id,
             name=marker_name,
             seq=marker_seq,
-            canonical=is_canonical,
             metadata=MarkerMetadata(
                 parent_strain=self.strain_id,
                 file_path=None
@@ -77,7 +76,7 @@ class EntrezMarkerSource(AbstractMarkerSource):
 
     def extract_subseq(
             self,
-            marker_id: str, marker_name: str, is_canonical: bool,
+            marker_id: str, marker_name: str,
             start_pos: int, end_pos: int, from_negative_strand: bool
     ) -> Marker:
         marker_seq = AllocatedSequence(self.seq_nucleotide[start_pos - 1:end_pos])
@@ -87,7 +86,6 @@ class EntrezMarkerSource(AbstractMarkerSource):
             id=marker_id,
             name=marker_name,
             seq=marker_seq,
-            canonical=is_canonical,
             metadata=MarkerMetadata(
                 parent_strain=self.strain_id,
                 file_path=None
@@ -96,7 +94,7 @@ class EntrezMarkerSource(AbstractMarkerSource):
 
     def extract_from_locus_tag(
             self,
-            marker_id: str, marker_name: str, is_canonical: bool,
+            marker_id: str, marker_name: str,
             locus_tag: str
     ) -> Marker:
         for feature in self.seq_genbank_features:
@@ -112,7 +110,6 @@ class EntrezMarkerSource(AbstractMarkerSource):
                 id=marker_id,
                 name=marker_name,
                 seq=marker_seq,
-                canonical=is_canonical,
                 metadata=MarkerMetadata(
                     parent_strain=self.strain_id,
                     file_path=None
@@ -122,7 +119,7 @@ class EntrezMarkerSource(AbstractMarkerSource):
 
     def extract_fasta_record(
             self,
-            marker_id: str, marker_name: str, record_id: str
+            marker_id: str, marker_name: str, record_id: str, allocate: bool
     ) -> Marker:
         f_path, record = self.get_fasta_record()
         if record.id != record_id:
@@ -133,7 +130,6 @@ class EntrezMarkerSource(AbstractMarkerSource):
             id=marker_id,
             name=marker_name,
             seq=AllocatedSequence(str(record.seq)),
-            canonical=True,
             metadata=MarkerMetadata(
                 parent_strain=self.strain_id,
                 file_path=f_path
@@ -162,7 +158,7 @@ class CachedEntrezMarkerSource(EntrezMarkerSource):
             "fasta"
         )
 
-    def load_from_disk(self, marker_id: str, marker_name: str, is_canonical: bool, marker_filepath: Path):
+    def load_from_disk(self, marker_id: str, marker_name: str, marker_filepath: Path):
         # noinspection PyBroadException
         try:
             seq = str(SeqIO.read(marker_filepath, "fasta").seq)
@@ -173,7 +169,6 @@ class CachedEntrezMarkerSource(EntrezMarkerSource):
             id=marker_id,
             name=marker_name,
             seq=AllocatedSequence(seq),
-            canonical=is_canonical,
             metadata=MarkerMetadata(
                 parent_strain=self.strain_id,
                 file_path=marker_filepath
@@ -182,45 +177,45 @@ class CachedEntrezMarkerSource(EntrezMarkerSource):
 
     def extract_from_primer(
             self,
-            marker_id: str, marker_name: str, is_canonical: bool,
+            marker_id: str, marker_name: str,
             forward: str, reverse: str
     ) -> Marker:
         marker_filepath = self.get_marker_filepath(marker_id)
         if marker_filepath.exists():
-            return self.load_from_disk(marker_id, marker_name, is_canonical, marker_filepath)
+            return self.load_from_disk(marker_id, marker_name, marker_filepath)
         else:
             marker = super().extract_from_primer(
-                marker_id, marker_name, is_canonical, forward, reverse
+                marker_id, marker_name, forward, reverse
             )
             self.save_to_disk(marker, marker_filepath)
             return marker
 
     def extract_subseq(
             self,
-            marker_id: str, marker_name: str, is_canonical: bool,
+            marker_id: str, marker_name: str,
             start_pos: int, end_pos: int, from_negative_strand: bool
     ) -> Marker:
         marker_filepath = self.get_marker_filepath(marker_id)
         if marker_filepath.exists():
-            return self.load_from_disk(marker_id, marker_name, is_canonical, marker_filepath)
+            return self.load_from_disk(marker_id, marker_name, marker_filepath)
         else:
             marker = super().extract_subseq(
-                marker_id, marker_name, is_canonical, start_pos, end_pos, from_negative_strand
+                marker_id, marker_name, start_pos, end_pos, from_negative_strand
             )
             self.save_to_disk(marker, marker_filepath)
             return marker
 
     def extract_from_locus_tag(
             self,
-            marker_id: str, marker_name: str, is_canonical: bool,
+            marker_id: str, marker_name: str,
             locus_tag: str
     ) -> Marker:
         marker_filepath = self.get_marker_filepath(marker_id)
         if marker_filepath.exists():
-            return self.load_from_disk(marker_id, marker_name, is_canonical, marker_filepath)
+            return self.load_from_disk(marker_id, marker_name, marker_filepath)
         else:
             marker = super().extract_from_locus_tag(
-                marker_id, marker_name, is_canonical, locus_tag
+                marker_id, marker_name, locus_tag
             )
             self.save_to_disk(marker, marker_filepath)
             return marker

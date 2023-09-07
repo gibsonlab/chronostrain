@@ -21,17 +21,6 @@ def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase, logger: 
                 raise Exception("UNEXPECTED ERROR! found frag of length smaller than 15")
     elif mode == 'multiple':
         raise NotImplementedError()
-        # multiple_alignments = CachedReadMultipleAlignments(reads, db)
-        # for multi_align in multiple_alignments.get_alignments(num_cores=cfg.model_cfg.num_cores):
-        #     logger.debug(f"Constructing fragments for marker `{multi_align.canonical_marker.name}`.")
-        #
-        #     for frag_entry in multi_align.all_mapped_fragments():
-        #         marker, read, subseq, insertions, deletions, start_clip, end_clip, revcomp = frag_entry
-        #
-        #         fragment_space.add_seq(
-        #             subseq,
-        #             metadata=f"({read.id}->{marker.id})"
-        #         )
     else:
         raise ValueError(f"Unknown fragment extrapolation mode `{mode}`.")
     return fragment_space

@@ -70,7 +70,7 @@ class ADVIGaussianSolver(AbstractADVISolver):
             raise NotImplementedError("TODO implement this posterior for Jax.")
             # posterior = GaussianPosteriorStrainCorrelation(model)
         elif self.correlation_type == "full":
-            return GaussianPosteriorFullReparametrizedCorrelation(self.model, dtype=self.dtype,
+            return GaussianPosteriorFullReparametrizedCorrelation(self.model.num_strains(), self.model.num_times(), dtype=self.dtype,
                                                                   initial_gaussian_bias=self.initial_gaussian_bias)
         else:
             raise ValueError("Unrecognized `correlation_type` argument {}.".format(self.correlation_type))

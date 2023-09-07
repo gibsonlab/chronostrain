@@ -18,15 +18,15 @@ class ExistingFastaMarkerSource(AbstractMarkerSource):
     def assembly_path(data_dir: Path, accession: str) -> Path:
         return data_dir / "assemblies" / f"{accession}.fasta"
 
-    def extract_from_primer(self, marker_id: str, marker_name: str, is_canonical: bool, forward: str,
-                            reverse: str) -> Marker:
+    def extract_from_primer(self, marker_id: str, marker_name: str, forward: str, reverse: str) -> Marker:
         raise NotImplementedError("Primer-derived markers are not implemented for fasta-derived sources.")
 
-    def extract_subseq(self, marker_id: str, marker_name: str, is_canonical: bool, start_pos: int, end_pos: int,
-                       from_negative_strand: bool) -> Marker:
+    def extract_subseq(self,
+                       marker_id: str, marker_name: str,
+                       start_pos: int, end_pos: int, from_negative_strand: bool) -> Marker:
         raise NotImplementedError("Subseq-derived markers are not implemented for fasta-derived sources.")
 
-    def extract_from_locus_tag(self, marker_id: str, marker_name: str, is_canonical: bool, locus_tag: str) -> Marker:
+    def extract_from_locus_tag(self, marker_id: str, marker_name: str, locus_tag: str) -> Marker:
         raise NotImplementedError("Locus tag-derived markers are not implemented for fasta-derived sources.")
 
     def extract_fasta_record(self, marker_id: str, marker_name: str, record_id: str, allocate: bool) -> Marker:
@@ -38,10 +38,8 @@ class ExistingFastaMarkerSource(AbstractMarkerSource):
             id=marker_id,
             name=marker_name,
             seq=seq,
-            canonical=True,
             metadata=MarkerMetadata(
                 parent_strain=self.strain_id,
                 file_path=self.fasta.fasta_path
             )
         )
-

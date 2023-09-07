@@ -19,10 +19,9 @@ INIT_SCALE = 1.0
 
 
 class ReparametrizedGaussianPosterior(AbstractReparametrizedPosterior, ABC):
-    def __init__(self, model: GenerativeModel):
-        self.model = model
-        self.num_strains = model.num_strains()
-        self.num_times = model.num_times()
+    def __init__(self, num_strains: int, num_times: int):
+        self.num_strains = num_strains
+        self.num_times = num_times
 
     def random_sample(self, num_samples: int) -> _GENERIC_SAMPLE_TYPE:
         return {
@@ -35,14 +34,14 @@ class ReparametrizedGaussianPosterior(AbstractReparametrizedPosterior, ABC):
 
 class GaussianPosteriorFullReparametrizedCorrelation(ReparametrizedGaussianPosterior):
 
-    def __init__(self, model: GenerativeModel, dtype, initial_gaussian_bias: Optional[np.ndarray] = None):
+    def __init__(self, num_strains: int, num_times: int, dtype, initial_gaussian_bias: Optional[np.ndarray] = None):
         """
         Mean-field assumption:
         1) Parametrize the (T x S) trajectory as a (TS)-dimensional Gaussian.
         2) Parametrize F_1, ..., F_T as independent (but not identical) categorical RVs (for each read).
         """
         logger.info("Initializing Fully joint posterior")
-        super().__init__(model)
+        super().__init__(num_strains, num_times)
 
         # ========== Reparametrization network (standard Gaussians -> nonstandard Gaussians)
         n_features = self.num_times * self.num_strains

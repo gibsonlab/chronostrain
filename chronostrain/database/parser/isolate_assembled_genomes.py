@@ -64,7 +64,6 @@ def parse_strain_from_assembly(spec: AssemblySpecification) -> Strain:
                 id=contig_record.id.replace('|', ':'),
                 name=f'Contig-{i}:{spec.accession}',
                 seq=DynamicFastaSequence(seq_resource, contig_record.id),
-                canonical=True,
                 metadata=MarkerMetadata(spec.accession, spec.fasta_path)
             )
         )

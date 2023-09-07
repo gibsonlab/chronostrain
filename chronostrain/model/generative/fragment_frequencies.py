@@ -187,7 +187,7 @@ class FragmentFrequencyComputer(object):
         from chronostrain.database.backend import PandasAssistedBackend
         assert isinstance(self.db.backend, PandasAssistedBackend)
         marker_id_dataframe = self.db.backend.strain_df.merge(
-            self.db.backend.marker_df,
+            self.db.backend.marker_df.reset_index(),
             on='MarkerIdx',
             how='right'
         ).set_index('MarkerId')
