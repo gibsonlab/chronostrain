@@ -109,29 +109,26 @@ do
 		download_sra $sra_id $raw_gz1 $raw_gz2
 		run_trimmomatic $raw_gz1 $raw_gz2 $sra_id $trimmomatic_outdir
 
-		trimmed_1_unpaired="${trimmomatic_outdir}/${sra_id}_unmatched_1.fastq"
 		trimmed_1_paired="${trimmomatic_outdir}/${sra_id}_paired_1.fastq"
-		trimmed_2_unpaired="${trimmomatic_outdir}/${sra_id}_unmatched_2.fastq"
 		trimmed_2_paired="${trimmomatic_outdir}/${sra_id}_paired_2.fastq"
-		cat $trimmed_1_unpaired $trimmed_1_paired > ${tidx}_background_1.fq
-		cat $trimmed_2_unpaired $trimmed_2_paired > ${tidx}_background_2.fq
+		cat $trimmed_1_paired > ${tidx}_background_1.fq
+		cat $trimmed_2_paired > ${tidx}_background_2.fq
 	fi
 done < ${BACKGROUND_CSV}
 
 
 # =============== Sample synthetic reads
-for mutation_ratio in "${MUTATION_RATIOS[@]}"; do
+for (( trial = 1; trial < ${N_TRIALS}+1; trial++ )); do
   for (( replicate = 1; replicate < ${N_GENOME_REPLICATES}+1; replicate++ )); do
-    replicate_dir=$(get_replicate_dir "${mutation_ratio}" "${replicate}")
-
-    for (( trial = 1; trial < ${N_TRIALS}+1; trial++ )); do
-      for n_reads in "${SYNTHETIC_COVERAGES[@]}"; do
+    for n_reads in "${SYNTHETIC_COVERAGES[@]}"; do
+      for mutation_ratio in "${MUTATION_RATIOS[@]}"; do
+        replicate_dir=$(get_replicate_dir "${mutation_ratio}" "${replicate}")
         seed=$((seed+1))
 
         trial_dir=$(get_trial_dir $mutation_ratio $replicate $n_reads $trial)
         read_dir=${trial_dir}/reads
-
         breadcrumb=${trial_dir}/read_sample.DONE
+
         if [[ -f "${breadcrumb}" ]]; then
           echo "[*] Skipping reads: ${n_reads}, trial #${trial}] -> ${trial_dir}"
         else

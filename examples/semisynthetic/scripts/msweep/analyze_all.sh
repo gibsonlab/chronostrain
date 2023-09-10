@@ -16,6 +16,7 @@ for (( trial = 1; trial < ${N_TRIALS}+1; trial++ )); do
         bash msweep/run_msweep.sh $mutation_ratio $replicate $n_reads $trial 2
         bash msweep/run_msweep.sh $mutation_ratio $replicate $n_reads $trial 3
         bash msweep/run_msweep.sh $mutation_ratio $replicate $n_reads $trial 4
+        bash msweep/run_msweep.sh $mutation_ratio $replicate $n_reads $trial 5
       done
     done
   done

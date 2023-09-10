@@ -20,7 +20,7 @@ while IFS=$'\t' read -r -a columns
 do
   acc="${columns[3]}"
   seq_path="${columns[5]}"
-  if [ "${acc}" == "NZ_CP022154.1" ] || [ "${acc}" == "NZ_LR536430.1" ]; then
+  if [ "${acc}" == "NZ_CP051001.1" ] || [ "${acc}" == "NZ_CP068279.1" ] || [ "${acc}" == "NZ_CP035882.1" ]; then
     ln -s ${seq_path} ${genome_dir}/${acc}.fasta
   fi
 done < ${REFSEQ_INDEX}
@@ -51,8 +51,9 @@ create_mutant()
 genome_rate=${BASE_GENOME_MUTATION_RATE}
 marker_rate=$(echo "scale=10; ${genome_rate} * ${mutation_ratio}" | bc)
 echo "[*] genome_rate = ${genome_rate}, marker_rate = ${marker_rate} (mutation ratio = ${mutation_ratio})"
-create_mutant NZ_CP022154.1 NZ_CP022154.1.sim_mutant "${base_seed}1" ${genome_rate} ${marker_rate} ${CHRONOSTRAIN_DB_JSON_SRC}
-create_mutant NZ_LR536430.1 NZ_LR536430.1.sim_mutant "${base_seed}2" ${genome_rate} ${marker_rate} ${CHRONOSTRAIN_DB_JSON_SRC}
+create_mutant NZ_CP051001.1 NZ_CP051001.1.sim_mutant "${base_seed}1" ${genome_rate} ${marker_rate} ${CHRONOSTRAIN_DB_JSON_SRC}
+create_mutant NZ_CP068279.1 NZ_CP068279.1.sim_mutant "${base_seed}2" ${genome_rate} ${marker_rate} ${CHRONOSTRAIN_DB_JSON_SRC}
+create_mutant NZ_CP035882.1 NZ_CP035882.1.sim_mutant "${base_seed}3" ${genome_rate} ${marker_rate} ${CHRONOSTRAIN_DB_JSON_SRC}
 
 
 # ======================== Update chronostrain JSON.
@@ -62,7 +63,10 @@ bash dataset/append_chronostrain_json.sh ${mutation_ratio} ${replicate}  # this 
 # ======================== genomes to simulate reads from
 noise_rate=${NOISE_GENOME_MUTATION_RATE}
 db_json_replicate=${replicate_dir}/databases/chronostrain/ecoli.json
-create_mutant NZ_CP022154.1 NZ_CP022154.1.READSIM_MUTANT "${base_seed}3" $noise_rate $noise_rate ${db_json_replicate}
-create_mutant NZ_LR536430.1 NZ_LR536430.1.READSIM_MUTANT "${base_seed}4" $noise_rate $noise_rate ${db_json_replicate}
-create_mutant NZ_CP022154.1.sim_mutant NZ_CP022154.1.sim_mutant.READSIM_MUTANT "${base_seed}5" $noise_rate $noise_rate ${db_json_replicate}
-create_mutant NZ_LR536430.1.sim_mutant NZ_LR536430.1.sim_mutant.READSIM_MUTANT "${base_seed}6" $noise_rate $noise_rate ${db_json_replicate}
+create_mutant NZ_CP051001.1 NZ_CP051001.1.READSIM_MUTANT "${base_seed}4" $noise_rate $noise_rate ${db_json_replicate}
+create_mutant NZ_CP068279.1 NZ_CP068279.1.READSIM_MUTANT "${base_seed}5" $noise_rate $noise_rate ${db_json_replicate}
+create_mutant NZ_CP035882.1 NZ_CP035882.1.READSIM_MUTANT "${base_seed}6" $noise_rate $noise_rate ${db_json_replicate}
+
+create_mutant NZ_CP051001.1.sim_mutant NZ_CP051001.1.sim_mutant.READSIM_MUTANT "${base_seed}7" $noise_rate $noise_rate ${db_json_replicate}
+create_mutant NZ_CP068279.1.sim_mutant NZ_CP068279.1.sim_mutant.READSIM_MUTANT "${base_seed}8" $noise_rate $noise_rate ${db_json_replicate}
+create_mutant NZ_CP035882.1.sim_mutant NZ_CP035882.1.sim_mutant.READSIM_MUTANT "${base_seed}9" $noise_rate $noise_rate ${db_json_replicate}

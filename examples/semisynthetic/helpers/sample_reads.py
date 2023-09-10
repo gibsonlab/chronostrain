@@ -131,6 +131,10 @@ def concatenate_files(time_points: List[float], index_entries: List[Tuple[float,
 
                 reads1 = entry[2]
                 reads2 = entry[3]
+                if not reads1.exists():
+                    raise Exception(f"Read file {reads1} does not exist. Did ART run correctly?")
+                if not reads2.exists():
+                    raise Exception(f"Read file {reads2} does not exist. Did ART run correctly?")
                 with open(reads1, 'rt') as in_r1:
                     for line in in_r1:
                         out_r1.write(line)

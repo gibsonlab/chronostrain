@@ -122,8 +122,7 @@ def create_mutant_entry(strain_entry: Dict, mutant_id: str):
                 'source': mutant_id,
                 'start': marker_entry['start'],
                 'end': marker_entry['end'],
-                'strand': marker_entry['strand'],
-                'canonical': marker_entry['canonical']
+                'strand': marker_entry['strand']
             }
             for marker_entry in strain_entry['markers']
         ]

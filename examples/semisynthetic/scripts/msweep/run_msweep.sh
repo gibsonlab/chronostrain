@@ -27,16 +27,15 @@ mkdir -p $output_dir
 
 
 if [ -f $runtime_file ]; then
-	echo "[*] Skipping mSWEEP (mut_ratio: ${mutation_ratio} | replicate: ${replicate} |  n_reads: ${n_reads} | trial: ${trial})"
+	echo "[*] Skipping mSWEEP (mut_ratio: ${mutation_ratio} | replicate: ${replicate} |  n_reads: ${n_reads} | trial: ${trial} | timepoint ${time_point})"
 	exit 0
 fi
 
 
-echo "[*] Preparing mSWEEP input (mut_ratio: ${mutation_ratio} | replicate: ${replicate} |  n_reads: ${n_reads} | trial: ${trial})"
+echo "[*] Preparing mSWEEP input (mut_ratio: ${mutation_ratio} | replicate: ${replicate} |  n_reads: ${n_reads} | trial: ${trial} | timepoint ${time_point})"
 fwd_input=${output_dir}/${time_point}_pseudoaligns_1.txt
 rev_input=${output_dir}/${time_point}_pseudoaligns_2.txt
 
-echo "${fwd_input}"
 if ! [ -f ${pseudoalignment_dir}/${time_point}_sim_1.output.txt ]; then echo "Forward read pseudoalignment not found."; exit 1; fi
 if ! [ -f ${pseudoalignment_dir}/${time_point}_background_1.output.txt ]; then echo "Forward read pseudoalignment not found."; exit 1; fi
 if ! [ -f ${pseudoalignment_dir}/${time_point}_sim_2.output.txt ]; then echo "Reverse read pseudoalignment not found."; exit 1; fi

@@ -23,9 +23,10 @@ echo "[**] Generating input file."
 
 python msweep/themisto_build_input.py \
   -i ${REFSEQ_INDEX} \
-  -g ${replicate_dir}/sim_genomes/NZ_CP022154.1.sim_mutant.fasta \
-  -g ${replicate_dir}/sim_genomes/NZ_LR536430.1.sim_mutant.fasta \
-  -c "${POPPUNK_REFSEQ_DIR}/refine/refine_clusters.csv" \
+  -g ${replicate_dir}/sim_genomes/NZ_CP051001.1.sim_mutant.fasta \
+  -g ${replicate_dir}/sim_genomes/NZ_CP068279.1.sim_mutant.fasta \
+  -g ${replicate_dir}/sim_genomes/NZ_CP035882.1.sim_mutant.fasta \
+  -c "${POPPUNK_REFSEQ_DIR}/threshold/threshold_clusters.csv" \
   -o "${themisto_db_dir}"
 
 # invoke kmer index build for pseudoaligner
@@ -36,5 +37,5 @@ ${THEMISTO_BIN_DIR}/themisto build \
   -i sequences.txt \
   --index-prefix enterobacteriaceae \
   --temp-dir "${themisto_db_dir}/_tmp" \
-  --mem-gigas 20 --n-threads 8
+  --mem-gigas 20 --n-threads 4
 cd -
