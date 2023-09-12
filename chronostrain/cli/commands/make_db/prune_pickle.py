@@ -68,6 +68,10 @@ def prune_db(input_db: StrainDatabase, output_db_name: str, alignments_path: Pat
     strains = input_db.all_strains()
     clusters, cluster_reps, _ = cluster_db(
         strain_ids=[s.id for s in strains],
+        strain_entries=[
+            {'markers': [{'name': m.name} for m in s.markers]}
+            for s in strains
+        ],
         alignments_path=alignments_path,
         logger=logger,
         ident_fraction=identity_threshold

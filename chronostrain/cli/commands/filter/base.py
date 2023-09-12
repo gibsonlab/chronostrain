@@ -254,6 +254,7 @@ def create_aligner(aligner_type: str, read_type: ReadType, db: StrainDatabase) -
             num_reseeds=1,  # -R 1
             score_min_fn=bt2_func_constant(const=50),
             score_match_bonus=2,
+            align_offrate=5,
             score_mismatch_penalty=np.floor(
                 [5, 5]
             ).astype(int),

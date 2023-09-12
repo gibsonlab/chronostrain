@@ -3,11 +3,13 @@ from typing import Tuple
 import jax
 import jax.numpy as np
 import jax.experimental.sparse as jsparse
+import numpy as cnp
 
 from chronostrain.model.io.reads import TimeSeriesReads
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.util.benchmarking import RuntimeEstimator
 from chronostrain.algs.inference.base import AbstractModelSolver
+from chronostrain.util.math import log_spspmm_exp
 
 from chronostrain.logging import create_logger
 from chronostrain.database import StrainDatabase
@@ -40,6 +42,7 @@ class EMSolver(AbstractModelSolver):
                  generative_model: GenerativeModel,
                  data: TimeSeriesReads,
                  db: StrainDatabase,
+                 dtype='bfloat16',
                  lr: float = 1e-3):
         """
         Instantiates an EMSolver instance.
@@ -50,6 +53,7 @@ class EMSolver(AbstractModelSolver):
         :param lr: the learning rate (default: 1e-3)
         """
         super().__init__(generative_model, data, db)
+        self.dtype = dtype
         self.lr = lr
         self.frag_freqs = sparse_ll_exp(self.model.fragment_frequencies_sparse)
 
@@ -61,10 +65,9 @@ class EMSolver(AbstractModelSolver):
         self.dts = np.diff(np.array(self.model.times))
         self.initialize_gradient_functions()
 
-        # DEBUG -- initialize likelihood matrix products
-        from chronostrain.util.math import log_spspmm_exp_sparsey
+        # initialize likelihood matrix products
         self.strain_data_lls = [
-            log_spspmm_exp_sparsey(self.model.fragment_frequencies_sparse.T, data_ll_t)
+            log_spspmm_exp(self.model.fragment_frequencies_sparse.T, data_ll_t)
             for data_ll_t in data_likelihoods.matrices
         ]
 
@@ -128,8 +131,6 @@ class EMSolver(AbstractModelSolver):
                 from chronostrain.algs.inference.vi.util import log_mm_exp
                 # Evaluate data likelihood
                 ll = self.model.log_likelihood_x(x)
-                print(x)
-                print("ll = {}".format(ll))
                 for t in range(self.model.num_times()):
                     log_y_t = jax.nn.log_softmax(x[t], axis=-1)
                     prod = log_mm_exp(
@@ -137,11 +138,11 @@ class EMSolver(AbstractModelSolver):
                         self.strain_data_lls[t]
                     )
                     ll += np.where(np.isinf(prod), 0.0, prod).sum()
-                    print("[t = {}] ll = {}".format(t, ll))
-                logger.info("Iteration {i} | time left: {t:.1f} min. | Learned Abundance Diff: {diff}".format(
+                logger.info("Iteration {i} | time left: {t:.1f} min. | Learned Abundance Diff: {diff} | LL = {ll}".format(
                     i=k,
                     t=time_est.time_left() / 60000,
-                    diff=diff
+                    diff=diff,
+                    ll=ll
                 ))
 
             has_converged = (diff < thresh)
@@ -149,12 +150,13 @@ class EMSolver(AbstractModelSolver):
                 logger.info("Convergence criterion ({th}) met; terminating optimization early.".format(th=thresh))
                 break
         logger.info("Finished {k} iterations.".format(k=k))
-        exit(1)
         return x
 
     def initialize_gradient_functions(self):
+        mu_0 = np.zeros(shape=(self.model.num_strains()), dtype=self.dtype)
+
         # @jax.jit
-        def gaussian_gradient(x, mu_0, time_scaled_variances):
+        def gaussian_gradient(x: np.ndarray, time_scaled_variances: np.ndarray):
             # x has shape (T,S)
             var_scaling = -1 / time_scaled_variances  # (T,)
 
@@ -165,49 +167,46 @@ class EMSolver(AbstractModelSolver):
                 ]),
                 axis=0
             )  # x_t - x_t-1, including x_1 - mu  --> (T, S)
-            rev_diffs = np.expand_dims(var_scaling[1:], axis=1) * np.diff(-x,
-                                                                          axis=0)  # x_{t-1} - x_t, starting with x_2 - x_1 --> (T-1, S)
+            rev_diffs = np.expand_dims(var_scaling[1:], axis=1) * np.diff(-x, axis=0)  # x_{t-1} - x_t, starting with x_2 - x_1 --> (T-1, S)
             return fwd_diffs + np.concatenate([
                 rev_diffs,
-                np.zeros(shape=(1, x.shape[1]))
+                np.zeros(shape=(1, x.shape[1]), dtype=self.dtype)
             ])
         self.gaussian_gradient = gaussian_gradient
 
         # @jax.jit
-        def data_gradient(x_t: np.ndarray, frag_freq: jsparse.BCOO, data_p_t: jsparse.BCOO, debug=False):
+        def data_gradient(x_t: np.ndarray, frag_freq: jsparse.BCOO, data_p_t: jsparse.BCOO):
             """
             frag_freq is (F x S)
             data_p_t is (F x R)
             """
             y_t = jax.nn.softmax(x_t, axis=-1)  # (S)
             Z_t = frag_freq @ y_t  # (F,S) @ (S) --> (F), frag freq at time t
-            if debug:
-                print(Z_t)
+            print(Z_t)  # DEBUG
 
             Q = data_p_t * np.expand_dims(Z_t, axis=1)  # scale each row by \tilde{Z} --> (F,R)
             Q = Q / jsparse.bcoo_reduce_sum(Q, axes=[0]).todense()  # normalize each column --> (F,R)  TODO: check if this has nans. (it probably does)
             Q = jsparse.bcoo_reduce_sum(Q, axes=[1]) / Z_t  # take column sum and divide by 1 / Z --> (F,)
 
-            if debug:
-                print("****************")
-                print(data_p_t)
-                print(Q)
-                print(Q.todense())
-                print(Q.data)
-                print("****************")
+            print("****************")
+            print(data_p_t)
+            print(Q)
+            print(Q.todense())
+            print(Q.data)
+            print("****************")
 
             sigmoid = y_t
             sigmoid_jacobian = np.diag(sigmoid) - np.outer(sigmoid, sigmoid)  # (S,S)
-            if debug:
-                _A = sigmoid_jacobian @ frag_freq.T
-                _B = Q.todense()
-                print(_A[0])
-                print(_B)
-                print(np.dot(_A[0], _B))
-                np.savez("TEST/arrays.npz", A=_A, B=_B)
 
-                print(sigmoid_jacobian @ frag_freq.T @ Q)
-                exit(1)
+            # ========== DEBUG
+            # _A = sigmoid_jacobian @ frag_freq.T
+            # _B = Q.todense()
+            # print(_A[0])
+            # print(_B)
+            # print(np.dot(_A[0], _B))
+            # np.savez("TEST/arrays.npz", A=_A, B=_B)
+            #
+            # print(sigmoid_jacobian @ frag_freq.T @ Q)
             return sigmoid_jacobian @ frag_freq.T @ Q
         self.data_gradient = data_gradient
 
@@ -218,7 +217,7 @@ class EMSolver(AbstractModelSolver):
             gradient_clip: float
     ) -> Tuple[np.ndarray, float, float]:
         x_gradient = (
-            self.gaussian_gradient(x, self.model.mu, time_scaled_variance)
+            self.gaussian_gradient(x, time_scaled_variance)
             +
             np.stack([
                 self.data_gradient(
@@ -244,18 +243,18 @@ class EMSolver(AbstractModelSolver):
         updated_var_1, updated_var = self.estimate_posterior_variances(new_x)
         return new_x, updated_var_1, updated_var
 
-    def estimate_posterior_variances(self, x) -> Tuple[float, float]:
+    def estimate_posterior_variances(self, x: np.ndarray) -> Tuple[float, float]:
         """
         Outputs the posterior modes (maximum posterior likelihood), using the conjugacy of SICS/Gaussian distributions.
 
         :param x: a (T x S) tensor of gaussians, representing a realization of the S-axisensional brownian motion.
         """
-        diffs_1 = x[0, :] - self.model.mu
+        diffs_1 = x[0, :]
         dof_1 = self.model.tau_1_dof + diffs_1.size
         scale_1 = (1 / dof_1) * (
             self.model.tau_1_dof * self.model.tau_1_scale
             + np.sum(np.square(diffs_1))
-        )
+        ).item()
 
         diffs = (x[1:, :] - x[:-1, :]) * np.expand_dims(np.power(np.array(
             [self.model.dt(t_idx) for t_idx in range(1, self.model.num_times())],
@@ -264,6 +263,6 @@ class EMSolver(AbstractModelSolver):
         scale = (1 / dof) * (
             self.model.tau_dof * self.model.tau_scale
             + np.sum(np.square(diffs))
-        )
+        ).item()
 
         return _sics_mode(dof_1, scale_1), _sics_mode(dof, scale)

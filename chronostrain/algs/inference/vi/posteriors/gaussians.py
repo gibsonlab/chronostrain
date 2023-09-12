@@ -52,7 +52,7 @@ class GaussianPosteriorFullReparametrizedCorrelation(ReparametrizedGaussianPoste
         if initial_gaussian_bias is None:
             self.parameters['bias'] = np.zeros(n_features, dtype=dtype)
         else:
-            self.parameters['bias'] = initial_gaussian_bias.flatten()
+            self.parameters['bias'] = np.ravel(initial_gaussian_bias)
 
     def set_parameters(self, params: _GENERIC_PARAM_TYPE):
         self.parameters = params

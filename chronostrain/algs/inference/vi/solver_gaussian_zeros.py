@@ -5,6 +5,7 @@ import jax.numpy as np
 import numpy as cnp
 
 from chronostrain.database import StrainDatabase
+from chronostrain.model import Population
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.util.optimization import LossOptimizer
@@ -20,6 +21,12 @@ from .util import log_mm_exp, log_mv_exp
 logger = create_logger(__name__)
 
 
+# typedef
+class BiasInitializer(Protocol):
+    def __call__(self, population: Population, times: List[float]) -> np.ndarray:
+        pass
+
+
 class ADVIGaussianZerosSolver(AbstractADVISolver):
     """
     A basic implementation of ADVI estimating the posterior p(X|R), with fragments
@@ -33,15 +40,15 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
                  db: StrainDatabase,
                  optimizer: LossOptimizer,
                  prune_strains: bool,
+                 bias_initializer: BiasInitializer,
                  read_batch_size: int = 5000,
                  accumulate_gradients: bool = False,
                  correlation_type: str = "full",
-                 dtype='bfloat16',
-                 initial_gaussian_bias: Optional[np.ndarray] = None):
+                 dtype='bfloat16'):
         logger.info("Initializing solver with Gaussian-Zero posterior")
         self.dtype = dtype
         self.correlation_type = correlation_type
-        self.initial_gaussian_bias = initial_gaussian_bias
+        self.bias_initializer = bias_initializer
         super().__init__(
             model=model,
             data=data,
@@ -67,21 +74,22 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
             return GaussianWithGlobalZerosPosteriorDense(
                 self.model.num_strains(),
                 self.model.num_times(),
-                dtype=self.dtype, initial_gaussian_bias=self.initial_gaussian_bias
+                dtype=self.dtype,
+                initial_gaussian_bias=self.bias_initializer(self.model.bacteria_pop, self.model.times)
             )
         elif self.correlation_type == "time":
             return GaussianTimeCorrelatedWithGlobalZerosPosterior(
                 self.model.num_strains(),
                 self.model.num_times(),
                 dtype=self.dtype,
-                initial_gaussian_bias=self.initial_gaussian_bias
+                initial_gaussian_bias=self.bias_initializer(self.model.bacteria_pop, self.model.times)
             )
         elif self.correlation_type == "strain":
             return GaussianStrainCorrelatedWithGlobalZerosPosterior(
                 self.model.num_strains(),
                 self.model.num_times(),
                 dtype=self.dtype,
-                initial_gaussian_bias=self.initial_gaussian_bias
+                initial_gaussian_bias=self.bias_initializer(self.model.bacteria_pop, self.model.times)
             )
         else:
             raise ValueError("Unrecognized `correlation_type` argument {}.".format(self.correlation_type))

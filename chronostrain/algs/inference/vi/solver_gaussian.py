@@ -4,6 +4,7 @@ import jax
 import jax.numpy as np
 import numpy as cnp
 from chronostrain.database import StrainDatabase
+from chronostrain.model import Population
 from chronostrain.model.generative import GenerativeModel
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.util.optimization import LossOptimizer
@@ -16,6 +17,10 @@ from .util import log_mm_exp
 from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
+
+class BiasInitializer(Protocol):
+    def __call__(self, population: Population, times: List[float]) -> np.ndarray:
+        pass
 
 class ADVIGaussianSolver(AbstractADVISolver):
     """
@@ -37,15 +42,15 @@ class ADVIGaussianSolver(AbstractADVISolver):
                  db: StrainDatabase,
                  optimizer: LossOptimizer,
                  prune_strains: bool,
+                 bias_initializer: BiasInitializer,
                  read_batch_size: int = 5000,
                  accumulate_gradients: bool = False,
                  correlation_type: str = "time",
-                 dtype='bfloat16',
-                 initial_gaussian_bias: Optional[np.ndarray] = None):
+                 dtype='bfloat16'):
         logger.info("Initializing solver with Gaussian posterior")
         self.dtype = dtype
         self.correlation_type = correlation_type
-        self.initial_gaussian_bias = initial_gaussian_bias
+        self.bias_initializer = bias_initializer
 
         super().__init__(
             model=model,
@@ -70,8 +75,11 @@ class ADVIGaussianSolver(AbstractADVISolver):
             raise NotImplementedError("TODO implement this posterior for Jax.")
             # posterior = GaussianPosteriorStrainCorrelation(model)
         elif self.correlation_type == "full":
-            return GaussianPosteriorFullReparametrizedCorrelation(self.model.num_strains(), self.model.num_times(), dtype=self.dtype,
-                                                                  initial_gaussian_bias=self.initial_gaussian_bias)
+            return GaussianPosteriorFullReparametrizedCorrelation(
+                self.model.num_strains(), self.model.num_times(),
+                dtype=self.dtype,
+                initial_gaussian_bias=self.bias_initializer(self.model.bacteria_pop, self.model.times)
+            )
         else:
             raise ValueError("Unrecognized `correlation_type` argument {}.".format(self.correlation_type))
 

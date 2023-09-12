@@ -1,6 +1,7 @@
 from typing import Dict, List
 from pathlib import Path
 from logging import Logger
+from collections import defaultdict
 import itertools
 import math
 
@@ -12,6 +13,7 @@ from chronostrain.util.sequences.z4 import nucleotides_to_z4
 
 def cluster_db(
         strain_ids: List[str],
+        strain_entries: List[Dict],
         alignments_path: Path,
         logger: Logger,
         ident_fraction: float = 0.002  # corresponds to 99.8% seq identity
@@ -47,8 +49,47 @@ def cluster_db(
         for c in range(n_clusters)
     ]
 
+    logger.info("Initial clustering: {} Clusters".format(len(clusters)))
+
+    # Ensure members of clusters have identical copy # of each gene.
+    copy_number_ensured_clusters: List[List[int]] = []
+    for cluster in clusters:
+        copy_number_ensured_clusters += split_by_gene_copy_number(cluster, strain_entries)
+    clusters = copy_number_ensured_clusters
+    logger.info("After copy number separation: {} Clusters".format(len(clusters)))
+
     cluster_reps = pick_cluster_representatives(clusters, distances)
     return clusters, cluster_reps, distances
+
+
+def split_by_gene_copy_number(cluster: List[int], strain_entries: List[Dict]) -> List[List[int]]:
+    # preprocessing: gather the possible genes.
+    gene_names = set()
+    for strain_entry in strain_entries:
+        for marker_entry in strain_entry['markers']:
+            gene_names.add(marker_entry['name'])
+    gene_names = list(gene_names)
+
+    # Tally up genes by name.
+    member_signatures = {}
+    for s_idx in cluster:
+        strain_entry = strain_entries[s_idx]
+        gene_counts = {g: 0 for g in gene_names}
+        for marker_entry in strain_entry['markers']:
+            gene_name = marker_entry['name']
+            gene_counts[gene_name] += 1
+        member_signatures[s_idx] = "|".join(str(gene_counts[g]) for g in gene_names)
+
+    # group members by signature.
+    signature_components = defaultdict(list)
+    for s_idx, signature in member_signatures.items():
+        signature_components[signature].append(s_idx)
+
+    # Output.
+    return [
+        components
+        for signature, components in signature_components.items()
+    ]
 
 
 def pick_cluster_representatives(clusters: List[List[int]], distances: np.ndarray) -> List[int]:

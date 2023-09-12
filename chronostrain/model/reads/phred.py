@@ -1,8 +1,33 @@
 import numpy as np
-from chronostrain.model import Fragment
 from chronostrain.model.reads.base import AbstractErrorModel, SequenceRead
 from chronostrain.model.reads.basic import RampUpRampDownDistribution
-from chronostrain.util.sequences import NucleotideDtype, bytes_N, AllocatedSequence
+from chronostrain.util.sequences import bytes_N
+from numba import jit
+
+
+@jit(nopython=True)  # speedup by factor of ~16x
+def phred_indel_ll_jit(insertions: np.ndarray, deletions: np.ndarray, insertion_error_ll: float, deletion_error_ll: float):
+    insertion_ll = np.sum(insertions) * (insertion_error_ll - np.log(4))
+    deletion_ll = np.sum(deletions) * deletion_error_ll
+    return insertion_ll + deletion_ll
+
+
+@jit(nopython=True)  # speedup by factor of ~8x
+def phred_log_likelihood_jit(
+        fragment_seq: np.ndarray,
+        read_seq: np.ndarray,
+        read_qual: np.ndarray
+):
+    error_log10_prob = -0.1 * read_qual
+    matches: np.ndarray = (fragment_seq == read_seq) & (read_qual > 0)
+    mismatches: np.ndarray = (fragment_seq != read_seq) & (read_seq != bytes_N)
+
+    """
+    Phred model: Pr(measured base = 'A', true base = 'G' | q) = ( 1/3 * 10^{-q/10} )
+    """
+    log_p_errors = -np.log(3) + np.log(10) * error_log10_prob[np.where(mismatches)]
+    log_p_matches = np.log(1 - np.power(10, error_log10_prob[np.where(matches)]))
+    return log_p_matches.sum() + log_p_errors.sum()
 
 
 class BasicPhredScoreDistribution(RampUpRampDownDistribution):
@@ -34,9 +59,7 @@ class PhredErrorModel(AbstractErrorModel):
 
     # noinspection PyUnusedLocal
     def indel_ll(self, read: SequenceRead, insertions: np.ndarray, deletions: np.ndarray):
-        insertion_ll = np.sum(insertions) * (self.insertion_error_ll - np.log(4))
-        deletion_ll = np.sum(deletions) * self.deletion_error_ll
-        return insertion_ll + deletion_ll
+        return phred_indel_ll_jit(insertions, deletions, self.insertion_error_ll, self.deletion_error_ll)
 
     def compute_log_likelihood(self,
                                fragment: np.ndarray,
@@ -63,13 +86,4 @@ class PhredErrorModel(AbstractErrorModel):
         read_seq = read_seq[_slice][~insertions]
         fragment_seq = fragment[~deletions]
 
-        error_log10_prob = -0.1 * read_qual
-        matches: np.ndarray = (fragment_seq == read_seq) & (read_qual > 0)
-        mismatches: np.ndarray = (fragment_seq != read_seq) & (read_seq != bytes_N)
-
-        """
-        Phred model: Pr(measured base = 'A', true base = 'G' | q) = ( 1/3 * 10^{-q/10} )
-        """
-        log_p_errors = -np.log(3) + np.log(10) * error_log10_prob[np.where(mismatches)]
-        log_p_matches = np.log(1 - np.power(10, error_log10_prob[np.where(matches)]))
-        return self.indel_ll(read, insertions, deletions) + log_p_matches.sum() + log_p_errors.sum()
+        return self.indel_ll(read, insertions, deletions) + phred_log_likelihood_jit(fragment_seq, read_seq, read_qual)

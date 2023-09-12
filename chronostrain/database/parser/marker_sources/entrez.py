@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Iterator, Tuple
+import re
 
 from Bio import SeqIO
 from Bio.SeqFeature import SeqFeature
@@ -142,11 +143,12 @@ class CachedEntrezMarkerSource(EntrezMarkerSource):
         super().__init__(strain_id, seq_accession, marker_max_len, force_download, data_dir)
 
     def get_marker_filepath(self, marker_id: str) -> Path:
+        marker_id_for_filename = re.sub(r'[^\w\s]', '_', marker_id)
         return (
                 self.data_dir
                 / "markers"
                 / f"{self.strain_id}"
-                / f"{marker_id}.fasta"
+                / f"{marker_id_for_filename}.fasta"
         )
 
     def save_to_disk(self, marker: Marker, target_path: Path):

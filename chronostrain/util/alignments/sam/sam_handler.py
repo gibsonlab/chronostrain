@@ -58,8 +58,13 @@ class SamLine:
     @property
     def optional_fields(self) -> Iterator[Tuple[str, str, str]]:
         for token in self.line.strip().split('\t')[11:]:
-            tag_name, tag_type, tag_value = token.split(':')
-            yield tag_name, tag_type, tag_value
+            if token.startswith("SA:"):
+                continue  # these report chimeric alignments.
+            try:
+                tag_name, tag_type, tag_value = token.split(':')
+                yield tag_name, tag_type, tag_value
+            except ValueError:
+                logger.warning("Couldn't parse optional token string {}".format(token))
 
     def __str__(self):
         return "SamLine(L={lineno}):{tokens}".format(

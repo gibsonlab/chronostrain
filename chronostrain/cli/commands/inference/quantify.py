@@ -54,9 +54,9 @@ def main(
     db = cfg.database_cfg.get_database()
 
     if allocate_fragments:
-        fragments = load_fragments(reads, db, logger)
+        fragments = load_fragments(reads, db, cfg.model_cfg.num_cores, logger)
     else:
-        fragments = load_fragments_dynamic(reads, db, logger)
+        fragments = load_fragments_dynamic(reads, db, cfg.model_cfg.num_cores, logger)
     model = create_model(
         population=Population(strains=db.all_strains()),
         source_reads=reads,

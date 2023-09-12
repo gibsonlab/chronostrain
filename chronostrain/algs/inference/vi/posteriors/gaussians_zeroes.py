@@ -326,7 +326,7 @@ class GaussianWithGlobalZerosPosteriorDense(AbstractReparametrizedPosterior):
         if initial_gaussian_bias is None:
             self.parameters['bias'] = np.zeros(n_features, dtype=dtype)
         else:
-            self.parameters['bias'] = np.flatten(initial_gaussian_bias)  # Assumes shape is (n_times, n_strains)
+            self.parameters['bias'] = np.ravel(initial_gaussian_bias)  # Assumes shape is (n_times, n_strains)
 
     def set_parameters(self, params: _GENERIC_PARAM_TYPE):
         self.parameters = params

@@ -1,4 +1,5 @@
 from logging import Logger
+from typing import *
 
 import jax.numpy as np
 from chronostrain.algs import *
@@ -8,6 +9,51 @@ from chronostrain.model.io import TimeSeriesReads
 from chronostrain.util.optimization import *
 from chronostrain.config import cfg
 from .model import create_model
+
+
+def bias_EM_initializer(population: Population, time_points: List[float]) -> np.ndarray:
+    raise NotImplementedError()
+
+
+def bias_semisynthetic_debug_init(population: Population, time_points: List[float]) -> np.ndarray:
+    import numpy as cnp
+    target_accs = ['NZ_CP043213.1', 'NZ_CP060963.1', 'NZ_CP027140.1', 'NZ_CP030240.1', 'NZ_CP065611.1', 'NZ_CP024257.1']
+    ground_truth = cnp.array([
+        [0.26143791, 0.2745098, 0.09803922, 0.29411765, 0.0130719, 0.05882353],
+        [0.31460674, 0.34831461, 0.13483146, 0.12359551, 0.03370787, 0.04494382],
+        [0.25906736, 0.50086356, 0.07772021, 0.06908463, 0.08635579, 0.00690846],
+        [0.15217391, 0.54347826, 0.06521739, 0.03913043, 0.19565217, 0.00434783],
+        [0.06423983, 0.51391863, 0.04496788, 0.01284797, 0.25695931, 0.10706638],
+        [0.0129199, 0.29715762, 0.01550388, 0.00258398, 0.51679587, 0.15503876]
+    ])
+    print("using ground truth {}".format(ground_truth))
+
+    ground_truth_indices = {acc: i for i, acc in enumerate(target_accs)}
+    target = cnp.zeros(shape=(len(time_points), population.num_strains()), dtype=float)
+
+    targets_left = set(target_accs)
+    for i, s in enumerate(population.strains):
+        if s.id in ground_truth_indices:
+            ground_truth_idx = ground_truth_indices[s.id]
+            target[:, i] = ground_truth[:, ground_truth_idx]
+            print("Found target: {} -> {}".format(s.id, target[:, i]))
+            targets_left.remove(s.id)
+    if len(targets_left) > 0:
+        print("**** Strains not observed for initialization: {}".format(targets_left))
+
+    eps = 1e-10
+    target = target + eps  # padding to prepare for log
+    target = target / target.sum(axis=-1, keepdims=True)  # renormalize
+    target = cnp.log(target)  # log-space conversion
+    return np.array(target, dtype=cfg.engine_cfg.dtype)
+
+
+def bias_uniform_initializer(population: Population, time_points: List[float]) -> np.ndarray:
+    return np.zeros(
+        shape=(len(time_points), population.num_strains()),
+        dtype=cfg.engine_cfg.dtype
+    )
+
 
 
 def perform_advi(
@@ -45,9 +91,8 @@ def perform_advi(
         db=db,
         logger=logger
     )
-
     if initialize_with_map:
-        raise NotImplementedError("initialize_with_map option is not implemented.")
+        bias_initializer = bias_EM_initializer
         # logger.debug("Running MAP solver, to initialize VI optimization.")
         # map_solver = AutogradMAPSolver(
         #     generative_model=model,
@@ -60,7 +105,8 @@ def perform_advi(
         # exit(1)
         # initial_bias, _, _ = em_solver.solve(iters=1000, thresh=1e-5, gradient_clip=1e3, print_debug_every=1)
     else:
-        initial_bias = None
+        # logger.info("DEBUGGING using ground truth initializer.")
+        bias_initializer = bias_uniform_initializer
 
     lr_scheduler = ReduceLROnPlateauLast(
         initial_lr=learning_rate,
@@ -92,7 +138,7 @@ def perform_advi(
             accumulate_gradients=accumulate_gradients,
             read_batch_size=read_batch_size,
             dtype=cfg.engine_cfg.dtype,
-            initial_gaussian_bias=initial_bias,
+            bias_initializer=bias_initializer,
             prune_strains=prune_strains
         )
     else:
@@ -105,7 +151,7 @@ def perform_advi(
             db=db,
             read_batch_size=read_batch_size,
             dtype=cfg.engine_cfg.dtype,
-            initial_gaussian_bias=initial_bias,
+            bias_initializer=bias_initializer,
             prune_strains=prune_strains
         )
 

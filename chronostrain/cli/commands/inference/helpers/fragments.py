@@ -8,12 +8,16 @@ from chronostrain.model import FragmentSpace, UnallocatedFragmentSpace
 from chronostrain.model.io import TimeSeriesReads
 
 
-def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase, logger: Logger, mode: str = 'pairwise') -> FragmentSpace:
+def aligned_exact_fragments(reads: TimeSeriesReads,
+                            db: StrainDatabase,
+                            n_threads: int,
+                            logger: Logger,
+                            mode: str = 'pairwise') -> FragmentSpace:
     logger.info("Constructing fragments from alignments.")
     fragment_space = FragmentSpace()
 
     if mode == 'pairwise':
-        alignments = CachedReadPairwiseAlignments(reads, db)
+        alignments = CachedReadPairwiseAlignments(reads, db, n_threads=n_threads)
         for _, aln in alignments.get_alignments():
             # First, add the likelihood for the fragment for the aligned base marker.
             fragment_space.add_seq(aln.marker_frag)
@@ -29,13 +33,14 @@ def aligned_exact_fragments(reads: TimeSeriesReads, db: StrainDatabase, logger: 
 def aligned_exact_fragments_dynamic(reads: TimeSeriesReads,
                                     db: StrainDatabase,
                                     work_dir: Path,
+                                    n_threads: int,
                                     logger: Logger, mode: str = 'pairwise') -> UnallocatedFragmentSpace:
     logger.info("Constructing fragments from alignments (disk-allocation).")
     fasta_path = work_dir / "fragments.fasta"
     fragment_space = UnallocatedFragmentSpace(fasta_path=fasta_path)
 
     if mode == 'pairwise':
-        alignments = CachedReadPairwiseAlignments(reads, db)
+        alignments = CachedReadPairwiseAlignments(reads, db, n_threads=n_threads)
         for _, aln in alignments.get_alignments():
             fragment_space.add_seq(aln.marker_frag)
 
@@ -46,21 +51,21 @@ def aligned_exact_fragments_dynamic(reads: TimeSeriesReads,
     return fragment_space
 
 
-def load_fragments(reads: TimeSeriesReads, db: StrainDatabase, logger: Logger) -> FragmentSpace:
+def load_fragments(reads: TimeSeriesReads, db: StrainDatabase, n_threads: int, logger: Logger) -> FragmentSpace:
     cache = ReadsPopulationCache(reads, db)
     return cache.call(
         relative_filepath="inference_fragments.pkl",
         fn=aligned_exact_fragments,
-        call_args=[reads, db, logger]
+        call_args=[reads, db, n_threads, logger]
     )
 
 
-def load_fragments_dynamic(reads: TimeSeriesReads, db: StrainDatabase, logger: Logger) -> UnallocatedFragmentSpace:
+def load_fragments_dynamic(reads: TimeSeriesReads, db: StrainDatabase, n_threads: int, logger: Logger) -> UnallocatedFragmentSpace:
     cache = ReadsPopulationCache(reads, db)
     frags: UnallocatedFragmentSpace = cache.call(
         relative_filepath="inference_fragments_dynamic.pkl",
         fn=aligned_exact_fragments_dynamic,
-        call_args=[reads, db, cache.cache_dir, logger]
+        call_args=[reads, db, cache.cache_dir, n_threads, logger]
     )
     if not frags.fasta_resource.fasta_path.exists():
         # Cache is corrupted; clear and recompute
@@ -69,7 +74,7 @@ def load_fragments_dynamic(reads: TimeSeriesReads, db: StrainDatabase, logger: L
         frags: UnallocatedFragmentSpace = cache.call(
             relative_filepath="inference_fragments_dynamic.pkl",
             fn=aligned_exact_fragments_dynamic,
-            call_args=[reads, db, cache.cache_dir, logger]
+            call_args=[reads, db, cache.cache_dir, n_threads, logger]
         )
 
     return frags

@@ -166,9 +166,9 @@ class FragmentFrequencyComputer(object):
                 min_smem_len=frag_len
             )
 
-            logger.debug("Converting tabs to newlines for parsing.")
             convert_tabs_to_newlines(fastmap_output_path, output_path, append=True)
             fastmap_output_path.unlink()
+            frag_fasta.unlink()
 
     def parse(self,
               fragments: FragmentSpace,
@@ -222,7 +222,9 @@ class FragmentFrequencyComputer(object):
                         if frag_end - frag_start != frag_len:
                             continue  # don't do anything if it's not exact hits.
 
-                        marker_desc, pos = marker_hit_token.split(':')
+                        tokens = marker_hit_token.split(':')
+                        pos = tokens[-1]
+                        marker_desc = ":".join(tokens[:-1])
                         pos = int(pos)
                         gene_name, marker_id = marker_desc.split('|')
 
@@ -265,18 +267,20 @@ def frag_log_ll_numpy(frag_len_mean: float,
                       frag_len_std: float,
                       frag_len: int,
                       logpmf: Callable,
-                      hit_marker_lens: cnp.ndarray,
-                      hit_pos: cnp.ndarray) -> Tuple[float, float, float]:
+                      hit_marker_lens: cnp.ndarray,  # an array of marker lengths that the fragment hits.
+                      hit_pos: cnp.ndarray  # an array of marker positions that the fragment hit at.
+                      ) -> Tuple[float, float, float]:
     window_lens = cnp.arange(
         frag_len,
         1 + max(int(frag_len_mean + 2 * frag_len_std), frag_len)
     )  # length-W
 
-    cond1 = window_lens == frag_len
-    cond2 = (hit_pos == 1) | (hit_pos == hit_marker_lens - frag_len + 1)
+    n_hits = len(hit_pos)
+    cond1 = window_lens == frag_len  # window is exactly frag_len
+    cond2 = (hit_pos == 1) | (hit_pos == hit_marker_lens - frag_len + 1)  # edge map
 
     # n_matching_windows = cnp.sum(cond1[None, :] | cond2[:, None], axis=0)
-    n_matching_windows = cnp.where(cond1, len(cond2), cond2.sum())
+    n_matching_windows = cnp.where(cond1, n_hits, cond2.sum())  # per window length w, get the # of sliding windows (of length w) that yields fragment f.
 
     _mask = n_matching_windows > 0
     # noinspection PyTypeChecker
@@ -284,9 +288,5 @@ def frag_log_ll_numpy(frag_len_mean: float,
         # a=frag_len_rv.logpmf(window_lens[_mask]) + cnp.log(n_matching_windows[_mask]),
         a=logpmf(window_lens[_mask]) + cnp.log(n_matching_windows[_mask]),
         keepdims=False
-    )
+    )  # This calculation marginalizes across possible window lengths.
     return result.item()
-
-
-def _ll_wrapper(args):
-    return frag_log_ll_numpy(*args)

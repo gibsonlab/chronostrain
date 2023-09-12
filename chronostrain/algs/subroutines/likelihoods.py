@@ -2,10 +2,10 @@ from typing import List, Dict, Tuple, Set, Iterator
 
 import jax.numpy as np
 import jax.experimental.sparse as jsparse
+import numpy as cnp
 
 from chronostrain.database import StrainDatabase
 from chronostrain.model import Fragment, SequenceRead
-from chronostrain.util.alignments.multiple import MarkerMultipleFragmentAlignment
 from chronostrain.model.io import TimeSeriesReads
 from chronostrain.model.generative import GenerativeModel
 
@@ -60,19 +60,16 @@ class SparseLogLikelihoodComputer:
         self.dtype = dtype
 
         # ==== Alignments of reads to the database reference markers.
-        self.pairwise_reference_alignments = CachedReadPairwiseAlignments(reads, db, num_cores=self.num_cores)
-
-        # noinspection PyTypeChecker
-        self._multi_align_instances: List[MarkerMultipleFragmentAlignment] = None  # lazy loading
+        self.pairwise_reference_alignments = CachedReadPairwiseAlignments(reads, db, n_threads=self.num_cores)
 
         # ==== Cache.
         self.cache = ReadsPopulationCache(reads, db)
 
     def read_frag_ll(self,
-                     frag_seq: np.ndarray,
+                     frag_seq: cnp.ndarray,
                      read: SequenceRead,
-                     insertions: np.ndarray,
-                     deletions: np.ndarray,
+                     insertions: cnp.ndarray,
+                     deletions: cnp.ndarray,
                      reverse_complemented: bool,
                      start_clip: int,
                      end_clip: int):
@@ -91,7 +88,7 @@ class SparseLogLikelihoodComputer:
         )
         return forward_ll - np.log(2)
 
-    def _compute_read_frag_alignments_pairwise(self, t_idx: int) -> Iterator[Tuple[SequenceRead, Sequence, float]]:
+    def _compute_read_frag_alignments_pairwise(self, t_idx: int) -> Iterator[Tuple[SequenceRead, Fragment, float]]:
         """
         Iterate through the timepoint's SamHandler instances (if the reads of t_idx came from more than one path).
         Each of these SamHandlers provides alignment information.
@@ -109,28 +106,29 @@ class SparseLogLikelihoodComputer:
         that requires multiple alignment.
         """
         ll_threshold = -100
+        included_pairs: Set[Tuple[str, int]] = set()
         for aln in self.pairwise_reference_alignments.alignments_by_timepoint(t_idx):
-            included_pairs: Set[str] = set()
+            frag = self.model.fragments.get_fragment(aln.marker_frag)
 
-            if self.model.bacteria_pop.contains_marker(aln.marker):
-                pair_identifier = f"{aln.read.id}->{aln.marker_frag.nucleotides()}"
-                if pair_identifier in included_pairs:
-                    continue
-                else:
-                    included_pairs.add(pair_identifier)
+            # if self.model.bacteria_pop.contains_marker(aln.marker):  # TODO probably don't need this check.
+            pair_identifier = (aln.read.id, frag.index)
+            if pair_identifier in included_pairs:
+                continue
+            else:
+                included_pairs.add(pair_identifier)
 
-                error_ll = self.read_frag_ll(
-                    aln.marker_frag.bytes(),
-                    aln.read,
-                    aln.read_insertion_locs(),
-                    aln.marker_deletion_locs(),
-                    aln.reverse_complemented,
-                    aln.soft_clip_start + aln.hard_clip_start,
-                    aln.soft_clip_end + aln.hard_clip_end
-                )
+            error_ll = self.read_frag_ll(
+                frag.seq.bytes(),
+                aln.read,
+                aln.read_insertion_locs(),
+                aln.marker_deletion_locs(),
+                aln.reverse_complemented,
+                aln.soft_clip_start + aln.hard_clip_start,
+                aln.soft_clip_end + aln.hard_clip_end
+            )
 
-                if error_ll > ll_threshold:
-                    yield aln.read, aln.marker_frag, error_ll
+            if error_ll > ll_threshold:
+                yield aln.read, frag, error_ll
 
     def _compute_read_frag_alignments_multiple(self, t_idx: int) -> Dict[str, List[Tuple[Fragment, float]]]:
         """
@@ -156,8 +154,8 @@ class SparseLogLikelihoodComputer:
         indices: List[List[int]] = []
         log_likelihood_values: List[float] = []
 
-        for read, frag_seq, error_ll in self._compute_read_frag_alignments_pairwise(t_idx):
-            indices.append([self.model.fragments.get_fragment_index(frag_seq), read.index])
+        for read, frag, error_ll in self._compute_read_frag_alignments_pairwise(t_idx):
+            indices.append([frag.index, read.index])
             log_likelihood_values.append(error_ll)
 
         if len(indices) > 0:

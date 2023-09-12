@@ -60,7 +60,7 @@ class FragmentSpace:
     """
     def __init__(self):
         self.fragment_instances_counter = 0
-        self.seq_to_frag: Dict[str, Fragment] = dict()
+        self.seq_to_frag: Dict = dict()
         self.frag_list: List[Fragment] = list()
         self.min_frag_len = 0
 
@@ -160,10 +160,11 @@ class FragmentSpace:
                         SeqIO.write([self.__to_fasta_record(fragment)], f, 'fasta')
             yield frag_len, out_path
 
-    def __to_fasta_record(self, fragment: Fragment) -> SeqRecord:
+    def __to_fasta_record(self, fragment: Fragment, description="") -> SeqRecord:
         return SeqRecord(
             Seq(fragment.seq.nucleotides()),
-            id="FRAGMENT_{}".format(fragment.index)
+            id="FRAGMENT_{}".format(fragment.index),
+            description=description
         )
 
     def from_fasta_record_id(self, record_id: str) -> Fragment:

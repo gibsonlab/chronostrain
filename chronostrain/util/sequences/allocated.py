@@ -23,6 +23,9 @@ class AllocatedSequence(Sequence):
     def bytes(self) -> np.ndarray:
         return self.byte_seq
 
+    def byte_str(self) -> str:
+        return ''.join(str(b) for b in self.byte_seq)
+
     def revcomp_seq(self) -> 'AllocatedSequence':
         return AllocatedSequence(reverse_complement_z4(self.byte_seq))
 

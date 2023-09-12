@@ -31,8 +31,11 @@ def bowtie2_build(refs_in: List[Path],
                   index_basename: str,
                   bmax: Optional[int] = None,
                   bmaxdivn: Optional[int] = None,
+                  offrate: Optional[int] = None,
+                  ftabchars: Optional[int] = None,
                   diff_cover_sample: Optional[int] = None,
                   packed: Optional[bool] = False,
+                  threads: Optional[int] = None,
                   seed: Optional[int] = None,
                   quiet: bool = False,
                   command_path: str = "bowtie2-build"):
@@ -72,7 +75,12 @@ def bowtie2_build(refs_in: List[Path],
 
     if seed is not None:
         args += ['--seed', seed]
-
+    if offrate is not None:
+        args += ['--offrate', offrate]
+    if ftabchars is not None:
+        args += ['--ftabchars', ftabchars]
+    if threads is not None:
+        args += ['--threads', threads]
     if quiet:
         args.append('--quiet')
 
@@ -125,6 +133,7 @@ def bowtie2(
         report_k_alignments: Optional[int] = None,
         num_threads: int = 1,
         rng_seed: int = 0,
+        offrate: int = None,
         sam_suppress_noalign: bool = False,
         command_path: str = "bowtie2",
         local: bool = False
@@ -179,6 +188,9 @@ def bowtie2(
         args.append('-a')
     elif report_k_alignments is not None:
         args += ['-k', report_k_alignments]
+
+    if offrate:
+        args += ['--offrate', offrate]
 
     if sam_suppress_noalign:
         args.append('--no-unal')

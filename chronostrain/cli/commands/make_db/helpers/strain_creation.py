@@ -1,12 +1,10 @@
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Iterator
 from pathlib import Path
 import pandas as pd
 from logging import Logger
-from collections import defaultdict
 import csv
 
-from chronostrain.config import cfg
-from chronostrain.util.io import read_seq_file
+from intervaltree import IntervalTree
 from chronostrain.util.external import blastn
 
 
@@ -48,20 +46,21 @@ def run_blast_local(db_dir: Optional[Path],
                     db_name: str,
                     result_dir: Path,
                     gene_paths: Dict[str, Path],
-                    max_target_seqs: int,
                     min_pct_idty: int,
+                    num_ref_genomes: int,
                     num_threads: int,
                     logger: Logger) -> Dict[str, Path]:
     # Run BLAST.
     result_paths: Dict[str, Path] = {}
     result_dir.mkdir(parents=True, exist_ok=True)
-    for gene_name, ref_gene_path in gene_paths.items():
+    for gene_name, gene_seed_fasta in gene_paths.items():
+        max_target_seqs = num_ref_genomes * 10
         logger.info(f"Running blastn on {gene_name}.")
         blast_result_path = result_dir / f"{gene_name}.tsv"
         blastn(
             db_name=db_name,
             db_dir=db_dir,
-            query_fasta=ref_gene_path,
+            query_fasta=gene_seed_fasta,
             perc_identity_cutoff=min_pct_idty,
             out_path=blast_result_path,
             num_threads=num_threads,
@@ -75,8 +74,7 @@ def run_blast_local(db_dir: Optional[Path],
 
 # ===================================================== Parsers and logic
 
-def parse_blast_hits(blast_result_path: Path, min_marker_len: int) -> Dict[str, List[BlastHit]]:
-    accession_to_positions: Dict[str, List[BlastHit]] = defaultdict(list)
+def parse_blast_hits(blast_result_path: Path, min_marker_len: int) -> Iterator[BlastHit]:
     with open(blast_result_path, "r") as f:
         blast_result_reader = csv.reader(f, delimiter='\t')
         for row_idx, row in enumerate(blast_result_reader):
@@ -102,28 +100,24 @@ def parse_blast_hits(blast_result_path: Path, min_marker_len: int) -> Dict[str, 
             if subj_end_pos - subj_start_pos + 1 < min_marker_len:
                 continue
 
-            accession_to_positions[subj_acc].append(
-                BlastHit(
-                    line_idx=row_idx,
-                    subj_accession=subj_acc,
-                    subj_start=subj_start_pos,
-                    subj_end=subj_end_pos,
-                    subj_len=subj_len,
-                    query_start=int(qstart),
-                    query_end=int(qend),
-                    strand=strand,
-                    evalue=float(evalue),
-                    pct_identity=float(pident),
-                    num_gaps=int(gaps),
-                    query_coverage_per_hsp=float(qcovhsp)
-                )
+            yield BlastHit(
+                line_idx=row_idx,
+                subj_accession=subj_acc,
+                subj_start=subj_start_pos,
+                subj_end=subj_end_pos,
+                subj_len=subj_len,
+                query_start=int(qstart),
+                query_end=int(qend),
+                strand=strand,
+                evalue=float(evalue),
+                pct_identity=float(pident),
+                num_gaps=int(gaps),
+                query_coverage_per_hsp=float(qcovhsp)
             )
-    return accession_to_positions
 
 
 def create_strain_entries(
         blast_results: Dict[str, Path],
-        ref_gene_paths: Dict[str, Path],
         strain_df: pd.DataFrame,
         min_marker_len: int,
         logger: Logger
@@ -146,32 +140,71 @@ def create_strain_entries(
         }
 
     strain_entries = {}
+    def _tree_overlap_reducer(cur, x):
+        cur.append(x)
+        return cur
 
     # ===================== Parse BLAST hits.
     for gene_name, blast_result_path in blast_results.items():
         blast_hits = parse_blast_hits(blast_result_path, min_marker_len)
+        gene_intervals = {}
 
-        # Parse the entries.
-        ref_gene_path = ref_gene_paths[gene_name]
-
+        """
+        Parse the entries, recoding the BLAST hit locations along the way. 
+        
+        As of 2023 Sept. 7, this function now accounts for the possibility of overlapping hits.
+        This is a separate handler from what is done in resolve_overlaps.py, which merges overlapping hits of DISTINCT
+        genes.
+        Instead, this function handles the possibility that a marker seed is a multi-fasta file (with multiplie marker 
+        seed sequences that was queried via BLAST.
+        If overlapping hits are found for a particular gene (e.g. fimA), then it joins those regions together and calls 
+        all of them "fimA". (Note: the strand, by convention, is given by the first observed hit;
+        the analysis pipeline uses both + and - strand versions regardless, so this is purely for metadata purposes.)
+        """
         logger.debug(f"Parsing BLAST hits for gene `{gene_name}`.")
-        for subj_acc in blast_hits.keys():
+        for blast_hit in blast_hits:
+            subj_acc = blast_hit.subj_accession
+            start = blast_hit.subj_start
+            end = blast_hit.subj_end
+            if subj_acc not in gene_intervals:
+                gene_intervals[subj_acc] = IntervalTree()
+
+            """
+            interval [start, end+1) --> represents an interval of length end - start + 1 
+            (equal to length of covered area reported by BLAST)
+            """
+            gene_intervals[subj_acc][start:end+1] = blast_hit
+
+        for subj_acc, tree in gene_intervals.items():
+            tree.merge_overlaps(
+                data_reducer=_tree_overlap_reducer,
+                data_initializer=[],
+                strict=False  # adjacent, touching intervals are also merged.
+            )
+
             if subj_acc not in strain_entries:
-                strain_entries[subj_acc] = _entry_initializer(subj_acc)
+                strain_entries[subj_acc] = _entry_initializer(subj_acc)  # could use defaultdict, but it doesn't play so nicely with JSON module sometimes.
 
             strain_entry = strain_entries[subj_acc]
             seq_accession = strain_entry['seqs'][0]['accession']
-            for blast_hit in blast_hits[seq_accession]:
-                gene_id = f"{gene_name}_BLASTIDX_{blast_hit.line_idx}"
+            for interval in tree:
+                if len(interval.data) < 5:
+                    gene_id = "{}:BLAST<{}>".format(
+                        gene_name,
+                        "_".join(str(blast_hit.line_idx) for blast_hit in interval.data)
+                    )
+                else:
+                    gene_id = "{}:BLAST<{}...>".format(gene_name, interval.data[0].line_idx)
+
                 strain_entry['markers'].append(
                     {
                         'id': gene_id,
                         'name': gene_name,
                         'type': 'subseq',
                         'source': seq_accession,
-                        'start': blast_hit.subj_start,
-                        'end': blast_hit.subj_end,
-                        'strand': blast_hit.strand
+                        'start': interval.begin,
+                        'end': interval.end - 1,
+                        'strand': interval.data[0].strand
                     }
                 )
 
@@ -211,17 +244,15 @@ def create_chronostrain_db(
     """
     :return:
     """
-    num_ref_genomes = strain_df.shape[0]
-
     blast_results = run_blast_local(
         db_dir=blast_db_dir,
         db_name=blast_db_name,
         result_dir=blast_result_dir,
         gene_paths=gene_paths,
         min_pct_idty=min_pct_idty,
-        max_target_seqs=10 * num_ref_genomes,
+        num_ref_genomes=strain_df.shape[0],
         num_threads=num_threads,
-        logger=logger
+        logger=logger,
     )
 
-    return create_strain_entries(blast_results, gene_paths, strain_df, min_marker_len, logger)
+    return create_strain_entries(blast_results, strain_df, min_marker_len, logger)

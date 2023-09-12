@@ -85,7 +85,8 @@ def bwa_fastmap(output_path: Path,
                 reference_path: Path,
                 query_path: Path,
                 min_smem_len: Optional[int] = None,
-                max_interval_size: int = 20):
+                max_interval_size: int = 20,
+                silent: bool = True):
     args = ['fastmap',
             reference_path,
             query_path,
@@ -96,7 +97,8 @@ def bwa_fastmap(output_path: Path,
     exit_code = call_command(
         command='bwa',
         args=args,
-        stdout=output_path
+        stdout=output_path,
+        silent=silent
     )
     if exit_code != 0:
         raise CommandLineException("bwa fastmap", exit_code)

@@ -184,6 +184,8 @@ def main(
         align_path = json_output_path.parent / f"_ALIGN_{json_output_path.stem}" / "multiple_alignment.fasta"
         marker_names = set(gene_paths.keys())
         marker_concatenated_multiple_alignments(raw_db, align_path, sorted(marker_names), logger)
+        logger.debug("Identity threshold = {}".format(identity_threshold))
+
         prune_json_db(raw_json_path,
                       [s.id for s in raw_db.all_strains()],
                       pruned_json_path,
@@ -216,17 +218,19 @@ def prune_json_db(raw_json_path: Path,
     # parse json entries.
     raw_strain_id_set = set(raw_strain_ids)
     with open(raw_json_path, "r") as f:
-        _initial_strain_entries = json.load(f)
+        raw_strain_entries = json.load(f)
         entries = {
             strain_entry['id']: strain_entry
-            for strain_entry in _initial_strain_entries
+            for strain_entry in raw_strain_entries
             if strain_entry['id'] in raw_strain_id_set
         }
 
     # perform clustering.
     from .helpers import cluster_db
     import numpy as np
-    clusters, cluster_reps, distances = cluster_db(raw_strain_ids, align_path, logger, ident_fraction=identity_threshold)
+    clusters, cluster_reps, distances = cluster_db(
+        raw_strain_ids, raw_strain_entries, align_path, logger, ident_fraction=identity_threshold
+    )
     np.save(str(tgt_json_path.parent / "distances.npy"), distances)
 
     # Create the clustered json.

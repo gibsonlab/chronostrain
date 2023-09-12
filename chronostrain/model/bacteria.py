@@ -110,11 +110,6 @@ class Population:
 
         self.strains = strains  # A list of Strain objects.
         self.strain_indices = {strain: s_idx for s_idx, strain in enumerate(self.strains)}
-        self.all_markers = {
-            marker
-            for strain in strains
-            for marker in strain.markers
-        }
 
     def __hash__(self):
         """
@@ -140,9 +135,6 @@ class Population:
         for strain in self.strains:
             for marker in strain.markers:
                 yield marker
-
-    def contains_marker(self, marker: Marker) -> bool:
-        return marker in self.all_markers
 
     def strain_index(self, strain: Strain) -> int:
         """

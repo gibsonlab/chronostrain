@@ -176,9 +176,9 @@ def main(
     logger.info("Loading time-series read files from {}".format(reads_input))
     reads = TimeSeriesReads.load_from_csv(reads_input)
     if allocate_fragments:
-        fragments = load_fragments(reads, db, logger)
+        fragments = load_fragments(reads, db, cfg.model_cfg.num_cores, logger)
     else:
-        fragments = load_fragments_dynamic(reads, db, logger)
+        fragments = load_fragments_dynamic(reads, db, cfg.model_cfg.num_cores, logger)
 
     # ============ Create model instance
     solver, posterior, elbo_history, (uppers, lowers, medians) = perform_advi(
