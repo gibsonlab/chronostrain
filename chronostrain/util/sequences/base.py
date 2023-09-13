@@ -1,6 +1,6 @@
 from abc import abstractmethod
 import numpy as np
-from .z4 import reverse_complement_z4, z4_to_nucleotides
+from .z4 import reverse_complement_z4, z4_to_nucleotides, nucleotide_N_z4
 
 
 class Sequence(object):
@@ -17,6 +17,9 @@ class Sequence(object):
 
     def revcomp_nucleotides(self) -> str:
         return z4_to_nucleotides(self.revcomp_bytes())
+
+    def number_of_ns(self) -> int:
+        return np.sum(np.equal(self.bytes(), nucleotide_N_z4))
 
     @abstractmethod
     def revcomp_seq(self) -> 'Sequence':

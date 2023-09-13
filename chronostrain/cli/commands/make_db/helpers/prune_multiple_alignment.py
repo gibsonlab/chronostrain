@@ -4,6 +4,7 @@ from logging import Logger
 from collections import defaultdict
 import itertools
 import math
+import json
 
 import numpy as np
 from Bio import SeqIO
@@ -11,12 +12,57 @@ from sklearn.cluster import AgglomerativeClustering
 from chronostrain.util.sequences.z4 import nucleotides_to_z4
 
 
+def prune_json_db_multiple_alignments(
+        raw_json_path: Path,
+        raw_strain_ids: List[str],
+        tgt_json_path: Path,
+        align_path: Path, logger: Logger,
+        identity_threshold: float
+):
+    # DEPRECATED! use the multiplicity-aware Jaccard index instead.
+    # parse json entries.
+    raw_strain_id_set = set(raw_strain_ids)
+    with open(raw_json_path, "r") as f:
+        raw_strain_entries = json.load(f)
+        entries = {
+            strain_entry['id']: strain_entry
+            for strain_entry in raw_strain_entries
+            if strain_entry['id'] in raw_strain_id_set
+        }
+
+    # perform clustering.
+    import numpy as np
+    clusters, cluster_reps, distances = cluster_db(
+        raw_strain_ids, raw_strain_entries, align_path, logger, ident_fraction=identity_threshold
+    )
+    np.save(str(tgt_json_path.parent / "distances.npy"), distances)
+
+    # Create the clustered json.
+    result_entries = []
+    for cluster, rep in zip(clusters, cluster_reps):
+        rep_strain_idx = cluster[rep]
+        rep_strain = raw_strain_ids[rep_strain_idx]
+
+        cluster_entry = entries[rep_strain]
+        cluster_entry['cluster'] = [
+            "{}({})".format(raw_strain_ids[s_idx], entries[raw_strain_ids[s_idx]]['name'])
+            for s_idx in cluster
+        ]
+        result_entries.append(cluster_entry)
+
+    with open(tgt_json_path, 'w') as outfile:
+        json.dump(result_entries, outfile, indent=4)
+
+    logger.info("Before clustering: {} strains".format(len(entries)))
+    logger.info("After clustering: {} strains".format(len(result_entries)))
+
+
 def cluster_db(
         strain_ids: List[str],
         strain_entries: List[Dict],
         alignments_path: Path,
-        logger: Logger,
-        ident_fraction: float = 0.002  # corresponds to 99.8% seq identity
+        ident_fraction: float,  # corresponds to 99.8% seq identity
+        logger: Logger
 ):
     logger.info("Performing clustering using multiple alignments.")
 
@@ -39,7 +85,7 @@ def cluster_db(
     clustering = AgglomerativeClustering(
         metric='precomputed',
         linkage='average',
-        distance_threshold=math.ceil(ident_fraction * align_len),
+        distance_threshold=math.ceil((1 - ident_fraction) * align_len),
         n_clusters=None
     ).fit(distances)
 

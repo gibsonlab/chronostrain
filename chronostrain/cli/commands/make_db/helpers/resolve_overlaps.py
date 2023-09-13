@@ -53,21 +53,38 @@ def find_and_resolve_overlaps(strain, refseq_index: pd.DataFrame, logger: Logger
 
     if n_merged > 0:
         logger.info(f"Created {n_merged} merged markers for strain {strain_id}.")
-        for marker in strain['markers']:
-            if 'members' in marker:
-                logger.debug("{} -> {}".format(
-                    ' + '.join(marker['members']),
-                    marker['name']
-                ))
 
 
-def merge_markers(refseq_index: pd.DataFrame, strain: Dict, start: int, end: int, to_merge: List[Dict], new_id: str, logger: Logger):
+def merge_markers(
+        refseq_index: pd.DataFrame,
+        strain: Dict,
+        start: int,
+        end: int,
+        to_merge: List[Dict],
+        new_id: str,
+        logger: Logger,
+        annot_mismatch_warnings: bool = False
+):
     """
     Merge a collection of markers, given a pre-computed leftmost position and rightmost position.
     Substitutes in-place the marker entries within the strain.
     """
     try:
-        new_name = genomic_name_from_gff(refseq_index, strain['id'], start, end - 1)
+        annot_gene_names = genomic_names_from_gff(refseq_index, strain['id'], start, end - 1)
+
+        # was able to find GFF; now able to catch/print annotation-specific messages.
+        json_gene_names = {m['name'] for m in to_merge}
+        if annot_mismatch_warnings:
+            for annot_gene in annot_gene_names:
+                if annot_gene not in json_gene_names:
+                    logger.warning(
+                        "[{}] GFF annotation `{}` is different from the specified markers ({}). Check seed sequences for possibly misannotated genes.".format(
+                            strain['id'],
+                            annot_gene,
+                            json_gene_names
+                        )
+                    )
+        new_name = '-'.join(annot_gene_names)
     except FileNotFoundError:
         logger.warning("GFF file not found for {}.".format(strain['id']))
         new_name = "-".join(m['name'] for m in to_merge)
@@ -82,19 +99,18 @@ def merge_markers(refseq_index: pd.DataFrame, strain: Dict, start: int, end: int
         "end": end,
         "strand": "+",  # by convention
         "canonical": False,
-        "_merged_members": [
+        "merged_members": [
             {'id': m['id'], 'name': m['name'], 'strand': m['strand']}
             for m in to_merge
         ]
     }]
 
 
-def genomic_name_from_gff(refseq_index: pd.DataFrame, offending_strain: str, start: int, end: int) -> str:
+def genomic_names_from_gff(refseq_index: pd.DataFrame, offending_strain: str, start: int, end: int) -> List[str]:
     gff_path = Path(refseq_index.loc[refseq_index['Accession'] == offending_strain, 'GFF'].item())
     hits = search_gff_annotation(gff_path, start, end, target_accession=offending_strain)
     gene_names = sorted(list(hits.keys()), key=lambda g: hits[g][1] - hits[g][0], reverse=True)  # Descending order
-    new_name = '-'.join(gene_names)
-    return new_name
+    return gene_names
 
 
 def has_overlap(start1, end1, start2, end2):

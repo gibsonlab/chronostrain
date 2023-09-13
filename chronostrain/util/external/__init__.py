@@ -9,3 +9,4 @@ from .samtools import sam_to_bam, bam_sort, merge, sam_mapped_only
 from .cdbtools import cdbfasta, cdbyank
 from .blast import make_blast_db, blastn, tblastn
 from .smith_waterman import ssw_align
+from .dashing2 import dashing2_sketch

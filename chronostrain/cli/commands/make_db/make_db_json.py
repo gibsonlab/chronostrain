@@ -1,3 +1,4 @@
+import shutil
 from typing import Optional, List
 
 import click
@@ -51,10 +52,10 @@ from ..base import option
 )
 @option(
     '--ident-threshold', '-t', 'identity_threshold',
-    type=float, required=False, default=0.002,
+    type=float, required=False, default=0.998,
     help="The distance threshold to use for Agglomerative clustering (a fraction between 0 and 1), representing"
          "one minus the percent identity (converted to decimals) in the concatenated multiple alignment. "
-         "Default is 0.002, which represents 99.8% sequence similarity."
+         "Default is 0.998, which represents 99.8% sequence similarity."
 )
 @option(
     '--min-marker-len', 'min_marker_len',
@@ -102,155 +103,104 @@ def main(
     ctx.ensure_object(Logger)
     logger = ctx.obj
 
-    from .helpers import create_chronostrain_db, marker_concatenated_multiple_alignments
+    from .helpers import create_chronostrain_db, prune_json_db_jaccard
     import pandas as pd
     from typing import Dict
-    from chronostrain.database import JSONParser
     from chronostrain.config import cfg
     reference_df = pd.read_csv(ref_index_path, sep="\t")
+
     json_output_path.parent.mkdir(exist_ok=True, parents=True)
+    raw_json_path = json_output_path.with_stem(f'{json_output_path.stem}-1raw')  # first file
+    merged_json_path = json_output_path.with_stem(f'{json_output_path.stem}-2overlapmerged')  # second file
+    pruned_json_path = json_output_path.with_stem(f'{json_output_path.stem}-3pruned')  # third file
 
     # ============== Optional: preprocess reference_df into
-    if skip_symlink:
-        pass
-    else:
-        from chronostrain.database.parser.marker_sources import EntrezMarkerSource
-        from chronostrain.util.entrez import fasta_filename
-
-        logger.info(f"Creating symbolic links to reference catalog (target dir: {cfg.database_cfg.data_dir})")
-        for _, row in reference_df.iterrows():
-            strain_id = row['Accession']
-            seq_path = Path(row['SeqPath'])
-            if not seq_path.exists():
-                raise FileNotFoundError(f"Reference index pointed to `{seq_path}`, but it does not exist.")
-            target_dir = EntrezMarkerSource.assembly_subdir(cfg.database_cfg.data_dir, strain_id)
-            target_dir.mkdir(exist_ok=True, parents=True)
-
-            target_path = fasta_filename(strain_id, target_dir)
-            if target_path.is_symlink():
-                target_path.unlink()
-            elif target_path.exists():
-                logger.info(f"File {target_path} already exists. Skipping symlink.")
-            target_path.symlink_to(seq_path)
+    # if skip_symlink:
+    #     pass
+    # else:
+    #     from chronostrain.database.parser.marker_sources import EntrezMarkerSource
+    #     from chronostrain.util.entrez import fasta_filename
+    #
+    #     logger.info(f"Creating symbolic links to reference catalog (target dir: {cfg.database_cfg.data_dir})")
+    #     for _, row in reference_df.iterrows():
+    #         strain_id = row['Accession']
+    #         seq_path = Path(row['SeqPath'])
+    #         if not seq_path.exists():
+    #             raise FileNotFoundError(f"Reference index pointed to `{seq_path}`, but it does not exist.")
+    #         target_dir = EntrezMarkerSource.assembly_subdir(cfg.database_cfg.data_dir, strain_id)
+    #         target_dir.mkdir(exist_ok=True, parents=True)
+    #
+    #         target_path = fasta_filename(strain_id, target_dir)
+    #         if target_path.is_symlink():
+    #             target_path.unlink()
+    #         elif target_path.exists():
+    #             logger.info(f"File {target_path} already exists. Skipping symlink.")
+    #         target_path.symlink_to(seq_path)
 
     # ============== Step 1: initialize using BLAST.
-    logger.info("Building raw DB using BLAST.")
-    blast_result_dir = json_output_path.parent / f"_BLAST_{json_output_path.stem}"
+    # logger.info("Building raw DB using BLAST.")
+    # blast_result_dir = json_output_path.parent / f"_BLAST_{json_output_path.stem}"
+    #
+    # gene_paths: Dict[str, Path] = {}
+    # with open(marker_seeds_path) as seed_file:
+    #     for line in seed_file:
+    #         tokens = line.strip().split('\t')
+    #         gene_name = tokens[0]
+    #         gene_fasta_path = Path(tokens[1])
+    #         if not gene_fasta_path.exists():
+    #             raise FileNotFoundError(
+    #                 f"Sequence file for marker `{gene_name}` does not exist (got: {gene_fasta_path})"
+    #             )
+    #         gene_paths[gene_name] = gene_fasta_path
+    #
+    # strain_entries = create_chronostrain_db(
+    #     blast_result_dir=blast_result_dir,
+    #     strain_df=reference_df,
+    #     gene_paths=gene_paths,
+    #     blast_db_dir=blast_db_dir,
+    #     blast_db_name=blast_db_name,
+    #     min_pct_idty=min_pct_idty,
+    #     min_marker_len=min_marker_len,
+    #     num_threads=num_threads,
+    #     logger=logger
+    # )
+    #
+    # with open(raw_json_path, 'w') as outfile:
+    #     json.dump(strain_entries, outfile, indent=4)
+    #     logger.info(f"Wrote raw blast DB entries to {raw_json_path}.")
 
-    gene_paths: Dict[str, Path] = {}
-    with open(marker_seeds_path) as seed_file:
-        for line in seed_file:
-            tokens = line.strip().split('\t')
-            gene_name = tokens[0]
-            gene_fasta_path = Path(tokens[1])
-            if not gene_fasta_path.exists():
-                raise FileNotFoundError(
-                    f"Sequence file for marker `{gene_name}` does not exist (got: {gene_fasta_path})"
-                )
-            gene_paths[gene_name] = gene_fasta_path
+    # ============== Step 2: check for overlaps.
+    # logger.info("Resolving overlaps.")
+    # logger.debug(f"Src: {raw_json_path}, Dest: {merged_json_path}")
+    #
+    # from chronostrain.cli.commands.make_db.helpers.resolve_overlaps import find_and_resolve_overlaps
+    # with open(raw_json_path, "r") as f:
+    #     db_json = json.load(f)
+    # for strain in db_json:
+    #     find_and_resolve_overlaps(strain, reference_df, logger)
+    # with open(merged_json_path, 'w') as o:  # dump to JSON.
+    #     json.dump(db_json, o, indent=4)
 
-    strain_entries = create_chronostrain_db(
-        blast_result_dir=blast_result_dir,
-        strain_df=reference_df,
-        gene_paths=gene_paths,
-        blast_db_dir=blast_db_dir,
-        blast_db_name=blast_db_name,
-        min_pct_idty=min_pct_idty,
-        min_marker_len=min_marker_len,
-        num_threads=num_threads,
-        logger=logger
-    )
-
-    raw_json_path = json_output_path.with_stem(f'{json_output_path.stem}-1raw')
-    with open(raw_json_path, 'w') as outfile:
-        json.dump(strain_entries, outfile, indent=4)
-        logger.info(f"Wrote raw blast DB entries to {raw_json_path}.")
-
-    # ==== Initialize database instance.
-    logger.info(f"Loading DB instance, using data directory: {cfg.database_cfg.data_dir}")
-    raw_db = JSONParser(
-        entries_file=raw_json_path,
-        data_dir=cfg.database_cfg.data_dir,
-        marker_max_len=cfg.database_cfg.parser_kwargs['marker_max_len'],
-        force_refresh=False
-    ).parse()
-
-    pruned_json_path = json_output_path.with_stem(f'{json_output_path.stem}-2pruned')
     if not skip_prune:
         # ============== Step 2: prune using multiple alignments.
         logger.info("Pruning database by constructing multiple alignments.")
-        logger.debug(f"Src: {raw_json_path}, Dest: {pruned_json_path}")
+        logger.debug(f"Src: {merged_json_path}, Dest: {pruned_json_path}")
 
-        align_path = json_output_path.parent / f"_ALIGN_{json_output_path.stem}" / "multiple_alignment.fasta"
-        marker_names = set(gene_paths.keys())
-        marker_concatenated_multiple_alignments(raw_db, align_path, sorted(marker_names), logger)
-        logger.debug("Identity threshold = {}".format(identity_threshold))
+        # ==== Initialize database instance (to be used for pruning
 
-        prune_json_db(raw_json_path,
-                      [s.id for s in raw_db.all_strains()],
-                      pruned_json_path,
-                      align_path,
-                      logger,
-                      identity_threshold)
+        logger.debug("Target identity threshold = {}".format(identity_threshold))
+        prune_json_db_jaccard(
+            src_json_path=merged_json_path,
+            tgt_json_path=pruned_json_path,
+            cfg=cfg, logger=logger,
+            tmp_dir=json_output_path.parent / '__prune_tmp',
+            identity_threshold=identity_threshold
+        )
+        shutil.copy(pruned_json_path, json_output_path)
     else:
         logger.info("Skipping pruning.")
-        import shutil
-        shutil.copy(raw_json_path, pruned_json_path)
-
-    # ============== Step 3: check for overlaps.
-    logger.info("Resolving overlaps.")
-    logger.debug(f"Src: {pruned_json_path}, Dest: {json_output_path}")
-    from chronostrain.cli.commands.make_db.helpers.resolve_overlaps import find_and_resolve_overlaps
-    with open(pruned_json_path, "r") as f:
-        db_json = json.load(f)
-    for strain in db_json:
-        find_and_resolve_overlaps(strain, reference_df, logger)
-    with open(json_output_path, 'w') as o:
-        json.dump(db_json, o, indent=4)
-    logger.info("Finished.")
-
-
-def prune_json_db(raw_json_path: Path,
-                  raw_strain_ids: List[str],
-                  tgt_json_path: Path,
-                  align_path: Path, logger: Logger,
-                  identity_threshold: float):
-    # parse json entries.
-    raw_strain_id_set = set(raw_strain_ids)
-    with open(raw_json_path, "r") as f:
-        raw_strain_entries = json.load(f)
-        entries = {
-            strain_entry['id']: strain_entry
-            for strain_entry in raw_strain_entries
-            if strain_entry['id'] in raw_strain_id_set
-        }
-
-    # perform clustering.
-    from .helpers import cluster_db
-    import numpy as np
-    clusters, cluster_reps, distances = cluster_db(
-        raw_strain_ids, raw_strain_entries, align_path, logger, ident_fraction=identity_threshold
-    )
-    np.save(str(tgt_json_path.parent / "distances.npy"), distances)
-
-    # Create the clustered json.
-    result_entries = []
-    for cluster, rep in zip(clusters, cluster_reps):
-        rep_strain_idx = cluster[rep]
-        rep_strain = raw_strain_ids[rep_strain_idx]
-
-        cluster_entry = entries[rep_strain]
-        cluster_entry['cluster'] = [
-            "{}({})".format(raw_strain_ids[s_idx], entries[raw_strain_ids[s_idx]]['name'])
-            for s_idx in cluster
-        ]
-        result_entries.append(cluster_entry)
-
-    with open(tgt_json_path, 'w') as outfile:
-        json.dump(result_entries, outfile, indent=4)
-
-    logger.info("Before clustering: {} strains".format(len(entries)))
-    logger.info("After clustering: {} strains".format(len(result_entries)))
+        shutil.copy(merged_json_path, json_output_path)
+    logger.info("Done.")
 
 
 if __name__ == "__main__":

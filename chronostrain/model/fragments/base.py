@@ -71,7 +71,7 @@ class FragmentSpace:
     def _seq_to_key(seq: Sequence) -> str:
         return seq.nucleotides()
 
-    def _create_frag(self, seq: Sequence):
+    def _create_frag(self, seq: Sequence) -> Fragment:
         frag = Fragment(seq=seq, index=self.fragment_instances_counter)
         self.seq_to_frag[self._seq_to_key(seq)] = frag
         self.frag_list.append(frag)

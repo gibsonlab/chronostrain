@@ -28,6 +28,7 @@ class SparseDataLikelihoods:
             db: StrainDatabase,
             read_likelihood_lower_bound: float = 1e-30,
             num_cores: int = 1,
+            print_debug: bool = True,
             dtype='bfloat16'
     ):
         self.model = model
@@ -38,7 +39,7 @@ class SparseDataLikelihoods:
 
         log_likelihoods_tensors = SparseLogLikelihoodComputer(
             self.model, self.data, self.db, self.num_cores,
-            dtype=dtype
+            dtype=dtype, print_progressbar=print_debug
         ).compute_likelihood_tensors()
 
         self.matrices: List[jsparse.BCOO] = [
@@ -52,6 +53,7 @@ class SparseLogLikelihoodComputer:
                  reads: TimeSeriesReads,
                  db: StrainDatabase,
                  num_cores: int = 1,
+                 print_progressbar: bool = True,
                  dtype='bfloat16'):
         self.model = model
         self.reads = reads
@@ -60,7 +62,11 @@ class SparseLogLikelihoodComputer:
         self.dtype = dtype
 
         # ==== Alignments of reads to the database reference markers.
-        self.pairwise_reference_alignments = CachedReadPairwiseAlignments(reads, db, n_threads=self.num_cores)
+        self.pairwise_reference_alignments = CachedReadPairwiseAlignments(
+            reads, db,
+            n_threads=self.num_cores,
+            print_tqdm=print_progressbar
+        )
 
         # ==== Cache.
         self.cache = ReadsPopulationCache(reads, db)

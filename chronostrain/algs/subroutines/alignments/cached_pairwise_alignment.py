@@ -26,12 +26,14 @@ class CachedReadPairwiseAlignments(object):
     def __init__(self,
                  reads: TimeSeriesReads,
                  db: StrainDatabase,
-                 n_threads: int = 1):
+                 n_threads: int = 1,
+                 print_tqdm: bool = True):
         self.reads = reads
         self.db = db
         self.n_threads = n_threads
         self.marker_reference_path = db.multifasta_file
         self.cache = ReadsPopulationCache(reads, db)
+        self.print_tqdm = print_tqdm
 
     def get_aligner(self, read_src: TimeSliceReadSource):
         if read_src.read_type == ReadType.PAIRED_END_1:
@@ -61,11 +63,13 @@ class CachedReadPairwiseAlignments(object):
                 gap_extend_penalty=0,
                 score_threshold=1,
             )
-        elif cfg.external_tools_cfg.pairwise_align_cmd == "bwa":
+        elif cfg.external_tools_cfg.pairwise_align_cmd == "bwa" or cfg.external_tools_cfg.pairwise_align_cmd == "bwa-mem2":
             return BwaAligner(
                 reference_path=self.db.multifasta_file,
                 min_seed_len=10,
                 reseed_ratio=0.5,  # smaller = slower but more alignments.
+                mem_discard_threshold=90000,  # default is 50000
+                chain_drop_threshold=0.1,  # default is 0.5
                 bandwidth=10,
                 num_threads=self.n_threads,
                 report_all_alignments=True,
@@ -76,7 +80,7 @@ class CachedReadPairwiseAlignments(object):
                 gap_extend_penalty=(deletion_penalty, insertion_penalty),
                 clip_penalty=0,
                 score_threshold=50,
-                bwa_command='bwa'
+                bwa_command=cfg.external_tools_cfg.pairwise_align_cmd
             )
         elif cfg.external_tools_cfg.pairwise_align_cmd == "bowtie2":
             return BowtieAligner(
@@ -115,7 +119,8 @@ class CachedReadPairwiseAlignments(object):
                 read_getter=lambda read_id: time_slice.get_read(read_id),
                 reattach_clipped_bases=True,
                 min_hit_ratio=0.50,
-                min_frag_len=15
+                min_frag_len=15,
+                print_tqdm_progressbar=self.print_tqdm
             )
 
     def alignments_by_marker_and_timepoint(self, t_idx: int) -> Iterator[Tuple[Marker, List[SequenceReadPairwiseAlignment]]]:
@@ -132,7 +137,8 @@ class CachedReadPairwiseAlignments(object):
                     read_getter=lambda read_id: time_slice.get_read(read_id),
                     reattach_clipped_bases=True,
                     min_hit_ratio=0.50,
-                    min_frag_len=15
+                    min_frag_len=15,
+                    print_tqdm_progressbar=self.print_tqdm
             ).items():
                 yield marker, alns
 
@@ -153,7 +159,8 @@ class CachedReadPairwiseAlignments(object):
                         sam_file,
                         self.db,
                         read_getter=lambda read_id: time_slice.get_read(read_id),
-                        reattach_clipped_bases=True
+                        reattach_clipped_bases=True,
+                        print_tqdm_progressbar=self.print_tqdm
                 ):
                     marker_to_reads[aln.marker][t_idx].append(aln)
         yield from marker_to_reads.items()
@@ -166,7 +173,8 @@ class CachedReadPairwiseAlignments(object):
                         sam_file,
                         self.db,
                         read_getter=lambda read_id: time_slice.get_read(read_id),
-                        reattach_clipped_bases=True
+                        reattach_clipped_bases=True,
+                        print_tqdm_progressbar=self.print_tqdm
                 ):
                     yield t_idx, aln
 

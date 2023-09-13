@@ -99,7 +99,8 @@ class Filter(object):
                 SamFile(sam_path, quality_format),
                 self.db,
                 reattach_clipped_bases=True,
-                min_hit_ratio=self.min_hit_ratio
+                min_hit_ratio=self.min_hit_ratio,
+                print_tqdm_progressbar=False
         ):
             if aln.read.id in reads_already_passed:
                 # Read is already included in output file. Don't do anything.
@@ -200,22 +201,26 @@ def create_aligner(aligner_type: str, read_type: ReadType, db: StrainDatabase) -
     else:
         raise ValueError(f"Unrecognized read type `{read_type}`.")
 
+    match_bonus = 2
+    deletion_penalty = int(-deletion_ll / np.log(2))  # a positive value
+    insertion_penalty = int(-insertion_ll / np.log(2))  # a positive value
+    mismatch_penalty = 5
+
     if aligner_type == 'bwa':
         return BwaAligner(
             reference_path=db.multifasta_file,
             min_seed_len=15,
             reseed_ratio=0.5,  # default; smaller = slower but more alignments.
+            mem_discard_threshold=500,  # default, -c 50000
+            chain_drop_threshold=0.5,  # default, -D 0.5
             bandwidth=10,
             num_threads=cfg.model_cfg.num_cores,
             report_all_alignments=False,
-            match_score=2,  # log likelihood ratio log_2(4p)
-            mismatch_penalty=5,  # Assume quality score of 20, log likelihood ratio log_2(4 * error * <3/4>)
+            match_score=match_bonus,  # log likelihood ratio log_2(4p)
+            mismatch_penalty=mismatch_penalty,  # Assume quality score of 20, log likelihood ratio log_2(4 * error * <3/4>)
             off_diag_dropoff=100,  # default
             gap_open_penalty=(0, 0),
-            gap_extend_penalty=(
-                int(-deletion_ll / np.log(2)),
-                int(-insertion_ll / np.log(2))
-            ),
+            gap_extend_penalty=(deletion_penalty, insertion_penalty),
             clip_penalty=0,
             score_threshold=50,
             bwa_command='bwa'
@@ -225,45 +230,37 @@ def create_aligner(aligner_type: str, read_type: ReadType, db: StrainDatabase) -
             reference_path=db.multifasta_file,
             min_seed_len=15,
             reseed_ratio=0.5,  # default; smaller = slower but more alignments.
+            mem_discard_threshold=500,  # default, -c 500
+            chain_drop_threshold=0.5,  # default, -D 0.5
             bandwidth=10,
             num_threads=cfg.model_cfg.num_cores,
             report_all_alignments=False,
-            match_score=2,  # log likelihood ratio log_2(4p)
-            mismatch_penalty=5,  # Assume quality score of 20, log likelihood ratio log_2(4 * error * <3/4>)
+            match_score=match_bonus,  # log likelihood ratio log_2(4p)
+            mismatch_penalty=mismatch_penalty,  # Assume quality score of 20, log likelihood ratio log_2(4 * error * <3/4>)
             off_diag_dropoff=100,  # default
             gap_open_penalty=(0, 0),
-            gap_extend_penalty=(
-                int(-deletion_ll / np.log(2)),
-                int(-insertion_ll / np.log(2))
-            ),
+            gap_extend_penalty=(deletion_penalty, insertion_penalty),
             clip_penalty=0,
             score_threshold=50,
             bwa_command='bwa-mem2'
         )
     elif aligner_type == 'bowtie2':
-        from chronostrain.util.external import bt2_func_constant
+        from chronostrain.util.external import bt2_func_linear
         return BowtieAligner(
             reference_path=db.multifasta_file,
             index_basepath=db.multifasta_file.parent,
             index_basename=db.multifasta_file.stem,
             num_threads=cfg.model_cfg.num_cores,
             report_all_alignments=False,
-            seed_length=15,  # -L 22
-            seed_num_mismatches=0,  # -N 0
-            seed_extend_failures=5,  # -D 5
-            num_reseeds=1,  # -R 1
-            score_min_fn=bt2_func_constant(const=50),
+            seed_length=22,  # -L 22
+            seed_extend_failures=15,  # -D 15
+            num_reseeds=5,  # -R 5
+            score_min_fn=bt2_func_linear(const=0., coef=1.0),  # Ideally, want f(x)=2x-50 (so f(150) = match * x / 2) but bowtie2 doesn't allow functions that can be negative (if match_bonus > 0). So instead interpolate function using f(x)=Ax instead.
             score_match_bonus=2,
-            align_offrate=5,
-            score_mismatch_penalty=np.floor(
-                [5, 5]
-            ).astype(int),
-            score_read_gap_penalty=np.floor(
-                [0, int(-deletion_ll / np.log(2))]
-            ).astype(int),
-            score_ref_gap_penalty=np.floor(
-                [0, int(-insertion_ll / np.log(2))]
-            ).astype(int)
+            align_offrate=5,  # default; override the index construction if it is more granular.
+            score_mismatch_penalty=np.floor([mismatch_penalty, 0]).astype(int),
+            score_read_gap_penalty=np.floor([0, deletion_penalty]).astype(int),
+            score_ref_gap_penalty=np.floor([0, insertion_penalty]).astype(int)
         )
     else:
         raise ValueError(f"Unrecognized aligner `{aligner_type}`")

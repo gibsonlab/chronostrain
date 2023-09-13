@@ -20,10 +20,10 @@ from ..base import option
 )
 @option(
     '--ident-threshold', '-t', 'identity_threshold',
-    type=float, required=False, default=0.002,
+    type=float, required=False, default=0.998,
     help="The distance threshold to use for Agglomerative clustering (a fraction between 0 and 1), representing"
          "one minus the percent identity (converted to decimals) in the concatenated multiple alignment. "
-         "Default is 0.002, which represents 99.8% sequence similarity."
+         "Default is 0.998, which represents 99.8% sequence similarity."
 )
 def main(
         ctx: click.Context,

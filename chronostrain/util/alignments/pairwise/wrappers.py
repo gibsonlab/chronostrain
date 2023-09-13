@@ -56,6 +56,8 @@ class BwaAligner(AbstractPairwiseAligner):
                  reference_path: Path,
                  min_seed_len: int,
                  reseed_ratio: float,
+                 mem_discard_threshold: int,
+                 chain_drop_threshold: float,
                  bandwidth: int,
                  num_threads: int,
                  report_all_alignments: bool,
@@ -70,6 +72,8 @@ class BwaAligner(AbstractPairwiseAligner):
         self.reference_path = reference_path
         self.min_seed_len = min_seed_len
         self.reseed_ratio = reseed_ratio
+        self.mem_discard_threshold = mem_discard_threshold
+        self.chain_drop_threshold = chain_drop_threshold
         self.bandwidth = bandwidth
         self.num_threads = num_threads
         self.report_all_alignments = report_all_alignments
@@ -114,6 +118,8 @@ class BwaAligner(AbstractPairwiseAligner):
             read_path=query_path,
             min_seed_length=self.min_seed_len,
             reseed_ratio=self.reseed_ratio,
+            mem_discard_threshold=self.mem_discard_threshold,
+            chain_drop_threshold=self.chain_drop_threshold,
             bandwidth=self.bandwidth,
             num_threads=self.num_threads,
             report_all_alignments=self.report_all_alignments,

@@ -200,7 +200,7 @@ class FragmentFrequencyComputer(object):
 
         from tqdm import tqdm
         with open(fastmap_output_path, 'rt') as f:
-            for _ in tqdm(range(total_entries)):
+            for _ in tqdm(range(total_entries), desc="Exact Match Parse"):
                 fragment_mapping_locations: List[Tuple[int, int, int]] = []
                 sq_line = f.readline()
                 if sq_line is None or (not sq_line.startswith("SQ")):
@@ -259,8 +259,17 @@ class FragmentFrequencyComputer(object):
                 else:
                     logger.warning(
                         f"No exact matches found for fragment ID={fragment.index}."
-                        f"Validate the output of bwa fastmap!"
                     )
+                    if fragment.seq.number_of_ns() > 0:
+                        logger.warning(
+                            "Explanation: This occurred because the fragment contains an `N`, which fastmap "
+                            "doesn't handle properly. Validate the alignment that generated this fragment. "
+                            f"Metadata={fragment.metadata}"
+                        )
+                    else:
+                        logger.warning(
+                            "Explanation: Unknown cause; likely due to bwa fastmap having unexpected output."
+                        )
 
 
 def frag_log_ll_numpy(frag_len_mean: float,

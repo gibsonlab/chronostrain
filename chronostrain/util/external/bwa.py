@@ -19,9 +19,11 @@ def bwa_mem(output_path: Path,
             read_path: Path,
             min_seed_length: int,
             reseed_ratio: float = 1.5,
+            mem_discard_threshold: int = 10000,  ## -c, only in newer BWA versions
+            chain_drop_threshold: float = 0.5,  # -D, only in newer BWA versions
             bandwidth: int = 100,
             num_threads: int = 1,
-                report_all_alignments: bool = False,
+            report_all_alignments: bool = False,
             off_diag_dropoff: int = 100,
             match_score: int = 1,
             mismatch_penalty: int = 4,
@@ -38,6 +40,8 @@ def bwa_mem(output_path: Path,
         '-t', num_threads,
         '-k', str(min_seed_length),
         '-r', reseed_ratio,
+        '-c', mem_discard_threshold,  # only newer bwa versions
+        '-D', chain_drop_threshold,  # only newer bwa versions
         '-w', bandwidth,
         '-d', off_diag_dropoff,
         '-A', match_score,
@@ -47,7 +51,6 @@ def bwa_mem(output_path: Path,
         '-U', unpaired_penalty,
         '-v', 2
     ]
-
     if isinstance(gap_open_penalty, Tuple):
         params += ['-O', f'{gap_open_penalty[0]},{gap_open_penalty[1]}']
     else:

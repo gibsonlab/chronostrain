@@ -18,9 +18,11 @@ def aligned_exact_fragments(reads: TimeSeriesReads,
 
     if mode == 'pairwise':
         alignments = CachedReadPairwiseAlignments(reads, db, n_threads=n_threads)
-        for _, aln in alignments.get_alignments():
+        for t_idx, aln in alignments.get_alignments():
             # First, add the likelihood for the fragment for the aligned base marker.
-            fragment_space.add_seq(aln.marker_frag)
+            frag = fragment_space.add_seq(aln.marker_frag)
+            if frag.metadata is None or len(frag.metadata) == 0:
+                frag.add_metadata(f"{aln.sam_path.name}@L{aln.sam_line_no}")
             if len(aln.marker_frag) < 15:
                 raise Exception("UNEXPECTED ERROR! found frag of length smaller than 15")
     elif mode == 'multiple':
@@ -41,9 +43,10 @@ def aligned_exact_fragments_dynamic(reads: TimeSeriesReads,
 
     if mode == 'pairwise':
         alignments = CachedReadPairwiseAlignments(reads, db, n_threads=n_threads)
-        for _, aln in alignments.get_alignments():
-            fragment_space.add_seq(aln.marker_frag)
-
+        for t_idx, aln in alignments.get_alignments():
+            frag = fragment_space.add_seq(aln.marker_frag)
+            if len(frag.metadata) == 0:
+                frag.add_metadata(f"{aln.sam_path.name}@L{aln.sam_line_no}")
             if len(aln.marker_frag) < 15:
                 raise Exception("UNEXPECTED ERROR! found frag of length smaller than 15")
 

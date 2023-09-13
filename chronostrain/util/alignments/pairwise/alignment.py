@@ -309,7 +309,8 @@ def parse_alignments(sam_file: SamFile,
                      read_getter: Optional[Callable[[str], SequenceRead]] = None,
                      reattach_clipped_bases: bool = False,
                      min_hit_ratio: float = 0.5,
-                     min_frag_len: int = 15) -> Iterator[SequenceReadPairwiseAlignment]:
+                     min_frag_len: int = 15,
+                     print_tqdm_progressbar: bool = True) -> Iterator[SequenceReadPairwiseAlignment]:
     """
     A basic function which parses a SamFile instance and outputs a generator over alignments.
     :param sam_file: The Sam file to parse.
@@ -318,10 +319,14 @@ def parse_alignments(sam_file: SamFile,
     """
     n_alns = sam_file.num_lines()
     logger.debug(f"Parsing {n_alns} alignments from {sam_file.file_path.name}")
-    from tqdm import tqdm
+
+    sam_lines = sam_file.mapped_lines()
+    if print_tqdm_progressbar:
+        from tqdm import tqdm
+        sam_lines = tqdm(sam_file.mapped_lines(), total=n_alns, desc=sam_file.file_path.name)
 
     n_mapped_lines = 0
-    for samline in tqdm(sam_file.mapped_lines(), total=n_alns, desc=sam_file.file_path.name):
+    for samline in sam_lines:
         n_mapped_lines += 1
         try:
             if read_getter is not None:
@@ -348,13 +353,15 @@ def parse_alignments(sam_file: SamFile,
                  f"# mapped lines: {n_mapped_lines}")
 
 
-def marker_categorized_alignments(sam_file: SamFile,
-                                  db: StrainDatabase,
-                                  read_getter: Callable[[str], SequenceRead],
-                                  reattach_clipped_bases: bool = False,
-                                  min_hit_ratio: float = 0.5,
-                                  min_frag_len: int = 15,
-                                  ) -> Dict[Marker, List[SequenceReadPairwiseAlignment]]:
+def marker_categorized_alignments(
+        sam_file: SamFile,
+        db: StrainDatabase,
+        read_getter: Callable[[str], SequenceRead],
+        reattach_clipped_bases: bool = False,
+        min_hit_ratio: float = 0.5,
+        min_frag_len: int = 15,
+        print_tqdm_progressbar: bool = True
+) -> Dict[Marker, List[SequenceReadPairwiseAlignment]]:
     """
     Parses the input SamFile instance into a dictionary, mapping each marker to alignments that map to
     it.
@@ -364,12 +371,15 @@ def marker_categorized_alignments(sam_file: SamFile,
         for marker in db.all_markers()
     }
 
-    for aln in parse_alignments(sam_file,
-                                db,
-                                read_getter=read_getter,
-                                reattach_clipped_bases=reattach_clipped_bases,
-                                min_hit_ratio=min_hit_ratio,
-                                min_frag_len=min_frag_len):
+    for aln in parse_alignments(
+            sam_file,
+            db,
+            read_getter=read_getter,
+            reattach_clipped_bases=reattach_clipped_bases,
+            min_hit_ratio=min_hit_ratio,
+            min_frag_len=min_frag_len,
+            print_tqdm_progressbar=print_tqdm_progressbar
+    ):
         marker_alignments[aln.marker].append(aln)
 
     return marker_alignments
