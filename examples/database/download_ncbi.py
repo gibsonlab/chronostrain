@@ -95,7 +95,7 @@ def create_catalog(records: List[NCBIRecord], data_dir: Path) -> pd.DataFrame:
     df_entries = []
     for record in records:
         print("Indexing {} ({})".format(record.accession, record.strain_name))
-        seq_dir = data_dir / "ncbi_dataset" / "data" / record.accession
+        seq_dir = data_dir / "ncbi_dataset" / "read_frags" / record.accession
         nuc_accession, chrom_path, gff_path, chrom_len = extract_chromosome(seq_dir)
 
         df_entries.append({

@@ -13,7 +13,7 @@ import pickle
 import hashlib
 
 from chronostrain.config import cfg
-from chronostrain.model.bacteria import Strain, Marker
+from chronostrain.model import Strain, Marker
 from chronostrain.util.filesystem import md5_checksum
 
 from chronostrain.logging import create_logger
@@ -136,8 +136,8 @@ class ComputationCache(object):
             subdir.mkdir(exist_ok=True)
 
     def call(self,
-             relative_filepath: Union[str, Path],
              fn: Callable,
+             relative_filepath: Union[str, Path] = '.',
              call_args: Optional[List] = None,
              call_kwargs: Optional[Dict] = None,
              save: Callable[[Path, Any], None] = pickle_saver,

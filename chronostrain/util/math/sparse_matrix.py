@@ -16,7 +16,8 @@ def sparse_matrix_paths(base_path: Path) -> Tuple[Path, Path, Path]:
 
 
 def save_sparse_matrix(path: Path, matrix: jsparse.BCOO):
-    p1, p2, p3 = sparse_matrix_paths(path)  # Workaround for jax.numpy.savez not retaining proper dtypes for bfloat16.
+    # Split up the files; workaround for jax.numpy.savez not retaining proper dtypes for bfloat16.
+    p1, p2, p3 = sparse_matrix_paths(path)
     path.touch()
     np.save(str(p1), matrix.indices)
     np.save(str(p2), matrix.data)
@@ -84,8 +85,8 @@ def column_normed_row_sum(x: jsparse.BCOO) -> np.ndarray:
 # def log_spspmm_exp(x: jsparse.BCOO, y: jsparse.BCOO):
 #     z = cnp.full(shape=(x.shape[0], y.shape[1]), fill_value=-cnp.inf)
 #     _log_spspmm_exp_numba(
-#         cnp.array(x.indices), cnp.array(x.data),
-#         cnp.array(y.indices), cnp.array(y.data),
+#         cnp.array(x.indices), cnp.array(x.read_frags),
+#         cnp.array(y.indices), cnp.array(y.read_frags),
 #         z
 #     )
 #     return np.array(z)

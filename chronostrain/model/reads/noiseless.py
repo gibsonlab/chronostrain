@@ -1,7 +1,6 @@
 import math
 
 from chronostrain.model.reads.base import *
-from chronostrain.util.sequences import AllocatedSequence
 
 
 class NoiselessErrorModel(AbstractErrorModel):

@@ -70,7 +70,7 @@ def jit_log_matmul_exp(A, B, C):
     for i in range(int(math.ceil(A.shape[1] / _THREADS_PER_BLOCK))):
         num_j = min(_THREADS_PER_BLOCK, A.shape[1] - i * _THREADS_PER_BLOCK)
 
-        # Preload data into shared memory
+        # Preload read_frags into shared memory
         sA[tx, ty] = A[x, ty + i * _THREADS_PER_BLOCK]
         sB[tx, ty] = B[tx + i * _THREADS_PER_BLOCK, y]
 

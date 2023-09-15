@@ -1,0 +1,3 @@
+from .gaussians import GaussianPosteriorFullReparametrizedCorrelation
+from .gaussians_zeroes import GaussianWithGumbelsPosterior, GaussianStrainCorrelatedWithGlobalZerosPosterior,\
+    GaussianWithGlobalZerosPosteriorDense, GaussianTimeCorrelatedWithGlobalZerosPosterior

@@ -18,7 +18,7 @@ cd ${BASE_DIR}
 #env JAX_PLATFORM_NAME=cpu chronostrain advi \
 chronostrain --profile-jax advi \
   -r ${run_dir}/filtered/filtered_reads.csv \
-  -o ${run_dir}/inference \
+  -o ${run_dir}/algs \
   --correlation-mode "full" \
   --iters ${CHRONOSTRAIN_NUM_ITERS} \
   --epochs ${CHRONOSTRAIN_NUM_EPOCHS} \

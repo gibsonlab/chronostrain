@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import List, Tuple
 
 import jax.numpy as np
-from chronostrain.model.bacteria import Population
+from chronostrain.model import Population
 from chronostrain.util.filesystem import convert_size
 
 from chronostrain.logging import create_logger
@@ -19,7 +19,7 @@ def save_abundances(
     Save the time-indexed abundance profile to disk. Output format is CSV.
 
     :param population: The Population instance containing the strain information.
-    :param time_points: The list of time points in the data.
+    :param time_points: The list of time points in the read_frags.
     :param abundances: A T x S tensor containing time-indexed relative abundances profiles.
     :param out_path: The target path for the output abundances file.
     :return: The path/filename for the abundance CSV file.

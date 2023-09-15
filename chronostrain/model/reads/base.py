@@ -10,7 +10,7 @@ class SequenceRead:
     """
     A class representing a sequence-quality vector pair.
     """
-    def __init__(self, read_id: str, read_index: int, seq: Sequence, quality: np.ndarray, metadata: str):
+    def __init__(self, read_id: str, seq: Sequence, quality: np.ndarray, metadata: str):
         self.id: str = read_id
         if len(seq) != len(quality):
             raise ValueError(
@@ -18,7 +18,6 @@ class SequenceRead:
                     len(seq), len(quality)
                 )
             )
-        self.index: int = read_index
 
         """
         The sequence content of the read is stored as a numpy-optimized array of ubyte.
@@ -54,7 +53,7 @@ class SequenceRead:
 class AbstractErrorModel(metaclass=ABCMeta):
     """
     Parent class for all fragment-to-read error models. This class (and its implementations) determines the
-    likelihood values of the model (and therefore all inference algorithms).
+    likelihood values of the model (and therefore all algs algorithms).
     """
 
     @abstractmethod
@@ -92,7 +91,7 @@ class AbstractTrainableErrorModel(AbstractErrorModel):
     @abstractmethod
     def train_from_data(self, reads, fragments, iters):
         """
-        Attempt to train the error model from data.
+        Attempt to train the error model from read_frags.
         :param reads: A list of reads from a dataset.
         :param fragments: The corresponding collection of fragments.
         :param iters: the number of iterations.

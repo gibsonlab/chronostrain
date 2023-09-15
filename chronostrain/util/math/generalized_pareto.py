@@ -7,7 +7,7 @@ def fit_pareto(x: np.ndarray, loc: float) -> Tuple[float, float]:
     """
     Implementation of Zhang and Stephens (2009) for fitting a generalized Pareto distribution.
 
-    :param x: the data to fit across.
+    :param x: the read_frags to fit across.
     """
     n = len(x)
     x = np.sort(x) - loc

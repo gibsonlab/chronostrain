@@ -1,10 +1,11 @@
 from typing import Iterable, Dict
 from pathlib import Path
 
-from .base import Fragment, FragmentSpace
+
 from chronostrain.util.sequences import *
-from chronostrain.logging import create_logger
-logger = create_logger(__name__)
+from .base import logger
+from .fragment import Fragment
+from .collection import FragmentSpace
 
 
 class UnallocatedFragmentSpace(FragmentSpace):

@@ -40,6 +40,6 @@ class ExistingFastaMarkerSource(AbstractMarkerSource):
             seq=seq,
             metadata=MarkerMetadata(
                 parent_strain=self.strain_id,
-                file_path=self.fasta.fasta_path
+                parent_sequence=record_id
             )
         )

@@ -7,7 +7,7 @@ import numpy as np
 import seaborn as sns
 import pandas as pd
 
-from chronostrain.model.bacteria import Population
+from chronostrain.model import Population
 from chronostrain.model.io import load_abundances
 from chronostrain.logging import create_logger
 logger = create_logger(__name__)
@@ -359,7 +359,7 @@ def plot_elbo(elbo: np.ndarray,
               output_path: str,
               plot_format: str = "pdf"):
     """
-    Plots the elbo values; can be used to check if the inference is working properly or not.
+    Plots the elbo values; can be used to check if the algs is working properly or not.
     :param elbo: The array of ELBO values.
     :param x_label: The x label to insert into the plot.
     :param y_label: The y label to insert into the plot.

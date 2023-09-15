@@ -74,7 +74,7 @@ def main(
 
     from chronostrain.config import cfg
     from .base import Filter, create_aligner
-    from chronostrain.model.io import parse_read_type
+    from chronostrain.model.io import ReadType
     db = cfg.database_cfg.get_database()
 
     # ============ Prepare output files/directories.
@@ -97,8 +97,13 @@ def main(
         error_threshold=error_threshold
     )
 
-    for t, read_depth, read_path, read_type_str, qual_fmt in load_from_csv(reads_input, logger=logger):
-        read_type = parse_read_type(read_type_str)
+    if target_csv_path.suffix == '.tsv':
+        delim = '\t'
+    else:
+        delim = ','
+
+    for t, sample_name, read_depth, read_path, read_type_str, qual_fmt in load_from_csv(reads_input, logger=logger):
+        read_type = ReadType.parse_from_str(read_type_str)
         logger.info(f"Applying filter to timepoint {t}, {str(read_path)}")
 
         aligner_obj = create_aligner(aligner, read_type, db)
@@ -106,8 +111,8 @@ def main(
         filter.apply(read_path, out_dir / out_file, read_type, aligner_obj, quality_format=qual_fmt)
         with open(target_csv_path, 'a') as target_csv:
             # Append to target CSV file.
-            writer = csv.writer(target_csv, delimiter=',', quotechar='\"', quoting=csv.QUOTE_ALL)
-            writer.writerow([t, read_depth, str(out_file), read_type_str, qual_fmt])
+            writer = csv.writer(target_csv, delimiter=delim, quotechar='\"', quoting=csv.QUOTE_ALL)
+            writer.writerow([t, sample_name, read_depth, str(out_file), read_type_str, qual_fmt])
 
     logger.info("Finished filtering.")
 
@@ -118,20 +123,28 @@ def remove_suffixes(p: Path) -> Path:
     return p
 
 
-def load_from_csv(csv_path: Path, logger: Logger) -> List[Tuple[float, int, Path, str, str]]:
-    time_points: List[Tuple[float, int, Path, str, str]] = []
+def load_from_csv(
+        csv_path: Path,
+        logger: Logger
+) -> List[Tuple[float, str, int, Path, str, str]]:
+    time_points: List[Tuple[float, str, int, Path, str, str]] = []
     if not csv_path.exists():
         raise FileNotFoundError(f"Missing required file `{str(csv_path)}`")
 
     logger.debug("Parsing time-series reads from {}".format(csv_path))
+    if csv_path.suffix == 'tsv':
+        delim = '\t'
+    else:
+        delim = ','
     with open(csv_path, "r") as f:
-        input_specs = csv.reader(f, delimiter=',', quotechar='"')
+        input_specs = csv.reader(f, delimiter=delim, quotechar='"')
         for row in input_specs:
             t = float(row[0])
-            num_reads = int(row[1])
-            read_path = Path(row[2])
-            read_type = row[3]
-            qual_fmt = row[4]
+            sample_name = row[1]
+            num_reads = int(row[2])
+            read_path = Path(row[3])
+            read_type = row[4]
+            qual_fmt = row[5]
 
             if not read_path.exists():
                 raise FileNotFoundError(
@@ -140,7 +153,7 @@ def load_from_csv(csv_path: Path, logger: Logger) -> List[Tuple[float, int, Path
                         read_path
                     ))
 
-            time_points.append((t, num_reads, read_path, read_type, qual_fmt))
+            time_points.append((t, sample_name, num_reads, read_path, read_type, qual_fmt))
 
     time_points = sorted(time_points, key=lambda x: x[0])
     return time_points

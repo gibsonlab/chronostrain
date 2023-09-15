@@ -1,23 +1,29 @@
+from typing import Union
+
 import numpy as np
+from chronostrain.util.sequences import Sequence
 from .phred import PhredErrorModel
 from .base import SequenceRead
-from ...util.sequences import Sequence
 
 
 class PairedEndRead(SequenceRead):
     def __init__(self,
-                 read_id: str, read_index: int, seq: Sequence, quality: np.ndarray, metadata: str,
-                 forward: bool):
-        super().__init__(read_id, read_index, seq, quality, metadata)
-        self.forward = forward
-
-    @property
-    def is_forward(self) -> bool:
-        return self.forward
+                 read_id: str, seq: Sequence, quality: np.ndarray, metadata: str,
+                 is_forward: bool):
+        super().__init__(read_id, seq, quality, metadata)
+        self.is_forward = is_forward
+        self.mate_pair: Union[PairedEndRead, None] = None
 
     @property
     def is_reverse(self) -> bool:
-        return not self.forward
+        return not self.is_forward
+
+    def set_mate_pair(self, read: 'PairedEndRead'):
+        self.mate_pair = read
+
+    @property
+    def has_mate_pair(self) -> bool:
+        return self.mate_pair is not None
 
 
 class PEPhredErrorModel(PhredErrorModel):
@@ -36,7 +42,7 @@ class PEPhredErrorModel(PhredErrorModel):
 
         n_insertions = np.sum(insertions)
         n_deletions = np.sum(deletions)
-        if read.forward:
+        if read.is_forward:
             return (n_insertions * self.insertion_error_ll) + (n_deletions * self.deletion_error_ll)
         else:
             return (n_insertions * self.insertion_error_ll_2) + (n_deletions * self.deletion_error_ll_2)

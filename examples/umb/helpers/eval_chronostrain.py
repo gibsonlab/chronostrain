@@ -61,7 +61,7 @@ def umb_outputs(outputs_dir: Path, read_dir: Path) -> Iterator[Tuple[str, TimeSe
             print(f"File `{sample_path}` not found. Skipping {umb_id}...")
             continue
 
-        reads = TimeSeriesReads.load_from_csv(read_dir / f"{umb_id}_filtered/filtered_{umb_id}_inputs.csv")
+        reads = TimeSeriesReads.load_from_file(read_dir / f"{umb_id}_filtered/filtered_{umb_id}_inputs.csv")
         samples = torch.load(umb_dir / "samples.pt")
         strain_ids = load_strain_ids(umb_dir / "strains.txt")
         yield umb_id, reads, samples.cpu().numpy(), strain_ids

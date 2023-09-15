@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 from chronostrain import logger
 from chronostrain.model import Population
-from chronostrain.model.generative import GenerativeModel
+from chronostrain.model.generative import AbundanceGaussianPrior
 
 from .plot_abundances import plot_posterior_abundances
 
@@ -28,7 +28,7 @@ def plot_elbo_history(
 
 
 def plot_training_animation(
-        model: GenerativeModel,
+        model: AbundanceGaussianPrior,
         out_path: Path,
         upper_quantiles: List[List[float]],
         lower_quantiles: List[List[float]],
@@ -79,7 +79,7 @@ def plot_training_animation(
                 alpha=0.2,
                 color=lines[s_idx].get_color()
             )
-        # Set x and y data...
+        # Set x and y read_frags...
         scat.set_offsets([i+1, elbo_history[i]])
         return lines + fills + [scat]
 

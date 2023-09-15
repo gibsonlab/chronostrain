@@ -169,8 +169,8 @@ def replicate_inference(
         silent=True
     )
 
-    # 3. Perform inference.
-    logger.info("Performing inference.")
+    # 3. Perform algs.
+    logger.info("Performing algs.")
     call_command(
         'mSWEEP',
         [
@@ -178,7 +178,7 @@ def replicate_inference(
             '--themisto-2', rev_aln_file,
             '-i', msweep_cfg.cluster_file,
             '-t', msweep_cfg.n_threads,
-            '-o', 'inference'
+            '-o', 'algs'
         ],
         cwd=work_dir,
         silent=True

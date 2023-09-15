@@ -37,7 +37,7 @@ from ..base import option
 @option(
     '--prune-strains/--dont-prune-strains', 'prune_strains',
     is_flag=True, default=False,
-    help='Specify whether to prune the input database strains based on the data.'
+    help='Specify whether to prune the input database strains based on the read_frags.'
 )
 @option(
     '--iters', 'iters', type=int, default=50,
@@ -93,12 +93,6 @@ from ..base import option
     help='If using a variational method, specify the number of samples to generate as output.'
 )
 @option(
-    '--allocate-fragments/--no-allocate-fragments', 'allocate_fragments',
-    is_flag=True, default=True,
-    help='Specify whether or not to store fragment sequences in memory '
-         '(if False, will attempt to use disk-allocation instead).'
-)
-@option(
     '--plot-format', 'plot_format', type=str, default='pdf',
     help='The format to use for saving posterior plots.'
 )
@@ -139,7 +133,6 @@ def main(
         read_batch_size: int,
         correlation_mode: str,
         num_output_samples: int,
-        allocate_fragments: bool,
         plot_format: str,
         draw_training_history: bool,
         accumulate_gradients: bool,
@@ -151,13 +144,13 @@ def main(
     ctx.ensure_object(Logger)
     logger = ctx.obj
 
-    logger.info("Pipeline for inference started.")
+    logger.info("Pipeline for algs started.")
     import jax.numpy as np
     from chronostrain.config import cfg
     from chronostrain.model import Population
     from chronostrain.model.io import TimeSeriesReads
     import chronostrain.visualizations as viz
-    from .helpers import load_fragments, load_fragments_dynamic, perform_advi
+    from .helpers import perform_advi
 
     # ============ Create database instance.
     db = cfg.database_cfg.get_database()
@@ -174,17 +167,12 @@ def main(
 
     # ============ Parse input reads.
     logger.info("Loading time-series read files from {}".format(reads_input))
-    reads = TimeSeriesReads.load_from_csv(reads_input)
-    if allocate_fragments:
-        fragments = load_fragments(reads, db, cfg.model_cfg.num_cores, logger)
-    else:
-        fragments = load_fragments_dynamic(reads, db, cfg.model_cfg.num_cores, logger)
+    reads = TimeSeriesReads.load_from_file(reads_input)
 
     # ============ Create model instance
     solver, posterior, elbo_history, (uppers, lowers, medians) = perform_advi(
         db=db,
         population=Population(strains=db.all_strains()),
-        fragments=fragments,
         reads=reads,
         with_zeros=with_zeros,
         prior_p=prior_p,
@@ -262,7 +250,7 @@ def main(
 
 if __name__ == "__main__":
     from chronostrain.logging import create_logger
-    my_logger = create_logger("chronostrain.inference")
+    my_logger = create_logger("chronostrain.algs")
     try:
         main(obj=my_logger)
     except Exception as e:

@@ -131,7 +131,6 @@ def parse_line_into_alignment(sam_path: Path,
         if samline.is_reverse_complemented:
             read = SequenceRead(
                 read_id=samline.readname,
-                read_index=-1,
                 seq=samline.read_seq.revcomp_seq(),
                 quality=samline.read_phred[::-1],
                 metadata=f"Sam_parsed(f={str(sam_path)},L={samline.lineno},revcomp)"
@@ -139,7 +138,6 @@ def parse_line_into_alignment(sam_path: Path,
         else:
             read = SequenceRead(
                 read_id=samline.readname,
-                read_index=-1,
                 seq=samline.read_seq,
                 quality=samline.read_phred,
                 metadata=f"Sam_parsed(f={str(sam_path)},L={samline.lineno})"

@@ -1,8 +1,8 @@
 #!/bin/bash
 
 #BSUB -J umb-chronostrain
-#BSUB -o /data/cctm/chronostrain/umb/lsf/umb-chronostrain-%J.out
-#BSUB -e /data/cctm/chronostrain/umb/lsf/umb-chronostrain-%J.err
+#BSUB -o /read_frags/cctm/chronostrain/umb/lsf/umb-chronostrain-%J.out
+#BSUB -e /read_frags/cctm/chronostrain/umb/lsf/umb-chronostrain-%J.err
 #BSUB -q bigmem
 #BSUB -n 4
 #BSUB -M 60000

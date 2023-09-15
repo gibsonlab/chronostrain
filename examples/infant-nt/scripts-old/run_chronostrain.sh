@@ -40,7 +40,7 @@ fi
 #env CUDA_VISIBLE_DEVICES='' chronostrain advi \
 chronostrain advi \
   -r ${run_dir}/filtered/filtered_reads.csv \
-  -o ${run_dir}/inference \
+  -o ${run_dir}/algs \
   --correlation-mode "strain" \
   --iters $CHRONOSTRAIN_NUM_ITERS \
   --epochs $CHRONOSTRAIN_NUM_EPOCHS \

@@ -14,10 +14,10 @@ from chronostrain.cli.commands.base import option
     help="Path to the reads input CSV file."
 )
 @option(
-    '--inference-dir', '-o', 'inference_outdir',
+    '--algs-dir', '-o', 'inference_outdir',
     type=click.Path(path_type=Path, file_okay=False, exists=True, readable=True),
     required=True,
-    help="Directory containing the inference output (posterior samples & text file of strain IDs)."
+    help="Directory containing the algs output (posterior samples & text file of strain IDs)."
 )
 @option(
     '--batch-size', '-b', 'read_batch_size',
@@ -29,7 +29,7 @@ from chronostrain.cli.commands.base import option
     is_flag=True, default=True,
     help='Required for initialization. '
          'Specify whether or not to store fragment sequences in memory. '
-         'To avoid re-calculation, use the same argument as what was used for inference.'
+         'To avoid re-calculation, use the same argument as what was used for algs.'
 )
 def main(
         ctx: click.Context,
@@ -39,7 +39,7 @@ def main(
         allocate_fragments: bool
 ):
     """
-    Quantify evidence for each strain, per timepoint for a previous inference run.
+    Quantify evidence for each strain, per timepoint for a previous algs run.
     Outputs a pandas dataframe, using the cached marginalization log-likelihood matrices.
     """
     ctx.ensure_object(Logger)
@@ -50,7 +50,7 @@ def main(
     from chronostrain.config import cfg
     from .helpers import create_model, quantify_evidence, load_fragments, load_fragments_dynamic
 
-    reads = TimeSeriesReads.load_from_csv(reads_input)
+    reads = TimeSeriesReads.load_from_file(reads_input)
     db = cfg.database_cfg.get_database()
 
     if allocate_fragments:

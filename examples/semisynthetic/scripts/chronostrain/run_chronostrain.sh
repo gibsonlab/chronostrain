@@ -46,7 +46,7 @@ start_time=$(date +%s%N)  # nanoseconds
 env \
   CHRONOSTRAIN_DB_JSON=${replicate_dir}/databases/chronostrain/ecoli.json \
   CHRONOSTRAIN_DB_DIR=${replicate_dir}/databases/chronostrain \
-  CHRONOSTRAIN_LOG_FILEPATH=${output_dir}/inference.log \
+  CHRONOSTRAIN_LOG_FILEPATH=${output_dir}/algs.log \
   CHRONOSTRAIN_CACHE_DIR=${cache_dir} \
   chronostrain advi \
   -r "${output_dir}/filtered/filtered_input_files.csv" \

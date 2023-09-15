@@ -71,7 +71,7 @@ class EntrezMarkerSource(AbstractMarkerSource):
             seq=marker_seq,
             metadata=MarkerMetadata(
                 parent_strain=self.strain_id,
-                file_path=None
+                parent_sequence=self.seq_accession,
             )
         )
 
@@ -89,7 +89,7 @@ class EntrezMarkerSource(AbstractMarkerSource):
             seq=marker_seq,
             metadata=MarkerMetadata(
                 parent_strain=self.strain_id,
-                file_path=None
+                parent_sequence=self.seq_accession,
             )
         )
 
@@ -113,7 +113,7 @@ class EntrezMarkerSource(AbstractMarkerSource):
                 seq=marker_seq,
                 metadata=MarkerMetadata(
                     parent_strain=self.strain_id,
-                    file_path=None
+                    parent_sequence=self.seq_accession,
                 )
             )
         raise RuntimeError(f"Genbank record `{self.seq_accession}` does not contain locus tag `{locus_tag}`.")
@@ -133,7 +133,7 @@ class EntrezMarkerSource(AbstractMarkerSource):
             seq=AllocatedSequence(str(record.seq)),
             metadata=MarkerMetadata(
                 parent_strain=self.strain_id,
-                file_path=f_path
+                parent_sequence=self.seq_accession,
             )
         )
 
@@ -173,7 +173,7 @@ class CachedEntrezMarkerSource(EntrezMarkerSource):
             seq=AllocatedSequence(seq),
             metadata=MarkerMetadata(
                 parent_strain=self.strain_id,
-                file_path=marker_filepath
+                parent_sequence=self.seq_accession
             )
         )
 

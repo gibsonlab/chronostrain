@@ -42,7 +42,7 @@ def bowtie2_build(refs_in: List[Path],
     """
     :param refs_in: List of paths to reference sequences.
     :param index_basepath: The path to which the index is stored.
-    :param index_basename: write bt2 data to files with this basename.
+    :param index_basename: write bt2 read_frags to files with this basename.
     :param bmax: Passed to '--bmax' param.
     :param bmaxdivn: Passed to '--bmaxdivn' param.
     :param diff_cover_sample: Passed to '--dcv' param.

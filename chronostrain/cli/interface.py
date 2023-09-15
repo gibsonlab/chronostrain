@@ -19,7 +19,6 @@ logger = create_logger("chronostrain.cli")
         'advi': run_advi,
         'make-db': make_db,
         'prune-pickle': prune_pickle,
-        'quantify': quantify_evidence
     }
 )
 @click.option(

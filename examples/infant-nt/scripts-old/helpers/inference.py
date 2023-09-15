@@ -3,7 +3,7 @@ from logging import Logger
 from pathlib import Path
 
 from chronostrain.cli.commands.inference.initializers import create_model, load_fragments_dynamic
-from chronostrain.algs import *
+from chronostrain.inference import *
 from chronostrain.database import StrainDatabase
 from chronostrain.model import *
 from chronostrain.model.io import TimeSeriesReads
@@ -182,7 +182,7 @@ def main(
 
     # ============ Parse input reads.
     logger.info("Loading time-series read files.")
-    reads = TimeSeriesReads.load_from_csv(reads_input)
+    reads = TimeSeriesReads.load_from_file(reads_input)
     if allocate_fragments:
         fragments = load_fragments(reads, db, logger)
     else:
@@ -291,7 +291,7 @@ def perform_em(reads: TimeSeriesReads, population: Population, fragments: Fragme
 
 if __name__ == "__main__":
     from chronostrain.logging import create_logger
-    my_logger = create_logger("script.inference")
+    my_logger = create_logger("script.algs")
     try:
         main(obj=my_logger)
     except Exception as e:

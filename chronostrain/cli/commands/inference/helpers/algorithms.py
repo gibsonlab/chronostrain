@@ -1,65 +1,29 @@
 from logging import Logger
-from typing import *
+from typing import List
 
-import jax.numpy as np
-from chronostrain.algs import *
+import jax.numpy as jnp
+from chronostrain.inference import *
 from chronostrain.database import StrainDatabase
 from chronostrain.model import *
-from chronostrain.model.io import TimeSeriesReads
 from chronostrain.util.optimization import *
 from chronostrain.config import cfg
-from .model import create_model
+from .model import create_error_model, create_gaussian_prior
 
 
-def bias_EM_initializer(population: Population, time_points: List[float]) -> np.ndarray:
+def bias_EM_initializer(population: Population, time_points: List[float]) -> jnp.ndarray:
     raise NotImplementedError()
 
 
-def bias_semisynthetic_debug_init(population: Population, time_points: List[float]) -> np.ndarray:
-    import numpy as cnp
-    target_accs = ['NZ_CP043213.1', 'NZ_CP060963.1', 'NZ_CP027140.1', 'NZ_CP030240.1', 'NZ_CP065611.1', 'NZ_CP024257.1']
-    ground_truth = cnp.array([
-        [0.26143791, 0.2745098, 0.09803922, 0.29411765, 0.0130719, 0.05882353],
-        [0.31460674, 0.34831461, 0.13483146, 0.12359551, 0.03370787, 0.04494382],
-        [0.25906736, 0.50086356, 0.07772021, 0.06908463, 0.08635579, 0.00690846],
-        [0.15217391, 0.54347826, 0.06521739, 0.03913043, 0.19565217, 0.00434783],
-        [0.06423983, 0.51391863, 0.04496788, 0.01284797, 0.25695931, 0.10706638],
-        [0.0129199, 0.29715762, 0.01550388, 0.00258398, 0.51679587, 0.15503876]
-    ])
-    print("using ground truth {}".format(ground_truth))
-
-    ground_truth_indices = {acc: i for i, acc in enumerate(target_accs)}
-    target = cnp.zeros(shape=(len(time_points), population.num_strains()), dtype=float)
-
-    targets_left = set(target_accs)
-    for i, s in enumerate(population.strains):
-        if s.id in ground_truth_indices:
-            ground_truth_idx = ground_truth_indices[s.id]
-            target[:, i] = ground_truth[:, ground_truth_idx]
-            print("Found target: {} -> {}".format(s.id, target[:, i]))
-            targets_left.remove(s.id)
-    if len(targets_left) > 0:
-        print("**** Strains not observed for initialization: {}".format(targets_left))
-
-    eps = 1e-10
-    target = target + eps  # padding to prepare for log
-    target = target / target.sum(axis=-1, keepdims=True)  # renormalize
-    target = cnp.log(target)  # log-space conversion
-    return np.array(target, dtype=cfg.engine_cfg.dtype)
-
-
-def bias_uniform_initializer(population: Population, time_points: List[float]) -> np.ndarray:
-    return np.zeros(
+def bias_uniform_initializer(population: Population, time_points: List[float]) -> jnp.ndarray:
+    return jnp.zeros(
         shape=(len(time_points), population.num_strains()),
         dtype=cfg.engine_cfg.dtype
     )
 
 
-
 def perform_advi(
         db: StrainDatabase,
         population: Population,
-        fragments: FragmentSpace,
         reads: TimeSeriesReads,
         with_zeros: bool,
         initialize_with_map: bool,
@@ -82,13 +46,13 @@ def perform_advi(
 ):
     # ==== Run the solver.
     time_points = [time_slice.time_point for time_slice in reads]
-    model = create_model(
+    gaussian_prior = create_gaussian_prior(
         population=population,
-        source_reads=reads,
-        fragments=fragments,
-        time_points=time_points,
+        observed_reads=reads
+    )
+    error_model = create_error_model(
+        observed_reads=reads,
         disable_quality=not cfg.model_cfg.use_quality_scores,
-        db=db,
         logger=logger
     )
     if initialize_with_map:
@@ -96,7 +60,7 @@ def perform_advi(
         # logger.debug("Running MAP solver, to initialize VI optimization.")
         # map_solver = AutogradMAPSolver(
         #     generative_model=model,
-        #     data=reads,
+        #     read_frags=reads,
         #     db=db,
         #     dtype=cfg.engine_cfg.dtype
         # )
@@ -105,7 +69,6 @@ def perform_advi(
         # exit(1)
         # initial_bias, _, _ = em_solver.solve(iters=1000, thresh=1e-5, gradient_clip=1e3, print_debug_every=1)
     else:
-        # logger.info("DEBUGGING using ground truth initializer.")
         bias_initializer = bias_uniform_initializer
 
     lr_scheduler = ReduceLROnPlateauLast(
@@ -124,12 +87,13 @@ def perform_advi(
     )
 
     if with_zeros:
-        from chronostrain.model.zeros import PopulationGlobalZeros
-        zero_model = PopulationGlobalZeros(model.bacteria_pop.num_strains(), prior_p=prior_p)
+        from chronostrain.model import PopulationGlobalZeros
+        zero_model = PopulationGlobalZeros(gaussian_prior.num_strains, prior_p=prior_p)
         if prior_p != 0.5:
             logger.info(f"Initialized model inclusion prior with p={prior_p}")
         solver = ADVIGaussianZerosSolver(
-            model=model,
+            gaussian_prior=gaussian_prior,
+            error_model=error_model,
             zero_model=zero_model,
             data=reads,
             db=db,
@@ -143,7 +107,8 @@ def perform_advi(
         )
     else:
         solver = ADVIGaussianSolver(
-            model=model,
+            gaussian_prior=gaussian_prior,
+            error_model=error_model,
             data=reads,
             optimizer=optimizer,
             correlation_type=correlation_type,
@@ -156,27 +121,30 @@ def perform_advi(
         )
 
     callbacks = []
-    uppers = [[] for _ in range(model.num_strains())]
-    lowers = [[] for _ in range(model.num_strains())]
-    medians = [[] for _ in range(model.num_strains())]
+    uppers = [[] for _ in range(gaussian_prior.num_strains)]
+    lowers = [[] for _ in range(gaussian_prior.num_strains)]
+    medians = [[] for _ in range(gaussian_prior.num_strains)]
     elbo_history = []
 
     if save_training_history:
-        logger.warning("Currently, save_training_history has been disabled to make callbacks more efficient.")
-    #     def anim_callback(x_samples, uppers_buf, lowers_buf, medians_buf):
-    #         # Plot VI posterior.
-    #         abund_samples = model.latent_conversion(x_samples)
-    #
-    #         for s_idx in range(model.num_strains()):
-    #             traj_samples = abund_samples[:, :, s_idx]  # (T x N)
-    #             upper_quantile = np.quantile(traj_samples, q=0.975, axis=1)
-    #             lower_quantile = np.quantile(traj_samples, q=0.025, axis=1)
-    #             median = np.quantile(traj_samples, q=0.5, axis=1)
-    #             uppers_buf[s_idx].append(upper_quantile)
-    #             lowers_buf[s_idx].append(lower_quantile)
-    #             medians_buf[s_idx].append(median)
-    #
-    #     callbacks.append(lambda epoch, elbo: anim_callback(x_samples, uppers, lowers, medians))
+        n_animation_samples = 1000
+        logger.warning("Having `save_training_history` option turned on will slow down training!")
+
+        def anim_callback(uppers_buf, lowers_buf, medians_buf):
+            # Plot VI posterior.
+            x_samples = solver.posterior.abundance_sample(n_animation_samples)
+            abund_samples = gaussian_prior.latent_conversion(x_samples)
+
+            for s_idx in range(gaussian_prior.num_strains):
+                traj_samples = abund_samples[:, :, s_idx]  # (T x N)
+                upper_quantile = np.quantile(traj_samples, q=0.975, axis=1)
+                lower_quantile = np.quantile(traj_samples, q=0.025, axis=1)
+                median = np.quantile(traj_samples, q=0.5, axis=1)
+                uppers_buf[s_idx].append(upper_quantile)
+                lowers_buf[s_idx].append(lower_quantile)
+                medians_buf[s_idx].append(median)
+
+        callbacks.append(lambda epoch, elbo: anim_callback(uppers, lowers, medians))
 
     if save_elbo_history:
         def elbo_callback(elbo, elbo_buf):
@@ -194,8 +162,8 @@ def perform_advi(
         callbacks=callbacks
     )
     end_time = time.time()
-    logger.debug("Finished inference in {} sec.".format(
-        (end_time - start_time)
+    logger.debug("Finished inference in {} mins.".format(
+        (end_time - start_time) / 60.0
     ))
 
     posterior = solver.posterior
