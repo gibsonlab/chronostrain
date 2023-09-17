@@ -1,6 +1,8 @@
 from typing import Tuple, Iterator, Dict
 import pickle
 from pathlib import Path
+import pandas as pd
+
 from .fragment import Fragment
 
 
@@ -49,3 +51,9 @@ class FragmentPairSpace(object):
     def __iter__(self) -> Iterator[Tuple[int, int, int]]:
         for (i1, i2), i_pair in self.seen_pairs.items():
             yield i1, i2, i_pair
+
+    def to_frame(self) -> pd.DataFrame:
+        return pd.DataFrame(
+            list(iter(self)),
+            columns=['Frag1', 'Frag2', 'Pair']
+        ).set_index('Pair')

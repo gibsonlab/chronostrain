@@ -16,6 +16,7 @@ logger = create_logger(__name__)
 class TimeSliceReads(object):
     def __init__(self,
                  reads: List[SequenceRead],
+                 num_reads_per_source: Dict[str, int],
                  time_point: float,
                  read_depth: int,
                  sources: Optional[List[SampleReadSource]] = None):
@@ -24,6 +25,7 @@ class TimeSliceReads(object):
         self.read_depth: int = read_depth
         self._ids_to_reads: Dict[str, SequenceRead] = {read.id: read for read in reads}
         self.sources = sources
+        self.num_reads_per_source = num_reads_per_source
         if len(reads) == 0:
             self.min_read_length = float('inf')
         else:
@@ -61,21 +63,35 @@ class TimeSliceReads(object):
         :param sources: A List of SampleReadSource instances pointing to the files on disk.
         :return:
         """
-        reads = [
-            read
-            for source in sources
-            for read in source.reads()
-        ]
+        reads = []
+        n_reads_per_source = {}
+        for source in sources:
+            reads_in_src = list(source.reads())
+            n_reads_per_source[source.name] = len(reads_in_src)
+            reads += reads_in_src
 
-        logger.debug(f"(t = {time_point}) Loaded {len(reads)} reads from {len(sources)} fastQ files.")
+        logger.debug("(t = {}) Loaded {} reads from {} fastQ sources: [{}]".format(
+            time_point,
+            len(reads),
+            len(sources),
+            ",".join(src.name for src in sources)
+        ))
         total_read_depth = sum(src.get_read_depth() for src in sources)
-        return TimeSliceReads(reads, time_point, total_read_depth, sources=sources)
+        return TimeSliceReads(reads, n_reads_per_source, time_point, total_read_depth, sources=sources)
 
     def get_read(self, read_id: str) -> SequenceRead:
         return self._ids_to_reads[read_id]
 
     def contains_read(self, read_id: str) -> bool:
         return read_id in self._ids_to_reads
+
+    def paths(self) -> Iterator[Path]:
+        for src in self.sources:
+            if isinstance(src, SampleReadSourceSingle):
+                yield src.path
+            elif isinstance(src, SampleReadSourcePaired):
+                yield src.path_fwd
+                yield src.path_rev
 
     def __iter__(self) -> Iterator[SequenceRead]:
         for read in self.reads:
@@ -123,21 +139,16 @@ class TimeSeriesReads(object):
             raise FileNotFoundError(f"Missing file `{reads_input}`")
 
         if reads_input.suffix.lower() == '.csv':
-            input_df = pd.read_csv(reads_input, sep=',')
+            sep = ','
         elif reads_input.suffix.lower() == '.tsv':
-            input_df = pd.read_csv(reads_input, sep='\t')
+            sep = '\t'
         else:
             raise ValueError(f"Supported file extensions for input files are (.csv, .tsv). Got: {reads_input.suffix}")
-
-        input_df = input_df.rename(
-            columns={
-                0: 'T',
-                1: 'SampleName',
-                2: 'ReadDepth',
-                3: 'ReadPath',
-                4: 'ReadType',
-                5: 'QualityFormat'
-            }
+        input_df = pd.read_csv(
+            reads_input,
+            sep=sep,
+            header=None,
+            names=['T', 'SampleName', 'ReadDepth', 'ReadPath', 'ReadType', 'QualityFormat']
         ).astype(
             {
                 'T': 'float32',
@@ -159,12 +170,16 @@ class TimeSeriesReads(object):
                 if sample_section.shape[0] == 1:
                     _, row = next(iter(sample_section.iterrows()))
                     # ========= Single file; either single-end read or unpaired end of mate pairs.
+                    path = Path(row['ReadPath'])
+                    if not path.is_absolute():
+                        path = reads_input.parent / path
                     read_sources.append(
                         SampleReadSourceSingle(
                             read_depth=row['ReadDepth'],
-                            path=row['ReadPath'],
+                            path=path,
                             quality_format=row['QualityFormat'],
-                            read_type=ReadType.parse_from_str(row['ReadType'])
+                            read_type=ReadType.parse_from_str(row['ReadType']),
+                            name=str(sample_name)
                         )
                     )
                 elif sample_section.shape[0] == 2:
@@ -187,9 +202,17 @@ class TimeSeriesReads(object):
                         raise ValueError(f"Sample {sample_name} contained 2 files, but no forward mate pair file.")
                     if rev_path is None:
                         raise ValueError(f"Sample {sample_name} contained 2 files, but no reverse mate pair file.")
+                    if not fwd_path.is_absolute():
+                        fwd_path = reads_input.parent / fwd_path
+                    if not rev_path.is_absolute():
+                        rev_path = reads_input.parent / rev_path
                     read_sources.append(
                         SampleReadSourcePaired(
-                            read_depth=read_depth, path_fwd=fwd_path, path_rev=rev_path, quality_format=quality_fmt
+                            read_depth=read_depth,
+                            path_fwd=fwd_path,
+                            path_rev=rev_path,
+                            quality_format=quality_fmt,
+                            name=str(sample_name)
                         )
                     )
                 else:

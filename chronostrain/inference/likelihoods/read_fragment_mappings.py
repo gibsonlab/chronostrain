@@ -1,6 +1,6 @@
 import itertools
 from dataclasses import dataclass
-from typing import Iterator, List, Tuple
+from typing import Iterator, List, Tuple, Dict, Union, Set
 from pathlib import Path
 
 import jax.numpy as jnp
@@ -10,7 +10,7 @@ import jax.experimental.sparse as jsparse
 
 from chronostrain.model import Fragment, FragmentReadErrorLikelihood, FragmentSpace, FragmentPairSpace, \
     TimeSeriesReads, AbstractErrorModel, TimeSliceReads, ReadType, SampleReadSourcePaired, SampleReadSourceSingle, \
-    SequenceRead, Marker, PairedEndRead
+    SequenceRead, Marker, PairedEndRead, Strain
 from chronostrain.database import StrainDatabase
 from chronostrain.util.alignments.pairwise import SequenceReadPairwiseAlignment
 
@@ -29,7 +29,7 @@ class TimeSliceLikelihoods:
     lls: FragmentReadErrorLikelihood
     paired_lls: FragmentReadErrorLikelihood
 
-    def diagnostic(self):
+    def print_diagnostic(self):
         _, counts_per_read = jnp.unique(self.lls.matrix.indices[:, 1], return_counts=True)
         logger.debug(
             "Read-likelihood matrix (size {r} x {c}) has {nz} nonzero entries. "
@@ -52,12 +52,12 @@ class TimeSliceLikelihoods:
         )
 
     def save(self, out_dir: Path):
+        out_dir.mkdir(exist_ok=True, parents=True)
         self.lls.save(out_dir / 'lls.npz')
         self.paired_lls.save(out_dir / 'lls_paired.npz')
 
     @staticmethod
     def load(base_dir: Path):
-        base_dir.mkdir(exist_ok=True, parents=True)
         lls = FragmentReadErrorLikelihood.load(base_dir / 'lls.npz')
         paired_lls = FragmentReadErrorLikelihood.load(base_dir / 'lls_paired.npz')
         return TimeSliceLikelihoods(lls, paired_lls)
@@ -70,7 +70,6 @@ class TimeSeriesLikelihoods:
     fragment_pairs: FragmentPairSpace
 
     def save(self, out_dir: Path):
-        out_dir.mkdir(exist_ok=True, parents=True)
         for t_idx, t_lls in enumerate(self.slices):
             t_lls.save(out_dir / 'log_likelihoods' / str(t_idx))
         self.fragments.save(out_dir / 'fragments' / 'inference_fragments.pkl')
@@ -112,20 +111,28 @@ class ReadFragmentMappings:
         )
         self.model_values: TimeSeriesLikelihoods = self.compute_all_cached()
 
+        logger.debug("Alignments resulted in {} fragments, {} fragment pairs.".format(
+            len(self.model_values.fragments),
+            len(self.model_values.fragment_pairs)
+        ))
+
     def compute_all_cached(self) -> TimeSeriesLikelihoods:
-        def _save(p: Path, res: TimeSeriesLikelihoods):
-            if p.exists() and p.is_file():
-                raise ValueError(
-                    "TimeSeriesLikelihoods save() method must specify a directory."
-                    f"Instead, found a file with the same name as destination: {p}"
-                )
-            res.save(p)
+        def _save(breadcrumb_path: Path, res: TimeSeriesLikelihoods):
+            base_dir = breadcrumb_path.parent
+            base_dir.mkdir(exist_ok=True, parents=True)
+            res.save(base_dir)
+            breadcrumb_path.touch(exist_ok=True)
+
+        def _load(breadcrumb_path: Path) -> TimeSeriesLikelihoods:
+            base_dir = breadcrumb_path.parent
+            result = TimeSeriesLikelihoods.load(len(self.reads), base_dir)
+            return result
 
         return self.cache.call(
-            relative_filepath='.',
+            relative_filepath='mappings/mappings.DONE',
             fn=self.compute_all,
             save=_save,
-            load=lambda p: TimeSeriesLikelihoods.load(len(self.reads), p)
+            load=_load
         )
 
     def compute_all(self) -> TimeSeriesLikelihoods:
@@ -147,10 +154,12 @@ class ReadFragmentMappings:
             lls = FragmentReadErrorLikelihood(
                 jsparse.BCOO((ll_values, indices), shape=(len(fragments), n_reads))
             )
+
             paired_lls = FragmentReadErrorLikelihood(
                 jsparse.BCOO((paired_ll_values, paired_indices), shape=(len(fragment_pairs), n_read_pairs))
             )
-            all_matrices.append(TimeSliceLikelihoods(lls, paired_lls))
+            result_t = TimeSliceLikelihoods(lls, paired_lls)
+            all_matrices.append(result_t)
 
         return TimeSeriesLikelihoods(all_matrices, fragments, fragment_pairs)
 
@@ -174,10 +183,12 @@ class ReadFragmentMappings:
 
         for src in time_slice.sources:
             if isinstance(src, SampleReadSourceSingle):
+                logger.debug(f"Handling singular source {src}")
                 self.handle_singular_read_likelihoods(time_slice, src,
                                                       fragments, read_set,
                                                       indices, ll_values)
             elif isinstance(src, SampleReadSourcePaired):
+                logger.debug(f"Handling paired source {src}")
                 self.handle_paired_read_likelihoods(time_slice, src,
                                                     fragments, fragment_pairs,
                                                     read_set, paired_read_set,
@@ -238,11 +249,10 @@ class ReadFragmentMappings:
         """
         Parse each alignment, and extract the marker fragment hit.
         """
-        for read, _, frag, error_ll in self.parse_alignments(
+        for read, frag_idx, _, error_ll in self.parse_alignments(
                 self.get_alignments_singular(read_src, time_slice),
                 fragments
         ):
-            frag_idx = frag.index
             read_idx = read_set.get_index_of(read)
             indices.append([frag_idx, read_idx])
             ll_values.append(error_ll)
@@ -270,44 +280,45 @@ class ReadFragmentMappings:
         df_entries = []
 
         # First, handle the forward reads and create a dataframe of all alignment hits.
-        for fwd_read, marker_gene, frag, error_ll in self.parse_alignments(
+        for fwd_read, fwd_frag_idx, fwd_hit_strain, fwd_error_ll in self.parse_alignments(
                 self.alignment_wrapper.align_pe_forward(
                     read_src.path_fwd, read_src.quality_format, time_slice.get_read
                 ),
                 fragments
         ):
-            strain = self.db.get_strains_with_marker(marker_gene)[0]
-            df_entries.append({
-                'Read': fwd_read.id,
-                'Marker': marker_gene.id,
-                'Strain': strain.id,
-                'Frag': frag.index,
-                'LL': error_ll
-            })
-        fwd_hit_df = pd.DataFrame(df_entries)
+            df_entries.append(
+                (fwd_read.id, fwd_hit_strain.id, fwd_frag_idx, fwd_error_ll)
+            )
+        fwd_hit_df = pd.DataFrame(
+            df_entries,
+            columns=['Read', 'Strain', 'Frag', 'LL']
+        )
         del df_entries
         logger.debug("# Forward-read alignments = {}".format(fwd_hit_df.shape[0]))
 
         # Next, handle the reverse reads, do the same thing as above.
         df_entries = []
-        for rev_read, marker_gene, frag, error_ll in self.parse_alignments(
+        for rev_read, rev_frag_idx, rev_hit_strain, rev_error_ll in self.parse_alignments(
                 self.alignment_wrapper.align_pe_reverse(
                     read_src.path_rev, read_src.quality_format, time_slice.get_read
                 ),
                 fragments
         ):
+            if not isinstance(rev_read, PairedEndRead):
+                raise ValueError("Expected read instance (id {}) to be paired-end, but got {} instead.".format(
+                    rev_read.id,
+                    rev_read.__class__.__name__
+                ))
             if rev_read.has_mate_pair:
                 mate_pair_id = rev_read.mate_pair.id
             else:
                 mate_pair_id = None
-            strain = self.db.get_strains_with_marker(marker_gene)[0]
             df_entries.append({
                 'Read': rev_read.id,
                 'MatePair': mate_pair_id,
-                'Marker': marker_gene.id,
-                'Strain': strain.id,
-                'Frag': frag.index,
-                'LL': error_ll
+                'Strain': rev_hit_strain.id,
+                'Frag': rev_frag_idx,
+                'LL': rev_error_ll
             })
         rev_hit_df = pd.DataFrame(df_entries)
         del df_entries
@@ -324,14 +335,13 @@ class ReadFragmentMappings:
             suffixes=('_FWD', '_REV')
         )
         logger.debug(
-            "# Merged alignments = {} (ratio_fwd = {}, ratio_rev = {})".format(
+            "# Paired alignments = {} (Jaccard IOU reduction ratio: {})".format(
                 merged.shape[0],
-                merged.shape[0] / fwd_hit_df.shape[0],
-                merged.shape[0] / rev_hit_df.shape[0]
+                merged.shape[0] / (fwd_hit_df.shape[0] + rev_hit_df.shape[0])
             )
         )
-        for (fwd_read_id, marker_gene), row in merged.iterrows():
-            fwd_read = time_slice.get_read(fwd_read_id)
+        for _, row in merged.iterrows():
+            fwd_read = time_slice.get_read(row['Read_FWD'])
             assert isinstance(fwd_read, PairedEndRead)
             assert fwd_read.has_mate_pair
             rev_read = fwd_read.mate_pair
@@ -347,12 +357,17 @@ class ReadFragmentMappings:
 
             # Remove these handled reads; this is akin to taking the intersection of mapping genomes.
             # Note that not all mate pairs will map properly, since markers are far sparser than the entire genome.
-            fwd_to_remove.add(fwd_read_id)
+            fwd_to_remove.add(fwd_read.id)
             rev_to_remove.add(rev_read.id)
         del merged
 
         # Handle reads that don't have mate pairs, or mate pairs that don't share marker hits.
-        logger.debug("Resolved {} reads with paired-end information.".format(len(fwd_to_remove)))
+        logger.debug("Resolved {} / {} reads ({} fwd + {} rev) with paired-end information.".format(
+            len(fwd_to_remove) + len(rev_to_remove),
+            time_slice.num_reads_per_source[read_src.name],
+            len(fwd_to_remove), len(rev_to_remove),
+        ))
+
         fwd_hit_df = fwd_hit_df.loc[~fwd_hit_df['Read'].isin(fwd_to_remove)]
         rev_hit_df = rev_hit_df.loc[~rev_hit_df['Read'].isin(rev_to_remove)]
         for _, row in itertools.chain(fwd_hit_df.iterrows(), rev_hit_df.iterrows()):
@@ -365,35 +380,50 @@ class ReadFragmentMappings:
             self,
             alns: Iterator[SequenceReadPairwiseAlignment],
             fragments: FragmentSpace
-    ) -> Tuple[SequenceRead, Marker, Fragment, float]:
+    ) -> Iterator[Tuple[SequenceRead, int, Strain, float]]:
         """
         Parse the provided alignment objects into the necessar objects for calculating a
         read-fragment likelihood matrix.
         """
-        # we can afford to clear this in between sources.
-        included_hits = set()
-
         # parse each alignment, keeping track of duplicates along the way.
+        def __result_gen(read: SequenceRead, _frag_to_ll_map: Dict[int, Tuple[float, Set[Strain]]]):
+            if read is None:
+                return
+            for frag_idx, (error_ll, strain_hits) in _frag_to_ll_map.items():
+                if error_ll < self.ll_threshold:
+                    continue
+                for hit_strain in strain_hits:
+                    yield read, frag_idx, hit_strain, error_ll
+
+        cur_read: Union[SequenceRead, None] = None
+        frag_to_lls: Dict[int, Tuple[float, Set[Strain]]] = dict()
         for aln in alns:
-            frag = fragments.add_seq(aln.marker_frag)  # this checks for reverse complements.
-            pair_identifier: Tuple[str, int] = (aln.read.id, frag.index)
-            if pair_identifier in included_hits:
-                continue  # this is a duplicate alignment, so skip.
-            else:
-                included_hits.add(pair_identifier)
+            # Assume that queries are grouped in the SAM file.
+            if cur_read is None or aln.read.id != cur_read.id:
+                # emit whwat we have so far.
+                if cur_read is not None:
+                    yield from __result_gen(cur_read, frag_to_lls)
+                # we are now parsing a block of lines for a new read query.
+                frag_to_lls = dict()
+                cur_read = aln.read
 
-            error_ll = self.read_frag_ll(
-                frag.seq.bytes(),
-                aln.read,
-                aln.read_insertion_locs(),
-                aln.marker_deletion_locs(),
-                aln.reverse_complemented,
-                aln.soft_clip_start + aln.hard_clip_start,
-                aln.soft_clip_end + aln.hard_clip_end
-            )
+            frag = fragments.add_seq(aln.marker_frag)
+            if frag.index not in frag_to_lls:
+                error_ll = self.read_frag_ll(
+                    frag.seq.bytes(),
+                    aln.read,
+                    aln.read_insertion_locs(),
+                    aln.marker_deletion_locs(),
+                    aln.reverse_complemented,
+                    aln.soft_clip_start + aln.hard_clip_start,
+                    aln.soft_clip_end + aln.hard_clip_end
+                )
+                frag_to_lls[frag.index] = (error_ll, set())
 
-            if error_ll > self.ll_threshold:
-                yield aln.read, aln.marker, frag, error_ll
+            s = self.db.get_strain_with_marker(aln.marker)
+            frag_to_lls[frag.index][1].add(s)
+
+        yield from __result_gen(cur_read, frag_to_lls)  # emit the leftover.
 
     def read_frag_ll(self,
                      frag_seq: cnp.ndarray,

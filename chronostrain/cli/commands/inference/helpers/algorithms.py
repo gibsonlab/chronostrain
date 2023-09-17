@@ -2,6 +2,7 @@ from logging import Logger
 from typing import List
 
 import jax.numpy as jnp
+import numpy as cnp
 from chronostrain.inference import *
 from chronostrain.database import StrainDatabase
 from chronostrain.model import *
@@ -137,9 +138,9 @@ def perform_advi(
 
             for s_idx in range(gaussian_prior.num_strains):
                 traj_samples = abund_samples[:, :, s_idx]  # (T x N)
-                upper_quantile = np.quantile(traj_samples, q=0.975, axis=1)
-                lower_quantile = np.quantile(traj_samples, q=0.025, axis=1)
-                median = np.quantile(traj_samples, q=0.5, axis=1)
+                upper_quantile = cnp.quantile(traj_samples, q=0.975, axis=1)
+                lower_quantile = cnp.quantile(traj_samples, q=0.025, axis=1)
+                median = cnp.quantile(traj_samples, q=0.5, axis=1)
                 uppers_buf[s_idx].append(upper_quantile)
                 lowers_buf[s_idx].append(lower_quantile)
                 medians_buf[s_idx].append(median)

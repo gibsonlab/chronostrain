@@ -16,6 +16,7 @@ class FragmentSpace:
     def __init__(self):
         self.seq_to_frag: Dict = dict()
         self.frag_list: List[Fragment] = list()
+        self.min_len: int = 100000000
 
     def _contains_seq(self, seq: Sequence) -> bool:
         return self._seq_to_key(seq) in self.seq_to_frag
@@ -28,6 +29,7 @@ class FragmentSpace:
         frag = Fragment(index=len(self.frag_list), seq=seq)  # uid is just the index in the list.
         self.seq_to_frag[self._seq_to_key(seq)] = frag
         self.frag_list.append(frag)
+        self.min_len = min(self.min_len, len(seq))
         return frag
 
     def add_seq(self, seq: Sequence, metadata: str = None) -> Fragment:

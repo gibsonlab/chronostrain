@@ -1,7 +1,8 @@
 """
 Contains alignment-specific likelihoods necessary for other algorithm implementations.
 """
-from typing import Iterator, Union, Generator, Callable, Tuple
+import shutil
+from typing import Iterator, Union, Callable, Tuple
 from pathlib import Path
 import numpy as np
 
@@ -166,7 +167,7 @@ class CachedReadPairwiseAlignments(object):
             yield from self.align_pe_reverse(read_src.path_rev, read_src.quality_format, read_getter)
 
 
-    def parse_alignments(self, sam_file: SamFile, read_getter: Callable[[str], SequenceRead]) -> Generator[SequenceReadPairwiseAlignment]:
+    def parse_alignments(self, sam_file: SamFile, read_getter: Callable[[str], SequenceRead]) -> Iterator[SequenceReadPairwiseAlignment]:
         yield from parse_alignments(
             sam_file, self.db,
             read_getter=read_getter,
@@ -190,11 +191,13 @@ class CachedReadPairwiseAlignments(object):
         # ====== function bindings to pass to ComputationCache.
         def _call_aligner():
             absolute_path.parent.mkdir(exist_ok=True, parents=True)
+            tmp_path = absolute_path.with_suffix('.sam.PARTIAL')
             aligner.align(
                 query_path=query_path,
-                output_path=absolute_path,
+                output_path=tmp_path,
                 read_type=read_type
             )
+            shutil.move(src=tmp_path, dst=absolute_path)
             return SamFile(absolute_path, quality_format)
 
         # ====== Run the cached computation.

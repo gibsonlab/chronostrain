@@ -20,9 +20,9 @@ class ReadStrainCollectionCache(ComputationCache):
                 use_quality=cfg.model_cfg.use_quality_scores,
                 database=db.signature,
                 file_paths=[
-                    src.path
+                    src_path
                     for reads_t in reads
-                    for src in reads_t.sources
+                    for src_path in reads_t.paths()
                 ]  # read files
             )
         )

@@ -203,7 +203,7 @@ def main(
 
     if draw_training_history:
         viz.plot_training_animation(
-            model=solver.model,
+            model=solver.gaussian_prior,
             out_path=animation_path,
             upper_quantiles=uppers,
             lower_quantiles=lowers,
@@ -220,8 +220,8 @@ def main(
         filesystem.convert_size(samples_path.stat().st_size)
     ))
     viz.plot_vi_posterior(
-        times=solver.model.times,
-        population=solver.model.bacteria_pop,
+        times=solver.gaussian_prior.times,
+        population=solver.gaussian_prior.population,
         samples=samples,
         plot_path=plot_path,
         plot_format=plot_format,
@@ -231,7 +231,7 @@ def main(
 
     # ==== Output strain ordering.
     with open(strains_path, "w") as f:
-        for strain in solver.model.bacteria_pop.strains:
+        for strain in solver.gaussian_prior.population.strains:
             print(strain.id, file=f)
 
     # ==== Report any ad-hoc clustering.

@@ -68,14 +68,14 @@ class StrainDatabase(object):
     def num_markers(self) -> int:
         return self.backend.num_markers()
 
-    def get_strains_with_marker(self, marker: Marker) -> List[Strain]:
-        return self.backend.get_strains_with_marker(marker)
+    def get_strain_with_marker(self, marker: Marker) -> Strain:
+        return self.backend.get_strain_with_marker(marker)
 
     def best_matching_strain(self, query_markers: List[Marker]) -> Strain:
         strain_num_hits = defaultdict(int)
         for marker in query_markers:
-            for strain in self.get_strains_with_marker(marker):
-                strain_num_hits[strain.id] += 1
+            strain = self.get_strain_with_marker(marker)
+            strain_num_hits[strain.id] += 1
 
         if len(strain_num_hits) == 0:
             raise QueryNotFoundError("No available strains with any of query markers: [{}]".format(

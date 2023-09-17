@@ -51,11 +51,8 @@ class DictionaryBackend(AbstractStrainDatabaseBackend):
     def all_markers(self) -> List[Marker]:
         return list(self.markers.values())
 
-    def get_strains_with_marker(self, marker: Marker) -> List[Strain]:
-        try:
-            return self.markers_to_strains[marker.id]
-        except KeyError:
-            return []
+    def get_strain_with_marker(self, marker: Marker) -> Strain:
+        return self.markers_to_strains[marker.id][0]
 
     def get_markers_by_name(self, marker_name: str) -> List[Marker]:
         try:

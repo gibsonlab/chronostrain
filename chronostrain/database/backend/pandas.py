@@ -13,13 +13,13 @@ class PandasAssistedBackend(AbstractStrainDatabaseBackend):
         self.strain_df = pd.DataFrame({
             'StrainId': pd.Series(dtype='str'),
             'MarkerIdx': pd.Series(dtype='int')
-        })
+        }).set_index('MarkerIdx')  # optimize for strains_with_markers() queries.
 
         self.marker_df = pd.DataFrame({
             'MarkerIdx': pd.Series(dtype='int'),
             'MarkerId': pd.Series(dtype='str'),
             'MarkerName': pd.Series(dtype='str')
-        }).set_index(['MarkerId'])
+        }).set_index(['MarkerId'])  # optimize for get_marker() queries.
 
     def add_strains(self, strains: Iterator[Strain]):
         strain_df_entries = []
@@ -89,20 +89,14 @@ class PandasAssistedBackend(AbstractStrainDatabaseBackend):
     def all_markers(self) -> List[Marker]:
         return list(self.markers.values())
 
-    def get_strains_with_marker(self, marker: Marker) -> List[Strain]:
+    def get_strain_with_marker(self, marker: Marker) -> Strain:
         m_idx = self.marker_df.loc[
             marker.id,
             "MarkerIdx"
         ]
 
-        hits = self.strain_df.loc[
-            self.strain_df['MarkerIdx'] == m_idx,
-            "StrainId"
-        ]
-        return [
-            self.strains[strain_id]
-            for idx, strain_id in hits.items()
-        ]
+        hit = self.strain_df.loc[m_idx, 'StrainId']
+        return self.strains[hit]
 
     def get_markers_by_name(self, marker_name: str) -> List[Marker]:
         hits = self.marker_df.loc[

@@ -1,3 +1,4 @@
+import itertools
 from typing import *
 
 import jax
@@ -101,13 +102,6 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
 
     def precompile_elbo(self):
         n_times = self.gaussian_prior.num_times
-        n_data = np.expand_dims(
-            np.array([
-                len(self.data.time_slices[t_idx])
-                for t_idx in range(n_times)
-            ], dtype=self.dtype),  # length T
-            axis=1
-        )
         log_total_marker_lens = np.array([
             cnp.log(sum(len(m) for m in strain.markers))
             for strain in self.gaussian_prior.population.strains
@@ -140,16 +134,28 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
 
             # both loops here are OK to flatten by JIT (read_frags-dependent but fixed throughout algs)
             for t_idx in range(n_times):
-                log_y_t = jax.lax.dynamic_slice_in_dim(log_y, start_index=t_idx, slice_size=1, axis=0).squeeze(0)
+                n_singular = 0
+                n_pairs = 0
+                log_y_t = jax.lax.dynamic_slice_in_dim(log_y, start_index=t_idx, slice_size=1, axis=0).squeeze(0)  # shape is (N x S)
 
                 for batch_idx, batch_lls in enumerate(self.batches[t_idx]):
                     batch_sz = batch_lls.shape[1]
                     data_ll_part = batch_sz * log_mm_exp(log_y_t, batch_lls).mean()
                     elbo += data_ll_part
+                    n_singular += batch_sz
+                for paired_batch_idx, paired_batch_lls in enumerate(self.paired_batches[t_idx]):
+                    batch_sz = paired_batch_lls.shape[1]
+                    data_ll_part = batch_sz * log_mm_exp(log_y_t, paired_batch_lls).mean()
+                    elbo += data_ll_part
+                    n_pairs += batch_sz
 
-            # correction term
-            correction = -n_data * jax.scipy.special.logsumexp(log_y + log_total_marker_lens, axis=-1).mean(axis=1)  # mean across samples
-            elbo += correction.sum()  # sum across timepoints
+                # Correction term: (log of) expected length of marker lens in population
+                correction = -n_singular * jax.scipy.special.logsumexp(log_y_t + log_total_marker_lens, axis=-1).mean()  # mean across samples, one per read -> multiply by # of reads.
+                elbo += correction
+
+                # Correction term #2: (log of) expected length of square of marker lens in population
+                correction = -n_pairs * jax.scipy.special.logsumexp(log_y_t + 2 * log_total_marker_lens, axis=-1).mean()
+                elbo += correction
             return elbo
         self.elbo_grad = jax.value_and_grad(_elbo, argnums=0)
 

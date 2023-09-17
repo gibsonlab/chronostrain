@@ -1,4 +1,4 @@
-from typing import Iterator, Generator, Tuple
+from typing import Iterator, Tuple
 from pathlib import Path
 
 import numpy as np
@@ -14,6 +14,9 @@ logger = create_logger(__name__)
 
 
 class SampleReadSource(object):
+    def __init__(self, name: str):
+        self.name = name
+
     def get_read_depth(self) -> int:
         raise NotImplementedError()
 
@@ -22,24 +25,26 @@ class SampleReadSource(object):
 
 
 class SampleReadSourceSingle(SampleReadSource):
-    def __init__(self, read_depth: int, path: Path, quality_format: str, read_type: ReadType):
+    def __init__(self, read_depth: int, path: Path, quality_format: str, read_type: ReadType, name: str):
+        super().__init__(name)
         self.read_depth: int = read_depth
         self.path: Path = path
         self.quality_format: str = quality_format
         self.read_type: ReadType = read_type
 
     def __str__(self):
-        return f"[{self.path.name}:{self.quality_format}]"
+        return f"[{self.name} -> {self.path.name}:{self.quality_format}]"
 
     def __repr__(self):
-        return "[{}:{}:{}]".format(
+        return "[{} -> {}:{}:{}]".format(
+            self.name,
             self.path, self.quality_format, self.read_type
         )
 
     def get_read_depth(self) -> int:
         return self.read_depth
 
-    def reads(self) -> Generator[SequenceRead]:
+    def reads(self) -> Iterator[SequenceRead]:
         for read_id, read_seq, read_qual, read_desc in _parse_fastq(self.path, self.quality_format):
             if self.read_type == ReadType.SINGLE_END:
                 yield SequenceRead(read_id, read_seq, read_qual, read_desc)
@@ -52,17 +57,19 @@ class SampleReadSourceSingle(SampleReadSource):
 
 
 class SampleReadSourcePaired(SampleReadSource):
-    def __init__(self, read_depth: int, path_fwd: Path, path_rev: Path, quality_format: str):
+    def __init__(self, read_depth: int, path_fwd: Path, path_rev: Path, quality_format: str, name: str):
+        super().__init__(name)
         self.read_depth: int = read_depth
         self.path_fwd = path_fwd
         self.path_rev = path_rev
         self.quality_format = quality_format
 
     def __str__(self):
-        return f"[{self.path_fwd.name}+{self.path_rev.name}:{self.quality_format}]"
+        return f"[{self.name} -> {self.path_fwd.name}+{self.path_rev.name}:{self.quality_format}]"
 
     def __repr__(self):
-        return "[{}+{}:{}]".format(
+        return "[{} -> {}+{}:{}]".format(
+            self.name,
             self.path_fwd, self.path_rev, self.quality_format
         )
 
@@ -113,4 +120,4 @@ def _parse_fastq(p: Path, quality_format: str) -> Iterator[Tuple[str, Sequence, 
         else:
             raise ValueError("Unknown quality format `{}`.".format(quality_format))
 
-        yield record.id, AllocatedSequence(record.seq), quality, record.description
+        yield record.id, AllocatedSequence(str(record.seq)), quality, record.description

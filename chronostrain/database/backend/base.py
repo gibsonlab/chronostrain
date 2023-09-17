@@ -62,7 +62,7 @@ class AbstractStrainDatabaseBackend(object):
         pass
 
     @abstractmethod
-    def get_strains_with_marker(self, marker: Marker) -> List[Strain]:
+    def get_strain_with_marker(self, marker: Marker) -> Strain:
         """
         Retrieve all strains that contains this marker.
         """

@@ -3,7 +3,6 @@ from typing import Tuple
 import jax.numpy as jnp
 import jax.experimental.sparse as jsparse
 
-from chronostrain.model import Fragment
 from chronostrain.util.math import save_sparse_matrix, load_sparse_matrix
 
 
@@ -47,4 +46,4 @@ class FragmentFrequencySparse(object):
                 )
             )
         loc = locs[0]
-        return self.matrix.values[loc]
+        return self.matrix.data[loc].item()

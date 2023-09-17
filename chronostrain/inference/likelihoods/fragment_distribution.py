@@ -4,11 +4,13 @@ from typing import List, Tuple, Iterator, Dict, Union
 import jax.numpy as jnp
 import numpy as cnp
 import scipy
+import scipy.special
+import scipy.sparse
 from jax.experimental.sparse import BCOO
 import pandas as pd
-import shutil
 
 from scipy.stats import rv_discrete, nbinom as negative_binomial
+from tqdm import tqdm
 
 from chronostrain.database import StrainDatabase
 from chronostrain.model import Strain, Fragment, FragmentSpace, FragmentPairSpace, \
@@ -87,14 +89,19 @@ class FragmentFrequencyComputer(object):
 
     def get_exact_matches(self) -> pd.DataFrame:
         if self.exact_match_df is None:
-            fastmap_tmp_dir = self.cache.cache_dir / 'bwa_fastmap'
+            fastmap_out_dir = self.cache.cache_dir / 'bwa_fastmap'
+
+            def _save(p, df):
+                p.parent.mkdir(exist_ok=True, parents=True)
+                df.to_feather(p)
+
             self.exact_match_df = self.cache.call(
                 relative_filepath='fragment_frequencies/matches_all.feather',
                 fn=lambda: self.compute_exact_matches(
-                    self.fragments, fastmap_tmp_dir,
+                    self.fragments, fastmap_out_dir,
                     max_num_hits=10 * self.db.num_strains()
                 ),
-                save=lambda p, df: df.to_feather(p),
+                save=_save,
                 load=lambda p: pd.read_feather(p)
             )
         return self.exact_match_df
@@ -105,19 +112,45 @@ class FragmentFrequencyComputer(object):
         matrix_values = []
 
         frag_len_rv = negative_binomial(self.frag_nbinom_n, self.frag_nbinom_p)
+        min_frag_len = self.fragments.min_len
+        max_frag_len = max(int(frag_len_rv.mean() + 2 * frag_len_rv.std()), min_frag_len)
 
-        for (frag_idx, s_idx), section in self.get_exact_matches().groupby(['FragIdx', 'StrainIdx']):
+        window_lens = cnp.arange(min_frag_len, 1 + max_frag_len)
+        window_len_logpmf = frag_len_rv.logpmf(window_lens)
+
+        matches_df = self.get_exact_matches()
+        groupings = matches_df.groupby(['FragIdx', 'StrainIdx'])
+        count = groupings.ngroups
+        pbar = tqdm(total=count, unit='matrix-entry')
+        for (frag_idx, s_idx), section in groupings:
             # noinspection PyTypeChecker
             strain_indices.append(s_idx)
             frag_indices.append(frag_idx)
+            # a = frag_log_ll_numpy(
+            #     len(self.fragments[frag_idx]),
+            #     frag_len_rv,
+            #     section['HitMarkerLen'].to_numpy(),
+            #     section['HitPos'].to_numpy()
+            # )
+            # b = frag_log_ll_numpy_new(
+            #     frag_len=len(self.fragments[frag_idx]),
+            #     window_lens=window_lens,
+            #     window_len_log_pmf=window_len_logpmf,
+            #     hit_marker_lens=section['HitMarkerLen'].to_numpy(),
+            #     hit_pos=section['HitPos'].to_numpy()
+            # )
+            # assert a == b
             matrix_values.append(
-                frag_log_ll_numpy(
-                    len(self.fragments[frag_idx]),
-                    frag_len_rv.logpmf,
-                    cnp.array(section['HitMarkerLen']),
-                    cnp.array(section['HitPos'])
+                frag_log_ll_numpy_new(
+                    frag_len=len(self.fragments[frag_idx]),
+                    window_lens=window_lens,
+                    window_len_log_pmf=window_len_logpmf,
+                    hit_marker_lens=section['HitMarkerLen'].to_numpy(),
+                    hit_pos=section['HitPos'].to_numpy()
                 )
             )
+            pbar.update(1)
+        # exit(1)
 
         indices = jnp.array(list(zip(frag_indices, strain_indices)))
         matrix_values = jnp.array(matrix_values, dtype=self.dtype)
@@ -126,38 +159,84 @@ class FragmentFrequencyComputer(object):
         )
 
     def compute_paired_frequencies(self, single_freqs: FragmentFrequencySparse) -> FragmentFrequencySparse:
-        strain_indices = []
-        frag_pair_indices = []
-        matrix_values = []
-        for f_idx1, f_idx2, pair_idx in self.fragment_pairs:
-            s_idxs1, values1 = single_freqs.slice_by_fragment(f_idx1)
-            s_idxs2, values2 = single_freqs.slice_by_fragment(f_idx2)
-            s_intersect, locs1, locs2 = jnp.intersect1d(s_idxs1, s_idxs2, return_indices=True)
-            val_intersect_1 = values1[locs1]
-            val_intersect_2 = values2[locs2]
+        indices = cnp.array(single_freqs.matrix.indices)
+        log_counts = cnp.array(single_freqs.matrix.data)
 
-            # s_intersect, val_intersect_1, val_intersect_2 all have matching shapes.
-            strain_indices.append(s_intersect)
-            frag_pair_indices.append(jnp.array([pair_idx] * len(s_intersect)))
-            matrix_values.append(val_intersect_1 * val_intersect_2)  # evaluate the product.
+        """
+        Main strategy here is to first convert the sparse matrix into scipy's CSR array,
+        then take two slices: X[frag1], X[frag2] and then compute the log-space product of expected counts, X[frag1] + X[frag2].
+        But... need to be careful here! 
+        
+        The sparse arrays (for us) are stored such that "empty" locations have value -inf, but Scipy's CSR assumes that 
+        empty locs are Zeroes. Thus, doing a simple sum X[frag1] + X[frag2] may accidentally cancel things out.
+        (e.g. log(x) + log(y) = 0 means that x*y = 1.0, but scipy's sparse logic EMPTIES out this entry, 
+        so log(x) + log(y) incorrectly becomes -inf.)
+        
+        The solution here is to force ALL entries to be positive, so no cancellations occur.
+        """
+        # ================= pick an offset for numerical stability.
+        n_positives = cnp.sum(log_counts > 0)
+        n_negatives = cnp.sum(log_counts < 0)
+        eps = 1.0
+        if n_positives > 0 and n_negatives > 0:
+            # possible canceellations; do some preprocessing.
+            offset = cnp.min(log_counts) - eps  # add an extra epsilon factor to avoid canceelation on the minimal element.
+            log_counts = log_counts - offset  # now all entries are positive.
+        else:
+            offset = 0.0
+
+        # ================ do sparse operations using CPU sparse arrays.
+        n_zeros = cnp.sum(log_counts == 0)
+        if n_zeros > 0:
+            raise RuntimeError(
+                "Sparse matrix's data array has zero values. Since the interpretation is that empty entries are -inf, "
+                "this contradicts the model. This is an unusual error; try running the program again with a "
+                "different/randomized offset."
+            )
+
+        cpu_sparse = scipy.sparse.csr_array(
+            (log_counts, (indices[:, 0], indices[:, 1])),
+            shape=(len(self.fragments), len(self.strains))
+        )
+        del indices
+        del log_counts
+
+        # =============== Extract the slice indexes
+        f1 = cnp.zeros(len(self.fragment_pairs), dtype=int)
+        f2 = cnp.zeros(len(self.fragment_pairs), dtype=int)
+        for f_idx1, f_idx2, pair_idx in self.fragment_pairs:
+            f1[pair_idx] = f_idx1
+            f2[pair_idx] = f_idx2
+
+        # =============== Take the slices.
+        freq1 = cpu_sparse[f1, :]
+        freq2 = cpu_sparse[f2, :]
+        logger.debug("freq1 nnz = {}, freq2 nnz = {}".format(freq1.nnz, freq2.nnz))
+
+        # =============== Compute the operations.
+        _mutual_nnz = (freq1 != 0) * (freq2 != 0)
+        _sum = (freq1 + freq2) * _mutual_nnz  # the offsets have combined; it is now 2 times the original offset.
+        del _mutual_nnz
+
+        _sum = _sum.tocoo()
+        jax_coo_data = jnp.array(_sum.data + 2 * offset)
+        jax_coo_indices = jnp.stack(
+            [_sum.row, _sum.col],
+            axis=1
+        )
+        logger.debug("Result nnz = {}".format(_sum.nnz))
         return FragmentFrequencySparse(
             BCOO(
-                (
-                    jnp.concatenate(matrix_values),  # data; this should be a length N array
-                    jnp.stack(  # indices; this should be an Nx2 array
-                        [
-                            jnp.concatenate(frag_pair_indices),
-                            jnp.concatenate(strain_indices)
-                        ],
-                        axis=1  # this ensures concatenation across 2nd dimension
-                    )
-                ),
+                (jax_coo_data, jax_coo_indices),
                 shape=(len(self.fragment_pairs), len(self.strains))
             )
         )
 
-    def compute_exact_matches(self, fragments: FragmentSpace, tmp_dir: Path, max_num_hits: int) -> pd.DataFrame:
-        bwa_fastmap_output = self._invoke_bwa_fastmap(fragments, tmp_dir, max_num_hits)
+    def compute_exact_matches(self, fragments: FragmentSpace, target_dir: Path, max_num_hits: int) -> pd.DataFrame:
+        output_path = target_dir / 'bwa_fastmap.out'
+        target_dir.mkdir(exist_ok=True, parents=True)
+        bwa_fastmap_output = self._invoke_bwa_fastmap(fragments, output_path, max_num_hits)
+
         df_entries = []
         for fragment, frag_mapping_locs in self._parse(fragments, bwa_fastmap_output):
             for hit_marker_len, strain_idx, hit_pos in frag_mapping_locs:
@@ -168,20 +247,18 @@ class FragmentFrequencyComputer(object):
             df_entries,
             columns=['FragIdx', 'StrainIdx', 'HitMarkerLen', 'HitPos'],
         )
-        shutil.rmtree(tmp_dir)
         return df
 
     def _invoke_bwa_fastmap(
             self,
             fragments: FragmentSpace,
-            tmp_dir: Path,
+            output_path: Path,
             max_num_hits: int
     ) -> Path:
         logger.debug("Creating index for exact matches.")
         bwa_index(self.db.multifasta_file, bwa_cmd='bwa', check_suffix='bwt')
 
-        tmp_dir.mkdir(exist_ok=True, parents=True)
-        output_path = tmp_dir / 'bwa_fastmap.out'
+        output_path.unlink(missing_ok=True)
         for frag_len, frag_fasta in fragments.fragment_files_by_length(output_path.parent):
             fastmap_output_path = output_path.with_stem(
                 f'{output_path.stem}.{frag_len}'
@@ -231,7 +308,7 @@ class FragmentFrequencyComputer(object):
 
         from tqdm import tqdm
         with open(fastmap_output_path, 'rt') as f:
-            for _ in tqdm(range(total_entries)):
+            for _ in tqdm(range(total_entries), unit='frag'):
                 fragment_mapping_locations: List[Tuple[int, int, int]] = []
                 sq_line = f.readline()
                 if sq_line is None or (not sq_line.startswith("SQ")):
@@ -253,11 +330,15 @@ class FragmentFrequencyComputer(object):
                         if frag_end - frag_start != frag_len:
                             continue  # don't do anything if it's not exact hits.
 
-                        tokens = marker_hit_token.split(':')
-                        pos = tokens[-1]
-                        marker_desc = ":".join(tokens[:-1])
-                        pos = int(pos)
-                        gene_name, marker_id = marker_desc.split('|')
+                        try:
+                            tokens = marker_hit_token.split(':')
+                            pos = tokens[-1]
+                            marker_desc = ":".join(tokens[:-1])
+                            pos = int(pos)
+                            gene_name, marker_id = marker_desc.split('|')
+                        except Exception as e:
+                            logger.error(f"Encountered a hit line that couldn't be parsed: `{marker_hit_token}`")
+                            raise e
 
                         res = marker_id_dataframe.loc[marker_id]
                         if isinstance(res, pd.DataFrame):
@@ -293,6 +374,29 @@ class FragmentFrequencyComputer(object):
                         f"Validate the output of bwa fastmap!"
                     )
 
+
+def frag_log_ll_numpy_new(
+        frag_len: int,
+        window_lens: cnp.ndarray,
+        window_len_log_pmf: cnp.ndarray,
+        hit_marker_lens: cnp.ndarray,
+        hit_pos: cnp.ndarray,
+) -> float:
+    n_hits = hit_pos.shape[0]  # int
+    n_edge_hits = cnp.sum(
+        (hit_pos == 1) | (hit_pos == hit_marker_lens - frag_len + 1)  # framgent maps to edge
+    )
+
+    n_matching_windows = cnp.where(window_lens == frag_len, n_hits, n_edge_hits)
+    n_matching_windows = cnp.where(window_lens >= frag_len, n_matching_windows, 0)
+    _mask = n_matching_windows > 0  # we are about to take logs...
+
+    # noinspection PyUnresolvedReferences
+    return scipy.special.logsumexp(
+        a=window_len_log_pmf[_mask] + cnp.log(n_matching_windows[_mask]),
+        keepdims=False,
+        return_sign=False
+    ).item()
 
 def frag_log_ll_numpy(frag_len: int,
                       frag_len_rv: rv_discrete,
