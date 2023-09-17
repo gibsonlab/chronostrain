@@ -20,9 +20,9 @@ require_variable "time_point" $time_point
 
 themisto_db_dir="${DATA_DIR}/databases/themisto"
 trial_dir=$(get_trial_dir "${mutation_ratio}" "$replicate" "$n_reads" "$trial")
-output_dir=${trial_dir}/output/msweep_SINGLE_ENDED
+output_dir=${trial_dir}/output/msweep
 pseudoalignment_dir=${trial_dir}/output/themisto
-runtime_file=${trial_dir}/output/msweep_runtime.SINGLE_ENDED.${time_point}.txt
+runtime_file=${trial_dir}/output/msweep_runtime.${time_point}.txt
 mkdir -p $output_dir
 
 
@@ -42,9 +42,9 @@ if ! [ -f ${pseudoalignment_dir}/${time_point}_sim_2.output.txt ]; then echo "Re
 if ! [ -f ${pseudoalignment_dir}/${time_point}_background_2.output.txt ]; then echo "Reverse read pseudoalignment not found."; exit 1; fi
 
 cat ${pseudoalignment_dir}/${time_point}_sim_1.output.txt > $fwd_input
-cat ${pseudoalignment_dir}/${time_point}_sim_2.output.txt >> $fwd_input
+cat ${pseudoalignment_dir}/${time_point}_sim_2.output.txt > $rev_input
 cat ${pseudoalignment_dir}/${time_point}_background_1.output.txt >> $fwd_input
-cat ${pseudoalignment_dir}/${time_point}_background_2.output.txt >> $fwd_input
+cat ${pseudoalignment_dir}/${time_point}_background_2.output.txt >> $rev_input
 
 
 echo "[*] Running mSWEEP"
@@ -52,7 +52,8 @@ cd ${output_dir}
 start_time=$(date +%s%N)  # nanoseconds
 echo "USING CLUSTERS FROM ${themisto_db_dir}"
 mSWEEP \
-  --themisto ${fwd_input} \
+  --themisto-1 ${fwd_input} \
+  --themisto-2 ${rev_input} \
   -i ${themisto_db_dir}/clusters.txt \
   -t ${N_CORES} \
   -o ${time_point} \
