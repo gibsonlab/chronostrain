@@ -26,9 +26,15 @@ echo "[*] Running poppunk sketching (--create-db)"
 echo "[**] NOTE: if a Segfault occurs, try running poppunk with 1 thread, which might output a more helpful error message."
 poppunk --create-db --output database --r-files input.tsv --threads ${N_CORES}
 
-echo "[*] Using database thresholding."
 # 0.00000001 -> clusters = 3622, phylo A clusters = 469
-thresh=0.00000001  # empirically tested on ecoli for phylogroup A.  0.0013 gives 244 clusters
+# 0.0013 -> phylo A clusters = 244
+# 0.0011 -> clusters = 1845, phylo A clusters = 263
+# 0.0012 -> clusters = 1803, phylo A clusters = 255
+# 0.0001 -> clusters = 2915, phylo A clusters = 387
+# 0.0005 -> clusters = 2216, phylo A clusters = 321
+# 0.0004 -> clusters = 2329, phylo A clusters = 333
+thresh=0.0004  # empirically tested on ecoli for phylogroup A.
+echo "[*] Using database thresholding (Threshhold = ${thresh})."
 poppunk --fit-model threshold --ref-db database --threshold ${thresh} --output threshold --threads ${N_CORES}
 
 #echo "[*] Running poppunk model fit (--fit-model) with DBSCAN"

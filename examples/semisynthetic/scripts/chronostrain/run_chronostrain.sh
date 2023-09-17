@@ -14,7 +14,6 @@ require_variable "n_reads" $n_reads
 require_variable "trial" $trial
 
 # ============ script body:
-replicate_dir=$(get_replicate_dir "${mutation_ratio}" "${replicate}")
 trial_dir=$(get_trial_dir "${mutation_ratio}" $replicate $n_reads $trial)
 output_dir=${trial_dir}/output/chronostrain
 runtime_file=${trial_dir}/output/chronostrain_runtime.txt
@@ -32,24 +31,24 @@ fi
 
 
 mkdir -p $output_dir
-cache_dir="${output_dir}/cache"
+cache_dir="${trial_dir}/output/chronostrain/cache"
 
-if [ -d ${cache_dir} ]; then
-	echo "[*] Clearing cache."
-	rm -rf ${cache_dir}
-fi
+#if [ -d ${cache_dir} ]; then
+#	echo "[*] Clearing cache."
+#	rm -rf ${cache_dir}
+#fi
 
 echo "[*] Using database ${CHRONOSTRAIN_DB_JSON}"
 echo "[*] Running Chronostrain inference (mut_ratio: ${mutation_ratio} | replicate: ${replicate} |  n_reads: ${n_reads} | trial: ${trial})"
 start_time=$(date +%s%N)  # nanoseconds
 
 env \
-  CHRONOSTRAIN_DB_JSON=${replicate_dir}/databases/chronostrain/ecoli.json \
-  CHRONOSTRAIN_DB_DIR=${replicate_dir}/databases/chronostrain \
-  CHRONOSTRAIN_LOG_FILEPATH=${output_dir}/algs.log \
+  CHRONOSTRAIN_DB_JSON=${CHRONOSTRAIN_DB_JSON_SRC} \
+  CHRONOSTRAIN_DB_DIR=${DATA_DIR}/databases/chronostrain \
+  CHRONOSTRAIN_LOG_FILEPATH=${output_dir}/inference.log \
   CHRONOSTRAIN_CACHE_DIR=${cache_dir} \
   chronostrain advi \
-  -r "${output_dir}/filtered/filtered_input_files.csv" \
+  -r "${trial_dir}/output/chronostrain/filtered/filtered_input_files.csv" \
   -o ${output_dir} \
   --correlation-mode "full" \
   --iters ${CHRONOSTRAIN_NUM_ITERS} \
@@ -65,7 +64,7 @@ env \
   --plot-elbo \
   --prune-strains \
   --with-zeros \
-  --prior-p 0.5
+  --prior-p 0.001
 #	--accumulate-gradients
 
 

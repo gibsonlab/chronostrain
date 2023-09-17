@@ -4,18 +4,11 @@ source settings.sh
 source msweep/settings.sh
 
 
-mutation_ratio=$1
-replicate=$2
-require_variable "mutation_ratio" $mutation_ratio
-require_variable "replicate" $replicate
-
-
-echo "[*] Preparing pseudoalignment index for mut_ratio ${mutation_ratio}, replicate ${replicate}"
+echo "[*] Preparing pseudoalignment index"
 
 ## ======== next, construct pseudoalignment index.
 ## Temp dirs
-replicate_dir=$(get_replicate_dir "${mutation_ratio}" "${replicate}")
-themisto_db_dir=$(get_themisto_db_dir "${mutation_ratio}" "${replicate}")
+themisto_db_dir="${DATA_DIR}/databases/themisto"
 mkdir -p "${themisto_db_dir}/_tmp"
 
 ## Generate input file for themisto pseudoalignment index construction
@@ -23,9 +16,6 @@ echo "[**] Generating input file."
 
 python msweep/themisto_build_input.py \
   -i ${REFSEQ_INDEX} \
-  -g ${replicate_dir}/sim_genomes/NZ_CP051001.1.sim_mutant.fasta \
-  -g ${replicate_dir}/sim_genomes/NZ_CP068279.1.sim_mutant.fasta \
-  -g ${replicate_dir}/sim_genomes/NZ_CP035882.1.sim_mutant.fasta \
   -c "${POPPUNK_REFSEQ_DIR}/threshold/threshold_clusters.csv" \
   -o "${themisto_db_dir}"
 

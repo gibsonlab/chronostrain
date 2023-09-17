@@ -16,7 +16,7 @@ require_variable "trial" $trial
 
 
 # ============ script body:
-themisto_db_dir=$(get_themisto_db_dir "${mutation_ratio}" "${replicate}")
+themisto_db_dir="${DATA_DIR}/databases/themisto"
 trial_dir=$(get_trial_dir "${mutation_ratio}" "$replicate" "$n_reads" "$trial")
 read_dir=${trial_dir}/reads
 output_dir=${trial_dir}/output/themisto
@@ -55,11 +55,10 @@ done
 echo "[**] Running pseudoalignment (target database: ${themisto_db_dir})"
 start_time=$(date +%s%N)  # nanoseconds
 tmp_dir="${output_dir}/_tmp"
-cd ${themisto_db_dir}
 ${THEMISTO_BIN_DIR}/themisto pseudoalign \
   --query-file-list $input_file \
   --out-file-list $output_file \
-  --index-prefix enterobacteriaceae \
+  --index-prefix "${themisto_db_dir}/enterobacteriaceae" \
   --temp-dir $tmp_dir \
   --n-threads $N_CORES \
   --sort-output

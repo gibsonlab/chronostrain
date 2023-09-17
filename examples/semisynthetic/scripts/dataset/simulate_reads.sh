@@ -123,6 +123,7 @@ for (( trial = 1; trial < ${N_TRIALS}+1; trial++ )); do
     for n_reads in "${SYNTHETIC_COVERAGES[@]}"; do
       for mutation_ratio in "${MUTATION_RATIOS[@]}"; do
         replicate_dir=$(get_replicate_dir "${mutation_ratio}" "${replicate}")
+        replicate_ground_truth=${replicate_dir}/genomes/abundances.txt
         seed=$((seed+1))
 
         trial_dir=$(get_trial_dir $mutation_ratio $replicate $n_reads $trial)
@@ -142,8 +143,8 @@ for (( trial = 1; trial < ${N_TRIALS}+1; trial++ )); do
 
           python ${BASE_DIR}/helpers/sample_reads.py \
           --out_dir $read_dir \
-          --abundance_path $RELATIVE_GROUND_TRUTH \
-          --genome_dir ${replicate_dir}/sim_genomes \
+          --abundance_path $replicate_ground_truth \
+          --genome_dir ${replicate_dir}/genomes \
           --num_reads $n_reads \
           --profiles $READ_PROFILE_PATH $READ_PROFILE_PATH \
           --read_len $READ_LEN \

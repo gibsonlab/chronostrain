@@ -14,14 +14,13 @@ require_variable "n_reads" $n_reads
 require_variable "trial" $trial
 
 # ============ script body:
-replicate_dir=$(get_replicate_dir "${mutation_ratio}" "${replicate}")
 trial_dir=$(get_trial_dir "${mutation_ratio}" $replicate $n_reads $trial)
 read_dir=${trial_dir}/reads
 output_dir=${trial_dir}/output/chronostrain
 runtime_file=${trial_dir}/output/chronostrain_filter_runtime.txt
 
-mkdir -p $output_dir
-mkdir -p $read_dir
+mkdir -p "$output_dir"
+mkdir -p "$read_dir"
 
 
 if [[ -f $runtime_file ]]; then
@@ -32,25 +31,25 @@ fi
 
 echo "[*] Preparing input for (mut_ratio: ${mutation_ratio} | replicate: ${replicate} |  n_reads: ${n_reads} | trial: ${trial})"
 reads_csv="${output_dir}/input_files.csv"
->$reads_csv
+if [ -f "$reads_csv" ]; then rm "$reads_csv"; fi
 {
 	read
 	while IFS=, read -r tidx t sra n_background
 	do
-		echo "${t},${n_reads},${read_dir}/${tidx}_sim_1.fq,paired_1,fastq" >> $reads_csv
-		echo "${t},${n_reads},${read_dir}/${tidx}_sim_2.fq,paired_2,fastq" >> $reads_csv
-		echo "${t},${n_background},${BACKGROUND_FASTQ_DIR}/${tidx}_background_1.fq,paired_1,fastq" >> $reads_csv
-		echo "${t},${n_background},${BACKGROUND_FASTQ_DIR}/${tidx}_background_2.fq,paired_2,fastq" >> $reads_csv
+		echo "${t},SIM${tidx},${n_reads},${read_dir}/${tidx}_sim_1.fq,paired_1,fastq" >> "$reads_csv"
+		echo "${t},SIM${tidx},${n_reads},${read_dir}/${tidx}_sim_2.fq,paired_2,fastq" >> "$reads_csv"
+		echo "${t},BACKGROUND${tidx},${n_background},${BACKGROUND_FASTQ_DIR}/${tidx}_background_1.fq,paired_1,fastq" >> "$reads_csv"
+		echo "${t},BACKGROUND${tidx},${n_background},${BACKGROUND_FASTQ_DIR}/${tidx}_background_2.fq,paired_2,fastq" >> "$reads_csv"
 	done
-} < $BACKGROUND_CSV
+} < "$BACKGROUND_CSV"
 
 
 echo "[*] Filtering reads (mut_ratio: ${mutation_ratio} | replicate: ${replicate} |  n_reads: ${n_reads} | trial: ${trial})"
 start_time=$(date +%s%N)  # nanoseconds
 
 env JAX_PLATFORM_NAME=cpu \
-  CHRONOSTRAIN_DB_JSON=${replicate_dir}/databases/chronostrain/ecoli.json \
-  CHRONOSTRAIN_DB_DIR=${replicate_dir}/databases/chronostrain \
+  CHRONOSTRAIN_DB_JSON=${CHRONOSTRAIN_DB_JSON_SRC} \
+  CHRONOSTRAIN_DB_DIR=${DATA_DIR}/databases/chronostrain \
   CHRONOSTRAIN_LOG_FILEPATH=${output_dir}/filter.log \
   CHRONOSTRAIN_CACHE_DIR=${output_dir}/cache \
   chronostrain filter \
