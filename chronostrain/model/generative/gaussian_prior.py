@@ -4,9 +4,7 @@
 """
 from typing import List
 
-import jax
-import jax.numpy as np
-from chronostrain.config import cfg
+import jax.numpy as jnp
 from chronostrain.logging import create_logger
 from chronostrain.model import Population
 
@@ -21,7 +19,8 @@ class AbundanceGaussianPrior:
             tau_1_scale: float,
             tau_dof: float,
             tau_scale: float,
-            population: Population
+            population: Population,
+            dtype: str
     ):
         """
         :param times: A list of time points.
@@ -40,18 +39,12 @@ class AbundanceGaussianPrior:
         self._frag_freqs_dense = None
         self.population = population
 
-        logger.debug(f"Model has inverse temperature = {cfg.model_cfg.inverse_temperature}")
-        self.latent_conversion = lambda x: jax.nn.softmax(cfg.model_cfg.inverse_temperature * x, axis=-1)
-
-        # self.log_latent_conversion = lambda x: torch.log(sparsemax(x, dim=-1))
-        self.log_latent_conversion = lambda x: jax.nn.log_softmax(cfg.model_cfg.inverse_temperature * x, axis=-1)
-
-        self.dt_sqrt_inverse = np.power(np.array(
+        self.dt_sqrt_inverse = jnp.power(jnp.array(
             [
                 self.dt(t_idx)
                 for t_idx in range(1, self.num_times)
             ],
-            dtype=cfg.engine_cfg.dtype
+            dtype=dtype
         ), -0.5)
 
     @property
@@ -62,7 +55,7 @@ class AbundanceGaussianPrior:
     def num_strains(self) -> int:
         return len(self.population)
 
-    def log_likelihood_x(self, x: np.ndarray) -> np.ndarray:
+    def log_likelihood_x(self, x: jnp.ndarray) -> jnp.ndarray:
         """
         Given an (T x N x S) tensor where N = # of instances/samples of X, compute the N different log-likelihoods.
         """
@@ -71,7 +64,7 @@ class AbundanceGaussianPrior:
             x = x.reshape(r, 1, c)
         return self.log_likelihood_x_jeffreys_prior(x)
 
-    def log_likelihood_x_jeffreys_prior(self, x: np.ndarray) -> np.ndarray:
+    def log_likelihood_x_jeffreys_prior(self, x: jnp.ndarray) -> jnp.ndarray:
         """
 
         Implementation of log_likelihood_x using Jeffrey's prior (for the Gaussian with known mean) for the variance.
@@ -79,13 +72,13 @@ class AbundanceGaussianPrior:
         """
         n_times, _, n_strains = x.shape
 
-        ll_first = -0.5 * n_strains * np.log(np.square(
+        ll_first = -0.5 * n_strains * jnp.log(jnp.square(
             x[0, :, :]
         ).sum(axis=-1))
 
         if n_times > 1:
-            ll_rest = -0.5 * (n_times - 1) * n_strains * np.log(np.square(
-                np.expand_dims(self.dt_sqrt_inverse, axis=[1, 2]) * np.diff(x, n=1, axis=0)
+            ll_rest = -0.5 * (n_times - 1) * n_strains * jnp.log(jnp.square(
+                jnp.expand_dims(self.dt_sqrt_inverse, axis=[1, 2]) * jnp.diff(x, n=1, axis=0)
             ).sum(axis=0).sum(axis=-1))
             return ll_first + ll_rest
         else:

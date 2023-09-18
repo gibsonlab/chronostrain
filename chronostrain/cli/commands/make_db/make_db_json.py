@@ -112,7 +112,7 @@ def main(
     json_output_path.parent.mkdir(exist_ok=True, parents=True)
     raw_json_path = json_output_path.with_stem(f'{json_output_path.stem}-1raw')  # first file
     merged_json_path = json_output_path.with_stem(f'{json_output_path.stem}-2overlapmerged')  # second file
-    pruned_json_path = json_output_path.with_stem(f'{json_output_path.stem}-3pruned')  # third file
+    pruned_json_path = json_output_path.with_stem(f'{json_output_path.stem}-3pruned-')  # third file
 
     # ============== Optional: preprocess reference_df into
     # if skip_symlink:
@@ -182,12 +182,13 @@ def main(
     #     json.dump(db_json, o, indent=4)
 
     if not skip_prune:
-        # ============== Step 2: prune using multiple alignments.
-        logger.info("Pruning database by constructing multiple alignments.")
+        # ============== Step 2: prune using clustering on genomic distances.
+        logger.info("Pruning database via clustering")
+        pruned_json_path = json_output_path.with_stem(f'{json_output_path.stem}-3pruned-NEW')  # third file
+        json_output_path = json_output_path.with_stem(f'{json_output_path.stem}-NEW')  # third file
         logger.debug(f"Src: {merged_json_path}, Dest: {pruned_json_path}")
 
-        # ==== Initialize database instance (to be used for pruning
-
+        # ==== Initialize database instance (to be used for pruning)
         logger.debug("Target identity threshold = {}".format(identity_threshold))
         prune_json_db_jaccard(
             src_json_path=merged_json_path,
