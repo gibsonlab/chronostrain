@@ -119,8 +119,11 @@ class FragmentSpace:
         )
 
     def from_fasta_record_id(self, record_id: str) -> Fragment:
-        frag_idx = int(record_id[len('FRAGMENT_'):])
+        frag_idx = self.frag_index_from_record_id(record_id)
         return self.frag_list[frag_idx]
+
+    def frag_index_from_record_id(self, record_id: str) -> int:
+        return int(record_id[len('FRAGMENT_'):])
 
     def save(self, path: Path):
         if not path.parent.exists():

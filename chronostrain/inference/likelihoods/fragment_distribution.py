@@ -237,17 +237,13 @@ class FragmentFrequencyComputer(object):
         target_dir.mkdir(exist_ok=True, parents=True)
         bwa_fastmap_output = self._invoke_bwa_fastmap(fragments, output_path, max_num_hits)
 
-        df_entries = []
-        for fragment, frag_mapping_locs in self._parse(fragments, bwa_fastmap_output):
-            for hit_marker_len, strain_idx, hit_pos in frag_mapping_locs:
-                df_entries.append(
-                    (fragment.index, strain_idx, hit_marker_len, hit_pos)
-                )
-        df = pd.DataFrame(
-            df_entries,
+        return pd.DataFrame(
+            [
+                (frag_idx, strain_idx, hit_marker_len, hit_pos)
+                for frag_idx, strain_idx, hit_marker_len, hit_pos in self._parse(fragments, bwa_fastmap_output)
+            ],
             columns=['FragIdx', 'StrainIdx', 'HitMarkerLen', 'HitPos'],
         )
-        return df
 
     def _invoke_bwa_fastmap(
             self,
@@ -280,7 +276,7 @@ class FragmentFrequencyComputer(object):
             self,
             fragments: FragmentSpace,
             fastmap_output_path: Path
-    ) -> Iterator[Tuple[Fragment, List[Tuple[int, int, int]]]]:
+    ) -> Iterator[Tuple[Fragment, int, int, int]]:
         """
         :return: A dictionary mapping (fragment) -> List of (strain, num_hits) pairs
         """
@@ -309,14 +305,14 @@ class FragmentFrequencyComputer(object):
         from tqdm import tqdm
         with open(fastmap_output_path, 'rt') as f:
             for _ in tqdm(range(total_entries), unit='frag'):
-                fragment_mapping_locations: List[Tuple[int, int, int]] = []
                 sq_line = f.readline()
                 if sq_line is None or (not sq_line.startswith("SQ")):
                     break
 
                 frag_id = f.readline().strip()
-                fragment = fragments.from_fasta_record_id(frag_id)
+                frag_idx = self.fragments.frag_index_from_record_id(frag_id)
                 frag_len = int(f.readline().strip())
+                n_hits_for_fragment = 0
 
                 em_line = f.readline()
                 while em_line.startswith("EM"):
@@ -362,15 +358,16 @@ class FragmentFrequencyComputer(object):
                             """
                             pos = -pos  # minus means negative strand; just flip the sign.
 
-                        fragment_mapping_locations.append((hit_marker_len, strain_idx, pos))
+                        yield frag_idx, strain_idx, hit_marker_len, pos
+                        n_hits_for_fragment += 1
+
                     # Attempt to read next section. Either another "EM" or a break "//".
                     em_line = f.readline()
 
-                if len(fragment_mapping_locations) > 0:
-                    yield fragment, fragment_mapping_locations
-                else:
+                if n_hits_for_fragment == 0:
+                    frag = self.fragments.get_fragment_by_index(frag_idx)
                     logger.warning(
-                        f"No exact matches found for fragment ID={fragment.index}."
+                        f"No exact matches found for fragment (IDX={frag_idx}, SEQ={frag.seq.nucleotides()})."
                         f"Validate the output of bwa fastmap!"
                     )
 
