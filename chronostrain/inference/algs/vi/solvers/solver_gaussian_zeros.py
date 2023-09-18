@@ -233,17 +233,25 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
         self.elbo_data_ll_t_batch = jax.value_and_grad(_elbo_data_ll_t_batch)
 
         @jax.jit
-        def _elbo_data_correction(params, rand_samples, temperature, n_data, _log_total_marker_lens):
+        def _elbo_data_correction(params, rand_samples, temperature, n_singular_data, n_paired_data, _log_total_marker_lens):
             log_y = _reparametrize_abundance(params, rand_samples, temperature)
-            correction = -n_data * jax.scipy.special.logsumexp(log_y + _log_total_marker_lens, axis=-1).mean(axis=1)  # mean across samples
-            return correction.sum()
+            correction = -n_singular_data * jax.scipy.special.logsumexp(log_y + _log_total_marker_lens, axis=-1).mean(axis=1)  # mean across samples
+            correction_paired = -n_paired_data * jax.scipy.special.logsumexp(log_y + (2 * _log_total_marker_lens), axis=-1).mean(axis=1)  # mean across samples
+            return correction.sum() + correction_paired.sum()
         self.elbo_data_correction = jax.value_and_grad(_elbo_data_correction, argnums=0)
 
         self.n_data = np.expand_dims(
             np.array([
-                len(self.data.time_slices[t_idx])
+                sum(batch.shape[1] for batch in self.batches[t_idx])
                 for t_idx in range(self.gaussian_prior.num_times)
             ], dtype=self.dtype),  # length T
+            axis=1
+        )
+        self.n_paired_data = np.expand_dims(
+            np.array([
+                sum(batch.shape[1] for batch in self.paired_batches[t_idx])
+                for t_idx in range(self.gaussian_prior.num_times)
+            ], dtype=self.dtype),
             axis=1
         )
         log_total_marker_lens = np.array([
@@ -269,7 +277,8 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
                     acc_elbo_value += _e
                     acc_elbo_grad = do_accumulate_gradients(acc_elbo_grad, _g)
 
-            _e, _g = self.elbo_data_correction(params, random_samples, self.temperature, self.n_data, self.log_total_marker_lens)
+            _e, _g = self.elbo_data_correction(params, random_samples, self.temperature,
+                                               self.n_data, self.n_paired_data, self.log_total_marker_lens)
             acc_elbo_value += _e
             acc_elbo_grad = do_accumulate_gradients(acc_elbo_grad, _g)
             return acc_elbo_value, acc_elbo_grad

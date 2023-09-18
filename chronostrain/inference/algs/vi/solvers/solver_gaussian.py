@@ -126,11 +126,27 @@ class ADVIGaussianSolver(AbstractADVISolver):
             for t_idx in range(n_times):  # this loop is OK to flatten via JIT
                 # (1 x N x S)
                 log_y_t = jax.lax.dynamic_slice_in_dim(log_y, start_index=t_idx, slice_size=1, axis=0).squeeze(0)
+                n_singular = 0
+                n_pairs = 0
 
                 for batch_idx, batch_lls in enumerate(self.batches[t_idx]):
                     batch_sz = batch_lls.shape[1]
                     data_ll_part = batch_sz * log_mm_exp(log_y_t, batch_lls).mean()
                     elbo += data_ll_part
+                    n_singular += batch_sz
+                for paired_batch_idx, paired_batch_lls in enumerate(self.paired_batches[t_idx]):
+                    batch_sz = paired_batch_lls.shape[1]
+                    data_ll_part = batch_sz * log_mm_exp(log_y_t, paired_batch_lls).mean()
+                    elbo += data_ll_part
+                    n_pairs += batch_sz
+
+                # Correction term: (log of) expected length of marker lens in population
+                correction = -n_singular * jax.scipy.special.logsumexp(log_y_t + log_total_marker_lens, axis=-1).mean()  # mean across samples, one per read -> multiply by # of reads.
+                elbo += correction
+
+                # Correction term #2: (log of) expected length of square of marker lens in population
+                correction = -n_pairs * jax.scipy.special.logsumexp(log_y_t + 2 * log_total_marker_lens, axis=-1).mean()
+                elbo += correction
 
             # correction term
             correction = -n_data * jax.scipy.special.logsumexp(log_y + log_total_marker_lens, axis=-1).mean(axis=1)
@@ -179,17 +195,26 @@ class ADVIGaussianSolver(AbstractADVISolver):
         self.elbo_data_ll_t_batch = jax.value_and_grad(_elbo_data_ll_t_batch)
 
         @jax.jit
-        def _elbo_data_correction(params, rand_samples, n_data, _log_total_marker_lens):
+        def _elbo_data_correction(params, rand_samples, n_singular_data, n_paired_data,
+                                  _log_total_marker_lens):
             log_y = _reparametrize_abundance(params, rand_samples)
-            correction = -n_data * jax.scipy.special.logsumexp(log_y + _log_total_marker_lens, axis=-1).mean(axis=1)  # mean across samples
-            return correction.sum()
+            correction = -n_singular_data * jax.scipy.special.logsumexp(log_y + _log_total_marker_lens, axis=-1).mean(axis=1)  # mean across samples
+            correction_paired = -n_paired_data * jax.scipy.special.logsumexp(log_y + (2 * _log_total_marker_lens), axis=-1).mean(axis=1)  # mean across samples
+            return correction.sum() + correction_paired.sum()
         self.elbo_data_correction = jax.value_and_grad(_elbo_data_correction, argnums=0)
 
         self.n_data = np.expand_dims(
             np.array([
-                len(self.data.time_slices[t_idx])
+                sum(batch.shape[1] for batch in self.batches[t_idx])
                 for t_idx in range(self.gaussian_prior.num_times)
             ], dtype=self.dtype),  # length T
+            axis=1
+        )
+        self.n_paired_data = np.expand_dims(
+            np.array([
+                sum(batch.shape[1] for batch in self.paired_batches[t_idx])
+                for t_idx in range(self.gaussian_prior.num_times)
+            ], dtype=self.dtype),
             axis=1
         )
         log_total_marker_lens = np.array([
@@ -216,7 +241,7 @@ class ADVIGaussianSolver(AbstractADVISolver):
                     acc_elbo_value += _e
                     acc_elbo_grad = accumulate_gradients(acc_elbo_grad, _g)
 
-            _e, _g = self.elbo_data_correction(params, random_samples, self.n_data, self.log_total_marker_lens)
+            _e, _g = self.elbo_data_correction(params, random_samples, self.n_data, self.n_paired_data, self.log_total_marker_lens)
             acc_elbo_value += _e
             acc_elbo_grad = accumulate_gradients(acc_elbo_grad, _g)
             return acc_elbo_value, acc_elbo_grad
