@@ -37,6 +37,7 @@ def perform_advi(
         num_samples: int,
         logger: Logger,
         accumulate_gradients: bool,
+        adhoc_corr_threshold: float = 0.99,
         prior_p: float = 0.5,
         min_lr: float = 1e-6,
         loss_tol: float = 1e-5,
@@ -104,7 +105,8 @@ def perform_advi(
             read_batch_size=read_batch_size,
             dtype=cfg.engine_cfg.dtype,
             bias_initializer=bias_initializer,
-            prune_strains=prune_strains
+            prune_strains=prune_strains,
+            adhoc_corr_threshold=adhoc_corr_threshold
         )
     else:
         solver = ADVIGaussianSolver(
@@ -118,7 +120,8 @@ def perform_advi(
             read_batch_size=read_batch_size,
             dtype=cfg.engine_cfg.dtype,
             bias_initializer=bias_initializer,
-            prune_strains=prune_strains
+            prune_strains=prune_strains,
+            adhoc_corr_threshold=adhoc_corr_threshold
         )
 
     callbacks = []

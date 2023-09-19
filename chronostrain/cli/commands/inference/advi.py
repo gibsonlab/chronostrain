@@ -77,6 +77,13 @@ from ..base import option
     help='The maximum size of each batch to use, when dividing up reads into batches.'
 )
 @option(
+    '--adhoc-corr-threshold', '-ct', 'adhoc_corr_threshold', type=float, default=0.99,
+    help='Just before running inference, will attempt to estimate clusters of strains that are indistinguishable '
+         'from the provided reads, using an empirical correlation matrix of the marginalized read-strain likelihoods. '
+         'Strains will be ad-hoc clustered together if they have correlation at least 0.99. '
+         'After inference, this clustering is output to the file `adhoc_cluster.txt`.'
+)
+@option(
     '--correlation-mode', '-c', 'correlation_mode', type=str, default='full',
     help='The correlation mode for the posterior. Options are `full`, `strain` and `time`. '
          'For example, `strain` means that the abundance posteriors are correlated across strains, and '
@@ -131,6 +138,7 @@ def main(
         learning_rate: float,
         num_samples: int,
         read_batch_size: int,
+        adhoc_corr_threshold: float,
         correlation_mode: str,
         num_output_samples: int,
         plot_format: str,
@@ -187,6 +195,7 @@ def main(
         learning_rate=learning_rate,
         num_samples=num_samples,
         read_batch_size=read_batch_size,
+        adhoc_corr_threshold=adhoc_corr_threshold,
         correlation_type=correlation_mode,
         save_elbo_history=plot_elbo,
         save_training_history=draw_training_history,

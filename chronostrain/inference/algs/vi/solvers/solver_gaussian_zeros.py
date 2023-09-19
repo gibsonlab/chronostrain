@@ -42,6 +42,7 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
                  read_batch_size: int = 5000,
                  accumulate_gradients: bool = False,
                  correlation_type: str = "full",
+                 adhoc_corr_threshold: float = 0.99,
                  dtype='bfloat16'):
         logger.info("Initializing solver with Gaussian-Zero posterior")
         self.dtype = dtype
@@ -54,7 +55,8 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
             db=db,
             optimizer=optimizer,
             prune_strains=prune_strains,
-            read_batch_size=read_batch_size
+            read_batch_size=read_batch_size,
+            adhoc_corr_threshold=adhoc_corr_threshold
         )
         self.temperature = np.array(10., dtype=dtype)
         self.temp_min = 1e-4
@@ -145,12 +147,12 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
                 n_pairs = 0
                 log_y_t = jax.lax.dynamic_slice_in_dim(log_y, start_index=t_idx, slice_size=1, axis=0).squeeze(0)  # shape is (N x S)
 
-                for batch_idx, batch_lls in enumerate(batches[t_idx]):
+                for batch_lls in batches[t_idx]:
                     batch_sz = batch_lls.shape[1]
                     data_ll_part = batch_sz * log_mm_exp(log_y_t, batch_lls).mean()
                     elbo += data_ll_part
                     n_singular += batch_sz
-                for paired_batch_idx, paired_batch_lls in enumerate(paired_batches[t_idx]):
+                for paired_batch_lls in paired_batches[t_idx]:
                     batch_sz = paired_batch_lls.shape[1]
                     data_ll_part = batch_sz * log_mm_exp(log_y_t, paired_batch_lls).mean()
                     elbo += data_ll_part
@@ -291,7 +293,6 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
             acc_elbo_grad = do_accumulate_gradients(acc_elbo_grad, _g)
             return acc_elbo_value, acc_elbo_grad
         else:
-            # def _elbo(params, rand_samples, temperature, batches, paired_batches, log_total_marker_lens):
             return self.elbo_grad(
                 params, random_samples, self.temperature,
                 self.batches,

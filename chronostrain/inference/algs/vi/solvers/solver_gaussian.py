@@ -47,6 +47,7 @@ class ADVIGaussianSolver(AbstractADVISolver):
                  read_batch_size: int = 5000,
                  accumulate_gradients: bool = False,
                  correlation_type: str = "time",
+                 adhoc_corr_threshold: float = 0.99,
                  dtype='bfloat16'):
         logger.info("Initializing solver with Gaussian posterior")
         self.dtype = dtype
@@ -60,14 +61,21 @@ class ADVIGaussianSolver(AbstractADVISolver):
             db=db,
             optimizer=optimizer,
             prune_strains=prune_strains,
-            read_batch_size=read_batch_size
+            read_batch_size=read_batch_size,
+            adhoc_corr_threshold=adhoc_corr_threshold
         )
+
+        self.log_total_marker_lens = np.array([
+            cnp.log(sum(len(m) for m in strain.markers))
+            for strain in self.gaussian_prior.population.strains
+        ], dtype=self.dtype)  # length S: total marker nucleotide length of each strain
 
         self.accumulate_gradients = accumulate_gradients
         if self.accumulate_gradients:
             self.precompile_elbo_pieces()
         else:
             self.precompile_elbo()
+        logger.info("The first ELBO iteration will take longer due to JIT compilation.")
 
     def create_posterior(self) -> AbstractReparametrizedPosterior:
         if self.correlation_type == "time":
@@ -99,42 +107,32 @@ class ADVIGaussianSolver(AbstractADVISolver):
         To save memory on larger inputs, split the ELBO up into several pieces.
         """
         logger.info("The first ELBO iteration will take longer due to JIT compilation.")
-        n_data = np.array([
-            len(self.data.time_slices[t_idx])
-            for t_idx in range(self.gaussian_prior.num_times)
-        ], dtype=self.dtype)  # length T
-        n_times = self.gaussian_prior.num_times
-        log_total_marker_lens = np.array([
-            np.log(sum(len(m) for m in strain.markers))
-            for strain in self.gaussian_prior.population.strains
-        ], dtype=self.dtype)  # length S: total marker nucleotide length of each strain
-        log_total_marker_lens = np.expand_dims(
-            log_total_marker_lens, axis=[0, 1]
-        )
+        reparam_fn = jax.jit(self.posterior.reparametrize)
+        gaussian_ll_fn = jax.jit(self.gaussian_prior.log_likelihood_x)
 
         @jax.jit
-        def _elbo(params, rand_samples):
+        def _elbo(params, rand_samples, batches, paired_batches, log_total_marker_lens):
             # entropic
             elbo = params['diag_weights'].sum()
 
             # model ll
-            x = self.posterior.reparametrize(rand_samples, params)
-            elbo += self.gaussian_prior.log_likelihood_x(x=x).mean()
+            x = reparam_fn(rand_samples, params)
+            elbo += gaussian_ll_fn(x=x).mean()
 
             # read_frags ll
             log_y = jax.nn.log_softmax(x, axis=-1)
-            for t_idx in range(n_times):  # this loop is OK to flatten via JIT
+            for t_idx in range(len(batches)):  # this loop is OK to flatten via JIT
                 # (1 x N x S)
                 log_y_t = jax.lax.dynamic_slice_in_dim(log_y, start_index=t_idx, slice_size=1, axis=0).squeeze(0)
                 n_singular = 0
                 n_pairs = 0
 
-                for batch_idx, batch_lls in enumerate(self.batches[t_idx]):
+                for batch_lls in batches[t_idx]:
                     batch_sz = batch_lls.shape[1]
                     data_ll_part = batch_sz * log_mm_exp(log_y_t, batch_lls).mean()
                     elbo += data_ll_part
                     n_singular += batch_sz
-                for paired_batch_idx, paired_batch_lls in enumerate(self.paired_batches[t_idx]):
+                for paired_batch_lls in paired_batches[t_idx]:
                     batch_sz = paired_batch_lls.shape[1]
                     data_ll_part = batch_sz * log_mm_exp(log_y_t, paired_batch_lls).mean()
                     elbo += data_ll_part
@@ -147,20 +145,19 @@ class ADVIGaussianSolver(AbstractADVISolver):
                 # Correction term #2: (log of) expected length of square of marker lens in population
                 correction = -n_pairs * jax.scipy.special.logsumexp(log_y_t + 2 * log_total_marker_lens, axis=-1).mean()
                 elbo += correction
-
-            # correction term
-            correction = -n_data * jax.scipy.special.logsumexp(log_y + log_total_marker_lens, axis=-1).mean(axis=1)
-            elbo += correction.sum()  # sum across timepoints
             return elbo
         self.elbo_grad = jax.value_and_grad(_elbo, argnums=0)
 
     # noinspection PyAttributeOutsideInit
     def precompile_elbo_pieces(self):
         assert isinstance(self.posterior, GaussianPosteriorFullReparametrizedCorrelation)
+        reparam_fn = jax.jit(self.posterior.reparametrize)
+        gaussian_ll_fn = jax.jit(self.gaussian_prior.log_likelihood_x)
+
         # ================ JITted reparametrizations
         @jax.jit
         def _reparametrize_gaussian(params, rand_samples):
-            return self.posterior.reparametrize(rand_samples, params)
+            return reparam_fn(rand_samples, params)
 
         @jax.jit
         def _reparametrize_abundance(params, rand_samples):
@@ -179,20 +176,17 @@ class ADVIGaussianSolver(AbstractADVISolver):
         @jax.jit
         def _elbo_entropy(params):
             return params['diag_weights'].sum()
-        self.elbo_entropy = jax.value_and_grad(_elbo_entropy, argnums=0)
 
         @jax.jit
         def _elbo_model_prior(params, rand_samples):
             x = _reparametrize_gaussian(params, rand_samples)
-            return self.gaussian_prior.log_likelihood_x(x=x).mean()
-        self.elbo_model_prior = jax.value_and_grad(_elbo_model_prior, argnums=0)
+            return gaussian_ll_fn(x=x).mean()
 
         @jax.jit
         def _elbo_data_ll_t_batch(params, rand_samples, t_idx, batch_lls):
             batch_sz = batch_lls.shape[1]
             log_y_t = _reparametrize_abundance_t(params, rand_samples, t_idx)
             return batch_sz * log_mm_exp(log_y_t, batch_lls).mean()
-        self.elbo_data_ll_t_batch = jax.value_and_grad(_elbo_data_ll_t_batch)
 
         @jax.jit
         def _elbo_data_correction(params, rand_samples, n_singular_data, n_paired_data,
@@ -201,6 +195,10 @@ class ADVIGaussianSolver(AbstractADVISolver):
             correction = -n_singular_data * jax.scipy.special.logsumexp(log_y + _log_total_marker_lens, axis=-1).mean(axis=1)  # mean across samples
             correction_paired = -n_paired_data * jax.scipy.special.logsumexp(log_y + (2 * _log_total_marker_lens), axis=-1).mean(axis=1)  # mean across samples
             return correction.sum() + correction_paired.sum()
+
+        self.elbo_entropy = jax.value_and_grad(_elbo_entropy, argnums=0)
+        self.elbo_model_prior = jax.value_and_grad(_elbo_model_prior, argnums=0)
+        self.elbo_data_ll_t_batch = jax.value_and_grad(_elbo_data_ll_t_batch)
         self.elbo_data_correction = jax.value_and_grad(_elbo_data_correction, argnums=0)
 
         self.n_data = np.expand_dims(
@@ -217,11 +215,7 @@ class ADVIGaussianSolver(AbstractADVISolver):
             ], dtype=self.dtype),
             axis=1
         )
-        log_total_marker_lens = np.array([
-            cnp.log(sum(len(m) for m in strain.markers))
-            for strain in self.gaussian_prior.population.strains
-        ], dtype=self.dtype)  # length S: total marker nucleotide length of each strain
-        self.log_total_marker_lens = np.expand_dims(log_total_marker_lens, axis=[0, 1])
+        self.log_total_marker_lens = np.expand_dims(self.log_total_marker_lens, axis=[0, 1])
 
     def elbo_with_grad(
             self,
@@ -240,13 +234,17 @@ class ADVIGaussianSolver(AbstractADVISolver):
                     _e, _g = self.elbo_data_ll_t_batch(params, random_samples, t_idx, batch_lls)
                     acc_elbo_value += _e
                     acc_elbo_grad = accumulate_gradients(acc_elbo_grad, _g)
+                for batch_lls in self.paired_batches[t_idx]:
+                    _e, _g = self.elbo_data_ll_t_batch(params, random_samples, t_idx, batch_lls)
+                    acc_elbo_value += _e
+                    acc_elbo_grad = accumulate_gradients(acc_elbo_grad, _g)
 
             _e, _g = self.elbo_data_correction(params, random_samples, self.n_data, self.n_paired_data, self.log_total_marker_lens)
             acc_elbo_value += _e
             acc_elbo_grad = accumulate_gradients(acc_elbo_grad, _g)
             return acc_elbo_value, acc_elbo_grad
         else:
-            return self.elbo_grad(params, random_samples)
+            return self.elbo_grad(params, random_samples, self.batches, self.paired_batches, self.log_total_marker_lens)
 
 
 def accumulate_gradients(grad1: GENERIC_GRAD_TYPE, grad2: GENERIC_GRAD_TYPE):

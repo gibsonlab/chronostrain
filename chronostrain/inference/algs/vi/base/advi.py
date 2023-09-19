@@ -153,7 +153,8 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
                  db: StrainDatabase,
                  optimizer: LossOptimizer,
                  prune_strains: bool,
-                 read_batch_size: int = 5000):
+                 read_batch_size: int = 5000,
+                 adhoc_corr_threshold: float = 0.99):
         AbstractModelSolver.__init__(
             self,
             gaussian_prior,
@@ -161,11 +162,12 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
             data,
             db
         )
+
         self.batches, self.paired_batches = self.initialize_marginalizations_cached(read_batch_size)
         self.prune_reads()
         if prune_strains:
             self.prune_strains_by_read_max()
-            self.adhoc_clusters = self.prune_strains_by_correlation()
+            self.adhoc_clusters = self.prune_strains_by_correlation(correlation_threshold=adhoc_corr_threshold)
             self.prune_reads()  # do this again to ensure all reads are still useful.
         else:
             self.adhoc_clusters = {}
@@ -193,18 +195,29 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
                 for _, row in batch_df.iterrows()
             }
 
-            return [
+            _batches = [
                 [
                     jnp.load(subdir / f't_{t_idx}_singular_batch_{batch_idx}.npy')
                     for batch_idx in range(n_batches_per[t_idx].n_batches)
                 ]
                 for t_idx in range(self.gaussian_prior.num_times)
-            ], [
+            ]
+            _paired_batches = [
                 [
                     jnp.load(subdir / f't_{t_idx}_paired.npy')
                 ]
                 for t_idx in range(self.gaussian_prior.num_times)
             ]
+
+            for t_idx in range(self.gaussian_prior.num_times):
+                logger.debug("Loaded {} marginalization batches for timepoint {}.".format(
+                    len(_batches[t_idx]), t_idx
+                ))
+                logger.debug("Loaded {} marginalization paired batches for timepoint {}.".format(
+                    len(_paired_batches[t_idx]), t_idx
+                ))
+
+            return _batches, _paired_batches
         else:
             return self.compute_marginalization(batch_metadata, subdir, read_batch_size)
 
