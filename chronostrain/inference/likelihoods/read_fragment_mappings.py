@@ -174,10 +174,10 @@ class ReadFragmentMappings:
         Includes a special case if the source specifies mate pairs; see the implementation of
         handle_paired_reads() method.
         """
-        indices: List[List[int]] = []
-        ll_values: List[float] = []
-        paired_indices: List[List[int]] = []
-        paired_ll_values: List[float] = []
+        indices = []
+        ll_values = []
+        paired_indices = []
+        paired_ll_values = []
         read_set = UniqueReadOrdering()  # this is specific to the read time slice.
         paired_read_set = UniquePairedReadOrdering()  # ditto.
 
@@ -194,11 +194,23 @@ class ReadFragmentMappings:
                                                     read_set, paired_read_set,
                                                     indices, paired_indices,
                                                     ll_values, paired_ll_values)
+
+        ll_values = jnp.array(ll_values, dtype=self.dtype)
+        paired_ll_values = jnp.array(paired_ll_values, dtype=self.dtype)
+
+        if len(indices) > 0:
+            indices = jnp.array(indices, dtype=jnp.int32)
+        else:
+            indices = jnp.empty(shape=(0, 2), dtype=jnp.int32)
+
+        if len(paired_indices) > 0:
+            paired_indices = jnp.array(paired_indices, dtype=jnp.int32)
+        else:
+            paired_indices = jnp.empty(shape=(0, 2), dtype=jnp.int32)
+
         return (
-            jnp.array(ll_values, dtype=self.dtype),
-            jnp.array(paired_ll_values, dtype=self.dtype),
-            jnp.array(indices, dtype=jnp.int32),
-            jnp.array(paired_indices, dtype=jnp.int32),
+            ll_values, paired_ll_values,
+            indices, paired_indices,
             len(read_set), len(paired_read_set)
         )
 
