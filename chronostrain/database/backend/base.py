@@ -74,5 +74,6 @@ class AbstractStrainDatabaseBackend(object):
         """
         pass
 
+    @abstractmethod
     def signature(self) -> str:
         pass

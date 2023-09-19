@@ -235,7 +235,8 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
             strains=self.gaussian_prior.population.strains,
             fragments=read_likelihoods.fragments,
             fragment_pairs=read_likelihoods.fragment_pairs,
-            dtype=cfg.engine_cfg.dtype
+            dtype=cfg.engine_cfg.dtype,
+            n_threads=cfg.model_cfg.num_cores
         ).get_frequencies()
 
         target_dir.mkdir(exist_ok=True, parents=True)

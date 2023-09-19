@@ -16,7 +16,8 @@ class SequenceReadPairwiseAlignment(object):
     def __init__(self,
                  read: SequenceRead,
                  marker: Marker,
-                 aln_matrix: np.ndarray,
+                 marker_frag_aln: np.ndarray,
+                 read_seq_aln: np.ndarray,
                  sam_path: Path,
                  sam_line_no: int,
                  read_start: int,
@@ -44,7 +45,11 @@ class SequenceReadPairwiseAlignment(object):
         self.read: SequenceRead = read
         self.marker: Marker = marker
 
-        self.aln_matrix: np.ndarray = aln_matrix
+        self.marker_frag_aln_with_gaps = marker_frag_aln
+        self.read_aln_with_gaps = read_seq_aln
+        assert len(marker_frag_aln.shape) == 1
+        assert len(read_seq_aln.shape) == 1
+        assert marker_frag_aln.shape[0] == read_seq_aln.shape[0]
 
         self.sam_path: Path = sam_path
         self.sam_line_no: int = sam_line_no
@@ -65,8 +70,7 @@ class SequenceReadPairwiseAlignment(object):
 
     @property
     def marker_frag(self) -> AllocatedSequence:
-        frag_with_gaps = self.aln_matrix[0]
-        return AllocatedSequence(frag_with_gaps[frag_with_gaps != bytes_GAP])
+        return AllocatedSequence(self.marker_frag_aln_with_gaps[self.marker_frag_aln_with_gaps != bytes_GAP])
 
     @property
     def is_clipped(self) -> bool:
@@ -85,33 +89,30 @@ class SequenceReadPairwiseAlignment(object):
         return self.read.seq.bytes()[section], self.read.quality[section]
 
     @property
-    def num_aligned_bases(self) -> int:
-        m_bases, r_bases = np.not_equal(self.aln_matrix, bytes_GAP)
-        return np.sum(np.logical_and(m_bases, r_bases)).item()
-
-    @property
     def num_mismatches(self) -> int:
-        m_bases, r_bases = np.not_equal(self.aln_matrix, bytes_GAP)
-        mismatches = np.not_equal(self.aln_matrix[0], self.aln_matrix[1])
+        m_bases = np.not_equal(self.marker_frag_aln_with_gaps, bytes_GAP)
+        r_bases = np.not_equal(self.read_aln_with_gaps, bytes_GAP)
+        mismatches = np.not_equal(self.marker_frag_aln_with_gaps, self.read_aln_with_gaps)
         return np.sum(
             np.logical_and(
-                np.logical_and(m_bases, r_bases),
+                m_bases & r_bases,
                 mismatches
             )
         ).item()
 
     @property
     def num_matches(self) -> int:
-        m_bases, r_bases = self.aln_matrix
-        return np.sum(np.equal(m_bases, r_bases)).item()
+        return np.sum(
+            np.equal(self.marker_frag_aln_with_gaps, self.read_aln_with_gaps)
+        ).item()
 
     def read_insertion_locs(self) -> np.ndarray:
-        insertion_locs = np.equal(self.aln_matrix[0], bytes_GAP)
-        return insertion_locs[self.aln_matrix[1] != bytes_GAP]
+        insertion_locs = np.equal(self.marker_frag_aln_with_gaps, bytes_GAP)
+        return insertion_locs[self.read_aln_with_gaps != bytes_GAP]
 
     def marker_deletion_locs(self) -> np.ndarray:
-        deletion_locs = np.equal(self.aln_matrix[1], bytes_GAP)
-        return deletion_locs[self.aln_matrix[0] != bytes_GAP]
+        deletion_locs = np.equal(self.read_aln_with_gaps, bytes_GAP)
+        return deletion_locs[self.marker_frag_aln_with_gaps != bytes_GAP]
 
     def __eq__(self, other: 'SequenceReadPairwiseAlignment') -> bool:
         return self.unique_id == other.unique_id
@@ -231,16 +232,12 @@ def parse_line_into_alignment(sam_path: Path,
     marker_seq = np.concatenate(marker_tokens)
     read_seq = np.concatenate(read_tokens)
 
-    """
-    Matrix of characters and gaps showing the alignment.
-    """
-    alignment = np.stack([marker_seq, read_seq], axis=0)
-
     # ============ Return the appropriate instance.
     return SequenceReadPairwiseAlignment(
         read,
         marker,
-        alignment,
+        marker_seq,
+        read_seq,
         sam_path,
         samline.lineno,
         read_start,
@@ -264,8 +261,8 @@ def reattach_clipped_bases_to_aln(aln: SequenceReadPairwiseAlignment):
     is_right_edge_mapped = (aln.marker_end == len(aln.marker) - 1)
     n_start_clip = min(aln.soft_clip_start + aln.hard_clip_start, aln.marker_start)
 
-    aligned_marker_seq = aln.aln_matrix[0]
-    aligned_read_seq = aln.aln_matrix[1]
+    aligned_marker_seq = aln.marker_frag_aln_with_gaps
+    aligned_read_seq = aln.read_aln_with_gaps
 
     if aln.reverse_complemented:
         read_seq = aln.read.seq.revcomp_bytes()
@@ -299,7 +296,11 @@ def reattach_clipped_bases_to_aln(aln: SequenceReadPairwiseAlignment):
         aln.marker_end += n_end_clip
         aln.read_end += n_end_clip
 
-    aln.aln_matrix = np.stack([aligned_marker_seq, aligned_read_seq], axis=0)
+    assert len(aligned_marker_seq.shape) == 1
+    assert len(aligned_read_seq.shape) == 1
+    assert aligned_marker_seq.shape[0] == aligned_read_seq.shape[0]
+    aln.marker_frag_aln_with_gaps = aligned_marker_seq
+    aln.read_aln_with_gaps = aligned_read_seq
 
 
 def parse_alignments(sam_file: SamFile,
@@ -321,7 +322,12 @@ def parse_alignments(sam_file: SamFile,
     sam_lines = sam_file.mapped_lines()
     if print_tqdm_progressbar:
         from tqdm import tqdm
-        sam_lines = tqdm(sam_file.mapped_lines(), total=n_alns, desc=sam_file.file_path.name)
+        sam_lines = tqdm(
+            sam_file.mapped_lines(),
+            total=n_alns,
+            desc=sam_file.file_path.name,
+            unit=' sam-line'
+        )
 
     n_mapped_lines = 0
     for samline in sam_lines:

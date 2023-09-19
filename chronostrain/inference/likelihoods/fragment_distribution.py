@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Tuple, Iterator, Dict, Union
+from typing import List, Tuple, Iterator, Union
 
 import jax.numpy as jnp
 import numpy as cnp
@@ -8,8 +8,9 @@ import scipy.special
 import scipy.sparse
 from jax.experimental.sparse import BCOO
 import pandas as pd
+from numba import prange, njit
 
-from scipy.stats import rv_discrete, nbinom as negative_binomial
+from scipy.stats import nbinom as negative_binomial
 from tqdm import tqdm
 
 from chronostrain.database import StrainDatabase
@@ -47,7 +48,8 @@ class FragmentFrequencyComputer(object):
                  strains: List[Strain],
                  fragments: FragmentSpace,
                  fragment_pairs: FragmentPairSpace,
-                 dtype='bfloat16'):
+                 dtype='bfloat16',
+                 n_threads: int = 1):
         self.frag_nbinom_n = frag_nbinom_n
         self.frag_nbinom_p = frag_nbinom_p
         self.db: StrainDatabase = db
@@ -56,6 +58,7 @@ class FragmentFrequencyComputer(object):
         self.strains = strains
         self.cache = ReadStrainCollectionCache(reads, db)
         self.dtype = dtype
+        self.n_threads = n_threads
         self.exact_match_df: Union[None, pd.DataFrame] = None
 
     def get_frequencies(
@@ -98,7 +101,7 @@ class FragmentFrequencyComputer(object):
             self.exact_match_df = self.cache.call(
                 relative_filepath='fragment_frequencies/matches_all.feather',
                 fn=lambda: self.compute_exact_matches(
-                    self.fragments, fastmap_out_dir,
+                    fastmap_out_dir,
                     max_num_hits=10 * self.db.num_strains()
                 ),
                 save=_save,
@@ -122,35 +125,25 @@ class FragmentFrequencyComputer(object):
         groupings = matches_df.groupby(['FragIdx', 'StrainIdx'])
         count = groupings.ngroups
         pbar = tqdm(total=count, unit='matrix-entry')
+
+        cnp.seterr(divide='ignore')
+        all_marker_lens = matches_df['HitMarkerLen'].to_numpy()
+        all_pos = matches_df['HitPos'].to_numpy()
         for (frag_idx, s_idx), section in groupings:
             # noinspection PyTypeChecker
             strain_indices.append(s_idx)
             frag_indices.append(frag_idx)
-            # a = frag_log_ll_numpy(
-            #     len(self.fragments[frag_idx]),
-            #     frag_len_rv,
-            #     section['HitMarkerLen'].to_numpy(),
-            #     section['HitPos'].to_numpy()
-            # )
-            # b = frag_log_ll_numpy_new(
-            #     frag_len=len(self.fragments[frag_idx]),
-            #     window_lens=window_lens,
-            #     window_len_log_pmf=window_len_logpmf,
-            #     hit_marker_lens=section['HitMarkerLen'].to_numpy(),
-            #     hit_pos=section['HitPos'].to_numpy()
-            # )
-            # assert a == b
             matrix_values.append(
-                frag_log_ll_numpy_new(
+                frag_log_ll_numpy(
                     frag_len=len(self.fragments[frag_idx]),
                     window_lens=window_lens,
-                    window_len_log_pmf=window_len_logpmf,
-                    hit_marker_lens=section['HitMarkerLen'].to_numpy(),
-                    hit_pos=section['HitPos'].to_numpy()
+                    window_lens_log_pmf=window_len_logpmf,
+                    hit_marker_lens=all_marker_lens[section.index],
+                    hit_pos=all_pos[section.index]
                 )
             )
             pbar.update(1)
-        # exit(1)
+        cnp.seterr(divide='warn')
 
         indices = jnp.array(list(zip(frag_indices, strain_indices)))
         matrix_values = jnp.array(matrix_values, dtype=self.dtype)
@@ -232,22 +225,21 @@ class FragmentFrequencyComputer(object):
             )
         )
 
-    def compute_exact_matches(self, fragments: FragmentSpace, target_dir: Path, max_num_hits: int) -> pd.DataFrame:
+    def compute_exact_matches(self, target_dir: Path, max_num_hits: int) -> pd.DataFrame:
         output_path = target_dir / 'bwa_fastmap.out'
         target_dir.mkdir(exist_ok=True, parents=True)
-        bwa_fastmap_output = self._invoke_bwa_fastmap(fragments, output_path, max_num_hits)
+        bwa_fastmap_output = self._invoke_bwa_fastmap(output_path, max_num_hits)
 
         return pd.DataFrame(
             [
                 (frag_idx, strain_idx, hit_marker_len, hit_pos)
-                for frag_idx, strain_idx, hit_marker_len, hit_pos in self._parse(fragments, bwa_fastmap_output)
+                for frag_idx, strain_idx, hit_marker_len, hit_pos in self._parse(bwa_fastmap_output)
             ],
             columns=['FragIdx', 'StrainIdx', 'HitMarkerLen', 'HitPos'],
         )
 
     def _invoke_bwa_fastmap(
             self,
-            fragments: FragmentSpace,
             output_path: Path,
             max_num_hits: int
     ) -> Path:
@@ -255,7 +247,7 @@ class FragmentFrequencyComputer(object):
         bwa_index(self.db.multifasta_file, bwa_cmd='bwa', check_suffix='bwt')
 
         output_path.unlink(missing_ok=True)
-        for frag_len, frag_fasta in fragments.fragment_files_by_length(output_path.parent):
+        for frag_len, frag_fasta in self.fragments.fragment_files_by_length(output_path.parent):
             fastmap_output_path = output_path.with_stem(
                 f'{output_path.stem}.{frag_len}'
             )
@@ -274,7 +266,6 @@ class FragmentFrequencyComputer(object):
 
     def _parse(
             self,
-            fragments: FragmentSpace,
             fastmap_output_path: Path
     ) -> Iterator[Tuple[Fragment, int, int, int]]:
         """
@@ -286,21 +277,12 @@ class FragmentFrequencyComputer(object):
                 if line.startswith('SQ'):
                     total_entries += 1
 
-        # pandas-specific!
-        # TODO: make search queries optimized by ID directly into the backend implementation.
-        from chronostrain.database.backend import PandasAssistedBackend
-        assert isinstance(self.db.backend, PandasAssistedBackend)
-        marker_id_dataframe = self.db.backend.strain_df.merge(
-            self.db.backend.marker_df.reset_index(),
-            on='MarkerIdx',
-            how='right'
-        ).set_index('MarkerId')
-        # ==========================
-        strain_id_to_idx: Dict[str, int] = {
-            s.id: i
-            for i, s in enumerate(self.db.all_strains())
+        # === Construct dataframe.
+        marker_lookup = {
+            marker.id: (strain_idx, len(marker))
+            for strain_idx, strain in enumerate(self.strains)
+            for marker in strain.markers
         }
-        # ==========================
 
         from tqdm import tqdm
         with open(fastmap_output_path, 'rt') as f:
@@ -336,20 +318,9 @@ class FragmentFrequencyComputer(object):
                             logger.error(f"Encountered a hit line that couldn't be parsed: `{marker_hit_token}`")
                             raise e
 
-                        res = marker_id_dataframe.loc[marker_id]
-                        if isinstance(res, pd.DataFrame):
-                            for _, row in res.iterrows():
-                                strain_id = row['StrainId']
-                                marker_idx = row['MarkerIdx']
-                                strain_idx = strain_id_to_idx[strain_id]
-                                marker = self.db.backend.markers[marker_idx]
-                                hit_marker_len = len(marker)
-                        else:
-                            strain_id = res['StrainId']
-                            marker_idx = res['MarkerIdx']
-                            strain_idx = strain_id_to_idx[strain_id]
-                            marker = self.db.backend.markers[marker_idx]
-                            hit_marker_len = len(marker)
+                        if marker_id not in marker_lookup:
+                            raise ValueError(f"Couldn't find marker with ID {marker_id} in table.")
+                        strain_idx, hit_marker_len = marker_lookup[marker_id]
 
                         if pos < 0:
                             """
@@ -372,55 +343,47 @@ class FragmentFrequencyComputer(object):
                     )
 
 
-def frag_log_ll_numpy_new(
+@njit
+def frag_log_ll_numpy(
         frag_len: int,
         window_lens: cnp.ndarray,
-        window_len_log_pmf: cnp.ndarray,
+        window_lens_log_pmf: cnp.ndarray,
         hit_marker_lens: cnp.ndarray,
         hit_pos: cnp.ndarray,
 ) -> float:
+    assert len(window_lens.shape) == 1
+    assert len(window_lens_log_pmf.shape) == 1
+    assert window_lens.shape[0] == window_lens_log_pmf.shape[0]
+
     n_hits = hit_pos.shape[0]  # int
     n_edge_hits = cnp.sum(
-        (hit_pos == 1) | (hit_pos == hit_marker_lens - frag_len + 1)  # framgent maps to edge
+        (hit_pos == 1) | (hit_pos == hit_marker_lens - frag_len + 1)  # fragment maps to edge
     )
 
+    """
+    The following np.where() chain is equivalent to:
+    
+    n_matching_windows = cnp.zeros(window_lens.shape)
+    for i in prange(len(window_lens)):
+        w = window_lens[i]
+        if w == frag_len:
+            n_matching_windows[i] = n_hits
+        elif w > frag_len:
+            n_matching_windows[i] = n_edge_hits
+    """
     n_matching_windows = cnp.where(window_lens == frag_len, n_hits, n_edge_hits)
     n_matching_windows = cnp.where(window_lens >= frag_len, n_matching_windows, 0)
-    _mask = n_matching_windows > 0  # we are about to take logs...
 
-    # noinspection PyUnresolvedReferences
-    return scipy.special.logsumexp(
-        a=window_len_log_pmf[_mask] + cnp.log(n_matching_windows[_mask]),
-        keepdims=False,
-        return_sign=False
-    ).item()
+    return numba_logsumexp_1d(
+        window_lens_log_pmf + cnp.log(n_matching_windows)
+    )
 
-def frag_log_ll_numpy(frag_len: int,
-                      frag_len_rv: rv_discrete,
-                      hit_marker_lens: cnp.ndarray,  # an array of marker lengths that the fragment hits.
-                      hit_pos: cnp.ndarray  # an array of marker positions that the fragment hit at.
-                      ) -> float:
-    window_lens = cnp.arange(
-        frag_len,
-        1 + max(int(frag_len_rv.mean() + 2 * frag_len_rv.std()), frag_len)
-    )  # length-W
 
-    n_hits = len(hit_pos)
-    cond1 = window_lens == frag_len  # window is exactly frag_len
-    cond2 = (hit_pos == 1) | (hit_pos == hit_marker_lens - frag_len + 1)  # edge map
-
-    # ==== this is old code
-    # n_matching_windows = cnp.sum(cond1[None, :] | cond2[:, None], axis=0)
-
-    # ==== slight speedup...
-    # per window length w, get the # of sliding windows (of length w) that yields fragment f.
-    n_matching_windows = cnp.where(cond1, n_hits, cond2.sum())
-
-    _mask = n_matching_windows > 0
-    # noinspection PyTypeChecker
-    result: cnp.ndarray = scipy.special.logsumexp(
-        # a=frag_len_rv.logpmf(window_lens[_mask]) + cnp.log(n_matching_windows[_mask]),
-        a=frag_len_rv.logpmf(window_lens[_mask]) + cnp.log(n_matching_windows[_mask]),
-        keepdims=False
-    )  # This calculation marginalizes across possible window lengths.
-    return result.item()
+@njit
+def numba_logsumexp_1d(x) -> float:
+    offset = cnp.max(x)
+    return offset + cnp.log(
+        cnp.sum(
+            cnp.exp(x - offset)
+        )
+    )

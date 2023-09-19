@@ -110,7 +110,7 @@ class Filter(object):
             # enough of the bases are mapped (if read maps to the edge of a marker).
             filter_edge_clip = self.filter_on_ungapped_bases(aln)
             frac_identity = aln.num_matches / len(aln.read)
-            aln_frac_identity = aln.num_matches / aln.aln_matrix.shape[1]
+            aln_frac_identity = aln.num_matches / aln.marker_frag_aln_with_gaps.shape[0]
             n_exp_errors = self.num_expected_errors(aln)
 
             passed_filter = (
@@ -163,7 +163,7 @@ class Filter(object):
         result_fq.close()
 
     def filter_on_ungapped_bases(self, aln: SequenceReadPairwiseAlignment):
-        return np.sum(aln.aln_matrix[1] != bytes_GAP) / len(aln.read) > self.min_hit_ratio
+        return np.sum(aln.read_aln_with_gaps != bytes_GAP) / len(aln.read) > self.min_hit_ratio
 
     @staticmethod
     def num_expected_errors(aln: SequenceReadPairwiseAlignment):
@@ -175,8 +175,7 @@ class Filter(object):
         read_end_clip = aln.hard_clip_end + aln.soft_clip_end
         _slice = slice(read_start_clip, len(read_qual) - read_end_clip)
 
-        marker_aln, read_aln = aln.aln_matrix[0], aln.aln_matrix[1]
-        insertion_locs = np.equal(marker_aln, bytes_GAP)[read_aln != bytes_GAP]
+        insertion_locs = np.equal(aln.marker_frag_aln_with_gaps, bytes_GAP)[aln.read_aln_with_gaps != bytes_GAP]
         read_qual = read_qual[_slice][~insertion_locs]
 
         return np.sum(

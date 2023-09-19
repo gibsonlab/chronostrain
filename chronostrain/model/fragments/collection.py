@@ -1,5 +1,5 @@
 import pickle
-from typing import Dict, List, Iterator, Iterable, Tuple
+from typing import Dict, List, Iterator, Iterable, Tuple, Hashable
 from pathlib import Path
 
 from Bio.Seq import Seq
@@ -14,7 +14,7 @@ class FragmentSpace:
     A class representing the space of fragments. Serves as a factory for Fragment instances.
     """
     def __init__(self):
-        self.seq_to_frag: Dict = dict()
+        self.seq_to_frag: Dict[Hashable, Fragment] = dict()
         self.frag_list: List[Fragment] = list()
         self.min_len: int = 100000000
 
@@ -22,8 +22,8 @@ class FragmentSpace:
         return self._seq_to_key(seq) in self.seq_to_frag
 
     @staticmethod
-    def _seq_to_key(seq: Sequence) -> str:
-        return seq.nucleotides()
+    def _seq_to_key(seq: Sequence) -> Hashable:
+        return seq.bytes().tobytes()
 
     def _create_frag(self, seq: Sequence) -> Fragment:
         frag = Fragment(index=len(self.frag_list), seq=seq)  # uid is just the index in the list.

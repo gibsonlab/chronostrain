@@ -8,9 +8,9 @@ import numpy as cnp
 import pandas as pd
 import jax.experimental.sparse as jsparse
 
-from chronostrain.model import Fragment, FragmentReadErrorLikelihood, FragmentSpace, FragmentPairSpace, \
+from chronostrain.model import FragmentReadErrorLikelihood, FragmentSpace, FragmentPairSpace, \
     TimeSeriesReads, AbstractErrorModel, TimeSliceReads, ReadType, SampleReadSourcePaired, SampleReadSourceSingle, \
-    SequenceRead, Marker, PairedEndRead, Strain
+    SequenceRead, PairedEndRead, Strain
 from chronostrain.database import StrainDatabase
 from chronostrain.util.alignments.pairwise import SequenceReadPairwiseAlignment
 
@@ -412,7 +412,7 @@ class ReadFragmentMappings:
         cur_read: Union[SequenceRead, None] = None
         frag_to_lls: Dict[int, Tuple[float, Set[Strain]]] = dict()
         for aln in alns:
-            # Assume that queries are grouped in the SAM file.
+            # Assume that queries are grouped in the SAM file. Parsing is done in chunks.
             if cur_read is None or aln.read.id != cur_read.id:
                 # emit whwat we have so far.
                 if cur_read is not None:

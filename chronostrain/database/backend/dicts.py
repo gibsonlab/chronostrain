@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import List, Iterator
+from typing import List, Iterator, Dict
 
 from chronostrain.model import Marker, Strain
 from .base import AbstractStrainDatabaseBackend
@@ -9,10 +9,11 @@ from ..error import QueryNotFoundError
 class DictionaryBackend(AbstractStrainDatabaseBackend):
 
     def __init__(self):
-        self.strains = {}
-        self.markers = {}
-        self.markers_to_strains = {}
-        self.markers_by_name = defaultdict(list)
+        self.strain_order: List[Strain] = []
+        self.strains: Dict[str, Strain] = {}
+        self.markers: Dict[str, Marker] = {}
+        self.markers_to_strains: Dict[str, List[Strain]] = {}
+        self.markers_by_name: Dict[str, List[Marker]] = defaultdict(list)
 
     def add_strains(self, strains: Iterator[Strain]):
         for strain in strains:
@@ -23,6 +24,7 @@ class DictionaryBackend(AbstractStrainDatabaseBackend):
                     self.markers_to_strains[marker.id] = []
                 self.markers_to_strains[marker.id].append(strain)
                 self.markers_by_name[marker.name].append(marker)
+            self.strain_order.append(strain)
 
     def get_strain(self, strain_id: str) -> Strain:
         try:
@@ -46,7 +48,7 @@ class DictionaryBackend(AbstractStrainDatabaseBackend):
         return len(self.markers)
 
     def all_strains(self) -> List[Strain]:
-        return list(self.strains.values())
+        return self.strain_order
 
     def all_markers(self) -> List[Marker]:
         return list(self.markers.values())
@@ -59,3 +61,18 @@ class DictionaryBackend(AbstractStrainDatabaseBackend):
             return self.markers_by_name[marker_name]
         except KeyError:
             return []
+
+    def signature(self) -> str:
+        import hashlib
+        return "DICT={}".format(
+            hashlib.sha256("|".join(
+                "{}:{}".format(
+                    strain.id,
+                    "+".join(
+                        marker.id
+                        for marker in strain.markers
+                    )
+                )
+                for strain in self.strain_order
+            ).encode()).hexdigest()
+        )

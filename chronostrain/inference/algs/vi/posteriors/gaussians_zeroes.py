@@ -413,9 +413,6 @@ class GaussianWithGlobalZerosPosteriorDense(GaussianWithGumbelsPosterior):
     def entropy(self, params: GENERIC_PARAM_TYPE, logits: np.ndarray, temp: float) -> np.ndarray:
         # Gaussian entropy
         ans = params['diag_weights'].sum()
-        # ans = np.array(0)
-        # for t in range(self.num_times):
-        #     ans += params[f'diag_weights_{t}'].sum()
 
         # bernoulli entropy
         g_diff = params['gumbel_diff']
@@ -425,5 +422,4 @@ class GaussianWithGlobalZerosPosteriorDense(GaussianWithGumbelsPosterior):
             g_diff
         )
         ans += -np.sum(p * logp)
-
         return ans

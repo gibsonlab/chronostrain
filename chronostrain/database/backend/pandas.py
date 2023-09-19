@@ -112,4 +112,4 @@ class PandasAssistedBackend(AbstractStrainDatabaseBackend):
         import hashlib
         strain_hash = hashlib.sha256(self.strain_df.to_json().encode()).hexdigest()
         marker_hash = hashlib.sha256(self.marker_df.to_json().encode()).hexdigest()
-        return f'strain:{strain_hash}|marker:{marker_hash}'
+        return f'PANDAS=<strain:{strain_hash}|marker:{marker_hash}>'

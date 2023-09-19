@@ -62,10 +62,11 @@ def z4_to_nucleotides(z4seq: np.ndarray) -> str:
 
 
 def complement_z4(seq: np.ndarray) -> np.ndarray:
-    res = np.empty(seq.shape, dtype=NucleotideDtype)
-    res[seq < 4] = 3 - seq[seq < 4]
-    res[seq >= 4] = seq[seq >= 4]
-    return res
+    return np.where(
+        seq < 4,
+        3 - seq,
+        seq
+    )
 
 
 def reverse_complement_z4(seq: np.ndarray) -> np.ndarray:

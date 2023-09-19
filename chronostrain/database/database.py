@@ -127,11 +127,7 @@ class StrainDatabase(object):
         logger.debug("Multi-fasta file: {}".format(self.multifasta_file))
 
     def _multifasta_is_stale(self):
-        for strain in self.all_strains():
-            for marker in strain.markers:
-                if marker.metadata.file_path.stat().st_mtime > self.multifasta_file.stat().st_mtime:
-                    return True
-        return False
+        raise NotImplementedError()
 
     def markers_to_fasta(self, out_path: Path, file_mode: str = "w"):
         records = []

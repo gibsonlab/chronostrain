@@ -1,4 +1,3 @@
-import itertools
 from typing import *
 
 import jax
@@ -10,7 +9,7 @@ from chronostrain.model import Population, AbundanceGaussianPrior, AbstractError
 from chronostrain.database import StrainDatabase
 from chronostrain.util.optimization import LossOptimizer
 
-from chronostrain.inference.algs.vi.base.util import log_mm_exp, log_mv_exp
+from chronostrain.inference.algs.vi.base.util import log_mm_exp
 from chronostrain.inference.algs.vi.base.advi import AbstractADVISolver
 from ..posteriors import *
 from ..base import GENERIC_GRAD_TYPE, GENERIC_PARAM_TYPE, GENERIC_SAMPLE_TYPE
@@ -62,6 +61,11 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
         self.n_epochs_at_current_temp = 0
         self.zero_model = zero_model
 
+        self.log_total_marker_lens = np.array([
+            cnp.log(sum(len(m) for m in strain.markers))
+            for strain in self.gaussian_prior.population.strains
+        ], dtype=self.dtype)  # length S: total marker nucleotide length of each strain
+
         self.accumulate_gradients = accumulate_gradients
         if self.accumulate_gradients:
             self.precompile_elbo_pieces()
@@ -101,29 +105,32 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
             logger.debug("Temperature = {}".format(self.temperature))
 
     def precompile_elbo(self):
-        n_times = self.gaussian_prior.num_times
-        log_total_marker_lens = np.array([
-            cnp.log(sum(len(m) for m in strain.markers))
-            for strain in self.gaussian_prior.population.strains
-        ], dtype=self.dtype)  # length S: total marker nucleotide length of each strain
+        # ================ JITted reparametrizations
+        assert isinstance(self.posterior, GaussianWithGumbelsPosterior)
+        reparam_fn = jax.jit(self.posterior.reparametrize)
+        entropy_fn = jax.jit(self.posterior.entropy)
+        gaussian_ll_fn = jax.jit(self.gaussian_prior.log_likelihood_x)
+        if self.zero_model.prior_p == 0.5:
+            zero_ll_fn = jax.jit(lambda z: np.zeros(shape=(1,)))
+        else:
+            zero_ll_fn = jax.jit(self.zero_model.log_likelihood)
 
         @jax.jit
-        def _elbo(params, rand_samples, temperature):
-            reparam_samples = self.posterior.reparametrize(rand_samples, params, temperature)
+        def _elbo(params, rand_samples, temperature, batches, paired_batches, log_total_marker_lens):
+            reparam_samples = reparam_fn(rand_samples, params, temperature)
             x = reparam_samples['gaussians']
             log_zeros = reparam_samples['smooth_log_zeros']  # 2 x N x S
 
             # entropic
-            elbo = self.posterior.entropy(params, log_zeros, temperature)
+            elbo = entropy_fn(params, log_zeros, temperature)
 
             # model ll
-            elbo += self.gaussian_prior.log_likelihood_x(x=x).mean()
-            if self.zero_model.prior_p != 0.5:
-                elbo += self.zero_model.log_likelihood(
-                    np.exp(
-                        jax.lax.dynamic_slice_in_dim(log_zeros, start_index=1, slice_size=1, axis=0)
-                    )
-                ).mean()
+            elbo += gaussian_ll_fn(x=x).mean()
+            elbo += zero_ll_fn(
+                np.exp(
+                    jax.lax.dynamic_slice_in_dim(log_zeros, start_index=1, slice_size=1, axis=0)
+                )
+            ).mean()
 
             # read_frags ll
             log_y = jax.nn.log_softmax(
@@ -133,17 +140,17 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
             )
 
             # both loops here are OK to flatten by JIT (read_frags-dependent but fixed throughout algs)
-            for t_idx in range(n_times):
+            for t_idx in range(len(batches)):
                 n_singular = 0
                 n_pairs = 0
                 log_y_t = jax.lax.dynamic_slice_in_dim(log_y, start_index=t_idx, slice_size=1, axis=0).squeeze(0)  # shape is (N x S)
 
-                for batch_idx, batch_lls in enumerate(self.batches[t_idx]):
+                for batch_idx, batch_lls in enumerate(batches[t_idx]):
                     batch_sz = batch_lls.shape[1]
                     data_ll_part = batch_sz * log_mm_exp(log_y_t, batch_lls).mean()
                     elbo += data_ll_part
                     n_singular += batch_sz
-                for paired_batch_idx, paired_batch_lls in enumerate(self.paired_batches[t_idx]):
+                for paired_batch_idx, paired_batch_lls in enumerate(paired_batches[t_idx]):
                     batch_sz = paired_batch_lls.shape[1]
                     data_ll_part = batch_sz * log_mm_exp(log_y_t, paired_batch_lls).mean()
                     elbo += data_ll_part
@@ -162,20 +169,20 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
     # noinspection PyAttributeOutsideInit
     def precompile_elbo_pieces(self):
         # ================ JITted reparametrizations
+        assert isinstance(self.posterior, GaussianWithGumbelsPosterior)
+        reparam_gaussians_fn = jax.jit(self.posterior.reparametrized_gaussians)
+        reparam_logzeros_fn = jax.jit(self.posterior.reparametrized_log_zeros_smooth)
+        entropy_fn = jax.jit(self.posterior.entropy)
+        gaussian_ll_fn = jax.jit(self.gaussian_prior.log_likelihood_x)
+        zero_ll_fn = jax.jit(self.zero_model.log_likelihood)
+
         @jax.jit
         def _reparametrize_gaussian(params, rand_samples):
-            return self.posterior.reparametrized_gaussians(
-                rand_samples['std_gaussians'],
-                params
-            )
+            return reparam_gaussians_fn(rand_samples['std_gaussians'], params)
 
         @jax.jit
         def _reparametrize_logzeros(params, rand_samples, temperature):
-            return self.posterior.reparametrized_log_zeros_smooth(
-                rand_samples['std_gumbels'],
-                params,
-                temperature
-            )
+            return reparam_logzeros_fn(rand_samples['std_gumbels'], params, temperature)
 
         @jax.jit
         def _reparametrize_abundance(params, rand_samples, temperature):
@@ -202,35 +209,32 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
         @jax.jit
         def _elbo_entropy(params, rand_samples, temperature):
             logits = _reparametrize_logzeros(params, rand_samples, temperature)
-            return self.posterior.entropy(params, logits, temperature)
-        self.elbo_entropy = jax.value_and_grad(_elbo_entropy, argnums=0)
+            return entropy_fn(params, logits, temperature)
 
         if self.zero_model.prior_p == 0.5:
             logger.debug("Precompiling with symmetric prior ELBO (p=0.5)")
             @jax.jit
             def _elbo_model_prior(params, rand_samples, temperature):
                 x = _reparametrize_gaussian(params, rand_samples)
-                return self.gaussian_prior.log_likelihood_x(x=x).mean()
+                return gaussian_ll_fn(x=x).mean()
         else:
             logger.debug("Precompiling with asymmetric prior ELBO (p={})".format(self.zero_model.prior_p))
             @jax.jit
             def _elbo_model_prior(params, rand_samples, temperature):
                 x = _reparametrize_gaussian(params, rand_samples)
-                gaussian_ll = self.gaussian_prior.log_likelihood_x(x=x).mean()
+                gaussian_ll = gaussian_ll_fn(x=x).mean()
                 log_zeros = _reparametrize_logzeros(params, rand_samples, temperature)
-                return gaussian_ll + self.zero_model.log_likelihood(
+                return gaussian_ll + zero_ll_fn(
                     np.exp(
                         jax.lax.dynamic_slice_in_dim(log_zeros, start_index=1, slice_size=1, axis=0)
                     )
                 ).mean()
-        self.elbo_model_prior = jax.value_and_grad(_elbo_model_prior, argnums=0)
 
         @jax.jit
         def _elbo_data_ll_t_batch(params, rand_samples, temperature, t_idx, batch_lls):
             batch_sz = batch_lls.shape[1]
             log_y_t = _reparametrize_abundance_t(params, rand_samples, temperature, t_idx)
             return batch_sz * log_mm_exp(log_y_t, batch_lls).mean()
-        self.elbo_data_ll_t_batch = jax.value_and_grad(_elbo_data_ll_t_batch)
 
         @jax.jit
         def _elbo_data_correction(params, rand_samples, temperature, n_singular_data, n_paired_data, _log_total_marker_lens):
@@ -238,6 +242,10 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
             correction = -n_singular_data * jax.scipy.special.logsumexp(log_y + _log_total_marker_lens, axis=-1).mean(axis=1)  # mean across samples
             correction_paired = -n_paired_data * jax.scipy.special.logsumexp(log_y + (2 * _log_total_marker_lens), axis=-1).mean(axis=1)  # mean across samples
             return correction.sum() + correction_paired.sum()
+
+        self.elbo_entropy = jax.value_and_grad(_elbo_entropy, argnums=0)
+        self.elbo_model_prior = jax.value_and_grad(_elbo_model_prior, argnums=0)
+        self.elbo_data_ll_t_batch = jax.value_and_grad(_elbo_data_ll_t_batch)
         self.elbo_data_correction = jax.value_and_grad(_elbo_data_correction, argnums=0)
 
         self.n_data = np.expand_dims(
@@ -254,11 +262,7 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
             ], dtype=self.dtype),
             axis=1
         )
-        log_total_marker_lens = np.array([
-            cnp.log(sum(len(m) for m in strain.markers))
-            for strain in self.gaussian_prior.population.strains
-        ], dtype=self.dtype)  # length S: total marker nucleotide length of each strain
-        self.log_total_marker_lens = np.expand_dims(log_total_marker_lens, axis=[0, 1])
+        self.log_total_marker_lens = np.expand_dims(self.log_total_marker_lens, axis=[0, 1])
 
     def elbo_with_grad(self,
                        params: GENERIC_PARAM_TYPE,
@@ -276,6 +280,10 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
                     _e, _g = self.elbo_data_ll_t_batch(params, random_samples, self.temperature, t_idx, batch_lls)
                     acc_elbo_value += _e
                     acc_elbo_grad = do_accumulate_gradients(acc_elbo_grad, _g)
+                for batch_lls in self.paired_batches[t_idx]:
+                    _e, _g = self.elbo_data_ll_t_batch(params, random_samples, self.temperature, t_idx, batch_lls)
+                    acc_elbo_value += _e
+                    acc_elbo_grad = do_accumulate_gradients(acc_elbo_grad, _g)
 
             _e, _g = self.elbo_data_correction(params, random_samples, self.temperature,
                                                self.n_data, self.n_paired_data, self.log_total_marker_lens)
@@ -283,7 +291,13 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
             acc_elbo_grad = do_accumulate_gradients(acc_elbo_grad, _g)
             return acc_elbo_value, acc_elbo_grad
         else:
-            return self.elbo_grad(params, random_samples, self.temperature)
+            # def _elbo(params, rand_samples, temperature, batches, paired_batches, log_total_marker_lens):
+            return self.elbo_grad(
+                params, random_samples, self.temperature,
+                self.batches,
+                self.paired_batches,
+                self.log_total_marker_lens
+            )
 
 
 def do_accumulate_gradients(grad1: GENERIC_GRAD_TYPE, grad2: GENERIC_GRAD_TYPE):
@@ -291,49 +305,3 @@ def do_accumulate_gradients(grad1: GENERIC_GRAD_TYPE, grad2: GENERIC_GRAD_TYPE):
         k: grad1[k] + grad2[k]
         for k in grad1.keys()
     }
-
-
-# ============== JAX-specific optimizations.
-def log_mm_exp2(x, y):
-    return jax.lax.map(
-        lambda _y: log_mv_exp(x, _y),
-        y.T
-    ).T
-
-def recursive_checkpoint(funs):
-    """From JAX documentation page of jax.checkpoint() implementing a binary recursive strategy."""
-    if len(funs) == 1:
-        return jax.checkpoint(funs[0])
-    else:
-        f1 = recursive_checkpoint(funs[:len(funs)//2])
-        f2 = recursive_checkpoint(funs[len(funs)//2:])
-        f12 = lambda x: f1(f2(x))
-        return jax.checkpoint(f12)
-
-
-def timepoint_recursive_checkpoint_fn(n_batches: int) -> Callable:
-    """
-    Uses the binary recursion to implement memory-efficient version of
-    f(batches) = log_p(batch_1) + log_p(batch_2) + ... + log_p(batch_N).
-    """
-    if n_batches == 0:
-        raise ValueError("Timepoint must contain at least one batch.")
-
-    return recursive_checkpoint([
-        aggregate_timepoint_data_ll_checkpoint
-        for _ in range(n_batches)
-    ])
-
-
-def aggregate_timepoint_data_ll_checkpoint(
-        args: Tuple[np.ndarray, List[np.ndarray], np.ndarray]
-) -> Tuple[np.ndarray, List[np.ndarray], np.ndarray]:
-    log_y_t, batch_lls, elbo_acc = args  # Unpack args.
-
-    # Unwraps a single batch, and adds it to the elbo. Serves as a helper for the recursive strategy.
-    return log_y_t, batch_lls[1:], elbo_acc + aggregate_single_batch(log_y_t, batch_lls[0])
-
-
-def aggregate_single_batch(log_y_t: np.ndarray, batch_ll: np.ndarray):
-    batch_sz = batch_ll.shape[1]
-    return batch_sz * log_mm_exp(log_y_t, batch_ll).mean()

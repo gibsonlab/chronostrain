@@ -2,17 +2,17 @@ import numpy as np
 from chronostrain.model.reads.base import AbstractErrorModel, SequenceRead
 from chronostrain.model.reads.basic import RampUpRampDownDistribution
 from chronostrain.util.sequences import bytes_N
-from numba import jit
+from numba import njit
 
 
-@jit(nopython=True)  # speedup by factor of ~16x
+@njit  # speedup by factor of ~16x
 def phred_indel_ll_jit(insertions: np.ndarray, deletions: np.ndarray, insertion_error_ll: float, deletion_error_ll: float):
     insertion_ll = np.sum(insertions) * (insertion_error_ll - np.log(4))
     deletion_ll = np.sum(deletions) * deletion_error_ll
     return insertion_ll + deletion_ll
 
 
-@jit(nopython=True)  # speedup by factor of ~8x
+@njit  # speedup by factor of ~8x
 def phred_log_likelihood_jit(
         fragment_seq: np.ndarray,
         read_seq: np.ndarray,

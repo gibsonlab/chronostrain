@@ -9,7 +9,6 @@ from chronostrain.model import Strain, StrainMetadata, Marker
 from .base import AbstractDatabaseParser, StrainDatabaseParseError
 from .marker_sources import CachedEntrezMarkerSource, ExistingFastaMarkerSource, AbstractMarkerSource
 from .. import StrainDatabase
-from ..backend import PandasAssistedBackend
 from ...util.sequences import UnknownNucleotideError
 
 from chronostrain.logging import create_logger
@@ -427,17 +426,19 @@ class JSONParser(AbstractDatabaseParser):
         try:
             db = self.load_from_disk()
             logger.debug("Loaded database instance from {}.".format(self.disk_path()))
-            return db
         except FileNotFoundError:
             logger.debug("Couldn't find instance ({}).".format(self.disk_path()))
 
-        backend = PandasAssistedBackend()
-        backend.add_strains(self.strains())
-        db = StrainDatabase(
-            backend=backend,
-            name=self.db_name,
-            data_dir=self.data_dir,
-            force_refresh=True
-        )
-        self.save_to_disk(db)
+            from ..backend import DictionaryBackend
+            backend = DictionaryBackend()
+            backend.add_strains(self.strains())
+            db = StrainDatabase(
+                backend=backend,
+                name=self.db_name,
+                data_dir=self.data_dir,
+                force_refresh=True
+            )
+            self.save_to_disk(db)
+
+        logger.debug("Using `{}` for database backend.".format(db.backend.__class__.__name__))
         return db
