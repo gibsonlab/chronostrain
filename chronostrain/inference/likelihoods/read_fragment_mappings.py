@@ -195,8 +195,10 @@ class ReadFragmentMappings:
                                                     indices, paired_indices,
                                                     ll_values, paired_ll_values)
         return (
-            jnp.array(ll_values, dtype=self.dtype), jnp.array(paired_ll_values, dtype=self.dtype),
-            jnp.array(indices), jnp.array(paired_indices),
+            jnp.array(ll_values, dtype=self.dtype),
+            jnp.array(paired_ll_values, dtype=self.dtype),
+            jnp.array(indices, dtype=jnp.int32),
+            jnp.array(paired_indices, dtype=jnp.int32),
             len(read_set), len(paired_read_set)
         )
 
