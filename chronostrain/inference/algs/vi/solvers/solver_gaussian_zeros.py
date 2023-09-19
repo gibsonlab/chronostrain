@@ -77,6 +77,7 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
 
     def create_posterior(self) -> GaussianWithGumbelsPosterior:
         if self.correlation_type == "full":
+            logger.debug("Posterior is Mean-field q(X)q(Z) with full covariance matrix.")
             return GaussianWithGlobalZerosPosteriorDense(
                 self.gaussian_prior.num_strains,
                 self.gaussian_prior.num_times,
@@ -84,6 +85,7 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
                 initial_gaussian_bias=self.bias_initializer(self.gaussian_prior.population, self.gaussian_prior.times)
             )
         elif self.correlation_type == "time":
+            logger.debug("Posterior is Mean-field q(X_1)...q(X_s)q(Z) split across strains.")
             return GaussianTimeCorrelatedWithGlobalZerosPosterior(
                 self.gaussian_prior.num_strains,
                 self.gaussian_prior.num_times,
@@ -91,6 +93,7 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
                 initial_gaussian_bias=self.bias_initializer(self.gaussian_prior.population, self.gaussian_prior.times)
             )
         elif self.correlation_type == "strain":
+            logger.debug("Posterior is Mean-field q(X_1)...q(X_t)q(Z) split across time.")
             return GaussianStrainCorrelatedWithGlobalZerosPosterior(
                 self.gaussian_prior.num_strains,
                 self.gaussian_prior.num_times,
