@@ -35,9 +35,10 @@ do
     --read-batch-size $CHRONOSTRAIN_READ_BATCH_SZ \
     --min-lr ${CHRONOSTRAIN_MIN_LR} \
     --plot-format "pdf" \
-    --with-zeros \
-    --prune-strains \
     --plot-elbo \
+    --prune-strains \
+    --with-zeros \
+    --prior-p 0.001 \
     --accumulate-gradients
 
     touch $breadcrumb
