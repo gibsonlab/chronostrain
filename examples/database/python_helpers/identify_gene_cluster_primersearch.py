@@ -145,7 +145,7 @@ def extract_genes(target_acc: str, seq_path: Path, gff_path: Path, target_loc: S
 def get_serotype_genes(
         accession: str,
         acc_chrom_path: Path,
-        chrom_len: int,
+        maximal_amplicon_len: int,
         cluster_name: str,
         primer1: Seq,
         primer2: Seq,
@@ -158,7 +158,7 @@ def get_serotype_genes(
     perform_primer_search(acc_chrom_path, in_path, out_path, cluster_name, primer1, primer2)
 
     # =========== parse primersearch
-    target_loc = get_primersearch_hit(out_path, chrom_len)
+    target_loc = get_primersearch_hit(out_path, maximal_amplicon_len)
     # print("Best primer hit is {}, len = {}".format(target_loc, len(target_loc)))
 
     # =========== parse gene features.
@@ -200,11 +200,35 @@ def get_serotype_genes(
     type=str, required=False, default='GeneClusterTarget',
     help="A cluster name to use for EMBOSS, purely for debugging purposes."
 )
-def main(index_path: Path, out_path: Path, tmp_dir: Path, cluster_name: str, primer1_seq: str, primer2_seq: str):
-    main_wrapper(index_path, out_path, tmp_dir, cluster_name, primer1_seq, primer2_seq)
+@click.option(
+    '--amplicon-len', '-l', 'expected_amplicon_len',
+    type=int, required=False, default=None,
+    help="If known, the expected length of the amplicon sequence flanked by the primers "
+         "(e.g. primer for a single gene should yield the average length for that gene.)"
+)
+def main(
+        index_path: Path,
+        out_path: Path,
+        tmp_dir: Path,
+        cluster_name: str,
+        primer1_seq: str,
+        primer2_seq: str,
+        expected_amplicon_len: Union[int, None]
+):
+    main_wrapper(index_path, out_path, tmp_dir, cluster_name,
+                 primer1_seq, primer2_seq,
+                 expected_amplicon_len=expected_amplicon_len)
 
 
-def main_wrapper(index_path: Path, out_path: Path, tmp_dir: Path, cluster_name: str, primer1_seq: str, primer2_seq: str):
+def main_wrapper(
+        index_path: Path,
+        out_path: Path,
+        tmp_dir: Path,
+        cluster_name: str,
+        primer1_seq: str,
+        primer2_seq: str,
+        expected_amplicon_len: Union[int, None]
+):
     tmp_dir.mkdir(exist_ok=True, parents=True)
     index_df = pd.read_csv(index_path, sep='\t')
 
@@ -220,8 +244,22 @@ def main_wrapper(index_path: Path, out_path: Path, tmp_dir: Path, cluster_name: 
         genus = row['Genus']
         species = row['Species']
         strain = row['Strain']
+        if expected_amplicon_len is not None:
+            max_amplicon_len = 1.5 * expected_amplicon_len
+        else:
+            max_amplicon_len = chrom_len
+
         try:
-            genes = get_serotype_genes(acc, ref_seq_path, chrom_len, cluster_name, primer1, primer2, gff_path, tmp_dir)
+            genes = get_serotype_genes(
+                acc,
+                ref_seq_path,
+                max_amplicon_len,
+                cluster_name,
+                primer1,
+                primer2,
+                gff_path,
+                tmp_dir
+            )
         except PrimerSearchEmptyHits:
             print(f"Couldn't find primer-based hits for {acc} ({genus} {species}, Strain {strain})")
             continue
@@ -251,5 +289,6 @@ if __name__ == "__main__":
         tmp_dir=Path('/home/youn/work/emboss_test'),
         cluster_name='O-antigen_JUMPSTART_GND_1',
         primer1_seq='CATGGTAGCTGTAAAGCCAGGGGCGGTAGCGTG',  # 5'--3' convention; JUMPstart sequence
-        primer2_seq='CATGCTGCCATACCGACGACGCCGATCTGTTGCTTKGACA'  # 5'--3' convention; GND primer
+        primer2_seq='CATGCTGCCATACCGACGACGCCGATCTGTTGCTTKGACA',  # 5'--3' convention; GND primer
+        expected_amplicon_len=None
     )

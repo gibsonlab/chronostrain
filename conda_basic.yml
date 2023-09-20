@@ -23,12 +23,12 @@ dependencies:
   - seaborn
   - biopython
   - click
-  - samtools=1.14
+  - blast
+  - samtools
   - mafft
   - bwa
   - bwa-mem2
   - bowtie2
   - cdbtools
-  - pigz
   - pip:
     - ./

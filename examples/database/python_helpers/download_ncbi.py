@@ -110,6 +110,7 @@ def create_catalog(records: List[NCBIRecord], data_dir: Path) -> pd.DataFrame:
         })
     return pd.DataFrame(df_entries)
 
+
 def extract_chromosome(seq_dir: Path) -> Tuple[str, Path, Path, int]:
     fasta_path = next(iter(seq_dir.glob("*.fna")))
     gff_path = seq_dir / "genomic.gff"
@@ -124,6 +125,7 @@ def extract_chromosome(seq_dir: Path) -> Tuple[str, Path, Path, int]:
             chrom_path = seq_dir / f"{nuc_accession}.chrom.fna"
             SeqIO.write([record], chrom_path, "fasta")
             return nuc_accession, chrom_path.absolute(), gff_path.absolute(), len(record)
+
 
 @click.command()
 @click.option(

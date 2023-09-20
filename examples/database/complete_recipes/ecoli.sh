@@ -37,7 +37,7 @@ export CHRONOSTRAIN_DB_DIR=${TARGET_DIR}/chronostrain_files
 
 if [ ! -f "${TARGET_DIR}/marker_seeds/manual_seeds.tsv" ]
 then
-  echo "Manual seed file (serotypes, fim, stx) not found."
+  echo "Manual seed file (serotypes, fim, stx) not found. Run the notebook"
   exit 1
 fi
 
