@@ -1,3 +1,7 @@
+#!/bin/bash
+set -e
+source settings.sh
+
 #### Ecoli marker definition using MLST Institute Pasteur + MetaPhlan4 markers.
 # Since MLST genes are not "core" to E.coli, we will include all closely-aligning reference sequences
 # from the entire Enterobacteriaceae family.
@@ -24,11 +28,12 @@ export CHRONOSTRAIN_DB_DIR=${TARGET_DIR}/chronostrain_files
 # ========= Main body
 # For an explanation, refer to the README.
 
-if [ ! -f $METAPHLAN_DB_PATH ]
-then
-  echo "File ${METAPHLAN_DB_PATH} not found."
-  exit 1
-fi
+#if [ ! -f $METAPHLAN_DB_PATH ]
+#then
+#  echo "File ${METAPHLAN_DB_PATH} not found."
+#  exit 1
+#fi
+#python python_helpers/extract_metaphlan_markers.py -t $METAPHLAN_TAXONOMIC_KEY -i $METAPHLAN_DB_PATH -o ${TARGET_DIR}/marker_seeds/metaphlan_seeds.tsv  # DEPRECATED for this database; use the custom serotyping markers instead.
 
 if [ ! -f "${TARGET_DIR}/marker_seeds/manual_seeds.tsv" ]
 then
@@ -36,10 +41,9 @@ then
   exit 1
 fi
 
-bash download_ncbi.sh
+bash download_ncbi2.sh
 bash create_blast_db.sh
-#python extract_metaphlan_markers.py -t $METAPHLAN_TAXONOMIC_KEY -i $METAPHLAN_DB_PATH -o ${TARGET_DIR}/marker_seeds/metaphlan_seeds.tsv  # DEPRECATED for this database; use the custom serotyping markers instead.
-python mlst_download.py -t "Escherichia coli" -w ${TARGET_DIR}/mlst_schema -o ${TARGET_DIR}/marker_seeds/mlst_seeds.tsv
+python python_helpers/mlst_download.py -t "Escherichia coli" -w ${TARGET_DIR}/mlst_schema -o ${TARGET_DIR}/marker_seeds/mlst_seeds.tsv
 
 echo "[*] Processing seed TSV files."
 cat ${TARGET_DIR}/marker_seeds/mlst_seeds.tsv > ${MARKER_SEED_INDEX}

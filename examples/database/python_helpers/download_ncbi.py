@@ -7,7 +7,7 @@ import pandas as pd
 from Bio import SeqIO
 
 from chronostrain import create_logger
-from chronostrain.util.external import call_command, CommandLineException
+from chronostrain.util.external import call_command
 from chronostrain.util.io import read_seq_file
 
 logger = create_logger("chronostrain.download_ncbi")

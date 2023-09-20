@@ -11,6 +11,7 @@ require_variable 'NCBI_REFSEQ_DIR' $NCBI_REFSEQ_DIR
 require_variable 'TARGET_TAXA' $TARGET_TAXA
 require_variable 'REFSEQ_INDEX' $REFSEQ_INDEX
 
+echo "[*] This tool uses 'ncbi-genome-download' to obtain a catalog from NCBI. However, it often misses many entries; we recommend using download_ncbi2.sh instead."
 echo "[*] Using tool to download complete assemblies from NCBI (# cores = ${NUM_CORES})."
 mkdir -p ${NCBI_REFSEQ_DIR}
 ncbi-genome-download bacteria \
@@ -23,5 +24,5 @@ ncbi-genome-download bacteria \
 	--progress-bar
 
 echo "[*] Indexing reference sequences."
-python index_refseq.py -r ${NCBI_REFSEQ_DIR} -o ${REFSEQ_INDEX}
+python python_helpers/index_refseq.py -r ${NCBI_REFSEQ_DIR} -o ${REFSEQ_INDEX}
 echo "[*] Finished indexing. Wrote index to: ${REFSEQ_INDEX}"

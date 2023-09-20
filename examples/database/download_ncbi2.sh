@@ -1,4 +1,4 @@
-#!/bin/bash
+ #!/bin/bash
 set -e
 source settings.sh
 
@@ -14,7 +14,7 @@ require_variable 'REFSEQ_INDEX' $REFSEQ_INDEX
 
 mkdir -p ${NCBI_REFSEQ_DIR}
 env \
-  CHRONOSTRAIN_LOG_FILEPATH="${run_dir}/inference.log" \
+  CHRONOSTRAIN_LOG_FILEPATH="download_ncbi.log" \
   CHRONOSTRAIN_DB_DIR=. \
   CHRONOSTRAIN_INI=./chronostrain.ini \
-  python download_ncbi.py -t "${TARGET_TAXA}" -d ${NCBI_REFSEQ_DIR} -o ${REFSEQ_INDEX}
+  python python_helpers/download_ncbi.py -t "${TARGET_TAXA}" -d ${NCBI_REFSEQ_DIR} -o ${REFSEQ_INDEX}

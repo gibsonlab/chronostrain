@@ -1,3 +1,7 @@
+#!/bin/bash
+set -e
+source settings.sh
+
 export NUM_CORES=8
 
 export TARGET_TAXA=Klebsiella
@@ -24,9 +28,9 @@ then
   exit 1
 fi
 
-bash download_ncbi.sh
+bash download_ncbi2.sh
 
-python extract_metaphlan_markers.py \
+python python_helpers/extract_metaphlan_markers.py \
   -t $METAPHLAN_TAXONOMIC_KEY \
   -i $METAPHLAN_DB_PATH \
   -o $MARKER_SEED_INDEX

@@ -1,3 +1,6 @@
+"""
+Process and catalog genomes downloaded using the ncbi-genome-download tool.
+"""
 import argparse
 from pathlib import Path
 from typing import Tuple, Iterator

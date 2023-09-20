@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+source settings.sh
 
 export NUM_CORES=8
 
@@ -31,8 +32,8 @@ fi
 
 bash download_ncbi2.sh
 bash create_blast_db.sh
-python extract_metaphlan_markers.py -t $METAPHLAN_TAXONOMIC_KEY -i $METAPHLAN_DB_PATH -o ${TARGET_DIR}/marker_seeds/metaphlan_seeds.tsv
-python mlst_download.py -t "Enterococcus faecalis" -w ${TARGET_DIR}/mlst_schema -o ${TARGET_DIR}/marker_seeds/mlst_seeds.tsv
+python python_helpers/extract_metaphlan_markers.py -t $METAPHLAN_TAXONOMIC_KEY -i $METAPHLAN_DB_PATH -o ${TARGET_DIR}/marker_seeds/metaphlan_seeds.tsv
+python python_helpers/mlst_download.py -t "Enterococcus faecalis" -w ${TARGET_DIR}/mlst_schema -o ${TARGET_DIR}/marker_seeds/mlst_seeds.tsv
 cat ${TARGET_DIR}/marker_seeds/*.tsv > ${MARKER_SEED_INDEX}
 
 chronostrain -c chronostrain.ini \
@@ -41,6 +42,6 @@ chronostrain -c chronostrain.ini \
   -r $REFSEQ_INDEX \
   -b $BLAST_DB_NAME -bd $BLAST_DB_DIR \
   --min-pct-idty $MIN_PCT_IDTY \
-  --ident-threshold 0.002 \
+  --ident-threshold 0.998 \
   --threads $NUM_CORES \
   -o $CHRONOSTRAIN_TARGET_JSON
