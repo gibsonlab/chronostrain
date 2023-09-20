@@ -1,7 +1,5 @@
 from pathlib import Path
 import json
-from typing import *
-
 import click
 
 import numpy as np
@@ -62,26 +60,45 @@ def parse_phylogroups(phylogroup_path: Path):
 
 
 def generate_cluster_df(index_df: pd.DataFrame, chronostrain_json: Path, poppunk_cluster_csv: Path, phylogroup_path: Path):
-    return index_df[['Accession', 'Strain', 'Genus', 'Species']].merge(
-        load_chronostrain_cluster(chronostrain_json),
-        on='Accession', how='inner'
-    ).rename(columns={'Cluster': 'ClusterChronostrain'}).merge(
-        load_poppunk_cluster(poppunk_cluster_csv),
-        on='Accession', how='inner'
-    ).rename(columns={'Cluster': 'ClusterPopPUNK'}).merge(
-        parse_phylogroups(phylogroup_path), on='Accession'
-    ).fillna('?')
+    poppunk_df = load_poppunk_cluster(poppunk_cluster_csv)
+    chronostrain_df = load_chronostrain_cluster(chronostrain_json)
+    phylogroup_df = parse_phylogroups(phylogroup_path)
+
+    res = poppunk_df.merge(
+        chronostrain_df, on='Accession', suffixes=['PopPUNK', 'ChronoStrain']
+    ).merge(
+        phylogroup_df, on='Accession', how='left'
+    ).fillna('?').merge(
+        chronostrain_df.groupby("Cluster")['Accession'].count().rename('SizeChronoStrain'),
+        left_on='ClusterChronoStrain', right_index=True
+    ).merge(
+        poppunk_df.groupby("Cluster")['Accession'].count().rename('SizePopPUNK'), left_on='ClusterPopPUNK',
+        right_index=True
+    ).merge(
+        phylogroup_df.rename(columns={'Phylogroup': 'PhylogroupChronoStrain', 'Accession': 'ClusterRight'}),
+        right_on='ClusterRight', left_on='ClusterChronoStrain', how='left'
+    ).drop(columns=['ClusterRight']).set_index('Accession')
+    return res
 
 
-def sample_random(cluster_df: pd.DataFrame, size: int, rng: Generator) -> List[str]:
-    samples = None
-    while samples is None:
-        selection = cluster_df.loc[cluster_df['Phylogroup'] == 'A'].sample(size, random_state=rng)
-        n_unique_chronostrain_clusters = len(pd.unique(selection['ClusterChronostrain']))
-        n_unique_poppunk_clusters = len(pd.unique(selection['ClusterPopPUNK']))
-        if n_unique_poppunk_clusters == size and n_unique_chronostrain_clusters == size:
-            samples = list(selection['ClusterChronostrain'])
-    return samples
+def sample_random(cluster_df: pd.DataFrame, size: int, rng: Generator) -> pd.DataFrame:
+    weights = np.square(0.5 * (np.sqrt(cluster_df['SizeChronoStrain']) + np.sqrt(cluster_df['SizePopPUNK'])))
+    weights = 1 / weights
+    weights = weights * (cluster_df['PhylogroupChronoStrain'] == 'A')
+
+    random_accs = []
+    pool = cluster_df.loc[cluster_df['Phylogroup'] == 'A']
+    for i in range(size):
+        selection = pool.sample(1, weights=weights, random_state=rng)
+        selection_poppunk = selection['ClusterPopPUNK'].item()
+        selection_chronostrain = selection['ClusterChronoStrain'].item()
+        random_accs.append(selection['ClusterChronoStrain'].item())
+        pool = pool.loc[
+            (pool['ClusterPopPUNK'] != selection_poppunk)
+            & (pool['ClusterChronoStrain'] != selection_chronostrain)
+        ]
+    rng.shuffle(random_accs)
+    return random_accs
 
 
 @click.command()

@@ -15,6 +15,3 @@ for mutation_ratio in "${MUTATION_RATIOS[@]}"; do
   done
   m_idx=$(( ${m_idx}+1 ))
 done
-
-# Copy ground truth file.
-#cp ${BASE_DIR}/files/ground_truth.csv ${}

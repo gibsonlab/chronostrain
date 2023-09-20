@@ -33,10 +33,11 @@ fi
 mkdir -p $output_dir
 cache_dir="${trial_dir}/output/chronostrain/cache"
 
-#if [ -d ${cache_dir} ]; then
-#	echo "[*] Clearing cache."
-#	rm -rf ${cache_dir}
-#fi
+if [ -d ${cache_dir} ]; then
+	echo "[*] Clearing cache."
+	rm -rf ${cache_dir}
+fi
+#echo "[*] DEBUG: retaining cache from previous run."
 
 echo "[*] Using database ${CHRONOSTRAIN_DB_JSON}"
 echo "[*] Running Chronostrain inference (mut_ratio: ${mutation_ratio} | replicate: ${replicate} |  n_reads: ${n_reads} | trial: ${trial})"
