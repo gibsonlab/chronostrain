@@ -236,7 +236,9 @@ class FragmentFrequencyComputer(object):
                 for frag_idx, strain_idx, hit_marker_len, hit_pos in self._parse(bwa_fastmap_output)
             ],
             columns=['FragIdx', 'StrainIdx', 'HitMarkerLen', 'HitPos'],
-        )
+        ).astype({
+            'FragIdx': 'int', 'StrainIdx': 'int', 'HitMarkerLen': 'int', 'HitPos': 'int'
+        })
 
     def _invoke_bwa_fastmap(
             self,
@@ -267,7 +269,7 @@ class FragmentFrequencyComputer(object):
     def _parse(
             self,
             fastmap_output_path: Path
-    ) -> Iterator[Tuple[Fragment, int, int, int]]:
+    ) -> Iterator[Tuple[int, int, int, int]]:
         """
         :return: A dictionary mapping (fragment) -> List of (strain, num_hits) pairs
         """

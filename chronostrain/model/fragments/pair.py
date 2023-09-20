@@ -53,7 +53,17 @@ class FragmentPairSpace(object):
             yield i1, i2, i_pair
 
     def to_frame(self) -> pd.DataFrame:
+        f1 = []
+        f2 = []
+        pair = []
+        for i1, i2, i_pair in self:
+            f1.append(i1)
+            f2.append(i2)
+            pair.append(i_pair)
         return pd.DataFrame(
-            list(iter(self)),
-            columns=['Frag1', 'Frag2', 'Pair']
+            {
+                'Frag1': pd.Series(f1, dtype='int'),
+                'Frag2': pd.Series(f2, dtype='int'),
+                'Pair': pd.Series(pair, dtype='int')
+            }
         ).set_index('Pair')
