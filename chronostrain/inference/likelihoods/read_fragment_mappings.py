@@ -291,7 +291,10 @@ class ReadFragmentMappings:
         """
         # SAM files are flat (one alignment per line), so we need to do some extra work to tally up the hit markers.
         # Use pandas to assist without too much performance impact.
-        df_entries = []
+        read_entries = []
+        strain_entries = []
+        frag_entries = []
+        ll_entries = []
 
         # First, handle the forward reads and create a dataframe of all alignment hits.
         for fwd_read, fwd_frag_idx, fwd_hit_strain, fwd_error_ll in self.parse_alignments(
@@ -300,18 +303,30 @@ class ReadFragmentMappings:
                 ),
                 fragments
         ):
-            df_entries.append(
-                (fwd_read.id, fwd_hit_strain.id, fwd_frag_idx, fwd_error_ll)
-            )
+            read_entries.append(fwd_read.id)
+            strain_entries.append(fwd_hit_strain.id)
+            frag_entries.append(fwd_frag_idx)
+            ll_entries.append(fwd_error_ll)
         fwd_hit_df = pd.DataFrame(
-            df_entries,
-            columns=['Read', 'Strain', 'Frag', 'LL']
+            {
+                'Read': pd.Series(read_entries, dtype='str'),
+                'Strain': pd.Series(strain_entries, dtype='str'),
+                'Frag': pd.Series(frag_entries, dtype='int'),
+                'LL': pd.Series(read_entries, dtype='float'),
+            }
         )
-        del df_entries
+        del read_entries
+        del strain_entries
+        del frag_entries
+        del ll_entries
         logger.debug("# Forward-read alignments = {}".format(fwd_hit_df.shape[0]))
 
         # Next, handle the reverse reads, do the same thing as above.
-        df_entries = []
+        read_entries = []
+        mate_pair_entries = []
+        strain_entries = []
+        frag_entries = []
+        ll_entries = []
         for rev_read, rev_frag_idx, rev_hit_strain, rev_error_ll in self.parse_alignments(
                 self.alignment_wrapper.align_pe_reverse(
                     read_src.path_rev, read_src.quality_format, time_slice.get_read
@@ -327,15 +342,25 @@ class ReadFragmentMappings:
                 mate_pair_id = rev_read.mate_pair.id
             else:
                 mate_pair_id = None
-            df_entries.append({
-                'Read': rev_read.id,
-                'MatePair': mate_pair_id,
-                'Strain': rev_hit_strain.id,
-                'Frag': rev_frag_idx,
-                'LL': rev_error_ll
-            })
-        rev_hit_df = pd.DataFrame(df_entries)
-        del df_entries
+            read_entries.append(rev_read.id)
+            mate_pair_entries.append(mate_pair_id)
+            strain_entries.append(rev_hit_strain.id)
+            frag_entries.append(rev_frag_idx)
+            ll_entries.append(rev_error_ll)
+        rev_hit_df = pd.DataFrame(
+            {
+                'Read': pd.Series(read_entries, dtype='str'),
+                'MatePair': pd.Series(mate_pair_entries, dtype='str'),
+                'Strain': pd.Series(strain_entries, dtype='str'),
+                'Frag': pd.Series(frag_entries, dtype='int'),
+                'LL': pd.Series(read_entries, dtype='float'),
+            }
+        )
+        del read_entries
+        del mate_pair_entries
+        del strain_entries
+        del frag_entries
+        del ll_entries
         logger.debug("# Reverse-read alignments = {}".format(rev_hit_df.shape[0]))
 
         # Handle mate paired reads that hit the same marker (inner join the dataframes)

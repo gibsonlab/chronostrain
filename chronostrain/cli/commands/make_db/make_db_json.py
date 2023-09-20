@@ -115,71 +115,71 @@ def main(
     pruned_json_path = json_output_path.with_stem(f'{json_output_path.stem}-3pruned-')  # third file
 
     # ============== Optional: preprocess reference_df into
-    # if skip_symlink:
-    #     pass
-    # else:
-    #     from chronostrain.database.parser.marker_sources import EntrezMarkerSource
-    #     from chronostrain.util.entrez import fasta_filename
-    #
-    #     logger.info(f"Creating symbolic links to reference catalog (target dir: {cfg.database_cfg.data_dir})")
-    #     for _, row in reference_df.iterrows():
-    #         strain_id = row['Accession']
-    #         seq_path = Path(row['SeqPath'])
-    #         if not seq_path.exists():
-    #             raise FileNotFoundError(f"Reference index pointed to `{seq_path}`, but it does not exist.")
-    #         target_dir = EntrezMarkerSource.assembly_subdir(cfg.database_cfg.data_dir, strain_id)
-    #         target_dir.mkdir(exist_ok=True, parents=True)
-    #
-    #         target_path = fasta_filename(strain_id, target_dir)
-    #         if target_path.is_symlink():
-    #             target_path.unlink()
-    #         elif target_path.exists():
-    #             logger.info(f"File {target_path} already exists. Skipping symlink.")
-    #         target_path.symlink_to(seq_path)
+    if skip_symlink:
+        pass
+    else:
+        from chronostrain.database.parser.marker_sources import EntrezMarkerSource
+        from chronostrain.util.entrez import fasta_filename
+
+        logger.info(f"Creating symbolic links to reference catalog (target dir: {cfg.database_cfg.data_dir})")
+        for _, row in reference_df.iterrows():
+            strain_id = row['Accession']
+            seq_path = Path(row['SeqPath'])
+            if not seq_path.exists():
+                raise FileNotFoundError(f"Reference index pointed to `{seq_path}`, but it does not exist.")
+            target_dir = EntrezMarkerSource.assembly_subdir(cfg.database_cfg.data_dir, strain_id)
+            target_dir.mkdir(exist_ok=True, parents=True)
+
+            target_path = fasta_filename(strain_id, target_dir)
+            if target_path.is_symlink():
+                target_path.unlink()
+            elif target_path.exists():
+                logger.info(f"File {target_path} already exists. Skipping symlink.")
+            target_path.symlink_to(seq_path)
 
     # ============== Step 1: initialize using BLAST.
-    # logger.info("Building raw DB using BLAST.")
-    # blast_result_dir = json_output_path.parent / f"_BLAST_{json_output_path.stem}"
-    #
-    # gene_paths: Dict[str, Path] = {}
-    # with open(marker_seeds_path) as seed_file:
-    #     for line in seed_file:
-    #         tokens = line.strip().split('\t')
-    #         gene_name = tokens[0]
-    #         gene_fasta_path = Path(tokens[1])
-    #         if not gene_fasta_path.exists():
-    #             raise FileNotFoundError(
-    #                 f"Sequence file for marker `{gene_name}` does not exist (got: {gene_fasta_path})"
-    #             )
-    #         gene_paths[gene_name] = gene_fasta_path
-    #
-    # strain_entries = create_chronostrain_db(
-    #     blast_result_dir=blast_result_dir,
-    #     strain_df=reference_df,
-    #     gene_paths=gene_paths,
-    #     blast_db_dir=blast_db_dir,
-    #     blast_db_name=blast_db_name,
-    #     min_pct_idty=min_pct_idty,
-    #     min_marker_len=min_marker_len,
-    #     num_threads=num_threads,
-    #     logger=logger
-    # )
-    #
-    # with open(raw_json_path, 'w') as outfile:
-    #     json.dump(strain_entries, outfile, indent=4)
-    #     logger.info(f"Wrote raw blast DB entries to {raw_json_path}.")
+    logger.info("Building raw DB using BLAST.")
+    blast_result_dir = json_output_path.parent / f"_BLAST_{json_output_path.stem}"
+
+    gene_paths: Dict[str, Path] = {}
+    with open(marker_seeds_path) as seed_file:
+        for line in seed_file:
+            tokens = line.strip().split('\t')
+            gene_name = tokens[0]
+            gene_fasta_path = Path(tokens[1])
+            if not gene_fasta_path.exists():
+                raise FileNotFoundError(
+                    f"Sequence file for marker `{gene_name}` does not exist (got: {gene_fasta_path})"
+                )
+            gene_paths[gene_name] = gene_fasta_path
+
+    strain_entries = create_chronostrain_db(
+        blast_result_dir=blast_result_dir,
+        strain_df=reference_df,
+        gene_paths=gene_paths,
+        blast_db_dir=blast_db_dir,
+        blast_db_name=blast_db_name,
+        min_pct_idty=min_pct_idty,
+        min_marker_len=min_marker_len,
+        num_threads=num_threads,
+        logger=logger
+    )
+
+    with open(raw_json_path, 'w') as outfile:
+        json.dump(strain_entries, outfile, indent=4)
+        logger.info(f"Wrote raw blast DB entries to {raw_json_path}.")
 
     # ============== Step 2: check for overlaps.
-    # logger.info("Resolving overlaps.")
-    # logger.debug(f"Src: {raw_json_path}, Dest: {merged_json_path}")
-    #
-    # from chronostrain.cli.commands.make_db.helpers.resolve_overlaps import find_and_resolve_overlaps
-    # with open(raw_json_path, "r") as f:
-    #     db_json = json.load(f)
-    # for strain in db_json:
-    #     find_and_resolve_overlaps(strain, reference_df, logger)
-    # with open(merged_json_path, 'w') as o:  # dump to JSON.
-    #     json.dump(db_json, o, indent=4)
+    logger.info("Resolving overlaps.")
+    logger.debug(f"Src: {raw_json_path}, Dest: {merged_json_path}")
+
+    from chronostrain.cli.commands.make_db.helpers.resolve_overlaps import find_and_resolve_overlaps
+    with open(raw_json_path, "r") as f:
+        db_json = json.load(f)
+    for strain in db_json:
+        find_and_resolve_overlaps(strain, reference_df, logger)
+    with open(merged_json_path, 'w') as o:  # dump to JSON.
+        json.dump(db_json, o, indent=4)
 
     if not skip_prune:
         # ============== Step 2: prune using clustering on genomic distances.
