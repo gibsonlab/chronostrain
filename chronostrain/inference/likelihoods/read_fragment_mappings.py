@@ -183,11 +183,17 @@ class ReadFragmentMappings:
 
         for src in time_slice.sources:
             if isinstance(src, SampleReadSourceSingle):
+                if src.path.stat().st_size == 0:
+                    logger.debug(f"Read file {src.path.name} is empty.")
+                    continue
                 logger.debug(f"Handling singular source {src}")
                 self.handle_singular_read_likelihoods(time_slice, src,
                                                       fragments, read_set,
                                                       indices, ll_values)
             elif isinstance(src, SampleReadSourcePaired):
+                if src.path_fwd.stat().st_size == 0 and src.path_rev.stat().st_size == 0:
+                    logger.debug(f"Reads for {src.name} is empty.")
+                    continue
                 logger.debug(f"Handling paired source {src}")
                 self.handle_paired_read_likelihoods(time_slice, src,
                                                     fragments, fragment_pairs,
@@ -373,12 +379,15 @@ class ReadFragmentMappings:
             how='inner',
             suffixes=('_FWD', '_REV')
         )
-        logger.debug(
-            "# Paired alignments = {} (Jaccard IOU reduction ratio: {})".format(
-                merged.shape[0],
-                merged.shape[0] / (fwd_hit_df.shape[0] + rev_hit_df.shape[0])
+
+        denom = fwd_hit_df.shape[0] + rev_hit_df.shape[0]
+        if denom > 0:
+            logger.debug(
+                "# Paired alignments = {} (Jaccard IOU reduction ratio: {})".format(
+                    merged.shape[0],
+                    merged.shape[0] / (fwd_hit_df.shape[0] + rev_hit_df.shape[0])
+                )
             )
-        )
         for _, row in merged.iterrows():
             fwd_read = time_slice.get_read(row['Read_FWD'])
             assert isinstance(fwd_read, PairedEndRead)
