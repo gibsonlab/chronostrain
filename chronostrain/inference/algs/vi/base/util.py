@@ -21,7 +21,7 @@ def divide_columns_into_batches_sparse(x: jsparse.BCOO, batch_size: int) -> Iter
         yield jsparse.BCOO(
             (
                 x.data[locs],
-                x.indices[locs, :] - jnp.array([0, start], dtype=x.indices.dtype)
+                x.indices[locs, :] - jnp.array([0, start], dtype=x.indices.dtype)  # Subtract the column offset
             ),
             shape=(x.shape[0], sz)
         )

@@ -16,12 +16,13 @@ __ini_path__ = os.getenv(__env_key__, "log_config.ini")
 
 def default_logger(name: str):
     logger = logging.getLogger(name=name)
-    logger.setLevel(logging.INFO)
+
+    logger.setLevel(logging.DEBUG)
     logger.propagate = False
 
     stdout_handler = logging.StreamHandler(sys.stdout)
     stdout_handler.addFilter(LoggingLevelFilter([logging.INFO, logging.DEBUG]))
-    stdout_handler.setLevel(logging.INFO)
+    stdout_handler.setLevel(logging.DEBUG)
     stdout_formatter = logging.Formatter("%(asctime)s [%(levelname)s - %(name)s] - %(message)s")
     stdout_handler.setFormatter(stdout_formatter)
 
