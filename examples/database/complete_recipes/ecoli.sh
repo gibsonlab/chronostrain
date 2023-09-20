@@ -30,17 +30,28 @@ then
   exit 1
 fi
 
+if [ ! -f "${TARGET_DIR}/marker_seeds/manual_seeds.tsv" ]
+then
+  echo "Manual seed file (serotypes, fim, stx) not found."
+  exit 1
+fi
+
 bash download_ncbi.sh
 bash create_blast_db.sh
-python extract_metaphlan_markers.py -t $METAPHLAN_TAXONOMIC_KEY -i $METAPHLAN_DB_PATH -o ${TARGET_DIR}/marker_seeds/metaphlan_seeds.tsv
+#python extract_metaphlan_markers.py -t $METAPHLAN_TAXONOMIC_KEY -i $METAPHLAN_DB_PATH -o ${TARGET_DIR}/marker_seeds/metaphlan_seeds.tsv  # DEPRECATED for this database; use the custom serotyping markers instead.
 python mlst_download.py -t "Escherichia coli" -w ${TARGET_DIR}/mlst_schema -o ${TARGET_DIR}/marker_seeds/mlst_seeds.tsv
-cat ${TARGET_DIR}/marker_seeds/*.tsv > ${MARKER_SEED_INDEX}
 
-chronostrain -c chronostrain.ini \
+echo "[*] Processing seed TSV files."
+cat ${TARGET_DIR}/marker_seeds/mlst_seeds.tsv > ${MARKER_SEED_INDEX}
+cat ${TARGET_DIR}/marker_seeds/manual_seeds.tsv >> ${MARKER_SEED_INDEX}
+
+echo "[*] Invoking chronostrain make-db."
+env JAX_PLATFORM_NAME=cpu chronostrain -c chronostrain.ini \
   make-db \
   -m $MARKER_SEED_INDEX \
   -r $REFSEQ_INDEX \
   -b $BLAST_DB_NAME -bd $BLAST_DB_DIR \
   --min-pct-idty $MIN_PCT_IDTY \
-  --ident-threshold 0.002 \
-  -o $CHRONOSTRAIN_TARGET_JSON
+  --ident-threshold 0.998 \
+  -o $CHRONOSTRAIN_TARGET_JSON \
+  --threads 12
