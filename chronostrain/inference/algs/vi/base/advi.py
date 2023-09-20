@@ -194,6 +194,10 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
                 row['T_IDX']: TimepointBatches(row['N_SINGULAR_BATCHES'], row['N_READS'])
                 for _, row in batch_df.iterrows()
             }
+            n_paired_batches_per: Dict[int, TimepointBatches] = {
+                row['T_IDX']: TimepointBatches(row['N_PAIRED_BATCHES'], row['N_PAIRS'])
+                for _, row in batch_df.iterrows()
+            }
 
             _batches = [
                 [
@@ -204,7 +208,8 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
             ]
             _paired_batches = [
                 [
-                    jnp.load(subdir / f't_{t_idx}_paired.npy')
+                    jnp.load(subdir / f't_{t_idx}_paired_batch_{paired_batch_idx}.npy')
+                    for paired_batch_idx in range(n_paired_batches_per[t_idx].n_batches)
                 ]
                 for t_idx in range(self.gaussian_prior.num_times)
             ]
@@ -279,19 +284,25 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
             total_sizes[t_idx] = total_sz_t
 
             # ========================= paired reads; don't batch this.
-            if read_likelihoods_t.paired_lls.num_reads > 0:
+            for paired_batch_idx, paired_data_t_batch in enumerate(
+                divide_columns_into_batches_sparse(
+                    read_likelihoods_t.paired_lls.matrix,
+                    read_batch_size
+                )
+            ):
                 logger.debug(
-                    f"Precomputing paired-read marginalization for t = {t_idx},"
-                    f"({read_likelihoods_t.paired_lls.num_reads} read pairs)"
+                    "Precomputing paired-read marginalization for t = {}, batch {} ({} pairs)".format(
+                        t_idx, paired_batch_idx, paired_data_t_batch.shape[1]
+                    )
                 )
                 # ========= Pre-compute likelihood calculations.
-                paired_marginalization_t = log_spspmm_exp(
+                batch_paired_marginalization_t = log_spspmm_exp(
                     frag_pair_freqs.matrix.T,  # (S x F_pairs), note the transpose!
-                    read_likelihoods_t.paired_lls.matrix  # F_pairs x R_pairs
-                )  # (S x R_pairs)
-                jnp.save(str(target_dir / f't_{t_idx}_paired.npy'), paired_marginalization_t)
-                paired_batches[t_idx].append(paired_marginalization_t)
-                total_pairs_t += paired_marginalization_t.shape[1]
+                    paired_data_t_batch  # F_pairs x R_pairs_batch
+                )  # (S x R_pairs_batch)
+                jnp.save(str(target_dir / f't_{t_idx}_paired_batch_{paired_batch_idx}.npy'), batch_paired_marginalization_t)
+                paired_batches[t_idx].append(batch_paired_marginalization_t)
+                total_pairs_t += batch_paired_marginalization_t.shape[1]
             total_pairs[t_idx] = total_pairs_t
 
         # =========== report statistics.
