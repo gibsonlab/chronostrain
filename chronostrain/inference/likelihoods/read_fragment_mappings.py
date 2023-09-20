@@ -312,7 +312,7 @@ class ReadFragmentMappings:
                 'Read': pd.Series(read_entries, dtype='str'),
                 'Strain': pd.Series(strain_entries, dtype='str'),
                 'Frag': pd.Series(frag_entries, dtype='int'),
-                'LL': pd.Series(read_entries, dtype='float'),
+                'LL': pd.Series(ll_entries, dtype='float'),
             }
         )
         del read_entries
@@ -353,7 +353,7 @@ class ReadFragmentMappings:
                 'MatePair': pd.Series(mate_pair_entries, dtype='str'),
                 'Strain': pd.Series(strain_entries, dtype='str'),
                 'Frag': pd.Series(frag_entries, dtype='int'),
-                'LL': pd.Series(read_entries, dtype='float'),
+                'LL': pd.Series(ll_entries, dtype='float'),
             }
         )
         del read_entries
