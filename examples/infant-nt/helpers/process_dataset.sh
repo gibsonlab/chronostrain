@@ -24,13 +24,14 @@ append_fastq()
 	time=$2
 	read_type=$3
 	qual_fmt=$4
+	sample_name=$5
 
 	num_lines=$(pigz -dc $gzip_fq_path | wc -l | awk '{print $1}')
 	num_reads=$((${num_lines} / 4))
 
 	if [[ -s "${gzip_fq_path}" ]] && [[ ${num_reads} > 0 ]]; then
 		echo "Adding record ${gzip_fq_path} to ${chronostrain_index_file}"
-		echo "${time},ASDFASDF,${num_reads},\"${gzip_fq_path}\",${read_type},${qual_fmt}" >> ${chronostrain_index_file}
+		echo "${time},${sample_name},${num_reads},\"${gzip_fq_path}\",${read_type},${qual_fmt}" >> ${chronostrain_index_file}
 	else
 		echo "Skipping empty record ${gzip_fq_path}"
 	fi
@@ -88,9 +89,9 @@ append_fastq()
     fi
 
     # Add to timeseries input index.
-    append_fastq ${trimmed_1_paired_gz} $time_point "paired_1" "fastq"
-    append_fastq ${trimmed_1_unpaired_gz} $time_point "paired_1" "fastq"
-    append_fastq ${trimmed_2_paired_gz} $time_point "paired_2" "fastq"
-    append_fastq ${trimmed_2_unpaired_gz} $time_point "paired_2" "fastq"
+    append_fastq ${trimmed_1_paired_gz} $time_point "paired_1" "fastq" "${sample_id}_PAIRED"
+    append_fastq ${trimmed_1_unpaired_gz} $time_point "paired_1" "fastq" "${sample_id}_UNPAIRED_1"
+    append_fastq ${trimmed_2_paired_gz} $time_point "paired_2" "fastq" "${sample_id}_PAIRED"
+    append_fastq ${trimmed_2_unpaired_gz} $time_point "paired_2" "fastq" "${sample_id}_UNPAIRED_2"
   done
 } < ${patient_index_file}

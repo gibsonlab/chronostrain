@@ -39,6 +39,7 @@ a particular participant. It can be manually invoked to download a particular sl
 ```bash
 # Assumes ENA metadata have been downloaded
 bash download_dataset.sh A01653
+bash ../helpers/process_dataset.sh A01653  # invoke kneaddata/trimmomatic pipeline.
 ```
 
 ## 2. Set up the database.
