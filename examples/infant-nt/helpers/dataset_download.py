@@ -42,6 +42,8 @@ def download_all(dataset: pd.DataFrame, out_dir: Path, target_participant: str):
             continue
         if not "_T" in target_participant and "_T" in sample_title:
             continue
+        if sample_title.endswith("_M"):
+            continue
 
         tokens = sample_title[len(target_participant):].split('_')
         if len(tokens) == 2:

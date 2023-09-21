@@ -30,7 +30,7 @@ append_fastq()
 
 	if [[ -s "${gzip_fq_path}" ]] && [[ ${num_reads} > 0 ]]; then
 		echo "Adding record ${gzip_fq_path} to ${chronostrain_index_file}"
-		echo "${time},${num_reads},\"${gzip_fq_path}\",${read_type},${qual_fmt}" >> ${chronostrain_index_file}
+		echo "${time},ASDFASDF,${num_reads},\"${gzip_fq_path}\",${read_type},${qual_fmt}" >> ${chronostrain_index_file}
 	else
 		echo "Skipping empty record ${gzip_fq_path}"
 	fi

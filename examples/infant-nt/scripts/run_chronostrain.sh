@@ -15,10 +15,9 @@ export CHRONOSTRAIN_CACHE_DIR="${run_dir}/.cache"
 cd ${BASE_DIR}
 
 
-#env JAX_PLATFORM_NAME=cpu chronostrain advi \
-chronostrain --profile-jax advi \
+chronostrain advi \
   -r ${run_dir}/filtered/filtered_reads.csv \
-  -o ${run_dir}/algs \
+  -o ${run_dir}/inference \
   --correlation-mode "full" \
   --iters ${CHRONOSTRAIN_NUM_ITERS} \
   --epochs ${CHRONOSTRAIN_NUM_EPOCHS} \
@@ -29,8 +28,8 @@ chronostrain --profile-jax advi \
   --num-samples ${CHRONOSTRAIN_NUM_SAMPLES} \
   --read-batch-size ${CHRONOSTRAIN_READ_BATCH_SZ} \
 	--min-lr ${CHRONOSTRAIN_MIN_LR} \
-  --no-allocate-fragments \
   --plot-elbo \
 	--prune-strains \
 	--with-zeros \
+	--prior-p 0.001 \
   --accumulate-gradients
