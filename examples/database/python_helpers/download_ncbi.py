@@ -64,6 +64,7 @@ def fetch_catalog(taxid, save_path: Path) -> List[NCBIRecord]:
 
 def download_assemblies(records: List[NCBIRecord], out_dir: Path):
     # create input file
+    logger.info(f"Downloading assemblies to directory {out_dir}")
     input_file = out_dir / "__ncbi_input.txt"
     with open(input_file, "w") as f:
         for record in records:

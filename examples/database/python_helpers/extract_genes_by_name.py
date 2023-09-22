@@ -1,5 +1,7 @@
 from typing import *
 from pathlib import Path
+
+import click
 import pandas as pd
 
 import gzip
@@ -64,10 +66,49 @@ def extract_genes(target_acc: str, gff_path: Path, seq_path: Path, gene_name_pre
         f.close()
 
 
-def main(index_path: Path, gene_name_prefixes: List[str], out_path: Path):
+@click.command()
+@click.option(
+    '--index-path', '-i', 'index_path',
+    type=click.Path(path_type=Path, dir_okay=False, exists=True, readable=True),
+    required=True,
+    help="Path to the RefSeq index catalog TSV file."
+)
+@click.option(
+    '--genus', '-g', 'target_genus',
+    type=str, required=True, help='The name of the target genus.'
+)
+@click.option(
+    '--species', '-s', 'target_species',
+    type=str, required=True, help='The name of the target species.'
+)
+@click.option(
+    '--out-path', '-o', 'out_path',
+    type=click.Path(path_type=Path, dir_okay=False),
+    required=True,
+    help="The output path, to be interpreted as a pandas Dataframe in .feather (pyarrow) format."
+)
+@click.option(
+    '--gene-name-prefixes', '-p', 'gene_name_prefixes',
+    multiple=True,
+    help="The gene name prefix to search for. "
+         "For example, `fim` specifies a search for any fim gene: fimA, fimB, fimC, etc. "
+         "Argument can be repeated to specify multiple patterns (-g pattern1 -g pattern2 ...)"
+)
+def main(
+        index_path: Path,
+        target_genus: str,
+        target_species: str,
+        gene_name_prefixes: List[str],
+        out_path: Path
+):
     index_df = pd.read_csv(index_path, sep='\t')
+    index_df = index_df.loc[
+        (index_df['Genus'].str.lower() == target_genus.lower())
+        & (index_df['Species'].str.lower() == target_species.lower())
+    ]
+
     df_entries = []
-    for _, row in tqdm(index_df.iterrows(), total=index_df.shape[0]):
+    for _, row in tqdm(index_df.iterrows(), total=index_df.shape[0], unit='genome'):
         acc = row['Accession']
         gff_path = Path(row['GFF'])
         seq_path = Path(row['SeqPath'])
@@ -85,13 +126,4 @@ def main(index_path: Path, gene_name_prefixes: List[str], out_path: Path):
 
 
 if __name__ == "__main__":
-    """
-    fim genes: fim*
-    H antigen: fliC, flk* fll* flm*
-    Shigatoxin: stx*
-    """
-    main(
-        index_path=Path("/mnt/e/ecoli_db/ref_genomes/index.tsv"),
-        out_path=Path("/mnt/e/ecoli_db/misc_genes/result.feather"),
-        gene_name_prefixes=['fim', 'fliC', 'flk', 'fll', 'flm', 'stx']
-    )
+    main()

@@ -48,6 +48,7 @@ def perform_primer_search(ref_seq_path: Path, in_path: Path, out_path: Path, clu
             '-mismatchpercent', 30,
             '-outfile', out_path
         ],
+        silent=True
     )
 
 
@@ -80,11 +81,11 @@ def parse_primersearch_output(out_path: Path) -> Iterator[SimpleLocation]:
                     raise ValueError("Couldn't parse len from token {}".format(bp_token)) from None
 
 
-def get_primersearch_hit(out_path: Path, max_possible_len: int) -> SimpleLocation:
+def get_primersearch_hit(out_path: Path, max_possible_len: int, min_possible_len: int) -> SimpleLocation:
     best_loc = None
     best_len = max_possible_len
     for loc in parse_primersearch_output(out_path):
-        if len(loc) < best_len:
+        if len(loc) < best_len and len(loc) > min_possible_len:
             best_len = len(loc)
             best_loc = loc
     if best_loc is None:
@@ -101,7 +102,7 @@ class GeneSequence:
         return "{}:{}".format(self.name, self.seq)
 
     def __repr__(self):
-        return "{}[seq={}]".format(self.name, self.seq)
+        return "{}<len={}|seq={}>".format(self.name, len(self.seq), self.seq)
 
 
 def extract_genes(target_acc: str, seq_path: Path, gff_path: Path, target_loc: SimpleLocation) -> List[GeneSequence]:
@@ -142,10 +143,11 @@ def extract_genes(target_acc: str, seq_path: Path, gff_path: Path, target_loc: S
         f.close()
 
 
-def get_serotype_genes(
+def get_gff_annotated_genes_from_pcr(
         accession: str,
         acc_chrom_path: Path,
         maximal_amplicon_len: int,
+        minimal_amplicon_len: int,
         cluster_name: str,
         primer1: Seq,
         primer2: Seq,
@@ -155,14 +157,40 @@ def get_serotype_genes(
     # =========== primersearch
     in_path = tmp_dir / 'primer_input.txt'
     out_path = tmp_dir / 'primer_output.txt'
-    perform_primer_search(acc_chrom_path, in_path, out_path, cluster_name, primer1, primer2)
+    perform_primer_search(acc_chrom_path, in_path, out_path, f"gene__{cluster_name}", primer1, primer2)
 
     # =========== parse primersearch
-    target_loc = get_primersearch_hit(out_path, maximal_amplicon_len)
+    target_loc = get_primersearch_hit(out_path, maximal_amplicon_len, minimal_amplicon_len)
     # print("Best primer hit is {}, len = {}".format(target_loc, len(target_loc)))
 
     # =========== parse gene features.
     return extract_genes(accession, acc_chrom_path, gff_path, target_loc)
+
+
+def get_primerhit_as_gene(
+        chrom_path: Path,
+        maximal_amplicon_len: int,
+        minimal_amplicon_len: int,
+        cluster_name: str,
+        primer1: Seq,
+        primer2: Seq,
+        tmp_dir: Path
+) -> GeneSequence:
+    # =========== primersearch
+    in_path = tmp_dir / 'primer_input.txt'
+    out_path = tmp_dir / 'primer_output.txt'
+    perform_primer_search(chrom_path, in_path, out_path, f"gene__{cluster_name}", primer1, primer2)
+
+    # =========== parse primersearch
+    target_loc = get_primersearch_hit(out_path, maximal_amplicon_len, minimal_amplicon_len)
+    # print("Best primer hit is {}, len = {}".format(target_loc, len(target_loc)))
+
+    # =========== parse gene features.
+    genome_seq = SeqIO.read(chrom_path, "fasta")
+    return GeneSequence(
+        name=cluster_name,
+        seq=target_loc.extract(genome_seq).seq
+    )
 
 
 @click.command()
@@ -186,6 +214,14 @@ def get_serotype_genes(
          "EMBOSS primersearch outputs will be temporarily stored here."
 )
 @click.option(
+    '--genus', '-g', 'target_genus',
+    type=str, required=True, help='The name of the target genus.'
+)
+@click.option(
+    '--species', '-s', 'target_species',
+    type=str, required=True, help='The name of the target species.'
+)
+@click.option(
     '--primer1', '-p1', 'primer1_seq',
     type=str, required=True,
     help="The 5'--3' starting primer."
@@ -197,8 +233,8 @@ def get_serotype_genes(
 )
 @click.option(
     '--cluster-name', '-n', 'cluster_name',
-    type=str, required=False, default='GeneClusterTarget',
-    help="A cluster name to use for EMBOSS, purely for debugging purposes."
+    type=str, required=True,
+    help="A cluster name to use for EMBOSS, purely for display/debugging purposes."
 )
 @click.option(
     '--amplicon-len', '-l', 'expected_amplicon_len',
@@ -206,37 +242,44 @@ def get_serotype_genes(
     help="If known, the expected length of the amplicon sequence flanked by the primers "
          "(e.g. primer for a single gene should yield the average length for that gene.)"
 )
+@click.option(
+    '--use-gff/--dont-use-gff', 'use_gff',
+    is_flag=True, default=False,
+    help='Specify whether to use the genome GFF annotation file to extract individual annotated genes.'
+         'By default, or if explicitly told not to, then the entire PCR amplicon region will be used. '
+         'If turned on, then will only extract annotated genes from GFF file within the PCR region.'
+)
 def main(
         index_path: Path,
         out_path: Path,
         tmp_dir: Path,
         cluster_name: str,
+        target_genus: str,
+        target_species: str,
         primer1_seq: str,
         primer2_seq: str,
-        expected_amplicon_len: Union[int, None]
+        expected_amplicon_len: Union[int, None],
+        use_gff: bool
 ):
-    main_wrapper(index_path, out_path, tmp_dir, cluster_name,
-                 primer1_seq, primer2_seq,
-                 expected_amplicon_len=expected_amplicon_len)
-
-
-def main_wrapper(
-        index_path: Path,
-        out_path: Path,
-        tmp_dir: Path,
-        cluster_name: str,
-        primer1_seq: str,
-        primer2_seq: str,
-        expected_amplicon_len: Union[int, None]
-):
+    print(f"Performing primer-based search for {cluster_name} in {target_genus} {target_species}. (FWD={primer1_seq}, REV={primer2_seq}, len approx. {expected_amplicon_len})")
+    if use_gff:
+        print("Will use GFF to extract annotated genes.")
+    else:
+        print("Will NOT use GFF files; primer PCR hits will be interpreted as gene hits.")
     tmp_dir.mkdir(exist_ok=True, parents=True)
     index_df = pd.read_csv(index_path, sep='\t')
 
     primer1 = Seq(primer1_seq)
     primer2 = Seq(primer2_seq)
 
-    df_entries = []
-    for _, row in tqdm(index_df.iterrows(), total=index_df.shape[0]):
+    index_df = index_df.loc[
+        (index_df['Genus'].str.lower() == target_genus.lower())
+        & (index_df['Species'].str.lower() == target_species.lower())
+    ]
+    acc_entries = []
+    gene_entries = []
+    gene_seq_entries = []
+    for _, row in tqdm(index_df.iterrows(), total=index_df.shape[0], unit='genome'):
         acc = row['Accession']
         ref_seq_path = Path(row['SeqPath'])
         chrom_len = row['ChromosomeLen']
@@ -244,51 +287,70 @@ def main_wrapper(
         genus = row['Genus']
         species = row['Species']
         strain = row['Strain']
+        if use_gff and (not gff_path.exists()):
+            continue
+
         if expected_amplicon_len is not None:
-            max_amplicon_len = 1.5 * expected_amplicon_len
+            max_amplicon_len = 1.2 * expected_amplicon_len
+            minimal_amplicon_len = 0
+            # minimal_amplicon_len = 0.8 * expected_amplicon_len
         else:
             max_amplicon_len = chrom_len
+            minimal_amplicon_len = 0
 
         try:
-            genes = get_serotype_genes(
-                acc,
-                ref_seq_path,
-                max_amplicon_len,
-                cluster_name,
-                primer1,
-                primer2,
-                gff_path,
-                tmp_dir
-            )
+            if use_gff:
+                genes = get_gff_annotated_genes_from_pcr(
+                    accession=acc,
+                    acc_chrom_path=ref_seq_path,
+                    maximal_amplicon_len=max_amplicon_len,
+                    minimal_amplicon_len=minimal_amplicon_len,
+                    cluster_name=cluster_name,
+                    primer1=primer1,
+                    primer2=primer2,
+                    gff_path=gff_path,
+                    tmp_dir=tmp_dir
+                )
+            else:
+                gene = get_primerhit_as_gene(
+                    chrom_path=ref_seq_path,
+                    maximal_amplicon_len=max_amplicon_len,
+                    minimal_amplicon_len=minimal_amplicon_len,
+                    cluster_name=cluster_name,
+                    primer1=primer1, primer2=primer2,
+                    tmp_dir=tmp_dir
+                )
+                genes = [gene]
         except PrimerSearchEmptyHits:
-            print(f"Couldn't find primer-based hits for {acc} ({genus} {species}, Strain {strain})")
+            # print(f"Couldn't find primer-based hits for {cluster_name} in {acc} ({genus} {species}, Strain {strain})")
             continue
+
         if len(genes) > 50:
-            print("[WARNING] {} ({} {}, Strain {}) has {} genes (more than the threshold of 30)".format(
+            print("[WARNING] {} ({} {}, Strain {}) has {} genes in primer-hit (more than the threshold of 30)".format(
                 acc, genus, species, strain,
                 len(genes)
             ))
             continue
 
         for gene in genes:
-            df_entries.append({
-                'Accession': acc,
-                'Gene': gene.name,
-                'GeneSeq': str(gene.seq)
-            })
-    df = pd.DataFrame(df_entries)
+            acc_entries.append(acc)
+            gene_entries.append(gene.name)
+            gene_seq_entries.append(str(gene.seq))
+    df = pd.DataFrame(
+        {
+            'Accession': pd.Series(acc_entries, dtype='str'),
+            'Gene': pd.Series(gene_entries, dtype='str'),
+            'GeneSeq': pd.Series(gene_seq_entries, dtype='str')
+        }
+    )
+    del acc_entries
+    del gene_entries
+    del gene_seq_entries
 
     out_path.parent.mkdir(exist_ok=True, parents=True)
     df.to_feather(out_path)
+    print("Wrote {} dataframe records to {}".format(df.shape[0], out_path.name))
 
 
 if __name__ == "__main__":
-    main_wrapper(
-        index_path=Path("/mnt/e/ecoli_db/ref_genomes/index.tsv"),
-        out_path=Path("/mnt/e/ecoli_db/serotype_O_genes/result.feather"),
-        tmp_dir=Path('/home/youn/work/emboss_test'),
-        cluster_name='O-antigen_JUMPSTART_GND_1',
-        primer1_seq='CATGGTAGCTGTAAAGCCAGGGGCGGTAGCGTG',  # 5'--3' convention; JUMPstart sequence
-        primer2_seq='CATGCTGCCATACCGACGACGCCGATCTGTTGCTTKGACA',  # 5'--3' convention; GND primer
-        expected_amplicon_len=None
-    )
+    main()
