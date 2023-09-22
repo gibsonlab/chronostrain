@@ -146,6 +146,8 @@ class FragmentFrequencyComputer(object):
                 print("logpmf = {}".format(window_len_logpmf))
                 print("hit_marker_lens = {}".format(all_marker_lens[section.index]))
                 print("hit_pos = {}".format(all_pos[section.index]))
+            else:
+                print(fll)
             matrix_values.append(
                 frag_log_ll_numpy(
                     frag_len=len(self.fragments[frag_idx]),
