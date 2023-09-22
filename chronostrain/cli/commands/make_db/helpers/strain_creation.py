@@ -161,7 +161,7 @@ def create_strain_entries(
         all of them "fimA". (Note: the strand, by convention, is given by the first observed hit;
         the analysis pipeline uses both + and - strand versions regardless, so this is purely for metadata purposes.)
         """
-        logger.debug(f"Parsing BLAST hits for gene `{gene_name}`.")
+        logger.info(f"Parsing BLAST hits for gene `{gene_name}`.")
         for blast_hit in blast_hits:
             subj_acc = blast_hit.subj_accession
             start = blast_hit.subj_start

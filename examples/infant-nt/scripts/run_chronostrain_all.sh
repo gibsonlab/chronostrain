@@ -27,7 +27,7 @@ do
     touch $filter_mark
   fi
 
-  inference_mark=${participant_dir}/chronostrain/algs.DONE
+  inference_mark=${participant_dir}/chronostrain/inference.DONE
   if [[ -f ${inference_mark} ]]; then
     echo "[*] Skipping inference for participant ${participant}"
   else

@@ -288,12 +288,14 @@ class UnknownSourceNucleotideError(BaseException):
 
 class JSONParser(AbstractDatabaseParser):
     def __init__(self,
-                 data_dir: Path,
+                 data_dir: Union[str, Path],
                  entries_file: Union[str, Path],
                  marker_max_len: int,
                  force_refresh: bool = False):
         if isinstance(entries_file, str):
             entries_file = Path(entries_file)
+        if isinstance(data_dir, str):
+            data_dir = Path(data_dir)
         super().__init__(
             db_name=entries_file.stem,
             data_dir=data_dir

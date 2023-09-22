@@ -86,7 +86,7 @@ def merge_markers(
                     )
         new_name = '-'.join(annot_gene_names)
     except FileNotFoundError:
-        logger.warning("GFF file not found for {}.".format(strain['id']))
+        logger.debug("GFF file not found for {}.".format(strain['id']))
         new_name = "-".join(m['name'] for m in to_merge)
     ids_to_remove = set([m['id'] for m in to_merge])
 
