@@ -4,21 +4,20 @@ source settings.sh
 source strainge/settings.sh
 
 # ============ Requires arguments:
-replicate=$1
-n_reads=$2
-trial=$3
-time_point=$4
+mutation_ratio=$1
+replicate=$2
+n_reads=$3
+trial=$4
 
+require_variable "mutation_ratio" $mutation_ratio
 require_variable "replicate" $replicate
 require_variable "n_reads" $n_reads
 require_variable "trial" $trial
-require_variable "time_point" $time_point
 
 
 
 
-straingst_db_dir=$(get_straingst_db_dir "${replicate}")
-trial_dir=$(get_trial_dir $replicate $n_reads $trial)
+trial_dir=$(get_trial_dir "${mutation_ratio}" "$replicate" "$n_reads" "$trial")
 read_dir=${trial_dir}/reads
 output_dir=${trial_dir}/output/straingst
 
@@ -50,7 +49,7 @@ echo "[*] Running StrainGST."
 mkdir -p ${output_dir}
 straingst run \
 -o ${output_dir}/output_${time_point}.tsv \
-${straingst_db_dir}/db.hdf5 \
+${STRAINGE_DB_DIR}/database.hdf5 \
 ${read_kmers}
 
 # ====== Record runtime
