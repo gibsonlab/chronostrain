@@ -11,7 +11,7 @@ for umb_id in UMB01 UMB02 UMB03 UMB04 UMB05 UMB06 UMB07 UMB08 UMB09 UMB10 UMB11 
 do
   echo "[*] Running inference on ${umb_id}."
   run_dir=${OUTPUT_DIR}/${umb_id}
-  breadcrumb=${run_dir}/algs.DONE
+  breadcrumb=${run_dir}/inference.DONE
 
   if [ -f $breadcrumb ]
   then
