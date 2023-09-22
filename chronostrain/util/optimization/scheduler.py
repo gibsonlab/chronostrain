@@ -140,5 +140,6 @@ class ReduceLROnPlateauLast(LearningRateScheduler):
 
         if self.num_bad_epochs > self.patience:
             self._reduce_lr()
+            self.best = current
             self.cooldown_counter = self.cooldown
             self.num_bad_epochs = 0
