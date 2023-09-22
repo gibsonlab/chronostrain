@@ -8,11 +8,13 @@ mutation_ratio=$1
 replicate=$2
 n_reads=$3
 trial=$4
+time_point=$5
 
 require_variable "mutation_ratio" $mutation_ratio
 require_variable "replicate" $replicate
 require_variable "n_reads" $n_reads
 require_variable "trial" $trial
+require_variable "time_point" $time_point
 
 
 
