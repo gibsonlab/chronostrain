@@ -346,8 +346,8 @@ class FragmentFrequencyComputer(object):
                     )
 
 
-# @njit
-def frag_log_ll_numpy(
+@njit
+def fskrag_log_ll_numpy(
         frag_len: int,
         window_lens: cnp.ndarray,
         window_lens_log_pmf: cnp.ndarray,
@@ -377,15 +377,9 @@ def frag_log_ll_numpy(
     n_matching_windows = cnp.where(window_lens == frag_len, n_hits, n_edge_hits)
     n_matching_windows = cnp.where(window_lens >= frag_len, n_matching_windows, 0)
 
-    ans = numba_logsumexp_1d(
+    return numba_logsumexp_1d(
         window_lens_log_pmf + cnp.log(n_matching_windows)
     )
-    if cnp.isnan(ans):
-        print(window_lens_log_pmf)
-        print(cnp.log(n_matching_windows))
-
-        raise Exception("ASDF")
-    return ans
 
 
 @njit
