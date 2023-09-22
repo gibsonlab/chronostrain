@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
 source settings.sh
+source chronostrain/settings.sh
 
 cd ${BASE_DIR}/scripts
 

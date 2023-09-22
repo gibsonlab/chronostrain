@@ -146,7 +146,6 @@ for (( trial = 1; trial < ${N_TRIALS}+1; trial++ )); do
           --abundance_path $replicate_ground_truth \
           --genome_dir ${replicate_dir}/genomes \
           --num_reads $n_reads \
-          --profiles $READ_PROFILE_PATH $READ_PROFILE_PATH \
           --read_len $READ_LEN \
           --seed ${seed} \
           --num_cores $N_CORES
