@@ -129,6 +129,7 @@ class FragmentFrequencyComputer(object):
         cnp.seterr(divide='ignore')
         all_marker_lens = matches_df['HitMarkerLen'].to_numpy()
         all_pos = matches_df['HitPos'].to_numpy()
+        print("HERE!")
         for (frag_idx, s_idx), section in groupings:
             # noinspection PyTypeChecker
             strain_indices.append(s_idx)
