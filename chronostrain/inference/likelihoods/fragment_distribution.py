@@ -347,7 +347,7 @@ class FragmentFrequencyComputer(object):
 
 
 @njit
-def fskrag_log_ll_numpy(
+def frag_log_ll_numpy(
         frag_len: int,
         window_lens: cnp.ndarray,
         window_lens_log_pmf: cnp.ndarray,
