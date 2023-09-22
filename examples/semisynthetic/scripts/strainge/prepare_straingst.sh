@@ -4,60 +4,45 @@ source settings.sh
 source strainge/settings.sh
 
 
-# ================= Database using complete genomes
-mkdir -p ${STRAINGST_REF_FILES}
-cd ${STRAINGST_REF_FILES}
+#!/bin/bash
+set -e
+source settings.sh
 
 
-echo "[*] Kmerizing."
-mkdir -p kmers
-cd kmers
+# Step 1: separate plasmids and archive them
+echo "[*] Preparing reference catalog."
+seq_dir="${STRAINGE_DB_DIR}/sequences"
+kmer_dir="${STRAINGE_DB_DIR}/kmers"
+python prepare_strainge_db.py -i "${INDEX_REFSEQ}" -t "${seq_dir}"
 
-while IFS=$'\t' read -r -a columns
-do
-  seq_path="${columns[5]}"
-  if [ "${seq_path}" == "SeqPath" ]; then continue; fi
-
-  genus="${columns[0]}"
-  if [ "${genus}" != 'Escherichia' ] && [ "${genus}" != 'Shigella' ]
-  then
-    continue
-  fi
-
-  acc="${columns[3]}"
-  hdf5_path="${acc}.hdf5"
-  if [ -f "${hdf5_path}" ]; then continue; fi
-  straingst kmerize -o "$hdf5_path" "$seq_path"
-done < "$REFSEQ_INDEX"
-
-
-echo "[*] Clustering."
-cd ${STRAINGST_REF_FILES}
-if ! [ -f "similarities.tsv" ]; then
-  straingst kmersim --all-vs-all -t ${N_CORES} -S jaccard -S subset kmers/*.hdf5 > similarities.tsv
-fi
-if ! [ -f "references_to_keep.txt" ]; then
-  straingst cluster -i similarities.tsv -d -C 0.99 -c 0.90 --clusters-out clusters.tsv kmers/*.hdf5 > references_to_keep.txt
-fi
-
-
-echo "[*] Creating database."
-cd ${STRAINGST_DB_DIR}/kmers
-straingst createdb -f ../references_to_keep.txt -o ${STRAINGST_CHROMOSOME_DB_HDF5}
-
-cd ${STRAINGST_REF_FILES}
-
-for (( replicate = 1; replicate < ${N_GENOME_REPLICATES}+1; replicate++ )); do
-  echo "[*] Kmerizing replicate genomes (replicate=${replicate})"
-  replicate_dir=$(get_replicate_dir "${replicate}")
-  straingst_db_dir=$(get_straingst_db_dir "${replicate}")
-  mkdir -p "${straingst_db_dir}"
-  straingst kmerize -o "${straingst_db_dir}/NZ_CP022154.1.sim_mutant.hdf5" "${replicate_dir}/sim_genomes/NZ_CP022154.1.sim_mutant.fasta"
-  straingst kmerize -o "${straingst_db_dir}/NZ_LR536430.1.sim_mutant.hdf5" "${replicate_dir}/sim_genomes/NZ_LR536430.1.sim_mutant.fasta"
-
-  echo "[*] Creating database for replicate ${replicate}."
-  cat references_to_keep.txt > ${straingst_db_dir}/references_to_keep.txt
-  echo "${straingst_db_dir}/NZ_CP022154.1.sim_mutant.hdf5" >> ${straingst_db_dir}/references_to_keep.txt
-  echo "${straingst_db_dir}/NZ_LR536430.1.sim_mutant.hdf5" >> ${straingst_db_dir}/references_to_keep.txt
-  straingst createdb -f "${straingst_db_dir}/references_to_keep.txt" -o "${straingst_db_dir}/db.hdf5"
+# Step 2: Kmerize
+echo "[*] Preparing k-mers."
+mkdir -p "${kmer_dir}"
+for f in ${seq_dir}/*.fasta; do
+  s_id=$(basename $f .fasta)
+  echo "Kmerizing ${s_id}"
+  straingst kmerize -o "${kmer_dir}/${s_id}.hdf5" "${f}"
 done
+
+# Step 3: Cluster
+echo "[*] Computing similarities."
+cd "${STRAINGE_DB_DIR}"
+straingst kmersim --all-vs-all -t 12 -S jaccard -S subset ${kmer_dir}/*.hdf5 > similarities.tsv
+
+# Empirical testing (Escherichia+Shigella only)
+echo "[*] Computing clusters."
+## -c 0.90 --> 803 clusters, 284 phylogroup A clusters
+## -c 0.907 --> 838 clusters, 293 phylogroup A clusters
+## -c 0.909 --> 858 clusters, 295 phylogroup A clusters
+## -c 0.91 --> 864 clusters, 298 phylogroup A clusters
+## -c 0.912 --> 875 clusters, 298 phylogroup A clusters
+## -c 0.913 --> 878 clusters, 299 phylogroup A clusters
+## -c 0.918 --> 914 clusters, 307 phylogroup A clusters
+## -c 0.92 --> 927 clusters, 309 phylogroup A clusters
+straingst cluster -i similarities.tsv -d -C 0.99 -c 0.909 --clusters-out clusters.tsv ${kmer_dir}/*.hdf5 > references_to_keep.txt
+
+# Step 4: pan-genome k-mer database
+echo "[*] Finalizing database."
+straingst createdb -f references_to_keep.txt -o database.hdf5
+
+echo "[*] Done."

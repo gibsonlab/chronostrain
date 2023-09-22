@@ -64,7 +64,7 @@ create_mutant()
 python dataset/pick_random_genomes.py \
   -i ${REFSEQ_INDEX} \
   -p /mnt/e/semisynthetic_data/poppunk/threshold/threshold_clusters.csv \
-  -c /mnt/e/ecoli_db/ecoli.json \
+  -c ${CHRONOSTRAIN_DB_JSON_SRC} \
   -ph /mnt/e/chronostrain/phylogeny/ClermonTyping/umb_phylogroups_complete.txt \
   -n 6 \
   -s "${base_seed}0" \

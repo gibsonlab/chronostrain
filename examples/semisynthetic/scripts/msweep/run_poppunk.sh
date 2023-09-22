@@ -30,13 +30,19 @@ poppunk --create-db --output database --r-files input.tsv --threads ${N_CORES}
 # 0.0013 -> phylo A clusters = 244
 # 0.0011 -> clusters = 1845, phylo A clusters = 263
 # 0.0012 -> clusters = 1803, phylo A clusters = 255
-# 0.0001 -> clusters = 2915, phylo A clusters = 387
+# 0.0009 -> clusters = 1951, phylo A clusters = 279
+# 0.0007 -> clusters = 2070, phylo A clusters = 299
 # 0.0005 -> clusters = 2216, phylo A clusters = 321
 # 0.0004 -> clusters = 2329, phylo A clusters = 333
-thresh=0.0004  # empirically tested on ecoli for phylogroup A.
+# 0.0001 -> clusters = 2915, phylo A clusters = 387
+thresh=0.0007  # empirically tested on ecoli for phylogroup A.
 echo "[*] Using database thresholding (Threshhold = ${thresh})."
 poppunk --fit-model threshold --ref-db database --threshold ${thresh} --output threshold --threads ${N_CORES}
 
+echo "[*] Done."
+
+
+# ====================== old code
 #echo "[*] Running poppunk model fit (--fit-model) with DBSCAN"
 #echo "[**] NOTE: if a Segfault occurs, try running poppunk with 1 thread, which might output a more helpful error message."
 #poppunk --fit-model dbscan --ref-db database --output dbscan --threads ${N_CORES}
@@ -44,5 +50,3 @@ poppunk --fit-model threshold --ref-db database --threshold ${thresh} --output t
 #echo "[*] Running poppunk model fit (--fit-model) refinement"
 #echo "[**] NOTE: if a Segfault occurs, try running poppunk with 1 thread, which might output a more helpful error message."
 #poppunk --fit-model refine --ref-db database --model-dir dbscan --output refine --threads ${N_CORES}
-
-echo "[*] Done."
