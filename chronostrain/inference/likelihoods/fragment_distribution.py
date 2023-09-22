@@ -116,7 +116,7 @@ class FragmentFrequencyComputer(object):
 
         frag_len_rv = negative_binomial(self.frag_nbinom_n, self.frag_nbinom_p)
         min_frag_len = self.fragments.min_len
-        max_frag_len = max(int(frag_len_rv.mean() + 2 * frag_len_rv.std()), min_frag_len)
+        max_frag_len = max(int(frag_len_rv.mean() + 2 * frag_len_rv.std()), self.fragments.max_len)
 
         window_lens = cnp.arange(min_frag_len, 1 + max_frag_len)
         window_len_logpmf = frag_len_rv.logpmf(window_lens)
@@ -382,6 +382,7 @@ def frag_log_ll_numpy(
     if cnp.isnan(ans):
         print(window_lens_log_pmf)
         print(cnp.log(n_matching_windows))
+
         raise Exception("ASDF")
     return ans
 
