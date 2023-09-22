@@ -133,6 +133,19 @@ class FragmentFrequencyComputer(object):
             # noinspection PyTypeChecker
             strain_indices.append(s_idx)
             frag_indices.append(frag_idx)
+            fll = frag_log_ll_numpy(
+                frag_len=len(self.fragments[frag_idx]),
+                window_lens=window_lens,
+                window_lens_log_pmf=window_len_logpmf,
+                hit_marker_lens=all_marker_lens[section.index],
+                hit_pos=all_pos[section.index]
+            )
+            if cnp.isnan(fll):
+                print("Found NAN!")
+                print("window_lens = {}".format(window_lens))
+                print("logpmf = {}".format(window_len_logpmf))
+                print("hit_marker_lens = {}".format(all_marker_lens[section.index]))
+                print("hit_pos = {}".format(all_pos[section.index]))
             matrix_values.append(
                 frag_log_ll_numpy(
                     frag_len=len(self.fragments[frag_idx]),
