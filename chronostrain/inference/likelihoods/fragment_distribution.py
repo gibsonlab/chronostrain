@@ -114,36 +114,37 @@ class FragmentFrequencyComputer(object):
         frag_indices = []
         matrix_values = []
 
-        frag_len_rv = negative_binomial(self.frag_nbinom_n, self.frag_nbinom_p)
-        min_frag_len = self.fragments.min_len
-        max_frag_len = max(int(frag_len_rv.mean() + 2 * frag_len_rv.std()), self.fragments.max_len)
+        if len(self.fragments) > 0:  # fail gracefully if no fragments exist.
+            frag_len_rv = negative_binomial(self.frag_nbinom_n, self.frag_nbinom_p)
+            min_frag_len = self.fragments.min_len
+            max_frag_len = max(int(frag_len_rv.mean() + 2 * frag_len_rv.std()), self.fragments.max_len)
 
-        window_lens = cnp.arange(min_frag_len, 1 + max_frag_len)
-        window_len_logpmf = frag_len_rv.logpmf(window_lens)
+            window_lens = cnp.arange(min_frag_len, 1 + max_frag_len)
+            window_len_logpmf = frag_len_rv.logpmf(window_lens)
 
-        matches_df = self.get_exact_matches()
-        groupings = matches_df.groupby(['FragIdx', 'StrainIdx'])
-        count = groupings.ngroups
-        pbar = tqdm(total=count, unit='matrix-entry')
+            matches_df = self.get_exact_matches()
+            groupings = matches_df.groupby(['FragIdx', 'StrainIdx'])
+            count = groupings.ngroups
+            pbar = tqdm(total=count, unit='matrix-entry')
 
-        cnp.seterr(divide='ignore')
-        all_marker_lens = matches_df['HitMarkerLen'].to_numpy()
-        all_pos = matches_df['HitPos'].to_numpy()
-        for (frag_idx, s_idx), section in groupings:
-            # noinspection PyTypeChecker
-            strain_indices.append(s_idx)
-            frag_indices.append(frag_idx)
-            matrix_values.append(
-                frag_log_ll_numpy(
-                    frag_len=len(self.fragments[frag_idx]),
-                    window_lens=window_lens,
-                    window_lens_log_pmf=window_len_logpmf,
-                    hit_marker_lens=all_marker_lens[section.index],
-                    hit_pos=all_pos[section.index]
+            cnp.seterr(divide='ignore')
+            all_marker_lens = matches_df['HitMarkerLen'].to_numpy()
+            all_pos = matches_df['HitPos'].to_numpy()
+            for (frag_idx, s_idx), section in groupings:
+                # noinspection PyTypeChecker
+                strain_indices.append(s_idx)
+                frag_indices.append(frag_idx)
+                matrix_values.append(
+                    frag_log_ll_numpy(
+                        frag_len=len(self.fragments[frag_idx]),
+                        window_lens=window_lens,
+                        window_lens_log_pmf=window_len_logpmf,
+                        hit_marker_lens=all_marker_lens[section.index],
+                        hit_pos=all_pos[section.index]
+                    )
                 )
-            )
-            pbar.update(1)
-        cnp.seterr(divide='warn')
+                pbar.update(1)
+            cnp.seterr(divide='warn')
 
         indices = jnp.array(list(zip(frag_indices, strain_indices)))
         matrix_values = jnp.array(matrix_values, dtype=self.dtype)

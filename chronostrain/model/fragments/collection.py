@@ -17,7 +17,7 @@ class FragmentSpace:
         self.seq_to_frag: Dict[Hashable, Fragment] = dict()
         self.frag_list: List[Fragment] = list()
         self.min_len: int = 100000000
-        self.max_len: int = 100000000
+        self.max_len: int = 1
 
     def _contains_seq(self, seq: Sequence) -> bool:
         return self._seq_to_key(seq) in self.seq_to_frag
