@@ -2,7 +2,6 @@
 set -e
 
 source settings.sh
-SEED=31415
 
 # =========== Run chronostrain. ==================
 echo "Running inference."
@@ -12,10 +11,12 @@ do
   echo "[*] Running inference on ${umb_id}."
   run_dir=${OUTPUT_DIR}/${umb_id}
   breadcrumb=${run_dir}/inference.DONE
+  filter_breadcrumb=${run_dir}/filter.DONE
 
-  if [ -f $breadcrumb ]
-  then
-    echo "Skipping filter for ${umb_id}."
+  if [ -f $breadcrumb ]; then
+    echo "Skipping inference for ${umb_id}."
+  elif ! [ -f $filter_breadcrumb ]; then
+    echo "Filter not done for ${umb_id}."
   else
     export CHRONOSTRAIN_LOG_FILEPATH=${run_dir}/logs/chronostrain_inference.log
     export CHRONOSTRAIN_CACHE_DIR=${run_dir}/chronostrain/cache
