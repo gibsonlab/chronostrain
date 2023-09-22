@@ -129,26 +129,10 @@ class FragmentFrequencyComputer(object):
         cnp.seterr(divide='ignore')
         all_marker_lens = matches_df['HitMarkerLen'].to_numpy()
         all_pos = matches_df['HitPos'].to_numpy()
-        print("HERE!")
         for (frag_idx, s_idx), section in groupings:
             # noinspection PyTypeChecker
             strain_indices.append(s_idx)
             frag_indices.append(frag_idx)
-            fll = frag_log_ll_numpy(
-                frag_len=len(self.fragments[frag_idx]),
-                window_lens=window_lens,
-                window_lens_log_pmf=window_len_logpmf,
-                hit_marker_lens=all_marker_lens[section.index],
-                hit_pos=all_pos[section.index]
-            )
-            if cnp.isnan(fll):
-                print("Found NAN!")
-                print("window_lens = {}".format(window_lens))
-                print("logpmf = {}".format(window_len_logpmf))
-                print("hit_marker_lens = {}".format(all_marker_lens[section.index]))
-                print("hit_pos = {}".format(all_pos[section.index]))
-            else:
-                print(fll)
             matrix_values.append(
                 frag_log_ll_numpy(
                     frag_len=len(self.fragments[frag_idx]),
@@ -361,7 +345,7 @@ class FragmentFrequencyComputer(object):
                     )
 
 
-@njit
+# @njit
 def frag_log_ll_numpy(
         frag_len: int,
         window_lens: cnp.ndarray,
@@ -392,9 +376,14 @@ def frag_log_ll_numpy(
     n_matching_windows = cnp.where(window_lens == frag_len, n_hits, n_edge_hits)
     n_matching_windows = cnp.where(window_lens >= frag_len, n_matching_windows, 0)
 
-    return numba_logsumexp_1d(
+    ans = numba_logsumexp_1d(
         window_lens_log_pmf + cnp.log(n_matching_windows)
     )
+    if cnp.isnan(ans):
+        print(window_lens_log_pmf)
+        print(cnp.log(n_matching_windows))
+        raise Exception("ASDF")
+    return ans
 
 
 @njit
