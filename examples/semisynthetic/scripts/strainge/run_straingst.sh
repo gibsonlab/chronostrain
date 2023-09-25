@@ -51,8 +51,10 @@ echo "[*] Running StrainGST."
 mkdir -p ${output_dir}
 straingst run \
 -o ${output_dir}/output_${time_point}.tsv \
+-i 20 \
 ${STRAINGE_DB_DIR}/database.hdf5 \
 ${read_kmers}
+
 
 # ====== Record runtime
 end_time=$(date +%s%N)
