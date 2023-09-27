@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
 source settings.sh
+source strainest/settings.sh
 
 
 require_program bowtie2
