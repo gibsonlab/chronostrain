@@ -70,8 +70,8 @@ strainest est \
   ${sorted_bam_file} \
   ./ \
   -t ${N_CORES} \
-	-p 1 \
-	-a 1
+	-p 5 \
+	-a 3
 
 # ====== Record runtime
 end_time=$(date +%s%N)
