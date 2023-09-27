@@ -69,7 +69,9 @@ strainest est \
   ${SNV_PROFILE_DIR}/snp.dgrp \
   ${sorted_bam_file} \
   ./ \
-  -t ${N_CORES}
+  -t ${N_CORES} \
+	-p 1 \
+	-a 1
 
 # ====== Record runtime
 end_time=$(date +%s%N)
