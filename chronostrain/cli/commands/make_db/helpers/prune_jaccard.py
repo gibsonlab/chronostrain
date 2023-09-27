@@ -35,6 +35,9 @@ def prune_json_db_jaccard(
     logger.info("Computing all-to-all Jaccard distance calculations.")
     strain_id_ordering, distances = compute_jaccard_distances(src_db, tmp_dir)
     np.save(str(tgt_json_path.parent / "distances.npy"), distances)
+    with open(tgt_json_path.parent / "distance_order.txt", "wt") as f:
+        for s_id in strain_id_ordering:
+            print(s_id, file=f)
 
     logger.info("Computing clusters.")
     # remove infinities.
