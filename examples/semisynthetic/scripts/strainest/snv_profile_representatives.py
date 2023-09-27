@@ -4,8 +4,6 @@ import click
 
 import pandas as pd
 import numpy as np
-from scipy.spatial.distance import squareform
-from scipy.cluster.hierarchy import cut_tree, linkage
 import subprocess
 from tqdm import tqdm
 
@@ -94,6 +92,14 @@ def path_to_seq(acc: str, index_df: pd.DataFrame) -> Path:
     return Path(res['SeqPath'].item())
 
 
+def fix_accession(broken_acc):
+    # this function is necessary because poppunk converts periods (.) into underscores.
+    tokens = broken_acc.split("_")
+    prefix = "_".join(tokens[:-1])
+    suffix = tokens[-1]
+    return f'{prefix}.{suffix}'
+
+
 @click.command()
 @click.option(
     '--index-path', '-i', 'index_path',
@@ -106,6 +112,11 @@ def path_to_seq(acc: str, index_df: pd.DataFrame) -> Path:
     required=True
 )
 @click.option(
+    '--poppunk-clust', '-p', 'poppunk_clust_path',
+    type=click.Path(path_type=Path, dir_okay=False, exists=True, readable=True),
+    required=True
+)
+@click.option(
     '--out', '-o', 'out_path',
     type=click.Path(path_type=Path, dir_okay=False),
     required=True
@@ -114,26 +125,29 @@ def path_to_seq(acc: str, index_df: pd.DataFrame) -> Path:
     '--threads', '-t', 'n_threads',
     type=int, default=1
 )
-def main(index_path: Path, work_dir: Path, out_path: Path, n_threads: int):
+def main(index_path: Path, poppunk_clust_path: Path, work_dir: Path, out_path: Path, n_threads: int):
     index_df = pd.read_csv(index_path, sep='\t')
     index_df = index_df.loc[index_df['Species'] == 'coli']
     distances, acc_ordering = compute_distances(index_df, work_dir, n_threads=n_threads)
 
-    print("Computing linkage via hierarchical clustering.")
-    Z = linkage(
-        squareform(distances), method='complete'
-    )
+    print("Loading poppunk clustering from {}.".format(poppunk_clust_path.name))
+    poppunk_df = pd.read_csv(poppunk_clust_path, sep=',')
+    acc_idxs = {
+        s: i for i, s in enumerate(acc_ordering)
+    }
 
-    print("Picking n=10 representatives.")
-    clust_labels = cut_tree(Z, n_clusters=10).flatten()
+    print("Generating output file: {}".format(out_path.name))
     with open(out_path, 'w') as out_file:
-        for clust_id in set(clust_labels):
-            clust_idxs = np.where(clust_labels == clust_id)[0]
+        for clust_id, section in poppunk_df.groupby("Cluster"):
+            clust_members = [fix_accession(taxon_id) for taxon_id in section['Taxon']]
+            indices = [acc_idxs[s] for s in clust_members if s in acc_idxs]
+            if len(indices) == 0:
+                continue
             submat = distances[
-                np.ix_(clust_idxs, clust_idxs)
+                np.ix_(indices, indices)
             ]
             mean_dists = submat.mean(axis=1)
-            cluster_rep_idx = clust_idxs[np.argmin(mean_dists).item()]
+            cluster_rep_idx = indices[np.argmin(mean_dists).item()]
             cluster_rep = acc_ordering[cluster_rep_idx]
             print(
                 path_to_seq(cluster_rep, index_df),

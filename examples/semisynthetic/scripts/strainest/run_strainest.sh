@@ -9,52 +9,35 @@ require_program strainest
 require_program pigz
 
 
-n_reads=$1
-trial=$2
-time_point=$3
-sensitivity=$4
+mutation_ratio=$1
+replicate=$2
+n_reads=$3
+trial=$4
+time_point=$5
 
-if [ -z "$n_reads" ]
-then
-	echo "var \"n_reads\" is empty"
-	exit 1
-fi
+require_variable "mutation_ratio" $mutation_ratio
+require_variable "replicate" $replicate
+require_variable "n_reads" $n_reads
+require_variable "trial" $trial
+require_variable "time_point" $time_point
 
-if [ -z "$trial" ]
-then
-	echo "var \"trial\" is empty"
-	exit 1
-fi
 
-if [ -z "$time_point" ]
-then
-	echo "var \"time_point\" is empty"
-	exit 1
-fi
-
-if [ "$sensitivity" != "sensitive" ] && [ "$sensitivity" != "default" ]
-then
-	echo "Invalid value for parameter 'sensitivity' (got: ${sensitivity}) (options: sensitive/default)."
-	exit 1
-fi
-
-trial_dir=$(get_trial_dir $n_reads $trial)
+trial_dir=$(get_trial_dir "${mutation_ratio}" "$replicate" "$n_reads" "$trial")
 read_dir=${trial_dir}/reads
 output_dir=${trial_dir}/output/strainest
-runtime_file=${trial_dir}/output/strainest_runtime.${sensitivity}.${time_point}.txt
 
 mkdir -p ${output_dir}
 cd ${output_dir}
 
 
+# ======= Run
+runtime_file=${trial_dir}/output/strainest_runtime.${time_point}.txt
 if [[ -f $runtime_file ]]; then
-	echo "[*] Skipping StrainEst run (n_reads: ${n_reads}, trial: ${trial}, timepoint #${time_point})"
+	echo "[*] Skipping StrainEst run (replicate: ${replicate} | n_reads: ${n_reads} | trial: ${trial} | timepoint #${time_point})"
 	exit 0
 fi
 
-
-# ========== Run
-echo "[*] Running inference for n_reads: ${n_reads}, trial: ${trial}, timepoint #${time_point}"
+echo "[*] Running inference for (replicate: ${replicate} | n_reads: ${n_reads} | trial: ${trial} | timepoint #${time_point})"
 start_time=$(date +%s%N)  # nanoseconds
 
 # Perform bowtie2 alignment
@@ -66,7 +49,7 @@ echo "[*] Running alignment..."
 bowtie2 \
 --very-fast --no-unal --quiet \
 -p ${N_CORES} \
--x ${STRAINEST_DB_DIR}/unclustered/${STRAINEST_BT2_DB} \
+-x ${METAGENOME_ALIGN_DIR}/MA \
 -U ${read_dir}/${time_point}_sim_1.fq \
 -U ${read_dir}/${time_point}_sim_2.fq \
 -U ${BACKGROUND_FASTQ_DIR}/${time_point}_background_1.fq \
@@ -80,22 +63,14 @@ samtools sort ${bam_file} -o ${sorted_bam_file}
 samtools index ${sorted_bam_file}
 
 # Run StrainEst
-echo "[*] Running StrainEst... ($sensitivity)"
-if [ "$sensitivity" == "sensitive" ]; then
-	strainest est \
-	${STRAINEST_DB_DIR}/snvs_all.txt \
-	${sorted_bam_file} \
-	./ \
-	-t ${N_CORES} \
-	-p 0 \
-	-a
-else
-	strainest est \
-	${STRAINEST_DB_DIR}/snvs_all.txt \
-	${sorted_bam_file} \
-	./ \
-	-t ${N_CORES}
-fi
+echo "[*] Running StrainEst."
+strainest est \
+  ${SNV_PROFILE_DIR}/snp.dgrp \
+  ${sorted_bam_file} \
+  ./ \
+  -t ${N_CORES} \
+  -p 0 \
+  -a
 
 # ====== Record runtime
 end_time=$(date +%s%N)
