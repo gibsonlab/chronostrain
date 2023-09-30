@@ -1,5 +1,8 @@
 # ChronoStrain
 
+*** Under active development! ***
+The contents of this repository will soon be outdated and replaced with the `development` branch, with many updates and streamlining.
+
 # Table of Contents
 1. [Colab Demo](#colab-demo)
 2. [Installation](#installation)
