@@ -5,31 +5,47 @@ from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
-from chronostrain.model.reads import SequenceRead
+from chronostrain.model.reads import SequenceRead, PairedEndRead
 from chronostrain.util.filesystem import convert_size
 from chronostrain.logging import create_logger
 from .base import ReadType
 from .sources import SampleReadSource, SampleReadSourcePaired, SampleReadSourceSingle
+
 logger = create_logger(__name__)
 
 
 class TimeSliceReads(object):
     def __init__(self,
                  reads: List[SequenceRead],
-                 num_reads_per_source: Dict[str, int],
                  time_point: float,
-                 read_depth: int,
                  sources: Optional[List[SampleReadSource]] = None):
         self.reads: List[SequenceRead] = reads
         self.time_point: float = time_point
-        self.read_depth: int = read_depth
         self._ids_to_reads: Dict[str, SequenceRead] = {read.id: read for read in reads}
         self.sources = sources
-        self.num_reads_per_source = num_reads_per_source
         if len(reads) == 0:
             self.min_read_length = float('inf')
         else:
             self.min_read_length = min(len(read) for read in reads)
+
+    @property
+    def read_depth(self) -> int:
+        d = 0
+        for src in self.sources:
+            if isinstance(src, SampleReadSourceSingle):
+                d += src.get_read_depth()
+            elif isinstance(src, SampleReadSourcePaired):
+                d += src.get_read_depth() * 2
+            else:
+                raise ValueError("Don't know how to compute read depth for source of type `{}`".format(src.__class__.__name__))
+        return d
+
+    def n_pairs(self) -> int:
+        n = 0
+        for read in self.reads:
+            if isinstance(read, PairedEndRead) and read.is_forward and read.has_mate_pair:
+                n += 1
+        return n
 
     def save(self, target_path: Path, quality_format: str = "fastq") -> int:
         """
@@ -64,10 +80,8 @@ class TimeSliceReads(object):
         :return:
         """
         reads = []
-        n_reads_per_source = {}
         for source in sources:
             reads_in_src = list(source.reads())
-            n_reads_per_source[source.name] = len(reads_in_src)
             reads += reads_in_src
 
         logger.debug("(t = {}) Loaded {} reads from {} fastQ sources: [{}]".format(
@@ -76,8 +90,7 @@ class TimeSliceReads(object):
             len(sources),
             ",".join(src.name for src in sources)
         ))
-        total_read_depth = sum(src.get_read_depth() for src in sources)
-        return TimeSliceReads(reads, n_reads_per_source, time_point, total_read_depth, sources=sources)
+        return TimeSliceReads(reads, time_point, sources=sources)
 
     def get_read(self, read_id: str) -> SequenceRead:
         return self._ids_to_reads[read_id]
