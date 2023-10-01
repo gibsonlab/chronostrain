@@ -10,7 +10,6 @@ from ..base import option
 
 
 @click.command()
-@click.pass_context
 @option(
     '--marker-seeds', '-m', 'marker_seeds_path',
     type=click.Path(path_type=Path, dir_okay=False, exists=True, readable=True),
@@ -83,7 +82,6 @@ from ..base import option
     help="If specified, skip the pruning step."
 )
 def main(
-        ctx: click.Context,
         marker_seeds_path: Path,
         ref_index_path: Path,
         blast_db_name: str,
@@ -100,8 +98,8 @@ def main(
     Create a database using marker seeds.
     Requires BLAST, and as input takes an index TSV file of reference assemblies.
     """
-    ctx.ensure_object(Logger)
-    logger = ctx.obj
+    from chronostrain.logging import create_logger
+    logger = create_logger("chronostrain.cli.make_db_json")
 
     from .helpers import create_chronostrain_db, prune_json_db_jaccard
     import pandas as pd
@@ -204,9 +202,9 @@ def main(
 
 if __name__ == "__main__":
     from chronostrain.logging import create_logger
-    my_logger = create_logger("chronostrain.make_db")
+    main_logger = create_logger("chronostrain.MAIN")
     try:
-        main(obj=my_logger)
+        main()
     except Exception as e:
-        my_logger.exception(e)
+        main_logger.exception(e)
         exit(1)

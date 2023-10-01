@@ -6,7 +6,6 @@ from ..base import option
 
 
 @click.command()
-@click.pass_context
 @option(
     '--in-path', '-i', 'in_path',
     type=click.Path(path_type=Path, dir_okay=False, exists=True, readable=True),
@@ -20,7 +19,7 @@ from ..base import option
     help="The output file path, to be written in fastq format.",
 )
 @option(
-    '--read-type', '-r', 'read_type',
+    '--read-type', '-r', 'read_type_str',
     type=str,
     required=True,
     help="A string token specifying what type of reads the file contains. (options: paired_1, paired_2, single)"
@@ -58,26 +57,25 @@ from ..base import option
          "A value of 1.0 disables this feature."
 )
 def main(
-        ctx: click.Context,
         in_path: Path,
         out_path: Path,
         aligner: str,
         min_read_len: int,
         frac_identity_threshold: float,
         error_threshold: float,
-        read_type: str,
+        read_type_str: str,
         quality_format: str,
 ):
     """
     Filter a single read file.
     """
-    ctx.ensure_object(Logger)
-    logger = ctx.obj
+    from chronostrain.logging import create_logger
+    logger = create_logger("chronostrain.cli.filter_single")
     logger.info(f"Applying filter to `{in_path}`")
 
     from chronostrain.config import cfg
     from .base import Filter, create_aligner
-    from chronostrain.model.io import parse_read_type
+    from chronostrain.model import ReadType
 
     db = cfg.database_cfg.get_database()
 
@@ -89,7 +87,7 @@ def main(
         error_threshold=error_threshold
     )
 
-    read_type = parse_read_type(read_type)
+    read_type = ReadType.parse_from_str(read_type_str)
     aligner_obj = create_aligner(aligner, read_type, db)
     filter.apply(
         in_path,
@@ -104,9 +102,9 @@ def main(
 
 if __name__ == "__main__":
     from chronostrain.logging import create_logger
-    my_logger = create_logger("chronostrain.filter")
+    main_logger = create_logger("chronostrain.MAIN")
     try:
-        main(obj=my_logger)
+        main()
     except Exception as e:
-        my_logger.exception(e)
+        main_logger.exception(e)
         exit(1)

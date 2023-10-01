@@ -7,7 +7,6 @@ from ..base import option
 
 
 @click.command()
-@click.pass_context
 @option(
     '--reads', '-r', 'reads_input',
     type=click.Path(path_type=Path, dir_okay=False, exists=True, readable=True),
@@ -30,25 +29,20 @@ from ..base import option
     help='The prior bias for the indicator variables, where bias = P(strain included in model).'
 )
 @option(
-    '--with-map-init/--without-map-init', 'initialize_with_map',
-    is_flag=True, default=False,
-    help='Specify whether to initialize the VI optimization at the MAP solution using Expectation-Maximization.'
-)
-@option(
     '--prune-strains/--dont-prune-strains', 'prune_strains',
     is_flag=True, default=False,
     help='Specify whether to prune the input database strains based on the read_frags.'
 )
 @option(
-    '--iters', 'iters', type=int, default=50,
+    '--iters', 'iters', type=int, default=100,
     help='The number of iterations to run per epoch.'
 )
 @option(
-    '--epochs', 'epochs', type=int, default=1000,
+    '--epochs', 'epochs', type=int, default=10000,
     help='The number of epochs to train.'
 )
 @option(
-    '--decay-lr', 'decay_lr', type=float, default=0.25,
+    '--decay-lr', 'decay_lr', type=float, default=0.1,
     help='The multiplicative factor to apply to the learning rate based on ReduceLROnPlateau criterion.'
 )
 @option(
@@ -57,23 +51,23 @@ from ..base import option
          'improvements before decaying lr.'
 )
 @option(
-    '--min-lr', 'min_lr', type=float, default=1e-5,
+    '--min-lr', 'min_lr', type=float, default=1e-7,
     help='Stop the algorithm when the LR is below this threshold.'
 )
 @option(
-    '--loss-tol', 'loss_tol', type=float, default=1e-5,
+    '--loss-tol', 'loss_tol', type=float, default=1e-7,
     help='Stop the algorithm when the relative change in ELBO is smaller than this fraction.'
 )
 @option(
-    '--learning-rate', '-lr', 'learning_rate', type=float, default=0.001,
+    '--learning-rate', '-lr', 'learning_rate', type=float, default=0.0005,
     help='The initial learning rate to use for optimization.'
 )
 @option(
-    '--num-samples', '-n', 'num_samples', type=int, default=200,
+    '--num-samples', '-n', 'num_samples', type=int, default=100,
     help='The number of samples to use for monte-carlo estimation of loss fn.'
 )
 @option(
-    '--read-batch-size', '-b', 'read_batch_size', type=int, default=2500,
+    '--read-batch-size', '-b', 'read_batch_size', type=int, default=10000,
     help='The maximum size of each batch to use, when dividing up reads into batches.'
 )
 @option(
@@ -121,13 +115,11 @@ from ..base import option
     help='Specify whether or not to render a plot of the ELBO objective.'
 )
 def main(
-        ctx: click.Context,
         reads_input: Path,
         out_dir: Path,
         true_abundance_path: Path,
         with_zeros: bool,
         prior_p: float,
-        initialize_with_map: bool,
         prune_strains: bool,
         iters: int,
         epochs: int,
@@ -149,8 +141,8 @@ def main(
     """
     Perform posterior estimation using ADVI.
     """
-    ctx.ensure_object(Logger)
-    logger = ctx.obj
+    from chronostrain.logging import create_logger
+    logger = create_logger("chronostrain.cli.advi")
 
     logger.info("Pipeline for algs started.")
     import jax.numpy as np
@@ -184,7 +176,7 @@ def main(
         reads=reads,
         with_zeros=with_zeros,
         prior_p=prior_p,
-        initialize_with_map=initialize_with_map,
+        initialize_with_map=False,
         prune_strains=prune_strains,
         num_epochs=epochs,
         iters=iters,
@@ -259,9 +251,9 @@ def main(
 
 if __name__ == "__main__":
     from chronostrain.logging import create_logger
-    my_logger = create_logger("chronostrain.algs")
+    main_logger = create_logger("chronostrain.MAIN")
     try:
-        main(obj=my_logger)
+        main()
     except Exception as e:
-        my_logger.exception(e)
+        main_logger.exception(e)
         exit(1)

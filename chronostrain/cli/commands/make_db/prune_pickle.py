@@ -9,7 +9,6 @@ from ..base import option
 
 
 @click.command()
-@click.pass_context
 @option(
     '--input-db', '-i', 'input_db_name',
     type=str, required=True, help="The target database file to prune (assumes a pickle exists)."
@@ -26,7 +25,6 @@ from ..base import option
          "Default is 0.998, which represents 99.8% sequence similarity."
 )
 def main(
-        ctx: click.Context,
         input_db_name: str,
         output_db_name: str,
         identity_threshold: float,
@@ -34,8 +32,8 @@ def main(
     """
     Prune an existing pickle file using multiple alignment & clustering.
     """
-    ctx.ensure_object(Logger)
-    logger = ctx.obj
+    from chronostrain.logging import create_logger
+    logger = create_logger("chronostrain.cli.prune_pickle")
 
     from chronostrain.config import cfg
 

@@ -9,7 +9,6 @@ from ..base import option
 
 
 @click.command()
-@click.pass_context
 @option(
     '--reads', '-r', 'reads_input',
     type=click.Path(path_type=Path, dir_okay=False, exists=True, readable=True),
@@ -39,7 +38,7 @@ from ..base import option
 @option(
     '--aligner', '-al', 'aligner',
     type=str,
-    required=False, default='bwa-mem2',
+    required=False, default='bowtie2',
     help='Specify the type of aligner to use. Currently available options: bwa, bowtie2.'
 )
 @option(
@@ -56,7 +55,6 @@ from ..base import option
          "A value of 1.0 disables this feature."
 )
 def main(
-        ctx: click.Context,
         reads_input: Path,
         out_dir: Path,
         aligner: str,
@@ -68,8 +66,8 @@ def main(
     """
     Perform filtering on a timeseries dataset, specified by a standard CSV-formatted input index.
     """
-    ctx.ensure_object(Logger)
-    logger = ctx.obj
+    from chronostrain.logging import create_logger
+    logger = create_logger("chronostrain.cli.filter_timeseries")
     logger.info(f"Performing filtering to timeseries dataset `{reads_input}`.")
 
     from chronostrain.config import cfg
@@ -161,9 +159,9 @@ def load_from_csv(
 
 if __name__ == "__main__":
     from chronostrain.logging import create_logger
-    my_logger = create_logger("chronostrain.filter")
+    main_logger = create_logger("chronostrain.MAIN")
     try:
-        main(obj=my_logger)
+        main()
     except Exception as e:
-        my_logger.exception(e)
+        main_logger.exception(e)
         exit(1)
