@@ -17,12 +17,14 @@ logger = create_logger(__name__)
 class TimeSliceReads(object):
     def __init__(self,
                  reads: List[SequenceRead],
+                 num_reads_per_source: Dict[str, int],
                  time_point: float,
                  sources: Optional[List[SampleReadSource]] = None):
         self.reads: List[SequenceRead] = reads
         self.time_point: float = time_point
         self._ids_to_reads: Dict[str, SequenceRead] = {read.id: read for read in reads}
         self.sources = sources
+        self.num_reads_per_source = num_reads_per_source
         if len(reads) == 0:
             self.min_read_length = float('inf')
         else:
@@ -80,8 +82,10 @@ class TimeSliceReads(object):
         :return:
         """
         reads = []
+        n_reads_per_source = {}
         for source in sources:
             reads_in_src = list(source.reads())
+            n_reads_per_source[source.name] = len(reads_in_src)
             reads += reads_in_src
 
         logger.debug("(t = {}) Loaded {} reads from {} fastQ sources: [{}]".format(
@@ -90,7 +94,7 @@ class TimeSliceReads(object):
             len(sources),
             ",".join(src.name for src in sources)
         ))
-        return TimeSliceReads(reads, time_point, sources=sources)
+        return TimeSliceReads(reads, n_reads_per_source, time_point, sources=sources)
 
     def get_read(self, read_id: str) -> SequenceRead:
         return self._ids_to_reads[read_id]
