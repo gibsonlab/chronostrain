@@ -165,8 +165,8 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
                 correction = -n_singular * jax.scipy.special.logsumexp(log_y_t + log_total_marker_lens, axis=-1).mean()  # mean across samples, one per read -> multiply by # of reads.
                 elbo += correction
 
-                # Correction term #2: (log of) expected length of square of marker lens in population
-                correction = -n_pairs * jax.scipy.special.logsumexp(log_y_t + 2 * log_total_marker_lens, axis=-1).mean()
+                # Correction term #2: (log of) expected length of pairs (rough estimate yields the same formula as above)
+                correction = -n_pairs * jax.scipy.special.logsumexp(log_y_t + log_total_marker_lens, axis=-1).mean()
                 elbo += correction
             return elbo
         self.elbo_grad = jax.value_and_grad(_elbo, argnums=0)
@@ -245,7 +245,7 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
         def _elbo_data_correction(params, rand_samples, temperature, n_singular_data, n_paired_data, _log_total_marker_lens):
             log_y = _reparametrize_abundance(params, rand_samples, temperature)
             correction = -n_singular_data * jax.scipy.special.logsumexp(log_y + _log_total_marker_lens, axis=-1).mean(axis=1)  # mean across samples
-            correction_paired = -n_paired_data * jax.scipy.special.logsumexp(log_y + (2 * _log_total_marker_lens), axis=-1).mean(axis=1)  # mean across samples
+            correction_paired = -n_paired_data * jax.scipy.special.logsumexp(log_y + _log_total_marker_lens, axis=-1).mean(axis=1)  # mean across samples
             return correction.sum() + correction_paired.sum()
 
         self.elbo_entropy = jax.value_and_grad(_elbo_entropy, argnums=0)

@@ -143,7 +143,7 @@ class ADVIGaussianSolver(AbstractADVISolver):
                 elbo += correction
 
                 # Correction term #2: (log of) expected length of square of marker lens in population
-                correction = -n_pairs * jax.scipy.special.logsumexp(log_y_t + 2 * log_total_marker_lens, axis=-1).mean()
+                correction = -n_pairs * jax.scipy.special.logsumexp(log_y_t + log_total_marker_lens, axis=-1).mean()
                 elbo += correction
             return elbo
         self.elbo_grad = jax.value_and_grad(_elbo, argnums=0)
@@ -193,7 +193,7 @@ class ADVIGaussianSolver(AbstractADVISolver):
                                   _log_total_marker_lens):
             log_y = _reparametrize_abundance(params, rand_samples)
             correction = -n_singular_data * jax.scipy.special.logsumexp(log_y + _log_total_marker_lens, axis=-1).mean(axis=1)  # mean across samples
-            correction_paired = -n_paired_data * jax.scipy.special.logsumexp(log_y + (2 * _log_total_marker_lens), axis=-1).mean(axis=1)  # mean across samples
+            correction_paired = -n_paired_data * jax.scipy.special.logsumexp(log_y + _log_total_marker_lens, axis=-1).mean(axis=1)  # mean across samples
             return correction.sum() + correction_paired.sum()
 
         self.elbo_entropy = jax.value_and_grad(_elbo_entropy, argnums=0)
