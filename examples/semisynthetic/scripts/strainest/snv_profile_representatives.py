@@ -129,15 +129,17 @@ def main(index_path: Path, poppunk_clust_path: Path, work_dir: Path, out_path: P
     index_df = pd.read_csv(index_path, sep='\t')
     index_df = index_df.loc[index_df['Species'] == 'coli']
     distances, acc_ordering = compute_distances(index_df, work_dir, n_threads=n_threads)
-
-    print("Loading poppunk clustering from {}.".format(poppunk_clust_path.name))
-    poppunk_df = pd.read_csv(poppunk_clust_path, sep=',')
     acc_idxs = {
         s: i for i, s in enumerate(acc_ordering)
     }
 
+    print("Loading poppunk clustering from {}.".format(poppunk_clust_path.name))
+    poppunk_df = pd.read_csv(poppunk_clust_path, sep=',')
+
     print("Generating output file: {}".format(out_path.name))
-    with open(out_path, 'w') as out_file:
+    cluster_membership_path = out_path.parent / 'cluster_members.txt'
+    with open(out_path, 'w') as out_file, open(cluster_membership_path, 'w') as clust_member_f:
+        print("Accession\tCluster", file=clust_member_f)
         for clust_id, section in poppunk_df.groupby("Cluster"):
             clust_members = [fix_accession(taxon_id) for taxon_id in section['Taxon']]
             indices = [acc_idxs[s] for s in clust_members if s in acc_idxs]
@@ -154,6 +156,8 @@ def main(index_path: Path, poppunk_clust_path: Path, work_dir: Path, out_path: P
                 file=out_file
             )
 
+            for acc in clust_members:
+                print(f"{acc}\t{cluster_rep}", file=clust_member_f)
     print("Done.")
 
 

@@ -27,11 +27,11 @@ output_dir=${trial_dir}/output/straingst
 # ========== Run
 runtime_file=${trial_dir}/output/straingst_runtime.${time_point}.txt
 if [[ -f $runtime_file ]]; then
-	echo "[*] Skipping StrainGST run (replicate: ${replicate}, n_reads: ${n_reads}, trial: ${trial}, timepoint #${time_point})"
+	echo "[*] Skipping StrainGST run (replicate: ${replicate} | n_reads: ${n_reads} | trial: ${trial} | timepoint #${time_point})"
 	exit 0
 fi
 
-echo "[*] Running inference for replicate: ${replicate}, n_reads: ${n_reads}, trial: ${trial}, timepoint #${time_point}"
+echo "[*] Running inference for (replicate: ${replicate} | n_reads: ${n_reads} | trial: ${trial} | timepoint #${time_point})"
 start_time=$(date +%s%N)  # nanoseconds
 read_kmers=${output_dir}/reads.${time_point}.hdf5
 mkdir -p ${output_dir}
