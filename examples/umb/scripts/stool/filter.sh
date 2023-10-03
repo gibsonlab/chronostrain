@@ -3,7 +3,6 @@ set -e
 
 source settings.sh
 export CHRONOSTRAIN_LOG_FILEPATH="${LOGDIR}/filter.log"
-SEED=31415
 
 # =========== Read filtering. ===============
 
@@ -19,9 +18,9 @@ do
 	else
     echo "[*] Filtering reads for ${umb_id}"
     env JAX_PLATFORM_NAME=cpu chronostrain filter \
-    -r "${run_dir}/reads.csv" \
-    -o "${run_dir}/filtered" \
-    --aligner "bwa-mem2"
+      -r "${run_dir}/reads.csv" \
+      -o "${run_dir}/filtered" \
+      --aligner "bwa-mem2"
 
 	  touch $breadcrumb
 	fi

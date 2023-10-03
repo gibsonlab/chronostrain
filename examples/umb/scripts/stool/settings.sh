@@ -2,13 +2,13 @@
 export PROJECT_DIR="/home/youn/work/chronostrain"
 export BASE_DIR="${PROJECT_DIR}/examples/umb"
 export DATA_DIR="/mnt/e/umb_data"
-export OUTPUT_DIR="/mnt/e/umb_analysis/stool"
+export OUTPUT_DIR="/data/cctm/youn/umb/stool"
 export SAMPLES_DIR="${DATA_DIR}/samples_stool"
 
 # ======== Location of this file.
 export SETTINGS_PATH="${BASE_DIR}/scripts/stool/settings.sh"
-export CLADES_FILE=/mnt/e/chronostrain/phylogeny/ClermonTyping/umb_phylogroups_complete.txt
-export REFSEQ_INDEX="/mnt/e/ref_genomes/index.tsv"
+#export CLADES_FILE=/mnt/e/chronostrain/phylogeny/ClermonTyping/umb_phylogroups_complete.txt
+#export REFSEQ_INDEX="/mnt/e/ref_genomes/index.tsv"
 
 # Location for reads and outputs.
 export READS_DIR="${OUTPUT_DIR}/reads"
@@ -35,13 +35,12 @@ export CHRONOSTRAIN_NUM_ITERS=100
 export CHRONOSTRAIN_NUM_SAMPLES=100
 export CHRONOSTRAIN_READ_BATCH_SZ=10000
 export CHRONOSTRAIN_NUM_EPOCHS=1000
-export CHRONOSTRAIN_DECAY_LR=0.25
-export CHRONOSTRAIN_LR=0.001
-export CHRONOSTRAIN_LOSS_TOL=1e-5
+export CHRONOSTRAIN_DECAY_LR=0.1
+export CHRONOSTRAIN_LR=0.0005
+export CHRONOSTRAIN_LOSS_TOL=1e-7
 export CHRONOSTRAIN_LR_PATIENCE=5
-export CHRONOSTRAIN_MIN_LR=1e-6
+export CHRONOSTRAIN_MIN_LR=1e-7
 export CHRONOSTRAIN_CACHE_DIR="${OUTPUT_DIR}/cache"
-export CHRONOSTRAIN_OUTPUT_FILENAME="abundances.out"
 
 #export CHRONOSTRAIN_DB_JSON="${CHRONOSTRAIN_DB_DIR}/database_pruned_resolved.json"
 export CHRONOSTRAIN_DB_JSON="/mnt/e/ecoli_db/ecoli.json"

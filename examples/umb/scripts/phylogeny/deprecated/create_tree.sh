@@ -1,4 +1,5 @@
 #!/bin/bash
+# ===== DEPRECATED
 set -e
 source settings.sh
 export CHRONOSTRAIN_LOG_FILEPATH="${LOGDIR}/create_tree.log"

@@ -1,12 +1,13 @@
 # Modify these before running.
-export PROJECT_DIR="/home/lactis/chronostrain"
+export PROJECT_DIR="/home/youn/work/chronostrain"
 export BASE_DIR="${PROJECT_DIR}/examples/umb"
-export NCBI_REFSEQ_DIR="/mnt/e/ref_genomes"
+export NCBI_REFSEQ_DIR="/mnt/e/ecoli_db/ref_genomes"
 
-export PHYLOGENY_OUTPUT_DIR="/mnt/e/chronostrain/phylogeny"
-export LOGDIR="/mnt/e/chronostrain/phylogeny/logs"
-export CHRONOSTRAIN_DB_DIR="/mnt/e/chronostrain/umb_database"
-export MULTI_ALIGN_DIR="${CHRONOSTRAIN_DB_DIR}/strain_alignments"
+export PHYLOGENY_OUTPUT_DIR="/mnt/e/ecoli_db/phylogeny"
+export LOGDIR="${PHYLOGENY_OUTPUT_DIR}/logs"
+
+export CHRONOSTRAIN_DB_DIR="/mnt/e/ecoli_db/chronostrain_files"
+#export MULTI_ALIGN_DIR="${CHRONOSTRAIN_DB_DIR}/strain_alignments"
 
 # ======== Location of this file.
 export SETTINGS_PATH="${BASE_DIR}/scripts/phylogeny/settings.sh"
@@ -40,4 +41,16 @@ require_program()
 		exit 1;
 	}
 }
+
+require_file()
+{
+	path=$1
+	if [ ! -f $path ]
+	then
+		echo "File ${path} not found."
+		exit 1
+	fi
+}
+
 export require_program
+export require_file

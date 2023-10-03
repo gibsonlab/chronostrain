@@ -16,14 +16,16 @@ append_fastq()
 	umb_id=$3
 	read_type=$4
 	qual_fmt=$5
+	sample_name=$6
 
 	num_lines=$(pigz -dc $gzip_fq_path | wc -l | awk '{print $1}')
 	num_reads=$((${num_lines} / 4))
   mkdir -p ${OUTPUT_DIR}/${umb_id}
+  reads_file=${OUTPUT_DIR}/${umb_id}/reads.csv
 
 	if [[ -s "${gzip_fq_path}" ]] && [[ ${num_reads} > 0 ]]; then
-		echo "Adding record ${gzip_fq_path} to ${OUTPUT_DIR}/${umb_id}/reads.csv"
-		echo "${time},${num_reads},\"${gzip_fq_path}\",${read_type},${qual_fmt}" >> ${OUTPUT_DIR}/${umb_id}/reads.csv
+		echo "Adding record ${gzip_fq_path} to ${reads_file}"
+		echo "${time},${sample_name},${num_reads},\"${gzip_fq_path}\",${read_type},${qual_fmt}" >> ${reads_file}
 	else
 		echo "Skipping empty record ${gzip_fq_path}"
 	fi
@@ -47,19 +49,19 @@ mkdir -p "${SAMPLES_DIR}/kneaddata"
 	read
 
 	# Read rest of csv file.
-	while IFS=, read -r sra_id umb_id sample_name date days experiment_type model library_strategy exp_group
+	while IFS=, read -r sra_id umb_id umb_sample_name date days experiment_type model library_strategy exp_group
 	do
 		if [[ "${experiment_type}" != "stool" ]]; then
-			echo "Skipping ${sample_name}."
+			echo "Skipping ${umb_sample_name}."
 			continue
 		fi
 
 #		if [[ "${exp_group}" != "Test" ]]; then
-#			echo "Skipping ${sample_name}. (is not test group)"
+#			echo "Skipping ${umb_sample_name}. (is not test group)"
 #			continue
 #		fi
 
-		echo "[*] -=-=-=-=-=-=-=-= Handling ${sra_id} (${sample_name}). =-=-=-=-=-=-=-=-"
+		echo "[*] -=-=-=-=-=-=-=-= Handling ${sra_id} (${umb_sample_name}). =-=-=-=-=-=-=-=-"
 
 		# Obtained fastq files.
 		fq_file_1="${SAMPLES_DIR}/${sra_id}_1.fastq.gz"
@@ -112,9 +114,9 @@ mkdir -p "${SAMPLES_DIR}/kneaddata"
 		fi
 
 		# Add to timeseries input index.
-		append_fastq ${trimmed_1_paired_gz} $days $umb_id "paired_1" "fastq"
-		append_fastq ${trimmed_1_unpaired_gz} $days $umb_id "paired_1" "fastq"
-		append_fastq ${trimmed_2_paired_gz} $days $umb_id "paired_2" "fastq"
-		append_fastq ${trimmed_2_unpaired_gz} $days $umb_id "paired_2" "fastq"
+		append_fastq ${trimmed_1_paired_gz} $days $umb_id "paired_1" "fastq" "${sra_id}_PAIRED"
+		append_fastq ${trimmed_1_unpaired_gz} $days $umb_id "paired_1" "fastq" "${sra_id}_UNPAIRED_1"
+		append_fastq ${trimmed_2_paired_gz} $days $umb_id "paired_2" "fastq" "${sra_id}_PAIRED"
+		append_fastq ${trimmed_2_unpaired_gz} $days $umb_id "paired_2" "fastq" "${sra_id}_UNPAIRED_2"
 	done
 } < ${SRA_CSV_PATH}
