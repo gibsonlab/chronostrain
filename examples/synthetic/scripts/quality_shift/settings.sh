@@ -35,7 +35,6 @@ export CHRONOSTRAIN_READ_BATCH_SZ=2500
 export CHRONOSTRAIN_NUM_EPOCHS=150
 export CHRONOSTRAIN_DECAY_LR=0.25
 export CHRONOSTRAIN_LR=0.01
-export CHRONOSTRAIN_OUTPUT_FILENAME="abundances.out"
 
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)
 export CHRONOSTRAIN_DB_JSON="${BASE_DIR}/files/database.json"
