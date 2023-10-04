@@ -19,12 +19,16 @@ logger = create_logger(__name__)
 # JSON entry dataclasses. Each class implements a deserialize() method.
 # =====================================================================
 
+class StrainKeyMissingError(StrainDatabaseParseError):
+    pass
+
+
 
 def extract_key_from_json(json_obj: dict, key: str):
     try:
         return json_obj[key]
     except KeyError:
-        raise StrainDatabaseParseError(f"Missing entry `{key}` from json entry {json_obj}.")
+        raise StrainKeyMissingError(f"Missing entry `{key}` from json entry {json_obj}.")
 
 
 def extract_optional_key_from_json(json_obj: dict, key: str, default: Any):
@@ -109,12 +113,17 @@ class StrainEntry:
 class SeqEntry:
     accession: str
     seq_type: str  # typically "chromosome" or "scaffold"
+    seq_path: Union[Path, None]
 
     @staticmethod
     def deserialize(entry_dict: dict) -> 'SeqEntry':
         accession = extract_key_from_json(entry_dict, 'accession')
         seq_type = extract_key_from_json(entry_dict, 'seq_type')
-        return SeqEntry(accession, seq_type)
+        try:
+            seq_path = Path(extract_key_from_json(entry_dict, 'seq_path'))
+        except StrainKeyMissingError:
+            seq_path = None
+        return SeqEntry(accession, seq_type, seq_path)
 
     @property
     def is_chromosome(self) -> bool:
@@ -131,6 +140,9 @@ class SeqEntry:
     @property
     def is_assembly(self) -> bool:
         return self.seq_type == "assembly"
+
+    def __repr__(self) -> str:
+        return f"SeqEntry[Acc={self.accession}|Type={self.seq_type}|path={self.seq_path}]"
 
 
 class MarkerEntry:
@@ -339,6 +351,7 @@ class JSONParser(AbstractDatabaseParser):
                     strain_id=strain_entry.id,
                     data_dir=self.data_dir,
                     seq_accession=seq_entry.accession,
+                    seq_path=seq_entry.seq_path,
                     marker_max_len=self.marker_max_len,
                     force_download=self.force_refresh
                 )

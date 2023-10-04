@@ -1,12 +1,13 @@
-from typing import Dict, List, Any, Optional, Iterator
+from typing import Dict, List, Any, Optional, Iterator, Union, Callable
 from pathlib import Path
 import pandas as pd
 from logging import Logger
 import csv
 
 from intervaltree import IntervalTree
-from chronostrain.util.external import blastn
 
+from chronostrain.database.parser.json import SeqEntry
+from chronostrain.util.external import blastn, make_blast_db
 
 # ===================================================== BLAST-specific definitions
 
@@ -55,19 +56,19 @@ def run_blast_local(db_dir: Optional[Path],
     result_dir.mkdir(parents=True, exist_ok=True)
     for gene_name, gene_seed_fasta in gene_paths.items():
         max_target_seqs = num_ref_genomes * 10
-        logger.info(f"Running blastn on {gene_name}.")
+        logger.debug(f"Running blastn on {gene_name}.")
         blast_result_path = result_dir / f"{gene_name}.tsv"
-        blastn(
-            db_name=db_name,
-            db_dir=db_dir,
-            query_fasta=gene_seed_fasta,
-            perc_identity_cutoff=min_pct_idty,
-            out_path=blast_result_path,
-            num_threads=num_threads,
-            out_fmt=_BLAST_OUT_FMT,
-            max_target_seqs=max_target_seqs,
-            strand="both",
-        )
+        # blastn(
+        #     db_name=db_name,
+        #     db_dir=db_dir,
+        #     query_fasta=gene_seed_fasta,
+        #     perc_identity_cutoff=min_pct_idty,
+        #     out_path=blast_result_path,
+        #     num_threads=num_threads,
+        #     out_fmt=_BLAST_OUT_FMT,
+        #     max_target_seqs=max_target_seqs,
+        #     strand="both",
+        # )
         result_paths[gene_name] = blast_result_path
     return result_paths
 
@@ -120,6 +121,7 @@ def create_strain_entries(
         blast_results: Dict[str, Path],
         strain_df: pd.DataFrame,
         min_marker_len: int,
+        strain_seqs: Dict[str, List[SeqEntry]],
         logger: Logger
 ):
     def _entry_initializer(_accession):
@@ -135,7 +137,10 @@ def create_strain_entries(
             'species': subj_species,
             'name': subj_strain_name,
             'genome_length': genome_length,
-            'seqs': [{'accession': _accession, 'seq_type': 'chromosome'}],
+            'seqs': [
+                {'accession': seq_entry.accession, 'seq_type': seq_entry.seq_type, 'seq_path': str(seq_entry.seq_path)}
+                for seq_entry in strain_seqs[_accession]
+            ],
             'markers': []
         }
 
@@ -143,6 +148,12 @@ def create_strain_entries(
     def _tree_overlap_reducer(cur, x):
         cur.append(x)
         return cur
+
+    seqid_to_strain = {
+        seq_entry.accession: strain_acc
+        for strain_acc, seq_entries in strain_seqs.items()
+        for seq_entry in seq_entries
+    }
 
     # ===================== Parse BLAST hits.
     for gene_name, blast_result_path in blast_results.items():
@@ -161,32 +172,36 @@ def create_strain_entries(
         all of them "fimA". (Note: the strand, by convention, is given by the first observed hit;
         the analysis pipeline uses both + and - strand versions regardless, so this is purely for metadata purposes.)
         """
-        logger.info(f"Parsing BLAST hits for gene `{gene_name}`.")
+        logger.debug(f"Parsing BLAST hits for gene `{gene_name}`.")
+        # ==== Organize BLAST hits by detecting overlaps via intervaltree.
         for blast_hit in blast_hits:
-            subj_acc = blast_hit.subj_accession
+            fasta_record_id = blast_hit.subj_accession
+
             start = blast_hit.subj_start
             end = blast_hit.subj_end
-            if subj_acc not in gene_intervals:
-                gene_intervals[subj_acc] = IntervalTree()
+            if fasta_record_id not in gene_intervals:
+                gene_intervals[fasta_record_id] = IntervalTree()
 
             """
             interval [start, end+1) --> represents an interval of length end - start + 1 
             (equal to length of covered area reported by BLAST)
             """
-            gene_intervals[subj_acc][start:end+1] = blast_hit
+            gene_intervals[fasta_record_id][start:end+1] = blast_hit
 
-        for subj_acc, tree in gene_intervals.items():
+        # ==== iterate through intervaltree elements to create marker entries.
+        for fasta_record_id, tree in gene_intervals.items():
             tree.merge_overlaps(
                 data_reducer=_tree_overlap_reducer,
                 data_initializer=[],
                 strict=False  # adjacent, touching intervals are also merged.
             )
 
-            if subj_acc not in strain_entries:
-                strain_entries[subj_acc] = _entry_initializer(subj_acc)  # could use defaultdict, but it doesn't play so nicely with JSON module sometimes.
+            strain_acc = seqid_to_strain[fasta_record_id]
 
-            strain_entry = strain_entries[subj_acc]
-            seq_accession = strain_entry['seqs'][0]['accession']
+            if strain_acc not in strain_entries:
+                strain_entries[strain_acc] = _entry_initializer(strain_acc)  # could use defaultdict, but it doesn't play so nicely with JSON module sometimes.
+
+            strain_entry = strain_entries[strain_acc]
             for interval in tree:
                 if len(interval.data) < 5:
                     gene_id = "{}:BLAST<{}>".format(
@@ -201,7 +216,7 @@ def create_strain_entries(
                         'id': gene_id,
                         'name': gene_name,
                         'type': 'subseq',
-                        'source': seq_accession,
+                        'source': fasta_record_id,
                         'start': interval.begin,
                         'end': interval.end - 1,
                         'strand': interval.data[0].strand
@@ -244,6 +259,55 @@ def create_chronostrain_db(
     """
     :return:
     """
+    # ============= Create seq catalog.
+    strain_seqs = {}
+    for _, row in strain_df.iterrows():
+        acc = row['Accession']
+        seq_path = Path(row['SeqPath'])
+        if "*" in seq_path.name:
+            # assume each file is a single record. Do a glob search.
+            seq_list = [
+                SeqEntry(accession=f.stem, seq_type='contig', seq_path=f)
+                for f in seq_path.parent.glob(seq_path.name)
+            ]
+            if len(seq_list) == 0:
+                raise ValueError(f"Sequence accession {acc} had an invalid glob {seq_path.name}.")
+        else:
+            # assume SeqFile is a single-fasta record file, with the same ID as the strain ID.
+            seq_list = [SeqEntry(accession=acc, seq_type='chromosome', seq_path=seq_path)]
+        strain_seqs[acc] = seq_list
+
+    # ================ Run makeblastdb if necessary.
+    blast_db_file = blast_db_dir / f'{blast_db_name}.ndb'
+    if not blast_db_file.exists():
+        logger.info(f"Blast DB `{blast_db_name}` not found in {blast_db_dir}. Running makeblastdb.")
+
+        # Concatenate FASTA files.
+        logger.info("Concatenating input files.")
+        concat_fasta = blast_db_dir / f'{blast_db_name}.fasta'
+        with open(concat_fasta, "wt") as out_f:
+            for acc, seq_entries in strain_seqs.items():
+                for seq_entry in seq_entries:
+                    assert seq_entry.seq_path is not None
+                    with open(seq_entry.seq_path, "rt") as src_f:
+                        for line in src_f:
+                            out_f.write(line)
+
+        # Invoke makeblastdb.
+        make_blast_db(
+            input_fasta=concat_fasta,
+            db_dir=blast_db_dir,
+            db_name=blast_db_name,
+            is_nucleotide=True,
+            title=blast_db_name,
+            parse_seqids=True
+        )
+
+        # Clean up.
+        logger.info("Cleaning up.")
+        concat_fasta.unlink()  # clean up.
+
+    # ================= run BLAST.
     blast_results = run_blast_local(
         db_dir=blast_db_dir,
         db_name=blast_db_name,
@@ -255,4 +319,4 @@ def create_chronostrain_db(
         logger=logger,
     )
 
-    return create_strain_entries(blast_results, strain_df, min_marker_len, logger)
+    return create_strain_entries(blast_results, strain_df, min_marker_len, strain_seqs, logger)

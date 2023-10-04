@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Iterator, Tuple
+from typing import Iterator, Tuple, Union
 import re
 
 from Bio import SeqIO
@@ -14,9 +14,10 @@ from .helpers import regex_match_primers
 
 
 class EntrezMarkerSource(AbstractMarkerSource):
-    def __init__(self, strain_id: str, seq_accession: str, marker_max_len: int, force_download: bool, data_dir: Path):
+    def __init__(self, strain_id: str, seq_accession: str, seq_path: Union[Path, None], marker_max_len: int, force_download: bool, data_dir: Path):
         self.strain_id = strain_id
         self.seq_accession = seq_accession
+        self.seq_path = seq_path
         self.marker_max_len = marker_max_len
         self.force_download = force_download
         self.data_dir = data_dir
@@ -33,9 +34,13 @@ class EntrezMarkerSource(AbstractMarkerSource):
         return self.assembly_subdir(self.data_dir, self.strain_id)
 
     def get_fasta_record(self) -> Tuple[Path, SeqRecord]:
-        fasta_path = fetch_fasta(self.seq_accession,
-                                 base_dir=self.strain_assembly_dir,
-                                 force_download=self.force_download)
+        if self.seq_path is not None:
+            fasta_path = self.seq_path
+        else:
+            # Default behavior: attempt to download if file location is not specified.
+            fasta_path = fetch_fasta(self.seq_accession,
+                                     base_dir=self.strain_assembly_dir,
+                                     force_download=self.force_download)
         record = SeqIO.read(fasta_path, "fasta")
         return fasta_path, record
 
@@ -139,8 +144,14 @@ class EntrezMarkerSource(AbstractMarkerSource):
 
 
 class CachedEntrezMarkerSource(EntrezMarkerSource):
-    def __init__(self, strain_id: str, data_dir: Path, seq_accession: str, marker_max_len: int, force_download: bool):
-        super().__init__(strain_id, seq_accession, marker_max_len, force_download, data_dir)
+    def __init__(self,
+                 strain_id: str,
+                 data_dir: Path,
+                 seq_accession: str,
+                 seq_path: Union[Path, None],
+                 marker_max_len: int,
+                 force_download: bool):
+        super().__init__(strain_id, seq_accession, seq_path, marker_max_len, force_download, data_dir)
 
     def get_marker_filepath(self, marker_id: str) -> Path:
         marker_id_for_filename = re.sub(r'[^\w\s]', '_', marker_id)

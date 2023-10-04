@@ -1,8 +1,7 @@
 import shutil
-from typing import Optional
+from typing import Union
 
 import click
-from logging import Logger
 from pathlib import Path
 import json
 
@@ -23,8 +22,8 @@ from ..base import option
     type=click.Path(path_type=Path, dir_okay=False, exists=True, readable=True),
     required=True,
     help="Path to a TSV file of target references. "
-         "Must contain at least these seven columns: `Accession`, `Genus`, `Species`, "
-         "`Strain`, `ChromosomeLen`, `SeqPath`, `GFF` "
+         "Must contain at least these eight columns: "
+         "`Genus`, `Species`, `Strain`, `Accession`, `Assembly, `ChromosomeLen`, `SeqPath`, `GFF`"
          "(note: ChromosomeLen is currently only used as metadata, but is still required.)"
 )
 @option(
@@ -34,7 +33,7 @@ from ..base import option
 @option(
     '--blastdb-dir', '-bd', 'blast_db_dir',
     type=click.Path(path_type=Path, file_okay=False),
-    required=False, default=None,
+    required=True, default=None,
     help="If specified, will specify the directory for the BLAST database. Has the same effect as "
          "exporting the `BLASTDB` variable."
 )
@@ -81,18 +80,25 @@ from ..base import option
     is_flag=True, default=False,
     help="If specified, skip the pruning step."
 )
+@option(
+    "--add-isolates", "-iso", "isolates_index_path",
+    type=click.Path(path_type=Path, dir_okay=False, exists=True, readable=True),
+    required=False, default=None,
+    help="If specified, will add these isolates to the catalog prior to clustering."
+)
 def main(
         marker_seeds_path: Path,
         ref_index_path: Path,
         blast_db_name: str,
-        blast_db_dir: Optional[Path],
+        blast_db_dir: Path,
         json_output_path: Path,
         min_pct_idty: int,
         identity_threshold: float,
         min_marker_len: int,
         num_threads: int,
         skip_symlink: bool,
-        skip_prune: bool
+        skip_prune: bool,
+        isolates_index_path: Union[Path, None]
 ):
     """
     Create a database using marker seeds.
@@ -101,43 +107,25 @@ def main(
     from chronostrain.logging import create_logger
     logger = create_logger("chronostrain.cli.make_db_json")
 
-    from .helpers import create_chronostrain_db, prune_json_db_jaccard
     import pandas as pd
     from typing import Dict
     from chronostrain.config import cfg
+    from .helpers import create_chronostrain_db, prune_json_db_jaccard
+
     reference_df = pd.read_csv(ref_index_path, sep="\t")
+    if isolates_index_path is not None:
+        isolates_df = pd.read_csv(isolates_index_path, sep="\t")
+        isolates_df['GFF'] = isolates_df['GFF'].astype('string').fillna("None")
+    else:
+        isolates_df = None
 
     json_output_path.parent.mkdir(exist_ok=True, parents=True)
     raw_json_path = json_output_path.with_stem(f'{json_output_path.stem}-1raw')  # first file
     merged_json_path = json_output_path.with_stem(f'{json_output_path.stem}-2overlapmerged')  # second file
     pruned_json_path = json_output_path.with_stem(f'{json_output_path.stem}-3pruned')  # third file
 
-    # ============== Optional: preprocess reference_df into
-    if skip_symlink:
-        pass
-    else:
-        from chronostrain.database.parser.marker_sources import EntrezMarkerSource
-        from chronostrain.util.entrez import fasta_filename
-
-        logger.info(f"Creating symbolic links to reference catalog (target dir: {cfg.database_cfg.data_dir})")
-        for _, row in reference_df.iterrows():
-            strain_id = row['Accession']
-            seq_path = Path(row['SeqPath'])
-            if not seq_path.exists():
-                raise FileNotFoundError(f"Reference index pointed to `{seq_path}`, but it does not exist.")
-            target_dir = EntrezMarkerSource.assembly_subdir(cfg.database_cfg.data_dir, strain_id)
-            target_dir.mkdir(exist_ok=True, parents=True)
-
-            target_path = fasta_filename(strain_id, target_dir)
-            if target_path.is_symlink():
-                target_path.unlink()
-            elif target_path.exists():
-                logger.info(f"File {target_path} already exists. Skipping symlink.")
-            target_path.symlink_to(seq_path)
-
     # ============== Step 1: initialize using BLAST.
     logger.info("Building raw DB using BLAST.")
-    blast_result_dir = json_output_path.parent / f"_BLAST_{json_output_path.stem}"
 
     gene_paths: Dict[str, Path] = {}
     with open(marker_seeds_path) as seed_file:
@@ -151,8 +139,9 @@ def main(
                 )
             gene_paths[gene_name] = gene_fasta_path
 
+    logger.info("Creating strain entries from catalog {}".format(ref_index_path))
     strain_entries = create_chronostrain_db(
-        blast_result_dir=blast_result_dir,
+        blast_result_dir=json_output_path.parent / f"_BLAST_{json_output_path.stem}",
         strain_df=reference_df,
         gene_paths=gene_paths,
         blast_db_dir=blast_db_dir,
@@ -163,6 +152,21 @@ def main(
         logger=logger
     )
 
+    if isolates_df is not None:
+        logger.info("Creating strain entries from catalog {}".format(isolates_index_path))
+        isolate_strain_entries = create_chronostrain_db(
+            blast_result_dir=json_output_path.parent / f"_BLAST_ISOLATES_{json_output_path.stem}",
+            strain_df=isolates_df,
+            gene_paths=gene_paths,
+            blast_db_dir=blast_db_dir,
+            blast_db_name='ExtraIsolates',
+            min_pct_idty=min_pct_idty,
+            min_marker_len=min_marker_len,
+            num_threads=num_threads,
+            logger=logger
+        )
+        strain_entries += isolate_strain_entries
+
     with open(raw_json_path, 'w') as outfile:
         json.dump(strain_entries, outfile, indent=4)
         logger.info(f"Wrote raw blast DB entries to {raw_json_path}.")
@@ -172,10 +176,34 @@ def main(
     logger.debug(f"Src: {raw_json_path}, Dest: {merged_json_path}")
 
     from chronostrain.cli.commands.make_db.helpers.resolve_overlaps import find_and_resolve_overlaps
+    def _search_gff(strain_id: str, strain_df: pd.DataFrame) -> Path:
+        df_hit = strain_df.loc[strain_df['Accession'] == strain_id]
+        if df_hit.shape[0] > 0:
+            gff_path_str = df_hit.head(1)['GFF'].item()
+            if len(gff_path_str) > 0 and gff_path_str != 'None' and gff_path_str != 'NaN':
+                return Path(gff_path_str)
+        raise FileNotFoundError(f"GFF does not exist for {strain_id}")
+
     with open(raw_json_path, "r") as f:
         db_json = json.load(f)
     for strain in db_json:
-        find_and_resolve_overlaps(strain, reference_df, logger)
+        gff_path = None
+        try:
+            gff_path = _search_gff(strain['id'], reference_df)
+            if not gff_path.exists():
+                gff_path = None
+        except FileNotFoundError:
+            pass
+
+        if isolates_df is not None:
+            try:
+                gff_path = _search_gff(strain['id'], isolates_df)
+                if not gff_path.exists():
+                    gff_path = None
+            except FileNotFoundError:
+                pass
+
+        find_and_resolve_overlaps(strain, logger, gff_path)
     with open(merged_json_path, 'w') as o:  # dump to JSON.
         json.dump(db_json, o, indent=4)
 

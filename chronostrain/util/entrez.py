@@ -7,10 +7,6 @@ from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
 
-_fasta_filename = "{accession}.fasta"
-_genbank_filename = "{accession}.gb"
-
-
 _INITIALIZED = False
 
 
@@ -32,14 +28,14 @@ def fasta_filename(accession: str, base_dir: Path) -> Path:
     """
     The default filename to output fasta files to.
     """
-    return base_dir / _fasta_filename.format(accession=accession)
+    return base_dir / f"{accession}.fasta"
 
 
 def genbank_filename(accession: str, base_dir: Path) -> Path:
     """
     The default filename to output genbank files to.
     """
-    return base_dir / _genbank_filename.format(accession=accession)
+    return base_dir / f"{accession}.gb"
 
 
 def fetch_fasta(accession, base_dir: Path, force_download: bool = False) -> Path:
