@@ -150,6 +150,8 @@ class ADVIGaussianSolver(AbstractADVISolver):
 
     # noinspection PyAttributeOutsideInit
     def precompile_elbo_pieces(self):
+        logger.debug("Using ELBO accumulation strategy.")
+
         assert isinstance(self.posterior, GaussianPosteriorFullReparametrizedCorrelation)
         reparam_fn = jax.jit(self.posterior.reparametrize)
         gaussian_ll_fn = jax.jit(self.gaussian_prior.log_likelihood_x)
@@ -201,20 +203,14 @@ class ADVIGaussianSolver(AbstractADVISolver):
         self.elbo_data_ll_t_batch = jax.value_and_grad(_elbo_data_ll_t_batch)
         self.elbo_data_correction = jax.value_and_grad(_elbo_data_correction, argnums=0)
 
-        self.n_data = np.expand_dims(
-            np.array([
-                sum(batch.shape[1] for batch in self.batches[t_idx])
-                for t_idx in range(self.gaussian_prior.num_times)
-            ], dtype=self.dtype),  # length T
-            axis=1
-        )
-        self.n_paired_data = np.expand_dims(
-            np.array([
-                sum(batch.shape[1] for batch in self.paired_batches[t_idx])
-                for t_idx in range(self.gaussian_prior.num_times)
-            ], dtype=self.dtype),
-            axis=1
-        )
+        self.n_data = np.array([
+            sum(batch.shape[1] for batch in self.batches[t_idx])
+            for t_idx in range(self.gaussian_prior.num_times)
+        ], dtype=self.dtype)  # length T
+        self.n_paired_data = np.array([
+            sum(batch.shape[1] for batch in self.paired_batches[t_idx])
+            for t_idx in range(self.gaussian_prior.num_times)
+        ], dtype=self.dtype)
         self.log_total_marker_lens = np.expand_dims(self.log_total_marker_lens, axis=[0, 1])
 
     def elbo_with_grad(

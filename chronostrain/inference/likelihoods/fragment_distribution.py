@@ -374,8 +374,8 @@ def frag_log_ll_numpy(
         elif w > frag_len:
             n_matching_windows[i] = n_edge_hits
     """
-    n_matching_windows = cnp.where(cnp.equal(window_lens, frag_len), n_hits, n_edge_hits)
-    n_matching_windows = cnp.where(cnp.greater_equal(window_lens, frag_len), n_matching_windows, 0)
+    n_matching_windows = cnp.where(window_lens == frag_len, n_hits, n_edge_hits)
+    n_matching_windows = cnp.where(window_lens >= frag_len, n_matching_windows, 0)
 
     return numba_logsumexp_1d(
         window_lens_log_pmf + cnp.log(n_matching_windows)
