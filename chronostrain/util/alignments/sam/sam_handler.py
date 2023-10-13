@@ -156,7 +156,7 @@ class SamIterator:
         with open_with_pysam(self.file_path) as f:
             for line_idx, aln_segment in enumerate(f):
                 try:
-                    sam_line = self.parse_line(line.rstrip(), line_idx, prev_sam_line)
+                    sam_line = self.parse_line(aln_segment, line_idx, prev_sam_line)
                 except UnknownNucleotideError as e:
                     raise RuntimeError(
                         f"Encountered unknown nucleotide {e.nucleotide} "
