@@ -154,10 +154,7 @@ class SamIterator:
     def mapped_lines(self) -> Iterator[SamLine]:
         prev_sam_line: Union[SamLine, None] = None
         with open_with_pysam(self.file_path) as f:
-            for line_idx, line in enumerate(f):
-                if sam_line_is_header(line):
-                    continue
-
+            for line_idx, aln_segment in enumerate(f):
                 try:
                     sam_line = self.parse_line(line.rstrip(), line_idx, prev_sam_line)
                 except UnknownNucleotideError as e:

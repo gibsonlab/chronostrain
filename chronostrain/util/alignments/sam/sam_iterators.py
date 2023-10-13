@@ -2,28 +2,6 @@ from typing import Iterator
 from .util import *
 
 
-def skip_headers(sam_lines: Iterator[str]) -> Iterator[str]:
-    """
-    Yields all lines, excluding headers.
-    """
-    for line in sam_lines:
-        if not sam_line_is_header(line):
-            yield line.rstrip()
-
-
-def mapped_only(sam_lines: Iterator[str]) -> Iterator[str]:
-    """
-    Only yields alignments corresponding to a mapping (bit flag '4').
-    """
-    for line in sam_lines:
-        if sam_line_is_header(line):
-            yield line
-        else:
-            is_mapped = not has_sam_flag(int(line.split('\t')[1]), SamFlags.SegmentUnmapped)
-            if is_mapped:
-                yield line
-
-
 def cull_repetitive_templates(sam_lines: Iterator[str]) -> Iterator[str]:
     """
     Only yields alignments so that each (query, database subseq) pair is unique.

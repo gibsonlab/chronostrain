@@ -40,7 +40,3 @@ class SamFlags(Enum):
 
 def has_sam_flag(bit_value: int, flag: SamFlags):
     return bit_value & flag.value == flag.value
-
-
-def sam_line_is_header(line: str):
-    return line[0] == '@'
