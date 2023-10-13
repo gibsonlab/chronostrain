@@ -31,6 +31,10 @@ class StrainDatabase(object):
         return self.marker_multifasta_file
 
     @property
+    def faidx_file(self) -> Path:
+        return self.marker_multifasta_file.with_name(f'{self.marker_multifasta_file.name}.fai')
+
+    @property
     def signature(self) -> str:
         return self.backend.signature()
 

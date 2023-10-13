@@ -19,13 +19,13 @@ class SamLine:
                  lineno: int,
                  raw_aln: pysam.AlignedSegment,
                  readname: str,
-                 read_seq_without_clip: Sequence,
-                 read_len: int,
+                 read_seq: Sequence,
                  read_phred: np.ndarray,
                  is_mapped: bool,
                  is_reverse_complemented: bool,
-                 contig_name: str,
-                 contig_map_idx: int,
+                 ref_name: str,
+                 ref_start: int,
+                 ref_end: int,
                  cigar: List[CigarElement],
                  mate_pair: str,
                  mate_pos: int,
@@ -38,14 +38,14 @@ class SamLine:
         self.raw_aln = raw_aln
 
         self.readname = readname
-        self.read_seq: Sequence = read_seq_without_clip
-        self.read_len: int = read_len
+        self.read_seq: Sequence = read_seq
         self.read_phred = read_phred
 
         self.is_mapped = is_mapped
         self.is_reverse_complemented = is_reverse_complemented
-        self.contig_name = contig_name
-        self.contig_map_idx = contig_map_idx
+        self.ref_name = ref_name
+        self.ref_start = ref_start
+        self.ref_end = ref_end
         self.cigar = cigar
 
         self.mate_pair = mate_pair
@@ -89,8 +89,8 @@ class SamLine:
             read_seq = prev_sam_line.read_seq
             read_phred = prev_sam_line.read_phred
         else:
-            read_seq = AllocatedSequence(aln_segment.query_alignment_sequence)
-            read_phred = ascii_pysam_to_phred(aln_segment.query_alignment_qualities)
+            read_seq = AllocatedSequence(aln_segment.query_sequence)
+            read_phred = ascii_pysam_to_phred(aln_segment.query_qualities)
 
         if aln_segment.cigartuples is not None:
             cigar = [
@@ -104,13 +104,13 @@ class SamLine:
             lineno=lineno,
             raw_aln=aln_segment,
             readname=readname,
-            read_seq_without_clip=read_seq,
-            read_len=aln_segment.query_length,
+            read_seq=read_seq,
             read_phred=read_phred,
             is_mapped=not has_sam_flag(map_flag, SamFlags.SegmentUnmapped),
             is_reverse_complemented=has_sam_flag(map_flag, SamFlags.SeqReverseComplement),
-            contig_name=aln_segment.reference_name,
-            contig_map_idx=aln_segment.reference_start,
+            ref_name=aln_segment.reference_name,
+            ref_start=aln_segment.reference_start,
+            ref_end=aln_segment.reference_end,
             cigar=cigar,
             mate_pair=aln_segment.next_reference_id,
             mate_pos=aln_segment.next_reference_start,
@@ -129,15 +129,19 @@ def num_mismatches_from_xm(match_tag: str):
 
 
 @contextmanager
-def open_with_pysam(file_path: Path):
-    if file_path.suffix == ".sam":
-        f = pysam.AlignmentFile(file_path, "r")
-    elif file_path.suffix == ".bam":
-        f = pysam.AlignmentFile(file_path, "rb")
+def open_with_pysam(file_path: Path) -> Iterator[pysam.AlignedSegment]:
+    if file_path.stat().st_size == 0:
+        yield []
     else:
-        raise RuntimeError("Unrecognized output suffix {}".format(file_path.suffix))
-    yield f
-    f.close()
+        pysam.set_verbosity(0)  # Suppress "[E::idx_find_and_load] Could not retrieve index file" errors
+        if file_path.suffix == ".sam":
+            f = pysam.AlignmentFile(file_path, "r")
+        elif file_path.suffix == ".bam":
+            f = pysam.AlignmentFile(file_path, "rb")
+        else:
+            raise RuntimeError("Unrecognized output suffix {}".format(file_path.suffix))
+        yield f
+        f.close()
 
 
 class SamIterator:

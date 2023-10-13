@@ -170,7 +170,6 @@ class CachedReadPairwiseAlignments(object):
         yield from parse_alignments(
             sam_file, self.db,
             read_getter=read_getter,
-            reattach_clipped_bases=True,
             min_hit_ratio=0.50,
             min_frag_len=15,
             print_tqdm_progressbar=self.print_tqdm
@@ -191,6 +190,9 @@ class CachedReadPairwiseAlignments(object):
             cache_relative_path = Path("alignments") / "{}.sam".format(query_path.stem)
         absolute_path = self.cache.cache_dir / cache_relative_path
 
+        if not self.db.faidx_file.exists():
+            samtools.faidx(self.db.multifasta_file)
+
         # ====== function bindings to pass to ComputationCache.
         def _call_aligner():
             absolute_path.parent.mkdir(exist_ok=True, parents=True)
@@ -203,7 +205,7 @@ class CachedReadPairwiseAlignments(object):
                 )
 
                 if use_bam_format:
-                    samtools.sam_to_bam(tmp_sam_path, absolute_path, exclude_unmapped=True)
+                    samtools.sam_to_bam(tmp_sam_path, absolute_path, self.db.faidx_file, self.db.multifasta_file, exclude_unmapped=True)
                     tmp_sam_path.unlink()
                 else:
                     shutil.move(src=tmp_sam_path, dst=absolute_path)

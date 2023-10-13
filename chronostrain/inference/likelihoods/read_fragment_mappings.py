@@ -463,8 +463,8 @@ class ReadFragmentMappings:
                     aln.read_insertion_locs(),
                     aln.marker_deletion_locs(),
                     aln.reverse_complemented,
-                    aln.soft_clip_start + aln.hard_clip_start,
-                    aln.soft_clip_end + aln.hard_clip_end
+                    aln.read_start,
+                    aln.read_end
                 )
                 frag_to_lls[frag.index] = (error_ll, set())
 
@@ -479,8 +479,8 @@ class ReadFragmentMappings:
                      insertions: cnp.ndarray,
                      deletions: cnp.ndarray,
                      reverse_complemented: bool,
-                     start_clip: int,
-                     end_clip: int):
+                     read_start: int,
+                     read_end: int):
         """
         Invoke the underlying phred/indel error model.
         the -np.log(2) is there due to a 0.5 chance of forward/reverse (rev_comp).
@@ -492,7 +492,7 @@ class ReadFragmentMappings:
             read_reverse_complemented=reverse_complemented,
             insertions=insertions,
             deletions=deletions,
-            read_start_clip=start_clip,
-            read_end_clip=end_clip
+            read_start_clip=read_start,
+            read_end_clip=len(read) - read_end
         )
         return forward_ll - cnp.log(2)

@@ -50,6 +50,9 @@ class Filter(object):
         aligner_tmp_dir = out_path.parent / "tmp"
         aligner_tmp_dir.mkdir(exist_ok=True)
 
+        if not self.db.faidx_file.exists():
+            samtools.faidx(self.db.multifasta_file)
+
         metadata_path = out_path.parent / f"{remove_suffixes(read_file).name}.metadata.tsv"
         sam_path = aligner_tmp_dir / f"{remove_suffixes(read_file).name}.sam"
         aligner.align(
@@ -59,10 +62,14 @@ class Filter(object):
         )
         if cfg.external_tools_cfg.pairwise_align_use_bam:
             bam_path = sam_path.with_suffix('.bam')
-            samtools.sam_to_bam(sam_path, bam_path, exclude_unmapped=True)
+            samtools.sam_to_bam(sam_path, bam_path, self.db.faidx_file, self.db.multifasta_file, exclude_unmapped=True)
             sam_path.unlink()
             sam_or_bam_path = bam_path
         else:
+            sam_filt_path = sam_path.with_name(f'{sam_path.name}.FILT')
+            samtools.sam_filter(sam_path, sam_filt_path, exclude_unmapped=True, exclude_header=False)
+            sam_path.unlink()
+            sam_filt_path.rename(sam_path)
             sam_or_bam_path = sam_path
         self._apply_helper(sam_or_bam_path, metadata_path, out_path, quality_format)
 
@@ -92,9 +99,7 @@ class Filter(object):
                 "READ_LEN",
                 "N_MISMATCHES",
                 "PCT_ID",
-                "EXP_ERRORS",
-                "START_CLIP",
-                "END_CLIP"
+                "EXP_ERRORS"
             ]
         )
 
@@ -105,7 +110,6 @@ class Filter(object):
         for aln in parse_alignments(
                 SamIterator(sam_path, quality_format),
                 self.db,
-                reattach_clipped_bases=True,
                 min_hit_ratio=self.min_hit_ratio,
                 print_tqdm_progressbar=False
         ):
@@ -151,9 +155,7 @@ class Filter(object):
                     len(aln.read),
                     aln.num_mismatches,
                     frac_identity * 100.0,
-                    n_exp_errors,
-                    aln.soft_clip_start + aln.hard_clip_start,
-                    aln.soft_clip_end + aln.hard_clip_end
+                    n_exp_errors
                 ]
             )
 

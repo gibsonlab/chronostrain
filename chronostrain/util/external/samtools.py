@@ -19,18 +19,41 @@ def _samtools(params: List[Any], silent: bool = False, stdout: Optional[TextIO] 
 def sam_to_bam(
         sam_path: Path,
         output_path: Path,
+        fai_reference_path: Path,
+        reference_path: Path,
         exclude_unmapped: bool
 ):
     # Biopython's interface appears outdated (as of 10/23/2021). Use our own cline interface.
     params = [
         'view',
+        '-t', fai_reference_path,
+        '-T', reference_path,
         '-S',
-        '-b',
         sam_path,
+        '-b',
         '-o', output_path
     ]
     if exclude_unmapped:
         params += ['-F', 4]
+    return _samtools(params)
+
+
+def sam_filter(
+        sam_or_bam_path: Path,
+        output_path: Path,
+        exclude_unmapped: bool,
+        exclude_header: bool
+):
+    params = [
+        'view',
+        sam_or_bam_path,
+        '-o', output_path,
+    ]
+    if exclude_unmapped:
+        params += ['-F', 4]
+    if exclude_header:
+        params += ['--no-header']
+
     return _samtools(params)
 
 
@@ -61,17 +84,6 @@ def merge(
     return _samtools(params + bam_paths)
 
 
-def sam_mapped_only(sam_path: Path, output_path: Path):
-    params = [
-        'view',
-        '-F', 4,
-        sam_path,
-        '-o', output_path
-    ]
-
-    return _samtools(params)
-
-
 def faidx(
         fasta_path: Path,
         query_regions: Optional[List[str]] = None,
@@ -83,3 +95,11 @@ def faidx(
     if query_regions is not None and len(query_regions) > 0:
         params += query_regions
     return _samtools(params, stdout=buf, silent=silent)
+
+
+def index(
+        sam_compressed_or_bam: Path,
+):
+    return _samtools(
+        ['index', sam_compressed_or_bam]
+    )

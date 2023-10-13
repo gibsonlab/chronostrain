@@ -1,10 +1,10 @@
 from pathlib import Path
-from typing import Tuple, Dict, List, Iterator, Callable, Optional
+from typing import Tuple, List, Iterator, Callable, Optional
 import numpy as np
 
 from chronostrain.database import StrainDatabase, QueryNotFoundError
 from chronostrain.model import Marker, SequenceRead
-from chronostrain.util.sequences import AllocatedSequence, bytes_GAP, NucleotideDtype, bytes_N
+from chronostrain.util.sequences import AllocatedSequence, bytes_GAP, NucleotideDtype
 
 from ..sam import *
 
@@ -24,10 +24,6 @@ class SequenceReadPairwiseAlignment(object):
                  read_end: int,
                  marker_start: int,
                  marker_end: int,
-                 hard_clip_start: int,
-                 hard_clip_end: int,
-                 soft_clip_start: int,
-                 soft_clip_end: int,
                  reverse_complemented: bool):
         """
         :param read: The SequenceRead instance.
@@ -61,21 +57,12 @@ class SequenceReadPairwiseAlignment(object):
         self.marker_start: int = marker_start
         self.marker_end: int = marker_end
 
-        self.hard_clip_start: int = hard_clip_start  # the number of bases at the left end (5') that got hard clipped.
-        self.hard_clip_end: int = hard_clip_end  # the number of bases at the right end (3') that got hard clipped.
-        self.soft_clip_start: int = soft_clip_start  # the number of bases at the right end (5') that got soft clipped.
-        self.soft_clip_end: int = soft_clip_end  # the number of bases at the right end (3') that got soft clipped.
-
         # Indicates whether the read has been reverse complemented.
         self.reverse_complemented: bool = reverse_complemented
 
     @property
     def marker_frag(self) -> AllocatedSequence:
         return AllocatedSequence(self.marker_frag_aln_with_gaps[self.marker_frag_aln_with_gaps != bytes_GAP])
-
-    @property
-    def is_clipped(self) -> bool:
-        return self.soft_clip_start > 0 or self.hard_clip_start > 0 or self.soft_clip_end > 0 or self.hard_clip_end > 0
 
     @property
     def is_edge_mapped(self) -> bool:
@@ -146,7 +133,7 @@ def parse_line_into_alignment(sam_path: Path,
             )
 
     # ============ Retrieve the marker.
-    name_token, id_token = samline.contig_name.strip().split(" ")[0].split("|")
+    name_token, id_token = samline.ref_name.strip().split(" ")[0].split("|")
     try:
         marker = db.get_marker(
             # Assumes that the reference marker was stored automatically using Marker.to_seqrecord().
@@ -154,13 +141,13 @@ def parse_line_into_alignment(sam_path: Path,
         )
     except QueryNotFoundError as e:
         logger.error("Encountered bad marker ID from token {}. File: {}, Line: {}.".format(
-            samline.contig_name,
+            samline.ref_name,
             str(sam_path),
             samline.lineno
         ))
         raise e
 
-    # ============ Parse the cigar string to generate alignments.
+    # ============ Handle the cigar string; check for clipped bases.
     cigar_els: List[CigarElement] = samline.cigar
 
     read_tokens = []
@@ -170,7 +157,7 @@ def parse_line_into_alignment(sam_path: Path,
     soft_clip_start = 0
     soft_clip_end = 0
 
-    # ============ Handle hard clips at the ends (always comes before the soft clips).
+    # Count hard clips at the ends (always comes before the soft clips).
     if cigar_els[0].op == CigarOp.CLIPHARD:
         hard_clip_start = cigar_els[0].num
         cigar_els = cigar_els[1:]
@@ -178,7 +165,7 @@ def parse_line_into_alignment(sam_path: Path,
         hard_clip_end = cigar_els[-1].num
         cigar_els = cigar_els[:-1]
 
-    # ============ Handle soft clips at the ends.
+    # Count soft clips at the ends.
     if cigar_els[0].op == CigarOp.CLIPSOFT:
         soft_clip_start = cigar_els[0].num
         cigar_els = cigar_els[1:]
@@ -186,43 +173,78 @@ def parse_line_into_alignment(sam_path: Path,
         soft_clip_end = cigar_els[-1].num
         cigar_els = cigar_els[:-1]
 
-    marker_start = samline.contig_map_idx  # first included index
-    read_start = soft_clip_start + hard_clip_start  # first included index
+    # Count number of deletions.
+    n_insertions = sum(
+        cigar_el.num
+        for cigar_el in cigar_els
+        if cigar_el.op == CigarOp.INSERTION
+    )
+    n_deletions = sum(
+        cigar_el.num
+        for cigar_el in cigar_els
+        if cigar_el.op == CigarOp.DELETION
+    )
 
+    n_clip_start = soft_clip_start + hard_clip_start
+    n_clip_end = soft_clip_end + hard_clip_end
+    # marker_start = samline.contig_map_idx  # first included index
+
+    # If possible, reattach clipped bases and convert local alignment to global.
+    # Note that these are all 0-indexed coordinates, end coord is exclusive, e.g. x[start:end]
+    global_ref_start_pos = max(samline.ref_start - n_clip_start, 0)
+    local_ref_start_pos = samline.ref_start
+    global_ref_end_pos = min(samline.ref_end + n_clip_end, len(marker))
+    local_ref_end_pos = samline.ref_end
+
+    start_reattach_bases = local_ref_start_pos - global_ref_start_pos
+    end_reattach_bases = global_ref_end_pos - local_ref_end_pos
+    marker_frag_len = global_ref_end_pos - global_ref_start_pos
+
+    # Coordinates on the read
+    local_read_start_pos = n_clip_start
+    global_read_start_pos = local_read_start_pos - start_reattach_bases
+    local_read_end_pos = len(read) - n_clip_end
+    global_read_end_pos = local_read_end_pos + end_reattach_bases
+
+    alignment_length = marker_frag_len + n_insertions
+    assert alignment_length == global_read_end_pos - global_read_start_pos + n_deletions
+    marker_frag_aln = np.full(alignment_length, fill_value=-1, dtype=NucleotideDtype)
+    read_aln = np.full(alignment_length, fill_value=-1, dtype=NucleotideDtype)
+
+    # Reattach clipped bases.
     if samline.is_reverse_complemented:
         read_seq = read.seq.revcomp_bytes()
     else:
         read_seq = read.seq.bytes()
+    if start_reattach_bases > 0:
+        marker_frag_aln[:start_reattach_bases] = marker.seq.bytes()[global_ref_start_pos:local_ref_start_pos]
+        read_aln[:start_reattach_bases] = read_seq[global_read_start_pos:local_read_start_pos]
+    if end_reattach_bases > 0:
+        marker_frag_aln[-end_reattach_bases:] = marker.seq.bytes()[local_ref_end_pos:global_ref_end_pos]
+        read_aln[-end_reattach_bases:] = read_seq[local_read_end_pos:global_read_end_pos]
 
-    if len(read_seq) < samline.read_len:
-        # The parsed SAM/BAM file didn't include the clipped bases, and we weren't able to retrieve the read instances.
-        read_seq = np.concatenate([
-            np.full(soft_clip_start + hard_clip_start, fill_value=bytes_N),
-            read_seq,
-            np.full(soft_clip_end + hard_clip_end, fill_value=bytes_N)
-        ])
-        assert len(read_seq) == samline.read_len
-
-    # ============ Handle all intermediate elements.
-    current_read_idx = read_start
-    current_marker_idx = marker_start
+    # Iterate through cigar elements.
+    cur_aln_pos = start_reattach_bases
+    cur_marker_pos = local_ref_start_pos
+    cur_read_pos = local_read_start_pos
     for cigar_el in cigar_els:
+        n = cigar_el.num
         if cigar_el.op == CigarOp.ALIGN or cigar_el.op == CigarOp.MATCH or cigar_el.op == CigarOp.MISMATCH:
             # Consume both query and marker.
-            read_tokens.append(read_seq[current_read_idx:current_read_idx + cigar_el.num])
-            marker_tokens.append(marker.seq.bytes()[current_marker_idx:current_marker_idx + cigar_el.num])
-            current_read_idx += cigar_el.num
-            current_marker_idx += cigar_el.num
+            marker_frag_aln[cur_aln_pos:cur_aln_pos + n] = marker.seq.bytes()[cur_marker_pos:cur_marker_pos + n]
+            read_aln[cur_aln_pos:cur_aln_pos + n] = read_seq[cur_read_pos:cur_read_pos + n]
+            cur_marker_pos += n
+            cur_read_pos += n
         elif cigar_el.op == CigarOp.INSERTION:
             # Consume query but not marker.
-            read_tokens.append(read_seq[current_read_idx:current_read_idx + cigar_el.num])
-            marker_tokens.append(bytes_GAP * np.ones(cigar_el.num, dtype=NucleotideDtype))
-            current_read_idx += cigar_el.num
+            marker_frag_aln[cur_aln_pos:cur_aln_pos + n] = bytes_GAP
+            read_aln[cur_aln_pos:cur_aln_pos + n] = read_seq[cur_read_pos:cur_read_pos + n]
+            cur_read_pos += n
         elif cigar_el.op == CigarOp.DELETION:
             # consume marker but not query.
-            read_tokens.append(bytes_GAP * np.ones(cigar_el.num, dtype=NucleotideDtype))
-            marker_tokens.append(marker.seq.bytes()[current_marker_idx:current_marker_idx + cigar_el.num])
-            current_marker_idx += cigar_el.num
+            marker_frag_aln[cur_aln_pos:cur_aln_pos + n] = marker.seq.bytes()[cur_marker_pos:cur_marker_pos + n]
+            read_aln[cur_aln_pos:cur_aln_pos + n] = bytes_GAP
+            cur_marker_pos += n
         elif cigar_el.op == CigarOp.SKIPREF:
             raise ValueError(
                 f"Line {samline.lineno}, Cigar `{samline.cigar}`: Reference skip is only expected for "
@@ -233,90 +255,78 @@ def parse_line_into_alignment(sam_path: Path,
                 f"Cannot handle Cigar op `{cigar_el.op.name}` in the middle of the aligned query. "
                 f"(Line {samline.lineno}, Cigar {samline.cigar})"
             )
-
-    read_end = current_read_idx - 1  # last included index
-    marker_end = current_marker_idx - 1  # last included index
-    assert read_end >= read_start
-    assert marker_end >= marker_start
-
-    marker_seq = np.concatenate(marker_tokens)
-    read_seq = np.concatenate(read_tokens)
+        cur_aln_pos += n
 
     # ============ Return the appropriate instance.
     return SequenceReadPairwiseAlignment(
         read,
         marker,
-        marker_seq,
-        read_seq,
+        marker_frag_aln,
+        read_aln,
         sam_path,
         samline.lineno,
-        read_start,
-        read_end,
-        marker_start,
-        marker_end,
-        hard_clip_start,
-        hard_clip_end,
-        soft_clip_start,
-        soft_clip_end,
+        global_read_start_pos,
+        global_read_end_pos,
+        global_ref_start_pos,
+        global_ref_end_pos,
         samline.is_reverse_complemented
     )
 
 
-def reattach_clipped_bases_to_aln(aln: SequenceReadPairwiseAlignment):
-    """
-    For the special case where bases have been clipped but the mapping is not at the edge, append the rest of
-    the fragment.
-    """
-    is_left_edge_mapped = (aln.marker_start == 0)
-    is_right_edge_mapped = (aln.marker_end == len(aln.marker) - 1)
-    n_start_clip = min(aln.soft_clip_start + aln.hard_clip_start, aln.marker_start)
-
-    aligned_marker_seq = aln.marker_frag_aln_with_gaps
-    aligned_read_seq = aln.read_aln_with_gaps
-
-    if aln.reverse_complemented:
-        read_seq = aln.read.seq.revcomp_bytes()
-    else:
-        read_seq = aln.read.seq.bytes()
-
-    if not is_left_edge_mapped and n_start_clip > 0:
-        marker_prefix = aln.marker.seq.bytes()[(aln.marker_start - n_start_clip):aln.marker_start]
-        aligned_marker_seq = np.concatenate([marker_prefix, aligned_marker_seq])
-
-        read_prefix = read_seq[(aln.read_start - n_start_clip):aln.read_start]
-        aligned_read_seq = np.concatenate([read_prefix, aligned_read_seq])
-        if aln.hard_clip_start > 0:
-            aln.hard_clip_start -= n_start_clip
-        elif aln.soft_clip_start > 0:
-            aln.soft_clip_start -= n_start_clip
-        aln.marker_start -= n_start_clip
-        aln.read_start -= n_start_clip
-
-    n_end_clip = min(aln.soft_clip_end + aln.hard_clip_end, len(aln.marker) - aln.marker_end - 1)
-    if not is_right_edge_mapped and n_end_clip > 0:
-        marker_suffix = aln.marker.seq.bytes()[(aln.marker_end + 1):(aln.marker_end + 1 + n_end_clip)]
-        aligned_marker_seq = np.concatenate([aligned_marker_seq, marker_suffix])
-
-        read_suffix = read_seq[(aln.read_end + 1):(aln.read_end + 1 + n_end_clip)]
-        aligned_read_seq = np.concatenate([aligned_read_seq, read_suffix])
-        if aln.hard_clip_end > 0:
-            aln.hard_clip_end -= n_end_clip
-        elif aln.soft_clip_end > 0:
-            aln.soft_clip_end -= n_end_clip
-        aln.marker_end += n_end_clip
-        aln.read_end += n_end_clip
-
-    assert len(aligned_marker_seq.shape) == 1
-    assert len(aligned_read_seq.shape) == 1
-    assert aligned_marker_seq.shape[0] == aligned_read_seq.shape[0]
-    aln.marker_frag_aln_with_gaps = aligned_marker_seq
-    aln.read_aln_with_gaps = aligned_read_seq
+# def reattach_clipped_bases_to_aln(aln: SequenceReadPairwiseAlignment):
+#     """
+#     For the special case where bases have been clipped but the mapping is not at the edge, append the rest of
+#     the fragment.
+#     """
+#     is_left_edge_mapped = (aln.marker_start == 0)
+#     is_right_edge_mapped = (aln.marker_end == len(aln.marker) - 1)
+#     n_start_clip = min(aln.soft_clip_start + aln.hard_clip_start, aln.marker_start)
+#
+#     aligned_marker_seq = aln.marker_frag_aln_with_gaps
+#     aligned_read_seq = aln.read_aln_with_gaps
+#
+#     if aln.reverse_complemented:
+#         read_seq = aln.read.seq.revcomp_bytes()
+#     else:
+#         read_seq = aln.read.seq.bytes()
+#
+#     if not is_left_edge_mapped and n_start_clip > 0:
+#         marker_prefix = aln.marker.seq.bytes()[(aln.marker_start - n_start_clip):aln.marker_start]
+#         aligned_marker_seq = np.concatenate([marker_prefix, aligned_marker_seq])
+#
+#         read_prefix = read_seq[(aln.read_start - n_start_clip):aln.read_start]
+#         aligned_read_seq = np.concatenate([read_prefix, aligned_read_seq])
+#         if aln.hard_clip_start > 0:
+#             aln.hard_clip_start -= n_start_clip
+#         elif aln.soft_clip_start > 0:
+#             aln.soft_clip_start -= n_start_clip
+#         aln.marker_start -= n_start_clip
+#         aln.read_start -= n_start_clip
+#
+#     n_end_clip = min(aln.soft_clip_end + aln.hard_clip_end, len(aln.marker) - aln.marker_end - 1)
+#     if not is_right_edge_mapped and n_end_clip > 0:
+#         marker_suffix = aln.marker.seq.bytes()[(aln.marker_end + 1):(aln.marker_end + 1 + n_end_clip)]
+#         aligned_marker_seq = np.concatenate([aligned_marker_seq, marker_suffix])
+#
+#         read_suffix = read_seq[(aln.read_end + 1):(aln.read_end + 1 + n_end_clip)]
+#         aligned_read_seq = np.concatenate([aligned_read_seq, read_suffix])
+#         if aln.hard_clip_end > 0:
+#             aln.hard_clip_end -= n_end_clip
+#         elif aln.soft_clip_end > 0:
+#             aln.soft_clip_end -= n_end_clip
+#         aln.marker_end += n_end_clip
+#         aln.read_end += n_end_clip
+#
+#     assert len(aligned_marker_seq.shape) == 1
+#     assert len(aligned_read_seq.shape) == 1
+#     assert aligned_marker_seq.shape[0] == aligned_read_seq.shape[0]
+#     aln.marker_frag_aln_with_gaps = aligned_marker_seq
+#     aln.read_aln_with_gaps = aligned_read_seq
 
 
 def parse_alignments(sam_file: SamIterator,
                      db: StrainDatabase,
                      read_getter: Optional[Callable[[str], SequenceRead]] = None,
-                     reattach_clipped_bases: bool = False,
                      min_hit_ratio: float = 0.5,
                      min_frag_len: int = 15,
                      print_tqdm_progressbar: bool = True) -> Iterator[SequenceReadPairwiseAlignment]:
@@ -353,9 +363,6 @@ def parse_alignments(sam_file: SamIterator,
                                             db,
                                             read_getter)
 
-            if reattach_clipped_bases:
-                reattach_clipped_bases_to_aln(aln)
-
             if len(aln.marker_frag) < min_frag_len:
                 continue
 
@@ -365,35 +372,3 @@ def parse_alignments(sam_file: SamIterator,
     logger.debug(f"{sam_file.file_path.name} -- "
                  f"Total # SAM lines parsed: {n_alns}; "
                  f"# mapped lines: {n_mapped_lines}")
-
-
-def marker_categorized_alignments(
-        sam_file: SamIterator,
-        db: StrainDatabase,
-        read_getter: Callable[[str], SequenceRead],
-        reattach_clipped_bases: bool = False,
-        min_hit_ratio: float = 0.5,
-        min_frag_len: int = 15,
-        print_tqdm_progressbar: bool = True
-) -> Dict[Marker, List[SequenceReadPairwiseAlignment]]:
-    """
-    Parses the input SamFile instance into a dictionary, mapping each marker to alignments that map to
-    it.
-    """
-    marker_alignments = {
-        marker: []
-        for marker in db.all_markers()
-    }
-
-    for aln in parse_alignments(
-            sam_file,
-            db,
-            read_getter=read_getter,
-            reattach_clipped_bases=reattach_clipped_bases,
-            min_hit_ratio=min_hit_ratio,
-            min_frag_len=min_frag_len,
-            print_tqdm_progressbar=print_tqdm_progressbar
-    ):
-        marker_alignments[aln.marker].append(aln)
-
-    return marker_alignments
