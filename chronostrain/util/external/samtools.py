@@ -18,7 +18,8 @@ def _samtools(params: List[Any], silent: bool = False, stdout: Optional[TextIO] 
 
 def sam_to_bam(
         sam_path: Path,
-        output_path: Path
+        output_path: Path,
+        exclude_unmapped: bool
 ):
     # Biopython's interface appears outdated (as of 10/23/2021). Use our own cline interface.
     params = [
@@ -28,17 +29,21 @@ def sam_to_bam(
         sam_path,
         '-o', output_path
     ]
+    if exclude_unmapped:
+        params += ['-F', 4]
     return _samtools(params)
 
 
 def bam_sort(
-        bam_path: Path,
-        output_path: Path
+        sam_or_bam_path: Path,
+        output_path: Path,
+        num_threads: int = 1
 ):
     params = [
         'sort',
-        bam_path,
-        '-o', output_path
+        sam_or_bam_path,
+        '-o', output_path,
+        '-@', num_threads
     ]
 
     return _samtools(params)

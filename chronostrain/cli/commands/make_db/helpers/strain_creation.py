@@ -58,17 +58,17 @@ def run_blast_local(db_dir: Optional[Path],
         max_target_seqs = num_ref_genomes * 10
         logger.debug(f"Running blastn on {gene_name}.")
         blast_result_path = result_dir / f"{gene_name}.tsv"
-        # blastn(
-        #     db_name=db_name,
-        #     db_dir=db_dir,
-        #     query_fasta=gene_seed_fasta,
-        #     perc_identity_cutoff=min_pct_idty,
-        #     out_path=blast_result_path,
-        #     num_threads=num_threads,
-        #     out_fmt=_BLAST_OUT_FMT,
-        #     max_target_seqs=max_target_seqs,
-        #     strand="both",
-        # )
+        blastn(
+            db_name=db_name,
+            db_dir=db_dir,
+            query_fasta=gene_seed_fasta,
+            perc_identity_cutoff=min_pct_idty,
+            out_path=blast_result_path,
+            num_threads=num_threads,
+            out_fmt=_BLAST_OUT_FMT,
+            max_target_seqs=max_target_seqs,
+            strand="both",
+        )
         result_paths[gene_name] = blast_result_path
     return result_paths
 

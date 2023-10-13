@@ -169,6 +169,10 @@ def main(
     logger.info("Loading time-series read files from {}".format(reads_input))
     reads = TimeSeriesReads.load_from_file(reads_input)
 
+    if reads.total_number_reads() == 0:
+        logger.info("No filtered reads found. Exiting.")
+        return 0
+
     # ============ Create model instance
     solver, posterior, elbo_history, (uppers, lowers, medians) = perform_advi(
         db=db,
@@ -246,7 +250,7 @@ def main(
 
     # ==== Save the posterior distribution.
     posterior.save(model_out_path)
-    logger.debug(f"Saved model to `{model_out_path}`.")
+    logger.info(f"Saved model to `{model_out_path}`.")
 
 
 if __name__ == "__main__":

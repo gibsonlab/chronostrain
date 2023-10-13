@@ -8,13 +8,13 @@ import numpy as np
 
 from chronostrain.model import SequenceRead
 from chronostrain.model.io import *
-from chronostrain.util.alignments.sam import SamFile
+from chronostrain.util.alignments.sam import SamIterator
 from chronostrain.util.alignments.pairwise import *
 from chronostrain.database import StrainDatabase
 
 from chronostrain.config import cfg
 from chronostrain.util.cache import ComputationCache
-from chronostrain.util.external import bt2_func_linear
+from chronostrain.util.external import bt2_func_linear, samtools
 
 
 class CachedReadPairwiseAlignments(object):
@@ -166,7 +166,7 @@ class CachedReadPairwiseAlignments(object):
             yield from self.align_pe_forward(read_src.path_fwd, read_src.quality_format, read_getter)
             yield from self.align_pe_reverse(read_src.path_rev, read_src.quality_format, read_getter)
 
-    def parse_alignments(self, sam_file: SamFile, read_getter: Callable[[str], SequenceRead]) -> Iterator[SequenceReadPairwiseAlignment]:
+    def parse_alignments(self, sam_file: SamIterator, read_getter: Callable[[str], SequenceRead]) -> Iterator[SequenceReadPairwiseAlignment]:
         yield from parse_alignments(
             sam_file, self.db,
             read_getter=read_getter,
@@ -182,30 +182,39 @@ class CachedReadPairwiseAlignments(object):
             read_type: ReadType,
             quality_format: str,
             aligner: AbstractPairwiseAligner
-    ) -> SamFile:
+    ) -> SamIterator:
         # ====== Files relative to cache dir.
-        cache_relative_path = Path("alignments") / "{}.sam".format(query_path.stem)
+        use_bam_format = cfg.external_tools_cfg.pairwise_align_use_bam
+        if use_bam_format:
+            cache_relative_path = Path("alignments") / "{}.bam".format(query_path.stem)
+        else:
+            cache_relative_path = Path("alignments") / "{}.sam".format(query_path.stem)
         absolute_path = self.cache.cache_dir / cache_relative_path
 
         # ====== function bindings to pass to ComputationCache.
         def _call_aligner():
             absolute_path.parent.mkdir(exist_ok=True, parents=True)
             if query_path.stat().st_size > 0:
-                tmp_path = absolute_path.with_suffix('.sam.PARTIAL')
+                tmp_sam_path = absolute_path.with_suffix(f'.PARTIAL.sam')
                 aligner.align(
                     query_path=query_path,
-                    output_path=tmp_path,
+                    output_path=tmp_sam_path,
                     read_type=read_type
                 )
-                shutil.move(src=tmp_path, dst=absolute_path)
+
+                if use_bam_format:
+                    samtools.bam_sort(tmp_sam_path, absolute_path, num_threads=cfg.model_cfg.num_cores)
+                    tmp_sam_path.unlink()
+                else:
+                    shutil.move(src=tmp_sam_path, dst=absolute_path)
             else:
                 absolute_path.touch()
-            return SamFile(absolute_path, quality_format)
+            return SamIterator(absolute_path, quality_format)
 
         # ====== Run the cached computation.
         return self.cache.call(
             fn=_call_aligner,
             relative_filepath=cache_relative_path,
             save=lambda path, obj: None,
-            load=lambda path: SamFile(path, quality_format)
+            load=lambda path: SamIterator(path, quality_format)
         )

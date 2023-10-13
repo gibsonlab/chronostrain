@@ -303,7 +303,7 @@ def reattach_clipped_bases_to_aln(aln: SequenceReadPairwiseAlignment):
     aln.read_aln_with_gaps = aligned_read_seq
 
 
-def parse_alignments(sam_file: SamFile,
+def parse_alignments(sam_file: SamIterator,
                      db: StrainDatabase,
                      read_getter: Optional[Callable[[str], SequenceRead]] = None,
                      reattach_clipped_bases: bool = False,
@@ -358,7 +358,7 @@ def parse_alignments(sam_file: SamFile,
 
 
 def marker_categorized_alignments(
-        sam_file: SamFile,
+        sam_file: SamIterator,
         db: StrainDatabase,
         read_getter: Callable[[str], SequenceRead],
         reattach_clipped_bases: bool = False,

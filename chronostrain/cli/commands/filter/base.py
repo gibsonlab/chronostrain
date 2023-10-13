@@ -8,7 +8,7 @@ from Bio.Seq import Seq
 
 from chronostrain.database import StrainDatabase
 from chronostrain.model.io import ReadType
-from chronostrain.util.alignments.sam import SamFile
+from chronostrain.util.alignments.sam import SamIterator
 from chronostrain.util.external import call_command
 from chronostrain.util.alignments.pairwise import *
 from chronostrain.util.sequences import bytes_GAP
@@ -96,7 +96,7 @@ class Filter(object):
 
         logger.debug(f"Reading: {sam_path.name}")
         for aln in parse_alignments(
-                SamFile(sam_path, quality_format),
+                SamIterator(sam_path, quality_format),
                 self.db,
                 reattach_clipped_bases=True,
                 min_hit_ratio=self.min_hit_ratio,

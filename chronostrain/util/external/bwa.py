@@ -33,7 +33,6 @@ def bwa_mem(output_path: Path,
             score_threshold: int = 30,
             unpaired_penalty: int = 17,
             soft_clip_for_supplementary: bool = False,
-            exclude_unmapped: bool = True,
             bwa_cmd='bwa-mem2'):
     params = [
         'mem',
@@ -66,22 +65,22 @@ def bwa_mem(output_path: Path,
     if soft_clip_for_supplementary:
         params.append('-Y')
 
-    if exclude_unmapped:
-        exit_code = call_command(
-            command=bwa_cmd,
-            args=params + [reference_path, read_path],
-            piped_command=f'samtools view -F 4 -o {output_path}',
-            shell=True
-        )
-        if exit_code != 0:
-            raise CommandLineException(f"{bwa_cmd} mem", exit_code)
-    else:
-        exit_code = call_command(
-            command=bwa_cmd,
-            args=params + ['-o', output_path] + [reference_path, read_path]
-        )
-        if exit_code != 0:
-            raise CommandLineException(f"{bwa_cmd} mem", exit_code)
+    # if exclude_unmapped:
+    #     exit_code = call_command(
+    #         command=bwa_cmd,
+    #         args=params + [reference_path, read_path],
+    #         piped_command=f'samtools view -F 4 -o {output_path}',
+    #         shell=True
+    #     )
+    #     if exit_code != 0:
+    #         raise CommandLineException(f"{bwa_cmd} mem", exit_code)
+    # else:
+    exit_code = call_command(
+        command=bwa_cmd,
+        args=params + ['-o', output_path] + [reference_path, read_path]
+    )
+    if exit_code != 0:
+        raise CommandLineException(f"{bwa_cmd} mem", exit_code)
 
 
 def bwa_fastmap(output_path: Path,

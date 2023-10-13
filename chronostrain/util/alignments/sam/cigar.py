@@ -19,26 +19,14 @@ class CigarOp(Enum):
     MISMATCH = "X"
 
 
+cigar_op_dict = {op.value: op for op in CigarOp}
+pysam_ordering = [cigar_op_dict[c] for c in 'MIDNSHP=X']
+
+
 def parse_cigar_op(token: str) -> CigarOp:
-    if token == 'M':
-        return CigarOp.ALIGN
-    elif token == 'I':
-        return CigarOp.INSERTION
-    elif token == 'D':
-        return CigarOp.DELETION
-    elif token == 'N':
-        return CigarOp.SKIPREF
-    elif token == 'S':
-        return CigarOp.CLIPSOFT
-    elif token == 'H':
-        return CigarOp.CLIPHARD
-    elif token == 'P':
-        return CigarOp.PADDING
-    elif token == '=':
-        return CigarOp.MATCH
-    elif token == 'X':
-        return CigarOp.MISMATCH
-    else:
+    try:
+        return cigar_op_dict[token]
+    except KeyError:
         raise ValueError("Unknown cigar token `{}`".format(token))
 
 

@@ -18,10 +18,10 @@ def mapped_only(sam_lines: Iterator[str]) -> Iterator[str]:
     for line in sam_lines:
         if sam_line_is_header(line):
             yield line
-
-        is_mapped = not has_sam_flag(int(line.split('\t')[1]), SamFlags.SegmentUnmapped)
-        if is_mapped:
-            yield line
+        else:
+            is_mapped = not has_sam_flag(int(line.split('\t')[1]), SamFlags.SegmentUnmapped)
+            if is_mapped:
+                yield line
 
 
 def cull_repetitive_templates(sam_lines: Iterator[str]) -> Iterator[str]:

@@ -100,18 +100,20 @@ class BwaAligner(AbstractPairwiseAligner):
         output_path = sam_path.parent / f'{sam_path.name}.processed'
         with open(sam_path, 'r') as in_f, open(output_path, 'w') as out_f:
             # only keep mapped reads.
-            # for line in cull_repetitive_templates(mapped_only(skip_headers(in_f))):
-            for line in mapped_only(skip_headers(in_f)):
-                tokens = line.rstrip().split('\t')
+            for line in in_f:
+                if line.startswith("@"):
+                    out_f.write(line)
+                else:
+                    tokens = line.rstrip().split('\t')
 
-                # BWA-MEM idiosyncracy: aligner removes the paired-end identifiers '/1', '/2'.
-                read_id = tokens[0]
-                tokens[0] = f'{read_id}{id_suffix}'
-                print('\t'.join(tokens), file=out_f)
+                    # BWA-MEM idiosyncracy: aligner removes the paired-end identifiers '/1', '/2'.
+                    read_id = tokens[0]
+                    tokens[0] = f'{read_id}{id_suffix}'
+                    print('\t'.join(tokens), file=out_f)
         sam_path.unlink()
         output_path.rename(sam_path)
 
-    def align(self, query_path: Path, output_path: Path, read_type: ReadType, exclude_unmapped: bool = True):
+    def align(self, query_path: Path, output_path: Path, read_type: ReadType, exclude_unmapped: bool = False):
         bwa_mem(
             output_path=output_path,
             reference_path=self.reference_path,
@@ -133,7 +135,6 @@ class BwaAligner(AbstractPairwiseAligner):
             soft_clip_for_supplementary=True,
             score_threshold=self.score_threshold,
             bwa_cmd=self.bwa_command,
-            exclude_unmapped=exclude_unmapped
         )
 
         if read_type == ReadType.PAIRED_END_1:
@@ -187,7 +188,6 @@ class BowtieAligner(AbstractPairwiseAligner):
         self.score_ref_gap_penalty = score_ref_gap_penalty
 
         self.index_trace_path = self.index_basepath / f"{index_basename}.bt2_trace"
-
         self.quality_format = 'phred33'
 
         if not self.index_trace_path.exists():  # only create if this hasn't been run yet.
@@ -209,16 +209,7 @@ class BowtieAligner(AbstractPairwiseAligner):
     def align(self, query_path: Path, output_path: Path, read_type: ReadType):
         # return self.align_end_to_end(query_path, output_path)
         self.align_local(query_path, output_path)
-        self.post_process_sam(output_path)
-
-    def post_process_sam(self, sam_path: Path):
-        output_path = sam_path.parent / f'{sam_path.name}.processed'
-        with open(sam_path, 'r') as in_f, open(output_path, 'w') as out_f:
-            # only keep mapped reads.
-            for line in skip_headers(in_f):
-                print(line.rstrip(), file=out_f)
-        sam_path.unlink()
-        output_path.rename(sam_path)
+        # self.post_process_sam(output_path)
 
     def align_end_to_end(self, query_path: Path, output_path: Path):
         bowtie2(
