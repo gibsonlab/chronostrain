@@ -5,7 +5,7 @@ from typing import List, Iterator, Union
 import pysam
 import numpy as np
 
-from chronostrain.util.quality import ascii_to_phred
+from chronostrain.util.quality import ascii_pysam_to_phred
 from .cigar import CigarElement, pysam_ordering
 from chronostrain.util.sequences import Sequence, AllocatedSequence, UnknownNucleotideError
 

@@ -203,7 +203,7 @@ class CachedReadPairwiseAlignments(object):
                 )
 
                 if use_bam_format:
-                    samtools.bam_sort(tmp_sam_path, absolute_path, num_threads=cfg.model_cfg.num_cores)
+                    samtools.sam_to_bam(tmp_sam_path, absolute_path, exclude_unmapped=True)
                     tmp_sam_path.unlink()
                 else:
                     shutil.move(src=tmp_sam_path, dst=absolute_path)
