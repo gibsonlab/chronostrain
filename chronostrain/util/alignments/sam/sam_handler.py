@@ -27,8 +27,8 @@ class SamLine:
                  contig_map_idx: int,
                  cigar: List[CigarElement],
                  mate_pair: str,
-                 mate_pos: str,
-                 template_len: str
+                 mate_pos: int,
+                 template_len: int
                  ):
         """
         Parse the line using the provided reference.
@@ -92,7 +92,7 @@ class SamLine:
             read_phred = prev_sam_line.read_phred
         else:
             read_seq = AllocatedSequence(aln_segment.query_alignment_sequence)
-            read_phred = ascii_pysam_to_phred(aln_segment.query_alignment_qualities, quality_format)
+            read_phred = ascii_pysam_to_phred(aln_segment.query_alignment_qualities)
 
         cigar = [
             CigarElement(pysam_ordering[op], n)
