@@ -100,7 +100,7 @@ class SamLine:
                 for op, n in aln_segment.cigartuples
             ]
         else:
-            cigar = []
+            cigar = None
 
         return SamLine(
             lineno=lineno,
