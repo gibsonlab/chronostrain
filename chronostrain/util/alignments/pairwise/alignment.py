@@ -4,7 +4,7 @@ import numpy as np
 
 from chronostrain.database import StrainDatabase, QueryNotFoundError
 from chronostrain.model import Marker, SequenceRead
-from chronostrain.util.sequences import AllocatedSequence, bytes_GAP, NucleotideDtype
+from chronostrain.util.sequences import AllocatedSequence, bytes_GAP, NucleotideDtype, bytes_N
 
 from ..sam import *
 
@@ -32,7 +32,8 @@ class SequenceReadPairwiseAlignment(object):
         """
         :param read: The SequenceRead instance.
         :param marker: The reference marker.
-        :param aln_matrix: a 2xL matrix consisting of two rows: the gapped marker fragment, the gapped read seq.
+        :param marker_frag_aln: a length L array containing the marker alignment fragment.
+        :param read_seq_aln: a length L array containing the read alignment.
         :param sam_path: The SAM file that this alignment was parsed from.
         :param sam_line_no: The line number of the samhandler.
         :param read_start: The left endpoint of the read at which alignment starts; inclusive.
@@ -162,11 +163,6 @@ def parse_line_into_alignment(sam_path: Path,
     # ============ Parse the cigar string to generate alignments.
     cigar_els: List[CigarElement] = samline.cigar
 
-    if samline.is_reverse_complemented:
-        read_seq = read.seq.revcomp_bytes()
-    else:
-        read_seq = read.seq.bytes()
-
     read_tokens = []
     marker_tokens = []
     hard_clip_start = 0
@@ -192,6 +188,20 @@ def parse_line_into_alignment(sam_path: Path,
 
     marker_start = samline.contig_map_idx  # first included index
     read_start = soft_clip_start + hard_clip_start  # first included index
+
+    if samline.is_reverse_complemented:
+        read_seq = read.seq.revcomp_bytes()
+    else:
+        read_seq = read.seq.bytes()
+
+    if len(read_seq) < samline.read_len:
+        # The parsed SAM/BAM file didn't include the clipped bases, and we weren't able to retrieve the read instances.
+        read_seq = np.concatenate([
+            np.full(soft_clip_start + hard_clip_start, fill_value=bytes_N),
+            read_seq,
+            np.full(soft_clip_end + hard_clip_end, fill_value=bytes_N)
+        ])
+        assert len(read_seq) == samline.read_len
 
     # ============ Handle all intermediate elements.
     current_read_idx = read_start

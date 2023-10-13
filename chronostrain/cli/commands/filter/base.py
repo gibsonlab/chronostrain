@@ -109,6 +109,10 @@ class Filter(object):
                 min_hit_ratio=self.min_hit_ratio,
                 print_tqdm_progressbar=False
         ):
+            """
+            Since we didn't pass a read_getter (we can't, since we decided not to parse the raw FASTQ file to save 
+            memory), our alignments' read instances won't include the clipped bases (they'll be N's)
+            """
             if aln.read.id in reads_already_passed:
                 # Read is already included in output file. Don't do anything.
                 continue

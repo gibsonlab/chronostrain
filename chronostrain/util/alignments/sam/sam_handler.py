@@ -19,7 +19,8 @@ class SamLine:
                  lineno: int,
                  raw_aln: pysam.AlignedSegment,
                  readname: str,
-                 read_seq: Sequence,
+                 read_seq_without_clip: Sequence,
+                 read_len: int,
                  read_phred: np.ndarray,
                  is_mapped: bool,
                  is_reverse_complemented: bool,
@@ -37,7 +38,8 @@ class SamLine:
         self.raw_aln = raw_aln
 
         self.readname = readname
-        self.read_seq: Sequence = read_seq
+        self.read_seq: Sequence = read_seq_without_clip
+        self.read_len: int = read_len
         self.read_phred = read_phred
 
         self.is_mapped = is_mapped
@@ -49,10 +51,6 @@ class SamLine:
         self.mate_pair = mate_pair
         self.mate_pos = mate_pos
         self.template_len = template_len
-
-    @property
-    def read_len(self) -> int:
-        return len(self.read_seq)
 
     def __str__(self):
         return "SamLine(L={lineno}):{tokens}".format(
@@ -106,7 +104,8 @@ class SamLine:
             lineno=lineno,
             raw_aln=aln_segment,
             readname=readname,
-            read_seq=read_seq,
+            read_seq_without_clip=read_seq,
+            read_len=aln_segment.query_length,
             read_phred=read_phred,
             is_mapped=not has_sam_flag(map_flag, SamFlags.SegmentUnmapped),
             is_reverse_complemented=has_sam_flag(map_flag, SamFlags.SeqReverseComplement),
