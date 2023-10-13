@@ -184,10 +184,7 @@ class Filter(object):
         if aln.reverse_complemented:
             read_qual = read_qual[::-1]
 
-        read_start_clip = aln.soft_clip_start + aln.hard_clip_start
-        read_end_clip = aln.hard_clip_end + aln.soft_clip_end
-        _slice = slice(read_start_clip, len(read_qual) - read_end_clip)
-
+        _slice = slice(aln.read_start, aln.read_end)
         insertion_locs = np.equal(aln.marker_frag_aln_with_gaps, bytes_GAP)[aln.read_aln_with_gaps != bytes_GAP]
         read_qual = read_qual[_slice][~insertion_locs]
 
