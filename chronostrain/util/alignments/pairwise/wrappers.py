@@ -10,7 +10,6 @@ from typing import Optional, Tuple, Union
 
 from chronostrain.model.io import ReadType
 from chronostrain.util.external import *
-from chronostrain.util.alignments.sam.sam_iterators import *
 
 from chronostrain.logging import create_logger
 logger = create_logger(__name__)
