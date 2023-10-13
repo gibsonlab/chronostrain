@@ -9,7 +9,7 @@ from Bio.Seq import Seq
 from chronostrain.database import StrainDatabase
 from chronostrain.model.io import ReadType
 from chronostrain.util.alignments.sam import SamIterator
-from chronostrain.util.external import call_command
+from chronostrain.util.external import call_command, samtools
 from chronostrain.util.alignments.pairwise import *
 from chronostrain.util.sequences import bytes_GAP
 
@@ -57,7 +57,14 @@ class Filter(object):
             output_path=sam_path,
             read_type=read_type
         )
-        self._apply_helper(sam_path, metadata_path, out_path, quality_format)
+        if cfg.external_tools_cfg.pairwise_align_use_bam:
+            bam_path = sam_path.with_suffix('.bam')
+            samtools.sam_to_bam(sam_path, bam_path, exclude_unmapped=True)
+            sam_path.unlink()
+            sam_or_bam_path = bam_path
+        else:
+            sam_or_bam_path = sam_path
+        self._apply_helper(sam_or_bam_path, metadata_path, out_path, quality_format)
 
     def _apply_helper(
             self,

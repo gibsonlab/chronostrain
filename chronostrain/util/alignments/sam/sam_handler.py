@@ -94,10 +94,13 @@ class SamLine:
             read_seq = AllocatedSequence(aln_segment.query_alignment_sequence)
             read_phred = ascii_pysam_to_phred(aln_segment.query_alignment_qualities)
 
-        cigar = [
-            CigarElement(pysam_ordering[op], n)
-            for op, n in aln_segment.cigartuples
-        ]
+        if aln_segment.cigartuples is not None:
+            cigar = [
+                CigarElement(pysam_ordering[op], n)
+                for op, n in aln_segment.cigartuples
+            ]
+        else:
+            cigar = []
 
         return SamLine(
             lineno=lineno,
