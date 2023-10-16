@@ -15,14 +15,14 @@ add_sample()
     num_lines_2=$(pigz -dc $fq_2 | wc -l | awk '{print $1}')
     num_reads_2=$((${num_lines_2} / 4))
 
-    read_csv="${READS_DIR}/${sample_name}.csv"
-    echo "1000,${num_reads_1},${SAMPLES_DIR}/${fq_1},paired_1,fastq" > $read_csv  # Clear previous content, hence > and not >>
-    echo "1000,${num_reads_2},${SAMPLES_DIR}/${fq_2},paired_2,fastq" >> $read_csv  # Append
+    reads_file=${OUTPUT_DIR}/${sample_name}/reads.csv
+    mkdir -p ${OUTPUT_DIR}/${sample_name}
+    echo "1000,${sample_name},${num_reads_1},${SAMPLES_DIR}/${fq_1},paired_1,fastq" > $reads_file  # Clear previous content, hence > and not >>
+    echo "1000,${sample_name},${num_reads_2},${SAMPLES_DIR}/${fq_2},paired_2,fastq" >> $reads_file  # Append
 }
 
 
 cd $SAMPLES_DIR
-mkdir -p ${READS_DIR}
 for fq_file_1 in *-R1.fastq.gz; do
 	# Find mate pair read file.
 	regex_with_suffix="(.*)-R1.fastq.gz"

@@ -2,7 +2,6 @@
 set -e
 
 source settings.sh
-SEED=31415
 
 # =========== Read filtering. ===============
 cd $READS_DIR
