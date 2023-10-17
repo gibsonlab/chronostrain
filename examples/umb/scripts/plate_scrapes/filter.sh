@@ -4,23 +4,22 @@ set -e
 source settings.sh
 
 # =========== Read filtering. ===============
-cd $READS_DIR
-for csv_file in *.csv
+for umb_plate_dir in ${OUTPUT_DIR}/*
 do
-	regex="(.*).csv"
-	if [[ $csv_file =~ $regex ]]
+  sample_name="$(basename $umb_plate_dir)"
+  breadcrumb=${umb_plate_dir}/filter.DONE
+	export CHRONOSTRAIN_LOG_FILEPATH="${umb_plate_dir}/filter.log"
+
+  if [ -f $breadcrumb ]
 	then
-		sample_name="${BASH_REMATCH[1]}"
+	  echo "Skipping filter for ${umb_id}."
 	else
-		echo "Skipping."
-		continue
+    echo "Filtering reads for ${sample_name}"
+    env JAX_PLATFORM_NAME=cpu chronostrain filter \
+      -r "${umb_plate_dir}/reads.csv" \
+      -o "${umb_plate_dir}/filtered" \
+      --aligner "bwa-mem2"
+
+	  touch $breadcrumb
 	fi
-
-	export CHRONOSTRAIN_LOG_FILEPATH="${LOGDIR}/filter_${sample_name}.log"
-
-	echo "Filtering reads for ${sample_name}"
-	chronostrain filter \
-	-r ${READS_DIR}/${csv_file} \
-	-o "${READS_DIR}/${sample_name}_filtered" \
-	--aligner "bowtie2"
 done
