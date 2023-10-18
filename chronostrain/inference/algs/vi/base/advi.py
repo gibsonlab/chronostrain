@@ -247,6 +247,12 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
         ).model_values
 
         frag_len_negbin_n, frag_len_negbin_p = negbin_fit(cnp.array([len(f) for f in read_likelihoods.fragments]))
+        logger.debug("Negative binomial fit: n={}, p={} (mean={}, std={})".format(
+            frag_len_negbin_n,
+            frag_len_negbin_p,
+            frag_len_negbin_n * (1-frag_len_negbin_p) / frag_len_negbin_p,
+            cnp.sqrt(frag_len_negbin_n * (1 - frag_len_negbin_p)) / frag_len_negbin_p
+        ))
 
         frag_freqs, frag_pair_freqs = FragmentFrequencyComputer(
             frag_nbinom_n=frag_len_negbin_n,
