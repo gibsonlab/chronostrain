@@ -137,7 +137,7 @@ def cluster_db(
 ]:
     clustering = AgglomerativeClustering(
         metric='precomputed',
-        linkage='average',
+        linkage='complete',
         distance_threshold=(1 - identity_threshold),
         n_clusters=None
     ).fit(distances)

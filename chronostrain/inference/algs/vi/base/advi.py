@@ -11,7 +11,7 @@ from chronostrain.database import StrainDatabase
 from chronostrain.config import cfg
 from chronostrain.model import AbundanceGaussianPrior, AbstractErrorModel, TimeSeriesReads, Population
 from chronostrain.util.benchmarking import RuntimeEstimator
-from chronostrain.util.math import log_spspmm_exp
+from chronostrain.util.math import log_spspmm_exp, negbin_fit
 from chronostrain.util.optimization import LossOptimizer
 
 from chronostrain.inference.likelihoods import ReadStrainCollectionCache, ReadFragmentMappings, \
@@ -245,9 +245,12 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
             self.data, self.db, self.error_model,
             dtype=cfg.engine_cfg.dtype
         ).model_values
+
+        frag_len_negbin_n, frag_len_negbin_p = negbin_fit(cnp.array([len(f) for f in read_likelihoods.fragments]))
+
         frag_freqs, frag_pair_freqs = FragmentFrequencyComputer(
-            frag_nbinom_n=cfg.model_cfg.frag_len_negbin_n,
-            frag_nbinom_p=cfg.model_cfg.frag_len_negbin_p,
+            frag_nbinom_n=frag_len_negbin_n,
+            frag_nbinom_p=frag_len_negbin_p,
             reads=self.data,
             db=self.db,
             strains=self.gaussian_prior.population.strains,
