@@ -11,7 +11,7 @@ from chronostrain.database import StrainDatabase
 from chronostrain.config import cfg
 from chronostrain.model import AbundanceGaussianPrior, AbstractErrorModel, TimeSeriesReads, Population
 from chronostrain.util.benchmarking import RuntimeEstimator
-from chronostrain.util.math import log_spspmm_exp, negbin_fit
+from chronostrain.util.math import log_spspmm_exp, negbin_fit_frags
 from chronostrain.util.optimization import LossOptimizer
 
 from chronostrain.inference.likelihoods import ReadStrainCollectionCache, ReadFragmentMappings, \
@@ -246,7 +246,22 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
             dtype=cfg.engine_cfg.dtype
         ).model_values
 
-        frag_len_negbin_n, frag_len_negbin_p = negbin_fit(cnp.array([len(f) for f in read_likelihoods.fragments]))
+        avg_marker_len = int(cnp.median([
+            len(m)
+            for s in self.db.all_strains()
+            for m in s.markers
+        ]))
+        avg_read_len = int(cnp.median([
+            len(read)
+            for reads_t in self.data
+            for read in reads_t
+        ]))
+        logger.debug("Read-marker statistics: avg marker = {}, avg read = {}".format(
+            avg_marker_len,
+            avg_read_len
+        ))
+
+        frag_len_negbin_n, frag_len_negbin_p = negbin_fit_frags(avg_marker_len, avg_read_len, max_padding=avg_read_len // 2)
         logger.debug("Negative binomial fit: n={}, p={} (mean={}, std={})".format(
             frag_len_negbin_n,
             frag_len_negbin_p,
