@@ -3,14 +3,16 @@ from typing import Tuple
 from statsmodels.discrete.discrete_model import NegativeBinomial
 
 
-def negbin_fit_frags(marker_len: int, read_len: int, max_padding: int) -> Tuple[float, float]:
+def negbin_fit_frags(marker_len: int, read_lens: np.ndarray, max_padding_ratio: float) -> Tuple[float, float]:
     lens = []
-    for _ in range(marker_len - read_len + 1):
-        lens.append(read_len)
+    for read_len in read_lens:
+        max_padding = int(max_padding_ratio * read_len)
+        for _ in range(marker_len - read_len + 1):
+            lens.append(read_len)
 
-    for b in range(1, max_padding):
-        lens.append(read_len - b)
-        lens.append(read_len - b)
+        for b in range(1, max_padding):
+            lens.append(read_len - b)
+            lens.append(read_len - b)
 
     return negbin_fit(np.array(lens))
 

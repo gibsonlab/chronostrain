@@ -251,17 +251,22 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
             for s in self.db.all_strains()
             for m in s.markers
         ]))
-        avg_read_len = int(cnp.median([
+        read_lens = cnp.array([
             len(read)
             for reads_t in self.data
             for read in reads_t
-        ]))
+        ])
+        if len(read_lens) > 100:
+            step = len(read_lens) // 100
+            read_lens.sort()
+            read_lens = read_lens[::step]
+
         logger.debug("Read-marker statistics: avg marker = {}, avg read = {}".format(
             avg_marker_len,
-            avg_read_len
+            cnp.median(read_lens)
         ))
 
-        frag_len_negbin_n, frag_len_negbin_p = negbin_fit_frags(avg_marker_len, avg_read_len, max_padding=avg_read_len // 2)
+        frag_len_negbin_n, frag_len_negbin_p = negbin_fit_frags(avg_marker_len, read_lens, max_padding_ratio=0.5)
         logger.debug("Negative binomial fit: n={}, p={} (mean={}, std={})".format(
             frag_len_negbin_n,
             frag_len_negbin_p,
