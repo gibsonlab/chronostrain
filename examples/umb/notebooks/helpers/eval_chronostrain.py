@@ -42,6 +42,7 @@ def evaluate_by_clades(
 ) -> pd.DataFrame:
     df_entries = []
     for umb_result in chronostrain_outputs:
+        print(f"Computing correlations for {umb_result.name}")
         overall_relabund_samples = umb_result.overall_ra()
         db_relabund_samples = umb_result.filt_ra()
         strains = umb_result.display_strains
