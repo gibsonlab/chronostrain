@@ -88,6 +88,10 @@ def timeseries_coherence_factor(x: np.ndarray) -> np.ndarray:
     return mean_correlation_factor(x[1:], x[:-1])
 
 
+def spearman_corr(x_t, y_t, n) -> float:
+    return scipy.stats.spearmanr(x_t[n], y_t[n]).correlation
+
+
 def mean_correlation_factor(x: np.ndarray, y: np.ndarray) -> np.ndarray:
     from multiprocessing import Pool
     assert x.shape[0] == y.shape[0]
@@ -107,8 +111,8 @@ def mean_correlation_factor(x: np.ndarray, y: np.ndarray) -> np.ndarray:
     with Pool(processes=12) as pool:
         return np.nanmean([
             pool.map(
-                lambda n: scipy.stats.spearmanr(x_t[n], y_t[n]).correlation,
-                range(x_t.shape[0])
+                spearman_corr,
+                [(x_t, y_t, n) for n in range(x_t.shape[0])]
             )
             for x_t, y_t in zip(x, y)
         ], axis=0)
