@@ -6,7 +6,6 @@ import pandas as pd
 import scipy.stats
 
 from chronostrain.model import Strain
-from chronostrain.config import cfg
 from .chronostrain_result import ChronostrainResult
 
 
@@ -90,12 +89,13 @@ def timeseries_coherence_factor(x: np.ndarray) -> np.ndarray:
 
 
 def mean_correlation_factor(x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    from multiprocessing import Pool
     assert x.shape[0] == y.shape[0]
     assert x.shape[-1] == y.shape[-1]
 
     if len(x.shape) == 2 and len(y.shape) == 2:
         return np.nanmean([
-            correlation_factor(x_t, y_t)
+            scipy.stats.spearmanr(x_t, y_t)
             for x_t, y_t in zip(x, y)
         ])
 
@@ -104,32 +104,14 @@ def mean_correlation_factor(x: np.ndarray, y: np.ndarray) -> np.ndarray:
     if len(y.shape) == 2:
         y = np.repeat(np.expand_dims(y, 1), x.shape[1], axis=1)
 
-    return np.nanmean([
-        [
-            correlation_factor(x_tn, y_tn)
-            for x_tn, y_tn in zip(x_t, y_t)
-        ]
-        for x_t, y_t in zip(x, y)
-    ], axis=0)
-
-
-def correlation_factor(x: np.ndarray, y: np.ndarray) -> float:
-    assert len(x.shape) == 1
-    assert len(y.shape) == 1
-
-    if np.std(x) == 0 and np.std(y) == 0:  # edge case
-        if x[0] == 0.:
-            return np.nan
-        elif x[0] == y[0]:
-            return 1.0
-        else:
-            return 0.0
-
-    if np.std(x) == 0 or np.std(y) == 0:  # only one is zero
-        return 0.0
-
-    # noinspection PyTypeChecker
-    return scipy.stats.spearmanr(x, y)[0]
+    with Pool(processes=12) as pool:
+        return np.nanmean([
+            pool.map(
+                lambda n: scipy.stats.spearmanr(x_t[n], y_t[n]).correlation,
+                range(x_t.shape[0])
+            )
+            for x_t, y_t in zip(x, y)
+        ], axis=0)
 
 
 def analyze_correlations(chronostrain_outputs: List[ChronostrainResult], clades_tsv: Path, output_path: Path):
