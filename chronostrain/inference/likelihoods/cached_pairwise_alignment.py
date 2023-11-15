@@ -188,8 +188,8 @@ class CachedReadPairwiseAlignments(object):
             cache_relative_path = Path("alignments") / "{}.sam".format(query_path.stem)
         absolute_path = self.cache.cache_dir / cache_relative_path
 
-        if not self.db.faidx_file.exists():
-            samtools.faidx(self.marker_reference_path)
+        if not self.cache.faidx_file.exists():
+            samtools.faidx(self.cache.marker_fasta_path)
 
         # ====== function bindings to pass to ComputationCache.
         def _call_aligner():
@@ -203,7 +203,7 @@ class CachedReadPairwiseAlignments(object):
                 )
 
                 if use_bam_format:
-                    samtools.sam_to_bam(tmp_sam_path, absolute_path, self.db.faidx_file, self.marker_reference_path, exclude_unmapped=True)
+                    samtools.sam_to_bam(tmp_sam_path, absolute_path, self.db.faidx_file, self.cache.marker_fasta_path, exclude_unmapped=True)
                     tmp_sam_path.unlink()
                 else:
                     shutil.move(src=tmp_sam_path, dst=absolute_path)

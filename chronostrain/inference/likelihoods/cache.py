@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import List
 
 from chronostrain.database import StrainDatabase
@@ -33,6 +34,10 @@ class ReadStrainCollectionCache(ComputationCache):
         self.strains = strains
         self.marker_fasta_path = self.create_subdir('db_index').resolve() / 'markers.fasta'
         self.init_marker_multifasta()
+
+    @property
+    def faidx_file(self) -> Path:
+        return self.marker_fasta_path.with_suffix('.fai')
 
     def init_marker_multifasta(self):
         from Bio import SeqIO
