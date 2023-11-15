@@ -10,8 +10,8 @@ echo "Note: this script assumes that the database JSON files were constructed us
 # First, re-cluster the original database.
 env JAX_PLATFORM_NAME=cpu \
   chronostrain prune-json \
-  -i asdf \
-  -o asdf \
+  -i /mnt/e/ecoli_db/chronostrain_files/ecoli-2overlapmerged.json \
+  -o /mnt/e/ecoli_db/chronostrain_files/ecoli_granular.json \
   --ident-threshold 0.9999999999
 
 
