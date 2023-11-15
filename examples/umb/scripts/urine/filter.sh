@@ -11,14 +11,17 @@ do
   run_dir=${OUTPUT_DIR}/${umb_id}
   breadcrumb=${run_dir}/filter.DONE
 	export CHRONOSTRAIN_LOG_FILEPATH="${run_dir}/logs/chronostrain_filter.log"
+	reads_file="${run_dir}/reads.csv"
+	echo "$breadcrumb"
 
-  if [ -f $breadcrumb ]
-	then
+  if ! [ -f $reads_file ]; then
+    echo "reads file not found for ${umb_id}."
+  elif [ -f $breadcrumb ]; then
 	  echo "Skipping filter for ${umb_id}."
 	else
     echo "[*] Filtering reads for ${umb_id}"
     env JAX_PLATFORM_NAME=cpu chronostrain filter \
-      -r "${run_dir}/reads.csv" \
+      -r $reads_file \
       -o "${run_dir}/filtered" \
       --aligner "bwa-mem2"
 

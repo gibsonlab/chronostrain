@@ -3,10 +3,10 @@ import click
 import numpy as np
 from pathlib import Path
 
-from Bio import Phylo
-from Bio.Phylo.TreeConstruction import DistanceTreeConstructor, DistanceMatrix
 from scipy.cluster.hierarchy import linkage, to_tree
 from scipy.spatial.distance import squareform
+from skbio import DistanceMatrix
+from skbio.tree import nj
 
 
 def load_distances(dist_values_path: Path, strain_ordering_path: Path) -> Tuple[np.ndarray, List[str]]:
@@ -43,8 +43,8 @@ def get_newick(node, parent_dist, leaf_names, newick='') -> str:
 
 @click.command()
 @click.option(
-    '--output-dir', '-o', 'output_path',
-    type=click.Path(path_type=Path, file_okay=False), required=True
+    '--output-path', '-o', 'output_path',
+    type=click.Path(path_type=Path, dir_okay=False), required=True
 )
 @click.option(
     '--distance-array', '-da', 'distance_array_path',
@@ -65,17 +65,24 @@ def main(output_path: Path, distance_array_path: Path, distance_ordering_path: P
         return
 
     distances, acc_ordering = load_distances(distance_array_path, distance_ordering_path)
-
-    print("Computing linkage via hierarchical clustering.")
-    Z = linkage(
-        squareform(distances), method='complete'
-    )
-    tree = to_tree(Z, False)
-
+    print("Computing neighbor joining tree.")
+    dm = DistanceMatrix(distances, acc_ordering)
+    newick_str = nj(dm, result_constructor=str)
     print("Producing newick tree.")
-    newick_str = get_newick(tree, tree.dist, acc_ordering)
     with open(output_path, "wt") as f:
         print(newick_str, file=f)
+
+    # ============ scipy linkage function
+    # print("Computing linkage via hierarchical clustering.")
+    # Z = linkage(
+    #     squareform(distances), method='complete'
+    # )
+    # tree = to_tree(Z, False)
+    #
+    # print("Producing newick tree.")
+    # newick_str = get_newick(tree, tree.dist, acc_ordering)
+    # with open(output_path, "wt") as f:
+    #     print(newick_str, file=f)
 
     # ============ old code using biopython, NJ is slow!
     # print("Constructing tree from distance matrix.")

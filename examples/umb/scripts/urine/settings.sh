@@ -21,7 +21,7 @@ export NEXTERA_ADAPTER_PATH="/home/lactis/anaconda3/envs/chronostrain/share/trim
 export TRIMMOMATIC_DIR="/home/lactis/anaconda3/envs/chronostrain/share/trimmomatic-0.39-2"
 
 # ========= Chronostrain settings
-export CHRONOSTRAIN_CORR_MODE='full'
+export CHRONOSTRAIN_CORR_MODE='strain'
 export CHRONOSTRAIN_NUM_ITERS=100
 export CHRONOSTRAIN_NUM_SAMPLES=100
 export CHRONOSTRAIN_READ_BATCH_SZ=10000

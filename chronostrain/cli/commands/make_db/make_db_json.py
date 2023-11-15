@@ -70,12 +70,6 @@ from ..base import option
     help="The number of threads to use (e.g. for blast)."
 )
 @option(
-    "--skip-symlink", "skip_symlink",
-    is_flag=True, default=False,
-    help="If specified, then skips a pre-processing step which uses the reference index (--references) and populates "
-         "ChronoStrain's DATA_DIR with the specified assembled sequence FASTA files."
-)
-@option(
     "--skip-prune", "skip_prune",
     is_flag=True, default=False,
     help="If specified, skip the pruning step."
@@ -96,7 +90,6 @@ def main(
         identity_threshold: float,
         min_marker_len: int,
         num_threads: int,
-        skip_symlink: bool,
         skip_prune: bool,
         isolates_index_path: Union[Path, None]
 ):

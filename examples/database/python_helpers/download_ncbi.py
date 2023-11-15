@@ -20,7 +20,18 @@ class NCBIRecord:
         self.strain_name = strain_name
 
 
-def fetch_catalog(taxid, save_path: Path) -> List[NCBIRecord]:
+def fetch_catalog(taxids: List[str], save_dir: Path) -> List[NCBIRecord]:
+    records = []
+    for taxid in taxids:
+        print(f"Handling taxid {taxid}")
+        records += fetch_catalog_single_taxa(
+            taxid,
+            save_dir / f'catalog.{taxid}.json'
+        )
+    return records
+
+
+def fetch_catalog_single_taxa(taxid: str, save_path: Path) -> List[NCBIRecord]:
     call_command(
         "datasets",
         [
@@ -39,26 +50,49 @@ def fetch_catalog(taxid, save_path: Path) -> List[NCBIRecord]:
 
     seen_accessions = set()
     records = []
-    for entry in catalog['reports']:
-        acc = entry['accession']
-        if acc in seen_accessions:  # sometimes there are duplicates
-            continue
 
-        org_name = entry['organism']['organism_name']
-        genus, species = org_name.split()[:2]
-        infra_name = entry['organism']['infraspecific_names']
-        if 'strain' in infra_name:
-            strain_name = infra_name['strain']
-        elif 'isolate' in infra_name:
-            strain_name = infra_name['isolate']
-        else:
-            raise KeyError(
-                "No recognizable key found for infraspecific_names dict of {}. (Possible keys: {})".format(
-                    acc, set(infra_name.keys())
-                )
-            )
+    try:
+        logger.info("Found {} raw records.".format(catalog['total_count']))
+        for entry in catalog['reports']:
+            acc = entry['accession']
+            if acc in seen_accessions:  # sometimes there are duplicates
+                continue
+            if 'paired_accession' in entry and entry['paired_accession'] in seen_accessions:
+                continue
 
-        records.append(NCBIRecord(acc, genus, species, strain_name))
+            org_name = entry['organism']['organism_name']
+            genus, species = org_name.split()[:2]
+            if genus.startswith("["):
+                genus = genus[1:]
+            if genus.endswith("]"):
+                genus = genus[:-1]
+
+            if 'infraspecific_names' in entry['organism']:
+                infra_name = entry['organism']['infraspecific_names']
+                if 'strain' in infra_name:
+                    strain_name = infra_name['strain']
+                elif 'isolate' in infra_name:
+                    strain_name = infra_name['isolate']
+                else:
+                    raise KeyError(
+                        "No recognizable key found for infraspecific_names dict of {}. (Possible keys: {})".format(
+                            acc, set(infra_name.keys())
+                        )
+                    )
+            elif entry['source_database'] == 'SOURCE_DATABASE_REFSEQ':
+                logger.info("Found record ({}) which is a reference sequence for {} {}.".format(
+                    acc, genus, species
+                ))
+                strain_name = "{}_{}_Ref".format(genus, species)
+            else:
+                for k, v in entry.items():
+                    print(f'{k} --> {v}')
+                raise KeyError("Ran into edge case while parsing NCBI datasets JSON file. Parser logic will need to be updated.")
+
+            seen_accessions.add(acc)
+            records.append(NCBIRecord(acc, genus, species, strain_name))
+    except KeyError as e:
+        raise KeyError(f"Couldn't parse NCBI catalog JSON file (`{save_path.name}). Is it properly formatted?") from e
     return records
 
 
@@ -95,7 +129,7 @@ def download_assemblies(records: List[NCBIRecord], out_dir: Path):
 def create_catalog(records: List[NCBIRecord], data_dir: Path) -> pd.DataFrame:
     df_entries = []
     for record in records:
-        print("Indexing {} ({})".format(record.accession, record.strain_name))
+        print("Indexing {} ({} {}, {})".format(record.accession, record.genus, record.species, record.strain_name))
         seq_dir = data_dir / "ncbi_dataset" / "data" / record.accession
         nuc_accession, chrom_path, gff_path, chrom_len = extract_chromosome(seq_dir)
 
@@ -130,8 +164,9 @@ def extract_chromosome(seq_dir: Path) -> Tuple[str, Path, Path, int]:
 
 @click.command()
 @click.option(
-    '--taxid', '-t', 'taxid',
-    type=str, required=True
+    '--taxids', '-t', 'taxids',
+    type=str, required=True,
+    help="A comma-separated list of taxonomic names (species, genus, etc.)"
 )
 @click.option(
     '--target-dir', '-d', 'target_dir',
@@ -141,9 +176,9 @@ def extract_chromosome(seq_dir: Path) -> Tuple[str, Path, Path, int]:
     '--output-index', '-o', 'output_index_path',
     type=click.Path(path_type=Path, dir_okay=False), required=True
 )
-def main(taxid: str, target_dir: Path, output_index_path: Path):
-    records = fetch_catalog(taxid, save_path=target_dir / "catalog.json")
-    logger.info("Found {} records.".format(len(records)))
+def main(taxids: str, target_dir: Path, output_index_path: Path):
+    records = fetch_catalog(taxids.split(","), save_dir=target_dir)
+    logger.info("Found {} unique strain records.".format(len(records)))
     download_assemblies(records, target_dir)
     index_df = create_catalog(records, target_dir)
     index_df.to_csv(output_index_path, sep='\t', index=False)

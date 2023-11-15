@@ -220,6 +220,7 @@ class ChronostrainRenderer:
             strain_palette: Dict[str, np.ndarray],
             stool_result: ChronostrainResult,
             urine_result: ChronostrainResult,
+            plate_results: List[Tuple[float, ChronostrainResult]],
             abx_df: pd.DataFrame,
             abx_palette: Dict[str, np.ndarray],
             abx_label: Dict[str, str],
@@ -231,6 +232,7 @@ class ChronostrainRenderer:
         self.strain_palette = strain_palette
         self.stool_result = stool_result
         self.urine_result = urine_result
+        self.plate_results = plate_results
         self.abx_df = abx_df
         self.abx_label = abx_label
         self.abx_palette = abx_palette
@@ -249,6 +251,13 @@ class ChronostrainRenderer:
         if self.urine_result is not None:
             dfs.append(
                 self.urine_result.annot_df_with_lower_bound(self.abund_lb, target_taxon=self.target_taxon).assign(Src='urine')
+            )
+        for t, plate_result in self.plate_results:
+            dfs.append(
+                plate_result.annot_df_with_lower_bound(self.abund_lb, target_taxon=self.target_taxon).assign(
+                    Src='plate',
+                    T=t
+                )
             )
 
         return pd.concat(dfs, ignore_index=True)
@@ -271,16 +280,27 @@ class ChronostrainRenderer:
         df = res.annot_df_with_lower_bound(self.abund_lb, target_taxon=self.target_taxon)
         if df.shape[0] == 0:
             return [0.1, 1.0]
+
+        overall_relabund = res.overall_ra()
         
         ymin = 1.0  # max possible value
         ymax = 0.0  # min possible value
         for s_idx in pd.unique(df['StrainIdx']):
-            section = res.timeseries_df.loc[res.timeseries_df['StrainIdx'] == s_idx].sort_values('T')
+            # section = res.timeseries_df.loc[res.timeseries_df['StrainIdx'] == s_idx].sort_values('T')
+            # color = self.get_color(res.display_strains[s_idx].id)
+            # ax.plot(res.time_points, section['OverallRelAbundMedian'], marker='.', linewidth=2, color=color)
+            # ax.fill_between(res.time_points, section['OverallRelAbundLower'], section['OverallRelAbundUpper'], color=color, alpha=0.3)
+            # ymin = min(ymin, np.min(section['OverallRelAbundMedian']))
+            # ymax = max(ymax, np.max(section['OverallRelAbundMedian']))
+            section = overall_relabund[:, :, s_idx]
             color = self.get_color(res.display_strains[s_idx].id)
-            ax.plot(res.time_points, section['OverallRelAbundMedian'], marker='.', linewidth=2, color=color)
-            ax.fill_between(res.time_points, section['OverallRelAbundLower'], section['OverallRelAbundUpper'], color=color, alpha=0.3)
-            ymin = min(ymin, np.min(section['OverallRelAbundMedian']))
-            ymax = max(ymax, np.max(section['OverallRelAbundMedian']))
+            upper = np.quantile(section, axis=-1, q=0.975)
+            lower = np.quantile(section, axis=-1, q=0.025)
+            median = np.quantile(section, axis=-1, q=0.5)
+            ax.plot(res.time_points, median, marker='.', linewidth=2, color=color)
+            ax.fill_between(res.time_points, lower, upper, color=color, alpha=0.3)
+            ymin = min(ymin, np.min(median))
+            ymax = max(ymax, np.max(median))
         ax.set_yscale(yscale)
         ax.set_xticks(res.time_points)
         return ymin, ymax

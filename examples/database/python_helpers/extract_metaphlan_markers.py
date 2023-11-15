@@ -1,4 +1,4 @@
-from typing import Iterator, Tuple, Set, Dict, List
+from typing import Iterator, Tuple, Set, List
 from pathlib import Path
 
 import pickle
@@ -7,7 +7,6 @@ import argparse
 
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
-from Bio.Seq import Seq
 
 
 def parse_args() -> argparse.Namespace:
@@ -25,7 +24,7 @@ class MetaphlanParser(object):
         if not self.marker_fasta.exists():
             raise FileNotFoundError(f"Expected {self.marker_fasta} to exist, but not found.")
 
-    def retrieve_marker_seeds(self, taxon_keys: List[str]) -> Iterator[Tuple[str, str, SeqRecord]]:
+    def retrieve_marker_seeds(self, target_taxon_keys: List[str]) -> Iterator[Tuple[str, str, SeqRecord]]:
         """
         Generator over Tuples (metaphlan marker ID, metaphlan taxonomic token, SeqRecord)
         """
@@ -36,9 +35,9 @@ class MetaphlanParser(object):
         markers = db['markers']
         keys_to_taxonomy = dict()  # The fasta record IDs to retrieve from FASTA. (values are corresponding taxonomic labels).
         for marker_key, marker_dict in markers.items():  # Iterate through metaphlan markers
-            for taxon_key in taxon_keys:  #
-                if taxon_key in marker_dict['taxon']:
-                    keys_to_taxonomy[marker_key] = taxon_key
+            for target_taxon_key in target_taxon_keys:
+                if target_taxon_key in marker_dict['taxon']:
+                    keys_to_taxonomy[marker_key] = target_taxon_key
 
         print(f"Target # of markers: {len(keys_to_taxonomy)}")
         for record in self._retrieve_from_fasta(set(keys_to_taxonomy.keys())):

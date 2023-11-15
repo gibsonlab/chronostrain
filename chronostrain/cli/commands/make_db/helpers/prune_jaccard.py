@@ -33,7 +33,7 @@ def prune_json_db_jaccard(
     tmp_dir.mkdir(exist_ok=True, parents=True)
 
     logger.info("Computing all-to-all Jaccard distance calculations.")
-    strain_id_ordering, distances = compute_jaccard_distances(src_db, tmp_dir)
+    strain_id_ordering, distances = compute_jaccard_distances(src_db, logger, tmp_dir)
     np.save(str(tgt_json_path.parent / "distances.npy"), distances)
     with open(tgt_json_path.parent / "distance_order.txt", "wt") as f:
         for s_id in strain_id_ordering:
@@ -83,6 +83,7 @@ def prune_json_db_jaccard(
 
 def compute_jaccard_distances(
         src_db: StrainDatabase,
+        logger: Logger,
         tmp_dir: Path
 ) -> Tuple[List[str], np.ndarray]:
 
@@ -91,6 +92,11 @@ def compute_jaccard_distances(
     with open(input_file_list, 'wt') as input_list_f:
         accs = []
         for strain in src_db.all_strains():
+            num_markers_with_N = sum(1 for m in strain.markers if m.seq.number_of_ns() > 0)
+            if num_markers_with_N > 0:
+                logger.warning(f"Removed strain {strain.id} ({strain.metadata.genus} {strain.metadata.species}, {strain.name}) from clustering, since at least one marker had an N.")
+                continue
+
             strain_marker_fasta = tmp_dir / f'{strain.id}.fasta'
             accs.append(strain.id)
             with open(strain_marker_fasta, 'wt') as out_f:

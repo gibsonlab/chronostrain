@@ -32,7 +32,7 @@ def overlap_primitive(x_start, x_end, y_start, y_end) -> bool:
     return max(x_start, y_start) <= min(x_end, y_end)
 
 
-def perform_primer_search(ref_seq_path: Path, in_path: Path, out_path: Path, cluster_name: str, primer1: Seq, primer2: Seq):
+def perform_primer_search(ref_seq_path: Path, in_path: Path, out_path: Path, cluster_name: str, primer1: Seq, primer2: Seq, mismatch_pct: int):
     # Prepare input file for `primersearch` EMBOSS program.
     primer_search_input = PrimerSearch.InputRecord()
     primer_search_input.add_primer_set(cluster_name, primer1, primer2)
@@ -45,7 +45,7 @@ def perform_primer_search(ref_seq_path: Path, in_path: Path, out_path: Path, clu
         args=[
             '-seqall', ref_seq_path,
             '-infile', in_path,
-            '-mismatchpercent', 30,
+            '-mismatchpercent', mismatch_pct,
             '-outfile', out_path
         ],
         silent=True
@@ -81,12 +81,23 @@ def parse_primersearch_output(out_path: Path) -> Iterator[SimpleLocation]:
                     raise ValueError("Couldn't parse len from token {}".format(bp_token)) from None
 
 
-def get_primersearch_hit(out_path: Path, max_possible_len: int, min_possible_len: int) -> SimpleLocation:
+def get_primersearch_hit_minimal(out_path: Path) -> SimpleLocation:
     best_loc = None
-    best_len = max_possible_len
     for loc in parse_primersearch_output(out_path):
-        if len(loc) < best_len and len(loc) > min_possible_len:
-            best_len = len(loc)
+        if best_loc is None or len(loc) < len(best_loc):
+            best_loc = loc
+    if best_loc is None:
+        raise PrimerSearchEmptyHits()
+    return best_loc
+
+
+def get_primersearch_hit(out_path: Path, target_len: int) -> SimpleLocation:
+    best_loc: Union[SimpleLocation, None] = None
+    for loc in parse_primersearch_output(out_path):
+        len_deviation = abs(target_len - len(loc))
+        if len_deviation / target_len > 0.1:
+            continue
+        if best_loc is None or len_deviation < abs(target_len - len(best_loc)):
             best_loc = loc
     if best_loc is None:
         raise PrimerSearchEmptyHits()
@@ -146,21 +157,25 @@ def extract_genes(target_acc: str, seq_path: Path, gff_path: Path, target_loc: S
 def get_gff_annotated_genes_from_pcr(
         accession: str,
         acc_chrom_path: Path,
-        maximal_amplicon_len: int,
-        minimal_amplicon_len: int,
         cluster_name: str,
         primer1: Seq,
         primer2: Seq,
+        mismatch_pct: int,
         gff_path: Path,
         tmp_dir: Path
 ) -> List[GeneSequence]:
     # =========== primersearch
     in_path = tmp_dir / 'primer_input.txt'
     out_path = tmp_dir / 'primer_output.txt'
-    perform_primer_search(acc_chrom_path, in_path, out_path, f"gene__{cluster_name}", primer1, primer2)
+    perform_primer_search(
+        acc_chrom_path, in_path, out_path,
+        f"gene__{cluster_name}",
+        primer1, primer2,
+        mismatch_pct
+    )
 
     # =========== parse primersearch
-    target_loc = get_primersearch_hit(out_path, maximal_amplicon_len, minimal_amplicon_len)
+    target_loc = get_primersearch_hit_minimal(out_path)
     # print("Best primer hit is {}, len = {}".format(target_loc, len(target_loc)))
 
     # =========== parse gene features.
@@ -169,24 +184,30 @@ def get_gff_annotated_genes_from_pcr(
 
 def get_primerhit_as_gene(
         chrom_path: Path,
-        maximal_amplicon_len: int,
-        minimal_amplicon_len: int,
+        target_amplicon_len: int,
         cluster_name: str,
         primer1: Seq,
         primer2: Seq,
+        mismatch_pct: int,
         tmp_dir: Path
 ) -> GeneSequence:
     # =========== primersearch
     in_path = tmp_dir / 'primer_input.txt'
     out_path = tmp_dir / 'primer_output.txt'
-    perform_primer_search(chrom_path, in_path, out_path, f"gene__{cluster_name}", primer1, primer2)
+    perform_primer_search(
+        chrom_path, in_path, out_path,
+        f"gene__{cluster_name}",
+        primer1, primer2,
+        mismatch_pct
+    )
 
     # =========== parse primersearch
-    target_loc = get_primersearch_hit(out_path, maximal_amplicon_len, minimal_amplicon_len)
+    target_loc = get_primersearch_hit(out_path, target_amplicon_len)
     # print("Best primer hit is {}, len = {}".format(target_loc, len(target_loc)))
 
     # =========== parse gene features.
     genome_seq = SeqIO.read(chrom_path, "fasta")
+
     return GeneSequence(
         name=cluster_name,
         seq=target_loc.extract(genome_seq).seq
@@ -232,6 +253,11 @@ def get_primerhit_as_gene(
     help="The 5'--3' ending primer."
 )
 @click.option(
+    '--mismatch-pct', '-m', 'mismatch_pct',
+    type=int, required=True,
+    help="The allowed % of mismatches for primer matching."
+)
+@click.option(
     '--cluster-name', '-n', 'cluster_name',
     type=str, required=True,
     help="A cluster name to use for EMBOSS, purely for display/debugging purposes."
@@ -258,6 +284,7 @@ def main(
         target_species: str,
         primer1_seq: str,
         primer2_seq: str,
+        mismatch_pct: int,
         expected_amplicon_len: Union[int, None],
         use_gff: bool
 ):
@@ -282,7 +309,6 @@ def main(
     for _, row in tqdm(index_df.iterrows(), total=index_df.shape[0], unit='genome'):
         acc = row['Accession']
         ref_seq_path = Path(row['SeqPath'])
-        chrom_len = row['ChromosomeLen']
         gff_path = Path(row['GFF'])
         genus = row['Genus']
         species = row['Species']
@@ -290,34 +316,26 @@ def main(
         if use_gff and (not gff_path.exists()):
             continue
 
-        if expected_amplicon_len is not None:
-            max_amplicon_len = 1.2 * expected_amplicon_len
-            minimal_amplicon_len = 0
-            # minimal_amplicon_len = 0.8 * expected_amplicon_len
-        else:
-            max_amplicon_len = chrom_len
-            minimal_amplicon_len = 0
-
         try:
             if use_gff:
                 genes = get_gff_annotated_genes_from_pcr(
                     accession=acc,
                     acc_chrom_path=ref_seq_path,
-                    maximal_amplicon_len=max_amplicon_len,
-                    minimal_amplicon_len=minimal_amplicon_len,
                     cluster_name=cluster_name,
                     primer1=primer1,
                     primer2=primer2,
+                    mismatch_pct=mismatch_pct,
                     gff_path=gff_path,
                     tmp_dir=tmp_dir
                 )
             else:
                 gene = get_primerhit_as_gene(
                     chrom_path=ref_seq_path,
-                    maximal_amplicon_len=max_amplicon_len,
-                    minimal_amplicon_len=minimal_amplicon_len,
+                    target_amplicon_len=expected_amplicon_len,
                     cluster_name=cluster_name,
-                    primer1=primer1, primer2=primer2,
+                    primer1=primer1,
+                    primer2=primer2,
+                    mismatch_pct=mismatch_pct,
                     tmp_dir=tmp_dir
                 )
                 genes = [gene]

@@ -1,3 +1,4 @@
+import itertools
 from typing import Tuple, Dict, List, Iterator
 from pathlib import Path
 
@@ -6,7 +7,7 @@ import pandas as pd
 import scipy.stats
 
 from chronostrain.model import Strain
-from .chronostrain_result import ChronostrainResult
+from .chronostrain_result import ChronostrainResult, Taxon
 
 
 def strip_suffixes(x):
@@ -38,87 +39,82 @@ def parse_clades(clades_path: Path) -> Dict[str, str]:
 def evaluate_by_clades(
         chronostrain_outputs: List[ChronostrainResult],
         clades: Dict[str, str],
+        abund_lb: float
 ) -> pd.DataFrame:
     df_entries = []
     for umb_result in chronostrain_outputs:
         print(f"Computing correlations for {umb_result.name}")
-        overall_relabund_samples = umb_result.overall_ra()
-        db_relabund_samples = umb_result.filt_ra()
-        strains = umb_result.display_strains
+        df = umb_result.annot_df_with_lower_bound(abund_lb, target_taxon=Taxon("Escherichia", "coli"))
+        df['Phylogroup'] = df['StrainId'].map(clades)
 
-        for (clade, overall_chunk), (_c, relative_chunk) in zip(
-                divide_into_timeseries(overall_relabund_samples, strains, clades),
-                divide_into_timeseries(db_relabund_samples, strains, clades),
-        ):
-            assert clade == _c
-            assert overall_chunk.shape[0] == relative_chunk.shape[0]
-            assert overall_chunk.shape[1] == relative_chunk.shape[1]
-            assert overall_chunk.shape[2] == relative_chunk.shape[2]
-
-            coherence = timeseries_coherence_factor(relative_chunk)
+        for clade, clade_section in df.groupby("Phylogroup"):
+            coherence, group_sz, abund = timeseries_coherence(umb_result.time_points, clade_section, umb_result)
             df_entries.append({
                 "Patient": umb_result.name,
                 "Phylogroup": clade,
-                "GroupSize": overall_chunk.shape[-1],
-                "CoherenceLower": np.quantile(coherence, q=0.025),
-                "CoherenceMedian": np.quantile(coherence, q=0.5),
-                "CoherenceUpper": np.quantile(coherence, q=0.975),
-                "CladeOverallRelAbundLower": np.max(np.quantile(overall_chunk.sum(axis=-1), q=0.025, axis=1)),
-                "CladeOverallRelAbundMedian": np.max(np.quantile(overall_chunk.sum(axis=-1), q=0.5, axis=1)),
-                "CladeOverallRelAbundUpper": np.max(np.quantile(overall_chunk.sum(axis=-1), q=0.975, axis=1)),
-                "StrainRelAbundLower": np.max(np.quantile(relative_chunk, axis=1, q=0.025)),
-                "StrainRelAbundMedian": np.max(np.quantile(relative_chunk, axis=1, q=0.5)),
-                "StrainRelAbundUppser": np.max(np.quantile(relative_chunk, axis=1, q=0.975))
+                "GroupSize": group_sz,
+                "Coherence": coherence,
+                "Abundance": abund
             })
     return pd.DataFrame(df_entries)
 
 
-def divide_into_timeseries(timeseries: np.ndarray, strains: List[Strain], clades: Dict[str, str]) -> Iterator[Tuple[str, np.ndarray]]:
-    all_clades = sorted(list(set(clades.values())))
-    for this_clade in all_clades:
-        # Note: if "s" is not in "clades", then it might not be ecoli.
-        matching_strain_indices = [i for i, s in enumerate(strains) if (s.id in clades and clades[s.id] == this_clade)]
-        if len(matching_strain_indices) == 0:
-            print(f"Phylogroup {this_clade} was empty.")
-            continue
-        yield this_clade, timeseries[:, :, matching_strain_indices]
+def timeseries_coherence(
+        time_points: List[float],
+        clade_section: pd.DataFrame,
+        res: ChronostrainResult
+) -> Tuple[float, int, float]:
+    strain_idxs = sorted(pd.unique(clade_section['StrainIdx']))
+    mat = np.zeros((len(time_points), len(strain_idxs)), dtype=float)
+    overall_abund = res.overall_ra()
+    for t_idx, t in enumerate(time_points):
+        for mat_idx, s_idx in enumerate(strain_idxs):
+            mat[t_idx, mat_idx] = np.median(overall_abund[t_idx, :, s_idx])
+
+    avg_corr = timeseries_coherence_factor(mat)
+    return avg_corr, len(strain_idxs), np.max(mat.sum(axis=-1))
 
 
-def timeseries_coherence_factor(x: np.ndarray) -> np.ndarray:
+# def divide_into_timeseries(timeseries: np.ndarray, strains: List[Strain], clades: Dict[str, str]) -> Iterator[Tuple[str, np.ndarray]]:
+#     all_clades = sorted(list(set(clades.values())))
+#     for this_clade in all_clades:
+#         # Note: if "s" is not in "clades", then it might not be ecoli.
+#         matching_strain_indices = [i for i, s in enumerate(strains) if (s.id in clades and clades[s.id] == this_clade)]
+#         if len(matching_strain_indices) == 0:
+#             print(f"Phylogroup {this_clade} was empty.")
+#             continue
+#         yield this_clade, timeseries[:, :, matching_strain_indices]
+#
+#
+def timeseries_coherence_factor(x: np.ndarray) -> float:
+    vars = np.var(x, axis=-1)
+    if np.sum(vars > 0) == 0:
+        return np.nan
+    x = x[np.where(vars > 0)[0], :]
     return mean_correlation_factor(x[1:], x[:-1])
 
 
-def spearman_corr(x_t, y_t, n) -> float:
-    return scipy.stats.spearmanr(x_t[n], y_t[n]).correlation
+def spearman_corr(x: np.ndarray, y: np.ndarray) -> float:
+    """
+    :param x: 1-d array
+    :param y: 1-d array
+    :return:
+    """
+    if np.std(x) == 0 or np.std(y) == 0:
+        return np.nan
+    return scipy.stats.spearmanr(x, y).correlation
 
 
-def mean_correlation_factor(x: np.ndarray, y: np.ndarray) -> np.ndarray:
-    from multiprocessing import Pool
-    assert x.shape[0] == y.shape[0]
-    assert x.shape[-1] == y.shape[-1]
-
-    if len(x.shape) == 2 and len(y.shape) == 2:
-        return np.nanmean([
-            scipy.stats.spearmanr(x_t, y_t)
-            for x_t, y_t in zip(x, y)
-        ])
-
-    if len(x.shape) == 2:
-        x = np.repeat(np.expand_dims(x, 1), y.shape[1], axis=1)
-    if len(y.shape) == 2:
-        y = np.repeat(np.expand_dims(y, 1), x.shape[1], axis=1)
-
-    with Pool(processes=12) as pool:
-        return np.nanmean([
-            pool.map(
-                spearman_corr,
-                [(x_t, y_t, n) for n in range(x_t.shape[0])]
-            )
-            for x_t, y_t in zip(x, y)
-        ], axis=0)
+def mean_correlation_factor(x: np.ndarray, y: np.ndarray) -> float:
+    return np.nanmean([
+        spearman_corr(x_t, y_t)
+        for x_t, y_t in zip(x, y)
+    ], axis=0)
 
 
-def analyze_correlations(chronostrain_outputs: List[ChronostrainResult], clades_tsv: Path, output_path: Path):
+def analyze_correlations(chronostrain_outputs: List[ChronostrainResult],
+                         clades_tsv: Path,
+                         abund_lb: float):
     clades = parse_clades(clades_tsv)
-    df = evaluate_by_clades(chronostrain_outputs, clades)
-    df.to_csv(output_path, index=False, sep='\t')
+    df = evaluate_by_clades(chronostrain_outputs, clades, abund_lb)
+    return df
