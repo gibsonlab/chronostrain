@@ -4,7 +4,7 @@ set -e
 source settings.sh
 
 # =========== Run chronostrain. ==================
-echo "Note: this script assumes that the database JSON files were constructed using the Jupyter Notebook in the `examples` directory. All three versions of the JSON files are required."
+echo "Note: this script assumes that the database JSON files were constructed using the Jupyter Notebook in the \"examples\" directory. All three versions of the JSON files are required."
 
 
 # First, re-cluster the original database.
