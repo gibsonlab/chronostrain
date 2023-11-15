@@ -6,15 +6,14 @@ from typing import Iterator, Union, Callable, Tuple
 from pathlib import Path
 import numpy as np
 
+from chronostrain.config import cfg
 from chronostrain.model import SequenceRead
 from chronostrain.model.io import *
 from chronostrain.util.alignments.sam import SamIterator
 from chronostrain.util.alignments.pairwise import *
-from chronostrain.database import StrainDatabase
-
-from chronostrain.config import cfg
-from chronostrain.util.cache import ComputationCache
 from chronostrain.util.external import bt2_func_linear, samtools
+from .cache import ReadStrainCollectionCache
+from ...database import StrainDatabase
 
 
 class CachedReadPairwiseAlignments(object):
@@ -25,13 +24,12 @@ class CachedReadPairwiseAlignments(object):
     def __init__(self,
                  reads: TimeSeriesReads,
                  db: StrainDatabase,
-                 cache: ComputationCache,
+                 cache: ReadStrainCollectionCache,
                  n_threads: int = 1,
                  print_tqdm: bool = True):
         self.reads = reads
         self.db = db
         self.n_threads = n_threads
-        self.marker_reference_path = db.multifasta_file
         self.print_tqdm = print_tqdm
         self.cache = cache
 
@@ -86,7 +84,7 @@ class CachedReadPairwiseAlignments(object):
     ) -> AbstractPairwiseAligner:
         if cfg.external_tools_cfg.pairwise_align_cmd == "ssw-align":
             return SmithWatermanAligner(
-                reference_path=self.marker_reference_path,
+                reference_path=self.cache.marker_fasta_path,
                 match_score=np.floor((4 * 500) / self.reads.min_read_length).astype(int),
                 mismatch_penalty=np.floor(np.log(10) * 4.2),
                 gap_open_penalty=np.mean(
@@ -97,7 +95,7 @@ class CachedReadPairwiseAlignments(object):
             )
         elif cfg.external_tools_cfg.pairwise_align_cmd == "bwa" or cfg.external_tools_cfg.pairwise_align_cmd == "bwa-mem2":
             return BwaAligner(
-                reference_path=self.db.multifasta_file,
+                reference_path=self.cache.marker_fasta_path,
                 min_seed_len=10,
                 reseed_ratio=0.5,  # smaller = slower but more alignments.
                 mem_discard_threshold=90000,  # default is 50000
@@ -116,9 +114,9 @@ class CachedReadPairwiseAlignments(object):
             )
         elif cfg.external_tools_cfg.pairwise_align_cmd == "bowtie2":
             return BowtieAligner(
-                reference_path=self.marker_reference_path,
-                index_basepath=self.marker_reference_path.parent,
-                index_basename=self.marker_reference_path.stem,
+                reference_path=self.cache.marker_fasta_path,
+                index_basepath=self.cache.marker_fasta_path.parent,
+                index_basename=self.cache.marker_fasta_path.stem,
                 num_threads=self.n_threads,
                 report_all_alignments=True,
                 seed_length=22,
@@ -191,7 +189,7 @@ class CachedReadPairwiseAlignments(object):
         absolute_path = self.cache.cache_dir / cache_relative_path
 
         if not self.db.faidx_file.exists():
-            samtools.faidx(self.db.multifasta_file)
+            samtools.faidx(self.marker_reference_path)
 
         # ====== function bindings to pass to ComputationCache.
         def _call_aligner():
@@ -205,7 +203,7 @@ class CachedReadPairwiseAlignments(object):
                 )
 
                 if use_bam_format:
-                    samtools.sam_to_bam(tmp_sam_path, absolute_path, self.db.faidx_file, self.db.multifasta_file, exclude_unmapped=True)
+                    samtools.sam_to_bam(tmp_sam_path, absolute_path, self.db.faidx_file, self.marker_reference_path, exclude_unmapped=True)
                     tmp_sam_path.unlink()
                 else:
                     shutil.move(src=tmp_sam_path, dst=absolute_path)

@@ -130,10 +130,11 @@ class ComputationCache(object):
     def cache_dir(self) -> Path:
         return self.cache_tag.directory
 
-    def create_subdir(self, subdir_name: str):
+    def create_subdir(self, subdir_name: str) -> Path:
         subdir = self.cache_dir / subdir_name
         if not subdir.exists():
             subdir.mkdir(exist_ok=True)
+        return subdir
 
     def call(self,
              fn: Callable,

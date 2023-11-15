@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Tuple, Iterator, Union
+from typing import Tuple, Iterator, Union
 
 import jax.numpy as jnp
 import numpy as cnp
@@ -8,18 +8,15 @@ import scipy.special
 import scipy.sparse
 from jax.experimental.sparse import BCOO
 import pandas as pd
-from numba import prange, njit
+from numba import njit
 
 from scipy.stats import nbinom as negative_binomial
 from tqdm import tqdm
 
-from chronostrain.database import StrainDatabase
-from chronostrain.model import Strain, Fragment, FragmentSpace, FragmentPairSpace, \
-    FragmentFrequencySparse, TimeSeriesReads
+from chronostrain.model import FragmentSpace, FragmentPairSpace, FragmentFrequencySparse
 from chronostrain.util.external import bwa_index, bwa_fastmap
-from .cache import ReadStrainCollectionCache
-
 from chronostrain.logging import create_logger
+from .cache import ReadStrainCollectionCache
 logger = create_logger(__name__)
 
 
@@ -40,23 +37,21 @@ def convert_tabs_to_newlines(src_path: Path, target_path: Path, append: bool):
 
 
 class FragmentFrequencyComputer(object):
-    def __init__(self,
-                 frag_nbinom_n: float,
-                 frag_nbinom_p: float,
-                 reads: TimeSeriesReads,
-                 db: StrainDatabase,
-                 strains: List[Strain],
-                 fragments: FragmentSpace,
-                 fragment_pairs: FragmentPairSpace,
-                 dtype='bfloat16',
-                 n_threads: int = 1):
+    def __init__(
+            self,
+            frag_nbinom_n: float,
+            frag_nbinom_p: float,
+            cache: ReadStrainCollectionCache,
+            fragments: FragmentSpace,
+            fragment_pairs: FragmentPairSpace,
+            dtype='bfloat16',
+            n_threads: int = 1
+    ):
         self.frag_nbinom_n = frag_nbinom_n
         self.frag_nbinom_p = frag_nbinom_p
-        self.db: StrainDatabase = db
         self.fragments = fragments
         self.fragment_pairs = fragment_pairs
-        self.strains = strains
-        self.cache = ReadStrainCollectionCache(reads, db)
+        self.cache = cache
         self.dtype = dtype
         self.n_threads = n_threads
         self.exact_match_df: Union[None, pd.DataFrame] = None
@@ -69,7 +64,7 @@ class FragmentFrequencyComputer(object):
         """
         logger.debug("Loading fragment frequencies of {} fragments on {} strains.".format(
             len(self.fragments),
-            len(self.strains)
+            len(self.cache.strains)
         ))
 
         # ====== Run the cached computation.
@@ -92,7 +87,7 @@ class FragmentFrequencyComputer(object):
 
     def get_exact_matches(self) -> pd.DataFrame:
         if self.exact_match_df is None:
-            fastmap_out_dir = self.cache.cache_dir / 'bwa_fastmap'
+            fastmap_out_dir = self.cache.create_subdir('bwa_fastmap')
 
             def _save(p, df):
                 p.parent.mkdir(exist_ok=True, parents=True)
@@ -102,7 +97,7 @@ class FragmentFrequencyComputer(object):
                 relative_filepath='fragment_frequencies/matches_all.feather',
                 fn=lambda: self.compute_exact_matches(
                     fastmap_out_dir,
-                    max_num_hits=10 * self.db.num_strains()
+                    max_num_hits=10 * len(self.cache.strains)
                 ),
                 save=_save,
                 load=lambda p: pd.read_feather(p)
@@ -149,7 +144,7 @@ class FragmentFrequencyComputer(object):
         indices = jnp.array(list(zip(frag_indices, strain_indices)))
         matrix_values = jnp.array(matrix_values, dtype=self.dtype)
         return FragmentFrequencySparse(
-            BCOO((matrix_values, indices), shape=(len(self.fragments), len(self.strains)))
+            BCOO((matrix_values, indices), shape=(len(self.fragments), len(self.cache.strains)))
         )
 
     def compute_paired_frequencies(self, single_freqs: FragmentFrequencySparse) -> FragmentFrequencySparse:
@@ -190,7 +185,7 @@ class FragmentFrequencyComputer(object):
 
         cpu_sparse = scipy.sparse.csr_array(
             (log_counts, (indices[:, 0], indices[:, 1])),
-            shape=(len(self.fragments), len(self.strains))
+            shape=(len(self.fragments), len(self.cache.strains))
         )
         del indices
         del log_counts
@@ -222,7 +217,7 @@ class FragmentFrequencyComputer(object):
         return FragmentFrequencySparse(
             BCOO(
                 (jax_coo_data, jax_coo_indices),
-                shape=(len(self.fragment_pairs), len(self.strains))
+                shape=(len(self.fragment_pairs), len(self.cache.strains))
             )
         )
 
@@ -247,7 +242,7 @@ class FragmentFrequencyComputer(object):
             max_num_hits: int
     ) -> Path:
         logger.debug("Creating index for exact matches.")
-        bwa_index(self.db.multifasta_file, bwa_cmd='bwa', check_suffix='bwt')
+        bwa_index(self.cache.marker_fasta_path, bwa_cmd='bwa', check_suffix='bwt')
 
         output_path.unlink(missing_ok=True)
         for frag_len, frag_fasta in self.fragments.fragment_files_by_length(output_path.parent):
@@ -256,7 +251,7 @@ class FragmentFrequencyComputer(object):
             )
             bwa_fastmap(
                 output_path=fastmap_output_path,
-                reference_path=self.db.multifasta_file,
+                reference_path=self.cache.marker_fasta_path,
                 query_path=frag_fasta,
                 max_interval_size=max_num_hits,
                 min_smem_len=frag_len
@@ -283,7 +278,7 @@ class FragmentFrequencyComputer(object):
         # === Construct dataframe.
         marker_lookup = {
             marker.id: (strain_idx, len(marker))
-            for strain_idx, strain in enumerate(self.strains)
+            for strain_idx, strain in enumerate(self.cache.strains)
             for marker in strain.markers
         }
 

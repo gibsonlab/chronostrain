@@ -14,12 +14,13 @@ from chronostrain.model import FragmentReadErrorLikelihood, FragmentSpace, Fragm
 from chronostrain.database import StrainDatabase
 from chronostrain.util.alignments.pairwise import SequenceReadPairwiseAlignment
 
-from .cache import ReadStrainCollectionCache
 from .read_order import UniqueReadOrdering, UniquePairedReadOrdering
+from .cache import ReadStrainCollectionCache
 from .cached_pairwise_alignment import CachedReadPairwiseAlignments
 
 from chronostrain.config import cfg
 from chronostrain.logging import create_logger
+
 
 logger = create_logger(__name__)
 
@@ -92,6 +93,7 @@ class ReadFragmentMappings:
             reads: TimeSeriesReads,
             db: StrainDatabase,
             error_model: AbstractErrorModel,
+            cache: ReadStrainCollectionCache,
             dtype: str,
             ll_threshold: float = -100.0
     ):
@@ -102,7 +104,7 @@ class ReadFragmentMappings:
         self.add_frag_metadata = True
         self.dtype = dtype
 
-        self.cache = ReadStrainCollectionCache(reads, db)
+        self.cache = cache
         self.alignment_wrapper = CachedReadPairwiseAlignments(
             self.reads, self.db,
             cache=self.cache,

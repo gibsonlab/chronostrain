@@ -183,8 +183,8 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
             raise NotImplementedError("ADVI only supports sparse read_frags structures.")
 
         from collections import namedtuple
-        cache = ReadStrainCollectionCache(self.data, self.db)
-        subdir = cache.cache_dir / 'marginalizations'
+        cache = ReadStrainCollectionCache(self.data, self.db, self.gaussian_prior.population.strains)
+        subdir = cache.create_subdir('marginalizations')
         batch_metadata = subdir / 'batches.tsv'
 
         if batch_metadata.exists():
@@ -224,9 +224,10 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
 
             return _batches, _paired_batches
         else:
-            return self.compute_marginalization(batch_metadata, subdir, read_batch_size)
+            return self.compute_marginalization(cache, batch_metadata, subdir, read_batch_size)
 
     def compute_marginalization(self,
+                                cache: ReadStrainCollectionCache,
                                 batch_metadata_path: Path,
                                 target_dir: Path,
                                 read_batch_size: int) -> Tuple[List[List[jnp.ndarray]], List[List[jnp.ndarray]]]:
@@ -243,6 +244,7 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
         total_pairs = {}
         read_likelihoods = ReadFragmentMappings(
             self.data, self.db, self.error_model,
+            cache=cache,
             dtype=cfg.engine_cfg.dtype
         ).model_values
 
@@ -277,9 +279,7 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
         frag_freqs, frag_pair_freqs = FragmentFrequencyComputer(
             frag_nbinom_n=frag_len_negbin_n,
             frag_nbinom_p=frag_len_negbin_p,
-            reads=self.data,
-            db=self.db,
-            strains=self.gaussian_prior.population.strains,
+            cache=cache,
             fragments=read_likelihoods.fragments,
             fragment_pairs=read_likelihoods.fragment_pairs,
             dtype=cfg.engine_cfg.dtype,
