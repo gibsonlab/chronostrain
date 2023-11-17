@@ -1,7 +1,6 @@
 # Modify these before running.
-export PROJECT_DIR="/home/lactis/chronostrain"
+export PROJECT_DIR="/home/youn/work/chronostrain"
 export BASE_DIR="${PROJECT_DIR}/examples/umb"
-export DATA_DIR="/mnt/e/umb_data"
 export OUTPUT_DIR="/mnt/e/umb_analysis/plate_scrapes"
 export SAMPLES_DIR="/mnt/e/umb_data/plate_scrapes"
 

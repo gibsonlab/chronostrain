@@ -28,7 +28,7 @@ from chronostrain.config import cfg
 )
 @option(
     '--granular-json', '-gj', 'granular_db_json',
-    type=click.Path(path_type=Path, file_okay=False),
+    type=click.Path(path_type=Path, dir_okay=False, exists=True, readable=True),
     required=True,
     help="The JSON file that points to the desired granular database specification."
 )
@@ -198,6 +198,9 @@ def main(
         prior_p=prior_p,
         abund_lb=abund_lb
     )
+    logger.info("Coarse inference got {} strain IDs after unwrapping.".format(
+        len(coarse_inference_strain_ids)
+    ))
 
     # ============ Create database instance.
     granular_db = JSONParser(
@@ -211,6 +214,7 @@ def main(
         try:
             s = granular_db.get_strain(s_id)
             coarse_inference_strains.append(s)  # Some of these might still be clustered together.
+            logger.debug(f"Including: {s_id}")
         except QueryNotFoundError:
             continue
 

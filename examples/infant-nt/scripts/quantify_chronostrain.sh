@@ -7,7 +7,7 @@ require_variable 'participant' $participant
 require_file ${CHRONOSTRAIN_DB_JSON}
 
 # =========== Run chronostrain. ==================
-echo "Running evidence quantification on participant ${participant}."
+echo "[*] Running evidence quantification on participant ${participant}."
 
 run_dir=${DATA_DIR}/${participant}/chronostrain
 export CHRONOSTRAIN_LOG_FILEPATH="${run_dir}/evidence.log"

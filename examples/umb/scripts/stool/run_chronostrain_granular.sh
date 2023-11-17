@@ -17,7 +17,6 @@ env JAX_PLATFORM_NAME=cpu \
 
 
 umb_id="UMB18"
-echo "[*] Running granular inference on ${umb_id}."
 run_dir=${OUTPUT_DIR}/${umb_id}
 breadcrumb=${run_dir}/inference.DONE
 filter_breadcrumb=${run_dir}/filter.DONE
@@ -37,7 +36,8 @@ else
 
   python ${BASE_DIR}/helpers/granular_inference.py \
     -r ${run_dir}/filtered/filtered_reads.csv \
-    -c ${run_dir}/chronostrain \
+    --coarse-dir ${run_dir}/chronostrain \
+    --granular-json /mnt/e/ecoli_db/chronostrain_files/ecoli_granular.json \
     -o ${run_dir}/chronostrain_granular \
     --correlation-mode $CHRONOSTRAIN_CORR_MODE \
     --iters $CHRONOSTRAIN_NUM_ITERS \

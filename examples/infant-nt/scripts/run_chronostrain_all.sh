@@ -5,7 +5,7 @@ source settings.sh
 
 #python ${BASE_DIR}/helpers/list_all_participants.py ${ENA_ISOLATE_ASSEMBLY_CATALOG} | while read line
 
-cat /home/youn/work/split-jobs/lactis.txt | while read line
+cat /home/youn/work/split-jobs/output/lactis.txt | while read line
 do
   participant=$line
   echo $participant

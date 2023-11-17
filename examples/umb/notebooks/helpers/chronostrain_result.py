@@ -13,6 +13,7 @@ from chronostrain.database import StrainDatabase
 from chronostrain.model import *
 
 from Bio.Nexus.Trees import Tree
+from Bio.Phylo.Newick import Clade
 from .tree import pruned_subtree, phylo_draw_custom
 
 
@@ -369,6 +370,10 @@ class ChronostrainRenderer:
         # ======= Other settings.
         y_min = df['Y'].min() - 1
         y_max = df['Y'].max() + 1
+        if np.isnan(y_min) or np.isinf(y_min):
+            y_min = -1
+        if np.isnan(y_max) or np.isinf(y_max):
+            y_max = 1
         ax.set_ylim(bottom=y_min, top=y_max)
         
         if show_ylabels:
@@ -388,19 +393,23 @@ class ChronostrainRenderer:
             row['StrainId']: row['StrainName']
             for _, row in self.get_merged_df().iterrows()
         }
+        ax.axis('off')
 
         strain_leaves = set(strain_id_to_names.keys())
         if len(strain_leaves) == 0:
             return {}, {}
 
         subtree = pruned_subtree(tree, strain_leaves)
+        if isinstance(subtree, Clade) and subtree.is_terminal():
+            return {subtree: 0}, {subtree: 0}
+        
         def color_fn(s):
-            if s.is_terminal():
+            if s.is_terminal() and len(s.name) != 0:
                 return self.get_color(s.name)
             else:
                 return "black"
         def label_fn(s):
-            if s.is_terminal():
+            if s.is_terminal() and len(s.name) != 0:
                 return "{}".format(strain_id_to_names[s.name])
             else:
                 return ""
@@ -415,7 +424,6 @@ class ChronostrainRenderer:
             label_colors=color_fn,
             branch_labels=lambda c: '{:.03f}'.format(c.branch_length) if (c.branch_length is not None and c.branch_length > 0.003) else ''
         )
-        ax.axis('off')
         return x_posns, y_posns
     
     def plot_abx(self, ax: Axes, draw_labels: bool = True):

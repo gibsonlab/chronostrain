@@ -7,7 +7,7 @@ require_variable 'participant' $participant
 require_file ${CHRONOSTRAIN_DB_JSON}
 
 # =========== Run chronostrain. ==================
-echo "Running inference on participant ${participant}."
+echo "[*] Running inference on participant ${participant}."
 
 run_dir=${DATA_DIR}/${participant}/chronostrain
 export CHRONOSTRAIN_LOG_FILEPATH="${run_dir}/inference.log"
