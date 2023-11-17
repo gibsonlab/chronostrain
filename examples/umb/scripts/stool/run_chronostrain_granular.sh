@@ -10,8 +10,8 @@ echo "Note: this script assumes that the database JSON files were constructed us
 # First, re-cluster the original database.
 env JAX_PLATFORM_NAME=cpu \
   chronostrain prune-json \
-  -i /mnt/e/ecoli_db/chronostrain_files/ecoli-2overlapmerged.json \
-  -o /mnt/e/ecoli_db/chronostrain_files/ecoli_granular.json \
+  -i /mnt/e/ecoli_db/chronostrain_files/ecoli.json \
+  -o /mnt/e/ecoli_db/chronostrain_files/ecoli.granular_clustering.txt \
   --ident-threshold 0.9999999999
 
 
@@ -34,11 +34,19 @@ else
   export CHRONOSTRAIN_CACHE_DIR=${run_dir}/chronostrain/cache
   mkdir -p ${run_dir}/chronostrain
 
-  python ${BASE_DIR}/helpers/granular_inference.py \
+  python ${BASE_DIR}/helpers/granular_extract.py \
     -r ${run_dir}/filtered/filtered_reads.csv \
-    --coarse-dir ${run_dir}/chronostrain \
-    --granular-json /mnt/e/ecoli_db/chronostrain_files/ecoli_granular.json \
+    -c ${run_dir}/chronostrain \
+    -g /mnt/e/ecoli_db/chronostrain_files/ecoli.granular_clustering.txt \
+    -o ${run_dir}/chronostrain_granular/target_ids.txt \
+    --prior-p 0.001 \
+    --abund-lb 0.05 \
+    --bayes-factor 100000.0
+
+  chronostrain advi \
+    -r ${run_dir}/filtered/filtered_reads.csv \
     -o ${run_dir}/chronostrain_granular \
+    -s ${run_dir}/chronostrain_granular/target_ids.txt \
     --correlation-mode $CHRONOSTRAIN_CORR_MODE \
     --iters $CHRONOSTRAIN_NUM_ITERS \
     --epochs $CHRONOSTRAIN_NUM_EPOCHS \

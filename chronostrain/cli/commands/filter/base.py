@@ -7,6 +7,7 @@ from Bio import SeqIO
 from Bio.Seq import Seq
 
 from chronostrain.database import StrainDatabase
+from chronostrain.model import StrainCollection
 from chronostrain.model.io import ReadType
 from chronostrain.util.alignments.sam import SamIterator
 from chronostrain.util.external import call_command, samtools
@@ -27,18 +28,20 @@ def remove_suffixes(p: Path) -> Path:
 class Filter(object):
     def __init__(self,
                  db: StrainDatabase,
+                 strain_collection: StrainCollection,
                  min_read_len: int,
                  frac_identity_threshold: float,
                  error_threshold: float = 1.0,
                  min_hit_ratio: float = 0.5):
         self.db = db
+        self.strain_collection = strain_collection
 
         # Note: Bowtie2 does not have the restriction to uncompress bz2 files, but bwa does.
-        if self.db.multifasta_file.suffix == ".bz2":
-            call_command("bz2", args=["-dk", self.db.multifasta_file])
-            self.reference_path = self.db.multifasta_file.with_suffix('')
+        if self.strain_collection.multifasta_file.suffix == ".bz2":
+            call_command("bz2", args=["-dk", self.strain_collection.multifasta_file])
+            self.reference_path = self.strain_collection.multifasta_file.with_suffix('')
         else:
-            self.reference_path = self.db.multifasta_file
+            self.reference_path = self.strain_collection.multifasta_file
 
         self.min_read_len = min_read_len
         self.frac_identity_threshold = frac_identity_threshold
@@ -50,8 +53,8 @@ class Filter(object):
         aligner_tmp_dir = out_path.parent / "tmp"
         aligner_tmp_dir.mkdir(exist_ok=True)
 
-        if not self.db.faidx_file.exists():
-            samtools.faidx(self.db.multifasta_file)
+        if not self.strain_collection.faidx_file.exists():
+            samtools.faidx(self.strain_collection.multifasta_file)
 
         metadata_path = out_path.parent / f"{remove_suffixes(read_file).name}.metadata.tsv"
         sam_path = aligner_tmp_dir / f"{remove_suffixes(read_file).name}.sam"
@@ -62,7 +65,7 @@ class Filter(object):
         )
         if cfg.external_tools_cfg.pairwise_align_use_bam:
             bam_path = sam_path.with_suffix('.bam')
-            samtools.sam_to_bam(sam_path, bam_path, self.db.faidx_file, self.db.multifasta_file, exclude_unmapped=True)
+            samtools.sam_to_bam(sam_path, bam_path, self.strain_collection.faidx_file, self.strain_collection.multifasta_file, exclude_unmapped=True)
             sam_path.unlink()
             sam_or_bam_path = bam_path
         else:
@@ -197,7 +200,7 @@ class Filter(object):
         return max(min(x, upper), lower)
 
 
-def create_aligner(aligner_type: str, read_type: ReadType, db: StrainDatabase) -> AbstractPairwiseAligner:
+def create_aligner(aligner_type: str, read_type: ReadType, multifasta_file: Path) -> AbstractPairwiseAligner:
     if read_type == ReadType.PAIRED_END_1:
         insertion_ll = cfg.model_cfg.get_float("INSERTION_LL_1")
         deletion_ll = cfg.model_cfg.get_float("DELETION_LL_1")
@@ -217,7 +220,7 @@ def create_aligner(aligner_type: str, read_type: ReadType, db: StrainDatabase) -
 
     if aligner_type == 'bwa':
         return BwaAligner(
-            reference_path=db.multifasta_file,
+            reference_path=multifasta_file,
             min_seed_len=15,
             reseed_ratio=0.5,  # default; smaller = slower but more alignments.
             mem_discard_threshold=500,  # default, -c 50000
@@ -236,7 +239,7 @@ def create_aligner(aligner_type: str, read_type: ReadType, db: StrainDatabase) -
         )
     elif aligner_type == 'bwa-mem2':
         return BwaAligner(
-            reference_path=db.multifasta_file,
+            reference_path=multifasta_file,
             min_seed_len=15,
             reseed_ratio=0.5,  # default; smaller = slower but more alignments.
             mem_discard_threshold=500,  # default, -c 500
@@ -256,9 +259,9 @@ def create_aligner(aligner_type: str, read_type: ReadType, db: StrainDatabase) -
     elif aligner_type == 'bowtie2':
         from chronostrain.util.external import bt2_func_linear
         return BowtieAligner(
-            reference_path=db.multifasta_file,
-            index_basepath=db.multifasta_file.parent,
-            index_basename=db.multifasta_file.stem,
+            reference_path=multifasta_file,
+            index_basepath=multifasta_file.parent,
+            index_basename=multifasta_file.stem,
             num_threads=cfg.model_cfg.num_cores,
             report_all_alignments=False,
             seed_length=22,  # -L 22

@@ -46,7 +46,7 @@ def main(
     logger = ctx.obj
 
     from chronostrain.model.io import TimeSeriesReads
-    from chronostrain.model import Population
+    from chronostrain.model import StrainCollection
     from chronostrain.config import cfg
     from .helpers import create_model, quantify_evidence, load_fragments, load_fragments_dynamic
 
@@ -58,7 +58,7 @@ def main(
     else:
         fragments = load_fragments_dynamic(reads, db, cfg.model_cfg.num_cores, logger)
     model = create_model(
-        population=Population(strains=db.all_strains()),
+        population=StrainCollection(strains=db.all_strains(), db_signature=db.signature),
         source_reads=reads,
         fragments=fragments,
         time_points=[time_slice.time_point for time_slice in reads],

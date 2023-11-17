@@ -13,9 +13,9 @@ from chronostrain.database import JSONParser, StrainDatabase
 from chronostrain.util.external import dashing2_sketch
 
 
-def prune_json_db_jaccard(
+def cluster_json_db_jaccard(
     src_json_path: Path,
-    tgt_json_path: Path,
+    output_path: Path,
     tmp_dir: Path,
     cfg: ChronostrainConfig,
     identity_threshold: float,
@@ -34,8 +34,8 @@ def prune_json_db_jaccard(
 
     logger.info("Computing all-to-all Jaccard distance calculations.")
     strain_id_ordering, distances = compute_jaccard_distances(src_db, logger, tmp_dir)
-    np.save(str(tgt_json_path.parent / "distances.npy"), distances)
-    with open(tgt_json_path.parent / "distance_order.txt", "wt") as f:
+    np.save(str(output_path.parent / "distances.npy"), distances)
+    with open(output_path.parent / "distance_order.txt", "wt") as f:
         for s_id in strain_id_ordering:
             print(s_id, file=f)
 
@@ -44,38 +44,22 @@ def prune_json_db_jaccard(
     distances[np.isinf(distances)] = 1.0
     clusters, cluster_reps = cluster_db(distances, identity_threshold)
 
-    # ======== Create the clustered json.
-    src_strain_ids = set(s.id for s in src_db.all_strains())  # some strains can't be parsed due to IUPAC code/`N`-related restrictions.
-
-    # Parse source JSON.
-    with open(src_json_path, "r") as f:
-        src_entries = {
-            strain_entry['id']: strain_entry
-            for strain_entry in json.load(f)
-            if strain_entry['id'] in src_strain_ids
-        }
-
-    # ======== Move JSON entry from src to target for each cluster; add metadata.
-    result_entries = []
-    for cluster, rep in zip(clusters, cluster_reps):
-        rep_strain_idx = cluster[rep]
-        rep_strain_id = strain_id_ordering[rep_strain_idx]
-
-        cluster_entry = src_entries[rep_strain_id]
-        cluster_entry['cluster'] = [
-            "{}({})".format(
-                strain_id_ordering[s_idx],
-                src_entries[strain_id_ordering[s_idx]]['name']
+    with open(output_path, 'w') as outfile:
+        print("# Clustering performed at {} ident".format(identity_threshold), file=outfile)
+        for cluster, rep in zip(clusters, cluster_reps):
+            rep_strain_idx = cluster[rep]
+            rep_strain_id = strain_id_ordering[rep_strain_idx]
+            cluster_strain_ids = []
+            print(
+                "{}\t{}".format(
+                    rep_strain_id,
+                    ','.join(cluster_strain_ids)
+                ),
+                file=outfile
             )
-            for s_idx in cluster
-        ]
-        result_entries.append(cluster_entry)
 
-    with open(tgt_json_path, 'w') as outfile:
-        json.dump(result_entries, outfile, indent=4)
-
-    logger.info("Before clustering: {} strains".format(len(src_entries)))
-    logger.info("After clustering: {} strains".format(len(result_entries)))
+    logger.info("Before clustering: {} genomes".format(src_db.num_strains()))
+    logger.info("After clustering: {} genomes".format(len(clusters)))
 
     logger.debug("Cleaning up. Removing tmpdir = {}".format(tmp_dir))
     shutil.rmtree(tmp_dir)

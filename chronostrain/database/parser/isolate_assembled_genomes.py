@@ -110,8 +110,7 @@ class IsolateAssemblyParser(AbstractDatabaseParser):
         db = StrainDatabase(
             backend=backend,
             name=self.db_name,
-            data_dir=self.data_dir,
-            force_refresh=True
+            data_dir=self.data_dir
         )
         self.save_to_disk(db)
         return db

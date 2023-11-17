@@ -9,7 +9,7 @@ import pandas as pd
 
 from chronostrain.database import StrainDatabase
 from chronostrain.config import cfg
-from chronostrain.model import AbundanceGaussianPrior, AbstractErrorModel, TimeSeriesReads, Population
+from chronostrain.model import AbundanceGaussianPrior, AbstractErrorModel, TimeSeriesReads, StrainCollection
 from chronostrain.util.benchmarking import RuntimeEstimator
 from chronostrain.util.math import log_spspmm_exp, negbin_fit_frags
 from chronostrain.util.optimization import LossOptimizer
@@ -183,7 +183,7 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
             raise NotImplementedError("ADVI only supports sparse read_frags structures.")
 
         from collections import namedtuple
-        cache = ReadStrainCollectionCache(self.data, self.db, self.gaussian_prior.population.strains)
+        cache = ReadStrainCollectionCache(self.data, self.db, self.gaussian_prior.strain_collection)
         subdir = cache.create_subdir('marginalizations')
         batch_metadata = subdir / 'batches.tsv'
 
@@ -381,10 +381,13 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
                 b += jnp.sum(max_hit, axis=1)
         # good_indices = np.sort(np.argsort(b)[-top_n_to_keep:])
         good_indices, = jnp.where(b > 0)
-        pruned_strains = [self.gaussian_prior.population.strains[i] for i in good_indices]
+        pruned_strains = [self.gaussian_prior.strain_collection.strains[i] for i in good_indices]
 
         # Update read_frags structures
-        self.gaussian_prior.population = Population(pruned_strains)
+        self.gaussian_prior.strain_collection = StrainCollection(
+            pruned_strains,
+            self.gaussian_prior.strain_collection.db_signature
+        )
         for t in range(self.gaussian_prior.num_times):
             for batch_idx in range(len(self.batches[t])):
                 batch_ll = self.batches[t][batch_idx]
@@ -402,7 +405,7 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
         Prune out strains via clustering on the read_frags likelihoods.
         Computes the correlation matrix of the read_frags likelihood values: Corr[p(r|s1), p(r|s2)].
         """
-        from chronostrain.model import Population
+        from chronostrain.model import StrainCollection
 
         S = self.gaussian_prior.num_strains
         dtype = cfg.engine_cfg.dtype
@@ -452,14 +455,14 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
             clust = cnp.where(cluster_labels == clust_idx)[0]
 
             # Record it into a read_frags structure
-            rep_strain = self.gaussian_prior.population.strains[clust_rep_idx]
+            rep_strain = self.gaussian_prior.strain_collection.strains[clust_rep_idx]
             adhoc_clusters[rep_strain.id] = [
-                self.gaussian_prior.population.strains[c_idx].id
+                self.gaussian_prior.strain_collection.strains[c_idx].id
                 for c_idx in clust
             ]
 
             if len(clust) > 1:
-                clust_members = [self.gaussian_prior.population.strains[i] for i in clust]
+                clust_members = [self.gaussian_prior.strain_collection.strains[i] for i in clust]
                 logger.debug("Formed cluster [{}] due to read_frags correlation greater than {}.".format(
                     ",".join(f'{s.id}({s.metadata.genus[0]}. {s.metadata.species} {s.name})' for s in clust_members),
                     correlation_threshold
@@ -467,7 +470,10 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
 
         # Update read_frags structures
         cluster_representatives = cnp.sort(cluster_representatives)
-        self.gaussian_prior.population = Population([self.gaussian_prior.population.strains[i] for i in cluster_representatives])
+        self.gaussian_prior.strain_collection = StrainCollection(
+            [self.gaussian_prior.strain_collection.strains[i] for i in cluster_representatives],
+            self.gaussian_prior.strain_collection.db_signature
+        )
         for t in range(self.gaussian_prior.num_times):
             for batch_idx in range(len(self.batches[t])):
                 batch_ll = self.batches[t][batch_idx]

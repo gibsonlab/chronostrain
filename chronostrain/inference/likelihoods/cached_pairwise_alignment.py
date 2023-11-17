@@ -84,7 +84,7 @@ class CachedReadPairwiseAlignments(object):
     ) -> AbstractPairwiseAligner:
         if cfg.external_tools_cfg.pairwise_align_cmd == "ssw-align":
             return SmithWatermanAligner(
-                reference_path=self.cache.marker_fasta_path,
+                reference_path=self.cache.strains.multifasta_file,
                 match_score=np.floor((4 * 500) / self.reads.min_read_length).astype(int),
                 mismatch_penalty=np.floor(np.log(10) * 4.2),
                 gap_open_penalty=np.mean(
@@ -95,7 +95,7 @@ class CachedReadPairwiseAlignments(object):
             )
         elif cfg.external_tools_cfg.pairwise_align_cmd == "bwa" or cfg.external_tools_cfg.pairwise_align_cmd == "bwa-mem2":
             return BwaAligner(
-                reference_path=self.cache.marker_fasta_path,
+                reference_path=self.cache.strains.multifasta_file,
                 min_seed_len=10,
                 reseed_ratio=0.5,  # smaller = slower but more alignments.
                 mem_discard_threshold=90000,  # default is 50000
@@ -114,9 +114,9 @@ class CachedReadPairwiseAlignments(object):
             )
         elif cfg.external_tools_cfg.pairwise_align_cmd == "bowtie2":
             return BowtieAligner(
-                reference_path=self.cache.marker_fasta_path,
-                index_basepath=self.cache.marker_fasta_path.parent,
-                index_basename=self.cache.marker_fasta_path.stem,
+                reference_path=self.cache.strains.multifasta_file,
+                index_basepath=self.cache.strains.multifasta_file.parent,
+                index_basename=self.cache.strains.multifasta_file.stem,
                 num_threads=self.n_threads,
                 report_all_alignments=True,
                 seed_length=22,
@@ -188,8 +188,8 @@ class CachedReadPairwiseAlignments(object):
             cache_relative_path = Path("alignments") / "{}.sam".format(query_path.stem)
         absolute_path = self.cache.cache_dir / cache_relative_path
 
-        if not self.cache.faidx_file.exists():
-            samtools.faidx(self.cache.marker_fasta_path)
+        if not self.cache.strains.faidx_file.exists():
+            samtools.faidx(self.cache.strains.multifasta_file)
 
         # ====== function bindings to pass to ComputationCache.
         def _call_aligner():
@@ -203,7 +203,7 @@ class CachedReadPairwiseAlignments(object):
                 )
 
                 if use_bam_format:
-                    samtools.sam_to_bam(tmp_sam_path, absolute_path, self.db.faidx_file, self.cache.marker_fasta_path, exclude_unmapped=True)
+                    samtools.sam_to_bam(tmp_sam_path, absolute_path, self.db.faidx_file, self.cache.strains.multifasta_file, exclude_unmapped=True)
                     tmp_sam_path.unlink()
                 else:
                     shutil.move(src=tmp_sam_path, dst=absolute_path)

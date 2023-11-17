@@ -150,8 +150,6 @@ def parse_line_into_alignment(sam_path: Path,
     # ============ Handle the cigar string; check for clipped bases.
     cigar_els: List[CigarElement] = samline.cigar
 
-    read_tokens = []
-    marker_tokens = []
     hard_clip_start = 0
     hard_clip_end = 0
     soft_clip_start = 0

@@ -1,8 +1,5 @@
-from pathlib import Path
-from typing import List
-
 from chronostrain.database import StrainDatabase
-from chronostrain.model import Strain
+from chronostrain.model import StrainCollection
 from chronostrain.util.cache import ComputationCache, CacheTag
 from chronostrain.config import cfg
 from chronostrain.model.io import TimeSeriesReads
@@ -18,7 +15,7 @@ class ReadStrainCollectionCache(ComputationCache):
     2) The bacterial strain database,
     3) The read file paths, in order of specification (if the order changes, then so does the cache key.)
     """
-    def __init__(self, reads: TimeSeriesReads, db: StrainDatabase, strains: List[Strain]):
+    def __init__(self, reads: TimeSeriesReads, db: StrainDatabase, strains: StrainCollection):
         super().__init__(
             CacheTag(
                 use_quality=cfg.model_cfg.use_quality_scores,
@@ -32,23 +29,3 @@ class ReadStrainCollectionCache(ComputationCache):
             )
         )
         self.strains = strains
-        self.marker_fasta_path = self.create_subdir('db_index').resolve() / 'markers.fasta'
-        self.init_marker_multifasta()
-
-    @property
-    def faidx_file(self) -> Path:
-        return self.marker_fasta_path.with_suffix('.fai')
-
-    def init_marker_multifasta(self):
-        from Bio import SeqIO
-        if self.marker_fasta_path.exists():
-            return
-
-        tmp_path = self.marker_fasta_path.with_suffix('.fasta.TEMP')
-        with open(tmp_path, "w"):
-            records = []
-            for strain in self.strains:
-                for marker in strain.markers:
-                    records.append(marker.to_seqrecord(description=""))
-            SeqIO.write(records, tmp_path, "fasta")
-        tmp_path.rename(self.marker_fasta_path)

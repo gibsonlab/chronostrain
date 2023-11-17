@@ -18,6 +18,7 @@ cd ${BASE_DIR}
 chronostrain advi \
   -r ${run_dir}/filtered/filtered_reads.csv \
   -o ${run_dir}/inference \
+  -s ${CHRONOSTRAIN_CLUSTER_FILE} \
   --correlation-mode "full" \
   --iters ${CHRONOSTRAIN_NUM_ITERS} \
   --epochs ${CHRONOSTRAIN_NUM_EPOCHS} \

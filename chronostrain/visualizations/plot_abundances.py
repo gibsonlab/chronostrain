@@ -7,7 +7,7 @@ import numpy as np
 import seaborn as sns
 import pandas as pd
 
-from chronostrain.model import Population
+from chronostrain.model import StrainCollection
 from chronostrain.model.io import load_abundances
 from chronostrain.logging import create_logger
 logger = create_logger(__name__)
@@ -167,7 +167,7 @@ def plot_abundance_dataframe(
 def plot_posterior_abundances(
         times: List[float],
         posterior_samples: np.ndarray,
-        population: Population,
+        population: StrainCollection,
         plots_out_path: Path,
         draw_legend: bool,
         img_format: str,

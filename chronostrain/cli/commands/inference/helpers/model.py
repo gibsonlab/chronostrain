@@ -59,7 +59,7 @@ def create_error_model(
 
 
 def create_gaussian_prior(
-        population: Population,
+        population: StrainCollection,
         observed_reads: TimeSeriesReads,
 ) -> AbundanceGaussianPrior:
     return AbundanceGaussianPrior(
@@ -68,6 +68,6 @@ def create_gaussian_prior(
         tau_1_scale=cfg.model_cfg.sics_scale_1,
         tau_dof=cfg.model_cfg.sics_dof,
         tau_scale=cfg.model_cfg.sics_scale,
-        population=population,
+        strain_collection=population,
         dtype=cfg.engine_cfg.dtype
     )

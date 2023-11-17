@@ -18,7 +18,7 @@ logger = create_logger(__name__)
 
 
 class BiasInitializer(Protocol):
-    def __call__(self, population: Population, times: List[float]) -> np.ndarray:
+    def __call__(self, population: StrainCollection, times: List[float]) -> np.ndarray:
         pass
 
 
@@ -67,7 +67,7 @@ class ADVIGaussianSolver(AbstractADVISolver):
 
         self.log_total_marker_lens = np.array([
             cnp.log(sum(len(m) for m in strain.markers))
-            for strain in self.gaussian_prior.population.strains
+            for strain in self.gaussian_prior.strain_collection.strains
         ], dtype=self.dtype)  # length S: total marker nucleotide length of each strain
 
         self.accumulate_gradients = accumulate_gradients
@@ -88,7 +88,7 @@ class ADVIGaussianSolver(AbstractADVISolver):
             return GaussianPosteriorFullReparametrizedCorrelation(
                 self.gaussian_prior.num_strains, self.gaussian_prior.num_times,
                 dtype=self.dtype,
-                initial_gaussian_bias=self.bias_initializer(self.gaussian_prior.population, self.gaussian_prior.times)
+                initial_gaussian_bias=self.bias_initializer(self.gaussian_prior.strain_collection, self.gaussian_prior.times)
             )
         else:
             raise ValueError("Unrecognized `correlation_type` argument {}.".format(self.correlation_type))

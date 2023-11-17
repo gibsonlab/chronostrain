@@ -242,7 +242,7 @@ class FragmentFrequencyComputer(object):
             max_num_hits: int
     ) -> Path:
         logger.debug("Creating index for exact matches.")
-        bwa_index(self.cache.marker_fasta_path, bwa_cmd='bwa', check_suffix='bwt')
+        bwa_index(self.cache.strains.multifasta_file, bwa_cmd='bwa', check_suffix='bwt')
 
         output_path.unlink(missing_ok=True)
         for frag_len, frag_fasta in self.fragments.fragment_files_by_length(output_path.parent):
@@ -251,7 +251,7 @@ class FragmentFrequencyComputer(object):
             )
             bwa_fastmap(
                 output_path=fastmap_output_path,
-                reference_path=self.cache.marker_fasta_path,
+                reference_path=self.cache.strains.multifasta_file,
                 query_path=frag_fasta,
                 max_interval_size=max_num_hits,
                 min_smem_len=frag_len

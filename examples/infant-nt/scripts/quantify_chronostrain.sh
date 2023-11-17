@@ -16,4 +16,5 @@ cd ${BASE_DIR}
 
 env chronostrain quantify \
   -r ${run_dir}/filtered/filtered_reads.csv \
-  -o ${run_dir}/inference
+  -o ${run_dir}/inference \
+  -s ${CHRONOSTRAIN_CLUSTER_FILE} \

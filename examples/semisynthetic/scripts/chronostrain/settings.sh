@@ -10,6 +10,8 @@ export CHRONOSTRAIN_LR_PATIENCE=5
 export CHRONOSTRAIN_MIN_LR=1e-7
 
 export CHRONOSTRAIN_DB_JSON_SRC="/mnt/e/ecoli_db/chronostrain_files/ecoli.json"
+export CHRONOSTRAIN_CLUSTER_FILE="/mnt/e/ecoli_db/chronostrain_files/ecoli.clusters.txt"
 export CHRONOSTRAIN_DB_DIR_SRC="/mnt/e/ecoli_db/chronostrain_files"
 export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
 export CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"
+export CHRONOSTRAIN_CACHE_DIR=${DATA_DIR}/chronostrain_cache

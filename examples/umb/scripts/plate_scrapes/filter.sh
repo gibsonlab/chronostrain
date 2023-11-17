@@ -18,6 +18,7 @@ do
     env JAX_PLATFORM_NAME=cpu chronostrain filter \
       -r "${umb_plate_dir}/reads.csv" \
       -o "${umb_plate_dir}/filtered" \
+      -s ${CHRONOSTRAIN_CLUSTER_FILE} \
       --aligner "bwa-mem2"
 
 	  touch $breadcrumb

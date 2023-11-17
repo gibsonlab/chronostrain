@@ -42,9 +42,9 @@ export CHRONOSTRAIN_LR_PATIENCE=5
 export CHRONOSTRAIN_MIN_LR=1e-7
 export CHRONOSTRAIN_CACHE_DIR="${OUTPUT_DIR}/cache"
 
-#export CHRONOSTRAIN_DB_JSON="${CHRONOSTRAIN_DB_DIR}/database_pruned_resolved.json"
-export CHRONOSTRAIN_DB_JSON="/mnt/e/ecoli_db/ecoli.json"
 export CHRONOSTRAIN_DB_DIR="/mnt/e/ecoli_db/chronostrain_files"
+export CHRONOSTRAIN_DB_JSON="/mnt/e/ecoli_db/chronostrain_files/ecoli.json"
+export CHRONOSTRAIN_CLUSTER_FILE="/mnt/e/ecoli_db/chronostrain_files/ecoli.clusters.txt"
 
 # ======== STRAINGE
 export STRAINGE_DB=/mnt/e/strainge/straingst_umb/pan-genome-db.hdf5

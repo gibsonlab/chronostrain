@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import List, Tuple
 
 import jax.numpy as np
-from chronostrain.model import Population
+from chronostrain.model import StrainCollection
 from chronostrain.util.filesystem import convert_size
 
 from chronostrain.logging import create_logger
@@ -11,7 +11,7 @@ logger = create_logger(__name__)
 
 
 def save_abundances(
-        population: Population,
+        population: StrainCollection,
         time_points: List[float],
         abundances: np.ndarray,
         out_path: Path):

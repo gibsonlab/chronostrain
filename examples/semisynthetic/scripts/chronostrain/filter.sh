@@ -52,10 +52,11 @@ env JAX_PLATFORM_NAME=cpu \
   CHRONOSTRAIN_DB_JSON=${CHRONOSTRAIN_DB_JSON_SRC} \
   CHRONOSTRAIN_DB_DIR=${DATA_DIR}/databases/chronostrain \
   CHRONOSTRAIN_LOG_FILEPATH=${output_dir}/filter.log \
-  CHRONOSTRAIN_CACHE_DIR=${output_dir}/cache \
+  CHRONOSTRAIN_CACHE_DIR=${CHRONOSTRAIN_CACHE_DIR} \
   chronostrain filter \
   -r ${reads_csv} \
   -o "${output_dir}/filtered" \
+  -s ${CHRONOSTRAIN_CLUSTER_FILE} \
   --aligner bwa-mem2
 
 # ====== Record runtime

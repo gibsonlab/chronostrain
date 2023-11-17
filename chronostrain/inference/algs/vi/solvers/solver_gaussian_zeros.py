@@ -4,7 +4,7 @@ import jax
 import jax.numpy as np
 import numpy as cnp
 
-from chronostrain.model import Population, AbundanceGaussianPrior, AbstractErrorModel, \
+from chronostrain.model import StrainCollection, AbundanceGaussianPrior, AbstractErrorModel, \
     PopulationGlobalZeros, TimeSeriesReads
 from chronostrain.database import StrainDatabase
 from chronostrain.util.optimization import LossOptimizer
@@ -20,7 +20,7 @@ logger = create_logger(__name__)
 
 # typedef
 class BiasInitializer(Protocol):
-    def __call__(self, population: Population, times: List[float]) -> np.ndarray:
+    def __call__(self, population: StrainCollection, times: List[float]) -> np.ndarray:
         pass
 
 
@@ -65,7 +65,7 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
 
         self.log_total_marker_lens = np.array([
             cnp.log(sum(len(m) for m in strain.markers))
-            for strain in self.gaussian_prior.population.strains
+            for strain in self.gaussian_prior.strain_collection.strains
         ], dtype=self.dtype)  # length S: total marker nucleotide length of each strain
 
         self.accumulate_gradients = accumulate_gradients
@@ -82,7 +82,7 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
                 self.gaussian_prior.num_strains,
                 self.gaussian_prior.num_times,
                 dtype=self.dtype,
-                initial_gaussian_bias=self.bias_initializer(self.gaussian_prior.population, self.gaussian_prior.times)
+                initial_gaussian_bias=self.bias_initializer(self.gaussian_prior.strain_collection, self.gaussian_prior.times)
             )
         elif self.correlation_type == "time":
             logger.debug("Posterior is Mean-field q(X_1)...q(X_s)q(Z) split across strains.")
@@ -90,7 +90,7 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
                 self.gaussian_prior.num_strains,
                 self.gaussian_prior.num_times,
                 dtype=self.dtype,
-                initial_gaussian_bias=self.bias_initializer(self.gaussian_prior.population, self.gaussian_prior.times)
+                initial_gaussian_bias=self.bias_initializer(self.gaussian_prior.strain_collection, self.gaussian_prior.times)
             )
         elif self.correlation_type == "strain":
             logger.debug("Posterior is Mean-field q(X_1)...q(X_t)q(Z) split across time.")
@@ -98,7 +98,7 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
                 self.gaussian_prior.num_strains,
                 self.gaussian_prior.num_times,
                 dtype=self.dtype,
-                initial_gaussian_bias=self.bias_initializer(self.gaussian_prior.population, self.gaussian_prior.times)
+                initial_gaussian_bias=self.bias_initializer(self.gaussian_prior.strain_collection, self.gaussian_prior.times)
             )
         else:
             raise ValueError("Unrecognized `correlation_type` argument {}.".format(self.correlation_type))

@@ -1,5 +1,4 @@
 import click
-from logging import Logger
 from pathlib import Path
 
 from chronostrain.util import filesystem
@@ -18,6 +17,13 @@ from ..base import option
     type=click.Path(path_type=Path, file_okay=False),
     required=True,
     help="The directory to save all outputs to."
+)
+@option(
+    '--strain-subset', '-s', 'strain_subset_path',
+    type=click.Path(path_type=Path, dir_okay=False, exists=False, readable=True),
+    required=False, default=None,
+    help="A text file specifying a subset of database strain IDs to perform filtering with; "
+         "a TSV file containing one ID per line, optionally with a second column for metadata.",
 )
 @option(
     '--with-zeros/--without-zeros', 'with_zeros',
@@ -117,6 +123,7 @@ from ..base import option
 def main(
         reads_input: Path,
         out_dir: Path,
+        strain_subset_path: Path,
         true_abundance_path: Path,
         with_zeros: bool,
         prior_p: float,
@@ -147,13 +154,21 @@ def main(
     logger.info("Pipeline for algs started.")
     import jax.numpy as np
     from chronostrain.config import cfg
-    from chronostrain.model import Population
+    from chronostrain.model import StrainCollection
     from chronostrain.model.io import TimeSeriesReads
     import chronostrain.visualizations as viz
     from .helpers import perform_advi
 
     # ============ Create database instance.
     db = cfg.database_cfg.get_database()
+    if strain_subset_path is not None:
+        with open(strain_subset_path, "rt") as f:
+            strain_collection = StrainCollection(
+                [db.get_strain(line.strip().split('\t')[0]) for line in f if not line.startswith("#")],
+                db.signature
+            )
+    else:
+        strain_collection = StrainCollection(db.all_strains(), db.signature)
 
     # ============ Prepare for algorithm output.
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -176,7 +191,7 @@ def main(
     # ============ Create model instance
     solver, posterior, elbo_history, (uppers, lowers, medians) = perform_advi(
         db=db,
-        population=Population(strains=db.all_strains()),
+        population=strain_collection,
         reads=reads,
         with_zeros=with_zeros,
         prior_p=prior_p,
@@ -226,7 +241,7 @@ def main(
     ))
     viz.plot_vi_posterior(
         times=solver.gaussian_prior.times,
-        population=solver.gaussian_prior.population,
+        population=solver.gaussian_prior.strain_collection,
         samples=samples,
         plot_path=plot_path,
         plot_format=plot_format,
@@ -236,7 +251,7 @@ def main(
 
     # ==== Output strain ordering.
     with open(strains_path, "w") as f:
-        for strain in solver.gaussian_prior.population.strains:
+        for strain in solver.gaussian_prior.strain_collection.strains:
             print(strain.id, file=f)
 
     # ==== Report any ad-hoc clustering.

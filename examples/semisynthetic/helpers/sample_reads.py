@@ -4,7 +4,6 @@ import csv
 from itertools import repeat
 from pathlib import Path
 
-import pandas as pd
 from multiprocessing.dummy import Pool
 from typing import Tuple, Dict, List
 

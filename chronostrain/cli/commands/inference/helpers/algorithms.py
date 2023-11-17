@@ -11,11 +11,11 @@ from chronostrain.config import cfg
 from .model import create_error_model, create_gaussian_prior
 
 
-def bias_EM_initializer(population: Population, time_points: List[float]) -> jnp.ndarray:
+def bias_EM_initializer(population: StrainCollection, time_points: List[float]) -> jnp.ndarray:
     raise NotImplementedError()
 
 
-def bias_uniform_initializer(population: Population, time_points: List[float]) -> jnp.ndarray:
+def bias_uniform_initializer(population: StrainCollection, time_points: List[float]) -> jnp.ndarray:
     return jnp.zeros(
         shape=(len(time_points), population.num_strains()),
         dtype=cfg.engine_cfg.dtype
@@ -24,7 +24,7 @@ def bias_uniform_initializer(population: Population, time_points: List[float]) -
 
 def perform_advi(
         db: StrainDatabase,
-        population: Population,
+        population: StrainCollection,
         reads: TimeSeriesReads,
         with_zeros: bool,
         initialize_with_map: bool,

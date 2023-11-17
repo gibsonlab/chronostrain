@@ -26,6 +26,7 @@ do
     chronostrain advi \
       -r ${run_dir}/filtered/filtered_reads.csv \
       -o ${run_dir}/chronostrain \
+      -s ${CHRONOSTRAIN_CLUSTER_FILE} \
       --correlation-mode $CHRONOSTRAIN_CORR_MODE \
       --iters $CHRONOSTRAIN_NUM_ITERS \
       --epochs $CHRONOSTRAIN_NUM_EPOCHS \

@@ -6,7 +6,7 @@ from typing import List
 
 import jax.numpy as jnp
 from chronostrain.logging import create_logger
-from chronostrain.model import Population
+from chronostrain.model import StrainCollection
 
 logger = create_logger(__name__)
 
@@ -19,7 +19,7 @@ class AbundanceGaussianPrior:
             tau_1_scale: float,
             tau_dof: float,
             tau_scale: float,
-            population: Population,
+            strain_collection: StrainCollection,
             dtype: str
     ):
         """
@@ -37,7 +37,7 @@ class AbundanceGaussianPrior:
         self.tau_scale: float = tau_scale
         self._frag_freqs_sparse = None
         self._frag_freqs_dense = None
-        self.population = population
+        self.strain_collection = strain_collection
 
         self.dt_sqrt_inverse = jnp.power(jnp.array(
             [
@@ -53,7 +53,7 @@ class AbundanceGaussianPrior:
 
     @property
     def num_strains(self) -> int:
-        return len(self.population)
+        return len(self.strain_collection)
 
     def log_likelihood_x(self, x: jnp.ndarray) -> jnp.ndarray:
         """

@@ -103,7 +103,7 @@ def main(
     import pandas as pd
     from typing import Dict
     from chronostrain.config import cfg
-    from .helpers import create_chronostrain_db, prune_json_db_jaccard
+    from .helpers import create_chronostrain_db, cluster_json_db_jaccard
 
     reference_df = pd.read_csv(ref_index_path, sep="\t")
     if isolates_index_path is not None:
@@ -115,7 +115,7 @@ def main(
     json_output_path.parent.mkdir(exist_ok=True, parents=True)
     raw_json_path = json_output_path.with_stem(f'{json_output_path.stem}-1raw')  # first file
     merged_json_path = json_output_path.with_stem(f'{json_output_path.stem}-2overlapmerged')  # second file
-    pruned_json_path = json_output_path.with_stem(f'{json_output_path.stem}-3pruned')  # third file
+    # pruned_json_path = json_output_path.with_stem(f'{json_output_path.stem}-3pruned')  # third file
 
     # ============== Step 1: initialize using BLAST.
     logger.info("Building raw DB using BLAST.")
@@ -200,25 +200,26 @@ def main(
     with open(merged_json_path, 'w') as o:  # dump to JSON.
         json.dump(db_json, o, indent=4)
 
+    shutil.copy(merged_json_path, json_output_path)
+    logger.info("Database JSON file created: {}".format(json_output_path))
+
     if not skip_prune:
         # ============== Step 3: prune using clustering on genomic distances.
+        cluster_path = merged_json_path.parent / f'{merged_json_path.stem}.clusters.txt'
         logger.info("Pruning database via clustering")
-        logger.debug(f"Src: {merged_json_path}, Dest: {pruned_json_path}")
 
         # ==== Initialize database instance (to be used for pruning)
         logger.info("Target identity threshold = {}".format(identity_threshold))
-        prune_json_db_jaccard(
+        cluster_json_db_jaccard(
             src_json_path=merged_json_path,
-            tgt_json_path=pruned_json_path,
+            output_path=cluster_path,
             cfg=cfg, logger=logger,
             tmp_dir=json_output_path.parent / '__prune_tmp',
             identity_threshold=identity_threshold
         )
-        shutil.copy(pruned_json_path, json_output_path)
+        logger.debug(f"Clusters written to: {cluster_path}")
     else:
-        logger.info("Skipping pruning.")
-        shutil.copy(merged_json_path, json_output_path)
-    logger.info("Done. (Final output = {})".format(json_output_path))
+        logger.info("Skipped clustering step. To run clustering manually, use the `cluster_json` subcommand.")
 
 
 if __name__ == "__main__":

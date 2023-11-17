@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from chronostrain import logger
-from chronostrain.model import Population
+from chronostrain.model import StrainCollection
 from chronostrain.model.generative import AbundanceGaussianPrior
 
 from .plot_abundances import plot_posterior_abundances
@@ -92,7 +92,7 @@ def plot_training_animation(
 
 
 def plot_vi_posterior(times: List[float],
-                      population: Population,
+                      population: StrainCollection,
                       samples: np.ndarray,
                       plot_path: Path,
                       plot_format: str,

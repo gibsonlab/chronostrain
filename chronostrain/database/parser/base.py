@@ -48,8 +48,7 @@ class AbstractDatabaseParser(object):
         return StrainDatabase(
             backend=backend,
             data_dir=self.data_dir,
-            name=self.db_name,
-            force_refresh=False
+            name=self.db_name
         )
 
 class StrainDatabaseParseError(Exception):

@@ -26,6 +26,7 @@ export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
 export CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"
 export CHRONOSTRAIN_DB_DIR="${DATA_DIR}/database/chronostrain_files"
 export CHRONOSTRAIN_DB_JSON="${DATA_DIR}/database/chronostrain_files/efaecalis.json"
+export CHRONOSTRAIN_CLUSTER_FILE="${DATA_DIR}/database/chronostrain_files/efaecalis.clusters.txt"
 export CHRONOSTRAIN_DB_NAME="efaecalis"
 
 export TRIMMOMATIC_PATH=/home/youn/mambaforge/envs/chronostrain/share/trimmomatic-0.39-2

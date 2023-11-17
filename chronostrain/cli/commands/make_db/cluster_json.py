@@ -9,13 +9,13 @@ from ..base import option
     '--input', '-i', 'source_json_path',
     type=click.Path(path_type=Path, file_okay=True, dir_okay=False),
     required=True,
-    help="The JSON file to prune."
+    help="The JSON database file.."
 )
 @option(
-    '--output', '-o', 'target_json_path',
+    '--output', '-o', 'output_cluster_path',
     type=click.Path(path_type=Path, file_okay=True, dir_okay=False),
     required=True,
-    help="The JSON path to output."
+    help="The file path to which the clusters will be output."
 )
 @option(
     '--ident-threshold', '-t', 'identity_threshold',
@@ -26,7 +26,7 @@ from ..base import option
 )
 def main(
         source_json_path: Path,
-        target_json_path: Path,
+        output_cluster_path: Path,
         identity_threshold: float
 ):
     """
@@ -38,16 +38,16 @@ def main(
 
     # ============== Step 3: prune using clustering on genomic distances.
     logger.info("Pruning database via clustering")
-    logger.debug(f"Src: {source_json_path}, Dest: {target_json_path}")
+    logger.debug(f"Src: {source_json_path}, Output: {output_cluster_path}")
     logger.info("Target identity threshold = {}".format(identity_threshold))
 
     from chronostrain.config import cfg
-    from .helpers import prune_json_db_jaccard
-    prune_json_db_jaccard(
+    from .helpers import cluster_json_db_jaccard
+    cluster_json_db_jaccard(
         src_json_path=source_json_path,
-        tgt_json_path=target_json_path,
+        output_path=output_cluster_path,
         cfg=cfg, logger=logger,
-        tmp_dir=source_json_path.resolve().parent / '__prune_tmp',
+        tmp_dir=source_json_path.resolve().parent / '__cluster_tmp',
         identity_threshold=identity_threshold
     )
 

@@ -23,6 +23,7 @@ do
     chronostrain advi \
       -r ${umb_plate_dir}/filtered/filtered_reads.csv \
       -o ${umb_plate_dir}/chronostrain \
+      -s ${CHRONOSTRAIN_CLUSTER_FILE} \
       --correlation-mode $CHRONOSTRAIN_CORR_MODE \
       --iters $CHRONOSTRAIN_NUM_ITERS \
       --epochs $CHRONOSTRAIN_NUM_EPOCHS \
