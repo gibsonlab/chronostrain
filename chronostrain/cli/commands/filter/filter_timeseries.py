@@ -61,6 +61,12 @@ from ..base import option
     help="The upper bound on the number of expected errors, expressed as a fraction of length of the read. "
          "A value of 1.0 disables this feature."
 )
+@option(
+    '--attach-sample-ids', 'attach_sample_ids',
+    is_flag=True, default=False,
+    help='Specify whether to attach sample IDs to the fasta filename. Useful if, for some reason, '
+         'the input fasta files have non-unique names -- but DO become unique if sample IDs are attached.'
+)
 def main(
         reads_input: Path,
         out_dir: Path,
@@ -69,7 +75,8 @@ def main(
         min_read_len: int,
         frac_identity_threshold: float,
         error_threshold: float,
-        output_filename: Optional[str]
+        output_filename: Optional[str],
+        attach_sample_ids: bool
 ):
     """
     Perform filtering on a timeseries dataset, specified by a standard CSV-formatted input index.
@@ -124,7 +131,10 @@ def main(
         logger.info(f"Applying filter to timepoint {t}, {str(read_path)}")
 
         aligner_obj = create_aligner(aligner, read_type, db)
-        out_file = f"filtered_{remove_suffixes(read_path).name}.fastq"
+        if attach_sample_ids:
+            out_file = f"filtered_{remove_suffixes(read_path).name}-{sample_name}.fastq"
+        else:
+            out_file = f"filtered_{remove_suffixes(read_path).name}.fastq"
         filter.apply(read_path, out_dir / out_file, read_type, aligner_obj, quality_format=qual_fmt)
         with open(target_csv_path, 'a') as target_csv:
             # Append to target CSV file.
