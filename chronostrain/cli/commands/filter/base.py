@@ -56,8 +56,8 @@ class Filter(object):
         if not self.strain_collection.faidx_file.exists():
             samtools.faidx(self.strain_collection.multifasta_file)
 
-        metadata_path = out_path.parent / f"{remove_suffixes(read_file).name}.metadata.tsv"
-        sam_path = aligner_tmp_dir / f"{remove_suffixes(read_file).name}.sam"
+        metadata_path = out_path.parent / f"{out_path.name}.metadata.tsv"
+        sam_path = aligner_tmp_dir / f"{out_path.name}.sam"
         aligner.align(
             query_path=read_file,
             output_path=sam_path,
