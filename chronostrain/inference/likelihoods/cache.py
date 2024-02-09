@@ -18,6 +18,7 @@ class ReadStrainCollectionCache(ComputationCache):
     def __init__(self, reads: TimeSeriesReads, db: StrainDatabase, strains: StrainCollection):
         super().__init__(
             CacheTag(
+                cache_dir=cfg.model_cfg.cache_dir,
                 use_quality=cfg.model_cfg.use_quality_scores,
                 database=db.signature,
                 strains=[s.id for s in strains],

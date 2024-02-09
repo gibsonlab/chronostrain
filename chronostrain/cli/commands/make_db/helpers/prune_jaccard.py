@@ -49,7 +49,11 @@ def cluster_json_db_jaccard(
         for cluster, rep in zip(clusters, cluster_reps):
             rep_strain_idx = cluster[rep]
             rep_strain_id = strain_id_ordering[rep_strain_idx]
-            cluster_strain_ids = []
+            cluster_strain_ids = [
+                strain_id_ordering[s_idx]
+                for s_idx in cluster
+            ]
+
             print(
                 "{}\t{}".format(
                     rep_strain_id,

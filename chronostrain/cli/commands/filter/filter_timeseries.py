@@ -97,8 +97,10 @@ def main(
                 [db.get_strain(line.strip().split('\t')[0]) for line in f if not line.startswith("#")],
                 db.signature
             )
+        logger.info("Loaded list of {} strains.".format(len(strain_collection)))
     else:
         strain_collection = StrainCollection(db.all_strains(), db.signature)
+        logger.info("Using complete collection of {} strains from database.".format(len(strain_collection)))
 
     # ============ Prepare output files/directories.
     if output_filename is None or len(output_filename) == 0:
@@ -130,11 +132,12 @@ def main(
         read_type = ReadType.parse_from_str(read_type_str)
         logger.info(f"Applying filter to timepoint {t}, {str(read_path)}")
 
-        aligner_obj = create_aligner(aligner, read_type, db)
+        aligner_obj = create_aligner(aligner, read_type, strain_collection.multifasta_file)
         if attach_sample_ids:
             out_file = f"filtered_{remove_suffixes(read_path).name}-{sample_name}.fastq"
         else:
             out_file = f"filtered_{remove_suffixes(read_path).name}.fastq"
+
         filter.apply(read_path, out_dir / out_file, read_type, aligner_obj, quality_format=qual_fmt)
         with open(target_csv_path, 'a') as target_csv:
             # Append to target CSV file.

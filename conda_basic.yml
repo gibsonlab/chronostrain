@@ -6,14 +6,16 @@ channels:
   - nvidia
 
 dependencies:
-  - python=3.10
+  - python>=3.10
   - pip
   - numpy
   - scipy
   - pandas
   - pyarrow
   - numba
+  - pysam
   - intervaltree
+  - tqdm
   - jax
   - jaxlib=*=*cuda*
   - optax
@@ -25,10 +27,8 @@ dependencies:
   - click
   - blast
   - samtools
-  - mafft
-  - bwa
   - bwa-mem2
   - bowtie2
-  - cdbtools
+  - pysam
   - pip:
     - ./

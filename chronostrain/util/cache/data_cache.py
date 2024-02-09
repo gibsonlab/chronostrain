@@ -12,8 +12,6 @@ from typing import Callable, Optional, List, Dict, Any, Union
 import pickle
 import hashlib
 
-from chronostrain.config import cfg
-from chronostrain.model import Strain, Marker
 from chronostrain.util.filesystem import md5_checksum
 
 from chronostrain.logging import create_logger
@@ -21,7 +19,7 @@ logger = create_logger(__name__)
 
 
 class CacheTag(object):
-    def __init__(self, **kwargs):
+    def __init__(self, cache_dir: Path, **kwargs):
         """
         A cache identification object, whose initialization kwargs specify the dependencies which generate the
         cache key.
@@ -33,12 +31,13 @@ class CacheTag(object):
         If a Path-like instance is passed, it is processed using its MD5 checksum.
         For all other cases, the item is converted into a string.
         """
+        self.cache_dir = cache_dir
         self.attr_dict = kwargs
         self.encoding = self.generate_encoding()
 
     @property
     def directory(self) -> Path:
-        return cfg.model_cfg.cache_dir / self.encoding
+        return self.cache_dir / self.encoding
 
     def generate_encoding(self) -> str:
         start_time = time.time()
@@ -78,19 +77,10 @@ class CacheTag(object):
                 o_str = "[{}]".format(",".join(
                     _recursive_render(entry) for entry in o
                 ))
-            elif isinstance(o, Strain):
-                o_str = "Strain({}){}".format(
-                    o.id,
-                    _recursive_render(o.markers)
-                )
-            elif isinstance(o, Marker):
-                o_str = "Marker:{}".format(
-                    o.id
-                )
             elif isinstance(o, Path):
                 o_str = "<file:{}>".format(str(o))
             else:
-                o_str = str(o)
+                o_str = repr(o)
             return o_str
 
         with open(path, "w") as f:
@@ -123,8 +113,12 @@ class ComputationCache(object):
         """
         self.cache_tag = cache_tag
         self.cache_dir.mkdir(exist_ok=True, parents=True)
+        from chronostrain.config import cfg
         if cfg.model_cfg.cache_enabled:
             logger.debug("Using cache dir {}.".format(self.cache_dir))
+            metadata_path = self.cache_dir / "metadata.txt"
+            if not metadata_path.exists():
+                self.cache_tag.write_readable_attributes_to_disk(metadata_path)
 
     @property
     def cache_dir(self) -> Path:
@@ -163,6 +157,7 @@ class ComputationCache(object):
 
         # Try to retrieve from cache.
         cache_path = self.cache_dir / relative_filepath
+        from chronostrain.config import cfg
         if cache_path.exists() and cfg.model_cfg.cache_enabled:
             logger.debug("[Cache {}] Loading pre-computed file {}.".format(
                 self.cache_tag.encoding,
@@ -175,10 +170,6 @@ class ComputationCache(object):
                 logger.debug("[Cache {}] Could not load cached file {}. Recomputing.".format(
                     self.cache_tag.encoding, cache_path
                 ))
-
-            metadata_path = self.cache_dir / "metadata.txt"
-            if not metadata_path.exists():
-                self.cache_tag.write_readable_attributes_to_disk(metadata_path)
 
             data = fn(*call_args, **call_kwargs)
 

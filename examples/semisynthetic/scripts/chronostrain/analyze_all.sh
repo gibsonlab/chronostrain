@@ -10,7 +10,7 @@ for (( trial = 1; trial < ${N_TRIALS}+1; trial++ )); do
     for n_reads in "${SYNTHETIC_COVERAGES[@]}"; do
       for mutation_ratio in "${MUTATION_RATIOS[@]}"; do
         bash chronostrain/filter.sh "$mutation_ratio" "$replicate" "$n_reads" "$trial"
-        bash chronostrain/run_chronostrain.sh "$mutation_ratio" "$replicate" "$n_reads" "$trial"
+        bash chronostrain/run_chronostrain.sh "$mutation_ratio" "$replicate" "$n_reads" "$trial" "chronostrain" "0.001"
       done
     done
   done

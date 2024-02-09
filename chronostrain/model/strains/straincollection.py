@@ -19,8 +19,10 @@ class StrainCollection:
         self.strain_indices = {strain: s_idx for s_idx, strain in enumerate(self.strains)}
         self.db_signature = db_signature
 
+        from chronostrain.config import cfg
         self.cache = ComputationCache(
             CacheTag(
+                cache_dir=cfg.model_cfg.cache_dir,
                 strains=[s.id for s in strains],
                 database=db_signature
             )

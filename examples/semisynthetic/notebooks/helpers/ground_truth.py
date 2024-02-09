@@ -3,8 +3,8 @@ from pathlib import Path
 import numpy as np
 
 
-def load_ground_truth(replicate: int) -> Tuple[List[str], List[float], np.ndarray]:
-    ground_truth_path = Path(f"/mnt/e/semisynthetic_data/mutratio_1.0/replicate_{replicate}/genomes/abundances.txt")
+def load_ground_truth(mut_ratio: str, replicate: int) -> Tuple[List[str], List[float], np.ndarray]:
+    ground_truth_path = Path(f"/mnt/e/semisynthetic_data/mutratio_{mut_ratio}/replicate_{replicate}/genomes/abundances.txt")
     with open(ground_truth_path, "rt") as f:
         slices = []
         time_points = []

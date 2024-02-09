@@ -8,6 +8,8 @@ mutation_ratio=$1
 replicate=$2
 n_reads=$3
 trial=$4
+output_dir=$5
+prior_p=$6
 
 require_variable "mutation_ratio" $mutation_ratio
 require_variable "replicate" $replicate
@@ -17,12 +19,13 @@ require_variable "trial" $trial
 # ============ script body:
 trial_dir=$(get_trial_dir "${mutation_ratio}" $replicate $n_reads $trial)
 output_dir=${trial_dir}/output/chronostrain
-runtime_file=${trial_dir}/output/chronostrain_runtime.txt
-filter_file=${trial_dir}/output/chronostrain_filter_runtime.txt
+runtime_file=${output_dir}/inference_runtime.txt
+filter_file=${output_dir}/filter_runtime.txt
+
+prior_p=0.001
 
 if [ -f $runtime_file ]; then
 	echo "[*] Skipping Chronostrain Inference (mut_ratio: ${mutation_ratio} | replicate: ${replicate} |  n_reads: ${n_reads} | trial: ${trial})"
-	exit 0
 fi
 
 if [ ! -f $filter_file ]; then
@@ -33,8 +36,8 @@ fi
 
 mkdir -p $output_dir
 
-echo "[*] Using database ${CHRONOSTRAIN_DB_JSON}"
 echo "[*] Running Chronostrain inference (mut_ratio: ${mutation_ratio} | replicate: ${replicate} |  n_reads: ${n_reads} | trial: ${trial})"
+echo "[**] Using database ${CHRONOSTRAIN_DB_JSON_SRC}"
 start_time=$(date +%s%N)  # nanoseconds
 
 env \
@@ -60,7 +63,7 @@ env \
   --plot-elbo \
   --prune-strains \
   --with-zeros \
-  --prior-p 0.001
+  --prior-p ${prior_p}
 #	--accumulate-gradients
 
 

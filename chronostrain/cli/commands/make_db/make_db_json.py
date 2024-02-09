@@ -117,104 +117,104 @@ def main(
     merged_json_path = json_output_path.with_stem(f'{json_output_path.stem}-2overlapmerged')  # second file
     # pruned_json_path = json_output_path.with_stem(f'{json_output_path.stem}-3pruned')  # third file
 
-    # ============== Step 1: initialize using BLAST.
-    logger.info("Building raw DB using BLAST.")
-
-    gene_paths: Dict[str, Path] = {}
-    with open(marker_seeds_path) as seed_file:
-        for line in seed_file:
-            tokens = line.strip().split('\t')
-            gene_name = tokens[0]
-            gene_fasta_path = Path(tokens[1])
-            if not gene_fasta_path.exists():
-                raise FileNotFoundError(
-                    f"Sequence file for marker `{gene_name}` does not exist (got: {gene_fasta_path})"
-                )
-            gene_paths[gene_name] = gene_fasta_path
-
-    logger.info("Creating strain entries from catalog {}".format(ref_index_path))
-    strain_entries = create_chronostrain_db(
-        blast_result_dir=json_output_path.parent / f"_BLAST_{json_output_path.stem}",
-        strain_df=reference_df,
-        gene_paths=gene_paths,
-        blast_db_dir=blast_db_dir,
-        blast_db_name=blast_db_name,
-        min_pct_idty=min_pct_idty,
-        min_marker_len=min_marker_len,
-        num_threads=num_threads,
-        logger=logger
-    )
-
-    if isolates_df is not None:
-        logger.info("Creating strain entries from catalog {}".format(isolates_index_path))
-        isolate_strain_entries = create_chronostrain_db(
-            blast_result_dir=json_output_path.parent / f"_BLAST_ISOLATES_{json_output_path.stem}",
-            strain_df=isolates_df,
-            gene_paths=gene_paths,
-            blast_db_dir=blast_db_dir,
-            blast_db_name='ExtraIsolates',
-            min_pct_idty=min_pct_idty,
-            min_marker_len=min_marker_len,
-            num_threads=num_threads,
-            logger=logger
-        )
-        strain_entries += isolate_strain_entries
-
-    with open(raw_json_path, 'w') as outfile:
-        json.dump(strain_entries, outfile, indent=4)
-        logger.info(f"Wrote raw blast DB entries to {raw_json_path}.")
-
-    # ============== Step 2: check for overlaps.
-    logger.info("Resolving overlaps.")
-    logger.debug(f"Src: {raw_json_path}, Dest: {merged_json_path}")
-
-    from chronostrain.cli.commands.make_db.helpers.resolve_overlaps import find_and_resolve_overlaps
-    def _search_gff(strain_id: str, strain_df: pd.DataFrame) -> Path:
-        df_hit = strain_df.loc[strain_df['Accession'] == strain_id]
-        if df_hit.shape[0] > 0:
-            gff_path_str = df_hit.head(1)['GFF'].item()
-            if len(gff_path_str) > 0 and gff_path_str != 'None' and gff_path_str != 'NaN':
-                return Path(gff_path_str)
-        raise FileNotFoundError(f"GFF does not exist for {strain_id}")
-
-    with open(raw_json_path, "r") as f:
-        db_json = json.load(f)
-    for strain in db_json:
-        gff_path = None
-        try:
-            gff_path = _search_gff(strain['id'], reference_df)
-            if not gff_path.exists():
-                gff_path = None
-        except FileNotFoundError:
-            pass
-
-        if isolates_df is not None:
-            try:
-                gff_path = _search_gff(strain['id'], isolates_df)
-                if not gff_path.exists():
-                    gff_path = None
-            except FileNotFoundError:
-                pass
-
-        find_and_resolve_overlaps(strain, logger, gff_path)
-    with open(merged_json_path, 'w') as o:  # dump to JSON.
-        json.dump(db_json, o, indent=4)
-
-    shutil.copy(merged_json_path, json_output_path)
-    logger.info("Database JSON file created: {}".format(json_output_path))
+    # # ============== Step 1: initialize using BLAST.
+    # logger.info("Building raw DB using BLAST.")
+    #
+    # gene_paths: Dict[str, Path] = {}
+    # with open(marker_seeds_path) as seed_file:
+    #     for line in seed_file:
+    #         tokens = line.strip().split('\t')
+    #         gene_name = tokens[0]
+    #         gene_fasta_path = Path(tokens[1])
+    #         if not gene_fasta_path.exists():
+    #             raise FileNotFoundError(
+    #                 f"Sequence file for marker `{gene_name}` does not exist (got: {gene_fasta_path})"
+    #             )
+    #         gene_paths[gene_name] = gene_fasta_path
+    #
+    # logger.info("Creating strain entries from catalog {}".format(ref_index_path))
+    # strain_entries = create_chronostrain_db(
+    #     blast_result_dir=json_output_path.parent / f"_BLAST_{json_output_path.stem}",
+    #     strain_df=reference_df,
+    #     gene_paths=gene_paths,
+    #     blast_db_dir=blast_db_dir,
+    #     blast_db_name=blast_db_name,
+    #     min_pct_idty=min_pct_idty,
+    #     min_marker_len=min_marker_len,
+    #     num_threads=num_threads,
+    #     logger=logger
+    # )
+    #
+    # if isolates_df is not None:
+    #     logger.info("Creating strain entries from catalog {}".format(isolates_index_path))
+    #     isolate_strain_entries = create_chronostrain_db(
+    #         blast_result_dir=json_output_path.parent / f"_BLAST_ISOLATES_{json_output_path.stem}",
+    #         strain_df=isolates_df,
+    #         gene_paths=gene_paths,
+    #         blast_db_dir=blast_db_dir,
+    #         blast_db_name='ExtraIsolates',
+    #         min_pct_idty=min_pct_idty,
+    #         min_marker_len=min_marker_len,
+    #         num_threads=num_threads,
+    #         logger=logger
+    #     )
+    #     strain_entries += isolate_strain_entries
+    #
+    # with open(raw_json_path, 'w') as outfile:
+    #     json.dump(strain_entries, outfile, indent=4)
+    #     logger.info(f"Wrote raw blast DB entries to {raw_json_path}.")
+    #
+    # # ============== Step 2: check for overlaps.
+    # logger.info("Resolving overlaps.")
+    # logger.debug(f"Src: {raw_json_path}, Dest: {merged_json_path}")
+    #
+    # from chronostrain.cli.commands.make_db.helpers.resolve_overlaps import find_and_resolve_overlaps
+    # def _search_gff(strain_id: str, strain_df: pd.DataFrame) -> Path:
+    #     df_hit = strain_df.loc[strain_df['Accession'] == strain_id]
+    #     if df_hit.shape[0] > 0:
+    #         gff_path_str = df_hit.head(1)['GFF'].item()
+    #         if len(gff_path_str) > 0 and gff_path_str != 'None' and gff_path_str != 'NaN':
+    #             return Path(gff_path_str)
+    #     raise FileNotFoundError(f"GFF does not exist for {strain_id}")
+    #
+    # with open(raw_json_path, "r") as f:
+    #     db_json = json.load(f)
+    # for strain in db_json:
+    #     gff_path = None
+    #     try:
+    #         gff_path = _search_gff(strain['id'], reference_df)
+    #         if not gff_path.exists():
+    #             gff_path = None
+    #     except FileNotFoundError:
+    #         pass
+    #
+    #     if isolates_df is not None:
+    #         try:
+    #             gff_path = _search_gff(strain['id'], isolates_df)
+    #             if not gff_path.exists():
+    #                 gff_path = None
+    #         except FileNotFoundError:
+    #             pass
+    #
+    #     find_and_resolve_overlaps(strain, logger, gff_path)
+    # with open(merged_json_path, 'w') as o:  # dump to JSON.
+    #     json.dump(db_json, o, indent=4)
+    #
+    # shutil.copy(merged_json_path, json_output_path)
+    # logger.info("Database JSON file created: {}".format(json_output_path))
 
     if not skip_prune:
         # ============== Step 3: prune using clustering on genomic distances.
-        cluster_path = merged_json_path.parent / f'{merged_json_path.stem}.clusters.txt'
+        cluster_path = json_output_path.parent / f'{json_output_path.stem}.clusters.txt'
         logger.info("Pruning database via clustering")
 
         # ==== Initialize database instance (to be used for pruning)
         logger.info("Target identity threshold = {}".format(identity_threshold))
         cluster_json_db_jaccard(
-            src_json_path=merged_json_path,
+            src_json_path=json_output_path,
             output_path=cluster_path,
             cfg=cfg, logger=logger,
-            tmp_dir=json_output_path.parent / '__prune_tmp',
+            tmp_dir=json_output_path.parent / '__cluster_tmp',
             identity_threshold=identity_threshold
         )
         logger.debug(f"Clusters written to: {cluster_path}")

@@ -203,7 +203,7 @@ class CachedReadPairwiseAlignments(object):
                 )
 
                 if use_bam_format:
-                    samtools.sam_to_bam(tmp_sam_path, absolute_path, self.db.faidx_file, self.cache.strains.multifasta_file, exclude_unmapped=True)
+                    samtools.sam_to_bam(tmp_sam_path, absolute_path, self.cache.strains.faidx_file, self.cache.strains.multifasta_file, exclude_unmapped=True)
                     tmp_sam_path.unlink()
                 else:
                     shutil.move(src=tmp_sam_path, dst=absolute_path)

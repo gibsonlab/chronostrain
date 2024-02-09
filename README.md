@@ -22,7 +22,7 @@ The contents of this repository will soon be outdated and replaced with the `dev
 
 There are three ways to install chronostrain.
 
-## A. Basic conda recipe (Recommended)
+### A. Basic conda recipe (Recommended)
 
 Necessary dependencies only, installs cuda-toolkit from NVIDIA for (optional, but highly useful) GPU usage.
 ```bash
@@ -35,7 +35,7 @@ If you intend to use a GPU, verify whether pytorch's CUDA interface is available
 python -c "import torch; print(torch.cuda.is_available())"
 ```
 
-## B. Full conda recipe
+### B. Full conda recipe
 
 Necessary dependencies + optional bioinformatics dependencies for running the examples/paper analyses.
 
@@ -47,13 +47,28 @@ conda env create -f conda_full.yml
 conda activate chronostrain_full
 ```
 
-## C. Pip
+### C. Pip
 
 ```bash
 pip install .
 ```
 
 one may need to pick and choose the proper pytorch version beforehand (e.g. with/without cuda).
+
+
+## 2.1 Other requirements
+
+To enable database construction (`chronostrain make-db`), we require 
+the tool <a href="https://github.com/dnbaker/dashing2">dashing2</a>.
+After downloading and/or building an executable from source, the `dashing2` executable must be
+discoverable; add it to your PATH environment variable.
+One way to do this is to add the following to your `.bashrc`:
+
+(*note: if/when dashing2 is added to a conda repository, we will add it to the conda recipe.*)
+```bash
+# assuming dashing2 binary is located in /home/username/dashing2_repo directory
+export PATH=${PATH}:/home/username/dashing2_repo
+```
 
 
 # 3. Core Interface: Quickstart (Unix) <a name="quickstart"></a>

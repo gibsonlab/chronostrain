@@ -3,11 +3,11 @@ from typing import *
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import roc_auc_score
+import sklearn.metrics
 
 from .base import trial_dir, parse_runtime, parse_phylogroups
 from .ground_truth import load_ground_truth
-from .error_metrics import rms, tv_error, compute_rank_corr
+from .error_metrics import rms, tv_error, compute_rank_corr, binned_rms, strain_split_rms
 
 
 class StrainEstInferenceError(BaseException):
@@ -44,7 +44,7 @@ def extract_strainest_prediction(
 
     runtime = 0
     for t_idx in range(len(time_points)):
-        runtime += parse_runtime(output_basedir / f'strainest_runtime.{t_idx}.txt')
+        runtime += parse_runtime(output_dir / f'runtime.{t_idx}.txt')
     return preds, cluster_ordering, cluster_df, runtime
 
 
@@ -106,8 +106,14 @@ def strainest_subset_prediction(
     return SUBSET_pred, SUBSET_truth, SUBSET_true_labels
 
 
-def strainest_results(mut_ratio: str, replicate: int, read_depth: int, trial: int):
-    truth_accs, time_points, ground_truth = load_ground_truth(replicate=replicate)
+def strainest_results(
+    mut_ratio: str, 
+    replicate: int, 
+    read_depth: int, 
+    trial: int,
+    abundance_bins: np.ndarray
+):
+    truth_accs, time_points, ground_truth = load_ground_truth(mut_ratio=mut_ratio, replicate=replicate)
     pred, clusters, strainest_clust_df, runtime = extract_strainest_prediction(
         mut_ratio, replicate, read_depth, trial, time_points
     )
@@ -138,20 +144,27 @@ def strainest_results(mut_ratio: str, replicate: int, read_depth: int, trial: in
     )
 
     # ================ Metric evaluation
-    auroc = roc_auc_score(  # Abundance thresholding per timepoint
+    auroc = sklearn.metrics.roc_auc_score(  # Abundance thresholding per timepoint
         y_true=np.tile(A_true_indicators, (len(time_points), 1)).flatten(),
         y_score=A_pred.flatten()
     )
+    auroc_collapsed = sklearn.metrics.roc_auc_score(  # Abundance thresholding, collapsed
+        y_true=A_true_indicators,
+        y_score=np.max(A_pred, axis=0),
+    )
 
-    eps = 1e-6
+    eps = 1e-4
     rms_error_sim = rms(np.log10(sim_pred + eps), np.log10(sim_truth + eps))
     rms_error_A = rms(np.log10(A_pred + eps), np.log10(A_truth + eps))
 
     tv_err_A = tv_error(A_pred, A_truth)
     tv_err_sim = tv_error(sim_pred, sim_truth)
 
-    rank_corr_sim = np.median(compute_rank_corr(sim_pred, sim_truth))
-    rank_corr_A = np.median(compute_rank_corr(A_pred, A_truth))
+    rank_corr_sim = compute_rank_corr(sim_pred, sim_truth)
+    rank_corr_A = compute_rank_corr(A_pred, A_truth)
+
+    binned_rms_error_sim = binned_rms(np.log10(sim_pred + eps), np.log10(sim_truth), abundance_bins)
+    split_rms_sim = strain_split_rms(np.log10(sim_pred + eps), np.log10(sim_truth))
 
     # ================= Output
     return {
@@ -163,7 +176,48 @@ def strainest_results(mut_ratio: str, replicate: int, read_depth: int, trial: in
         'RMSErrorSim': rms_error_sim,
         'RMSErrorA': rms_error_A,
         'AUROC': auroc,
+        'AUROC_Collapsed': auroc_collapsed,
         'RankCorrelationSim': rank_corr_sim,
         'RankCorrelationA': rank_corr_A,
         'Runtime': runtime
+    } | {
+        f'RMSErrorSim_Bin{i}': binned_rms
+        for i, binned_rms in enumerate(binned_rms_error_sim)
+    } | {
+        f'RMSErrorSim_Strain{i}': _rms
+        for i, _rms in enumerate(split_rms_sim)
     }
+
+
+def strainest_roc(mut_ratio: str, replicate: int, read_depth: int, trial: int) -> Tuple[np.ndarray, np.ndarray]:
+    truth_accs, time_points, ground_truth = load_ground_truth(mut_ratio=mut_ratio, replicate=replicate)
+    pred, clusters, strainest_clust_df, runtime = extract_strainest_prediction(
+        mut_ratio, replicate, read_depth, trial, time_points
+    )
+    strainest_ordering = {c: i for i, c in enumerate(clusters)}
+
+    """ Extract phylogroup A prediction/truth. """
+    # First, check that the four target genomes are in distinct clusters.
+    sim_clusts = strainest_clust_df.loc[strainest_clust_df['Accession'].isin(set(truth_accs)), 'Cluster']
+    if len(truth_accs) != len(pd.unique(sim_clusts)):
+        raise ValueError(
+            "Resulting clustering does not separate the {} target accessions for replicate {}, read_depth {}, trial {}".format(
+                len(truth_accs), replicate, read_depth, trial))
+
+    # Next initialize the ground truth/prediction matrices.
+    phylogroup_A_clusts = list(pd.unique(strainest_clust_df.loc[strainest_clust_df['ClusterPhylogroup'] == 'A', 'Cluster']))
+    A_pred, A_truth, A_true_indicators = strainest_subset_prediction(
+        truth_accs, ground_truth,
+        pred, strainest_ordering,
+        phylogroup_A_clusts, strainest_clust_df
+    )
+
+    fpr, tpr, thresholds = sklearn.metrics.roc_curve(  # Abundance thresholding
+        y_true=np.tile(A_true_indicators, (len(time_points), 1)).flatten(),
+        y_score=A_pred.flatten(),
+    )
+    # fpr, tpr, thresholds = sklearn.metrics.roc_curve(  # Abundance thresholding
+    #     y_true=A_true_indicators,
+    #     y_score=np.max(A_pred, axis=0),
+    # )
+    return fpr, tpr

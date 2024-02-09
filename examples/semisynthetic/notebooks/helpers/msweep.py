@@ -2,11 +2,11 @@ from typing import *
 from pathlib import Path
 import pandas as pd
 import numpy as np
-from sklearn.metrics import roc_auc_score
+import sklearn.metrics
 
 from .base import trial_dir, parse_runtime, parse_phylogroups
 from .ground_truth import load_ground_truth
-from .error_metrics import rms, tv_error, compute_rank_corr
+from .error_metrics import rms, tv_error, compute_rank_corr, binned_rms, strain_split_rms
 
 
 def extract_msweep_prediction(
@@ -35,9 +35,9 @@ def extract_msweep_prediction(
     # renormalize.
     preds = preds / preds.sum(axis=-1, keepdims=True)
 
-    runtimes = [parse_runtime(output_basedir / 'themisto_runtime.txt')]
+    runtimes = [parse_runtime(output_basedir / 'themisto' / 'runtime.txt')]
     runtimes += [
-        parse_runtime(output_basedir / f'msweep_runtime.{i}.txt')
+        parse_runtime(output_basedir / 'msweep' / f'runtime.{i}.txt')
         for i in range(len(time_points))
     ]
     runtime = np.sum(runtimes)
@@ -92,7 +92,7 @@ def load_msweep_cluster() -> pd.DataFrame:
     msweep_clust_df['MemberPhylogroupA'] = msweep_clust_df['MemberPhylogroup'] == 'A'
 
     # Note: here, a cluster is designated "phylogroup A" if at least half its members is phylogroup A.
-    phylo_A_count = msweep_clust_df.groupby('Cluster')['MemberPhylogroupA'].agg(np.sum).rename('Phylogroup_A_Count')
+    phylo_A_count = msweep_clust_df.groupby('Cluster')['MemberPhylogroupA'].sum().rename('Phylogroup_A_Count')
     group_sizes = msweep_clust_df.groupby('Cluster')['Accession'].count().rename('GroupSize')
     A_ratios = (phylo_A_count / group_sizes).rename("A_Ratio").reset_index()
 
@@ -107,8 +107,7 @@ def msweep_subset_prediction(
         pred: np.ndarray,
         pred_ordering: Dict[str, int],
         clust_subset: List[str],
-        msweep_clust_df: pd.DataFrame,
-        lod: float = 0.0
+        msweep_clust_df: pd.DataFrame
 ):
     n_timepoints = pred.shape[0]
     clust_indices = {c: i for i, c in enumerate(clust_subset)}  # phylogroup A only
@@ -127,13 +126,19 @@ def msweep_subset_prediction(
         tgt_idx = clust_indices[cluster_id]  # this will throw an error if the cluster is not phylogroup A
         SUBSET_truth[:, tgt_idx] = ground_truth[:, sim_index]
         SUBSET_true_labels[tgt_idx] = True
-    SUBSET_pred[SUBSET_pred < lod] = 0.0
-    SUBSET_pred = SUBSET_pred / np.sum(SUBSET_pred, axis=-1, keepdims=True)
+        
     return SUBSET_pred, SUBSET_truth, SUBSET_true_labels
 
 
-def msweep_results(mut_ratio: str, replicate: int, read_depth: int, trial: int):
-    target_accs, time_points, ground_truth = load_ground_truth(replicate=replicate)
+def msweep_results(
+    mut_ratio: str, 
+    replicate: int, 
+    read_depth: int, 
+    trial: int, 
+    abundance_bins: np.ndarray,
+    lod: float = 0.002
+):
+    target_accs, time_points, ground_truth = load_ground_truth(mut_ratio=mut_ratio, replicate=replicate)
     pred, clusters, msweep_clust_df, runtime = extract_msweep_prediction(
         mut_ratio, replicate, read_depth, trial, time_points
     )
@@ -151,36 +156,48 @@ def msweep_results(mut_ratio: str, replicate: int, read_depth: int, trial: int):
     A_clusts = list(pd.unique(msweep_clust_df.loc[msweep_clust_df['A_Ratio'] > 0.5, 'Cluster']))
     A_pred, A_truth, A_true_indicators = msweep_subset_prediction(target_accs, ground_truth, pred, msweep_ordering, A_clusts, msweep_clust_df)
 
-    lod = min(
-        0.01044,
-        np.min(ground_truth) * (read_depth / (read_depth + 10000000))
-    )
-    print(lod)
-    A_pred_lod, _, _ = msweep_subset_prediction(target_accs, ground_truth, pred, msweep_ordering, A_clusts, msweep_clust_df, lod=lod)
+    # lod = min(
+    #     0.01044,
+    #     np.min(ground_truth) * (read_depth / (read_depth + 10000000))
+    # )
+    # A_pred_lod, _, _ = msweep_subset_prediction(target_accs, ground_truth, pred, msweep_ordering, A_clusts, msweep_clust_df, lod=lod)
 
     # Simulated strains only
     sim_clusts = list(pd.unique(sim_clusts))
     sim_pred, sim_truth, sim_true_indicators = msweep_subset_prediction(target_accs, ground_truth, pred, msweep_ordering, sim_clusts, msweep_clust_df)
 
-    # ================ Metric evaluation
-    auroc = roc_auc_score(  # Abundance thresholding per timepoint
+    # Note: at this point, A_pred and sim_pred are the sub-matrices of the RAW mSWEEP output predictions. No re-normalizations done.
+    # ================ Metric evaluation ================
+    auroc = sklearn.metrics.roc_auc_score(  # Abundance thresholding per timepoint
         y_true=np.tile(A_true_indicators, (len(time_points), 1)).flatten(),
         y_score=A_pred.flatten(),
     )
-    # auroc = sklearn.metrics.roc_auc_score(  # Abundance thresholding
-    #     y_true=A_true_indicators,
-    #     y_score=np.max(A_pred, axis=0),
-    # )
+    auroc_collapsed = sklearn.metrics.roc_auc_score(  # Abundance thresholding, collapsed
+        y_true=A_true_indicators,
+        y_score=np.max(A_pred, axis=0),
+    )
+    
+    A_pred_filtered_renorm = np.copy(A_pred)
+    A_pred_filtered_renorm[A_pred_filtered_renorm < lod] = 0.0
+    A_pred_filtered_renorm = A_pred_filtered_renorm / np.sum(A_pred_filtered_renorm, axis=-1, keepdims=True)
+    
+    sim_pred_filtered_renorm = np.copy(sim_pred)
+    sim_pred_filtered_renorm[sim_pred_filtered_renorm < lod] = 0.0
+    sim_pred_filtered_renorm = sim_pred_filtered_renorm / np.sum(sim_pred_filtered_renorm, axis=-1, keepdims=True)
+    
+    #### ===== Question: compute rank corrs BEFORE of AFTER thresholding zeros?
+    rank_corr_sim = compute_rank_corr(sim_pred_filtered_renorm, sim_truth)
+    rank_corr_A = compute_rank_corr(A_pred_filtered_renorm, A_truth)
 
-    eps = 1e-6
-    rms_error_sim = rms(np.log10(sim_pred + eps), np.log10(sim_truth + eps))
-    rms_error_A = rms(np.log10(A_pred_lod + eps), np.log10(A_truth + eps))
+    eps = 1e-4
+    rms_error_sim = rms(np.log10(sim_pred_filtered_renorm + eps), np.log10(sim_truth + eps))
+    rms_error_A = rms(np.log10(A_pred_filtered_renorm + eps), np.log10(A_truth + eps))
 
-    tv_err_A = tv_error(A_pred_lod, A_truth)
-    tv_err_sim = tv_error(sim_pred, sim_truth)
+    tv_err_A = tv_error(A_pred_filtered_renorm, A_truth)
+    tv_err_sim = tv_error(sim_pred_filtered_renorm, sim_truth)
 
-    rank_corr_sim = np.median(compute_rank_corr(sim_pred, sim_truth))
-    rank_corr_A = np.median(compute_rank_corr(A_pred, A_truth))
+    binned_rms_error_sim = binned_rms(np.log10(sim_pred_filtered_renorm + eps), np.log10(sim_truth), abundance_bins)
+    split_rms_sim = strain_split_rms(np.log10(sim_pred_filtered_renorm + eps), np.log10(sim_truth))
 
     # ================= Output
     return {
@@ -192,7 +209,45 @@ def msweep_results(mut_ratio: str, replicate: int, read_depth: int, trial: int):
         'RMSErrorSim': rms_error_sim,
         'RMSErrorA': rms_error_A,
         'AUROC': auroc,
+        'AUROC_Collapsed': auroc_collapsed,
         'RankCorrelationSim': rank_corr_sim,
         'RankCorrelationA': rank_corr_A,
         'Runtime': runtime
+    } | {
+        f'RMSErrorSim_Bin{i}': binned_rms
+        for i, binned_rms in enumerate(binned_rms_error_sim)
+    } | {
+        f'RMSErrorSim_Strain{i}': _rms
+        for i, _rms in enumerate(split_rms_sim)
     }
+
+
+def msweep_roc(mut_ratio: str, replicate: int, read_depth: int, trial: int) -> Tuple[np.ndarray, np.ndarray]:
+    target_accs, time_points, ground_truth = load_ground_truth(mut_ratio=mut_ratio, replicate=replicate)
+    pred, clusters, msweep_clust_df, runtime = extract_msweep_prediction(
+        mut_ratio, replicate, read_depth, trial, time_points
+    )
+    msweep_ordering = {c: i for i, c in enumerate(clusters)}
+
+    """ Extract phylogroup A prediction/truth. """
+    # First, check that the four target genomes are in distinct clusters.
+    sim_clusts = msweep_clust_df.loc[msweep_clust_df['Accession'].isin(set(target_accs)), 'Cluster']
+    if len(target_accs) != len(pd.unique(sim_clusts)):
+        raise ValueError(
+            "Resulting clustering does not separate the {} target accessions for replicate {}, read_depth {}, trial {}".format(
+                len(target_accs), replicate, read_depth, trial))
+
+    # Next initialize the ground truth/prediction matrices.
+    A_clusts = list(pd.unique(msweep_clust_df.loc[msweep_clust_df['A_Ratio'] > 0.5, 'Cluster']))
+    A_pred, A_truth, A_true_indicators = msweep_subset_prediction(target_accs, ground_truth, pred, msweep_ordering,
+                                                                  A_clusts, msweep_clust_df)
+
+    fpr, tpr, thresholds = sklearn.metrics.roc_curve(  # Abundance thresholding, (TxS)
+        y_true=np.tile(A_true_indicators, (len(time_points), 1)).flatten(),
+        y_score=A_pred.flatten(),
+    )
+    # fpr, tpr, thresholds = sklearn.metrics.roc_curve(  # Abundance thresholding, collapsed
+    #     y_true=A_true_indicators,
+    #     y_score=np.max(A_pred, axis=0),
+    # )
+    return fpr, tpr

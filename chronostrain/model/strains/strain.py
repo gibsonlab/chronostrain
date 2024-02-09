@@ -21,7 +21,7 @@ class Strain:
     metadata: Union[StrainMetadata, None] = None
 
     def __repr__(self):
-        return "{}({}:{})".format(
+        return "Strain[{}({}:{})]".format(
             self.__class__.__name__,
             self.id,
             self.markers.__repr__()

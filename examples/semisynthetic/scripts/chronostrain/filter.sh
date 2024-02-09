@@ -18,7 +18,7 @@ require_variable "trial" $trial
 trial_dir=$(get_trial_dir "${mutation_ratio}" $replicate $n_reads $trial)
 read_dir=${trial_dir}/reads
 output_dir=${trial_dir}/output/chronostrain
-runtime_file=${trial_dir}/output/chronostrain_filter_runtime.txt
+runtime_file=${output_dir}/filter_runtime.txt
 
 mkdir -p "$output_dir"
 mkdir -p "$read_dir"

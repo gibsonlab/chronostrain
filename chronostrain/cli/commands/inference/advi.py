@@ -167,8 +167,10 @@ def main(
                 [db.get_strain(line.strip().split('\t')[0]) for line in f if not line.startswith("#")],
                 db.signature
             )
+        logger.info("Loaded list of {} strains.".format(len(strain_collection)))
     else:
         strain_collection = StrainCollection(db.all_strains(), db.signature)
+        logger.info("Using complete collection of {} strains from database.".format(len(strain_collection)))
 
     # ============ Prepare for algorithm output.
     out_dir.mkdir(parents=True, exist_ok=True)
