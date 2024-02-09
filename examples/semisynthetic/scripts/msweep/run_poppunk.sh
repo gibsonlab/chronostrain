@@ -34,8 +34,9 @@ poppunk --create-db --output database --r-files input.tsv --threads ${N_CORES}
 # 0.0007 -> clusters = 2070, phylo A clusters = 299
 # 0.0005 -> clusters = 2216, phylo A clusters = 321
 # 0.0004 -> clusters = 2329, phylo A clusters = 333
+# 0.0003 -> clusters = 2468, phylo A clusters = 342
 # 0.0001 -> clusters = 2915, phylo A clusters = 387
-thresh=0.0007  # empirically tested on ecoli for phylogroup A.
+thresh=0.0003  # empirically tested on ecoli for phylogroup A.
 echo "[*] Using database thresholding (Threshhold = ${thresh})."
 poppunk --fit-model threshold --ref-db database --threshold ${thresh} --output threshold --threads ${N_CORES}
 

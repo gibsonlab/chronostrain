@@ -22,7 +22,7 @@ themisto_db_dir="${DATA_DIR}/databases/themisto"
 trial_dir=$(get_trial_dir "${mutation_ratio}" "$replicate" "$n_reads" "$trial")
 output_dir=${trial_dir}/output/msweep
 pseudoalignment_dir=${trial_dir}/output/themisto
-runtime_file=${trial_dir}/output/msweep_runtime.${time_point}.txt
+runtime_file=${output_dir}/runtime.${time_point}.txt
 mkdir -p $output_dir
 
 

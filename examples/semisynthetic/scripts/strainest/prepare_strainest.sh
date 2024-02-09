@@ -4,21 +4,37 @@ source settings.sh
 source strainest/settings.sh
 
 
+require_program "mash"
+require_program "strainest"
 require_file "${SPECIES_REP_FASTA}"
 
 
 
-# ===================== Metagenome alignment; pick ten representatives and build SNV
-echo "[*] Creating database for metagenome alignment."
+echo "[!!] This script requires both python2 (for StrainEst) and python3 (for the helper scripts)."
 
-echo "[**] Building representatives."
-python strainest/metagenome_alignment_representatives.py \
+# python3
+echo "[*] Extracting representatives for genome alignment."
+mkdir -p ${METAGENOME_ALIGN_DIR}
+python3 strainest/metagenome_alignment_representatives.py \
   -i "${REFSEQ_INDEX}" \
   -w "${STRAINEST_DB_DIR}/mash" \
   -o "${METAGENOME_ALIGN_DIR}/cluster_reps.txt" \
   -t 12
 
+echo "[*] Extracting representatives for SNV profiling."
+mkdir -p ${SNV_PROFILE_DIR}
+python3 strainest/snv_profile_representatives.py \
+  -i "${REFSEQ_INDEX}" \
+  -p "${DATA_DIR}/poppunk/threshold/threshold_clusters.csv" \
+  -w "${STRAINEST_DB_DIR}/mash" \
+  -o "${SNV_PROFILE_DIR}/cluster_reps.txt" \
+  -t 12
 
+
+
+# python2
+# ===================== Metagenome alignment; pick ten representatives and build SNV
+echo "[*] Creating database for metagenome alignment."
 seq_paths=""
 num_paths=0
 while read -r seq_path; do
@@ -40,14 +56,6 @@ bowtie2-build ${METAGENOME_ALIGN_DIR}/MA.fasta ${METAGENOME_ALIGN_DIR}/MA
 
 # =================== SNV profiling; re-use poppunk clustering.
 echo "[*] Creating database for SNV profiling."
-echo "[**] Building representatives."
-mkdir -p ${SNV_PROFILE_DIR}
-python strainest/snv_profile_representatives.py \
-  -i "${REFSEQ_INDEX}" \
-  -p "${DATA_DIR}/poppunk/threshold/threshold_clusters.csv" \
-  -w "${STRAINEST_DB_DIR}/mash" \
-  -o "${SNV_PROFILE_DIR}/cluster_reps.txt" \
-  -t 12
 
 # --> create symlinks. Some strain names have punctuations in them (and in the file pathname) and breaks StrainEst.
 tmpdir=${SNV_PROFILE_DIR}/tmp

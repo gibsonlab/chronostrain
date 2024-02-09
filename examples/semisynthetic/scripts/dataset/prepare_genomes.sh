@@ -15,16 +15,6 @@ replicate_dir=$(get_replicate_dir "${mutation_ratio}" "${replicate}")
 genome_dir=${replicate_dir}/genomes
 mkdir -p "$genome_dir"
 
-## Copy existing reference genomes
-#while IFS=$'\t' read -r -a columns
-#do
-#  acc="${columns[3]}"
-#  seq_path="${columns[5]}"
-#  if [ "${acc}" == "NZ_CP051001.1" ] || [ "${acc}" == "NZ_CP068279.1" ] || [ "${acc}" == "NZ_CP035882.1" ]; then
-#    ln -s ${seq_path} ${genome_dir}/${acc}.fasta
-#  fi
-#done < ${REFSEQ_INDEX}
-
 
 create_mutant()
 {
@@ -47,24 +37,11 @@ create_mutant()
 }
 
 
-# ======================== genomes to include in database
-#genome_rate=${BASE_GENOME_MUTATION_RATE}
-#marker_rate=$(echo "scale=10; ${genome_rate} * ${mutation_ratio}" | bc)
-#echo "[*] genome_rate = ${genome_rate}, marker_rate = ${marker_rate} (mutation ratio = ${mutation_ratio})"
-#create_mutant NZ_CP051001.1 NZ_CP051001.1.sim_mutant "${base_seed}1" ${genome_rate} ${marker_rate} ${CHRONOSTRAIN_DB_JSON_SRC}
-#create_mutant NZ_CP068279.1 NZ_CP068279.1.sim_mutant "${base_seed}2" ${genome_rate} ${marker_rate} ${CHRONOSTRAIN_DB_JSON_SRC}
-#create_mutant NZ_CP035882.1 NZ_CP035882.1.sim_mutant "${base_seed}3" ${genome_rate} ${marker_rate} ${CHRONOSTRAIN_DB_JSON_SRC}
-
-
-# ======================== Update chronostrain JSON.
-#bash dataset/append_chronostrain_json.sh ${mutation_ratio} ${replicate}  # this initializes the JSON file at CHRONOSTRAIN_DB_JSON
-
-
 # ======================== Pick random genomes to simulate reads from.
 python dataset/pick_random_genomes.py \
   -i ${REFSEQ_INDEX} \
   -p /mnt/e/semisynthetic_data/poppunk/threshold/threshold_clusters.csv \
-  -c ${CHRONOSTRAIN_DB_JSON_SRC} \
+  -c ${CHRONOSTRAIN_CLUSTER_FILE} \
   -ph /mnt/e/chronostrain/phylogeny/ClermonTyping/umb_phylogroups_complete.txt \
   -n 6 \
   -s "${base_seed}0" \
@@ -72,7 +49,11 @@ python dataset/pick_random_genomes.py \
   -o "${genome_dir}" \
 
 # ======================== genomes to simulate reads from
-noise_rate=${NOISE_GENOME_MUTATION_RATE}
+# multiply two floats in bash
+noise_rate=$(echo $mutation_ratio $NOISE_GENOME_MUTATION_RATE | awk '{printf "%4.3f\n",$1*$2}')
+echo "[*] Using mutation rate = ${noise_rate}"
+
+#noise_rate=${NOISE_GENOME_MUTATION_RATE}
 #db_json_replicate=${replicate_dir}/databases/chronostrain/ecoli.json
 seed=0
 while read line; do
@@ -81,11 +62,3 @@ while read line; do
   seed=$((seed+1))
   create_mutant "${acc}" "${acc}.READSIM_MUTANT" "${base_seed}${seed}" $noise_rate $noise_rate ${CHRONOSTRAIN_DB_JSON_SRC}
 done < "${genome_dir}/target_genomes.txt"
-
-#create_mutant NZ_CP051001.1 NZ_CP051001.1.READSIM_MUTANT "${base_seed}4" $noise_rate $noise_rate ${}
-#create_mutant NZ_CP068279.1 NZ_CP068279.1.READSIM_MUTANT "${base_seed}5" $noise_rate $noise_rate ${CHRONOSTRAIN_DB_JSON_SRC}
-#create_mutant NZ_CP035882.1 NZ_CP035882.1.READSIM_MUTANT "${base_seed}6" $noise_rate $noise_rate ${CHRONOSTRAIN_DB_JSON_SRC}
-#
-#create_mutant NZ_CP051001.1.sim_mutant NZ_CP051001.1.sim_mutant.READSIM_MUTANT "${base_seed}7" $noise_rate $noise_rate ${CHRONOSTRAIN_DB_JSON_SRC}
-#create_mutant NZ_CP068279.1.sim_mutant NZ_CP068279.1.sim_mutant.READSIM_MUTANT "${base_seed}8" $noise_rate $noise_rate ${CHRONOSTRAIN_DB_JSON_SRC}
-#create_mutant NZ_CP035882.1.sim_mutant NZ_CP035882.1.sim_mutant.READSIM_MUTANT "${base_seed}9" $noise_rate $noise_rate ${CHRONOSTRAIN_DB_JSON_SRC}

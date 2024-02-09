@@ -25,7 +25,7 @@ output_dir=${trial_dir}/output/straingst
 
 
 # ========== Run
-runtime_file=${trial_dir}/output/straingst_runtime.${time_point}.txt
+runtime_file=${output_dir}/runtime.${time_point}.txt
 if [[ -f $runtime_file ]]; then
 	echo "[*] Skipping StrainGST run (replicate: ${replicate} | n_reads: ${n_reads} | trial: ${trial} | timepoint #${time_point})"
 	exit 0

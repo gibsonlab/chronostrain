@@ -32,7 +32,7 @@ cd ${output_dir}
 
 
 # ======= Run
-runtime_file=${trial_dir}/output/strainest_runtime.${time_point}.txt
+runtime_file=${output_dir}/runtime.${time_point}.txt
 if [[ -f $runtime_file ]]; then
 	echo "[*] Skipping StrainEst run (replicate: ${replicate} | n_reads: ${n_reads} | trial: ${trial} | timepoint #${time_point})"
 	exit 0

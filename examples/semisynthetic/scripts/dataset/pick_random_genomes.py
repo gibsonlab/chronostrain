@@ -1,5 +1,7 @@
 from pathlib import Path
 import json
+from typing import List
+
 import click
 
 import numpy as np
@@ -17,24 +19,25 @@ def load_poppunk_cluster(cluster_csv: Path) -> pd.DataFrame:
     return df.drop(columns=['Taxon'])
 
 
-def load_chronostrain_cluster(chronostrain_json: Path) -> pd.DataFrame:
-    with open(chronostrain_json, "rt") as f:
-        strain_entries = json.load(f)
-
+def load_chronostrain_cluster(chronostrain_cluster: Path) -> pd.DataFrame:
     df_entries = []
-    for s in strain_entries:
-        rep_id = s['id']
-        members = [x.split('(')[0] for x in s['cluster']]
-        for member in members:
-            df_entries.append({
-                'Accession': member,
-                'Cluster': rep_id
-            })
+    with open(chronostrain_cluster, "rt") as f:
+        for line in f:
+            if line.startswith("#"):
+                continue
+            tokens = line.strip().split("\t")
+            rep_id = tokens[0]
+            members = tokens[1].split(",")
+            for member in members:
+                df_entries.append({
+                    'Accession': member,
+                    'Cluster': rep_id
+                })
     return pd.DataFrame(df_entries)
 
 
 def load_strainge_cluster() -> pd.DataFrame:
-    p = Path("/mnt/e/semisynthetic_data/databases/straingst/clusters.tsv")
+    p = Path("/mnt/e/semisynthetic_data/databases/strainge/clusters.tsv")
     df_entries = []
     with open(p, "rt") as f:
         for line in f:
@@ -59,43 +62,63 @@ def parse_phylogroups(phylogroup_path: Path):
     return pd.DataFrame(df_entries)
 
 
-def generate_cluster_df(index_df: pd.DataFrame, chronostrain_json: Path, poppunk_cluster_csv: Path, phylogroup_path: Path):
+def generate_cluster_df(chronostrain_cluster_tsv: Path, poppunk_cluster_csv: Path, phylogroup_path: Path):
     poppunk_df = load_poppunk_cluster(poppunk_cluster_csv)
-    chronostrain_df = load_chronostrain_cluster(chronostrain_json)
+    chronostrain_df = load_chronostrain_cluster(chronostrain_cluster_tsv)
+    strainge_df = load_strainge_cluster()
     phylogroup_df = parse_phylogroups(phylogroup_path)
 
     res = poppunk_df.merge(
-        chronostrain_df, on='Accession', suffixes=['PopPUNK', 'ChronoStrain']
+        poppunk_df.groupby("Cluster")['Accession'].count().rename('SizePopPUNK'), left_on='Cluster',
+        right_index=True
+    ).rename(columns={'Cluster': 'ClusterPopPUNK'})
+
+    res = res.merge(
+        chronostrain_df.rename(columns={'Cluster': 'ClusterChronoStrain'}), on='Accession'
     ).merge(
-        phylogroup_df, on='Accession', how='left'
-    ).fillna('?').merge(
         chronostrain_df.groupby("Cluster")['Accession'].count().rename('SizeChronoStrain'),
         left_on='ClusterChronoStrain', right_index=True
+    )
+
+    res = res.merge(
+        strainge_df.rename(columns={'Cluster': 'ClusterStrainGE'}), on='Accession'
     ).merge(
-        poppunk_df.groupby("Cluster")['Accession'].count().rename('SizePopPUNK'), left_on='ClusterPopPUNK',
-        right_index=True
-    ).merge(
+        strainge_df.groupby("Cluster")['Accession'].count().rename('SizeStrainGE'),
+        left_on='ClusterStrainGE', right_index=True
+    )
+
+    # Attach phylogroup information
+    res = res.merge(
+        phylogroup_df, on='Accession', how='left'
+    ).fillna('?').merge(
         phylogroup_df.rename(columns={'Phylogroup': 'PhylogroupChronoStrain', 'Accession': 'ClusterRight'}),
         right_on='ClusterRight', left_on='ClusterChronoStrain', how='left'
     ).drop(columns=['ClusterRight']).set_index('Accession')
     return res
 
 
-def sample_random(cluster_df: pd.DataFrame, size: int, rng: Generator) -> pd.DataFrame:
-    weights = np.square(0.5 * (np.sqrt(cluster_df['SizeChronoStrain']) + np.sqrt(cluster_df['SizePopPUNK'])))
+def sample_random(cluster_df: pd.DataFrame, size: int, rng: Generator) -> List[str]:
+    weights = np.sqrt((1/3) * (np.square(cluster_df['SizeChronoStrain']) + np.square(cluster_df['SizePopPUNK']) + np.square(cluster_df['SizeStrainGE'])))
     weights = 1 / weights
-    weights = weights * (cluster_df['PhylogroupChronoStrain'] == 'A')
+    weights = weights * (cluster_df['PhylogroupChronoStrain'] == 'A')  # Clusters have zero weight if not phylogroup A
 
     random_accs = []
-    pool = cluster_df.loc[cluster_df['Phylogroup'] == 'A']
+    pool = cluster_df.loc[cluster_df['Phylogroup'] == 'A']  # The possible pool to select from are phylogroup A genomes.
     for i in range(size):
         selection = pool.sample(1, weights=weights, random_state=rng)
         selection_poppunk = selection['ClusterPopPUNK'].item()
         selection_chronostrain = selection['ClusterChronoStrain'].item()
-        random_accs.append(selection['ClusterChronoStrain'].item())
+        selection_strainge = selection['ClusterStrainGE'].item()
+
+        # Add the selection.
+        acc = selection.index[0]
+        random_accs.append(acc)
+
+        # Remove the respective clusters.
         pool = pool.loc[
             (pool['ClusterPopPUNK'] != selection_poppunk)
             & (pool['ClusterChronoStrain'] != selection_chronostrain)
+            & (pool['ClusterStrainGE'] != selection_strainge)
         ]
     rng.shuffle(random_accs)
     return random_accs
@@ -111,7 +134,7 @@ def sample_random(cluster_df: pd.DataFrame, size: int, rng: Generator) -> pd.Dat
     type=click.Path(path_type=Path, dir_okay=False, exists=True, readable=True), required=True,
 )
 @click.option(
-    '--chronostrain-json', '-c', 'chronostrain_json',
+    '--chronostrain-clusters', '-c', 'chronostrain_cluster_tsv',
     type=click.Path(path_type=Path, dir_okay=False, exists=True, readable=True), required=True,
 )
 @click.option(
@@ -128,12 +151,12 @@ def sample_random(cluster_df: pd.DataFrame, size: int, rng: Generator) -> pd.Dat
     '--out', '-o', 'out_dir',
     type=click.Path(path_type=Path, file_okay=False), required=True
 )
-def main(index_path: Path, poppunk_csv: Path, chronostrain_json: Path, phylogroup_path: Path,
+def main(index_path: Path, poppunk_csv: Path, chronostrain_cluster_tsv: Path, phylogroup_path: Path,
          num_genomes: int, seed: int,
          abundance_path: Path,
          out_dir: Path):
     index_df = pd.read_csv(index_path, sep='\t')
-    cluster_df = generate_cluster_df(index_df, chronostrain_json, poppunk_csv, phylogroup_path)
+    cluster_df = generate_cluster_df(chronostrain_cluster_tsv, poppunk_csv, phylogroup_path)
     rng = np.random.default_rng(seed)
     print("Sampling random strain IDs.")
     random_strain_ids = sample_random(cluster_df, size=num_genomes, rng=rng)

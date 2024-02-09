@@ -122,7 +122,7 @@ def mutate(
     for start, end in markers:
         assert start < end
         mask[start-1:end] = True
-    print("Found {} target regions, spanning {} / {} bases. (ratio={:.7f})".format(
+    print("Found {} marker regions, spanning {} / {} bases. (markers / genome ratio = {:.7f})".format(
         len(markers),
         np.sum(mask),
         len(mask),
