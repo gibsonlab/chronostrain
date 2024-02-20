@@ -2,7 +2,6 @@ import shutil
 from typing import Tuple, List
 from pathlib import Path
 from logging import Logger
-import json
 
 from Bio import SeqIO
 import numpy as np
@@ -33,7 +32,15 @@ def cluster_json_db_jaccard(
     tmp_dir.mkdir(exist_ok=True, parents=True)
 
     logger.info("Computing all-to-all Jaccard distance calculations.")
-    strain_id_ordering, distances = compute_jaccard_distances(src_db, logger, tmp_dir)
+    #sketch_mode = "FullCountDict"
+    sketch_mode = "ProbMinHash"
+    sketch_size = 4096 * 2
+    logger.info(f"Using {sketch_mode} method for sketching (sz={sketch_size}).")
+    strain_id_ordering, distances = compute_jaccard_distances(
+        src_db, logger, tmp_dir,
+        dashing2_sketch_size=sketch_size,
+        sketch_mode=sketch_mode
+    )
     np.save(str(output_path.parent / "distances.npy"), distances)
     with open(output_path.parent / "distance_order.txt", "wt") as f:
         for s_id in strain_id_ordering:
@@ -72,7 +79,9 @@ def cluster_json_db_jaccard(
 def compute_jaccard_distances(
         src_db: StrainDatabase,
         logger: Logger,
-        tmp_dir: Path
+        tmp_dir: Path,
+        dashing2_sketch_size: int = 4096,
+        sketch_mode: str = "ProbMinHash"
 ) -> Tuple[List[str], np.ndarray]:
 
     # Create Fasta entries.
@@ -98,15 +107,15 @@ def compute_jaccard_distances(
     # Invoke dashing2.
     sketch_file = tmp_dir / 'sketches.dat'
     distance_file = tmp_dir / "distances.dat"
+
     dashing2_sketch(
         filename_list_input=input_file_list,
         comparison_out=distance_file,
         sketch_outfile=sketch_file,
-        sketch_full_with_multiplicity=True,
-        prob_min_hash=True,
-        comparison_use_mash_distances=True,
-        sketch_size=4096,
-        comparison_binary_output=True,  # Flip this to False to debug.
+        min_hash_mode=sketch_mode,
+        emit_distances=True,
+        sketch_size=dashing2_sketch_size,
+        binary_output=True,  # Flip this to False to debug.
         silent=True
     )
 

@@ -14,16 +14,15 @@ def dashing2_sketch(
         cache_sketches: bool = True,
         sketch_prefix: Optional[Path] = None,
         sketch_outfile: Optional[Path] = None,
-        sketch_full_with_multiplicity: bool = False,
-        prob_min_hash: bool = False,
+        min_hash_mode: str = 'BagMinHash',
         kmer_length: int = 32,  # k-mer length.
         seed: Optional[int] = None,
         window_size: Optional[int] = None,
         kmer_spacing: Optional[str] = None,
         use_long_kmers: bool = False,
         square_distance_matrix: bool = False,
-        comparison_use_mash_distances: bool = False,
-        comparison_binary_output: bool = False,
+        emit_distances: bool = False,
+        binary_output: bool = False,
         sketch_size: int = 1024,
         silent: bool = False
 ):
@@ -33,8 +32,7 @@ def dashing2_sketch(
     :param comparison_out: If specified, will perform an all-to-all distance computation and output to this file.
     :param cache_sketches: If True, then sketches are stored to file. By default, sketches are stored next to the original fasta.
     :param sketch_prefix: If specified (and cache is enabled), store sketches using this path prefix instead of the default.
-    :param sketch_full_with_multiplicity: Use a sketch that counts the multiplicity.
-    :param prob_min_hash: Enables the ProbMinHash LSH for the Jaccard Index, which normalizes observations by total counts.
+    :param min_hash_mode: 'FullSet', 'ProbMinHash' or 'BagMinHash'
     :param kmer_length: The length of the k-mers to use.
     :param seed: the random seed to use for the hash functions/minimizer selection.
     :param window_size: larger windows yield fewer minimizers. default is kmer length.
@@ -75,13 +73,21 @@ def dashing2_sketch(
         args += ['--outprefix', sketch_prefix]
     if sketch_outfile is not None:
         args += ['-o', sketch_outfile]
-    if sketch_full_with_multiplicity:
+
+    if min_hash_mode == 'FullSet':
         args += ['--full']
-    if prob_min_hash:
+    elif min_hash_mode == 'BagMinHash':
+        args += ['--bagminhash']
+    elif min_hash_mode == 'ProbMinHash':
         args += ['--pminhash']
-    if comparison_use_mash_distances:
+    elif min_hash_mode == 'FullCountDict':
+        args += ['--countdict']
+    else:
+        raise ValueError(f"Unrecognized argument value `{min_hash_mode}` for min_hash_mode")
+
+    if emit_distances:
         args += ['--distance']
-    if comparison_binary_output:
+    if binary_output:
         args += ['--binary-output']
     if square_distance_matrix:
         args += ['--square']
