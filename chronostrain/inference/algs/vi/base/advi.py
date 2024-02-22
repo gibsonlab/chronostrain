@@ -408,6 +408,11 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
         from chronostrain.model import StrainCollection
 
         S = self.gaussian_prior.num_strains
+        if S == 1:
+            s_id = self.gaussian_prior.strain_collection.strains[0]
+            return {s_id: [s_id]}
+        if S == 0:
+            return {}
         dtype = cfg.engine_cfg.dtype
         corr_min = None
         for t in range(self.gaussian_prior.num_times):
