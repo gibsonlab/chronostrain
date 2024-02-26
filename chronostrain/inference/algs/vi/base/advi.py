@@ -303,8 +303,7 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
                     t_idx, batch_idx, data_t_batch.shape[1]
                 ))
                 # ========= Pre-compute likelihood calculations.
-                # strain_batch_lls_t = log_spspmm_exp(
-                strain_batch_lls_t = log_spspmm_exp_experimental(
+                strain_batch_lls_t = log_spspmm_exp(
                     frag_freqs.matrix.T,  # (S x F), note the transpose!
                     data_t_batch  # F x R_batch
                 )  # (S x R_batch)
@@ -326,8 +325,7 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
                     )
                 )
                 # ========= Pre-compute likelihood calculations.
-                #batch_paired_marginalization_t = log_spspmm_exp(
-                batch_paired_marginalization_t = log_spspmm_exp_experimental(
+                batch_paired_marginalization_t = log_spspmm_exp(
                     frag_pair_freqs.matrix.T,  # (S x F_pairs), note the transpose!
                     paired_data_t_batch  # F_pairs x R_pairs_batch
                 )  # (S x R_pairs_batch)

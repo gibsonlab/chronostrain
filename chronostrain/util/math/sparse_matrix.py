@@ -181,17 +181,25 @@ def log_spspmm_exp(x: jsparse.BCOO, y: jsparse.BCOO):
     same idea as log_spspmm_exp, but assumes one is far sparser than the other.
     """
     if len(x.data) < len(y.data):
-        return _log_spspmm_exp_lax_sparsex(
-            x.indices, x.data,
-            y.indices, y.data,
-            np.full(shape=(x.shape[0], y.shape[1]), fill_value=-cnp.inf)
-        )
+        if len(x.data) < 1e6:
+            return _log_spspmm_exp_lax_sparsex(
+                x.indices, x.data,
+                y.indices, y.data,
+                np.full(shape=(x.shape[0], y.shape[1]), fill_value=-cnp.inf)
+            )
+        else:
+            print("Encountered BCOO with nnz>1e6. Using experimental matmul code.")
+            log_spspmm_exp_experimental(x, y)
     else:
-        return _log_spspmm_exp_lax_sparsey(
-            x.indices, x.data,
-            y.indices, y.data,
-            np.full(shape=(x.shape[0], y.shape[1]), fill_value=-cnp.inf)
-        )
+        if len(y.data) < 1e6:
+            return _log_spspmm_exp_lax_sparsey(
+                x.indices, x.data,
+                y.indices, y.data,
+                np.full(shape=(x.shape[0], y.shape[1]), fill_value=-cnp.inf)
+            )
+        else:
+            print("Encountered BCOO with nnz>1e6. Using experimental matmul code.")
+            log_spspmm_exp_experimental(x, y)
 
 
 def log_spspmm_exp_experimental(x: jsparse.BCOO, y: jsparse.BCOO):
