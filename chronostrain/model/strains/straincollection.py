@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Iterator
+from typing import List, Iterator, Union
 from .strain import Strain
 from .marker import Marker
 from chronostrain.util.cache import ComputationCache, CacheTag
@@ -18,17 +18,33 @@ class StrainCollection:
         self.strains = strains  # A list of Strain objects.
         self.strain_indices = {strain: s_idx for s_idx, strain in enumerate(self.strains)}
         self.db_signature = db_signature
+        self._multifasta_path: Union[Path, None] = None  # Lazy initialization
 
-        from chronostrain.config import cfg
-        self.cache = ComputationCache(
-            CacheTag(
-                cache_dir=cfg.model_cfg.cache_dir,
-                strains=[s.id for s in strains],
-                database=db_signature
+    @property
+    def multifasta_file(self) -> Path:
+        if self._multifasta_path is None:
+            from chronostrain.config import cfg
+            from Bio import SeqIO
+            self.cache = ComputationCache(
+                CacheTag(
+                    cache_dir=cfg.model_cfg.cache_dir,
+                    strains=[s.id for s in self.strains],
+                    database=self.db_signature
+                )
             )
-        )
-        self.multifasta_file = self.cache.create_subdir('db_index').resolve() / 'markers.fasta'
-        self._init_marker_multifasta()
+            self._multifasta_path = self.cache.create_subdir('db_index').resolve() / 'markers.fasta'
+
+            # Create the index if it does not already exist.
+            if not self._multifasta_path.exists():
+                tmp_path = self._multifasta_path.with_suffix('.fasta.TEMP')
+                with open(tmp_path, "w"):
+                    records = []
+                    for strain in self.strains:
+                        for marker in strain.markers:
+                            records.append(marker.to_seqrecord(description=""))
+                    SeqIO.write(records, tmp_path, "fasta")
+                tmp_path.rename(self._multifasta_path)
+        return self._multifasta_path
 
     def __hash__(self):
         """
@@ -70,17 +86,3 @@ class StrainCollection:
     @property
     def faidx_file(self) -> Path:
         return self.multifasta_file.with_suffix('.fai')
-
-    def _init_marker_multifasta(self):
-        from Bio import SeqIO
-        if self.multifasta_file.exists():
-            return
-
-        tmp_path = self.multifasta_file.with_suffix('.fasta.TEMP')
-        with open(tmp_path, "w"):
-            records = []
-            for strain in self.strains:
-                for marker in strain.markers:
-                    records.append(marker.to_seqrecord(description=""))
-            SeqIO.write(records, tmp_path, "fasta")
-        tmp_path.rename(self.multifasta_file)
