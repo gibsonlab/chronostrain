@@ -176,7 +176,7 @@ def _log_spspmm_exp_lax_sparsex(x_indices: np.ndarray, x_values: np.ndarray,
     )[0]
 
 
-_thresh_count = 5e6
+_thresh_count = 1e7
 def log_spspmm_exp(x: jsparse.BCOO, y: jsparse.BCOO):
     """
     same idea as log_spspmm_exp, but assumes one is far sparser than the other.
@@ -189,7 +189,7 @@ def log_spspmm_exp(x: jsparse.BCOO, y: jsparse.BCOO):
                 np.full(shape=(x.shape[0], y.shape[1]), fill_value=-cnp.inf)
             )
         else:
-            print("Encountered BCOO with nnz>{_thresh_count}. Using experimental matmul code.")
+            print(f"Encountered BCOO with nnz>{_thresh_count}. Using experimental matmul code.")
             return log_spspmm_exp_experimental(x, y)
     else:
         if len(y.data) < _thresh_count:
@@ -199,7 +199,7 @@ def log_spspmm_exp(x: jsparse.BCOO, y: jsparse.BCOO):
                 np.full(shape=(x.shape[0], y.shape[1]), fill_value=-cnp.inf)
             )
         else:
-            print("Encountered BCOO with nnz>{_thresh_count}. Using experimental matmul code.")
+            print(f"Encountered BCOO with nnz>{_thresh_count}. Using experimental matmul code.")
             return log_spspmm_exp_experimental(x, y)
 
 
