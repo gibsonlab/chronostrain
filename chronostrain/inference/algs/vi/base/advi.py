@@ -11,7 +11,7 @@ from chronostrain.database import StrainDatabase
 from chronostrain.config import cfg
 from chronostrain.model import AbundanceGaussianPrior, AbstractErrorModel, TimeSeriesReads, StrainCollection
 from chronostrain.util.benchmarking import RuntimeEstimator
-from chronostrain.util.math import log_spspmm_exp, negbin_fit_frags
+from chronostrain.util.math import log_spspmm_exp, negbin_fit_frags, log_spspmm_exp_experimental
 from chronostrain.util.optimization import LossOptimizer
 
 from chronostrain.inference.likelihoods import ReadStrainCollectionCache, ReadFragmentMappings, \
@@ -303,7 +303,8 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
                     t_idx, batch_idx, data_t_batch.shape[1]
                 ))
                 # ========= Pre-compute likelihood calculations.
-                strain_batch_lls_t = log_spspmm_exp(
+                # strain_batch_lls_t = log_spspmm_exp(
+                strain_batch_lls_t = log_spspmm_exp_experimental(
                     frag_freqs.matrix.T,  # (S x F), note the transpose!
                     data_t_batch  # F x R_batch
                 )  # (S x R_batch)
@@ -325,7 +326,8 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
                     )
                 )
                 # ========= Pre-compute likelihood calculations.
-                batch_paired_marginalization_t = log_spspmm_exp(
+                #batch_paired_marginalization_t = log_spspmm_exp(
+                batch_paired_marginalization_t = log_spspmm_exp_experimental(
                     frag_pair_freqs.matrix.T,  # (S x F_pairs), note the transpose!
                     paired_data_t_batch  # F_pairs x R_pairs_batch
                 )  # (S x R_pairs_batch)

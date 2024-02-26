@@ -194,6 +194,47 @@ def log_spspmm_exp(x: jsparse.BCOO, y: jsparse.BCOO):
         )
 
 
+def log_spspmm_exp_experimental(x: jsparse.BCOO, y: jsparse.BCOO):
+    """
+    Uses the idea from http://gcucurull.github.io/deep-learning/2020/06/03/jax-sparse-matrix-multiplication/, where we
+    take advantage of a dense structure and use jax/lax native take+segment_sum calls.
+    :param x: a sparse BCOO matrix, whose rows will be densified.
+    :param y: a sparse BCOO matrix
+    :return:
+    """
+    n_rows = x.shape[0]
+    return np.stack([
+        dense_sp_vecmat_logaddexp(
+            jsparse.BCOO.todense(x[i, :]),
+            y
+        )
+        for i in range(n_rows)
+    ], axis=0)
+
+
+def dense_sp_vecmat_logaddexp(x: np.array, y: jsparse.BCOO):
+    """
+    Evaluates x @ y, assuming x is a row vector (1-d array representation) and y is a sparse BCOO matrix.
+    The inner product is defined as <x,y> = logsumexp(x+y).
+    Outputs a 1-d dense row vector.
+    """
+    assert x.ndim == 1
+    indexes = y.indices  # shape is (nnz, 2)
+    rows = indexes[:, 0]
+    cols = indexes[:, 1]
+
+    values = y.data  # shape is (nnz,)
+    sum = x.take(rows) + values  # entrywise sum of the logarithms of the entries
+    offsets = jax.ops.segment_max(sum, cols, y.shape[1])
+    return np.log(
+        jax.ops.segment_sum(
+            np.exp(sum - offsets.take(cols)),
+            cols,
+            y.shape[1]
+        )
+    ) + offsets
+
+
 @jax.jit
 def densesp_mm(x: np.ndarray, y: jsparse.BCOO) -> np.ndarray:
     raise NotImplementedError("TODO later")
