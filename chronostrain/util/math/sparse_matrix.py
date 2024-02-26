@@ -224,11 +224,22 @@ def sp_vecmat_logaddexp(x: jsparse.BCOO, y: jsparse.BCOO):
     cols = indexes[:, 1]
 
     values = y.data  # shape is (nnz,)
-    sum = x.take(rows) + values  # entrywise sum of the logarithms of the entries
-    offsets = jax.ops.segment_max(sum, cols, y.shape[1])
+    _sum = x.take(rows) + values  # entrywise sum of the logarithms of the entries
+    offsets = jax.ops.segment_max(_sum, cols, y.shape[1])
+
     return np.log(
         jax.ops.segment_sum(
-            np.exp(sum - offsets.take(cols)),
+            np.exp(
+                # sum with offsets; entry is nan when evaluating (-inf) - (-inf), but it suffices to set these
+                # differences equal to zero (since we will be re-adding -inf at the last step).
+                np.nan_to_num(
+                    _sum - offsets.take(cols),
+                    copy=False,
+                    nan=0.,  # rectify the NaNs.
+                    posinf=np.inf,  # keep +/- inf the same.
+                    neginf=-np.inf
+                )
+            ),
             cols,
             y.shape[1]
         )
