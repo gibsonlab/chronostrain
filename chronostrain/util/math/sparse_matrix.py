@@ -176,7 +176,7 @@ def _log_spspmm_exp_lax_sparsex(x_indices: np.ndarray, x_values: np.ndarray,
     )[0]
 
 
-_thresh_count = 1e7
+_thresh_count = 1e6
 def log_spspmm_exp(x: jsparse.BCOO, y: jsparse.BCOO):
     """
     same idea as log_spspmm_exp, but assumes one is far sparser than the other.
