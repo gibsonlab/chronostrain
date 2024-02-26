@@ -189,7 +189,7 @@ def log_spspmm_exp(x: jsparse.BCOO, y: jsparse.BCOO):
             )
         else:
             print("Encountered BCOO with nnz>1e6. Using experimental matmul code.")
-            log_spspmm_exp_experimental(x, y)
+            return log_spspmm_exp_experimental(x, y)
     else:
         if len(y.data) < 1e6:
             return _log_spspmm_exp_lax_sparsey(
@@ -199,7 +199,7 @@ def log_spspmm_exp(x: jsparse.BCOO, y: jsparse.BCOO):
             )
         else:
             print("Encountered BCOO with nnz>1e6. Using experimental matmul code.")
-            log_spspmm_exp_experimental(x, y)
+            return log_spspmm_exp_experimental(x, y)
 
 
 def log_spspmm_exp_experimental(x: jsparse.BCOO, y: jsparse.BCOO):
