@@ -30,8 +30,7 @@ def main(
         identity_threshold: float
 ):
     """
-    Create a database using marker seeds.
-    Requires BLAST, and as input takes an index TSV file of reference assemblies.
+    Cluster a JSON database's strain entries using markers' estimated sequence similarity.
     """
     from chronostrain.logging import create_logger
     logger = create_logger("chronostrain.cli.prune_json")

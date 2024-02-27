@@ -18,7 +18,7 @@ logger = create_logger("chronostrain.cli")
         'filter-single': filter_single,
         'advi': run_advi,
         'make-db': make_db,
-        'cluster-json': cluster_json,
+        'cluster-db': cluster_json,
         'analyze': run_inference_pipeline
     }
 )

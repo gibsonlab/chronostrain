@@ -89,9 +89,12 @@ def compute_jaccard_distances(
     with open(input_file_list, 'wt') as input_list_f:
         accs = []
         for strain in src_db.all_strains():
-            num_markers_with_N = sum(1 for m in strain.markers if m.seq.number_of_ns() > 0)
+            num_markers_with_N = 0
+            for m in strain.markers:
+                if m.seq.number_of_ns() > 0:
+                    logger.warning(f"Strain {strain.id} ({strain.metadata.genus} {strain.metadata.species}, {strain.name}) -- marker {m.name} has an N. This strain will be excluded.")
+                    num_markers_with_N += 1
             if num_markers_with_N > 0:
-                logger.warning(f"Removed strain {strain.id} ({strain.metadata.genus} {strain.metadata.species}, {strain.name}) from clustering, since at least one marker had an N.")
                 continue
 
             strain_marker_fasta = tmp_dir / f'{strain.id}.fasta'

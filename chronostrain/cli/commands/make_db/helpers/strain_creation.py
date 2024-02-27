@@ -122,7 +122,8 @@ def create_strain_entries(
         strain_df: pd.DataFrame,
         min_marker_len: int,
         strain_seqs: Dict[str, List[SeqEntry]],
-        logger: Logger
+        logger: Logger,
+        gene_id_suffix: str = ""
 ):
     def _entry_initializer(_accession):
         strain_row = strain_df.loc[strain_df['Accession'] == _accession, :].head(1)
@@ -210,6 +211,7 @@ def create_strain_entries(
                     )
                 else:
                     gene_id = "{}:BLAST<{}...>".format(gene_name, interval.data[0].line_idx)
+                gene_id = f"{gene_id}{gene_id_suffix}"
 
                 strain_entry['markers'].append(
                     {
@@ -254,7 +256,8 @@ def create_chronostrain_db(
         min_pct_idty: int,
         min_marker_len: int,
         num_threads: int,
-        logger: Logger
+        logger: Logger,
+        gene_id_suffix: str = ""
 ) -> List[Dict[str, Any]]:
     """
     :return:
@@ -319,4 +322,4 @@ def create_chronostrain_db(
         logger=logger,
     )
 
-    return create_strain_entries(blast_results, strain_df, min_marker_len, strain_seqs, logger)
+    return create_strain_entries(blast_results, strain_df, min_marker_len, strain_seqs, logger, gene_id_suffix=gene_id_suffix)
