@@ -176,6 +176,9 @@ def load_from_csv(
             read_type = row[4]
             qual_fmt = row[5]
 
+            if not read_path.is_absolute():
+                # assume that the path is relative to the CSV file.
+                read_path = csv_path.parent / read_path
             if not read_path.exists():
                 raise FileNotFoundError(
                     "The input specification `{}` pointed to `{}`, which does not exist.".format(
