@@ -1,13 +1,13 @@
 #!/bin/bash
 set -e
 source settings.sh
+source msweep/settings.sh
 
 require_program poppunk
 
 
-POPPUNK_DIR=/mnt/e/infant_nt/database/poppunk_files
-mkdir -p $POPPUNK_DIR
-cd $POPPUNK_DIR
+mkdir -p $POPPUNK_DB_DIR
+cd $POPPUNK_DB_DIR
 > input.tsv
 
 
