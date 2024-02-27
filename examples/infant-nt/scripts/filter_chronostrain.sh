@@ -10,7 +10,7 @@ require_file ${CHRONOSTRAIN_DB_JSON}
 echo "[*] Running filter on participant ${participant}."
 
 run_dir=${DATA_DIR}/${participant}/chronostrain
-export CHRONOSTRAIN_LOG_FILEPATH="${run_dir}/inference.log"
+export CHRONOSTRAIN_LOG_FILEPATH="${run_dir}/filter.log"
 export CHRONOSTRAIN_CACHE_DIR="${run_dir}/.cache"
 cd ${BASE_DIR}
 
