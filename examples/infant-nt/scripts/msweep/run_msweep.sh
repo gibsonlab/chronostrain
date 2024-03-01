@@ -42,11 +42,13 @@ do
     cd ${output_dir}
     echo "USING CLUSTERS FROM ${THEMISTO_DB_DIR}"
     mSWEEP \
-	--themisto-1 ${fwd_input} \
-	--themisto-2 ${rev_input} \
-	-i ${THEMISTO_DB_DIR}/clusters.txt \
-	-t 8 \
-	-o ${sample_id}
+    --themisto-1 ${fwd_input} \
+	  --themisto-2 ${rev_input} \
+	  -i ${THEMISTO_DB_DIR}/clusters.txt \
+	  -t 8 \
+	  --bin-reads \
+	  --min-abundance 0.01 \
+	  -o ${sample_id}
     cd -
 done < ${participant_dir}/dataset.tsv
 touch ${breadcrumb}
