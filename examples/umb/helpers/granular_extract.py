@@ -26,6 +26,12 @@ from chronostrain.config import cfg
     help="The directory that contains the result of the ``coarse'' inference."
 )
 @option(
+    '--coarse-clustering', '-cc', 'coarse_clustering_path',
+    type=click.Path(path_type=Path, dir_okay=False, exists=True, readable=True),
+    required=True,
+    help="The directory that contains the result of the ``coarse'' inference."
+)
+@option(
     '--granular-clustering', '-g', 'granular_id_file',
     type=click.Path(path_type=Path, dir_okay=False, exists=True, readable=True),
     required=True,
@@ -53,6 +59,7 @@ from chronostrain.config import cfg
 def main(
         reads_input: Path,
         coarse_inference_outdir: Path,
+        coarse_clustering_path: Path,
         granular_id_file: Path,
         out_path: Path,
         prior_p: float,
@@ -69,9 +76,11 @@ def main(
 
     # ============ Extract the coarse inference results.
     coarse_db = cfg.database_cfg.get_database()
+    coarse_clustering = load_chronostrain_cluster(coarse_clustering_path)
     coarse_inference_strain_ids_full = extract_coarse_inference(
         filt_reads_path=reads_input,
         coarse_inference_outdir=coarse_inference_outdir,
+        clustering=coarse_clustering,
         coarse_db=coarse_db,
         posterior_class=GaussianStrainCorrelatedWithGlobalZerosPosterior,
         bf_threshold=bf_threshold,
@@ -117,9 +126,24 @@ def parse_strains(db: StrainDatabase, strain_txt: Path):
             for l in f
         ]
 
+
+def load_chronostrain_cluster(chronostrain_cluster: Path) -> Dict[str, List[str]]:
+    clustering = {}
+    with open(chronostrain_cluster, "rt") as f:
+        for line in f:
+            if line.startswith("#"):
+                continue
+            tokens = line.strip().split("\t")
+            rep_id = tokens[0]
+            members = list(tokens[1].split(","))
+            clustering[rep_id] = members
+    return clustering
+
+
 def extract_coarse_inference(
         filt_reads_path: Path,
         coarse_inference_outdir: Path,
+        clustering: Dict[str, List[str]],
         coarse_db: StrainDatabase,
         posterior_class,
         bf_threshold: float,
@@ -162,8 +186,7 @@ def extract_coarse_inference(
 
     strain_full_ids = set()
     for s_id, strain in strains_to_output.items():
-        for member_str in strain.metadata.cluster:
-            member_id = member_str.split("(")[0]
+        for member_id in clustering[s_id]:
             strain_full_ids.add(member_id)
     return strain_full_ids
 
