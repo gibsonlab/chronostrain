@@ -15,6 +15,8 @@ require_variable "mutation_ratio" $mutation_ratio
 require_variable "replicate" $replicate
 require_variable "n_reads" $n_reads
 require_variable "trial" $trial
+require_variable "output_dir" $output_dir
+require_variable "prior_p" $prior_p
 
 # ============ script body:
 trial_dir=$(get_trial_dir "${mutation_ratio}" $replicate $n_reads $trial)
@@ -26,6 +28,7 @@ prior_p=0.001
 
 if [ -f $runtime_file ]; then
 	echo "[*] Skipping Chronostrain Inference (mut_ratio: ${mutation_ratio} | replicate: ${replicate} |  n_reads: ${n_reads} | trial: ${trial})"
+	exit 0
 fi
 
 if [ ! -f $filter_file ]; then
@@ -36,7 +39,7 @@ fi
 
 mkdir -p $output_dir
 
-echo "[*] Running Chronostrain inference (mut_ratio: ${mutation_ratio} | replicate: ${replicate} |  n_reads: ${n_reads} | trial: ${trial})"
+echo "[*] Running Chronostrain inference (output subdir: ${subdir} | mut_ratio: ${mutation_ratio} | replicate: ${replicate} |  n_reads: ${n_reads} | trial: ${trial})"
 echo "[**] Using database ${CHRONOSTRAIN_DB_JSON_SRC}"
 start_time=$(date +%s%N)  # nanoseconds
 

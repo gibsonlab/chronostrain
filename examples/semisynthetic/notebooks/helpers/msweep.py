@@ -14,13 +14,14 @@ def extract_msweep_prediction(
         replicate: int,
         read_depth: int,
         trial: int,
-        time_points: List[float]
+        time_points: List[float],
+        subdir_name: str = "msweep"
 ) -> Tuple[np.ndarray, List[str], pd.DataFrame, int]:
     cluster_df = load_msweep_cluster()
     cluster_ordering = sorted(pd.unique(cluster_df['Cluster']))
 
     output_basedir = trial_dir(mut_ratio, replicate, read_depth, trial) / 'output'
-    output_dir = output_basedir / 'msweep'
+    output_dir = output_basedir / subdir_name
     if not output_dir.exists():
         raise FileNotFoundError(f"Output dir for mut_ratio={mut_ratio}, replicate={replicate}, read_depth={read_depth}, trial={trial} not found.")
 
@@ -136,11 +137,12 @@ def msweep_results(
     read_depth: int, 
     trial: int, 
     abundance_bins: np.ndarray,
+    subdir_name: str = 'msweep',
     lod: float = 0.002
 ):
     target_accs, time_points, ground_truth = load_ground_truth(mut_ratio=mut_ratio, replicate=replicate)
     pred, clusters, msweep_clust_df, runtime = extract_msweep_prediction(
-        mut_ratio, replicate, read_depth, trial, time_points
+        mut_ratio, replicate, read_depth, trial, time_points, subdir_name=subdir_name
     )
     msweep_ordering = {c: i for i, c in enumerate(clusters)}
 
@@ -239,8 +241,7 @@ def msweep_roc(mut_ratio: str, replicate: int, read_depth: int, trial: int) -> T
 
     # Next initialize the ground truth/prediction matrices.
     A_clusts = list(pd.unique(msweep_clust_df.loc[msweep_clust_df['A_Ratio'] > 0.5, 'Cluster']))
-    A_pred, A_truth, A_true_indicators = msweep_subset_prediction(target_accs, ground_truth, pred, msweep_ordering,
-                                                                  A_clusts, msweep_clust_df)
+    A_pred, A_truth, A_true_indicators = msweep_subset_prediction(target_accs, ground_truth, pred, msweep_ordering, A_clusts, msweep_clust_df)
 
     fpr, tpr, thresholds = sklearn.metrics.roc_curve(  # Abundance thresholding, (TxS)
         y_true=np.tile(A_true_indicators, (len(time_points), 1)).flatten(),

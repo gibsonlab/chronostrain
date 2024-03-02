@@ -3,6 +3,8 @@ set -e
 source settings.sh
 source msweep/settings.sh
 
+# This script is the same as the basic run_pseudoalignment.sh, but it excludes the background reads. (Those will be included for mSWEEP itself)
+
 # ============ Requires arguments:
 mutation_ratio=$1
 replicate=$2
@@ -42,13 +44,8 @@ output_file=${output_dir}/output_files.txt
 for t_idx in 0 1 2 3 4 5; do
   echo "${read_dir}/${t_idx}_sim_1.fq" >> $input_file
   echo "${read_dir}/${t_idx}_sim_2.fq" >> $input_file
-  echo "${BACKGROUND_FASTQ_DIR}/${t_idx}_background_1.fq" >> $input_file
-  echo "${BACKGROUND_FASTQ_DIR}/${t_idx}_background_2.fq" >> $input_file
-
   echo "${output_dir}/${t_idx}_sim_1.output.txt" >> $output_file
   echo "${output_dir}/${t_idx}_sim_2.output.txt" >> $output_file
-  echo "${output_dir}/${t_idx}_background_1.output.txt" >> $output_file
-  echo "${output_dir}/${t_idx}_background_2.output.txt" >> $output_file
 done
 
 

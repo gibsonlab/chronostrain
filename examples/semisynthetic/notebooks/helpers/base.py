@@ -18,7 +18,7 @@ def parse_runtime(p: Path) -> int:
 
 def parse_phylogroups() -> Dict[str, str]:
     """To each strain, add a phylogroup annotation."""
-    phylogroup_path = Path("/mnt/e/chronostrain/phylogeny/ClermonTyping/umb_phylogroups_complete.txt")
+    phylogroup_path = Path("/mnt/e/ecoli_db/phylogeny/ClermonTyping/umb_phylogroups_complete.txt")
     _dict = defaultdict(lambda: '?')
     with open(phylogroup_path, 'r') as f:
         for line in f:

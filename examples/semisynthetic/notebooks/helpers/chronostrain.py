@@ -272,9 +272,16 @@ def chronostrain_results(
     }
 
 
-def chronostrain_roc(mut_ratio: str, replicate: int, read_depth: int, trial: int) -> Tuple[np.ndarray, np.ndarray]:
+def chronostrain_roc(
+    mut_ratio: str, 
+    replicate: int, 
+    read_depth: int, 
+    trial: int,
+    subdir_name: str = 'chronostrain', 
+    posterior_threshold: float = 0.9901
+) -> Tuple[np.ndarray, np.ndarray]:
     truth_accs, time_points, ground_truth = load_ground_truth(mut_ratio=mut_ratio, replicate=replicate)
-    posterior, strains, adhoc_clusters, runtime = extract_chronostrain_prediction(mut_ratio, replicate, read_depth, trial)
+    posterior, strains, adhoc_clusters, runtime = extract_chronostrain_prediction(mut_ratio, replicate, read_depth, trial, subdir_name=subdir_name)
 
     strain_to_idx = {s: i for i, s in enumerate(strains)}
     chronostrain_clustering_df = load_chronostrain_cluster(Path('/mnt/e/ecoli_db/chronostrain_files/ecoli.clusters.txt'))
@@ -309,7 +316,7 @@ def chronostrain_roc(mut_ratio: str, replicate: int, read_depth: int, trial: int
         phylogroup_A_clusts,
         strain_to_idx,
         chronostrain_clustering_df,
-        posterior_threshold=0.9901
+        posterior_threshold=posterior_threshold
     )
 
     # ================ Metric evaluation

@@ -36,6 +36,8 @@ export GT_PRO_DB_NAME=ecoli_db
 
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)
 export REFSEQ_INDEX="/mnt/e/ecoli_db/ref_genomes/index.tsv"
+export CHRONOSTRAIN_DB_JSON_SRC="/mnt/e/ecoli_db/chronostrain_files/ecoli.json"
+export CHRONOSTRAIN_CLUSTER_FILE="/mnt/e/ecoli_db/chronostrain_files/ecoli.clusters.txt"
 
 
 require_program()

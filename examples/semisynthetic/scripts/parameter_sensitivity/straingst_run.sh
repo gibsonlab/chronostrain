@@ -37,19 +37,14 @@ fi
 
 echo "[*] Running inference for (replicate: ${replicate} | n_reads: ${n_reads} | trial: ${trial} | timepoint #${time_point})"
 start_time=$(date +%s%N)  # nanoseconds
-read_kmers=${output_dir}/reads.${time_point}.hdf5
+read_kmers=${trial_dir}/output/straingst_kmers/reads.${time_point}.hdf5
 mkdir -p ${output_dir}
 
-
-echo "[*] Kmerizing..."
-straingst kmerize \
--k 23 \
--o ${read_kmers} \
-${read_dir}/${time_point}_sim_1.fq \
-${BACKGROUND_FASTQ_DIR}/${time_point}_background_1.fq \
-${read_dir}/${time_point}_sim_2.fq \
-${BACKGROUND_FASTQ_DIR}/${time_point}_background_2.fq
-
+if [ -f ${read_kmers} ]; then
+  echo "[*] Skipping k-merization."
+else
+  bash parameter_sensitivity/strainge_kmerize.sh $mutation_ratio $replicate $n_reads $trial $time_point
+fi
 
 echo "[*] Running StrainGST (output subdir=${subdir})"
 mkdir -p ${output_dir}
@@ -66,7 +61,3 @@ ${read_kmers} \
 end_time=$(date +%s%N)
 elapsed_time=$(( $(($end_time-$start_time)) / 1000000 ))
 echo "${elapsed_time}" > $runtime_file
-
-
-echo "[*] Cleaning up."
-rm ${read_kmers}

@@ -17,6 +17,7 @@ fasta_dir=${species_dir}/genomes
 mkdir -p $fasta_dir
 cd $fasta_dir
 
+# TODO: this needs to use the new *.clusters.txt format.
 python ${BASE_DIR}/helpers/list_strain_paths.py -j ${CHRONOSTRAIN_DB_JSON} -i $REFSEQ_INDEX \
 | while read strain_seq; do
 	base_name="$(basename -- $strain_seq)"
