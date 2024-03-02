@@ -25,7 +25,7 @@ if [ -f ${breadcrumb} ]; then
   exit 0
 fi
 
-
+echo "[*] Running mGEMS hierarchical pipeline for ${participant}, sample ${sample_id}"
 mkdir -p "${output_dir}"
 fq_1=${participant_dir}/reads/${sample_id}_kneaddata/${sample_id}_paired_1.fastq.gz
 fq_2=${participant_dir}/reads/${sample_id}_kneaddata/${sample_id}_paired_2.fastq.gz
@@ -38,6 +38,7 @@ if ! [ -f ${fq_2} ]; then
   exit 1
 fi
 
-
-demix_check --mode_run --r1 "${fq_1}" --r2 "${fq_2}" --out_dir "${output_dir}" --ref "${DEMIX_REF_HIERARCHICAL}"
+cd ${DEMIX_REF_DIR}
+demix_check --mode_run --r1 "${fq_1}" --r2 "${fq_2}" --out_dir "${output_dir}" --ref "${DEMIX_REF_HIERARCHICAL}" --threads ${N_CORES}
+cd -
 touch "${breadcrumb}"
