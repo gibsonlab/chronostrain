@@ -21,7 +21,7 @@ done < ${DATA_DIR}/database/ref_genomes/index.tsv
 
 
 echo "[*] Adding Infant isolate assemblies to poppunk input."
-python ${BASE_DIR}/helpers/list_all_participants.py ${ENA_ISOLATE_ASSEMBLY_CATALOG} | while read line
+while read line
 do
   participant=$line
   isolate_dir=${DATA_DIR}/${participant}/isolate_assemblies
@@ -32,7 +32,7 @@ do
       echo "A_${accession}	${fastapath}" >> input.tsv
     fi
   done < ${isolate_dir}/metadata.tsv
-done
+done < "${INFANT_ID_LIST}"
 
 
 echo "[*] Running poppunk sketching (--create-db)"

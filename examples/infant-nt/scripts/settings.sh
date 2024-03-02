@@ -7,7 +7,7 @@ export DATA_DIR="/mnt/e/infant_nt"
 export DATASET_METAGENOMIC_CATALOG="${DATA_DIR}/project.tsv"
 export ENA_ISOLATE_ASSEMBLY_CATALOG=${DATA_DIR}/isolate_assembly_ena.tsv
 export NT_RESULT_TABLE="${BASE_DIR}/files/babybiome_lineages_by_time_point.tsv"
-
+export INFANT_ID_LIST="${BASE_DIR}/files/all_participants.txt"
 
 # ========= Chronostrain settings
 export CHRONOSTRAIN_NUM_ITERS=100

@@ -2,7 +2,7 @@
 source settings.sh
 
 
-python ${BASE_DIR}/helpers/list_all_participants.py ${ENA_ISOLATE_ASSEMBLY_CATALOG} | while read line
+while read line
 do
   participant=$line
   echo $participant
@@ -16,4 +16,4 @@ do
   if [[ -f ${inference_mark} ]]; then
     bash quantify_chronostrain.sh $participant
   fi
-done
+done < "${INFANT_ID_LIST}"

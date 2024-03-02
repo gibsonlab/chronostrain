@@ -6,7 +6,7 @@ require_file $DATASET_METAGENOMIC_CATALOG
 
 
 cd ${BASE_DIR}/scripts
-python ${BASE_DIR}/helpers/list_all_participants.py ${ENA_ISOLATE_ASSEMBLY_CATALOG} | while read line
+while read line
 do
   participant=$line
   process_mark=${DATA_DIR}/${participant}/chronostrain/process_reads.DONE
@@ -24,4 +24,4 @@ do
       echo "Didn't find valid reads for ${participant}."
     fi
   fi
-done
+done < "${INFANT_ID_LIST}"

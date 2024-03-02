@@ -3,7 +3,7 @@ set -e
 source settings.sh
 
 
-python ${BASE_DIR}/helpers/list_all_participants.py ${ENA_ISOLATE_ASSEMBLY_CATALOG} | while read line
+while read line
 do
   participant=$line
   echo $participant
@@ -27,4 +27,4 @@ do
     echo "Handling participant ${participant}, sample ${sampleid}"
     bash strainge/run_straingst.sh ${participant} ${sampleid} ${timepoint}
   done < ${participant_dir}/dataset.tsv
-done
+done < "${INFANT_ID_LIST}"

@@ -3,6 +3,8 @@ set -e
 source settings.sh
 source msweep/settings.sh
 
+require_program themisto
+
 # ============ Requires arguments:
 participant=$1
 require_variable 'participant' $participant

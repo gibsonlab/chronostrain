@@ -15,3 +15,6 @@ curl -G "https://www.ebi.ac.uk/ena/portal/api/filereport" \
   -d 'format=tsv' \
   -d 'limit=0' \
   -o ${ENA_ISOLATE_ASSEMBLY_CATALOG}
+
+
+python ${BASE_DIR}/helpers/list_all_participants.py ${ENA_ISOLATE_ASSEMBLY_CATALOG} ${INFANT_ID_LIST}

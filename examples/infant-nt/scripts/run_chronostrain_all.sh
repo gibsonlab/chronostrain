@@ -3,9 +3,7 @@ set -e
 source settings.sh
 
 
-#python ${BASE_DIR}/helpers/list_all_participants.py ${ENA_ISOLATE_ASSEMBLY_CATALOG} | while read line
-
-cat /home/youn/work/split-jobs/output/lactis.txt | while read line
+while read line
 do
   participant=$line
   echo $participant
@@ -40,4 +38,4 @@ do
     bash quantify_chronostrain.sh ${participant}
     touch $quantify_breadcrumb
   fi
-done
+done < "${INFANT_ID_LIST}"
