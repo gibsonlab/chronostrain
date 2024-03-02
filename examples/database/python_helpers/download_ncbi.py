@@ -20,25 +20,29 @@ class NCBIRecord:
         self.strain_name = strain_name
 
 
-def fetch_catalog(taxids: List[str], save_dir: Path) -> List[NCBIRecord]:
+def fetch_catalog(taxids: List[str], save_dir: Path, level: str) -> List[NCBIRecord]:
     records = []
     for taxid in taxids:
         print(f"Handling taxid {taxid}")
+
+        taxid_file_safe = taxid.replace(' ', '_')
+        save_path = save_dir / f'catalog.{taxid_file_safe}.json'
         records += fetch_catalog_single_taxa(
             taxid,
-            save_dir / f'catalog.{taxid}.json'
+            save_path,
+            level=level
         )
     return records
 
 
-def fetch_catalog_single_taxa(taxid: str, save_path: Path) -> List[NCBIRecord]:
+def fetch_catalog_single_taxa(taxid: str, save_path: Path, level: str = 'chromosome') -> List[NCBIRecord]:
     call_command(
         "datasets",
         [
             "summary", "genome", "taxon",
             f"\"{taxid}\"",
             '--assembly-version', 'latest',
-            "--assembly-level", "complete",
+            "--assembly-level", level,
             '--exclude-atypical'
         ],
         stdout=save_path,
@@ -131,19 +135,26 @@ def create_catalog(records: List[NCBIRecord], data_dir: Path) -> pd.DataFrame:
     for record in records:
         print("Indexing {} ({} {}, {})".format(record.accession, record.genus, record.species, record.strain_name))
         seq_dir = data_dir / "ncbi_dataset" / "data" / record.accession
-        nuc_accession, chrom_path, gff_path, chrom_len = extract_chromosome(seq_dir)
+        try:
+            nuc_accession, chrom_path, gff_path, chrom_len = extract_chromosome(seq_dir)
 
-        df_entries.append({
-            "Genus": record.genus,
-            "Species": record.species,
-            "Strain": record.strain_name,
-            "Accession": nuc_accession,
-            "Assembly": record.accession,
-            "SeqPath": chrom_path,
-            "ChromosomeLen": chrom_len,
-            "GFF": gff_path,
-        })
+            df_entries.append({
+                "Genus": record.genus,
+                "Species": record.species,
+                "Strain": record.strain_name,
+                "Accession": nuc_accession,
+                "Assembly": record.accession,
+                "SeqPath": chrom_path,
+                "ChromosomeLen": chrom_len,
+                "GFF": gff_path,
+            })
+        except ChromosomeNotFoundError:
+            print(f"Couldn't find chromosomal sequence for {record.accession}")
     return pd.DataFrame(df_entries)
+
+
+class ChromosomeNotFoundError(BaseException):
+    pass
 
 
 def extract_chromosome(seq_dir: Path) -> Tuple[str, Path, Path, int]:
@@ -160,6 +171,7 @@ def extract_chromosome(seq_dir: Path) -> Tuple[str, Path, Path, int]:
             chrom_path = seq_dir / f"{nuc_accession}.chrom.fna"
             SeqIO.write([record], chrom_path, "fasta")
             return nuc_accession, chrom_path.absolute(), gff_path.absolute(), len(record)
+    raise ChromosomeNotFoundError()
 
 
 @click.command()
@@ -176,8 +188,12 @@ def extract_chromosome(seq_dir: Path) -> Tuple[str, Path, Path, int]:
     '--output-index', '-o', 'output_index_path',
     type=click.Path(path_type=Path, dir_okay=False), required=True
 )
-def main(taxids: str, target_dir: Path, output_index_path: Path):
-    records = fetch_catalog(taxids.split(","), save_dir=target_dir)
+@click.option(
+    '--level', 'level',
+    type=str, required=False, default='chromosome'
+)
+def main(taxids: str, target_dir: Path, output_index_path: Path, level: str):
+    records = fetch_catalog(taxids.split(","), save_dir=target_dir, level=level)
     logger.info("Found {} unique strain records.".format(len(records)))
     download_assemblies(records, target_dir)
     index_df = create_catalog(records, target_dir)

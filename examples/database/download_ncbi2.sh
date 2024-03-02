@@ -17,4 +17,4 @@ env \
   CHRONOSTRAIN_LOG_FILEPATH="download_ncbi.log" \
   CHRONOSTRAIN_DB_DIR=. \
   CHRONOSTRAIN_INI=./chronostrain.ini \
-  python python_helpers/download_ncbi.py -t "${TARGET_TAXA}" -d ${NCBI_REFSEQ_DIR} -o ${REFSEQ_INDEX}
+  python python_helpers/download_ncbi.py -t "${TARGET_TAXA}" -d ${NCBI_REFSEQ_DIR} -o ${REFSEQ_INDEX} --level "chromosome"
