@@ -45,7 +45,7 @@ do
     --themisto-1 ${fwd_input} \
 	  --themisto-2 ${rev_input} \
 	  -i ${THEMISTO_DB_DIR}/clusters.txt \
-	  -t 8 \
+	  -t ${N_CORES} \
 	  --bin-reads \
 	  --min-abundance 0.01 \
 	  -o ${sample_id}
