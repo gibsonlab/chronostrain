@@ -93,9 +93,8 @@ mkdir -p ${species_outdir}/binned_reads
 mGEMS extract \
   --bins ${species_outdir}/Efaecalis.bin \
   -r ${fq_1},${fq_2} \
-  -o ${species_outdir}/binned_reads \
-  --compress
-for f in ${species_outdir}/binned_reads/*.fastq; do gzip $f; done
+  -o ${species_outdir}/binned_reads
+for f in ${species_outdir}/binned_reads/*.fastq; do gzip "$f"; done
 
 
 # ============================================ strain-level analysis
@@ -144,9 +143,7 @@ do
 done
 
 echo "[**] Compressing extracted reads."
-for f in ${strain_outdir}/binned_reads/*.fast; do
-  gzip "$f"
-done
+for f in ${strain_outdir}/binned_reads/*.fastq; do gzip "$f"; done
 
 echo "[**] Running demix_check."
 mkdir -p ${strain_outdir}/demix_check
