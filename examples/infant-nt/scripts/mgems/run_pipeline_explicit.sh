@@ -27,10 +27,8 @@ fi
 
 echo "[*] Running mGEMS hierarchical pipeline for ${participant}, sample ${sample_id}"
 mkdir -p "${output_dir}"
-#fq_1=${participant_dir}/reads/${sample_id}_kneaddata/${sample_id}_paired_1.fastq.gz
-#fq_2=${participant_dir}/reads/${sample_id}_kneaddata/${sample_id}_paired_2.fastq.gz
-fq_1=${participant_dir}/reads/${sample_id}_1.fastq.gz
-fq_2=${participant_dir}/reads/${sample_id}_2.fastq.gz
+fq_1=${participant_dir}/reads/${sample_id}_kneaddata/${sample_id}_paired_1.fastq.gz
+fq_2=${participant_dir}/reads/${sample_id}_kneaddata/${sample_id}_paired_2.fastq.gz
 if ! [ -f ${fq_1} ]; then
   echo "Forward read not found (Expected: ${fq_1})"
   exit 1
@@ -44,6 +42,25 @@ fi
 echo "[*] Work dir: ${DEMIX_REF_DIR}"
 cd ${DEMIX_REF_DIR}
 
+aln_and_compress()
+{
+	fq_in=$1
+	aln_out=$2
+	refdir=$3
+	tmp_dir=$4
+
+	aln_raw=${aln_out}-raw.txt
+	n_ref=$(wc -l < "${refdir}/ref_clu.txt")
+	themisto pseudoalign \
+    --index-prefix ${refdir}/ref_idx/ref_idx --rc --temp-dir ${tmp_dir} --n-threads ${N_CORES} --sort-output-lines \
+    --query-file ${fq_in} \
+    --outfile ${aln_raw}
+
+  n_reads=$(wc -l < "${aln_raw}")
+  alignment-writer -n $n_ref -r $n_reads -f $aln_raw > $aln_out
+  rm ${aln_raw}
+}
+
 # ============================================ species-level analysis
 species_refdir=ref_dir/species_ref
 species_outdir=${output_dir}/species_ref
@@ -53,22 +70,15 @@ mkdir -p ${species_outdir}
 
 echo "[*] Species-level analysis."
 echo "[**] Aligning fwd reads"
-
-themisto pseudoalign \
-  --index-prefix ${species_refdir}/ref_idx/ref_idx --rc --temp-dir ${species_outdir}/tmp --n-threads ${N_CORES} --sort-output --gzip-output \
-  --query-file ${fq_1} \
-  --outfile ${aln_1}
+aln_and_compress ${fq_1} ${aln_1} ${species_refdir} ${species_outdir}/tmp
 echo "[**] Aligning rev reads"
-themisto pseudoalign \
-  --index-prefix ${species_refdir}/ref_idx/ref_idx --rc --temp-dir ${species_outdir}/tmp --n-threads ${N_CORES} --sort-output --gzip-output \
-  --query-file ${fq_2} \
-  --outfile ${aln_2}
+aln_and_compress ${fq_2} ${aln_2} ${species_refdir} ${species_outdir}/tmp
 
 echo "[**] Running mSWEEP abundance estimation."
 mSWEEP \
   -t ${N_CORES} \
-  --themisto-1 ${aln_1}.gz  \
-  --themisto-2 ${aln_2}.gz  \
+  --themisto-1 ${aln_1}  \
+  --themisto-2 ${aln_2}  \
   -o ${species_outdir}/msweep \
   -i ${species_refdir}/ref_clu.txt \
   --write-probs \
@@ -76,24 +86,14 @@ mSWEEP \
   --target-groups Efaecalis \
   --verbose
 
-### use mSWEEP built-in mgems binning impl (mSWEEP --bin-reads), instead of below
-##echo "[**] Running mGEMS binning."
-mkdir -p ${species_outdir}/binned_reads
-#mGEMS bin \
-##  --groups Efaecalis \
-##  --themisto-alns ${aln_1}.gz,${aln_2}.gz \
-##  -o ${species_outdir}/binned_reads \
-##  --probs ${species_outdir}/msweep_probs.tsv.gz \
-##  -a ${species_outdir}/msweep_abundances.txt \
-##  --index ${species_refdir}/ref_idx \
-##  -i ${species_refdir}/ref_clu.txt
-##  --min-abundance 0.01 \  # note: this makes the pipeline miss Efaecalis for many samples.
 
-echo "[**] Extracting binned reads."
+echo "[**] Running mGEMS extract."
+mkdir -p ${species_outdir}/binned_reads
 mGEMS extract \
   --bins ${species_outdir}/Efaecalis.bin \
   -r ${fq_1},${fq_2} \
-  -o ${species_outdir}/binned_reads
+  -o ${species_outdir}/binned_reads \
+  --compress
 
 
 # ============================================ strain-level analysis
@@ -107,25 +107,45 @@ strain_aln_2=${strain_outdir}/ali_2.aln
 mkdir -p ${strain_outdir}
 
 echo "[**] Aligning fwd reads"
-themisto pseudoalign \
-  --index-prefix ${strain_refdir}/ref_idx/ref_idx --rc --temp-dir ${strain_outdir}/tmp --n-threads ${N_CORES} --sort-output --gzip-output \
-  --query-file ${strain_fq_1} \
-  --outfile ${strain_aln_1}
+aln_and_compress ${strain_fq_1} ${strain_aln_1} ${strain_refdir} ${strain_outdir}/tmp
+#themisto pseudoalign \
+#  --index-prefix ${strain_refdir}/ref_idx/ref_idx --rc --temp-dir ${strain_outdir}/tmp --n-threads ${N_CORES} --sort-output --gzip-output \
+#  --query-file ${strain_fq_1} \
+#  --outfile ${strain_aln_1}
 echo "[**] Aligning rev reads"
-themisto pseudoalign \
-  --index-prefix ${strain_refdir}/ref_idx/ref_idx --rc --temp-dir ${strain_outdir}/tmp --n-threads ${N_CORES} --sort-output --gzip-output \
-  --query-file ${strain_fq_2} \
-  --outfile ${strain_aln_2}
+aln_and_compress ${strain_fq_2} ${strain_aln_2} ${strain_refdir} ${strain_outdir}/tmp
+#themisto pseudoalign \
+#  --index-prefix ${strain_refdir}/ref_idx/ref_idx --rc --temp-dir ${strain_outdir}/tmp --n-threads ${N_CORES} --sort-output --gzip-output \
+#  --query-file ${strain_fq_2} \
+#  --outfile ${strain_aln_2}
+
 
 echo "[**] Running mSWEEP abundance estimation."
 mSWEEP \
   -t ${N_CORES} \
-  --themisto-1 ${strain_aln_1}.gz  \
-  --themisto-2 ${strain_aln_2}.gz  \
+  --themisto-1 ${strain_aln_1}  \
+  --themisto-2 ${strain_aln_2}  \
   -o ${strain_outdir}/msweep \
   -i ${strain_refdir}/ref_clu.txt \
   --write-probs \
+  --bin-reads \
+  --min-abundance 0.01 \
   --verbose
+
+
+echo "[**] Extracting and running demix_check."
+mkdir -p ${strain_outdir}/binned_reads
+for bin in ${strain_outdir}/*.bin
+do
+  mGEMS extract --bins ${bin} -r ${fq_1},${fq_2} -o ${strain_outdir}/binned_reads --compress
+done
+
+mkdir -p ${strain_outdir}/demix_check
+demix_check --mode_check \
+  --binned_reads_dir ${strain_outdir}/binned_reads \
+  --msweep_abun ${strain_outdir}/msweep_abundances.txt \
+  --out_dir ${strain_outdir}/demix_check \
+  --ref ${strain_refdir}
 
 cd -
 touch "${breadcrumb}"
