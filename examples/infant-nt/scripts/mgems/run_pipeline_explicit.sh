@@ -9,6 +9,7 @@ require_program demix_check
 require_program themisto
 require_program mSWEEP
 require_program mGEMS
+require_program gzip
 
 # ============ Requires arguments:
 participant=$1
@@ -94,6 +95,7 @@ mGEMS extract \
   -r ${fq_1},${fq_2} \
   -o ${species_outdir}/binned_reads \
   --compress
+for f in ${species_outdir}/binned_reads/*.fastq; do gzip $f; done
 
 
 # ============================================ strain-level analysis
@@ -133,13 +135,20 @@ mSWEEP \
   --verbose
 
 
-echo "[**] Extracting and running demix_check."
+echo "[**] Extracting reads (for demix_check)."
 mkdir -p ${strain_outdir}/binned_reads
-for bin in ${strain_outdir}/*.bin
+mv ${strain_outdir}/*.bin ${strain_outdir}/binned_reads
+for bin in ${strain_outdir}/binned_reads/*.bin
 do
-  mGEMS extract --bins ${bin} -r ${fq_1},${fq_2} -o ${strain_outdir}/binned_reads --compress
+  mGEMS extract --bins ${bin} -r ${fq_1},${fq_2} -o ${strain_outdir}/binned_reads
 done
 
+echo "[**] Compressing extracted reads."
+for f in ${strain_outdir}/binned_reads/*.fast; do
+  gzip "$f"
+done
+
+echo "[**] Running demix_check."
 mkdir -p ${strain_outdir}/demix_check
 demix_check --mode_check \
   --binned_reads_dir ${strain_outdir}/binned_reads \
