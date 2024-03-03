@@ -143,6 +143,7 @@ do
 done
 
 echo "[**] Compressing extracted reads."
+shopt -s nullglob
 for f in ${strain_outdir}/binned_reads/*.fastq; do gzip "$f"; done
 
 echo "[**] Running demix_check."
