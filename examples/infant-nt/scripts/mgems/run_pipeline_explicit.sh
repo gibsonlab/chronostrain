@@ -54,33 +54,34 @@ mkdir -p ${species_outdir}
 echo "[*] Species-level analysis."
 echo "[**] Aligning fwd reads"
 
-themisto pseudoalign \
-  --index-prefix ${species_refdir}/ref_idx/ref_idx --rc --temp-dir ${species_outdir}/tmp --n-threads ${N_CORES} --sort-output --gzip-output \
-  --query-file ${fq_1} \
-  --outfile ${aln_1}
-echo "[**] Aligning rev reads"
-themisto pseudoalign \
-  --index-prefix ${species_refdir}/ref_idx/ref_idx --rc --temp-dir ${species_outdir}/tmp --n-threads ${N_CORES} --sort-output --gzip-output \
-  --query-file ${fq_2} \
-  --outfile ${aln_2}
-
-echo "[**] Running mSWEEP abundance estimation."
-mSWEEP \
-  -t ${N_CORES} \
-  --themisto-1 ${aln_1}.gz  \
-  --themisto-2 ${aln_2}.gz  \
-  -o ${species_outdir}/msweep \
-  -i ${species_refdir}/ref_clu.txt \
-  --write-probs \
-  --compress z \
-  --verbose
+#themisto pseudoalign \
+#  --index-prefix ${species_refdir}/ref_idx/ref_idx --rc --temp-dir ${species_outdir}/tmp --n-threads ${N_CORES} --sort-output --gzip-output \
+#  --query-file ${fq_1} \
+#  --outfile ${aln_1}
+#echo "[**] Aligning rev reads"
+#themisto pseudoalign \
+#  --index-prefix ${species_refdir}/ref_idx/ref_idx --rc --temp-dir ${species_outdir}/tmp --n-threads ${N_CORES} --sort-output --gzip-output \
+#  --query-file ${fq_2} \
+#  --outfile ${aln_2}
+#
+#echo "[**] Running mSWEEP abundance estimation."
+#mSWEEP \
+#  -t ${N_CORES} \
+#  --themisto-1 ${aln_1}.gz  \
+#  --themisto-2 ${aln_2}.gz  \
+#  -o ${species_outdir}/msweep \
+#  -i ${species_refdir}/ref_clu.txt \
+#  --write-probs \
+#  --compress z \
+#  --verbose
 
 echo "[**] Running mGEMS binning."
+mkdir -p ${species_outdir}/binned_reads
 mGEMS bin \
   --groups Efaecalis \
   --themisto-alns ${aln_1}.gz,${aln_2}.gz \
   -o ${species_outdir}/binned_reads \
-  --probs ${species_outdir}/msweep_probs.csv.gz \
+  --probs ${species_outdir}/msweep_probs.tsv.gz \
   -a ${species_outdir}/msweep_abundances.txt \
   --index ${species_refdir}/ref_idx \
   -i ${species_refdir}/ref_clu.txt
