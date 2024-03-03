@@ -68,6 +68,7 @@ species_outdir=${output_dir}/species_ref
 aln_1=${species_outdir}/ali_1.aln
 aln_2=${species_outdir}/ali_2.aln
 mkdir -p ${species_outdir}
+shopt -s nullglob
 
 echo "[*] Species-level analysis."
 echo "[**] Aligning fwd reads"
@@ -143,7 +144,6 @@ do
 done
 
 echo "[**] Compressing extracted reads."
-shopt -s nullglob
 for f in ${strain_outdir}/binned_reads/*.fastq; do gzip "$f"; done
 
 echo "[**] Running demix_check."
