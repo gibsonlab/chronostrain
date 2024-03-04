@@ -2,6 +2,7 @@
 set -e
 source settings.sh
 source mgems/settings.sh
+shopt -s nullglob
 
 # demix_check should point to demix_check.py (https://github.com/harry-thorpe/demix_check).
 # To pass this first check, create a bash executable called "demix_check" that invokes `python demix_check.py` and add to PATH environment var.
@@ -68,7 +69,6 @@ species_outdir=${output_dir}/species_ref
 aln_1=${species_outdir}/ali_1.aln
 aln_2=${species_outdir}/ali_2.aln
 mkdir -p ${species_outdir}
-shopt -s nullglob
 
 echo "[*] Species-level analysis."
 echo "[**] Aligning fwd reads"
@@ -83,7 +83,6 @@ mSWEEP \
   --themisto-2 ${aln_2}  \
   -o ${species_outdir}/msweep \
   -i ${species_refdir}/ref_clu.txt \
-  --write-probs \
   --bin-reads \
   --target-groups Efaecalis \
   --verbose
@@ -110,16 +109,8 @@ mkdir -p ${strain_outdir}
 
 echo "[**] Aligning fwd reads"
 aln_and_compress ${strain_fq_1} ${strain_aln_1} ${strain_refdir} ${strain_outdir}/tmp
-#themisto pseudoalign \
-#  --index-prefix ${strain_refdir}/ref_idx/ref_idx --rc --temp-dir ${strain_outdir}/tmp --n-threads ${N_CORES} --sort-output --gzip-output \
-#  --query-file ${strain_fq_1} \
-#  --outfile ${strain_aln_1}
 echo "[**] Aligning rev reads"
 aln_and_compress ${strain_fq_2} ${strain_aln_2} ${strain_refdir} ${strain_outdir}/tmp
-#themisto pseudoalign \
-#  --index-prefix ${strain_refdir}/ref_idx/ref_idx --rc --temp-dir ${strain_outdir}/tmp --n-threads ${N_CORES} --sort-output --gzip-output \
-#  --query-file ${strain_fq_2} \
-#  --outfile ${strain_aln_2}
 
 
 echo "[**] Running mSWEEP abundance estimation."
@@ -129,7 +120,6 @@ mSWEEP \
   --themisto-2 ${strain_aln_2}  \
   -o ${strain_outdir}/msweep \
   -i ${strain_refdir}/ref_clu.txt \
-  --write-probs \
   --bin-reads \
   --min-abundance 0.01 \
   --verbose
@@ -137,22 +127,39 @@ mSWEEP \
 
 echo "[**] Extracting reads (for demix_check)."
 mkdir -p ${strain_outdir}/binned_reads
-mv ${strain_outdir}/*.bin ${strain_outdir}/binned_reads
-for bin in ${strain_outdir}/binned_reads/*.bin
-do
-  mGEMS extract --bins ${bin} -r ${fq_1},${fq_2} -o ${strain_outdir}/binned_reads
+for bin_file in ${strain_outdir}/*.bin; do
+  mv ${bin_file} ${strain_outdir}/binned_reads
+done
+
+for bin_file in ${strain_outdir}/binned_reads/*.bin; do
+  mGEMS extract --bins ${bin_file} -r ${strain_fq_1},${strain_fq_2} -o ${strain_outdir}/binned_reads
 done
 
 echo "[**] Compressing extracted reads."
 for f in ${strain_outdir}/binned_reads/*.fastq; do gzip "$f"; done
 
 echo "[**] Running demix_check."
-mkdir -p ${strain_outdir}/demix_check
-demix_check --mode_check \
-  --binned_reads_dir ${strain_outdir}/binned_reads \
-  --msweep_abun ${strain_outdir}/msweep_abundances.txt \
-  --out_dir ${strain_outdir}/demix_check \
-  --ref ${strain_refdir}
+demix_check_file="${strain_outdir}/demix_check.tsv"
+> $demix_check_file
+
+for bin_file in ${strain_outdir}/binned_reads/*.bin; do
+  bin_id="$(basename ${bin_file} .bin)"
+  echo "[***] Checking bin id = ${bin_id}"
+  check_reads.sh \
+    --cluster "${bin_id}" \
+    --abundances ${strain_outdir}/msweep_abundances.txt \
+    --threads ${N_CORES} \
+    --tmpdir ${strain_outdir}/tmp \
+    --fwd ${strain_outdir}/binned_reads/${bin_id}_1.fastq.gz \
+    --rev ${strain_outdir}/binned_reads/${bin_id}_2.fastq.gz \
+    --reference ${strain_refdir} \
+    >> ${demix_check_file}
+done
+##demix_check --mode_check \
+##  --binned_reads_dir ${strain_outdir}/binned_reads \
+##  --msweep_abun ${strain_outdir}/msweep_abundances.txt \
+##  --out_dir ${strain_outdir}/demix_check \
+##  --ref ${strain_refdir}
 
 cd -
 touch "${breadcrumb}"

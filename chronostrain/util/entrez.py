@@ -3,7 +3,6 @@ from pathlib import Path
 from Bio import Entrez
 
 from chronostrain.util.filesystem import convert_size
-from chronostrain.config import cfg
 from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
@@ -48,6 +47,7 @@ def fetch_entrez(entrez_db: str,
             file_path
         ))
     else:
+        from chronostrain.config import cfg
         file_path.parent.mkdir(exist_ok=True, parents=True)
         cfg.entrez_cfg.ensure_enabled()
         logger.debug("[{}] Downloading entrez file ({})...".format(
