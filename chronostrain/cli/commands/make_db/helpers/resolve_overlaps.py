@@ -53,7 +53,7 @@ def find_and_resolve_overlaps(strain, logger: Logger, gff_path: Optional[Path] =
                 interval.begin,
                 interval.end - 1,
                 interval.data,
-                f"MERGED_{n_merged}_{strain_id}",
+                f"MERGED_{n_merged}_{strain_id}_r{record_idx}",
                 logger=logger,
                 gff_path=gff_path
             )
