@@ -64,7 +64,7 @@ def parse_strain_from_assembly(spec: AssemblySpecification) -> Strain:
                 id=contig_record.id.replace('|', ':'),
                 name=f'Contig-{i}:{spec.accession}',
                 seq=DynamicFastaSequence(seq_resource, contig_record.id),
-                metadata=MarkerMetadata(spec.accession, spec.fasta_path)
+                metadata=MarkerMetadata(spec.accession, str(spec.fasta_path))
             )
         )
         total_bases += len(contig_record.seq)
@@ -75,8 +75,6 @@ def parse_strain_from_assembly(spec: AssemblySpecification) -> Strain:
         name=f'{spec.genus}{spec.species}_{spec.accession}',
         markers=markers,
         metadata=StrainMetadata(
-            chromosomes=[],
-            scaffolds=[],
             genus=spec.genus,
             species=spec.species,
             total_len=-1,

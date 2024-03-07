@@ -7,7 +7,7 @@ from typing import Iterator, List, Tuple, Dict, Any, Union
 from chronostrain.model import Strain, StrainMetadata, Marker
 
 from .base import AbstractDatabaseParser, StrainDatabaseParseError
-from .marker_sources import CachedEntrezMarkerSource, ExistingFastaMarkerSource, AbstractMarkerSource
+from .marker_sources import MultiFastaMarkerSource, AbstractMarkerSource
 from .. import StrainDatabase
 from ...util.sequences import UnknownNucleotideError
 
@@ -21,7 +21,6 @@ logger = create_logger(__name__)
 
 class StrainKeyMissingError(StrainDatabaseParseError):
     pass
-
 
 
 def extract_key_from_json(json_obj: dict, key: str):
@@ -62,22 +61,22 @@ class StrainEntry:
         # Group markers by their source acessions.
         grouping: Dict[str, List[MarkerEntry]] = defaultdict(list)
         for marker_entry in self.marker_entries:
-            grouping[marker_entry.source_accession].append(marker_entry)
+            grouping[marker_entry.source_seq].append(marker_entry)
 
         # Iterate through source accessions.
-        src_accessions_left = set(grouping.keys())
+        src_accessions_expected = set(grouping.keys())
         for seq_entry in self.seq_entries:
-            if seq_entry.accession in src_accessions_left:
-                src_accessions_left.remove(seq_entry.accession)
-            _marker_entries = grouping[seq_entry.accession]
+            if seq_entry.seq_id in src_accessions_expected:
+                src_accessions_expected.remove(seq_entry.seq_id)
+            _marker_entries = grouping[seq_entry.seq_id]
             if len(_marker_entries) > 0:
                 yield seq_entry, _marker_entries
 
-        if len(src_accessions_left) > 0:
+        if len(src_accessions_expected) > 0:
             raise StrainDatabaseParseError(
                 "Markers of strain `{}` requested the sources [{}], which were not specified.".format(
                     self.id,
-                    ",".join(src_accessions_left)
+                    ",".join(src_accessions_expected)
                 )
             )
 
@@ -111,127 +110,55 @@ class StrainEntry:
 
 @dataclass
 class SeqEntry:
-    accession: str
-    seq_type: str  # typically "chromosome" or "scaffold"
+    seq_id: str
     seq_path: Union[Path, None]
 
     @staticmethod
     def deserialize(entry_dict: dict) -> 'SeqEntry':
-        accession = extract_key_from_json(entry_dict, 'accession')
-        seq_type = extract_key_from_json(entry_dict, 'seq_type')
+        seq_id = extract_key_from_json(entry_dict, 'id')
         try:
             seq_path = Path(extract_key_from_json(entry_dict, 'seq_path'))
         except StrainKeyMissingError:
             seq_path = None
-        return SeqEntry(accession, seq_type, seq_path)
-
-    @property
-    def is_chromosome(self) -> bool:
-        return self.seq_type == "chromosome"
-
-    @property
-    def is_scaffold(self) -> bool:
-        return self.seq_type == "scaffold"
-
-    @property
-    def is_contig(self) -> bool:
-        return self.seq_type == "contig"
-
-    @property
-    def is_assembly(self) -> bool:
-        return self.seq_type == "assembly"
+        return SeqEntry(seq_id, seq_path)
 
     def __repr__(self) -> str:
-        return f"SeqEntry[Acc={self.accession}|Type={self.seq_type}|path={self.seq_path}]"
+        return f"SeqEntry[ID={self.seq_id}|path={self.seq_path}]"
 
 
 class MarkerEntry:
-    def __init__(self, marker_id: str, name: str, source_accession: str):
+    def __init__(
+            self,
+            marker_id: str,
+            name: str,
+            source_seq: str,
+            record_idx: int
+    ):
         self.marker_id = marker_id
         self.name = name
-        self.source_accession = source_accession
+        self.source_seq = source_seq
+        self.record_idx = record_idx
 
     @staticmethod
     def deserialize(entry_dict: dict) -> "MarkerEntry":
         marker_type = extract_key_from_json(entry_dict, 'type')
-
-        if marker_type == 'tag':
-            return TagMarkerEntry.deserialize(entry_dict)
-        elif marker_type == 'primer':
-            return PrimerMarkerEntry.deserialize(entry_dict)
-        elif marker_type == 'subseq':
-            return SubseqMarkerEntry.deserialize(entry_dict)
+        if marker_type == 'subseq':
+            return SubseqMarkerEntry.deserialize(entry_dict)  # uses a subsequence of the target fasta entry.
         elif marker_type == 'fasta':
-            return FastaRecordEntry.deserialize(entry_dict)
+            return FastaRecordEntry.deserialize(entry_dict)  # uses the entire fasta record
         else:
             raise StrainDatabaseParseError("Unexpected type `{}` in marker entry {}".format(
                 marker_type, entry_dict
             ))
 
 
-class TagMarkerEntry(MarkerEntry):
-    def __init__(self, marker_id: str, name: str, source_accession: str, locus_tag: str):
-        super().__init__(marker_id, name, source_accession)
-        self.locus_tag = locus_tag
-
-    def __str__(self):
-        return repr(self)
-
-    def __repr__(self):
-        return "TagMarker[{}:locus={}]".format(
-            self.source_accession,
-            self.locus_tag
-        )
-
-    @staticmethod
-    def deserialize(entry_dict: dict) -> "TagMarkerEntry":
-        return TagMarkerEntry(
-            marker_id=extract_key_from_json(entry_dict, 'id'),
-            name=extract_key_from_json(entry_dict, 'name'),
-            source_accession=extract_key_from_json(entry_dict, 'source'),
-            locus_tag=extract_key_from_json(entry_dict, 'locus_tag')
-        )
-
-
-class PrimerMarkerEntry(MarkerEntry):
-    def __init__(self,
-                 marker_id: str, name: str, source_accession: str,
-                 forward: str, reverse: str):
-        super().__init__(marker_id, name, source_accession)
-        self.forward = forward
-        self.reverse = reverse
-
-    def __str__(self):
-        return repr(self)
-
-    def __repr__(self):
-        return "PrimerMarker(parent={},fwd={},rev={})".format(
-            self.source_accession,
-            self.forward,
-            self.reverse
-        )
-
-    def entry_id(self) -> str:
-        return "{}[Primer:{}]".format(
-            self.source_accession,
-            '-'.join([self.forward, self.reverse])
-        )
-
-    @staticmethod
-    def deserialize(entry_dict: dict) -> "PrimerMarkerEntry":
-        return PrimerMarkerEntry(
-            marker_id=extract_key_from_json(entry_dict, 'id'),
-            name=extract_key_from_json(entry_dict, 'name'),
-            source_accession=extract_key_from_json(entry_dict, 'source'),
-            forward=extract_key_from_json(entry_dict, 'forward'),
-            reverse=extract_key_from_json(entry_dict, 'reverse')
-        )
-
-
 class SubseqMarkerEntry(MarkerEntry):
-    def __init__(self, marker_id: str, name: str, source_accession: str,
-                 start: int, end: int, is_negative_strand: bool):
-        super().__init__(marker_id, name, source_accession)
+    def __init__(
+            self,
+            marker_id: str, name: str, source_seq: str, record_idx: int,
+            start: int, end: int, is_negative_strand: bool
+    ):
+        super().__init__(marker_id, name, source_seq, record_idx)
         self.start_pos = start
         self.end_pos = end
         self.is_negative_strand = is_negative_strand
@@ -240,8 +167,9 @@ class SubseqMarkerEntry(MarkerEntry):
         return repr(self)
 
     def __repr__(self):
-        return "SubSeq(parent={},start={},end={})".format(
-            self.source_accession,
+        return "SubSeq(seq={}${},start={},end={})".format(
+            self.source_seq,
+            self.record_idx,
             self.start_pos,
             self.end_pos
         )
@@ -263,7 +191,8 @@ class SubseqMarkerEntry(MarkerEntry):
         return SubseqMarkerEntry(
             marker_id=extract_key_from_json(entry_dict, 'id'),
             name=extract_key_from_json(entry_dict, 'name'),
-            source_accession=extract_key_from_json(entry_dict, 'source'),
+            source_seq=extract_key_from_json(entry_dict, 'source'),
+            record_idx=int(extract_key_from_json(entry_dict, 'source_i')),
             start=start_pos,
             end=end_pos,
             is_negative_strand=is_negative_strand
@@ -271,23 +200,22 @@ class SubseqMarkerEntry(MarkerEntry):
 
 
 class FastaRecordEntry(MarkerEntry):
-    def __init__(self, marker_id: str, name: str, record_id: str, source_accession: str):
-        super().__init__(marker_id, name, source_accession)
-        self.record_id = record_id
+    def __init__(self, marker_id: str, name: str, source_seq: str, record_idx: int):
+        super().__init__(marker_id, name, source_seq, record_idx)
 
     def __str__(self):
         return repr(self)
 
     def __repr__(self):
-        return f"FastaRecord[{self.source_accession}__{self.record_id}]"
+        return f"FastaRecord[{self.source_seq}${self.record_idx}]"
 
     @staticmethod
     def deserialize(entry_dict: dict) -> "FastaRecordEntry":
         return FastaRecordEntry(
             marker_id=extract_key_from_json(entry_dict, 'id'),
             name=extract_key_from_json(entry_dict, 'name'),
-            source_accession=extract_key_from_json(entry_dict, 'source'),
-            record_id=extract_key_from_json(entry_dict, 'record_id')
+            source_seq=extract_key_from_json(entry_dict, 'source'),
+            record_idx=int(extract_key_from_json(entry_dict, 'source_i')),
         )
 
 
@@ -326,41 +254,36 @@ class JSONParser(AbstractDatabaseParser):
 
     def parse_strain(self, strain_entry: StrainEntry) -> Strain:
         strain_markers = []
-        chromosome_accs = []
-        scaffold_accs = []
-        contig_accs = []
-        assembly_accs = []
         for seq_entry, marker_entries in strain_entry.marker_entries_by_seq():
-            if seq_entry.is_chromosome:
-                chromosome_accs.append(seq_entry.accession)
-            elif seq_entry.is_scaffold:
-                scaffold_accs.append(seq_entry.accession)
-            elif seq_entry.is_contig:
-                contig_accs.append(seq_entry.accession)
-            elif seq_entry.is_assembly:
-                assembly_accs.append(seq_entry.accession)
+            # The only exception is when the seq entry is a multi-fasta file.
+            marker_src = MultiFastaMarkerSource(
+                fasta_path=seq_entry.seq_path,
+                strain_id=strain_entry.id,
+                seq_id=seq_entry.seq_id
+            )
 
-            if seq_entry.is_assembly:
-                marker_src = ExistingFastaMarkerSource(
-                    data_dir=self.data_dir,
-                    strain_id=strain_entry.id,
-                    accession=seq_entry.accession
-                )
-            else:
-                marker_src = CachedEntrezMarkerSource(
-                    strain_id=strain_entry.id,
-                    data_dir=self.data_dir,
-                    seq_accession=seq_entry.accession,
-                    seq_path=seq_entry.seq_path,
-                    marker_max_len=self.marker_max_len,
-                    force_download=self.force_refresh
-                )
+            """
+            Note 1: this bit of code is now defunct; all marker sources are expected to load from a local file.
+            Note 0: could use CachedEntrezMarkerSource, but this is not necessary since we now use pickle-based caching.
+            """
+            # marker_src = EntrezMarkerSource(
+            #     strain_id=strain_entry.id,
+            #     data_dir=self.data_dir,
+            #     seq_accession=seq_entry.accession,
+            #     seq_path=seq_entry.seq_path,
+            #     marker_max_len=self.marker_max_len,
+            #     force_download=self.force_refresh
+            # )
 
             for marker_entry in marker_entries:
                 try:
                     marker = self.parse_marker(marker_entry, marker_src)
                 except UnknownNucleotideError as e:
-                    raise UnknownSourceNucleotideError(e, marker_src.seq_accession, marker_entry) from None
+                    raise UnknownSourceNucleotideError(
+                        e,
+                        f'{marker_src.seq_id},IDX={marker_entry.record_idx}',
+                        marker_entry
+                    ) from None
 
                 strain_markers.append(marker)
         if len(strain_markers) == 0:
@@ -380,8 +303,6 @@ class JSONParser(AbstractDatabaseParser):
             name=strain_entry.strain_name,
             markers=strain_markers,
             metadata=StrainMetadata(
-                chromosomes=chromosome_accs,
-                scaffolds=scaffold_accs + contig_accs,  # Treat these as the same in the metadata.
                 genus=strain_entry.genus,
                 species=strain_entry.species,
                 total_len=strain_entry.genome_length,
@@ -390,21 +311,9 @@ class JSONParser(AbstractDatabaseParser):
         )
 
     def parse_marker(self, marker_entry: MarkerEntry, marker_src: AbstractMarkerSource) -> Marker:
-        if isinstance(marker_entry, TagMarkerEntry):
-            marker = marker_src.extract_from_locus_tag(
-                marker_entry.marker_id,
-                marker_entry.name,
-                marker_entry.locus_tag
-            )
-        elif isinstance(marker_entry, PrimerMarkerEntry):
-            marker = marker_src.extract_from_primer(
-                marker_entry.marker_id,
-                marker_entry.name,
-                marker_entry.forward,
-                marker_entry.reverse
-            )
-        elif isinstance(marker_entry, SubseqMarkerEntry):
+        if isinstance(marker_entry, SubseqMarkerEntry):
             marker = marker_src.extract_subseq(
+                marker_entry.record_idx,
                 marker_entry.marker_id,
                 marker_entry.name,
                 marker_entry.start_pos,
@@ -412,6 +321,8 @@ class JSONParser(AbstractDatabaseParser):
                 marker_entry.is_negative_strand
             )
         elif isinstance(marker_entry, FastaRecordEntry):
+            # noinspection PyUnresolvedReferences
+            # see the implementation of extract_fasta_record for a to-do
             marker = marker_src.extract_fasta_record(
                 marker_entry.marker_id,
                 marker_entry.name,

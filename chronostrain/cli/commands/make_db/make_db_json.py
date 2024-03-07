@@ -1,5 +1,5 @@
 import shutil
-from typing import Union
+from typing import List
 
 import click
 from pathlib import Path
@@ -18,12 +18,13 @@ from ..base import option
          "and column 2 is the single-record FASTA path for the seed's nucleotide sequence."
 )
 @option(
-    '--references', '-r', 'ref_index_path',
+    '--references', '-r', 'ref_index_paths',
     type=click.Path(path_type=Path, dir_okay=False, exists=True, readable=True),
     required=True,
+    multiple=True,  # allow more than one
     help="Path to a TSV file of target references. "
-         "Must contain at least these eight columns: "
-         "`Genus`, `Species`, `Strain`, `Accession`, `Assembly, `ChromosomeLen`, `SeqPath`, `GFF`"
+         "Must contain at least these six columns: "
+         "`Genus`, `Species`, `Strain`, `Accession`, `SeqPath`, `GFF`"
          "(note: ChromosomeLen is currently only used as metadata, but is still required.)"
 )
 @option(
@@ -62,22 +63,22 @@ from ..base import option
     type=int, required=False, default=1,
     help="The number of threads to use (e.g. for blast)."
 )
-@option(
-    "--add-isolates", "-iso", "isolates_index_path",
-    type=click.Path(path_type=Path, dir_okay=False, exists=True, readable=True),
-    required=False, default=None,
-    help="If specified, will add these isolates to the catalog prior to clustering."
-)
+# @option(
+#     "--add-isolates", "-iso", "isolates_index_path",
+#     type=click.Path(path_type=Path, dir_okay=False, exists=True, readable=True),
+#     required=False, default=None,
+#     help="If specified, will add these isolates to the catalog prior to clustering."
+# )
 def main(
         marker_seeds_path: Path,
-        ref_index_path: Path,
+        ref_index_paths: List[Path],
         blast_db_name: str,
         blast_db_dir: Path,
         json_output_path: Path,
         min_pct_idty: int,
         min_marker_len: int,
         num_threads: int,
-        isolates_index_path: Union[Path, None]
+        # isolates_index_path: Union[Path, None]
 ):
     """
     Create a database using marker seeds.
@@ -90,12 +91,17 @@ def main(
     from typing import Dict
     from .helpers import create_chronostrain_db
 
-    reference_df = pd.read_csv(ref_index_path, sep="\t")
-    if isolates_index_path is not None:
-        isolates_df = pd.read_csv(isolates_index_path, sep="\t")
-        isolates_df['GFF'] = isolates_df['GFF'].astype('string').fillna("None")
-    else:
-        isolates_df = None
+    dfs = []
+    for ref_p in ref_index_paths:
+        ref_df = pd.read_csv(ref_p, sep='\t')
+        dfs.append(ref_df)
+        logger.info("Adding strain index catalog: {} [{} entries; {} species]".format(
+            ref_p,
+            ref_df.shape[0],
+            int(ref_df.groupby(['Genus', 'Species'])['Strain'].count().shape[0])
+        ))
+    reference_df = pd.concat(dfs)
+    del dfs
 
     json_output_path.parent.mkdir(exist_ok=True, parents=True)
     raw_json_path = json_output_path.with_stem(f'{json_output_path.stem}-1raw')  # first file
@@ -116,7 +122,6 @@ def main(
                 )
             gene_paths[gene_name] = gene_fasta_path
 
-    logger.info("Creating strain entries from catalog {}".format(ref_index_path))
     strain_entries = create_chronostrain_db(
         blast_result_dir=json_output_path.parent / f"_BLAST_{json_output_path.stem}",
         strain_df=reference_df,
@@ -128,22 +133,6 @@ def main(
         num_threads=num_threads,
         logger=logger
     )
-
-    if isolates_df is not None:
-        logger.info("Creating strain entries from catalog {}".format(isolates_index_path))
-        isolate_strain_entries = create_chronostrain_db(
-            blast_result_dir=json_output_path.parent / f"_BLAST_ISOLATES_{json_output_path.stem}",
-            strain_df=isolates_df,
-            gene_paths=gene_paths,
-            blast_db_dir=blast_db_dir,
-            blast_db_name='ExtraIsolates',
-            min_pct_idty=min_pct_idty,
-            min_marker_len=min_marker_len,
-            num_threads=num_threads,
-            logger=logger,
-            gene_id_suffix="_ISOLATE"
-        )
-        strain_entries += isolate_strain_entries
 
     with open(raw_json_path, 'w') as outfile:
         json.dump(strain_entries, outfile, indent=4)
@@ -164,6 +153,8 @@ def main(
 
     with open(raw_json_path, "r") as f:
         db_json = json.load(f)
+
+    reference_df['GFF'] = reference_df['GFF'].fillna('None')
     for strain in db_json:
         gff_path = None
         try:
@@ -172,14 +163,6 @@ def main(
                 gff_path = None
         except FileNotFoundError:
             pass
-
-        if isolates_df is not None:
-            try:
-                gff_path = _search_gff(strain['id'], isolates_df)
-                if not gff_path.exists():
-                    gff_path = None
-            except FileNotFoundError:
-                pass
 
         find_and_resolve_overlaps(strain, logger, gff_path)
     with open(merged_json_path, 'w') as o:  # dump to JSON.

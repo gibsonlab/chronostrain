@@ -9,10 +9,10 @@ from chronostrain.util.sequences import Sequence
 @dataclass
 class MarkerMetadata:
     parent_strain: str
-    parent_sequence: str
+    parent_seq: str
 
     def __repr__(self):
-        return "MarkerMetadata[{}:{}]".format(self.parent_strain, self.parent_sequence)
+        return "MarkerMetadata[{}:{}]".format(self.parent_strain, self.parent_seq)
 
     def __str__(self):
         return self.__repr__()

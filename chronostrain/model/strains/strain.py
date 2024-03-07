@@ -5,8 +5,6 @@ from .marker import Marker
 
 @dataclass
 class StrainMetadata:
-    chromosomes: List[str]
-    scaffolds: List[str]
     genus: str
     species: str
     total_len: int

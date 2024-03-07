@@ -1,4 +1,4 @@
-from typing import Dict, List, Any, Optional, Iterator, Union, Callable
+from typing import Dict, List, Any, Optional, Iterator
 from pathlib import Path
 import pandas as pd
 from logging import Logger
@@ -139,7 +139,7 @@ def create_strain_entries(
             'name': subj_strain_name,
             'genome_length': genome_length,
             'seqs': [
-                {'accession': seq_entry.accession, 'seq_type': seq_entry.seq_type, 'seq_path': str(seq_entry.seq_path)}
+                {'id': seq_entry.seq_id, 'seq_path': str(seq_entry.seq_path)}
                 for seq_entry in strain_seqs[_accession]
             ],
             'markers': []
@@ -151,13 +151,15 @@ def create_strain_entries(
         return cur
 
     seqid_to_strain = {
-        seq_entry.accession: strain_acc
+        # seq_entry.accession is the FASTA record id in the originating fasta file.
+        # strain_acc is the ID of the strain.
+        seq_entry.seq_id: strain_acc
         for strain_acc, seq_entries in strain_seqs.items()
         for seq_entry in seq_entries
     }
 
     # ===================== Parse BLAST hits.
-    for gene_name, blast_result_path in blast_results.items():
+    for gene_idx, (gene_name, blast_result_path) in enumerate(blast_results.items()):
         blast_hits = parse_blast_hits(blast_result_path, min_marker_len)
         gene_intervals = {}
 
@@ -173,7 +175,7 @@ def create_strain_entries(
         all of them "fimA". (Note: the strand, by convention, is given by the first observed hit;
         the analysis pipeline uses both + and - strand versions regardless, so this is purely for metadata purposes.)
         """
-        logger.debug(f"Parsing BLAST hits for gene `{gene_name}`.")
+        logger.debug(f"Parsing BLAST hits for gene `{gene_name}` ({gene_idx+1} of {len(blast_results)})")
         # ==== Organize BLAST hits by detecting overlaps via intervaltree.
         for blast_hit in blast_hits:
             fasta_record_id = blast_hit.subj_accession
@@ -197,10 +199,16 @@ def create_strain_entries(
                 strict=False  # adjacent, touching intervals are also merged.
             )
 
-            strain_acc = seqid_to_strain[fasta_record_id]
+            ref_tokens = fasta_record_id.split("$")
+            record_idx = int(ref_tokens[-1])
+            # re-join, just in case (might not be safe to assume that there were no dollar signs in the original seqID.
+            seq_id = "$".join(ref_tokens[:-1])
+
+            strain_acc = seqid_to_strain[seq_id]
 
             if strain_acc not in strain_entries:
-                strain_entries[strain_acc] = _entry_initializer(strain_acc)  # could use defaultdict, but it doesn't play so nicely with JSON module sometimes.
+                # could use defaultdict, but it doesn't play so nicely with JSON module sometimes.
+                strain_entries[strain_acc] = _entry_initializer(strain_acc)
 
             strain_entry = strain_entries[strain_acc]
             for interval in tree:
@@ -218,7 +226,8 @@ def create_strain_entries(
                         'id': gene_id,
                         'name': gene_name,
                         'type': 'subseq',
-                        'source': fasta_record_id,
+                        'source': seq_id,
+                        'source_i': record_idx,
                         'start': interval.begin,
                         'end': interval.end - 1,
                         'strand': interval.data[0].strand
@@ -232,6 +241,7 @@ def prune_entries(strain_entries: List[Dict[str, Any]], logger: Logger) -> List[
     """
     Given a list of strain definitions, delete entries that don't have any marker sequences.
     :param strain_entries: List of Strain entries (as defined in the JSON specification).
+    :param logger:
     :return: A pruned list of entries
     """
     for strain_entry in strain_entries:
@@ -268,16 +278,16 @@ def create_chronostrain_db(
         acc = row['Accession']
         seq_path = Path(row['SeqPath'])
         if "*" in seq_path.name:
-            # assume each file is a single record. Do a glob search.
+            # do a glob search.
             seq_list = [
-                SeqEntry(accession=f.stem, seq_type='contig', seq_path=f)
+                SeqEntry(seq_id=f.stem, seq_path=f)
                 for f in seq_path.parent.glob(seq_path.name)
             ]
             if len(seq_list) == 0:
                 raise ValueError(f"Sequence accession {acc} had an invalid glob {seq_path.name}.")
         else:
-            # assume SeqFile is a single-fasta record file, with the same ID as the strain ID.
-            seq_list = [SeqEntry(accession=acc, seq_type='chromosome', seq_path=seq_path)]
+            # Just add the singule file.
+            seq_list = [SeqEntry(seq_id=acc, seq_path=seq_path)]
         strain_seqs[acc] = seq_list
 
     # ================ Run makeblastdb if necessary.
@@ -286,15 +296,25 @@ def create_chronostrain_db(
         logger.info(f"Blast DB `{blast_db_name}` not found in {blast_db_dir}. Running makeblastdb.")
 
         # Concatenate FASTA files.
-        logger.info("Concatenating input files.")
+        # Note: This stuff would be much faster in a low-level language (C/C++)
+        logger.info("Concatenating input files from {} entries.".format(len(strain_seqs)))
         concat_fasta = blast_db_dir / f'{blast_db_name}.fasta'
         with open(concat_fasta, "wt") as out_f:
             for acc, seq_entries in strain_seqs.items():
                 for seq_entry in seq_entries:
+                    """
+                    Concatenate all records from the source FASTA file, but modify the identifer lines,
+                    so that BLAST refids are easily mappable back to the originating file.
+                    """
                     assert seq_entry.seq_path is not None
                     with open(seq_entry.seq_path, "rt") as src_f:
+                        record_idx = 0
                         for line in src_f:
-                            out_f.write(line)
+                            if line.startswith(">"):
+                                print(f">{seq_entry.seq_id}${record_idx}", file=out_f)
+                                record_idx += 1
+                            else:
+                                out_f.write(line)
 
         # Invoke makeblastdb.
         make_blast_db(
@@ -322,4 +342,8 @@ def create_chronostrain_db(
         logger=logger,
     )
 
-    return create_strain_entries(blast_results, strain_df, min_marker_len, strain_seqs, logger, gene_id_suffix=gene_id_suffix)
+    return create_strain_entries(
+        blast_results, strain_df,
+        min_marker_len, strain_seqs,
+        logger, gene_id_suffix=gene_id_suffix
+    )

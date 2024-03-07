@@ -1,6 +1,7 @@
 from typing import Union
 
 import numpy as np
+from Bio.Seq import Seq
 from .base import Sequence
 from .z4 import nucleotides_to_z4, z4_to_nucleotides, reverse_complement_z4
 
@@ -9,9 +10,11 @@ class AllocatedSequence(Sequence):
     """
     Represents a single sequence, whose contents (nucleotides) are stored as a byte array in memory.
     """
-    def __init__(self, seq: Union[str, np.ndarray]):
+    def __init__(self, seq: Union[str, Seq, np.ndarray]):
         if isinstance(seq, str):
             self.byte_seq = nucleotides_to_z4(seq)
+        elif isinstance(seq, Seq):
+            raise NotImplementedError("TODO support direct conversion of Bio.Seq.Seq to AllocatedSequence.")
         elif isinstance(seq, np.ndarray):
             self.byte_seq = seq
         else:

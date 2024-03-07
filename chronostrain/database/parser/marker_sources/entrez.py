@@ -10,13 +10,12 @@ from chronostrain.model import Marker, MarkerMetadata
 from chronostrain.util.entrez import fetch_genbank, fetch_fasta
 from chronostrain.util.sequences import AllocatedSequence
 from .base import AbstractMarkerSource
-from .helpers import regex_match_primers
 
 
 class EntrezMarkerSource(AbstractMarkerSource):
-    def __init__(self, strain_id: str, seq_accession: str, seq_path: Union[Path, None], marker_max_len: int, force_download: bool, data_dir: Path):
+    def __init__(self, strain_id: str, seq_id: str, seq_path: Union[Path, None], marker_max_len: int, force_download: bool, data_dir: Path):
         self.strain_id = strain_id
-        self.seq_accession = seq_accession
+        self.seq_id = seq_id
         self.seq_path = seq_path
         self.marker_max_len = marker_max_len
         self.force_download = force_download
@@ -38,7 +37,7 @@ class EntrezMarkerSource(AbstractMarkerSource):
             fasta_path = self.seq_path
         else:
             # Default behavior: attempt to download if file location is not specified.
-            fasta_path = fetch_fasta(self.seq_accession,
+            fasta_path = fetch_fasta(self.seq_id,
                                      base_dir=self.strain_assembly_dir,
                                      force_download=self.force_download)
         record = SeqIO.read(fasta_path, "fasta")
@@ -57,34 +56,19 @@ class EntrezMarkerSource(AbstractMarkerSource):
     @property
     def seq_genbank_features(self) -> Iterator[SeqFeature]:
         if self._gb_record is None:
-            genbank_path = fetch_genbank(self.seq_accession,
+            genbank_path = fetch_genbank(self.seq_id,
                                          base_dir=self.strain_assembly_dir,
                                          force_download=self.force_download)
             self._gb_record = list(SeqIO.parse(genbank_path, "gb"))[0]
         yield from self._gb_record.features
 
-    def extract_from_primer(
-            self,
-            marker_id: str, marker_name: str,
-            forward: str, reverse: str
-    ) -> Marker:
-        result = regex_match_primers(self.seq_nucleotide, self.seq_accession, forward, reverse, self.marker_max_len)
-        marker_seq = AllocatedSequence(self.seq_nucleotide[result[0]:result[1]])
-        return Marker(
-            id=marker_id,
-            name=marker_name,
-            seq=marker_seq,
-            metadata=MarkerMetadata(
-                parent_strain=self.strain_id,
-                parent_sequence=self.seq_accession,
-            )
-        )
-
     def extract_subseq(
             self,
+            record_idx: int,
             marker_id: str, marker_name: str,
             start_pos: int, end_pos: int, from_negative_strand: bool
     ) -> Marker:
+        # here, record_idx is unused; the FASTA file is assumed to have exactly one sequence.
         marker_seq = AllocatedSequence(self.seq_nucleotide[start_pos - 1:end_pos])
         if from_negative_strand:
             marker_seq = marker_seq.revcomp_seq()
@@ -94,7 +78,7 @@ class EntrezMarkerSource(AbstractMarkerSource):
             seq=marker_seq,
             metadata=MarkerMetadata(
                 parent_strain=self.strain_id,
-                parent_sequence=self.seq_accession,
+                parent_seq=self.seq_id,
             )
         )
 
@@ -103,6 +87,13 @@ class EntrezMarkerSource(AbstractMarkerSource):
             marker_id: str, marker_name: str,
             locus_tag: str
     ) -> Marker:
+        """
+        Deprecated; kept for legacy/posterity reasons.
+        :param marker_id: the target marker ID to set for the Marker object.
+        :param marker_name: the target marker name to set for the Marker object.
+        :param locus_tag: the locus tag ID to look for in the genbank (gff) file.
+        :return:
+        """
         for feature in self.seq_genbank_features:
             if feature.type != 'gene':
                 continue
@@ -118,10 +109,10 @@ class EntrezMarkerSource(AbstractMarkerSource):
                 seq=marker_seq,
                 metadata=MarkerMetadata(
                     parent_strain=self.strain_id,
-                    parent_sequence=self.seq_accession,
+                    parent_seq=self.seq_id,
                 )
             )
-        raise RuntimeError(f"Genbank record `{self.seq_accession}` does not contain locus tag `{locus_tag}`.")
+        raise RuntimeError(f"Genbank record `{self.seq_id}` does not contain locus tag `{locus_tag}`.")
 
     def extract_fasta_record(
             self,
@@ -138,7 +129,7 @@ class EntrezMarkerSource(AbstractMarkerSource):
             seq=AllocatedSequence(str(record.seq)),
             metadata=MarkerMetadata(
                 parent_strain=self.strain_id,
-                parent_sequence=self.seq_accession,
+                parent_seq=self.seq_id,
             )
         )
 
@@ -147,11 +138,11 @@ class CachedEntrezMarkerSource(EntrezMarkerSource):
     def __init__(self,
                  strain_id: str,
                  data_dir: Path,
-                 seq_accession: str,
+                 seq_id: str,
                  seq_path: Union[Path, None],
                  marker_max_len: int,
                  force_download: bool):
-        super().__init__(strain_id, seq_accession, seq_path, marker_max_len, force_download, data_dir)
+        super().__init__(strain_id, seq_id, seq_path, marker_max_len, force_download, data_dir)
 
     def get_marker_filepath(self, marker_id: str) -> Path:
         marker_id_for_filename = re.sub(r'[^\w\s]', '_', marker_id)
@@ -166,7 +157,7 @@ class CachedEntrezMarkerSource(EntrezMarkerSource):
         marker.metadata.file_path = target_path
         target_path.parent.mkdir(exist_ok=True, parents=True)
         SeqIO.write(
-            [marker.to_seqrecord(description=f"Strain={self.strain_id},Source={self.seq_accession}")],
+            [marker.to_seqrecord(description=f"Strain={self.strain_id},Source={self.seq_id}")],
             target_path,
             "fasta"
         )
@@ -184,27 +175,13 @@ class CachedEntrezMarkerSource(EntrezMarkerSource):
             seq=AllocatedSequence(seq),
             metadata=MarkerMetadata(
                 parent_strain=self.strain_id,
-                parent_sequence=self.seq_accession
+                parent_seq=self.seq_id
             )
         )
 
-    def extract_from_primer(
-            self,
-            marker_id: str, marker_name: str,
-            forward: str, reverse: str
-    ) -> Marker:
-        marker_filepath = self.get_marker_filepath(marker_id)
-        if marker_filepath.exists():
-            return self.load_from_disk(marker_id, marker_name, marker_filepath)
-        else:
-            marker = super().extract_from_primer(
-                marker_id, marker_name, forward, reverse
-            )
-            self.save_to_disk(marker, marker_filepath)
-            return marker
-
     def extract_subseq(
             self,
+            record_idx: int,
             marker_id: str, marker_name: str,
             start_pos: int, end_pos: int, from_negative_strand: bool
     ) -> Marker:
@@ -213,7 +190,7 @@ class CachedEntrezMarkerSource(EntrezMarkerSource):
             return self.load_from_disk(marker_id, marker_name, marker_filepath)
         else:
             marker = super().extract_subseq(
-                marker_id, marker_name, start_pos, end_pos, from_negative_strand
+                record_idx, marker_id, marker_name, start_pos, end_pos, from_negative_strand
             )
             self.save_to_disk(marker, marker_filepath)
             return marker

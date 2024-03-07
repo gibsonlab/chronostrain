@@ -4,6 +4,7 @@ from pathlib import Path
 
 from intervaltree import IntervalTree
 from logging import Logger
+from collections import defaultdict
 
 from chronostrain.util.io import open_check_compression
 
@@ -12,28 +13,27 @@ def find_and_resolve_overlaps(strain, logger: Logger, gff_path: Optional[Path] =
     """
     Detects all overlaps and handles them appropriate using helper functions (merge_markers).
     """
-    seq_trees = {
-        seq_entry['accession']: IntervalTree()
-        for seq_entry in strain['seqs']
-    }
+    seq_trees = defaultdict(lambda: IntervalTree())
 
-    def add_to_tree(seq_id: str, start: int, end: int, item):
-        t = seq_trees[seq_id]
+    def add_to_tree(seq_id: str, record_idx: int, start: int, end: int, item):
+        t = seq_trees[f'{seq_id}${record_idx}']
         t[start:(end + 1)] = item
 
     strain_id = strain['id']
     for marker in strain['markers']:
         marker_start = marker['start']
+        marker_record_idx = marker['source_i']
         marker_end = marker['end']
         src_seq_id = marker['source']
 
-        add_to_tree(src_seq_id, marker_start, marker_end, marker)
+        add_to_tree(src_seq_id, marker_record_idx, marker_start, marker_end, marker)
 
     def _reducer(cur, x):
         cur.append(x)
         return cur
 
-    for seq_id, t in seq_trees.items():
+    for seq_full_id, t in seq_trees.items():
+        seq_id, record_idx = seq_full_id.split("$")
         t.merge_overlaps(
             data_reducer=_reducer,
             data_initializer=[],
@@ -48,6 +48,8 @@ def find_and_resolve_overlaps(strain, logger: Logger, gff_path: Optional[Path] =
             n_merged += 1
             merge_markers(
                 strain,
+                seq_id,
+                record_idx,
                 interval.begin,
                 interval.end - 1,
                 interval.data,
@@ -57,11 +59,13 @@ def find_and_resolve_overlaps(strain, logger: Logger, gff_path: Optional[Path] =
             )
 
         if n_merged > 0:
-            logger.info(f"Created {n_merged} merged markers for strain {strain_id}, seqID {seq_id}.")
+            logger.info(f"Created {n_merged} merged markers for strain {strain_id}, seqID {seq_id} [record index {record_idx}].")
 
 
 def merge_markers(
         strain: Dict,
+        seq_id: str,
+        record_idx: int,
         start: int,
         end: int,
         to_merge: List[Dict],
@@ -89,22 +93,27 @@ def merge_markers(
                             json_gene_names
                         )
                     )
-        new_name = '-'.join(annot_gene_names)
+        if len(annot_gene_names) > 0:
+            new_name = '-'.join(annot_gene_names)
+        else:
+            new_name = 'unknown_region[{}]'.format(
+                '|'.join(
+                    m['name'] for m in to_merge
+                )
+            )
     else:
         logger.debug("GFF file not found for {}.".format(strain['id']))
         new_name = "-".join(m['name'] for m in to_merge)
     ids_to_remove = set([m['id'] for m in to_merge])
-    seq_ids = set(m['source'] for m in to_merge)
-    if len(seq_ids) != 1:
+    if len(set(m['source'] for m in to_merge)) != 1:
         raise ValueError("Illegal merging of markers from different sequence IDs, for strain {}.".format(strain['id']))
-    else:
-        seq_id = next(iter(seq_ids))
 
     strain['markers'] = [m for m in strain['markers'] if m['id'] not in ids_to_remove] + [{
         "id": new_id,
         "name": new_name,
         "type": "subseq",
         "source": seq_id,
+        "source_i": record_idx,
         "start": start,
         "end": end,
         "strand": "+",  # by convention
