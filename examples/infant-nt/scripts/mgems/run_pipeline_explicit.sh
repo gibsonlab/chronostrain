@@ -64,42 +64,42 @@ aln_and_compress()
 }
 
 # ============================================ species-level analysis
-#species_refdir=ref_dir/species_ref
-species_outdir=${output_dir}/species_ref
-#aln_1=${species_outdir}/ali_1.aln
-#aln_2=${species_outdir}/ali_2.aln
-#mkdir -p ${species_outdir}
-#
-#echo "[*] Species-level analysis."
-#echo "[**] Aligning fwd reads"
-#aln_and_compress ${fq_1} ${aln_1} ${species_refdir} ${species_outdir}/tmp
-#echo "[**] Aligning rev reads"
-#aln_and_compress ${fq_2} ${aln_2} ${species_refdir} ${species_outdir}/tmp
-#
-#echo "[**] Running mSWEEP abundance estimation."
-#mSWEEP \
-#  -t ${N_CORES} \
-#  --themisto-1 ${aln_1}  \
-#  --themisto-2 ${aln_2}  \
-#  -o ${species_outdir}/msweep \
-#  -i ${species_refdir}/ref_clu.txt \
-#  --bin-reads \
-#  --target-groups Efaecalis \
-#  --verbose
-#
-#
-#echo "[**] Running mGEMS extract."
-#mkdir -p ${species_outdir}/binned_reads
-#mGEMS extract \
-#  --bins ${species_outdir}/Efaecalis.bin \
-#  -r ${fq_1},${fq_2} \
-#  -o ${species_outdir}/binned_reads
-#for f in ${species_outdir}/binned_reads/*.fastq; do gzip "$f"; done
+species_refdir=ref_dir/species_ref_elmc
+species_outdir=${output_dir}/species
+aln_1=${species_outdir}/ali_1.aln
+aln_2=${species_outdir}/ali_2.aln
+mkdir -p ${species_outdir}
+
+echo "[*] Species-level analysis."
+echo "[**] Aligning fwd reads"
+aln_and_compress ${fq_1} ${aln_1} ${species_refdir} ${species_outdir}/tmp
+echo "[**] Aligning rev reads"
+aln_and_compress ${fq_2} ${aln_2} ${species_refdir} ${species_outdir}/tmp
+
+echo "[**] Running mSWEEP abundance estimation."
+mSWEEP \
+  -t ${N_CORES} \
+  --themisto-1 ${aln_1}  \
+  --themisto-2 ${aln_2}  \
+  -o ${species_outdir}/msweep \
+  -i ${species_refdir}/ref_clu.txt \
+  --bin-reads \
+  --target-groups Efaecalis \
+  --verbose
+
+
+echo "[**] Running mGEMS extract."
+mkdir -p ${species_outdir}/binned_reads
+mGEMS extract \
+  --bins ${species_outdir}/Efaecalis.bin \
+  -r ${fq_1},${fq_2} \
+  -o ${species_outdir}/binned_reads
+for f in ${species_outdir}/binned_reads/*.fastq; do gzip "$f"; done
 
 
 # ============================================ strain-level analysis
 echo "[*] Strain-level analysis."
-strain_refdir=ref_dir/Efaecalis
+strain_refdir=ref_dir/Efaecalis_elmc
 strain_outdir=${output_dir}/Efaecalis
 strain_fq_1=${species_outdir}/binned_reads/Efaecalis_1.fastq.gz
 strain_fq_2=${species_outdir}/binned_reads/Efaecalis_2.fastq.gz
@@ -139,9 +139,8 @@ echo "[**] Compressing extracted reads."
 for f in ${strain_outdir}/binned_reads/*.fastq; do gzip "$f"; done
 
 echo "[**] Running demix_check."
-demix_check_file="${strain_outdir}/demix_check.tsv"
-> $demix_check_file
-
+#demix_check_file="${strain_outdir}/demix_check.tsv"
+#> $demix_check_file
 #for bin_file in ${strain_outdir}/binned_reads/*.bin; do
 #  bin_id="$(basename ${bin_file} .bin)"
 #  echo "[***] Checking bin id = ${bin_id}"
