@@ -11,7 +11,7 @@ echo "[*] Running filter on participant ${participant}."
 
 run_dir=${DATA_DIR}/${participant}/chronostrain
 export CHRONOSTRAIN_LOG_FILEPATH="${run_dir}/filter.log"
-export CHRONOSTRAIN_CACHE_DIR="${run_dir}/.cache"
+export CHRONOSTRAIN_CACHE_DIR="${DATA_DIR}/.cache"
 cd ${BASE_DIR}
 
 
