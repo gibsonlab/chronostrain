@@ -64,37 +64,37 @@ aln_and_compress()
 }
 
 # ============================================ species-level analysis
-species_refdir=ref_dir/species_ref
+#species_refdir=ref_dir/species_ref
 species_outdir=${output_dir}/species_ref
-aln_1=${species_outdir}/ali_1.aln
-aln_2=${species_outdir}/ali_2.aln
-mkdir -p ${species_outdir}
-
-echo "[*] Species-level analysis."
-echo "[**] Aligning fwd reads"
-aln_and_compress ${fq_1} ${aln_1} ${species_refdir} ${species_outdir}/tmp
-echo "[**] Aligning rev reads"
-aln_and_compress ${fq_2} ${aln_2} ${species_refdir} ${species_outdir}/tmp
-
-echo "[**] Running mSWEEP abundance estimation."
-mSWEEP \
-  -t ${N_CORES} \
-  --themisto-1 ${aln_1}  \
-  --themisto-2 ${aln_2}  \
-  -o ${species_outdir}/msweep \
-  -i ${species_refdir}/ref_clu.txt \
-  --bin-reads \
-  --target-groups Efaecalis \
-  --verbose
-
-
-echo "[**] Running mGEMS extract."
-mkdir -p ${species_outdir}/binned_reads
-mGEMS extract \
-  --bins ${species_outdir}/Efaecalis.bin \
-  -r ${fq_1},${fq_2} \
-  -o ${species_outdir}/binned_reads
-for f in ${species_outdir}/binned_reads/*.fastq; do gzip "$f"; done
+#aln_1=${species_outdir}/ali_1.aln
+#aln_2=${species_outdir}/ali_2.aln
+#mkdir -p ${species_outdir}
+#
+#echo "[*] Species-level analysis."
+#echo "[**] Aligning fwd reads"
+#aln_and_compress ${fq_1} ${aln_1} ${species_refdir} ${species_outdir}/tmp
+#echo "[**] Aligning rev reads"
+#aln_and_compress ${fq_2} ${aln_2} ${species_refdir} ${species_outdir}/tmp
+#
+#echo "[**] Running mSWEEP abundance estimation."
+#mSWEEP \
+#  -t ${N_CORES} \
+#  --themisto-1 ${aln_1}  \
+#  --themisto-2 ${aln_2}  \
+#  -o ${species_outdir}/msweep \
+#  -i ${species_refdir}/ref_clu.txt \
+#  --bin-reads \
+#  --target-groups Efaecalis \
+#  --verbose
+#
+#
+#echo "[**] Running mGEMS extract."
+#mkdir -p ${species_outdir}/binned_reads
+#mGEMS extract \
+#  --bins ${species_outdir}/Efaecalis.bin \
+#  -r ${fq_1},${fq_2} \
+#  -o ${species_outdir}/binned_reads
+#for f in ${species_outdir}/binned_reads/*.fastq; do gzip "$f"; done
 
 
 # ============================================ strain-level analysis
@@ -142,24 +142,24 @@ echo "[**] Running demix_check."
 demix_check_file="${strain_outdir}/demix_check.tsv"
 > $demix_check_file
 
-for bin_file in ${strain_outdir}/binned_reads/*.bin; do
-  bin_id="$(basename ${bin_file} .bin)"
-  echo "[***] Checking bin id = ${bin_id}"
-  check_reads.sh \
-    --cluster "${bin_id}" \
-    --abundances ${strain_outdir}/msweep_abundances.txt \
-    --threads ${N_CORES} \
-    --tmpdir ${strain_outdir}/tmp \
-    --fwd ${strain_outdir}/binned_reads/${bin_id}_1.fastq.gz \
-    --rev ${strain_outdir}/binned_reads/${bin_id}_2.fastq.gz \
-    --reference ${strain_refdir} \
-    >> ${demix_check_file}
-done
-##demix_check --mode_check \
-##  --binned_reads_dir ${strain_outdir}/binned_reads \
-##  --msweep_abun ${strain_outdir}/msweep_abundances.txt \
-##  --out_dir ${strain_outdir}/demix_check \
-##  --ref ${strain_refdir}
+#for bin_file in ${strain_outdir}/binned_reads/*.bin; do
+#  bin_id="$(basename ${bin_file} .bin)"
+#  echo "[***] Checking bin id = ${bin_id}"
+#  check_reads.sh \
+#    --cluster "${bin_id}" \
+#    --abundances ${strain_outdir}/msweep_abundances.txt \
+#    --threads ${N_CORES} \
+#    --tmpdir ${strain_outdir}/tmp \
+#    --fwd ${strain_outdir}/binned_reads/${bin_id}_1.fastq.gz \
+#    --rev ${strain_outdir}/binned_reads/${bin_id}_2.fastq.gz \
+#    --reference ${strain_refdir} \
+#    >> ${demix_check_file}
+#done
+demix_check --mode_check \
+  --binned_reads_dir ${strain_outdir}/binned_reads \
+  --msweep_abun ${strain_outdir}/msweep_abundances.txt \
+  --out_dir ${strain_outdir}/demix_check \
+  --ref ${strain_refdir}
 
 cd -
 touch "${breadcrumb}"
