@@ -198,9 +198,19 @@ class FragmentFrequencyComputer(object):
             f2[pair_idx] = f_idx2
 
         # =============== Take the slices.
-        freq1 = cpu_sparse[f1, :]
-        freq2 = cpu_sparse[f2, :]
-        logger.debug("freq1 nnz = {}, freq2 nnz = {}".format(freq1.nnz, freq2.nnz))
+        try:
+            freq1 = cpu_sparse[f1, :]
+            logger.debug("freq1 nnz = {}".format(freq1.nnz))
+        except ValueError:
+            logger.error(f"Unrecoverable error while accessing sparse slice. (row query={f1}, matrix shape={cpu_sparse.shape})")
+            raise
+
+        try:
+            freq2 = cpu_sparse[f2, :]
+            logger.debug("freq2 nnz = {}".format(freq2.nnz))
+        except ValueError:
+            logger.error(f"Unrecoverable error while accessing sparse slice. (row query={f2}, matrix shape={cpu_sparse.shape})")
+            raise
 
         # =============== Compute the operations.
         _mutual_nnz = (freq1 != 0) * (freq2 != 0)
