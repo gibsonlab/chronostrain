@@ -203,6 +203,7 @@ class FragmentFrequencyComputer(object):
             logger.debug("freq1 nnz = {}".format(freq1.nnz))
         except ValueError:
             logger.error(f"Unrecoverable error while accessing sparse slice. (row query={f1}, matrix shape={cpu_sparse.shape})")
+            logger.error("Maximum query = {}, minimum query = {}".format(cnp.max(f1), cnp.min(f1)))
             raise
 
         try:
@@ -210,6 +211,7 @@ class FragmentFrequencyComputer(object):
             logger.debug("freq2 nnz = {}".format(freq2.nnz))
         except ValueError:
             logger.error(f"Unrecoverable error while accessing sparse slice. (row query={f2}, matrix shape={cpu_sparse.shape})")
+            logger.error("Maximum query = {}, minimum query = {}".format(cnp.max(f2), cnp.min(f2)))
             raise
 
         # =============== Compute the operations.
