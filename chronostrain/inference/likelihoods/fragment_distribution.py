@@ -148,7 +148,7 @@ class FragmentFrequencyComputer(object):
         )
 
     def compute_paired_frequencies(self, single_freqs: FragmentFrequencySparse) -> FragmentFrequencySparse:
-        indices = cnp.array(single_freqs.matrix.indices)
+        indices = cnp.array(single_freqs.matrix.indices, dtype=cnp.uint)
         log_counts = cnp.array(single_freqs.matrix.data)
 
         """
