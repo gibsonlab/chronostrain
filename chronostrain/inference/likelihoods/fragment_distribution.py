@@ -191,8 +191,8 @@ class FragmentFrequencyComputer(object):
         del log_counts
 
         # =============== Extract the slice indexes
-        f1 = cnp.zeros(len(self.fragment_pairs), dtype=int)
-        f2 = cnp.zeros(len(self.fragment_pairs), dtype=int)
+        f1 = cnp.zeros(len(self.fragment_pairs), dtype=cnp.uint)
+        f2 = cnp.zeros(len(self.fragment_pairs), dtype=cnp.uint)
         for f_idx1, f_idx2, pair_idx in self.fragment_pairs:
             f1[pair_idx] = f_idx1
             f2[pair_idx] = f_idx2
