@@ -215,12 +215,12 @@ class FragmentFrequencyComputer(object):
             raise
 
         # =============== Compute the operations.
-        _mutual_nnz = (freq1 != 0) * (freq2 != 0)
-        _sum = (freq1 + freq2) * _mutual_nnz  # the offsets have combined; it is now 2 times the original offset.
+        _mutual_nnz = (freq1 != 0) * (freq2 != 0)  # implements entrywise logical AND
+        _sum = (freq1 + freq2) * _mutual_nnz  # See note regarding empty locations and zeroes/infinities in the docstring.
         del _mutual_nnz
 
         _sum = _sum.tocoo()
-        jax_coo_data = jnp.array(_sum.data + 2 * offset)
+        jax_coo_data = jnp.array(_sum.data + 2 * offset)  # the offsets have combined; the offset of x+y is is 2 times the original offset.
         jax_coo_indices = jnp.stack(
             [_sum.row, _sum.col],
             axis=1

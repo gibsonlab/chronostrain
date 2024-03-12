@@ -1,16 +1,17 @@
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 from pathlib import Path
 import json
 import click
+import os
 
 import pandas as pd
 from Bio import SeqIO
 
 from chronostrain import create_logger
-from chronostrain.util.external import call_command
 from chronostrain.util.io import read_seq_file
 
 logger = create_logger("chronostrain.download_ncbi")
+
 
 class NCBIRecord:
     def __init__(self, accession: str, genus: str, species: str, strain_name: str):
@@ -20,43 +21,60 @@ class NCBIRecord:
         self.strain_name = strain_name
 
 
-def fetch_catalog(taxids: List[str], save_dir: Path, level: str) -> List[NCBIRecord]:
-    records = []
-    for taxid in taxids:
-        print(f"Handling taxid {taxid}")
+class InvalidQueryError(BaseException):
+    pass
 
-        taxid_file_safe = taxid.replace(' ', '_')
+
+def fetch_catalog(taxids: List[str], save_dir: Path, level: str, reference_only: bool, assembly_source: str) -> Dict[str, List[NCBIRecord]]:
+    logger.info(f"Got reference only = {reference_only}. Fetching reference genomes only.")
+    records = {}
+    for taxid in taxids:
+        logger.info(f"Handling taxid {taxid}")
+
+        taxid_file_safe = taxid.replace(' ', '_').replace('[', '').replace(']', '')
         save_path = save_dir / f'catalog.{taxid_file_safe}.json'
-        records += fetch_catalog_single_taxa(
-            taxid,
-            save_path,
-            level=level
-        )
+        try:
+            records[taxid] = fetch_catalog_single_taxa(
+                taxid,
+                save_path,
+                level=level,
+                assembly_source=assembly_source,
+                reference_only=reference_only
+            )
+        except InvalidQueryError:
+            logger.error(f"[*] Something went wrong with TAXID {taxid} query.")
+            logger.info(f"Creating error file for {taxid}.")
+            (save_path.parent / f"{taxid}.ERROR").touch()
     return records
 
 
-def fetch_catalog_single_taxa(taxid: str, save_path: Path, level: str = 'chromosome') -> List[NCBIRecord]:
-    call_command(
-        "datasets",
-        [
-            "summary", "genome", "taxon",
-            f"\"{taxid}\"",
-            '--assembly-version', 'latest',
-            "--assembly-level", level,
-            '--exclude-atypical'
-        ],
-        stdout=save_path,
-        silent=False
-    )
+def fetch_catalog_single_taxa(taxid: str, save_path: Path, level: str, assembly_source: str, reference_only: bool) -> List[NCBIRecord]:
+    if reference_only:
+        cmd = f"datasets summary genome taxon \"{taxid}\" --assembly-source {assembly_source} "\
+              f"--assembly-version latest --assembly-level {level} --exclude-atypical "\
+              f"--reference"\
+              f"> {save_path}"
+    else:
+        cmd = f"datasets summary genome taxon \"{taxid}\" --assembly-source {assembly_source} "\
+              f"--assembly-version latest --assembly-level {level} --exclude-atypical "\
+              f"> {save_path}"
+    logger.info("[EXECUTE] {}".format(cmd))
+    os.system(cmd)
 
+    if save_path.stat().st_size == 0:
+        raise InvalidQueryError()
     with open(save_path, "rt") as f:
         catalog = json.load(f)
+
+    n_entries = catalog['total_count']
+    if n_entries == 0:
+        return []
 
     seen_accessions = set()
     records = []
 
     try:
-        logger.info("Found {} raw records.".format(catalog['total_count']))
+        logger.info("Found {} raw records.".format(n_entries))
         for entry in catalog['reports']:
             acc = entry['accession']
             if acc in seen_accessions:  # sometimes there are duplicates
@@ -65,11 +83,16 @@ def fetch_catalog_single_taxa(taxid: str, save_path: Path, level: str = 'chromos
                 continue
 
             org_name = entry['organism']['organism_name']
-            genus, species = org_name.split()[:2]
+            name_tokens = org_name.split()[:2]
+            genus = name_tokens[0]
+            species = ' '.join(name_tokens[1:])
+
             if genus.startswith("["):
                 genus = genus[1:]
             if genus.endswith("]"):
                 genus = genus[:-1]
+            if species.startswith("sp."):
+                print(f"[**] Found special taxon {genus} {species}")
 
             if 'infraspecific_names' in entry['organism']:
                 infra_name = entry['organism']['infraspecific_names']
@@ -100,25 +123,21 @@ def fetch_catalog_single_taxa(taxid: str, save_path: Path, level: str = 'chromos
     return records
 
 
-def download_assemblies(records: List[NCBIRecord], out_dir: Path):
+def download_assemblies(record_list: List[NCBIRecord], out_dir: Path):
     # create input file
     logger.info(f"Downloading assemblies to directory {out_dir}")
     input_file = out_dir / "__ncbi_input.txt"
     with open(input_file, "w") as f:
-        for record in records:
+        for record in record_list:
             print(record.accession, file=f)
 
     out_zip = out_dir / 'ncbi_dataset.zip'
-    call_command(
-        "datasets",
-        [
-            "download", "genome", "accession",
-            '--inputfile', input_file,
-            '--include', 'genome,gff3',
-            '--assembly-version', 'latest',
-            '--filename', out_zip
-        ]
+    cmd = (
+        f'datasets download genome accession --inputfile {input_file} '
+        f'--include genome,gff3 --assembly-version latest --filename {out_zip}'
     )
+    print("[EXECUTE]", cmd)
+    os.system(cmd)
 
     # unzip
     import zipfile
@@ -190,14 +209,35 @@ def extract_chromosome(seq_dir: Path) -> Tuple[str, Path, Path, int]:
 )
 @click.option(
     '--level', 'level',
-    type=str, required=False, default='chromosome'
+    type=str, required=False, default='complete,chromosome'
 )
-def main(taxids: str, target_dir: Path, output_index_path: Path, level: str):
-    records = fetch_catalog(taxids.split(","), save_dir=target_dir, level=level)
-    logger.info("Found {} unique strain records.".format(len(records)))
-    download_assemblies(records, target_dir)
-    index_df = create_catalog(records, target_dir)
-    index_df.to_csv(output_index_path, sep='\t', index=False)
+@click.option(
+    '--assembly-source', 'assembly_source',
+    type=str, required=False, default='all'
+)
+@click.option(
+    '--reference-only', 'reference_only',
+    type=bool, is_flag=True, default=False,
+)
+def main(taxids: str, target_dir: Path, output_index_path: Path, level: str, reference_only: bool, assembly_source: str):
+    records = fetch_catalog(taxids.split(","), save_dir=target_dir, level=level, reference_only=reference_only, assembly_source=assembly_source)
+
+    indices = []
+    for tax_id, record_list in records.items():
+        if len(record_list) == 0:
+            logger.info("Found no records for {}; skipping.".format(tax_id))
+            continue
+        else:
+            logger.info("[{}] Found {} unique strain records.".format(tax_id, len(record_list)))
+        download_assemblies(record_list, target_dir)
+        indices.append(create_catalog(record_list, target_dir))
+
+    if len(indices) > 0:
+        index_df = pd.concat(indices, ignore_index=True)
+        index_df.to_csv(output_index_path, sep='\t', index=False)
+    else:
+        logger.info("Outputting empty dataframe.")
+        output_index_path.touch()
 
 
 if __name__ == "__main__":
