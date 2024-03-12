@@ -2,6 +2,7 @@ from typing import Set
 
 from Bio import MissingPythonDependencyError
 from Bio.Nexus.Trees import Tree
+import matplotlib.patches
 
         
 def pruned_subtree(phylo_tree: Tree, leaves: Set[str]) -> Tree:
@@ -24,6 +25,7 @@ def phylo_draw_custom(
     axes=None,
     branch_labels=None,
     label_colors=None,
+    internal_node_markers=None,
     *args,
     **kwargs,
 ):
@@ -263,6 +265,14 @@ def phylo_draw_custom(
                 verticalalignment="center",
                 color=get_label_color(clade),
             )
+
+        # Add marker for internal node (NEW!)
+        if internal_node_markers is not None:
+            if clade in internal_node_markers:
+                node_styles = internal_node_markers[clade]
+                for _st in node_styles:
+                    axes.plot(x_here, y_here, zorder=3, **_st)
+            
         # Add label above the branch (optional)
         conf_label = format_branch_label(clade)
         if conf_label:

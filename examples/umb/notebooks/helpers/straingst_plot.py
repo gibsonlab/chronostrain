@@ -139,6 +139,9 @@ def straingst_dataframe(umb_entries: List[StrainGSTUMBEntry], phylogroup_path: P
                         print(f"UMB entry `{umb_entry.sample_name}` contains non-Esch/Shig name `{strain_tag}`.")
                         continue
                     accession, strain_name, species_name = fetch_strain_id_from_straingst(strain_tag, index_df)
+                    if species_name != 'coli':
+                        print(f"UMB entry `{umb_entry.sample_name}` reported species `{species_name}` (accession={accession}). Skipping.")
+                        continue
                 except ValueError as e:
                     raise ValueError(f"Problem while loading {umb_entry.sample_name}")
                 phylogroup = phylogroup_mappings.get(accession, "N/A")
@@ -168,6 +171,7 @@ def plot_straingst_abundances(
         dates_df: pd.DataFrame,
         clade_colors: Dict[str, np.ndarray],
         ax: Axes,
+        strain_linestyles: Dict = {},
         mode: str = 'stool',
         yscale: str = 'log'
 ):
@@ -195,7 +199,13 @@ def plot_straingst_abundances(
         strain_group = strain_group[['SampleName', 'RelAbund']].merge(
             dates_df, on='SampleName', how='right'
         ).fillna(1e-50).sort_values('T')
-        ax.plot(strain_group['T'], strain_group['RelAbund'], marker='.', linewidth=2, color=color)
+
+        
+        if strain in strain_linestyles:
+            _style = strain_linestyles[strain]
+            ax.plot(strain_group['T'], strain_group['RelAbund'], marker='.', linewidth=2, color=color, **_style)
+        else:
+            ax.plot(strain_group['T'], strain_group['RelAbund'], marker='.', linewidth=2, color=color)
     ax.set_yscale(yscale)
 
 
@@ -205,6 +215,7 @@ def plot_tree(
         ax: Axes,
         tree: Tree,
 ) -> Tuple[Dict, Dict]:
+    ax.axis('off')
     strain_id_to_names = {}
     strain_id_to_colors = {}
     for _, row in strain_df.iterrows():
@@ -218,6 +229,10 @@ def plot_tree(
     strain_leaves = set(strain_id_to_names.keys())
     if len(strain_leaves) == 0:
         return {}, {}
+    elif len(strain_leaves) == 1:
+        singleton_name = next(iter(strain_leaves))
+        node = next(iter(tree.find_clades(terminal=True, target=singleton_name)))
+        return {node: 0}, {node: 0}
 
     subtree = pruned_subtree(tree, strain_leaves)
 
@@ -244,7 +259,6 @@ def plot_tree(
         branch_labels=lambda c: '{:.03f}'.format(c.branch_length) if (
                     c.branch_length is not None and c.branch_length > 0.003) else ''
     )
-    ax.axis('off')
     return x_posns, y_posns
 
 

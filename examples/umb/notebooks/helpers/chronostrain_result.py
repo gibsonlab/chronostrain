@@ -16,6 +16,8 @@ from Bio.Nexus.Trees import Tree
 from Bio.Phylo.Newick import Clade
 from .tree import pruned_subtree, phylo_draw_custom
 
+from collections import defaultdict
+
 
 def parse_strains(db: StrainDatabase, strain_txt: Path):
     with open(strain_txt, 'rt') as f:
@@ -29,13 +31,12 @@ def total_marker_len(strain: Strain) -> int:
     return sum(len(m) for m in strain.markers)
 
 
-def posterior_with_bf_threshold(
+def posterior_with_posterior_threshold(
         posterior: GaussianWithGumbelsPosterior,
         inference_strains: List[Strain],
         output_strains: List[Strain],
         adhoc_clustering: Dict[str, Strain],
-        bf_threshold: float, 
-        prior_p: float = 0.001
+        posterior_threshold: float
 ) -> Tuple[Dict[str, float], np.ndarray]:
     # Raw random samples.
     n_samples = 5000
@@ -51,12 +52,12 @@ def posterior_with_bf_threshold(
     # Calculate bayes factors.
     posterior_inclusion_p = scipy.special.expit(-posterior.get_parameters()['gumbel_diff'])
     # print(posterior_inclusion_p)
-    posterior_inclusion_bf = (posterior_inclusion_p / (1 - posterior_inclusion_p)) * ((1 - prior_p) / prior_p)
+    # posterior_inclusion_bf = (posterior_inclusion_p / (1 - posterior_inclusion_p)) * ((1 - prior_p) / prior_p)
 
     # Calculate abundance estimates using BF thresholds.
     indicators = np.full(n_inference_strains, fill_value=False, dtype=bool)
-    indicators[posterior_inclusion_bf > bf_threshold] = True
-    print("{} of {} inference strains passed BF Threshold > {}".format(np.sum(indicators), n_inference_strains, bf_threshold))
+    indicators[posterior_inclusion_p > posterior_threshold] = True
+    print("{} of {} inference strains passed Posterior p(Z_s|Data) > {}".format(np.sum(indicators), n_inference_strains, posterior_threshold))
     
     log_indicators = np.empty(n_inference_strains, dtype=float)
     log_indicators[indicators] = 0.0
@@ -102,7 +103,7 @@ class Taxon:
 
 
 class ChronostrainResult(object):
-    def __init__(self, name: str, db: StrainDatabase, posterior_class, out_dir: Path, input_path: Path, target_bayes_factor: float = 100.0):
+    def __init__(self, name: str, db: StrainDatabase, posterior_class, out_dir: Path, input_path: Path, posterior_threshold: float = 0.95):
         self.name = name
         self.adhoc_clusters: Dict[str, Strain] = parse_adhoc_clusters(db, out_dir / "adhoc_cluster.txt")
         self.inference_strains: List[Strain] = parse_strains(db, out_dir / 'strains.txt')
@@ -121,10 +122,10 @@ class ChronostrainResult(object):
             cfg.engine_cfg.dtype
         )
         posterior.load(Path(out_dir / "posterior.{}.npz".format(cfg.engine_cfg.dtype)))
-        self.posterior_p, self.posterior_samples = posterior_with_bf_threshold(
-            posterior, self.inference_strains, self.display_strains, self.adhoc_clusters, target_bayes_factor
+        self.posterior_p, self.posterior_samples = posterior_with_posterior_threshold(
+            posterior, self.inference_strains, self.display_strains, self.adhoc_clusters, posterior_threshold
         )
-        self.target_bayes_factor = target_bayes_factor
+        self.posterior_threshold = posterior_threshold
         self.timeseries_df = self._timeseries_dataframe()
         self.strain_df = self._strain_dataframe()
         
@@ -216,11 +217,13 @@ class ChronostrainResult(object):
 class ChronostrainRenderer:
     def __init__(
             self, 
+            db: StrainDatabase,
             abund_lb: float, 
             target_taxon: Taxon, 
             strain_palette: Dict[str, np.ndarray],
             stool_result: ChronostrainResult,
             urine_result: ChronostrainResult,
+            cluster_path: Path,
             plate_results: List[Tuple[float, ChronostrainResult]],
             abx_df: pd.DataFrame,
             abx_palette: Dict[str, np.ndarray],
@@ -229,6 +232,7 @@ class ChronostrainRenderer:
             sample_df: pd.DataFrame
     ):
         self.abund_lb = abund_lb
+        self.db = db
         self.target_taxon = target_taxon
         self.strain_palette = strain_palette
         self.stool_result = stool_result
@@ -239,6 +243,20 @@ class ChronostrainRenderer:
         self.abx_palette = abx_palette
         self.uti_df = uti_df
         self.sample_df = sample_df
+        self.clustering = {}
+        with open(cluster_path, "rt") as f:
+            for line in f:
+                if line.startswith("#"):
+                    continue
+                tokens = line.strip().split('\t')
+                if len(tokens) > 1:
+                    s_rep = tokens[0]
+                    s_members = tokens[1].split(",")
+                    self.clustering[s_rep] = s_members
+                else:
+                    s_rep = tokens[0]
+                    s_members = []
+                    self.clustering[s_rep] = s_members
 
         t_mins = [np.min(self.stool_result.time_points)]
         if self.urine_result is not None:
@@ -269,6 +287,7 @@ class ChronostrainRenderer:
     def plot_overall_relabund(
             self,
             ax: Axes,
+            strain_linestyles: Dict = {},
             mode: str = 'stool',
             yscale: str = 'log'
     ) -> Tuple[float, float]:
@@ -287,18 +306,18 @@ class ChronostrainRenderer:
         ymin = 1.0  # max possible value
         ymax = 0.0  # min possible value
         for s_idx in pd.unique(df['StrainIdx']):
-            # section = res.timeseries_df.loc[res.timeseries_df['StrainIdx'] == s_idx].sort_values('T')
-            # color = self.get_color(res.display_strains[s_idx].id)
-            # ax.plot(res.time_points, section['OverallRelAbundMedian'], marker='.', linewidth=2, color=color)
-            # ax.fill_between(res.time_points, section['OverallRelAbundLower'], section['OverallRelAbundUpper'], color=color, alpha=0.3)
-            # ymin = min(ymin, np.min(section['OverallRelAbundMedian']))
-            # ymax = max(ymax, np.max(section['OverallRelAbundMedian']))
+            s_id = res.display_strains[s_idx].id
+            
             section = overall_relabund[:, :, s_idx]
-            color = self.get_color(res.display_strains[s_idx].id)
+            color = self.get_color(s_id)
             upper = np.quantile(section, axis=-1, q=0.975)
             lower = np.quantile(section, axis=-1, q=0.025)
             median = np.quantile(section, axis=-1, q=0.5)
-            ax.plot(res.time_points, median, marker='.', linewidth=2, color=color)
+            if s_id in strain_linestyles:
+                _style = strain_linestyles[s_id]
+                ax.plot(res.time_points, median, marker='.', linewidth=2, color=color, **_style)
+            else:
+                ax.plot(res.time_points, median, marker='.', linewidth=2, color=color)
             ax.fill_between(res.time_points, lower, upper, color=color, alpha=0.3)
             ymin = min(ymin, np.min(median))
             ymax = max(ymax, np.max(median))
@@ -410,7 +429,14 @@ class ChronostrainRenderer:
                 return "black"
         def label_fn(s):
             if s.is_terminal() and len(s.name) != 0:
-                return "{}".format(strain_id_to_names[s.name])
+                return "{}".format(
+                    strain_id_to_names[s.name]
+                )
+                # return "{} [{}]".format(
+                #     strain_id_to_names[s.name], 
+                #     ' | '.join(self.db.get_strain(x).name for x in self.clustering[s.name])
+                #     # len(self.clustering[s.name])
+                # )
             else:
                 return ""
             
@@ -426,26 +452,38 @@ class ChronostrainRenderer:
         )
         return x_posns, y_posns
     
-    def plot_abx(self, ax: Axes, draw_labels: bool = True):
+    def plot_abx(self, ax: Axes, draw_labels: bool = True, text_width: float = 10):
+        abx_dict = defaultdict(list)
         for _, row in self.abx_df.iterrows():
             d = row['experiment_day_ended']
             if d < self.min_t:
                 continue
-                
-            abx_class = row['abx_class']
-            abx_label = self.abx_label.get(abx_class, '?')
-                
-            color = self.abx_palette.get(abx_class, 'gray')
-            ax.axvline(x=d, color=color, linestyle='--', zorder=1)
+            abx_dict[d].append(row['abx_class'])
+            
+        for d, abx_classes in abx_dict.items():
+            color = self.abx_palette.get(abx_classes[-1], 'gray')
             if draw_labels:
-                ax.text(
-                    x=d, 
-                    y=1.01, 
-                    s=abx_label, 
-                    color=color,
-                    transform=transforms.blended_transform_factory(ax.transData, ax.transAxes), 
-                    horizontalalignment='center', verticalalignment='bottom'
-                )
+                # Display coordinates
+                display_x, _ = ax.transData.transform((d, 0))
+                _, display_y = ax.transAxes.transform((0, 1.0))
+                
+                offset_list = np.arange(0, len(abx_classes), dtype=float)
+                offset_list = offset_list - offset_list.mean()
+                dx = text_width  # width of each ABX symbol
+                x_coords = (offset_list * dx) + display_x
+                                    
+                for _c, _c_disp_x in zip(abx_classes, x_coords):
+                    ax.axvline(x=d, color=color, linestyle='--', zorder=1, alpha=0.5)
+                    _x, _y = ax.transAxes.inverted().transform((_c_disp_x, display_y))
+                    lbl_color = self.abx_palette.get(_c, 'gray')
+                    ax.text(
+                        x=_x, y=_y,
+                        s=self.abx_label.get(_c, '?'), 
+                        color=lbl_color,
+                        transform=ax.transAxes, 
+                        horizontalalignment='center', verticalalignment='bottom',
+                        size=text_width
+                    )
                 
     def plot_infections(self, ax: Axes, color='black'):
         for _, row in self.uti_df.iterrows():
