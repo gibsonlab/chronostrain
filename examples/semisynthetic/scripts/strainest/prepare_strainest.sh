@@ -25,7 +25,7 @@ echo "[*] Extracting representatives for SNV profiling."
 mkdir -p ${SNV_PROFILE_DIR}
 python3 strainest/snv_profile_representatives.py \
   -i "${REFSEQ_INDEX}" \
-  -p "${DATA_DIR}/poppunk/threshold/threshold_clusters.csv" \
+  -p "/mnt/e/infant_nt/database/mgems/ref_dir/Ecoli/poppunk/threshold/threshold_clusters.csv" \
   -w "${STRAINEST_DB_DIR}/mash" \
   -o "${SNV_PROFILE_DIR}/cluster_reps.txt" \
   -t 12

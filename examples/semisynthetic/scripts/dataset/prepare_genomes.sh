@@ -40,9 +40,9 @@ create_mutant()
 # ======================== Pick random genomes to simulate reads from.
 python dataset/pick_random_genomes.py \
   -i ${REFSEQ_INDEX} \
-  -p /mnt/e/semisynthetic_data/poppunk/threshold/threshold_clusters.csv \
+  -p /mnt/e/infant_nt/database/mgems/ref_dir/Ecoli/poppunk/threshold/threshold_clusters.csv \
   -c ${CHRONOSTRAIN_CLUSTER_FILE} \
-  -ph /mnt/e/chronostrain/phylogeny/ClermonTyping/umb_phylogroups_complete.txt \
+  -ph /mnt/e/ecoli_db/phylogeny/ClermonTyping/umb_phylogroups_complete.txt \
   -n 6 \
   -s "${base_seed}0" \
   -a "${RELATIVE_GROUND_TRUTH}" \
@@ -53,8 +53,6 @@ python dataset/pick_random_genomes.py \
 noise_rate=$(echo $mutation_ratio $NOISE_GENOME_MUTATION_RATE | awk '{printf "%4.3f\n",$1*$2}')
 echo "[*] Using mutation rate = ${noise_rate}"
 
-#noise_rate=${NOISE_GENOME_MUTATION_RATE}
-#db_json_replicate=${replicate_dir}/databases/chronostrain/ecoli.json
 seed=0
 while read line; do
   if [[ ${line:0:2} == "##" ]]; then continue; fi
