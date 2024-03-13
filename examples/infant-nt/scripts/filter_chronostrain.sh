@@ -7,14 +7,13 @@ require_variable 'participant' $participant
 require_file ${CHRONOSTRAIN_DB_JSON}
 
 # =========== Run chronostrain. ==================
-echo "[*] Running filter on participant ${participant}."
-
 run_dir=${DATA_DIR}/${participant}/chronostrain
 export CHRONOSTRAIN_LOG_FILEPATH="${run_dir}/filter.log"
 export CHRONOSTRAIN_CACHE_DIR="${DATA_DIR}/.cache"
 cd ${BASE_DIR}
 
 
+echo "[*] Creating read input file."
 append_fastq()
 {
 	gzip_fq_path=$1
@@ -34,20 +33,20 @@ append_fastq()
 	fi
 }
 
-
+echo "[**] Generating read CSV file ${run_dir}/reads.csv"
+mkdir -p ${run_dir}
 > ${run_dir}/reads.csv
-{
-  read
-  while IFS=$'\t' read -r p_name time_point sample_id fq1_rel fq2_rel
-  do
-    fq1=${DATA_DIR}/${participant}/reads/${sample_id}_1.fastq.gz
-    fq2=${DATA_DIR}/${participant}/reads/${sample_id}_2.fastq.gz
-    append_fastq "${fq1}" "$time_point" "paired_1" "fastq" "${sample_id}_PAIRED"
-    append_fastq "${fq2}" "$time_point" "paired_2" "fastq" "${sample_id}_PAIRED"
-  done
-} < ${DATA_DIR}/${participant}/dataset.tsv
+
+while IFS=$'\t' read -r p_name time_point sample_id fq1_rel fq2_rel
+do
+  fq1=${DATA_DIR}/${participant}/reads/${sample_id}_1.fastq.gz
+  fq2=${DATA_DIR}/${participant}/reads/${sample_id}_2.fastq.gz
+  append_fastq "${fq1}" "$time_point" "paired_1" "fastq" "${sample_id}_PAIRED"
+  append_fastq "${fq2}" "$time_point" "paired_2" "fastq" "${sample_id}_PAIRED"
+done < ${DATA_DIR}/${participant}/dataset.tsv
 
 
+echo "[*] Running filter on participant ${participant}."
 env JAX_PLATFORM_NAME=cpu chronostrain filter \
   -r ${run_dir}/reads.csv \
   -o ${run_dir}/filtered \
