@@ -73,8 +73,10 @@ aln_and_compress()
     echo "# of reads in pseudoalignments don't match (${n_reads1} vs ${n_reads2})."
     exit 1
   fi
-  alignment-writer -n $n_colors -r $n_reads1 -f $aln_raw1 > $aln_out1
-  alignment-writer -n $n_colors -r $n_reads2 -f $aln_raw2 > $aln_out2
+  mv ${aln_raw1} ${aln_out1}
+  mv ${aln_raw2} ${aln_out2}
+#  alignment-writer -n $n_colors -r $n_reads1 -f $aln_raw1 > $aln_out1
+#  alignment-writer -n $n_colors -r $n_reads2 -f $aln_raw2 > $aln_out2
 }
 
 # ============================================ species-level analysis\
@@ -158,7 +160,7 @@ demix_check --mode_check \
   --binned_reads_dir ${strain_outdir}/binned_reads \
   --msweep_abun ${strain_outdir}/msweep_abundances.txt \
   --out_dir ${strain_outdir}/demix_check \
-  --ref ${EFAECALIS_REF_INDEX}
+  --ref ${EFAECALIS_REF_INDEX}/demix_check_index
 
 cd ${workdir}
 touch "${breadcrumb}"
