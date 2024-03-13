@@ -47,7 +47,7 @@ aln_and_compress()
 	fq2=$2
 	aln_out1=$3
 	aln_out2=$4
-	refdir=$5
+	ref_idx=$5
 	n_colors=$6
 	tmp_dir=$7
 
@@ -63,7 +63,7 @@ aln_and_compress()
   echo "${aln_raw1}" > "$output_file"
   echo "${aln_raw2}" >> "$output_file"
 	themisto pseudoalign \
-    --index-prefix ${refdir}/ref_idx/ref_idx --rc --temp-dir ${tmp_dir} --n-threads ${N_CORES} --sort-output-lines \
+    --index-prefix ${ref_idx} --rc --temp-dir ${tmp_dir} --n-threads ${N_CORES} --sort-output-lines \
     --query-file-list "$input_file" \
     --out-file-list "$output_file" \
 
