@@ -29,8 +29,10 @@ fi
 
 echo "[*] Running mGEMS hierarchical pipeline for ${participant}, sample ${sample_id}"
 mkdir -p "${output_dir}"
-fq_1=${participant_dir}/reads/${sample_id}_kneaddata/${sample_id}_paired_1.fastq.gz
-fq_2=${participant_dir}/reads/${sample_id}_kneaddata/${sample_id}_paired_2.fastq.gz
+#fq_1=${participant_dir}/reads/${sample_id}_kneaddata/${sample_id}_paired_1.fastq.gz
+#fq_2=${participant_dir}/reads/${sample_id}_kneaddata/${sample_id}_paired_2.fastq.gz
+fq_1=${participant_dir}/reads/${sample_id}_1.fastq.gz
+fq_2=${participant_dir}/reads/${sample_id}_2.fastq.gz
 if ! [ -f ${fq_1} ]; then
   echo "Forward read not found (Expected: ${fq_1})"
   exit 1
