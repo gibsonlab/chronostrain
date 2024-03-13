@@ -29,6 +29,8 @@ logger = create_logger(__name__)
 class TimeSliceLikelihoods:
     lls: FragmentReadErrorLikelihood
     paired_lls: FragmentReadErrorLikelihood
+    fragments: FragmentSpace
+    fragment_pairs: FragmentPairSpace
 
     def print_diagnostic(self):
         _, counts_per_read = jnp.unique(self.lls.matrix.indices[:, 1], return_counts=True)
@@ -56,25 +58,25 @@ class TimeSliceLikelihoods:
         out_dir.mkdir(exist_ok=True, parents=True)
         self.lls.save(out_dir / 'lls.npz')
         self.paired_lls.save(out_dir / 'lls_paired.npz')
+        self.fragments.save(out_dir / 'inference_fragments.pkl')
+        self.fragment_pairs.save(out_dir / 'inference_fragment_pairs.pkl')
 
     @staticmethod
     def load(base_dir: Path):
         lls = FragmentReadErrorLikelihood.load(base_dir / 'lls.npz')
         paired_lls = FragmentReadErrorLikelihood.load(base_dir / 'lls_paired.npz')
+        _frags = FragmentSpace.load(base_dir / 'inference_fragments.pkl')
+        _frag_pairs = FragmentPairSpace.load(base_dir / 'inference_fragment_pairs.pkl')
         return TimeSliceLikelihoods(lls, paired_lls)
 
 
 @dataclass
 class TimeSeriesLikelihoods:
     slices: List[TimeSliceLikelihoods]
-    fragments: FragmentSpace
-    fragment_pairs: FragmentPairSpace
 
     def save(self, out_dir: Path):
         for t_idx, t_lls in enumerate(self.slices):
             t_lls.save(out_dir / 'log_likelihoods' / str(t_idx))
-        self.fragments.save(out_dir / 'fragments' / 'inference_fragments.pkl')
-        self.fragment_pairs.save(out_dir / 'fragments' / 'inference_fragment_pairs.pkl')
 
     @staticmethod
     def load(num_slices: int, base_dir: Path) -> 'TimeSeriesLikelihoods':
@@ -82,9 +84,7 @@ class TimeSeriesLikelihoods:
             TimeSliceLikelihoods.load(base_dir / 'log_likelihoods' / str(k))
             for k in range(num_slices)
         ]
-        _frags = FragmentSpace.load(base_dir / 'fragments' / 'inference_fragments.pkl')
-        _frag_pairs = FragmentPairSpace.load(base_dir / 'fragments' / 'inference_fragment_pairs.pkl')
-        return TimeSeriesLikelihoods(_slices, _frags, _frag_pairs)
+        return TimeSeriesLikelihoods(_slices)
 
 
 class ReadFragmentMappings:
@@ -113,10 +113,12 @@ class ReadFragmentMappings:
         )
         self.model_values: TimeSeriesLikelihoods = self.compute_all_cached()
 
-        logger.debug("Alignments resulted in {} fragments, {} fragment pairs.".format(
-            len(self.model_values.fragments),
-            len(self.model_values.fragment_pairs)
-        ))
+        for slice_idx, data_slice in enumerate(self.model_values.slices):
+            logger.debug("[TimeIdx={}] Alignments resulted in {} fragments, {} fragment pairs.".format(
+                slice_idx,
+                len(data_slice.fragments),
+                len(data_slice.fragment_pairs)
+            ))
 
     def compute_all_cached(self) -> TimeSeriesLikelihoods:
         def _save(breadcrumb_path: Path, res: TimeSeriesLikelihoods):
@@ -139,19 +141,19 @@ class ReadFragmentMappings:
 
     def compute_all(self) -> TimeSeriesLikelihoods:
         all_matrices = []
-        fragments = FragmentSpace()
-        fragment_pairs = FragmentPairSpace()
 
-        results = []
-        # Do the loop once to populate the entire fragment/fragment pair index.
-        # Before this first loop is done, len(fragments) won't return the correct value.
         for t_idx, reads_t in enumerate(self.reads):
-            logger.debug("Processing alignments for timepoint t={} ({} of {})".format(
-                reads_t.time_point, t_idx + 1, len(self.reads))
-            )
-            results.append(self.process_time_slice(reads_t, fragments, fragment_pairs))
+            fragments = FragmentSpace()
+            fragment_pairs = FragmentPairSpace()
+            (
+                ll_values,
+                paired_ll_values,
+                indices,
+                paired_indices,
+                n_reads,
+                n_read_pairs
+            ) = self.process_time_slice(reads_t, fragments, fragment_pairs)
 
-        for t_idx, (ll_values, paired_ll_values, indices, paired_indices, n_reads, n_read_pairs) in enumerate(results):
             logger.debug(f"Instantiating matrix for t_idx = {t_idx}")
             lls = FragmentReadErrorLikelihood(
                 jsparse.BCOO((ll_values, indices), shape=(len(fragments), n_reads))
@@ -160,10 +162,10 @@ class ReadFragmentMappings:
             paired_lls = FragmentReadErrorLikelihood(
                 jsparse.BCOO((paired_ll_values, paired_indices), shape=(len(fragment_pairs), n_read_pairs))
             )
-            result_t = TimeSliceLikelihoods(lls, paired_lls)
+            result_t = TimeSliceLikelihoods(lls, paired_lls, fragments, fragment_pairs)
             all_matrices.append(result_t)
 
-        return TimeSeriesLikelihoods(all_matrices, fragments, fragment_pairs)
+        return TimeSeriesLikelihoods(all_matrices)
 
     def process_time_slice(
             self,
@@ -172,6 +174,8 @@ class ReadFragmentMappings:
             fragment_pairs: FragmentPairSpace
     ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray, int, int]:
         """
+        fragments, fragment_pairs are expected (and are treated as) mutable containers.
+
         Parse all the alignments, of all sources in the time slice.
         Includes a special case if the source specifies mate pairs; see the implementation of
         handle_paired_reads() method.

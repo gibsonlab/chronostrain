@@ -44,6 +44,7 @@ class FragmentFrequencyComputer(object):
             cache: ReadStrainCollectionCache,
             fragments: FragmentSpace,
             fragment_pairs: FragmentPairSpace,
+            time_idx: int,
             dtype='bfloat16',
             n_threads: int = 1
     ):
@@ -51,10 +52,15 @@ class FragmentFrequencyComputer(object):
         self.frag_nbinom_p = frag_nbinom_p
         self.fragments = fragments
         self.fragment_pairs = fragment_pairs
+        self.time_idx = time_idx
         self.cache = cache
         self.dtype = dtype
         self.n_threads = n_threads
         self.exact_match_df: Union[None, pd.DataFrame] = None
+
+    @property
+    def cache_subdir(self) -> Path:
+        return Path('fragment_frequencies') / f'time_slice_{self.time_idx}'
 
     def get_frequencies(
             self,
@@ -69,14 +75,14 @@ class FragmentFrequencyComputer(object):
 
         # ====== Run the cached computation.
         freqs = self.cache.call(
-            relative_filepath=Path('fragment_frequencies') / 'frag_freqs.{}.npz'.format(self.dtype),
+            relative_filepath=self.cache_subdir / 'frag_freqs.{}.npz'.format(self.dtype),
             fn=self.compute_frequencies,
             save=lambda p, x: x.save(p),
             load=FragmentFrequencySparse.load
         )
 
         pair_freqs = self.cache.call(
-            relative_filepath=Path('fragment_frequencies') / 'frag_pair_freqs.{}.npz'.format(self.dtype),
+            relative_filepath=self.cache_subdir / 'frag_pair_freqs.{}.npz'.format(self.dtype),
             fn=lambda: self.compute_paired_frequencies(freqs),
             save=lambda p, x: x.save(p),
             load=FragmentFrequencySparse.load
@@ -94,7 +100,7 @@ class FragmentFrequencyComputer(object):
                 df.to_feather(p)
 
             self.exact_match_df = self.cache.call(
-                relative_filepath='fragment_frequencies/matches_all.feather',
+                relative_filepath=self.cache_subdir / 'matches_all.feather',
                 fn=lambda: self.compute_exact_matches(
                     fastmap_out_dir,
                     max_num_hits=10 * len(self.cache.strains)

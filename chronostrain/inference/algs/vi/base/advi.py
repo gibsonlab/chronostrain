@@ -248,6 +248,7 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
             dtype=cfg.engine_cfg.dtype
         ).model_values
 
+        # Print some statistics.
         avg_marker_len = int(cnp.median([
             len(m)
             for s in self.db.all_strains()
@@ -268,6 +269,7 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
             cnp.median(read_lens)
         ))
 
+        # Fit negative binomial distribution.
         frag_len_negbin_n, frag_len_negbin_p = negbin_fit_frags(avg_marker_len, read_lens, max_padding_ratio=0.5)
         logger.debug("Negative binomial fit: n={}, p={} (mean={}, std={})".format(
             frag_len_negbin_n,
@@ -276,21 +278,23 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
             cnp.sqrt(frag_len_negbin_n * (1 - frag_len_negbin_p)) / frag_len_negbin_p
         ))
 
-        frag_freqs, frag_pair_freqs = FragmentFrequencyComputer(
-            frag_nbinom_n=frag_len_negbin_n,
-            frag_nbinom_p=frag_len_negbin_p,
-            cache=cache,
-            fragments=read_likelihoods.fragments,
-            fragment_pairs=read_likelihoods.fragment_pairs,
-            dtype=cfg.engine_cfg.dtype,
-            n_threads=cfg.model_cfg.num_cores
-        ).get_frequencies()
-
         target_dir.mkdir(exist_ok=True, parents=True)
         for t_idx in range(self.gaussian_prior.num_times):
             total_sz_t = 0
             total_pairs_t = 0
             read_likelihoods_t = read_likelihoods.slices[t_idx]
+
+            # Compute fragment frequencies.
+            frag_freqs, frag_pair_freqs = FragmentFrequencyComputer(
+                frag_nbinom_n=frag_len_negbin_n,
+                frag_nbinom_p=frag_len_negbin_p,
+                cache=cache,
+                fragments=read_likelihoods_t.fragments,
+                fragment_pairs=read_likelihoods_t.fragment_pairs,
+                time_idx=t_idx,
+                dtype=cfg.engine_cfg.dtype,
+                n_threads=cfg.model_cfg.num_cores
+            ).get_frequencies()
 
             # ========================= singular reads
             for batch_idx, data_t_batch in enumerate(
