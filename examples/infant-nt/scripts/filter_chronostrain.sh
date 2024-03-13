@@ -39,6 +39,7 @@ mkdir -p ${run_dir}
 
 while IFS=$'\t' read -r p_name time_point sample_id fq1_rel fq2_rel
 do
+  if [ "${sample_id}" == "SampleId" ]; then continue; fi
   fq1=${DATA_DIR}/${participant}/reads/${sample_id}_1.fastq.gz
   fq2=${DATA_DIR}/${participant}/reads/${sample_id}_2.fastq.gz
   append_fastq "${fq1}" "$time_point" "paired_1" "fastq" "${sample_id}_PAIRED"
