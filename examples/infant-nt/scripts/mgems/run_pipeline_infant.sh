@@ -23,6 +23,5 @@ while IFS=$'\t' read part_id time_point sample_id read1_raw_fq read2_raw_fq
 do
     if [ "${part_id}" == "Participant" ]; then continue; fi
     bash mgems/run_pipeline_explicit.sh "${part_id}" "${sample_id}"
-#    bash mgems/run_pipeline_single.sh "${part_id}" "${sample_id}"
 done < "${participant_dir}/dataset.tsv"
 touch "${breadcrumb}"
