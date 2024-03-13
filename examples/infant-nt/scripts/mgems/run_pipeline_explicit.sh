@@ -77,8 +77,8 @@ aln_and_compress()
   fi
   mv ${aln_raw1} ${aln_out1}
   mv ${aln_raw2} ${aln_out2}
-#  alignment-writer -n $n_colors -r $n_reads1 -f $aln_raw1 > $aln_out1
-#  alignment-writer -n $n_colors -r $n_reads2 -f $aln_raw2 > $aln_out2
+  alignment-writer -n $n_colors -r $n_reads1 -f $aln_raw1 > $aln_out1
+  alignment-writer -n $n_colors -r $n_reads2 -f $aln_raw2 > $aln_out2
 }
 
 # ============================================ species-level analysis\
