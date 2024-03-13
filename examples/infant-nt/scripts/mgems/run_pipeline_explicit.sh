@@ -162,7 +162,7 @@ demix_check --mode_check \
   --binned_reads_dir ${strain_outdir}/binned_reads \
   --msweep_abun ${strain_outdir}/msweep_abundances.txt \
   --out_dir ${strain_outdir}/demix_check \
-  --ref ${EFAECALIS_REF_INDEX}/demix_check_index
+  --ref ./demix_check_index
 
 cd ${workdir}
 touch "${breadcrumb}"
