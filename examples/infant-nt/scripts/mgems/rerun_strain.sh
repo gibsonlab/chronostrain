@@ -77,3 +77,6 @@ demix_check --mode_check \
 
 cd ${workdir}
 touch "${breadcrumb}"
+
+breadcrumb=${output_dir}/mgems.${sample_id}.RERUN.DONE
+touch $breadcrumb
