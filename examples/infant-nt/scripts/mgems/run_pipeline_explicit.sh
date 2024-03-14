@@ -130,7 +130,7 @@ aln_and_compress ${strain_fq_1} ${strain_fq_2} ${strain_aln_1} ${strain_aln_2} $
 echo "[**] Cleaning up alignment tmpdir."
 rm -rf ${strain_outdir}/tmp
 
-echo "[**] Running mSWEEP abundance estimation."
+echo "[**] Running mSWEEP abundance estimation (min abundance = 0.0)."
 mSWEEP \
   -t ${N_CORES} \
   --themisto-1 ${strain_aln_1}  \

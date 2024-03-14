@@ -43,7 +43,7 @@ mkdir -p ${strain_outdir}
 
 cd ${EFAECALIS_REF_DIR}
 
-echo "[**] Running mSWEEP abundance estimation."
+echo "[**] Running mSWEEP abundance estimation (min abundance = 0.0)."
 mSWEEP \
   -t ${N_CORES} \
   --themisto-1 ${strain_aln_1}  \
