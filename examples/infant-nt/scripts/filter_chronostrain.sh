@@ -48,7 +48,8 @@ done < ${DATA_DIR}/${participant}/dataset.tsv
 
 
 echo "[*] Running filter on participant ${participant}."
-env JAX_PLATFORM_NAME=cpu chronostrain filter \
+env JAX_PLATFORM_NAME=cpu JAX_PLATFORMS=cpu \
+  chronostrain filter \
   -r ${run_dir}/reads.csv \
   -o ${run_dir}/filtered \
   -s ${CHRONOSTRAIN_CLUSTER_FILE} \
