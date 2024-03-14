@@ -68,7 +68,7 @@ done
 echo "[**] Compressing extracted reads."
 for f in ${strain_outdir}/binned_reads/*.fastq; do gzip "$f"; done
 
-echo "[**] Running demix_check."
+echo "[**] Running demix_check (min abund=0.0)."
 demix_check --mode_check \
   --binned_reads_dir ${strain_outdir}/binned_reads \
   --msweep_abun ${strain_outdir}/msweep_abundances.txt \
