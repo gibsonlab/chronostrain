@@ -124,7 +124,7 @@ strain_aln_2=${strain_outdir}/ali_2.aln
 mkdir -p ${strain_outdir}
 
 cd ${EFAECALIS_REF_DIR}
-echo "[**] Aligning fwd reads"
+echo "[**] Aligning fwd+rev reads"
 aln_and_compress ${strain_fq_1} ${strain_fq_2} ${strain_aln_1} ${strain_aln_2} ${EFAECALIS_REF_INDEX} ${EFAECALIS_N_COLORS} ${strain_outdir}/tmp
 
 echo "[**] Cleaning up alignment tmpdir."
@@ -138,7 +138,7 @@ mSWEEP \
   -o ${strain_outdir}/msweep \
   -i ${EFAECALIS_REF_CLUSTER} \
   --bin-reads \
-  --min-abundance 0.01 \
+  --min-abundance 0.0001 \
   --verbose
 
 
