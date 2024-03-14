@@ -22,8 +22,8 @@ workdir=$(pwd)
 participant_dir=${DATA_DIR}/${participant}
 output_dir=${participant_dir}/mgems/${sample_id}
 breadcrumb=${output_dir}/mgems.${sample_id}.DONE
-if [ -f ${breadcrumb} ]; then
-  echo "[*] mGEMS hierarchical pipeline for ${participant} [Sample ${sample_id}] already done."
+if ! [ -f ${breadcrumb} ]; then
+  echo "[*] mGEMS hierarchical pipeline for ${participant} [Sample ${sample_id}] not yet done."
   exit 0
 fi
 
