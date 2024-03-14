@@ -24,4 +24,6 @@ do
     if [ "${part_id}" == "Participant" ]; then continue; fi
     bash mgems/rerun_strain.sh "${part_id}" "${sample_id}"
 done < "${participant_dir}/dataset.tsv"
+
+breadcrumb=${output_dir}/mgems.RERUN.DONE
 touch "${breadcrumb}"
