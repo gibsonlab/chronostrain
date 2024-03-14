@@ -58,6 +58,7 @@ def main(
 
     # ======================= Alignments
     cache = ReadStrainCollectionCache(timeseries_reads, db, strain_collection)
+    logger.info("Target cache dir: {}".format(cache.cache_dir))
     error_model = create_error_model(
         observed_reads=timeseries_reads,
         disable_quality=not cfg.model_cfg.use_quality_scores,
