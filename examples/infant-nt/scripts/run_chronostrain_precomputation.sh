@@ -15,4 +15,6 @@ export CHRONOSTRAIN_CACHE_DIR="${DATA_DIR}/.cache"
 cd ${BASE_DIR}
 
 
-chronostrain precompute -r ${run_dir}/filtered/filtered_reads.csv -s ${CHRONOSTRAIN_CLUSTER_FILE}
+env JAX_PLATFORM_NAME=cpu chronostrain precompute \
+  -r ${run_dir}/filtered/filtered_reads.csv \
+  -s ${CHRONOSTRAIN_CLUSTER_FILE}
