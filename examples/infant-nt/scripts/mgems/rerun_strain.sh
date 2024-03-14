@@ -51,7 +51,7 @@ mSWEEP \
   -o ${strain_outdir}/msweep \
   -i ${EFAECALIS_REF_CLUSTER} \
   --bin-reads \
-  --min-abundance 0.0001 \
+  --min-abundance 0.0 \
   --verbose
 
 
