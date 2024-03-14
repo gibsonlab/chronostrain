@@ -67,7 +67,7 @@ class TimeSliceLikelihoods:
         paired_lls = FragmentReadErrorLikelihood.load(base_dir / 'lls_paired.npz')
         _frags = FragmentSpace.load(base_dir / 'inference_fragments.pkl')
         _frag_pairs = FragmentPairSpace.load(base_dir / 'inference_fragment_pairs.pkl')
-        return TimeSliceLikelihoods(lls, paired_lls)
+        return TimeSliceLikelihoods(lls, paired_lls, _frags, _frag_pairs)
 
 
 @dataclass
