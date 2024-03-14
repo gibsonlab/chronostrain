@@ -19,7 +19,8 @@ logger = create_logger("chronostrain.cli")
         'advi': run_advi,
         'make-db': make_db,
         'cluster-db': cluster_json,
-        'analyze': run_inference_pipeline
+        'analyze': run_inference_pipeline,
+        'precompute': precompute
     }
 )
 @click.option(
