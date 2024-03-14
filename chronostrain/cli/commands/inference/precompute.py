@@ -102,6 +102,7 @@ def main(
             dtype=cfg.engine_cfg.dtype,
             n_threads=cfg.model_cfg.num_cores
         ).get_frequencies()
+    logger.info("Done.")
 
 
 if __name__ == "__main__":
