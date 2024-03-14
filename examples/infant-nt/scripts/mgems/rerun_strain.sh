@@ -27,57 +27,9 @@ if ! [ -f ${breadcrumb} ]; then
   exit 0
 fi
 
-echo "[*] Running mGEMS hierarchical pipeline for ${participant}, sample ${sample_id}"
+echo "[*] Re-running strain-level inference for ${participant}, sample ${sample_id}"
 mkdir -p "${output_dir}"
-#fq_1=${participant_dir}/reads/${sample_id}_kneaddata/${sample_id}_paired_1.fastq.gz
-#fq_2=${participant_dir}/reads/${sample_id}_kneaddata/${sample_id}_paired_2.fastq.gz
-fq_1=${participant_dir}/reads/${sample_id}_1.fastq.gz
-fq_2=${participant_dir}/reads/${sample_id}_2.fastq.gz
-if ! [ -f ${fq_1} ]; then
-  echo "Forward read not found (Expected: ${fq_1})"
-  exit 1
-fi
-if ! [ -f ${fq_2} ]; then
-  echo "Reverse read not found (Expected: ${fq_2})"
-  exit 1
-fi
 
-# ========= chdir so indices are relative-pathable
-aln_and_compress()
-{
-	fq1=$1
-	fq2=$2
-	aln_out1=$3
-	aln_out2=$4
-	ref_idx=$5
-	n_colors=$6
-	tmp_dir=$7
-
-  mkdir -p ${tmp_dir}
-  input_file=${tmp_dir}/query_files.txt
-  output_file=${tmp_dir}/output_files.txt
-	aln_raw1=${tmp_dir}/aln1_raw.txt
-	aln_raw2=${tmp_dir}/aln2_raw.txt
-
-	# prepare input txt file list
-  echo "${fq1}" > "$input_file"
-  echo "${fq2}" >> "$input_file"
-  echo "${aln_raw1}" > "$output_file"
-  echo "${aln_raw2}" >> "$output_file"
-	themisto pseudoalign \
-    --index-prefix ${ref_idx} --rc --temp-dir ${tmp_dir} --n-threads ${N_CORES} --sort-output-lines \
-    --query-file-list "$input_file" \
-    --out-file-list "$output_file" \
-
-  n_reads1=$(wc -l < "${aln_raw1}")
-  n_reads2=$(wc -l < "${aln_raw2}")
-  if [[ $n_reads1 != $n_reads2 ]]; then
-    echo "# of reads in pseudoalignments don't match (${n_reads1} vs ${n_reads2})."
-    exit 1
-  fi
-  alignment-writer -n $n_colors -r $n_reads1 -f $aln_raw1 > $aln_out1
-  alignment-writer -n $n_colors -r $n_reads2 -f $aln_raw2 > $aln_out2
-}
 
 # ============================================ strain-level analysis
 echo "[*] Strain-level analysis."
@@ -90,11 +42,6 @@ strain_aln_2=${strain_outdir}/ali_2.aln
 mkdir -p ${strain_outdir}
 
 cd ${EFAECALIS_REF_DIR}
-#echo "[**] Aligning fwd+rev reads"
-#aln_and_compress ${strain_fq_1} ${strain_fq_2} ${strain_aln_1} ${strain_aln_2} ${EFAECALIS_REF_INDEX} ${EFAECALIS_N_COLORS} ${strain_outdir}/tmp
-
-#echo "[**] Cleaning up alignment tmpdir."
-#rm -rf ${strain_outdir}/tmp
 
 echo "[**] Running mSWEEP abundance estimation."
 mSWEEP \
