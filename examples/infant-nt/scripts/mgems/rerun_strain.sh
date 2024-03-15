@@ -21,9 +21,16 @@ require_variable 'sample_id' $sample_id
 workdir=$(pwd)
 participant_dir=${DATA_DIR}/${participant}
 output_dir=${participant_dir}/mgems/${sample_id}
-breadcrumb=${output_dir}/mgems.${sample_id}.DONE
-if ! [ -f ${breadcrumb} ]; then
+
+old_breadcrumb=${output_dir}/mgems.${sample_id}.DONE
+if ! [ -f ${old_breadcrumb} ]; then
   echo "[*] mGEMS hierarchical pipeline for ${participant} [Sample ${sample_id}] not yet done."
+  exit 0
+fi
+
+breadcrumb=${output_dir}/mgems.${sample_id}.RERUN.DONE
+if [ -f ${breadcrumb} ]; then
+  echo "[*] mGEMS re-run ${participant} [Sample ${sample_id}] already done."
   exit 0
 fi
 
@@ -78,6 +85,3 @@ demix_check --mode_check \
 
 cd ${workdir}
 touch "${breadcrumb}"
-
-breadcrumb=${output_dir}/mgems.${sample_id}.RERUN.DONE
-touch $breadcrumb
