@@ -34,7 +34,7 @@ fi
 
 
 # ====================================================== script begins here
-echo "[*] Running mGEMS efaecalis quantification for ${participant}, sample ${sample_id}"
+echo "[*] Running mGEMS efaecalis quantification (chronostrain mirror) for ${participant}, sample ${sample_id}"
 species_outdir=${output_dir}/species
 strain_fq_1=${species_outdir}/binned_reads/Enterococcus_faecalis_1.fastq.gz
 strain_fq_2=${species_outdir}/binned_reads/Enterococcus_faecalis_2.fastq.gz
