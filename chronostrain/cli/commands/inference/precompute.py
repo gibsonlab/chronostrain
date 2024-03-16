@@ -43,6 +43,10 @@ def main(
 
     logger.info("Loading time-series read files from {}".format(reads_input))
     timeseries_reads = TimeSeriesReads.load_from_file(reads_input)
+    if timeseries_reads.total_number_reads() == 0:
+        logger.info("Input has zero reads. Terminating.")
+        return 0
+
     db = cfg.database_cfg.get_database()
 
     if strain_subset_path is not None:
@@ -89,7 +93,13 @@ def main(
         cnp.sqrt(frag_len_negbin_n * (1 - frag_len_negbin_p)) / frag_len_negbin_p
     ))
 
-    for t_idx in range(len(timeseries_reads)):
+    for t_idx, reads_t in enumerate(timeseries_reads):
+        if len(reads_t) == 0:
+            logger.info("Skipping timepoint {} (t_idx={}), because there were zero reads".format(
+                reads_t.time_point,
+                t_idx
+            ))
+            continue
         read_likelihoods_t = read_likelihoods.slices[t_idx]
 
         # Compute fragment frequencies.

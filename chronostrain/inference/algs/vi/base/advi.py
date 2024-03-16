@@ -279,7 +279,14 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
         ))
 
         target_dir.mkdir(exist_ok=True, parents=True)
-        for t_idx in range(self.gaussian_prior.num_times):
+        for t_idx, reads_t in enumerate(self.data):
+            if len(reads_t) == 0:
+                logger.info("Skipping timepoint {} (t_idx={}), because there were zero reads".format(
+                    reads_t.time_point,
+                    t_idx
+                ))
+                continue
+
             total_sz_t = 0
             total_pairs_t = 0
             read_likelihoods_t = read_likelihoods.slices[t_idx]

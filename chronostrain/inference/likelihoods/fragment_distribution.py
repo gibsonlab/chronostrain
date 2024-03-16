@@ -147,7 +147,8 @@ class FragmentFrequencyComputer(object):
                 pbar.update(1)
             cnp.seterr(divide='warn')
 
-        indices = jnp.array(list(zip(frag_indices, strain_indices)))
+        # by default uint means uint64, but just make sure of this (uint32 might actually be more efficient though, in the future)
+        indices = jnp.array(list(zip(frag_indices, strain_indices)), dtype=jnp.uint64)
         matrix_values = jnp.array(matrix_values, dtype=self.dtype)
         return FragmentFrequencySparse(
             BCOO((matrix_values, indices), shape=(len(self.fragments), len(self.cache.strains)))

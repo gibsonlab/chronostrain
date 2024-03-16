@@ -159,6 +159,14 @@ def main(
     import chronostrain.visualizations as viz
     from .helpers import perform_advi
 
+    # ============ Parse input reads.
+    logger.info("Loading time-series read files from {}".format(reads_input))
+    reads = TimeSeriesReads.load_from_file(reads_input)
+
+    if reads.total_number_reads() == 0:
+        logger.info("Input has zero reads. Terminating.")
+        return 0
+
     # ============ Create database instance.
     db = cfg.database_cfg.get_database()
     if strain_subset_path is not None:
@@ -181,14 +189,6 @@ def main(
     samples_path = out_dir / "samples.npy"
     strains_path = out_dir / "strains.txt"
     model_out_path = out_dir / "posterior.{}.npz".format(cfg.engine_cfg.dtype)
-
-    # ============ Parse input reads.
-    logger.info("Loading time-series read files from {}".format(reads_input))
-    reads = TimeSeriesReads.load_from_file(reads_input)
-
-    if reads.total_number_reads() == 0:
-        logger.info("No filtered reads found. Exiting.")
-        return 0
 
     # ============ Create model instance
     solver, posterior, elbo_history, (uppers, lowers, medians) = perform_advi(
