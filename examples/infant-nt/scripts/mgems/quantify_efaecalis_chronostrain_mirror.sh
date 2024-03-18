@@ -65,6 +65,7 @@ mSWEEP \
 
 
 echo "[**] Extracting reads (for demix_check)."
+rm -rf ${strain_outdir}/binned_reads # clear contents, possibly from incomplete previous run
 mkdir -p ${strain_outdir}/binned_reads
 for bin_file in ${strain_outdir}/*.bin; do
   mv ${bin_file} ${strain_outdir}/binned_reads
