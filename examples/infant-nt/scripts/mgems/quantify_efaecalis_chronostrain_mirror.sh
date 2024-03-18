@@ -51,7 +51,8 @@ aln_and_compress ${strain_fq_1} ${strain_fq_2} ${strain_aln_1} ${strain_aln_2} $
 echo "[**] Cleaning up alignment tmpdir."
 rm -rf ${strain_outdir}/tmp
 
-echo "[**] Running mSWEEP abundance estimation (min abundance = 0.0)."
+min_abun=0.00001
+echo "[**] Running mSWEEP abundance estimation (min abundance = ${min_abun})."
 mSWEEP \
   -t ${N_CORES} \
   --themisto-1 ${strain_aln_1}  \
@@ -59,7 +60,7 @@ mSWEEP \
   -o ${strain_outdir}/msweep \
   -i ${EFAECALIS_CHRONO_MIRROR_CLUSTER} \
   --bin-reads \
-  --min-abundance 0.0 \
+  --min-abundance ${min_abun} \
   --verbose
 
 
@@ -82,7 +83,7 @@ demix_check --mode_check \
   --msweep_abun ${strain_outdir}/msweep_abundances.txt \
   --out_dir ${strain_outdir}/demix_check \
   --ref . \
-  --min_abun 0.0
+  --min_abun ${min_abun}
 
 cd ${workdir}
 touch "${breadcrumb}"
