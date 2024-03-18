@@ -51,7 +51,7 @@ aln_and_compress ${strain_fq_1} ${strain_fq_2} ${strain_aln_1} ${strain_aln_2} $
 echo "[**] Cleaning up alignment tmpdir."
 rm -rf ${strain_outdir}/tmp
 
-min_abun=0.00001
+min_abun=0.0
 echo "[**] Running mSWEEP abundance estimation (min abundance = ${min_abun})."
 mSWEEP \
   -t ${N_CORES} \
