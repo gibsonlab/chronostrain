@@ -16,6 +16,11 @@ export EFAECALIS_CHRONO_MIRROR_REF_INDEX=ref_idx/ref_idx
 export EFAECALIS_CHRONO_MIRROR_CLUSTER=ref_clu.txt
 export EFAECALIS_CHRONO_N_COLORS=2375
 
+export EFAECALIS_CHRONO_99_99PCT_MIRROR_REF_DIR=/data/cctm/youn/infant_nt/database/mgems/Efaecalis_chrono_99_99pct_mirror
+export EFAECALIS_CHRONO_99_99PCT_MIRROR_REF_INDEX=ref_idx/ref_idx
+export EFAECALIS_CHRONO_99_99PCT_MIRROR_CLUSTER=ref_clu.txt
+export EFAECALIS_CHRONO_99_99PCT_N_COLORS=2375
+
 
 aln_and_compress()
 {
