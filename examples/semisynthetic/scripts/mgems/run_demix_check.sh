@@ -80,9 +80,12 @@ for bin_file in ${output_dir}/*.bin; do
   mv ${bin_file} ${output_dir}/binned_reads
 done
 
-for bin_file in ${output_dir}/binned_reads/*.bin; do
-  mGEMS extract --bins ${bin_file} -r ${fq_1},${fq_2} -o ${output_dir}/binned_reads
+cwd="$(pwd)"
+cd ${output_dir}
+for bin_file in ./binned_reads/*.bin; do
+  mGEMS extract --bins ${bin_file} -r ${fq_1},${fq_2} -o ./binned_reads
 done
+cd ${cwd}
 
 echo "[**] Compressing extracted reads."
 for f in ${output_dir}/binned_reads/*.fastq; do gzip "$f"; done
