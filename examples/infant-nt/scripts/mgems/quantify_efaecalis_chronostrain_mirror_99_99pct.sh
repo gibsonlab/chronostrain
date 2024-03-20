@@ -22,24 +22,24 @@ workdir=$(pwd)
 participant_dir=${DATA_DIR}/${participant}
 output_dir=${participant_dir}/mgems/${sample_id}
 species_breadcrumb=${output_dir}/mgems.species.DONE
-breadcrumb=${output_dir}/mgems.efaecalis_mirror.DONE
+breadcrumb=${output_dir}/mgems.efaecalis_mirror_99_99pct.DONE
 if ! [ -f ${species_breadcrumb} ]; then
   echo "[*] mGEMS species-binning for ${participant} [Sample ${sample_id}] not yet done."
   exit 1
 fi
 if [ -f ${breadcrumb} ]; then
-  echo "[*] mGEMS efaecalis quantification (chronostrain mirror) for ${participant} [Sample ${sample_id}] already done."
+  echo "[*] mGEMS efaecalis quantification (99.99% clustering chronostrain mirror) for ${participant} [Sample ${sample_id}] already done."
   exit 0
 fi
 
 
 # ====================================================== script begins here
-echo "[*] Running mGEMS efaecalis quantification (chronostrain mirror) for ${participant}, sample ${sample_id}"
+echo "[*] Running mGEMS efaecalis quantification (99.99% clustering chronostrain mirror) for ${participant}, sample ${sample_id}"
 species_outdir=${output_dir}/species
 strain_fq_1=${species_outdir}/binned_reads/Enterococcus_faecalis_1.fastq.gz
 strain_fq_2=${species_outdir}/binned_reads/Enterococcus_faecalis_2.fastq.gz
 
-strain_outdir=${output_dir}/Efaecalis_chrono_mirror
+strain_outdir=${output_dir}/Efaecalis_chrono_99_99pct_mirror
 strain_aln_1=${strain_outdir}/ali_1.aln
 strain_aln_2=${strain_outdir}/ali_2.aln
 mkdir -p ${strain_outdir}
