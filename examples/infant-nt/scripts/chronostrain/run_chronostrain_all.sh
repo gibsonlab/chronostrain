@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
 source settings.sh
+source chronostrain/settings.sh
 
 
 while read line
@@ -10,10 +11,7 @@ do
   participant_dir=${DATA_DIR}/${participant}
 
   if [[ ! -d $participant_dir ]]; then
-    continue
-  fi
-
-  if [[ ! -f "${participant_dir}/chronostrain/process_reads.DONE" ]]; then
+    echo "${participant_dir} doesn't exist!"
     continue
   fi
 
@@ -21,7 +19,7 @@ do
   if [[ -f ${filter_mark} ]]; then
     echo "[*] Skipping filter for participant ${participant}"
   else
-    bash filter_chronostrain.sh ${participant}
+    bash chronostrain/filter_chronostrain.sh ${participant}
     touch $filter_mark
   fi
 
@@ -29,13 +27,8 @@ do
   if [[ -f ${inference_mark} ]]; then
     echo "[*] Skipping inference for participant ${participant}"
   else
-    bash run_chronostrain.sh ${participant}
+    bash chronostrain/run_chronostrain.sh ${participant}
     touch $inference_mark
   fi
-
-  quantify_breadcrumb=${participant_dir}/chronostrain/quantify.DONE
-  if [[ ! -f ${quantify_breadcrumb} ]]; then
-    bash quantify_chronostrain.sh ${participant}
-    touch $quantify_breadcrumb
-  fi
-done < "${INFANT_ID_LIST}"
+done < infant_subset_tmp.txt
+#done < "${INFANT_ID_LIST}"

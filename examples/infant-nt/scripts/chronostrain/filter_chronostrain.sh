@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
 source settings.sh
+source chronostrain/settings.sh
 
 participant=$1
 require_variable 'participant' $participant
