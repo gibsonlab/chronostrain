@@ -82,8 +82,9 @@ done
 
 cwd="$(pwd)"
 cd ${output_dir}
-for bin_file in ./binned_reads/*.bin; do
-  mGEMS extract --bins ${bin_file} -r ${fq_1},${fq_2} -o ./binned_reads
+for bin_file in binned_reads/*.bin; do
+  echo "mGEMS extract --bins ${bin_file} -r ${fq_1},${fq_2} -o binned_reads"
+  mGEMS extract --bins ${bin_file} -r ${fq_1},${fq_2} -o binned_reads
 done
 cd ${cwd}
 
