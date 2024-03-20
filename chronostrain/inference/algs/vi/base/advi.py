@@ -285,6 +285,8 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
                     reads_t.time_point,
                     t_idx
                 ))
+                total_sizes[t_idx] = 0
+                total_pairs[t_idx] = 0
                 continue
 
             total_sz_t = 0
@@ -304,13 +306,14 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
             ).get_frequencies()
 
             # ========================= singular reads
+            logger.debug("# columns in single-read matrix: {}".format(read_likelihoods_t.lls.matrix.shape[1]))
             for batch_idx, data_t_batch in enumerate(
                     divide_columns_into_batches_sparse(
                         read_likelihoods_t.lls.matrix,
                         read_batch_size
                     )
             ):
-                logger.debug("Precomputing singular-read marginalization for t = {}, batch {} ({} reads)".format(
+                logger.debug("Precomputing single-read marginalization for t = {}, batch {} ({} reads)".format(
                     t_idx, batch_idx, data_t_batch.shape[1]
                 ))
                 # ========= Pre-compute likelihood calculations.
@@ -323,7 +326,8 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
                 total_sz_t += strain_batch_lls_t.shape[1]
             total_sizes[t_idx] = total_sz_t
 
-            # ========================= paired reads; don't batch this.
+            # ========================= paired reads
+            logger.debug("# columns in paired-read matrix: {}".format(read_likelihoods_t.paired_lls.matrix.shape[1]))
             for paired_batch_idx, paired_data_t_batch in enumerate(
                 divide_columns_into_batches_sparse(
                     read_likelihoods_t.paired_lls.matrix,
