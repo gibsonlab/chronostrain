@@ -89,32 +89,9 @@ mSWEEP \
   -o ${output_dir}/msweep \
   -i ${ECOLI_REF_CLUSTER} \
   -q ${beta_binomial_mean}
-#  --bin-reads \
 
 
 # ====== Record runtime (don't include read extraction/demix-check. include core alg only)
 end_time=$(date +%s%N)
 elapsed_time=$(( $(($end_time-$start_time)) / 1000000 ))
 echo "${elapsed_time}" > $runtime_file
-
-
-#echo "[**] Extracting reads (for demix_check)."
-#mkdir -p ${output_dir}/binned_reads
-#for bin_file in ${output_dir}/*.bin; do
-#  mv ${bin_file} ${output_dir}/binned_reads
-#done
-#
-#for bin_file in ${output_dir}/binned_reads/*.bin; do
-#  mGEMS extract --bins ${bin_file} -r ${fq_1},${fq_2} -o ${output_dir}/binned_reads
-#done
-#
-#echo "[**] Compressing extracted reads."
-#for f in ${output_dir}/binned_reads/*.fastq; do gzip "$f"; done
-#
-#demix_check --mode_check \
-#  --binned_reads_dir ${output_dir}/binned_reads \
-#  --msweep_abun ${output_dir}/msweep_abundances.txt \
-#  --out_dir ${output_dir}/demix_check \
-#  --ref ${ECOLI_REF_DIR} \
-#  --min_abun 0.0 \
-#  --threads ${N_CORES}

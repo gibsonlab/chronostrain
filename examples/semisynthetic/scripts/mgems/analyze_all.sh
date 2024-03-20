@@ -22,6 +22,13 @@ for (( trial = 1; trial < ${N_TRIALS}+1; trial++ )); do
         bash mgems/analyze_sample_strain.sh $mutation_ratio $replicate $n_reads $trial 3 "mgems" 0.65
         bash mgems/analyze_sample_strain.sh $mutation_ratio $replicate $n_reads $trial 4 "mgems" 0.65
         bash mgems/analyze_sample_strain.sh $mutation_ratio $replicate $n_reads $trial 5 "mgems" 0.65
+
+        bash mgems/run_demix_check.sh $mutation_ratio $replicate $n_reads $trial 0 "mgems" 0.65
+        bash mgems/run_demix_check.sh $mutation_ratio $replicate $n_reads $trial 1 "mgems" 0.65
+        bash mgems/run_demix_check.sh $mutation_ratio $replicate $n_reads $trial 2 "mgems" 0.65
+        bash mgems/run_demix_check.sh $mutation_ratio $replicate $n_reads $trial 3 "mgems" 0.65
+        bash mgems/run_demix_check.sh $mutation_ratio $replicate $n_reads $trial 4 "mgems" 0.65
+        bash mgems/run_demix_check.sh $mutation_ratio $replicate $n_reads $trial 5 "mgems" 0.65
       done
     done
   done
