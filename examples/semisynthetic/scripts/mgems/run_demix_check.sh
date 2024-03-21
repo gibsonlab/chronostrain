@@ -80,21 +80,20 @@ for bin_file in ${output_dir}/*.bin; do
   mv ${bin_file} ${output_dir}/binned_reads
 done
 
-cwd="$(pwd)"
+
 cd ${output_dir}
 for bin_file in binned_reads/*.bin; do
   echo "mGEMS extract --bins ${bin_file} -r ${fq_1},${fq_2} -o binned_reads"
   mGEMS extract --bins ${bin_file} -r ${fq_1},${fq_2} -o binned_reads
 done
-cd ${cwd}
 
 echo "[**] Compressing extracted reads."
-for f in ${output_dir}/binned_reads/*.fastq; do gzip "$f"; done
+for f in binned_reads/*.fastq; do gzip "$f"; done
 
 demix_check --mode_check \
-  --binned_reads_dir ${output_dir}/binned_reads \
-  --msweep_abun ${output_dir}/msweep_abundances.txt \
-  --out_dir ${output_dir}/demix_check \
+  --binned_reads_dir binned_reads \
+  --msweep_abun msweep_abundances.txt \
+  --out_dir demix_check \
   --ref ${ECOLI_REF_DIR} \
   --min_abun 0.0 \
   --threads ${N_CORES}
