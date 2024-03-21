@@ -90,10 +90,13 @@ done
 echo "[**] Compressing extracted reads."
 for f in binned_reads/*.fastq; do gzip "$f"; done
 
+# cd into demix_check subdirectory; this helps shorten the `mash paste` argument so that it doesn't overflow and cause a bash error.
+mkdir -p demix_check
+cd demix_check
 demix_check --mode_check \
-  --binned_reads_dir binned_reads \
-  --msweep_abun msweep_abundances.txt \
-  --out_dir demix_check \
+  --binned_reads_dir ../binned_reads \
+  --msweep_abun ../msweep_abundances.txt \
+  --out_dir . \
   --ref ${ECOLI_REF_DIR} \
   --min_abun 0.0 \
   --threads ${N_CORES}
