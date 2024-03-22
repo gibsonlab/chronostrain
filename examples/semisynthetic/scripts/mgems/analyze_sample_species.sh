@@ -112,7 +112,7 @@ mSWEEP \
   -o ${output_dir}/msweep \
   -i ${SPECIES_REF_CLUSTER} \
   --bin-reads \
-  --target-groups "Ecoli" \
+  --target-groups "Escherichia_coli" \
   --min-abundance 0.0 \
   -q ${beta_binomial_mean} \
   --verbose
@@ -122,7 +122,7 @@ mSWEEP \
 echo "[**] Running mGEMS extract."
 
 mkdir -p ${output_dir}/binned_reads
-mv ${output_dir}/Ecoli.bin ${output_dir}/binned_reads/Ecoli.bin
+mv ${output_dir}/Escherichia_coli.bin ${output_dir}/binned_reads/Ecoli.bin
 
 cd ${output_dir}  # for some reason, mGEMS extract only works if you cd into the directory.
 mGEMS extract \
