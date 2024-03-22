@@ -42,8 +42,8 @@ output_file=${output_dir}/output_files.txt
 for t_idx in 0 1 2 3 4 5; do
   echo "${read_dir}/${t_idx}_sim_1.fq" >> $input_file
   echo "${read_dir}/${t_idx}_sim_2.fq" >> $input_file
-  echo "${BACKGROUND_FASTQ_DIR}/${t_idx}_background_1.fq" >> $input_file
-  echo "${BACKGROUND_FASTQ_DIR}/${t_idx}_background_2.fq" >> $input_file
+  echo "${BACKGROUND_FASTQ_DIR}/sorted/${t_idx}_background_1.sorted.fq" >> $input_file
+  echo "${BACKGROUND_FASTQ_DIR}/sorted/${t_idx}_background_2.sorted.fq" >> $input_file
 
   echo "${output_dir}/${t_idx}_sim_1.output.txt" >> $output_file
   echo "${output_dir}/${t_idx}_sim_2.output.txt" >> $output_file
@@ -55,7 +55,7 @@ done
 echo "[**] Running pseudoalignment (target database: ${themisto_db_dir})"
 start_time=$(date +%s%N)  # nanoseconds
 tmp_dir="${output_dir}/_tmp"
-${THEMISTO_BIN_DIR}/themisto pseudoalign \
+themisto pseudoalign \
   --query-file-list $input_file \
   --out-file-list $output_file \
   --index-prefix "${themisto_db_dir}/enterobacteriaceae" \

@@ -81,9 +81,9 @@ echo "[*] Refdir = ${SPECIES_REF_DIR}, Index= ${SPECIES_REF_INDEX}"
 
 # =================== input files
 fq_sim_1="${read_dir}/${time_point}_sim_1.fq"
-fq_bg_1="${BACKGROUND_FASTQ_DIR}/${time_point}_background_1.fq"
+fq_bg_1="${BACKGROUND_FASTQ_DIR}/sorted/${time_point}_background_1.sorted.fq"
 fq_sim_2="${read_dir}/${time_point}_sim_2.fq"
-fq_bg_2="${BACKGROUND_FASTQ_DIR}/${time_point}_background_2.fq"
+fq_bg_2="${BACKGROUND_FASTQ_DIR}/sorted/${time_point}_background_2.sorted.fq"
 
 # =================== Concatenate input fastq files (for extraction using mgems)
 echo "[*] Concatenating input fastQ files (for binning)"
