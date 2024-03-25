@@ -51,8 +51,8 @@ do
     n_reads_1=$(wc -l < "${tmp_1}")
     n_reads_2=$(wc -l < "${tmp_2}")
     if [[ $n_reads_1 != $n_reads_2 ]]; then
-	echo "# of reads in pseudoalignments don't match (${n_reads_1} vs ${n_reads_2})."
-	exit 1
+	    echo "# of reads in pseudoalignments don't match (${n_reads_1} vs ${n_reads_2})."
+	    exit 1
     fi
     
     alignment-writer -n $n_ref -r $n_reads_1 -f $tmp_1 > $out_1

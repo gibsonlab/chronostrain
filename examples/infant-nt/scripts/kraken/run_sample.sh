@@ -1,6 +1,7 @@
 #!/bin/bash
 source settings.sh
 source kraken/settings.sh
+set -e
 
 
 infant_id=$1
@@ -16,6 +17,7 @@ kraken_out=${out_dir}/kraken.out
 bracken_out=${out_dir}/bracken.out
 breadcrumb=${out_dir}/bracken.DONE
 
+echo "breadcrumb=${breadcrumb}"
 if [ -f ${breadcrumb} ]; then
   echo "[*] Kraken2 + Bracken already done for ${infant_id}, sample ${sample_id}"
 fi

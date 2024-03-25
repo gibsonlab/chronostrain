@@ -21,7 +21,7 @@ python msweep/themisto_build_input.py \
 # invoke kmer index build for pseudoaligner
 echo "[**] Building kmer index."
 cd "${THEMISTO_DB_DIR}"
-${THEMISTO_BIN_DIR}/themisto build \
+themisto build \
   -k 31 \
   -i sequences.txt \
   --index-prefix "${THEMISTO_DB_NAME}" \

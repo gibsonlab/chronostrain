@@ -1,5 +1,6 @@
 #!/bin/bash
 source settings.sh
+set -e
 
 infant_id=$1
 infant_dir=${DATA_DIR}/${infant_id}
