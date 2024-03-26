@@ -85,4 +85,4 @@ class StrainCollection:
 
     @property
     def faidx_file(self) -> Path:
-        return self.multifasta_file.with_suffix('.fai')
+        return self.multifasta_file.parent / f'{self.multifasta_file.name}.fai'
