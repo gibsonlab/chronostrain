@@ -63,5 +63,3 @@ env JAX_PLATFORM_NAME=cpu JAX_PLATFORMS=cpu \
   chronostrain precompute \
   -r ${run_dir}/filtered/filtered_reads.csv \
   -s ${CHRONOSTRAIN_CLUSTERS}
-
-touch ${run_dir}/filtered/FILTER_DONE.txt
