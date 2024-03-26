@@ -54,6 +54,7 @@ class Filter(object):
         aligner_tmp_dir.mkdir(exist_ok=True)
 
         if not self.strain_collection.faidx_file.exists():
+            logger.debug("FAIDX file {} does not yet exist.".format(self.strain_collection.faidx_file))
             samtools.faidx(self.strain_collection.multifasta_file)
 
         metadata_path = out_path.parent / f"{out_path.name}.metadata.tsv"
