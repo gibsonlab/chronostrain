@@ -188,9 +188,6 @@ class CachedReadPairwiseAlignments(object):
             cache_relative_path = Path("alignments") / "{}.sam".format(query_path.stem)
         absolute_path = self.cache.cache_dir / cache_relative_path
 
-        if not self.cache.strains.faidx_file.exists():
-            samtools.faidx(self.cache.strains.multifasta_file)
-
         # ====== function bindings to pass to ComputationCache.
         def _call_aligner():
             absolute_path.parent.mkdir(exist_ok=True, parents=True)

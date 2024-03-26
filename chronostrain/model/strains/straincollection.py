@@ -3,6 +3,7 @@ from typing import List, Iterator, Union
 from .strain import Strain
 from .marker import Marker
 from chronostrain.util.cache import ComputationCache, CacheTag
+from chronostrain.util.external import samtools
 
 
 class StrainCollection:
@@ -85,4 +86,7 @@ class StrainCollection:
 
     @property
     def faidx_file(self) -> Path:
-        return self.multifasta_file.parent / f'{self.multifasta_file.name}.fai'
+        tgt_path = self.multifasta_file.parent / f'{self.multifasta_file.name}.fai'
+        if not tgt_path.exists():
+            samtools.faidx(self.multifasta_file)
+        return tgt_path
