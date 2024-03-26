@@ -32,7 +32,7 @@ do
     bash mgems/bin_sample_species.sh "${part_id}" "${sample_id}"
     bash mgems/quantify_efaecalis.sh "${part_id}" "${sample_id}"
     bash mgems/quantify_efaecalis_chronostrain_mirror.sh "${part_id}" "${sample_id}"
-    bash mgems/quantify_efaecalis_chronostrain_mirror_99_99pct.sh "${part_id}" "${sample_id}"
+    #bash mgems/quantify_efaecalis_chronostrain_mirror_99_99pct.sh "${part_id}" "${sample_id}"
     bash mgems/quantify_efaecalis_chronostrain_mutation_0002.sh "${part_id}" "${sample_id}"
 done < "${participant_dir}/dataset.tsv"
 touch "${breadcrumb}"

@@ -28,7 +28,7 @@ if ! [ -f ${species_breadcrumb} ]; then
   exit 1
 fi
 if [ -f ${breadcrumb} ]; then
-  echo "[*] mGEMS efaecalis quantification (chronostrain mirror) for ${participant} [Sample ${sample_id}] already done."
+  echo "[*] mGEMS efaecalis quantification (chronostrain mirror, mutated genome 0.0002) for ${participant} [Sample ${sample_id}] already done."
   exit 0
 fi
 
@@ -40,7 +40,7 @@ EFAECALIS_CHRONO_N_COLORS=2375
 
 
 # ====================================================== script begins here
-echo "[*] Running mGEMS efaecalis quantification (chronostrain mirror) for ${participant}, sample ${sample_id}"
+echo "[*] Running mGEMS efaecalis quantification (chronostrain mirror, mutated genome 0.0002) for ${participant}, sample ${sample_id}"
 species_outdir=${output_dir}/species
 strain_fq_1=${species_outdir}/binned_reads/Enterococcus_faecalis_1.fastq.gz
 strain_fq_2=${species_outdir}/binned_reads/Enterococcus_faecalis_2.fastq.gz
