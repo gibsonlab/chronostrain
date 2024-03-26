@@ -52,7 +52,7 @@ export CHRONOSTRAIN_CACHE_DIR="${DATA_DIR}/.cache_mut"
 export CHRONOSTRAIN_DB_JSON=${DATA_DIR}/database/mutated_dbs/0002/chronostrain/efaecalis.json
 export CHRONOSTRAIN_CLUSTERS=${DATA_DIR}/database/mutated_dbs/0002/chronostrain/efaecalis.clusters.txt
 
-env JAX_PLATFORM_NAME=cpu JAX_PLATFORM=cpu \
+env JAX_PLATFORM_NAME=cpu JAX_PLATFORMS=cpu \
   chronostrain filter \
   -r ${run_dir}/reads.csv \
   -o ${run_dir}/filtered \

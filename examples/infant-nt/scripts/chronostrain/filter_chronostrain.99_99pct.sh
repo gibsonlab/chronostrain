@@ -49,7 +49,7 @@ do
 done < ${DATA_DIR}/${participant}/dataset.tsv
 
 
-env JAX_PLATFORM_NAME=cpu JAX_PLATFORM=cpu \
+env JAX_PLATFORM_NAME=cpu JAX_PLATFORMS=cpu \
   chronostrain filter \
   -r ${run_dir}/reads.csv \
   -o ${run_dir}/filtered \
