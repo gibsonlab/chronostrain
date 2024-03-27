@@ -34,6 +34,6 @@ do
     bash mgems/quantify_efaecalis_chronostrain_mirror.sh "${part_id}" "${sample_id}"
     #bash mgems/quantify_efaecalis_chronostrain_mirror_99_99pct.sh "${part_id}" "${sample_id}"
     bash mutations/mgems_quantify_efaecalis_chronostrain_mutation.sh "${part_id}" "${sample_id}" "0002"
-    bash mutations/mgems_quantify_efaecalis_chronostrain_mutation.sh "${part_id}" "${sample_id}" "002"
+    #bash mutations/mgems_quantify_efaecalis_chronostrain_mutation.sh "${part_id}" "${sample_id}" "002"
 done < "${participant_dir}/dataset.tsv"
 touch "${breadcrumb}"
