@@ -14,7 +14,7 @@ run_dir=${DATA_DIR}/${participant}/chronostrain_mutation_0002
 cd ${BASE_DIR}
 
 
-export CHRONOSTRAIN_LOG_FILEPATH="${run_dir}/filter.log"
+export CHRONOSTRAIN_LOG_FILEPATH="${run_dir}/inference.log"
 export CHRONOSTRAIN_CACHE_DIR="${DATA_DIR}/.cache_mut"
 export CHRONOSTRAIN_DB_JSON=${DATA_DIR}/database/mutated_dbs/0002/chronostrain/efaecalis.json
 export CHRONOSTRAIN_CLUSTERS=${DATA_DIR}/database/mutated_dbs/0002/chronostrain/efaecalis.clusters.txt
