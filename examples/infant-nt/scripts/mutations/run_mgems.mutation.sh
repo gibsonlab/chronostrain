@@ -20,9 +20,9 @@ require_variable 'mutation_rate' $mutation_rate
 
 participant_dir=${DATA_DIR}/${participant}
 output_dir=${participant_dir}/mgems
-breadcrumb=${output_dir}/mgems.DONE
+breadcrumb=${output_dir}/mgems.mut_${mutation_rate}.DONE
 if [ -f "${breadcrumb}" ]; then
-  echo "[*] mGEMS hierarchical pipeline for ${participant} <all samples> already done."
+  echo "[*] mGEMS isolate mutation run for ${participant} <all samples> already done."
   exit 0
 fi
 
