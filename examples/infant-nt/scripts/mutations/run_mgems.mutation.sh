@@ -13,7 +13,9 @@ require_program gzip
 
 # ============ Requires arguments:
 participant=$1
+mutation_rate=$2
 require_variable 'participant' $participant
+require_variable 'mutation_rate' $mutation_rate
 
 
 participant_dir=${DATA_DIR}/${participant}
@@ -29,9 +31,6 @@ mkdir -p "${output_dir}"
 while IFS=$'\t' read part_id time_point sample_id read1_raw_fq read2_raw_fq
 do
     if [ "${part_id}" == "Participant" ]; then continue; fi
-    bash mgems/bin_sample_species.sh "${part_id}" "${sample_id}"
-    bash mgems/quantify_efaecalis.sh "${part_id}" "${sample_id}"
-    bash mgems/quantify_efaecalis_chronostrain_mirror.sh "${part_id}" "${sample_id}"
-    #bash mgems/quantify_efaecalis_chronostrain_mirror_99_99pct.sh "${part_id}" "${sample_id}"
+    bash mutations/mgems_quantify_efaecalis_chronostrain_mutation.sh "${part_id}" "${sample_id}" "${mutation_rate}"
 done < "${participant_dir}/dataset.tsv"
 touch "${breadcrumb}"
