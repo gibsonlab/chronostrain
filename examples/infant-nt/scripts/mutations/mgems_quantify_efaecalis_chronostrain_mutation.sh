@@ -38,7 +38,7 @@ fi
 EFAECALIS_CHRONO_MIRROR_REF_DIR=${DATA_DIR}/database/mutated_dbs/${mutation_rate}/mgems
 EFAECALIS_CHRONO_MIRROR_REF_INDEX=ref_idx/ref_idx
 EFAECALIS_CHRONO_MIRROR_CLUSTER=ref_clu.txt
-EFAECALIS_CHRONO_N_COLORS=2375
+EFAECALIS_CHRONO_N_COLORS=$(wc -l ${EFAECALIS_CHRONO_MIRROR_REF_DIR}/${EFAECALIS_CHRONO_MIRROR_CLUSTER})
 
 
 # ====================================================== script begins here
