@@ -187,56 +187,53 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
         subdir = cache.create_subdir('marginalizations')
         batch_metadata = subdir / 'batches.tsv'
 
-        if batch_metadata.exists():
-            batch_df = pd.read_csv(batch_metadata, sep='\t')
-            TimepointBatches = namedtuple('TimepointBatches', ['n_batches', 'n_reads'])
-            n_batches_per: Dict[int, TimepointBatches] = {
-                row['T_IDX']: TimepointBatches(row['N_SINGULAR_BATCHES'], row['N_READS'])
-                for _, row in batch_df.iterrows()
-            }
-            n_paired_batches_per: Dict[int, TimepointBatches] = {
-                row['T_IDX']: TimepointBatches(row['N_PAIRED_BATCHES'], row['N_PAIRS'])
-                for _, row in batch_df.iterrows()
-            }
+        if not batch_metadata.exists():
+            # Do the calculation. (This saves the results into cache.)
+            self.compute_marginalization(cache, batch_metadata, subdir, read_batch_size)
 
-            _batches = [
-                [
-                    jnp.load(subdir / f't_{t_idx}_singular_batch_{batch_idx}.npy')
-                    for batch_idx in range(n_batches_per[t_idx].n_batches)
-                ]
-                for t_idx in range(self.gaussian_prior.num_times)
+        batch_df = pd.read_csv(batch_metadata, sep='\t')
+        TimepointBatches = namedtuple('TimepointBatches', ['n_batches', 'n_reads'])
+        n_batches_per: Dict[int, TimepointBatches] = {
+            row['T_IDX']: TimepointBatches(row['N_SINGULAR_BATCHES'], row['N_READS'])
+            for _, row in batch_df.iterrows()
+        }
+        n_paired_batches_per: Dict[int, TimepointBatches] = {
+            row['T_IDX']: TimepointBatches(row['N_PAIRED_BATCHES'], row['N_PAIRS'])
+            for _, row in batch_df.iterrows()
+        }
+
+        _batches = [
+            [
+                jnp.load(subdir / f't_{t_idx}_singular_batch_{batch_idx}.npy')
+                for batch_idx in range(n_batches_per[t_idx].n_batches)
             ]
-            _paired_batches = [
-                [
-                    jnp.load(subdir / f't_{t_idx}_paired_batch_{paired_batch_idx}.npy')
-                    for paired_batch_idx in range(n_paired_batches_per[t_idx].n_batches)
-                ]
-                for t_idx in range(self.gaussian_prior.num_times)
+            for t_idx in range(self.gaussian_prior.num_times)
+        ]
+        _paired_batches = [
+            [
+                jnp.load(subdir / f't_{t_idx}_paired_batch_{paired_batch_idx}.npy')
+                for paired_batch_idx in range(n_paired_batches_per[t_idx].n_batches)
             ]
+            for t_idx in range(self.gaussian_prior.num_times)
+        ]
 
-            for t_idx in range(self.gaussian_prior.num_times):
-                logger.debug("Loaded {} marginalization batches for timepoint {}.".format(
-                    len(_batches[t_idx]), t_idx
-                ))
-                logger.debug("Loaded {} marginalization paired batches for timepoint {}.".format(
-                    len(_paired_batches[t_idx]), t_idx
-                ))
+        for t_idx in range(self.gaussian_prior.num_times):
+            logger.debug("Loaded {} marginalization batches for timepoint {}.".format(
+                len(_batches[t_idx]), t_idx
+            ))
+            logger.debug("Loaded {} marginalization paired batches for timepoint {}.".format(
+                len(_paired_batches[t_idx]), t_idx
+            ))
 
-            return _batches, _paired_batches
-        else:
-            return self.compute_marginalization(cache, batch_metadata, subdir, read_batch_size)
+        return _batches, _paired_batches
 
     def compute_marginalization(self,
                                 cache: ReadStrainCollectionCache,
                                 batch_metadata_path: Path,
                                 target_dir: Path,
-                                read_batch_size: int) -> Tuple[List[List[jnp.ndarray]], List[List[jnp.ndarray]]]:
-        batches = [
-            [] for _ in range(self.gaussian_prior.num_times)
-        ]
-        paired_batches = [
-            [] for _ in range(self.gaussian_prior.num_times)
-        ]
+                                read_batch_size: int):
+        n_single_read_batches = [0 for _ in range(len(self.data))]
+        n_paired_read_batches = [0 for _ in range(len(self.data))]
 
         # Precompute likelihood products.
         logger.debug("Precomputing likelihood marginalization.")
@@ -322,8 +319,9 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
                     data_t_batch  # F x R_batch
                 )  # (S x R_batch)
                 jnp.save(str(target_dir / f't_{t_idx}_singular_batch_{batch_idx}.npy'), strain_batch_lls_t)
-                batches[t_idx].append(strain_batch_lls_t)
                 total_sz_t += strain_batch_lls_t.shape[1]
+                n_single_read_batches[t_idx] += 1
+                del strain_batch_lls_t
             total_sizes[t_idx] = total_sz_t
 
             # ========================= paired reads
@@ -345,22 +343,22 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
                     paired_data_t_batch  # F_pairs x R_pairs_batch
                 )  # (S x R_pairs_batch)
                 jnp.save(str(target_dir / f't_{t_idx}_paired_batch_{paired_batch_idx}.npy'), batch_paired_marginalization_t)
-                paired_batches[t_idx].append(batch_paired_marginalization_t)
                 total_pairs_t += batch_paired_marginalization_t.shape[1]
+                n_paired_read_batches[t_idx] += 1
+                del batch_paired_marginalization_t
             total_pairs[t_idx] = total_pairs_t
 
         # =========== report statistics.
         pd.DataFrame([
             {
                 'T_IDX': t_idx,
-                'N_SINGULAR_BATCHES': len(batches[t_idx]),
-                'N_PAIRED_BATCHES': len(paired_batches[t_idx]),
+                'N_SINGULAR_BATCHES': n_single_read_batches[t_idx],
+                'N_PAIRED_BATCHES': n_paired_read_batches[t_idx],
                 'N_READS': total_sizes[t_idx], 'N_PAIRS': total_pairs[t_idx]
             }
             for t_idx in range(self.gaussian_prior.num_times)
         ]).to_csv(batch_metadata_path, sep='\t', index=False)
 
-        return batches, paired_batches
 
     def prune_reads(self):
         """
