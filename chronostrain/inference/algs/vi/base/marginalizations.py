@@ -4,7 +4,8 @@ from pathlib import Path
 import jax.numpy as jnp
 
 from chronostrain.config import cfg
-from chronostrain.model import TimeSeriesReads, TimeSliceReads
+from chronostrain.inference.likelihoods.read_fragment_mappings import TimeSliceLikelihoods
+from chronostrain.model import TimeSeriesReads, TimeSliceReads, FragmentFrequencySparse
 from chronostrain.util.math import log_spspmm_exp
 
 from chronostrain.inference.likelihoods import FragmentFrequencyComputer, TimeSeriesLikelihoods, \
@@ -45,16 +46,28 @@ def load_all_marginalizations(
     """
     # First, propagate missing matrix computations.
     for t_idx, reads_t in enumerate(reads):
+        read_likelihoods_t = read_likelihoods.slices[t_idx]
+
+        # Compute fragment frequencies.
+        frag_freqs, frag_pair_freqs = FragmentFrequencyComputer(
+            frag_nbinom_n=frag_len_negbin_n,
+            frag_nbinom_p=frag_len_negbin_p,
+            cache=cache,
+            fragments=read_likelihoods_t.fragments,
+            fragment_pairs=read_likelihoods_t.fragment_pairs,
+            time_idx=t_idx,
+            dtype=cfg.engine_cfg.dtype,
+            n_threads=cfg.model_cfg.num_cores
+        ).get_frequencies()
+
         subdir_unpaired = cache.create_subdir(Path(f'marginalizations/{t_idx}/unpaired'), recursive=True)
         if not (subdir_unpaired / _metadata_file).exists():
             compute_marginalizations_unpaired(
                 reads_t=reads_t,
-                cache=cache,
+                read_likelihoods_t=read_likelihoods_t,
+                frag_freqs=frag_freqs,
                 t_idx=t_idx,
                 read_batch_size=read_batch_size,
-                frag_len_negbin_n=frag_len_negbin_n,
-                frag_len_negbin_p=frag_len_negbin_p,
-                read_likelihoods=read_likelihoods,
                 target_dir=subdir_unpaired
             )
 
@@ -62,12 +75,10 @@ def load_all_marginalizations(
         if not (subdir_paired / _metadata_file).exists():
             compute_marginalizations_paired(
                 reads_t=reads_t,
-                cache=cache,
+                read_likelihoods_t=read_likelihoods_t,
+                frag_pair_freqs=frag_pair_freqs,
                 t_idx=t_idx,
                 read_batch_size=read_batch_size,
-                frag_len_negbin_n=frag_len_negbin_n,
-                frag_len_negbin_p=frag_len_negbin_p,
-                read_likelihoods=read_likelihoods,
                 target_dir=subdir_paired
             )
 
@@ -96,12 +107,10 @@ def save_batch_metadata(metadata_path: Path, n_batches: int):
 
 def compute_marginalizations_unpaired(
         reads_t: TimeSliceReads,
-        cache: ReadStrainCollectionCache,
+        read_likelihoods_t: TimeSliceLikelihoods,
+        frag_freqs: FragmentFrequencySparse,
         t_idx: int,
         read_batch_size: int,
-        frag_len_negbin_n: float,
-        frag_len_negbin_p: float,
-        read_likelihoods: TimeSeriesLikelihoods,
         target_dir: Path
 ):
     """
@@ -114,20 +123,6 @@ def compute_marginalizations_unpaired(
             t_idx
         ))
         return
-
-    read_likelihoods_t = read_likelihoods.slices[t_idx]
-
-    # Compute fragment frequencies.
-    frag_freqs, frag_pair_freqs = FragmentFrequencyComputer(
-        frag_nbinom_n=frag_len_negbin_n,
-        frag_nbinom_p=frag_len_negbin_p,
-        cache=cache,
-        fragments=read_likelihoods_t.fragments,
-        fragment_pairs=read_likelihoods_t.fragment_pairs,
-        time_idx=t_idx,
-        dtype=cfg.engine_cfg.dtype,
-        n_threads=cfg.model_cfg.num_cores
-    ).get_frequencies()
 
     # main calculation
     logger.debug("# columns in single-read matrix: {}".format(read_likelihoods_t.lls.matrix.shape[1]))
@@ -153,12 +148,10 @@ def compute_marginalizations_unpaired(
 
 def compute_marginalizations_paired(
         reads_t: TimeSliceReads,
-        cache: ReadStrainCollectionCache,
+        read_likelihoods_t: TimeSliceLikelihoods,
+        frag_pair_freqs: FragmentFrequencySparse,
         t_idx: int,
         read_batch_size: int,
-        frag_len_negbin_n: float,
-        frag_len_negbin_p: float,
-        read_likelihoods: TimeSeriesLikelihoods,
         target_dir: Path
 ):
     """
@@ -171,20 +164,6 @@ def compute_marginalizations_paired(
             t_idx
         ))
         return []
-
-    read_likelihoods_t = read_likelihoods.slices[t_idx]
-
-    # Compute fragment frequencies.
-    frag_freqs, frag_pair_freqs = FragmentFrequencyComputer(
-        frag_nbinom_n=frag_len_negbin_n,
-        frag_nbinom_p=frag_len_negbin_p,
-        cache=cache,
-        fragments=read_likelihoods_t.fragments,
-        fragment_pairs=read_likelihoods_t.fragment_pairs,
-        time_idx=t_idx,
-        dtype=cfg.engine_cfg.dtype,
-        n_threads=cfg.model_cfg.num_cores
-    ).get_frequencies()
 
     # main calculation
     logger.debug("# columns in paired-read matrix: {}".format(read_likelihoods_t.paired_lls.matrix.shape[1]))
