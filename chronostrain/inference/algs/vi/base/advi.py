@@ -1,25 +1,22 @@
 from abc import abstractmethod, ABC
 from typing import *
-from pathlib import Path
 
 import jax
 import jax.numpy as jnp
 import numpy as cnp
-import pandas as pd
 
 from chronostrain.database import StrainDatabase
 from chronostrain.config import cfg
 from chronostrain.model import AbundanceGaussianPrior, AbstractErrorModel, TimeSeriesReads, StrainCollection
 from chronostrain.util.benchmarking import RuntimeEstimator
-from chronostrain.util.math import log_spspmm_exp, negbin_fit_frags, log_spspmm_exp_experimental
+from chronostrain.util.math import negbin_fit_frags
 from chronostrain.util.optimization import LossOptimizer
 
-from chronostrain.inference.likelihoods import ReadStrainCollectionCache, ReadFragmentMappings, \
-    FragmentFrequencyComputer
+from chronostrain.inference.likelihoods import ReadStrainCollectionCache, ReadFragmentMappings
 from chronostrain.inference.algs import AbstractModelSolver
 from .constants import GENERIC_PARAM_TYPE, GENERIC_SAMPLE_TYPE, GENERIC_GRAD_TYPE
-from .util import divide_columns_into_batches_sparse
 from .posterior import AbstractReparametrizedPosterior
+from .marginalizations import load_all_marginalizations
 
 from chronostrain.logging import create_logger
 logger = create_logger(__name__)
@@ -182,70 +179,14 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
         if not cfg.model_cfg.use_sparse:
             raise NotImplementedError("ADVI only supports sparse read_frags structures.")
 
-        from collections import namedtuple
         cache = ReadStrainCollectionCache(self.data, self.db, self.gaussian_prior.strain_collection)
-        subdir = cache.create_subdir('marginalizations')
-        batch_metadata = subdir / 'batches.tsv'
-
-        if not batch_metadata.exists():
-            # Do the calculation. (This saves the results into cache.)
-            self.compute_marginalization(cache, batch_metadata, subdir, read_batch_size)
-
-        batch_df = pd.read_csv(batch_metadata, sep='\t')
-        TimepointBatches = namedtuple('TimepointBatches', ['n_batches', 'n_reads'])
-        n_batches_per: Dict[int, TimepointBatches] = {
-            row['T_IDX']: TimepointBatches(row['N_SINGULAR_BATCHES'], row['N_READS'])
-            for _, row in batch_df.iterrows()
-        }
-        n_paired_batches_per: Dict[int, TimepointBatches] = {
-            row['T_IDX']: TimepointBatches(row['N_PAIRED_BATCHES'], row['N_PAIRS'])
-            for _, row in batch_df.iterrows()
-        }
-
-        _batches = [
-            [
-                jnp.load(subdir / f't_{t_idx}_singular_batch_{batch_idx}.npy')
-                for batch_idx in range(n_batches_per[t_idx].n_batches)
-            ]
-            for t_idx in range(self.gaussian_prior.num_times)
-        ]
-        _paired_batches = [
-            [
-                jnp.load(subdir / f't_{t_idx}_paired_batch_{paired_batch_idx}.npy')
-                for paired_batch_idx in range(n_paired_batches_per[t_idx].n_batches)
-            ]
-            for t_idx in range(self.gaussian_prior.num_times)
-        ]
-
-        for t_idx in range(self.gaussian_prior.num_times):
-            logger.debug("Loaded {} marginalization batches for timepoint {}.".format(
-                len(_batches[t_idx]), t_idx
-            ))
-            logger.debug("Loaded {} marginalization paired batches for timepoint {}.".format(
-                len(_paired_batches[t_idx]), t_idx
-            ))
-
-        return _batches, _paired_batches
-
-    def compute_marginalization(self,
-                                cache: ReadStrainCollectionCache,
-                                batch_metadata_path: Path,
-                                target_dir: Path,
-                                read_batch_size: int):
-        n_single_read_batches = [0 for _ in range(len(self.data))]
-        n_paired_read_batches = [0 for _ in range(len(self.data))]
-
-        # Precompute likelihood products.
-        logger.debug("Precomputing likelihood marginalization.")
-        total_sizes = {}
-        total_pairs = {}
         read_likelihoods = ReadFragmentMappings(
             self.data, self.db, self.error_model,
             cache=cache,
             dtype=cfg.engine_cfg.dtype
         ).model_values
 
-        # Print some statistics.
+        # ============= START: Print some statistics.
         avg_marker_len = int(cnp.median([
             len(m)
             for s in self.db.all_strains()
@@ -265,100 +206,26 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
             avg_marker_len,
             cnp.median(read_lens)
         ))
+        # ============= END: Print some statistics.
 
-        # Fit negative binomial distribution.
+        # ============= START: Fit negative binomial distribution.
         frag_len_negbin_n, frag_len_negbin_p = negbin_fit_frags(avg_marker_len, read_lens, max_padding_ratio=0.5)
         logger.debug("Negative binomial fit: n={}, p={} (mean={}, std={})".format(
             frag_len_negbin_n,
             frag_len_negbin_p,
-            frag_len_negbin_n * (1-frag_len_negbin_p) / frag_len_negbin_p,
+            frag_len_negbin_n * (1 - frag_len_negbin_p) / frag_len_negbin_p,
             cnp.sqrt(frag_len_negbin_n * (1 - frag_len_negbin_p)) / frag_len_negbin_p
         ))
+        # ============= END: Fit negative binomial distribution.
 
-        target_dir.mkdir(exist_ok=True, parents=True)
-        for t_idx, reads_t in enumerate(self.data):
-            if len(reads_t) == 0:
-                logger.info("Skipping timepoint {} (t_idx={}), because there were zero reads".format(
-                    reads_t.time_point,
-                    t_idx
-                ))
-                total_sizes[t_idx] = 0
-                total_pairs[t_idx] = 0
-                continue
-
-            total_sz_t = 0
-            total_pairs_t = 0
-            read_likelihoods_t = read_likelihoods.slices[t_idx]
-
-            # Compute fragment frequencies.
-            frag_freqs, frag_pair_freqs = FragmentFrequencyComputer(
-                frag_nbinom_n=frag_len_negbin_n,
-                frag_nbinom_p=frag_len_negbin_p,
-                cache=cache,
-                fragments=read_likelihoods_t.fragments,
-                fragment_pairs=read_likelihoods_t.fragment_pairs,
-                time_idx=t_idx,
-                dtype=cfg.engine_cfg.dtype,
-                n_threads=cfg.model_cfg.num_cores
-            ).get_frequencies()
-
-            # ========================= singular reads
-            logger.debug("# columns in single-read matrix: {}".format(read_likelihoods_t.lls.matrix.shape[1]))
-            for batch_idx, data_t_batch in enumerate(
-                    divide_columns_into_batches_sparse(
-                        read_likelihoods_t.lls.matrix,
-                        read_batch_size
-                    )
-            ):
-                logger.debug("Precomputing single-read marginalization for t = {}, batch {} ({} reads)".format(
-                    t_idx, batch_idx, data_t_batch.shape[1]
-                ))
-                # ========= Pre-compute likelihood calculations.
-                strain_batch_lls_t = log_spspmm_exp(
-                    frag_freqs.matrix.T,  # (S x F), note the transpose!
-                    data_t_batch  # F x R_batch
-                )  # (S x R_batch)
-                jnp.save(str(target_dir / f't_{t_idx}_singular_batch_{batch_idx}.npy'), strain_batch_lls_t)
-                total_sz_t += strain_batch_lls_t.shape[1]
-                n_single_read_batches[t_idx] += 1
-                del strain_batch_lls_t
-            total_sizes[t_idx] = total_sz_t
-
-            # ========================= paired reads
-            logger.debug("# columns in paired-read matrix: {}".format(read_likelihoods_t.paired_lls.matrix.shape[1]))
-            for paired_batch_idx, paired_data_t_batch in enumerate(
-                divide_columns_into_batches_sparse(
-                    read_likelihoods_t.paired_lls.matrix,
-                    read_batch_size
-                )
-            ):
-                logger.debug(
-                    "Precomputing paired-read marginalization for t = {}, batch {} ({} pairs)".format(
-                        t_idx, paired_batch_idx, paired_data_t_batch.shape[1]
-                    )
-                )
-                # ========= Pre-compute likelihood calculations.
-                batch_paired_marginalization_t = log_spspmm_exp(
-                    frag_pair_freqs.matrix.T,  # (S x F_pairs), note the transpose!
-                    paired_data_t_batch  # F_pairs x R_pairs_batch
-                )  # (S x R_pairs_batch)
-                jnp.save(str(target_dir / f't_{t_idx}_paired_batch_{paired_batch_idx}.npy'), batch_paired_marginalization_t)
-                total_pairs_t += batch_paired_marginalization_t.shape[1]
-                n_paired_read_batches[t_idx] += 1
-                del batch_paired_marginalization_t
-            total_pairs[t_idx] = total_pairs_t
-
-        # =========== report statistics.
-        pd.DataFrame([
-            {
-                'T_IDX': t_idx,
-                'N_SINGULAR_BATCHES': n_single_read_batches[t_idx],
-                'N_PAIRED_BATCHES': n_paired_read_batches[t_idx],
-                'N_READS': total_sizes[t_idx], 'N_PAIRS': total_pairs[t_idx]
-            }
-            for t_idx in range(self.gaussian_prior.num_times)
-        ]).to_csv(batch_metadata_path, sep='\t', index=False)
-
+        return load_all_marginalizations(
+            self.data,
+            cache,
+            read_batch_size,
+            frag_len_negbin_n,
+            frag_len_negbin_p,
+            read_likelihoods
+        )
 
     def prune_reads(self):
         """
