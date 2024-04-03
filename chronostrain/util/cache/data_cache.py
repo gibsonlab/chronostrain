@@ -128,9 +128,9 @@ class ComputationCache(object):
         subdir = self.cache_dir / subdir_name
         if not subdir.exists():
             if recursive:
-                subdir.mkdir(exist_ok=True)
-            else:
                 subdir.mkdir(exist_ok=True, parents=True)
+            else:
+                subdir.mkdir(exist_ok=True)
         return subdir
 
     def call(self,
