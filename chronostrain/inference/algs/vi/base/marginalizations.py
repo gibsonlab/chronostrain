@@ -23,6 +23,7 @@ def load_batched_matrices(matrix_dir: Path) -> List[jnp.ndarray]:
     """
     Implements the load() functionality for cache.
     """
+    logger.debug("Loading batched matrices from subdir: {}".format(matrix_dir))
     with open(matrix_dir / _metadata_file, 'rt') as f:
         line = f.readline()
         tokens = line.strip().split('=')
