@@ -92,7 +92,6 @@ def column_normed_row_sum(x: jsparse.BCOO) -> np.ndarray:
 #     return np.array(z)
 
 
-@jax.jit
 def _log_row_scale(scale, tgt_row, y_indices, y_values, answer_buf):
     """
     Given a scalar (scale), extract and scale the k-th row (tgt_row) of the matrix Y, given by a COO specification (indices, values).
@@ -105,7 +104,6 @@ def _log_row_scale(scale, tgt_row, y_indices, y_values, answer_buf):
     return answer_buf.at[y_indices[:, 1]].max(v)
 
 
-@jax.jit
 def _log_col_scale(scale, tgt_col, x_indices, x_values, answer_buf):
     """
     Given a scalar (scale), extract and scale the k-th column (tgt_col) of the matrix X, given by a COO specification (indices, values).
@@ -118,7 +116,6 @@ def _log_col_scale(scale, tgt_col, x_indices, x_values, answer_buf):
     return answer_buf.at[x_indices[:, 0]].max(v)
 
 
-@jax.jit
 def _log_spspmm_exp_lax_sparsey(x_indices: np.ndarray, x_values: np.ndarray,
                         y_indices: np.ndarray, y_values: np.ndarray,
                         ans_buf: np.ndarray) -> np.ndarray:
@@ -147,7 +144,6 @@ def _log_spspmm_exp_lax_sparsey(x_indices: np.ndarray, x_values: np.ndarray,
     )[0]
 
 
-@jax.jit
 def _log_spspmm_exp_lax_sparsex(x_indices: np.ndarray, x_values: np.ndarray,
                         y_indices: np.ndarray, y_values: np.ndarray,
                         ans_buf: np.ndarray) -> np.ndarray:
@@ -255,6 +251,5 @@ def sp_vecmat_logaddexp(x: jsparse.BCOO, y: jsparse.BCOO):
     ) + offsets
 
 
-@jax.jit
 def densesp_mm(x: np.ndarray, y: jsparse.BCOO) -> np.ndarray:
     raise NotImplementedError("TODO later")
