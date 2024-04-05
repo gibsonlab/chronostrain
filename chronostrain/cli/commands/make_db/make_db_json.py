@@ -63,12 +63,6 @@ from ..base import option
     type=int, required=False, default=1,
     help="The number of threads to use (e.g. for blast)."
 )
-# @option(
-#     "--add-isolates", "-iso", "isolates_index_path",
-#     type=click.Path(path_type=Path, dir_okay=False, exists=True, readable=True),
-#     required=False, default=None,
-#     help="If specified, will add these isolates to the catalog prior to clustering."
-# )
 def main(
         marker_seeds_path: Path,
         ref_index_paths: List[Path],
@@ -77,8 +71,7 @@ def main(
         json_output_path: Path,
         min_pct_idty: int,
         min_marker_len: int,
-        num_threads: int,
-        # isolates_index_path: Union[Path, None]
+        num_threads: int
 ):
     """
     Create a database using marker seeds.
@@ -90,6 +83,8 @@ def main(
     import pandas as pd
     from typing import Dict
     from .helpers import create_chronostrain_db
+
+    logger.info("Using marker index: {}".format(marker_seeds_path))
 
     dfs = []
     for ref_p in ref_index_paths:

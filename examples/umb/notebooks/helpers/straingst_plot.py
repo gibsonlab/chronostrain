@@ -34,10 +34,10 @@ def parse_umb_entries(straingst_output_basedir: Path, entries_csv_path: Path) ->
 
         if sample_type == 'stool':
             sample_type = 'Stool'
-            straingst_path = straingst_output_basedir / 'stool' / 'output' / f'{patient_id}' / f'{sample_name}.tsv'
+            straingst_path = straingst_output_basedir / 'stool' / f'{patient_id}' / 'straingst' / f'{sample_name}.tsv'
         elif sample_type == 'urine raw':
             sample_type = 'Urine'
-            straingst_path = straingst_output_basedir / 'urine' / 'output' / f'{patient_id}' / f'{sample_name}.tsv'
+            straingst_path = straingst_output_basedir / 'urine' / f'{patient_id}' / 'straingst' / f'{sample_name}.tsv'
         else:
             continue
 
@@ -54,8 +54,8 @@ def parse_umb_entries(straingst_output_basedir: Path, entries_csv_path: Path) ->
         ))
 
     # Parse plate scrape results.
-    plate_output_dir = straingst_output_basedir / 'plate' / 'output'
-    for fpath in plate_output_dir.glob("UMB*/*.tsv"):
+    plate_output_dir = straingst_output_basedir / 'plate_scrapes' / 'split_samples_run'
+    for fpath in plate_output_dir.glob("Esch_coli_UMB*/straingst/*.tsv"):
         tokens = fpath.stem.split("_")
         assert tokens[0] == 'UMB'
 

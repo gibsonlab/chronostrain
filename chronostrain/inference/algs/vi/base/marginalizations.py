@@ -101,9 +101,10 @@ def load_all_marginalizations(
     return unpaired_batches, paired_batches
 
 
-def save_batch_metadata(metadata_path: Path, n_batches: int):
+def save_batch_metadata(metadata_path: Path, n_batches: int, batch_sz: int):
     with open(metadata_path, 'wt') as f:
         print(f"n_batches={n_batches}", file=f)
+        print(f"batch_sz={batch_sz}", file=f)
 
 
 def compute_marginalizations_unpaired(
@@ -144,7 +145,7 @@ def compute_marginalizations_unpaired(
         )  # (S x R_batch)
         jnp.save(str(target_dir / f'batch_{batch_idx}.npy'), strain_batch_lls_t)
         n_batches += 1
-    save_batch_metadata(target_dir / _metadata_file, n_batches)
+    save_batch_metadata(target_dir / _metadata_file, n_batches, read_batch_size)
 
 
 def compute_marginalizations_paired(
@@ -187,4 +188,4 @@ def compute_marginalizations_paired(
         )  # (S x R_pairs_batch)
         jnp.save(str(target_dir / f'batch_{paired_batch_idx}.npy'), batch_paired_marginalization_t)
         n_batches += 1
-    save_batch_metadata(target_dir / _metadata_file, n_batches)
+    save_batch_metadata(target_dir / _metadata_file, n_batches, read_batch_size)
