@@ -42,7 +42,11 @@ echo "[*] Running inference for (replicate: ${replicate} | n_reads: ${n_reads} |
 start_time=$(date +%s%N)  # nanoseconds
 
 # Perform bowtie2 alignment
-sam_file="reads_${time_point}.sam"
+sam_file_sim="reads_${time_point}_sim.sam"
+sam_file_bg="reads_${time_point}_bg.sam"
+
+bam_file_sim="reads_${time_point}_sim.bam"
+bam_file_bg="reads_${time_point}_bg.bam"
 bam_file="reads_${time_point}.bam"
 sorted_bam_file="reads_${time_point}.sorted.bam"
 
@@ -51,15 +55,27 @@ bowtie2 \
 --very-fast --no-unal --quiet \
 -p ${N_CORES} \
 -x ${METAGENOME_ALIGN_DIR}/MA \
--U ${read_dir}/${time_point}_sim_1.fq \
--U ${read_dir}/${time_point}_sim_2.fq \
--U ${BACKGROUND_FASTQ_DIR}/${time_point}_background_1.fq \
--U ${BACKGROUND_FASTQ_DIR}/${time_point}_background_2.fq \
--S ${sam_file}
+-1 ${read_dir}/${time_point}_sim_1.fq \
+-2 ${read_dir}/${time_point}_sim_2.fq \
+-S ${sam_file_sim}
+
+bowtie2 \
+--very-fast --no-unal --quiet \
+-p ${N_CORES} \
+-x ${METAGENOME_ALIGN_DIR}/MA \
+-1 ${BACKGROUND_FASTQ_DIR}/sorted/${time_point}_background_1.sorted.fq \
+-2 ${BACKGROUND_FASTQ_DIR}/sorted/${time_point}_background_2.sorted.fq \
+-S ${sam_file_bg}
 
 # Invoke samtools
 echo "[*] Invoking samtools..."
-samtools view -b ${sam_file} > ${bam_file}
+rm -f ${bam_file_sim}
+rm -f ${bam_file_bg}
+rm -f ${bam_file}
+rm -f ${sorted_bam_file}
+samtools view -b ${sam_file_sim} > ${bam_file_sim}
+samtools view -b ${sam_file_bg} > ${bam_file_bg}
+samtools merge ${bam_file} ${bam_file_sim} ${bam_file_bg}
 samtools sort ${bam_file} -o ${sorted_bam_file}
 samtools index ${sorted_bam_file}
 
@@ -80,7 +96,7 @@ echo "${elapsed_time}" > $runtime_file
 
 # ========== Clean up
 echo "[*] Cleaning up..."
-rm ${sam_file}
+rm ./*.sam
 rm ${bam_file}
 rm ${sorted_bam_file}
 

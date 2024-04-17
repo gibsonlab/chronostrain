@@ -55,7 +55,7 @@ cd ${EFAECALIS_MUT_REF_DIR}
 echo "[**] Aligning fwd+rev reads"
 n_colors=$(cat "${EFAECALIS_MUT_CLUSTER}" | wc -l)
 echo "ref db: found ${n_colors} colors"
-#aln_and_compress ${strain_fq_1} ${strain_fq_2} ${strain_aln_1} ${strain_aln_2} ${EFAECALIS_MUT_REF_INDEX} ${n_colors} ${strain_outdir}/tmp
+aln_and_compress ${strain_fq_1} ${strain_fq_2} ${strain_aln_1} ${strain_aln_2} ${EFAECALIS_MUT_REF_INDEX} ${n_colors} ${strain_outdir}/tmp
 
 echo "[**] Cleaning up alignment tmpdir."
 rm -rf ${strain_outdir}/tmp
