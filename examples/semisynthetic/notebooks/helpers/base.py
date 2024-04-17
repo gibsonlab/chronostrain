@@ -3,12 +3,12 @@ from pathlib import Path
 from collections import defaultdict
 
 
-def replicate_dir(mut_ratio: str, replicate: int) -> Path:
-    return Path('/mnt/e/semisynthetic_data') / f'mutratio_{mut_ratio}' / f'replicate_{replicate}'
+def replicate_dir(mut_ratio: str, replicate: int, base_dir: Path = Path('/mnt/e/semisynthetic_data')) -> Path:
+    return base_dir / f'mutratio_{mut_ratio}' / f'replicate_{replicate}'
 
 
-def trial_dir(mut_ratio: str, replicate: int, read_depth: int, trial: int) -> Path:
-    return replicate_dir(mut_ratio, replicate) / f'reads_{read_depth}' / f'trial_{trial}'
+def trial_dir(mut_ratio: str, replicate: int, read_depth: int, trial: int, base_dir: Path = Path('/mnt/e/semisynthetic_data')) -> Path:
+    return replicate_dir(mut_ratio, replicate, base_dir=base_dir) / f'reads_{read_depth}' / f'trial_{trial}'
 
 
 def parse_runtime(p: Path) -> int:

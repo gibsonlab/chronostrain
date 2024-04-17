@@ -23,12 +23,26 @@ for (( trial = 1; trial < ${N_TRIALS}+1; trial++ )); do
         bash mutratios/msweep_run.sh $mutation_ratio $replicate $n_reads $trial 4
         bash mutratios/msweep_run.sh $mutation_ratio $replicate $n_reads $trial 5
 
-        bash strainge/run_straingst.sh $mutation_ratio $replicate $n_reads $trial 0
-        bash strainge/run_straingst.sh $mutation_ratio $replicate $n_reads $trial 1
-        bash strainge/run_straingst.sh $mutation_ratio $replicate $n_reads $trial 2
-        bash strainge/run_straingst.sh $mutation_ratio $replicate $n_reads $trial 3
-        bash strainge/run_straingst.sh $mutation_ratio $replicate $n_reads $trial 4
-        bash strainge/run_straingst.sh $mutation_ratio $replicate $n_reads $trial 5
+        bash strainge/run_straingst.sh $mutation_ratio $replicate $n_reads $trial 0 "straingst" 10 0.0
+        bash strainge/run_straingst.sh $mutation_ratio $replicate $n_reads $trial 1 "straingst" 10 0.0
+        bash strainge/run_straingst.sh $mutation_ratio $replicate $n_reads $trial 2 "straingst" 10 0.0
+        bash strainge/run_straingst.sh $mutation_ratio $replicate $n_reads $trial 3 "straingst" 10 0.0
+        bash strainge/run_straingst.sh $mutation_ratio $replicate $n_reads $trial 4 "straingst" 10 0.0
+        bash strainge/run_straingst.sh $mutation_ratio $replicate $n_reads $trial 5 "straingst" 10 0.0
+
+        bash mgems/analyze_sample_species.sh $mutation_ratio $replicate $n_reads $trial 0 "mgems" 0.65
+        bash mgems/analyze_sample_species.sh $mutation_ratio $replicate $n_reads $trial 1 "mgems" 0.65
+        bash mgems/analyze_sample_species.sh $mutation_ratio $replicate $n_reads $trial 2 "mgems" 0.65
+        bash mgems/analyze_sample_species.sh $mutation_ratio $replicate $n_reads $trial 3 "mgems" 0.65
+        bash mgems/analyze_sample_species.sh $mutation_ratio $replicate $n_reads $trial 4 "mgems" 0.65
+        bash mgems/analyze_sample_species.sh $mutation_ratio $replicate $n_reads $trial 5 "mgems" 0.65
+
+        bash mgems/analyze_sample_strain.sh $mutation_ratio $replicate $n_reads $trial 0 "mgems" 0.65
+        bash mgems/analyze_sample_strain.sh $mutation_ratio $replicate $n_reads $trial 1 "mgems" 0.65
+        bash mgems/analyze_sample_strain.sh $mutation_ratio $replicate $n_reads $trial 2 "mgems" 0.65
+        bash mgems/analyze_sample_strain.sh $mutation_ratio $replicate $n_reads $trial 3 "mgems" 0.65
+        bash mgems/analyze_sample_strain.sh $mutation_ratio $replicate $n_reads $trial 4 "mgems" 0.65
+        bash mgems/analyze_sample_strain.sh $mutation_ratio $replicate $n_reads $trial 5 "mgems" 0.65
       done
     done
   done
