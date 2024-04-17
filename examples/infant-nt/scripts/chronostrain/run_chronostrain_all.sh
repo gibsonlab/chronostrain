@@ -25,6 +25,7 @@ do
 
   inference_mark=${participant_dir}/chronostrain/inference.DONE
   if [[ -f ${inference_mark} ]]; then
+    echo ${inference_mark}
     echo "[*] Skipping inference for participant ${participant}"
   else
     bash chronostrain/run_chronostrain.sh ${participant}

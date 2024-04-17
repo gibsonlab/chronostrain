@@ -49,7 +49,8 @@ mkdir -p ${species_outdir}
 cd ${SPECIES_REF_DIR}
 echo "[*] Species-level analysis (Refdir=${SPECIES_REF_DIR})."
 echo "[**] Aligning fwd+rev reads"
-aln_and_compress ${fq_1} ${fq_2} ${aln_1} ${aln_2} ${SPECIES_REF_INDEX} ${SPECIES_N_COLORS} ${species_outdir}/tmp
+n_colors=$(cat "${SPECIES_REF_CLUSTER}" | wc -l)
+aln_and_compress ${fq_1} ${fq_2} ${aln_1} ${aln_2} ${SPECIES_REF_INDEX} ${n_colors} ${species_outdir}/tmp
 
 echo "[**] Cleaning up alignment tmpdir."
 rm -rf ${species_outdir}/tmp

@@ -1,24 +1,14 @@
 # Modify these before running.
 export PROJECT_DIR="/home/youn/work/chronostrain"
 export BASE_DIR="${PROJECT_DIR}/examples/infant-nt"
-export DATA_DIR="/mnt/e/infant_nt"
+#export DATA_DIR="/mnt/e/infant_nt"
+export DATA_DIR=/data/cctm/youn/infant_nt
 
 # Dataset
 export DATASET_METAGENOMIC_CATALOG="${DATA_DIR}/project.tsv"
 export ENA_ISOLATE_ASSEMBLY_CATALOG=${DATA_DIR}/isolate_assembly_ena.tsv
 export NT_RESULT_TABLE="${BASE_DIR}/files/babybiome_lineages_by_time_point.tsv"
 export INFANT_ID_LIST="${BASE_DIR}/files/all_participants.txt"
-
-# ========= Chronostrain settings
-export CHRONOSTRAIN_NUM_ITERS=100
-export CHRONOSTRAIN_NUM_SAMPLES=100
-export CHRONOSTRAIN_READ_BATCH_SZ=10000
-export CHRONOSTRAIN_NUM_EPOCHS=5000
-export CHRONOSTRAIN_DECAY_LR=0.1
-export CHRONOSTRAIN_LR=0.0005
-export CHRONOSTRAIN_LOSS_TOL=1e-7
-export CHRONOSTRAIN_LR_PATIENCE=5
-export CHRONOSTRAIN_MIN_LR=1e-7
 
 
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)

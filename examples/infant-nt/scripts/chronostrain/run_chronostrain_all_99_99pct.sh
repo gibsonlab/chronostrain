@@ -30,5 +30,6 @@ do
     bash chronostrain/run_chronostrain.99_99pct.sh ${participant}
     touch $inference_mark
   fi
-done < infant_subset_99_99pct.txt
+done < infant_subset_tmp.txt
+#done < infant_subset_99_99pct.txt
 #done < "${INFANT_ID_LIST}"

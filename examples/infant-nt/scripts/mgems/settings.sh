@@ -1,25 +1,24 @@
 # ================= Themisto + mSWEEP settings
 export N_CORES=8
 
+export EUROPE_EFAECALIS_INDEX=/data/local/europe_efaecalis/index.tsv
+export INFANT_ISOLATE_INDEX=${DATA_DIR}/database/infant_isolates/index.tsv  # this is a byproduct of ChronoStrain's database construction.
+
 export SPECIES_REF_DIR=/data/cctm/youn/infant_nt/database/mgems/themisto_640k
 export SPECIES_REF_INDEX=index
 export SPECIES_REF_CLUSTER=index_mSWEEP_indicators.txt
-export SPECIES_N_COLORS=2340
 
 export EFAECALIS_REF_DIR=/data/cctm/youn/infant_nt/database/mgems/Efaecalis_elmc_natcom
 export EFAECALIS_REF_INDEX=index_v3/index_v3
 export EFAECALIS_REF_CLUSTER=index_v3/index_v3_mSWEEP_indicators.txt
-export EFAECALIS_N_COLORS=1579
 
 export EFAECALIS_CHRONO_MIRROR_REF_DIR=/data/cctm/youn/infant_nt/database/mgems/Efaecalis_chrono_mirror
 export EFAECALIS_CHRONO_MIRROR_REF_INDEX=ref_idx/ref_idx
 export EFAECALIS_CHRONO_MIRROR_CLUSTER=ref_clu.txt
-export EFAECALIS_CHRONO_N_COLORS=2375
 
 export EFAECALIS_CHRONO_99_99PCT_MIRROR_REF_DIR=/data/cctm/youn/infant_nt/database/mgems/Efaecalis_chrono_99_99pct_mirror
 export EFAECALIS_CHRONO_99_99PCT_MIRROR_REF_INDEX=ref_idx/ref_idx
 export EFAECALIS_CHRONO_99_99PCT_MIRROR_CLUSTER=ref_clu.txt
-export EFAECALIS_CHRONO_99_99PCT_N_COLORS=2375
 
 
 aln_and_compress()

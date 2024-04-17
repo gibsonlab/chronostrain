@@ -55,4 +55,3 @@ env JAX_PLATFORM_NAME=cpu JAX_PLATFORMS=cpu \
   -o ${run_dir}/filtered \
   -s ${CHRONOSTRAIN_CLUSTER_FILE} \
   --aligner "bwa-mem2"
-touch ${run_dir}/filtered/FILTER_DONE.txt

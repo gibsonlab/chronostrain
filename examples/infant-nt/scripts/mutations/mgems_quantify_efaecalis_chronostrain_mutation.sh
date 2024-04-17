@@ -35,13 +35,9 @@ if [ -f ${breadcrumb} ]; then
 fi
 
 
-EFAECALIS_CHRONO_MIRROR_REF_DIR=${DATA_DIR}/database/mutated_dbs/${mutation_rate}/mgems
-EFAECALIS_CHRONO_MIRROR_REF_INDEX=ref_idx/ref_idx
-EFAECALIS_CHRONO_MIRROR_CLUSTER=ref_clu.txt
-
-echo "cat ${EFAECALIS_CHRONO_MIRROR_REF_DIR}/${EFAECALIS_CHRONO_MIRROR_CLUSTER}) | wc -l"
-EFAECALIS_CHRONO_N_COLORS=$(cat "${EFAECALIS_CHRONO_MIRROR_REF_DIR}/${EFAECALIS_CHRONO_MIRROR_CLUSTER}" | wc -l)
-echo "ref db: found ${EFAECALIS_CHRONO_N_COLORS} colors"
+EFAECALIS_MUT_REF_DIR=${DATA_DIR}/database/mutated_dbs/${mutation_rate}/mgems
+EFAECALIS_MUT_REF_INDEX=ref_idx/ref_idx
+EFAECALIS_MUT_CLUSTER=ref_clu.txt
 
 
 # ====================================================== script begins here
@@ -55,21 +51,23 @@ strain_aln_1=${strain_outdir}/ali_1.aln
 strain_aln_2=${strain_outdir}/ali_2.aln
 mkdir -p ${strain_outdir}
 
-cd ${EFAECALIS_CHRONO_MIRROR_REF_DIR}
+cd ${EFAECALIS_MUT_REF_DIR}
 echo "[**] Aligning fwd+rev reads"
-aln_and_compress ${strain_fq_1} ${strain_fq_2} ${strain_aln_1} ${strain_aln_2} ${EFAECALIS_CHRONO_MIRROR_REF_INDEX} ${EFAECALIS_CHRONO_N_COLORS} ${strain_outdir}/tmp
+n_colors=$(cat "${EFAECALIS_MUT_CLUSTER}" | wc -l)
+echo "ref db: found ${n_colors} colors"
+#aln_and_compress ${strain_fq_1} ${strain_fq_2} ${strain_aln_1} ${strain_aln_2} ${EFAECALIS_MUT_REF_INDEX} ${n_colors} ${strain_outdir}/tmp
 
 echo "[**] Cleaning up alignment tmpdir."
 rm -rf ${strain_outdir}/tmp
 
-min_abun=0.00001
+min_abun=0.0
 echo "[**] Running mSWEEP abundance estimation (min abundance = ${min_abun})."
 mSWEEP \
   -t ${N_CORES} \
   --themisto-1 ${strain_aln_1}  \
   --themisto-2 ${strain_aln_2}  \
   -o ${strain_outdir}/msweep \
-  -i ${EFAECALIS_CHRONO_MIRROR_CLUSTER} \
+  -i ${EFAECALIS_MUT_CLUSTER} \
   --bin-reads \
   --min-abundance ${min_abun} \
   --verbose
