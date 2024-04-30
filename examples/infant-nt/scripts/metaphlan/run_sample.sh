@@ -19,6 +19,7 @@ breadcrumb=${out_dir}/metaphlan.DONE
 echo "breadcrumb=${breadcrumb}"
 if [ -f ${breadcrumb} ]; then
   echo "[*] MetaPhlAn already done for ${infant_id}, sample ${sample_id}"
+  exit 0
 fi
 
 mkdir -p ${out_dir}
@@ -31,4 +32,5 @@ metaphlan ${fq1_gz},${fq2_gz} \
   --bowtie2db ${METAPHLAN_DB_DIR} \
   --index "${METAPHLAN_DB_NAME}"
 
+rm ${bt2_out}
 touch ${breadcrumb}

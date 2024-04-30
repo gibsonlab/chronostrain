@@ -1,8 +1,5 @@
 # ChronoStrain
 
-*** Under active development! ***
-The contents of this repository will soon be outdated and replaced with the `development` branch, with many updates and streamlining.
-
 # Table of Contents
 1. [Colab Demo](#colab-demo)
 2. [Installation](#installation)
@@ -77,7 +74,7 @@ Installing chronostrain creates a command-line entry point `chronostrain`.
 For precise I/O specification and a description of all arguments, please invoke the `--help` option.
 Note that all commands below requires a valid configuration file; refer to [Configuration](#config).
 
-1. **Database creation** -- **We recommend following the notebook recipe `examples/database/complete_recipes/ecoli.ipynb`.**   
+1. **Database creation** -- **We recommend following the notebook recipe `examples/database/complete_recipes/<example>.ipynb`.**   
     
     If one really wants to generate a new database manually, this command outputs a JSON file and populates a data directory 
     specified by the configuration:
@@ -242,10 +239,12 @@ A strain-specific marker sequence is defined using the following attributes.
 ## Source Sequence Definition <a name="seq-def"></a>
 
 Each strain entry contains a `seqs` field, which specifies the source sequence that each marker should be pulled out of.
-Each corresponds to a FASTA file `<accession>.fasta` and a genbank annotation file `<accession>.gb`.
+Each corresponds to a FASTA file `<accession>.fasta`, containing at least one FASTA sequence record representing the 
+assembled genome (either contigs or a completed assembly. Scaffolds with gaps are not accepted.).
 If these files are missing (in the `DATA_DB_DIR` directory, as specified in the configuration), then ChronoStrain 
-will attempt to automatically download these files from NCBI on-the-fly.
-If this behavior is something that you would like, please use a valid NCBI accession for the `accession` field.
+can be configured to automatically download these files from NCBI on-the-fly.
+(If this behavior is something that you would like, please use a valid NCBI-searchable accession for the 
+`accession` field, and enable NCBI API usage in the configuration by setting ENABLED=True under "[Entrez]".)
 
 In the case of a strain with a *complete* chromosomal assembly, one only needs to provide a single-object list:
 ```text
@@ -253,27 +252,22 @@ In the case of a strain with a *complete* chromosomal assembly, one only needs t
 "seqs": [{"accession": "SEQ_ID_1", "seq_path": "path_to_fasta"}],
 ...
 ```
-the `locus_tag` type will specifically parse the genbank annotation `.gb` file and look for the matching entry.
 
-If a complete assembly is not available and one only has scaffolds or contigs (possibly split into multiple fasta files), one can specify multiple sources:
+If a complete assembly is not available and one only has contigs (it can be split into multiple fasta files), one can specify multiple sources:
 ```text
 ...
 "seqs": [
-    {"accession": "SCAFFOLD_ACC_1", "seq_path": "path_to_fasta1"},
-    {"accession": "SCAFFOLD_ACC_2", "seq_path": "path_to_fasta2"},
-    {"accession": "CONTIG_ACC_1", "seq_path": "path_to_fasta3"},
-    {"accession": "CONTIG_ACC_2", "seq_path": "path_to_fasta4"}
+    {"accession": "CONTIG_ACC_1", "seq_path": "path_to_fasta1"},
+    {"accession": "CONTIG_ACC_2", "seq_path": "path_to_fasta2"},
+    ...
 ],
 ...
 ```
-Note that the `primer` option's search will fail if no scaffold or contig contains
-*both* forward and reverse primer matches.
 
 # 6. Reproducing paper analyses <a name="paper"></a>
 
 Please refer to the scripts/documentation found in each respective subdirectory.
 
-- Fully synthetic: `examples/synthetic`
 - Semi-synthetic: `examples/semisynthetic`
 - UMB Analysis: `examples/umb`
 - ELMC infant analysis: `examples/infant-nt` 
