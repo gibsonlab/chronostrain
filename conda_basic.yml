@@ -3,31 +3,32 @@ name: chronostrain_basic
 channels:
   - conda-forge
   - bioconda
-  - pytorch
+  - nvidia
 
 dependencies:
-  - python=3.10
+  - python>=3.10
   - pip
   - numpy
   - scipy
   - pandas
+  - pyarrow
   - numba
-  - nvidia::cudatoolkit=11.6
-  - pytorch::pytorch
-  - pyg::pytorch-scatter
-  - pyg::pytorch-sparse
+  - pysam
+  - intervaltree
+  - tqdm
+  - jax
+  - jaxlib=*=*cuda*
+  - optax
+  - cuda-nvcc
   - scikit-learn
   - matplotlib
   - seaborn
-  - joblib
-  - networkx
   - biopython
   - click
-  - samtools=1.14
-  - mafft
-  - bwa
-  - bowtie2
   - blast
-  - pigz
+  - samtools
+  - bwa-mem2
+  - bowtie2
+  - pysam
   - pip:
     - ./

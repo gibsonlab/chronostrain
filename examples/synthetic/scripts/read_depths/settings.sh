@@ -38,7 +38,6 @@ export CHRONOSTRAIN_DECAY_LR=0.25
 export CHRONOSTRAIN_LR=0.001
 export CHRONOSTRAIN_LR_PATIENCE=5
 export CHRONOSTRAIN_MIN_LR=1e-5
-export CHRONOSTRAIN_OUTPUT_FILENAME="abundances.out"
 
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)
 export CHRONOSTRAIN_DB_JSON="${BASE_DIR}/files/database.json"
@@ -46,7 +45,7 @@ export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
 export CHRONOSTRAIN_LOG_INI="${BASE_DIR}/files/logging.ini"
 
 
-check_program()
+require_program()
 {
 	command -v ${1} >/dev/null 2>&1 || {
 		echo >&2 "I require ${1} but it's not installed.  Aborting.";
@@ -63,4 +62,4 @@ get_trial_dir()
 	echo ${trial_dir}
 }
 
-export check_program
+export require_program

@@ -1,35 +1,31 @@
 # Modify these before running.
-export PROJECT_DIR="/home/lactis/chronostrain"
+export PROJECT_DIR="/home/youn/work/chronostrain"
 export BASE_DIR="${PROJECT_DIR}/examples/umb"
-export DATA_DIR="/mnt/e/umb_data"
-export OUTPUT_DIR="/mnt/e/chronostrain/umb_plate_scrapes/output"
-export OUTPUT_DIR="/mnt/e/chronostrain/umb_plate_scrapes/output"
-export READS_DIR="/mnt/e/chronostrain/umb_plate_scrapes/reads"
-export CHRONOSTRAIN_DB_DIR="/mnt/e/chronostrain/umb_database"
-export LOGDIR="${OUTPUT_DIR}/logs"
+export OUTPUT_DIR="/mnt/e/umb_analysis/plate_scrapes"
 export SAMPLES_DIR="/mnt/e/umb_data/plate_scrapes"
 
 # ======== Location of this file.
 export SETTINGS_PATH="${BASE_DIR}/scripts/plate_scrapes/settings.sh"
 
 # Location for reads and outputs.
-export READS_DIR="${OUTPUT_DIR}/reads"
 export CHRONOSTRAIN_OUTPUT_DIR="${OUTPUT_DIR}/chronostrain"
 
 # ========= Chronostrain settings
-export CHRONOSTRAIN_CORR_MODE='full'
+export CHRONOSTRAIN_CORR_MODE='strain'
+export CHRONOSTRAIN_NUM_ITERS=100
+export CHRONOSTRAIN_NUM_SAMPLES=100
+export CHRONOSTRAIN_READ_BATCH_SZ=10000
 export CHRONOSTRAIN_NUM_EPOCHS=1000
-export CHRONOSTRAIN_NUM_ITERS=50
-export CHRONOSTRAIN_NUM_SAMPLES=200
-export CHRONOSTRAIN_READ_BATCH_SZ=5000
-export CHRONOSTRAIN_DECAY_LR=0.5
+export CHRONOSTRAIN_DECAY_LR=0.1
+export CHRONOSTRAIN_LR=0.0005
+export CHRONOSTRAIN_LOSS_TOL=1e-7
 export CHRONOSTRAIN_LR_PATIENCE=5
-export CHRONOSTRAIN_MIN_LR=1e-5
-export CHRONOSTRAIN_LR=0.001
+export CHRONOSTRAIN_MIN_LR=1e-7
 export CHRONOSTRAIN_CACHE_DIR="${OUTPUT_DIR}/cache"
-export CHRONOSTRAIN_OUTPUT_FILENAME="abundances.out"
 
-export CHRONOSTRAIN_DB_JSON="${CHRONOSTRAIN_DB_DIR}/database_pruned_resolved.json"
+export CHRONOSTRAIN_DB_DIR="/mnt/e/ecoli_db/chronostrain_files"
+export CHRONOSTRAIN_DB_JSON="/mnt/e/ecoli_db/chronostrain_files/ecoli.json"
+export CHRONOSTRAIN_CLUSTER_FILE="/mnt/e/ecoli_db/chronostrain_files/ecoli.clusters.txt"
 
 # ================ assembly settings
 export SPADES_DIR="/home/lactis/SPAdes-3.15.5"
@@ -52,11 +48,11 @@ if [ ! -z ${_settings_loaded} ]; then
 fi
 _settings_loaded="True"
 
-check_program()
+require_program()
 {
 	command -v ${1} >/dev/null 2>&1 || {
 		echo >&2 "I require ${1} but it's not installed.  Aborting.";
 		exit 1;
 	}
 }
-export check_program
+export require_program

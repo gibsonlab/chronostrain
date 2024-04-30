@@ -5,6 +5,7 @@ import torch
 _pi = torch.tensor(pi)
 
 
+print("DEPRECATED MODULE: distributions.py")
 class ScaleInverseChiSquared:
     def __init__(self, dof: Union[torch.Tensor, float], scale: Union[torch.Tensor, float]):
         if isinstance(dof, float):
@@ -78,7 +79,7 @@ class SICSGaussian:
 class JeffreysGaussian(object):
     def __init__(self, mean: torch.Tensor):
         self.mu = mean
-        self.gaussian_dim = mean.size()[-1]
+        self.gaussian_dim = np.prod(mean.shape)
 
     def log_likelihood(self, x: torch.Tensor):
         if len(self.mu.size()) == 1 and len(x.size()) == 2:
@@ -97,7 +98,12 @@ class JeffreysGaussian(object):
         Note: In theory, there is an extra factor of (a/2) * log(2 * pi). 
         We omit this due to extra overhead; it makes no difference in the autograd calculations.
         """
-        return -ScaleInverseChiSquared.sics_log_constant(dof=a, scale=(1/a) * b)
+        dof = a
+        scale = (1/a) * b
+        half_dof = 0.5 * dof
+        return half_dof * torch.log(scale)  # Return only the differentiable part in our model.
+        # return half_dof * torch.log(scale * half_dof) - torch.lgamma(half_dof)
+        # return -ScaleInverseChiSquared.sics_log_constant(dof=a, scale=(1/a) * b)
 
 
 class UniformVarianceGaussian(object):
@@ -129,12 +135,12 @@ class HalfCauchyVarianceGaussian(object):
     def empirical_log_likelihood(self, x: torch.Tensor):
         from chronostrain.config import cfg
         gaussian_size = x.size()[-1]
-        ans = torch.zeros(size=(x.size()[0],), device=cfg.torch_cfg.device)
+        ans = torch.zeros(size=(x.size()[0],), device=cfg.engine_cfg.device)
         for i in range(self.n_samples):
             var = self.cauchy_dist.sample()
             normal_dist = torch.distributions.MultivariateNormal(
                 loc=self.mean,
-                covariance_matrix=var * torch.eye(gaussian_size, gaussian_size, device=cfg.torch_cfg.device)
+                covariance_matrix=var * torch.eye(gaussian_size, gaussian_size, device=cfg.engine_cfg.device)
             )
             ans += normal_dist.log_prob(x).exp()
         return torch.log(ans / self.n_samples)

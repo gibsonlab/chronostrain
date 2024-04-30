@@ -3,7 +3,7 @@ set -e
 source settings.sh
 
 seed=0
-check_program 'art_illumina'
+require_program 'art_illumina'
 
 for (( q_shift = ${Q_SHIFT_MIN}; q_shift < ${Q_SHIFT_MAX}+1; q_shift += ${Q_SHIFT_STEP} ));
 do

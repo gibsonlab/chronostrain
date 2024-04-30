@@ -9,7 +9,6 @@ from ..base import option
 
 
 @click.command()
-@click.pass_context
 @option(
     '--reads', '-r', 'reads_input',
     type=click.Path(path_type=Path, dir_okay=False, exists=True, readable=True),
@@ -21,6 +20,13 @@ from ..base import option
     type=click.Path(path_type=Path, file_okay=False),
     required=True,
     help="The directory to which the filtered reads/CSV table will be saved.",
+)
+@option(
+    '--strain-subset', '-s', 'strain_subset_path',
+    type=click.Path(path_type=Path, dir_okay=False, exists=False, readable=True),
+    required=False, default=None,
+    help="A text file specifying a subset of database strain IDs to perform filtering with; "
+         "a TSV file containing one ID per line, optionally with a second column for metadata.",
 )
 @option(
     '--output-filename', '-f', 'output_filename',
@@ -39,7 +45,7 @@ from ..base import option
 @option(
     '--aligner', '-al', 'aligner',
     type=str,
-    required=False, default='bwa-mem2',
+    required=False, default='bowtie2',
     help='Specify the type of aligner to use. Currently available options: bwa, bowtie2.'
 )
 @option(
@@ -55,27 +61,46 @@ from ..base import option
     help="The upper bound on the number of expected errors, expressed as a fraction of length of the read. "
          "A value of 1.0 disables this feature."
 )
+@option(
+    '--attach-sample-ids', 'attach_sample_ids',
+    is_flag=True, default=False,
+    help='Specify whether to attach sample IDs to the fasta filename. Useful if, for some reason, '
+         'the input fasta files have non-unique names -- but DO become unique if sample IDs are attached.'
+)
 def main(
-        ctx: click.Context,
         reads_input: Path,
         out_dir: Path,
+        strain_subset_path: Path,
         aligner: str,
         min_read_len: int,
         frac_identity_threshold: float,
         error_threshold: float,
-        output_filename: Optional[str]
+        output_filename: Optional[str],
+        attach_sample_ids: bool
 ):
     """
     Perform filtering on a timeseries dataset, specified by a standard CSV-formatted input index.
     """
-    ctx.ensure_object(Logger)
-    logger = ctx.obj
+    from chronostrain.logging import create_logger
+    logger = create_logger("chronostrain.cli.filter_timeseries")
     logger.info(f"Performing filtering to timeseries dataset `{reads_input}`.")
 
     from chronostrain.config import cfg
     from .base import Filter, create_aligner
-    from chronostrain.model.io import parse_read_type
+    from chronostrain.model.io import ReadType
+    from chronostrain.model import StrainCollection
+
     db = cfg.database_cfg.get_database()
+    if strain_subset_path is not None:
+        with open(strain_subset_path, "rt") as f:
+            strain_collection = StrainCollection(
+                [db.get_strain(line.strip().split('\t')[0]) for line in f if not line.startswith("#")],
+                db.signature
+            )
+        logger.info("Loaded list of {} strains.".format(len(strain_collection)))
+    else:
+        strain_collection = StrainCollection(db.all_strains(), db.signature)
+        logger.info("Using complete collection of {} strains from database.".format(len(strain_collection)))
 
     # ============ Prepare output files/directories.
     if output_filename is None or len(output_filename) == 0:
@@ -92,22 +117,32 @@ def main(
     # =========== Parse reads.
     filter = Filter(
         db=db,
+        strain_collection=strain_collection,
         min_read_len=min_read_len,
         frac_identity_threshold=frac_identity_threshold,
         error_threshold=error_threshold
     )
 
-    for t, read_depth, read_path, read_type_str, qual_fmt in load_from_csv(reads_input, logger=logger):
-        read_type = parse_read_type(read_type_str)
+    if target_csv_path.suffix == '.tsv':
+        delim = '\t'
+    else:
+        delim = ','
+
+    for t, sample_name, read_depth, read_path, read_type_str, qual_fmt in load_from_csv(reads_input, logger=logger):
+        read_type = ReadType.parse_from_str(read_type_str)
         logger.info(f"Applying filter to timepoint {t}, {str(read_path)}")
 
-        aligner_obj = create_aligner(aligner, read_type, db)
-        out_file = f"filtered_{remove_suffixes(read_path).name}.fastq"
+        aligner_obj = create_aligner(aligner, read_type, strain_collection.multifasta_file)
+        if attach_sample_ids:
+            out_file = f"filtered_{remove_suffixes(read_path).name}-{sample_name}.fastq"
+        else:
+            out_file = f"filtered_{remove_suffixes(read_path).name}.fastq"
+
         filter.apply(read_path, out_dir / out_file, read_type, aligner_obj, quality_format=qual_fmt)
         with open(target_csv_path, 'a') as target_csv:
             # Append to target CSV file.
-            writer = csv.writer(target_csv, delimiter=',', quotechar='\"', quoting=csv.QUOTE_ALL)
-            writer.writerow([t, read_depth, str(out_file), read_type_str, qual_fmt])
+            writer = csv.writer(target_csv, delimiter=delim, quotechar='\"', quoting=csv.QUOTE_ALL)
+            writer.writerow([t, sample_name, read_depth, str(out_file), read_type_str, qual_fmt])
 
     logger.info("Finished filtering.")
 
@@ -118,21 +153,32 @@ def remove_suffixes(p: Path) -> Path:
     return p
 
 
-def load_from_csv(csv_path: Path, logger: Logger) -> List[Tuple[float, int, Path, str, str]]:
-    time_points: List[Tuple[float, int, Path, str, str]] = []
+def load_from_csv(
+        csv_path: Path,
+        logger: Logger
+) -> List[Tuple[float, str, int, Path, str, str]]:
+    time_points: List[Tuple[float, str, int, Path, str, str]] = []
     if not csv_path.exists():
         raise FileNotFoundError(f"Missing required file `{str(csv_path)}`")
 
     logger.debug("Parsing time-series reads from {}".format(csv_path))
+    if csv_path.suffix == 'tsv':
+        delim = '\t'
+    else:
+        delim = ','
     with open(csv_path, "r") as f:
-        input_specs = csv.reader(f, delimiter=',', quotechar='"')
+        input_specs = csv.reader(f, delimiter=delim, quotechar='"')
         for row in input_specs:
             t = float(row[0])
-            num_reads = int(row[1])
-            read_path = Path(row[2])
-            read_type = row[3]
-            qual_fmt = row[4]
+            sample_name = row[1]
+            num_reads = int(row[2])
+            read_path = Path(row[3])
+            read_type = row[4]
+            qual_fmt = row[5]
 
+            if not read_path.is_absolute():
+                # assume that the path is relative to the CSV file.
+                read_path = csv_path.parent / read_path
             if not read_path.exists():
                 raise FileNotFoundError(
                     "The input specification `{}` pointed to `{}`, which does not exist.".format(
@@ -140,7 +186,7 @@ def load_from_csv(csv_path: Path, logger: Logger) -> List[Tuple[float, int, Path
                         read_path
                     ))
 
-            time_points.append((t, num_reads, read_path, read_type, qual_fmt))
+            time_points.append((t, sample_name, num_reads, read_path, read_type, qual_fmt))
 
     time_points = sorted(time_points, key=lambda x: x[0])
     return time_points
@@ -148,9 +194,9 @@ def load_from_csv(csv_path: Path, logger: Logger) -> List[Tuple[float, int, Path
 
 if __name__ == "__main__":
     from chronostrain.logging import create_logger
-    my_logger = create_logger("chronostrain.filter")
+    main_logger = create_logger("chronostrain.MAIN")
     try:
-        main(obj=my_logger)
+        main()
     except Exception as e:
-        my_logger.exception(e)
+        main_logger.exception(e)
         exit(1)

@@ -40,7 +40,7 @@ def ssw_align(
     exit_code = call_command(
         command='ssw-align',
         args=params,
-        output_path=output_path,
+        stdout=output_path,
         stderr=subprocess.DEVNULL
     )
 

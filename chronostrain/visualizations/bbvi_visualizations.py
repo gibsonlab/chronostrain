@@ -2,14 +2,11 @@ from pathlib import Path
 from typing import List, Optional, Union
 
 import numpy as np
-import torch
 import matplotlib.pyplot as plt
 
 from chronostrain import logger
-from chronostrain.algs import AbstractPosterior
-from chronostrain.model import Population
-from chronostrain.model.generative import GenerativeModel
-from chronostrain.util import filesystem
+from chronostrain.model import StrainCollection
+from chronostrain.model.generative import AbundanceGaussianPrior
 
 from .plot_abundances import plot_posterior_abundances
 
@@ -23,7 +20,7 @@ def plot_elbo_history(
         np.arange(1, len(elbos) + 1, 1),
         elbos
     )
-    ax.set_xlabel("Iteration")
+    ax.set_xlabel("Epoch")
     ax.set_ylabel("ELBO")
     plt.savefig(out_path, format=plot_format)
 
@@ -31,7 +28,7 @@ def plot_elbo_history(
 
 
 def plot_training_animation(
-        model: GenerativeModel,
+        model: AbundanceGaussianPrior,
         out_path: Path,
         upper_quantiles: List[List[float]],
         lower_quantiles: List[List[float]],
@@ -82,7 +79,7 @@ def plot_training_animation(
                 alpha=0.2,
                 color=lines[s_idx].get_color()
             )
-        # Set x and y data...
+        # Set x and y read_frags...
         scat.set_offsets([i+1, elbo_history[i]])
         return lines + fills + [scat]
 
@@ -95,31 +92,21 @@ def plot_training_animation(
 
 
 def plot_vi_posterior(times: List[float],
-                      population: Population,
-                      posterior: AbstractPosterior,
+                      population: StrainCollection,
+                      samples: np.ndarray,
                       plot_path: Path,
-                      samples_path: Path,
                       plot_format: str,
                       ground_truth_path: Optional[Path] = None,
                       draw_legend: bool = False,
-                      num_samples: int = 10000,
                       width: int = 16,
                       height: int = 10,
                       title: str = "Posterior relative abundances"):
     logger.info("Generating plot of posterior.")
 
-    # Generate and save posterior samples.
-    samples = posterior.sample(num_samples).detach().cpu()
-    torch.save(samples, samples_path)
-    logger.info("Posterior samples saved to {}. [{}]".format(
-        samples_path,
-        filesystem.convert_size(samples_path.stat().st_size)
-    ))
-
     # Plotting.
     plot_posterior_abundances(
         times=times,
-        posterior_samples=samples.cpu().numpy(),
+        posterior_samples=samples,
         population=population,
         title=title,
         plots_out_path=plot_path,

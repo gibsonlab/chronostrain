@@ -10,7 +10,6 @@ from typing import Optional, Tuple, Union
 
 from chronostrain.model.io import ReadType
 from chronostrain.util.external import *
-from chronostrain.util.alignments.sam.sam_iterators import *
 
 from chronostrain.logging import create_logger
 logger = create_logger(__name__)
@@ -56,6 +55,8 @@ class BwaAligner(AbstractPairwiseAligner):
                  reference_path: Path,
                  min_seed_len: int,
                  reseed_ratio: float,
+                 mem_discard_threshold: int,
+                 chain_drop_threshold: float,
                  bandwidth: int,
                  num_threads: int,
                  report_all_alignments: bool,
@@ -70,6 +71,8 @@ class BwaAligner(AbstractPairwiseAligner):
         self.reference_path = reference_path
         self.min_seed_len = min_seed_len
         self.reseed_ratio = reseed_ratio
+        self.mem_discard_threshold = mem_discard_threshold
+        self.chain_drop_threshold = chain_drop_threshold
         self.bandwidth = bandwidth
         self.num_threads = num_threads
         self.report_all_alignments = report_all_alignments
@@ -92,26 +95,32 @@ class BwaAligner(AbstractPairwiseAligner):
                 str(self.index_trace_path)
             ))
 
-    def post_process(self, sam_path: Path, output_path: Path, id_suffix: str):
+    def post_process_attach_id_suffix(self, sam_path: Path, id_suffix: str):
+        output_path = sam_path.parent / f'{sam_path.name}.processed'
         with open(sam_path, 'r') as in_f, open(output_path, 'w') as out_f:
             # only keep mapped reads.
-            for line in cull_repetitive_templates(mapped_only(skip_headers(in_f))):
-                tokens = line.rstrip().split('\t')
+            for line in in_f:
+                if line.startswith("@"):
+                    out_f.write(line)
+                else:
+                    tokens = line.rstrip().split('\t')
 
-                # BWA-MEM idiosyncracy: aligner removes the paired-end identifiers '/1', '/2'.
-                read_id = tokens[0]
-                tokens[0] = f'{read_id}{id_suffix}'
-                print('\t'.join(tokens), file=out_f)
+                    # BWA-MEM idiosyncracy: aligner removes the paired-end identifiers '/1', '/2'.
+                    read_id = tokens[0]
+                    tokens[0] = f'{read_id}{id_suffix}'
+                    print('\t'.join(tokens), file=out_f)
+        sam_path.unlink()
+        output_path.rename(sam_path)
 
-    def align(self, query_path: Path, output_path: Path, read_type: ReadType):
-        tmp_sam = output_path.parent / (f'{output_path.stem}_bwa.sam')
-
+    def align(self, query_path: Path, output_path: Path, read_type: ReadType, exclude_unmapped: bool = False):
         bwa_mem(
-            output_path=tmp_sam,
+            output_path=output_path,
             reference_path=self.reference_path,
             read_path=query_path,
             min_seed_length=self.min_seed_len,
             reseed_ratio=self.reseed_ratio,
+            mem_discard_threshold=self.mem_discard_threshold,
+            chain_drop_threshold=self.chain_drop_threshold,
             bandwidth=self.bandwidth,
             num_threads=self.num_threads,
             report_all_alignments=self.report_all_alignments,
@@ -124,17 +133,13 @@ class BwaAligner(AbstractPairwiseAligner):
             unpaired_penalty=0,
             soft_clip_for_supplementary=True,
             score_threshold=self.score_threshold,
-            bwa_cmd=self.bwa_command
+            bwa_cmd=self.bwa_command,
         )
 
         if read_type == ReadType.PAIRED_END_1:
-            self.post_process(tmp_sam, output_path, '/1')
-            tmp_sam.unlink()
+            self.post_process_attach_id_suffix(output_path, '/1')
         elif read_type == ReadType.PAIRED_END_2:
-            self.post_process(tmp_sam, output_path, '/2')
-            tmp_sam.unlink()
-        else:
-            tmp_sam.rename(output_path)
+            self.post_process_attach_id_suffix(output_path, '/2')
 
 
 logger.info("If invoked, bowtie2 will initialize using default setting `phred33`. "
@@ -155,11 +160,17 @@ class BowtieAligner(AbstractPairwiseAligner):
                  score_mismatch_penalty: Tuple[int, int],
                  score_read_gap_penalty: Tuple[int, int],
                  score_ref_gap_penalty: Tuple[int, int],
+                 index_offrate: int = 1,
+                 index_ftabchars: int = 13,
+                 align_offrate: Optional[int] = None,
                  seed_num_mismatches: int = 0,
                  num_report_alignments: Optional[int] = None,
                  report_all_alignments: bool = False):
         self.index_basepath = index_basepath
         self.index_basename = index_basename
+        self.index_offrate = index_offrate
+        self.index_ftabchars = index_ftabchars
+        self.align_offrate = align_offrate
         self.num_report_alignments = num_report_alignments
         self.report_all_alignments = report_all_alignments
         self.num_threads = num_threads
@@ -175,8 +186,7 @@ class BowtieAligner(AbstractPairwiseAligner):
         self.score_read_gap_penalty = score_read_gap_penalty
         self.score_ref_gap_penalty = score_ref_gap_penalty
 
-        self.index_trace_path = self.index_basepath / f"{index_basename}.bt2trace"
-
+        self.index_trace_path = self.index_basepath / f"{index_basename}.bt2_trace"
         self.quality_format = 'phred33'
 
         if not self.index_trace_path.exists():  # only create if this hasn't been run yet.
@@ -184,7 +194,10 @@ class BowtieAligner(AbstractPairwiseAligner):
                 refs_in=[reference_path],
                 index_basepath=self.index_basepath,
                 index_basename=self.index_basename,
-                quiet=True
+                offrate=self.index_offrate,  # default is 5; but we want to optimize for the -a option.
+                ftabchars=self.index_ftabchars,
+                quiet=True,
+                threads=self.num_threads,
             )
             self.index_trace_path.touch(exist_ok=True)  # Create an empty file to indicate that this finished.
         else:
@@ -194,7 +207,8 @@ class BowtieAligner(AbstractPairwiseAligner):
 
     def align(self, query_path: Path, output_path: Path, read_type: ReadType):
         # return self.align_end_to_end(query_path, output_path)
-        return self.align_local(query_path, output_path)
+        self.align_local(query_path, output_path)
+        # self.post_process_sam(output_path)
 
     def align_end_to_end(self, query_path: Path, output_path: Path):
         bowtie2(
@@ -210,6 +224,7 @@ class BowtieAligner(AbstractPairwiseAligner):
             aln_seed_len=self.seed_length,  # -L
             aln_seed_interval_fn=bt2_func_constant(7),
             aln_gbar=1,
+            offrate=self.align_offrate,
             effort_seed_ext_failures=self.seed_extend_failures,  # -D
             local=False,
             effort_num_reseeds=self.num_reseeds,  # -R
@@ -237,6 +252,7 @@ class BowtieAligner(AbstractPairwiseAligner):
             aln_seed_len=self.seed_length,  # -L
             aln_seed_interval_fn=bt2_func_constant(7),
             aln_gbar=1,
+            offrate=self.align_offrate,
             effort_seed_ext_failures=self.seed_extend_failures,  # -D
             local=True,
             effort_num_reseeds=self.num_reseeds,  # -R

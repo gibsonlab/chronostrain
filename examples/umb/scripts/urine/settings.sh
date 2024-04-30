@@ -1,18 +1,15 @@
 # Modify these before running.
-export PROJECT_DIR="/home/lactis/chronostrain"
+export PROJECT_DIR="/home/youn/work/chronostrain"
 export BASE_DIR="${PROJECT_DIR}/examples/umb"
 export DATA_DIR="/mnt/e/umb_data"
-export OUTPUT_DIR="/mnt/e/chronostrain/umb_urine"
-export CHRONOSTRAIN_DB_DIR="/mnt/e/chronostrain/umb_database"
+export OUTPUT_DIR="/data/cctm/youn/umb/urine"
 export SAMPLES_DIR="${DATA_DIR}/samples_urine"
-export LOGDIR="${OUTPUT_DIR}/logs"
 
 # ======== Location of this file.
 export SETTINGS_PATH="${BASE_DIR}/scripts/urine/settings.sh"
 
 # Location for reads and outputs.
 export READS_DIR="${OUTPUT_DIR}/reads"
-export CHRONOSTRAIN_OUTPUT_DIR="${OUTPUT_DIR}/output/chronostrain"
 
 # sratools prefetch/sample output directories.
 export SRA_PREFETCH_DIR="${DATA_DIR}/prefetch"
@@ -24,19 +21,21 @@ export NEXTERA_ADAPTER_PATH="/home/lactis/anaconda3/envs/chronostrain/share/trim
 export TRIMMOMATIC_DIR="/home/lactis/anaconda3/envs/chronostrain/share/trimmomatic-0.39-2"
 
 # ========= Chronostrain settings
-export CHRONOSTRAIN_CORR_MODE='full'
+export CHRONOSTRAIN_CORR_MODE='strain'
+export CHRONOSTRAIN_NUM_ITERS=100
+export CHRONOSTRAIN_NUM_SAMPLES=100
+export CHRONOSTRAIN_READ_BATCH_SZ=10000
 export CHRONOSTRAIN_NUM_EPOCHS=1000
-export CHRONOSTRAIN_NUM_ITERS=50
-export CHRONOSTRAIN_NUM_SAMPLES=400
-export CHRONOSTRAIN_READ_BATCH_SZ=2500
-export CHRONOSTRAIN_DECAY_LR=0.5
+export CHRONOSTRAIN_DECAY_LR=0.1
+export CHRONOSTRAIN_LR=0.0005
+export CHRONOSTRAIN_LOSS_TOL=1e-7
 export CHRONOSTRAIN_LR_PATIENCE=5
-export CHRONOSTRAIN_LR=0.001
-export CHRONOSTRAIN_MIN_LR=1e-5
+export CHRONOSTRAIN_MIN_LR=1e-7
 export CHRONOSTRAIN_CACHE_DIR="${OUTPUT_DIR}/cache"
-export CHRONOSTRAIN_OUTPUT_FILENAME="abundances.out"
 
-export CHRONOSTRAIN_DB_JSON="${CHRONOSTRAIN_DB_DIR}/database_pruned_resolved.json"
+export CHRONOSTRAIN_DB_DIR="/mnt/e/ecoli_db/chronostrain_files"
+export CHRONOSTRAIN_DB_JSON="/mnt/e/ecoli_db/chronostrain_files/ecoli.json"
+export CHRONOSTRAIN_CLUSTER_FILE="/mnt/e/ecoli_db/chronostrain_files/ecoli.clusters.txt"
 
 # ========= (Example-specific configuration. No need to modify below this line, unless you really want it changed.)
 export CHRONOSTRAIN_INI="${BASE_DIR}/files/chronostrain.ini"
@@ -47,14 +46,13 @@ echo "======================================================="
 echo "Loaded shell settings from ${SETTINGS_PATH}."
 echo "Chronostrain config: ${CHRONOSTRAIN_INI}"
 echo "Logging config: ${CHRONOSTRAIN_LOG_INI}"
-echo "Logging dir: ${LOGDIR}"
 echo "======================================================="
 
-check_program()
+require_program()
 {
 	command -v ${1} >/dev/null 2>&1 || {
 		echo >&2 "I require ${1} but it's not installed.  Aborting.";
 		exit 1;
 	}
 }
-export check_program
+export require_program

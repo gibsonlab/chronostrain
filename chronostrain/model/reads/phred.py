@@ -1,8 +1,33 @@
 import numpy as np
-from chronostrain.model import Fragment
 from chronostrain.model.reads.base import AbstractErrorModel, SequenceRead
 from chronostrain.model.reads.basic import RampUpRampDownDistribution
-from chronostrain.util.sequences import nucleotide_N_z4, NucleotideDtype, reverse_complement_seq
+from chronostrain.util.sequences import bytes_N
+from numba import njit
+
+
+@njit  # speedup by factor of ~16x
+def phred_indel_ll_jit(insertions: np.ndarray, deletions: np.ndarray, insertion_error_ll: float, deletion_error_ll: float):
+    insertion_ll = np.sum(insertions) * (insertion_error_ll - np.log(4))
+    deletion_ll = np.sum(deletions) * deletion_error_ll
+    return insertion_ll + deletion_ll
+
+
+@njit  # speedup by factor of ~8x
+def phred_log_likelihood_jit(
+        fragment_seq: np.ndarray,
+        read_seq: np.ndarray,
+        read_qual: np.ndarray
+):
+    error_log10_prob = -0.1 * read_qual
+    matches: np.ndarray = (fragment_seq == read_seq) & (read_qual > 0)
+    mismatches: np.ndarray = (fragment_seq != read_seq) & (read_seq != bytes_N)
+
+    """
+    Phred model: Pr(measured base = 'A', true base = 'G' | q) = ( 1/3 * 10^{-q/10} )
+    """
+    log_p_errors = -np.log(3) + np.log(10) * error_log10_prob[np.where(mismatches)]
+    log_p_matches = np.log(1 - np.power(10, error_log10_prob[np.where(matches)]))
+    return log_p_matches.sum() + log_p_errors.sum()
 
 
 class BasicPhredScoreDistribution(RampUpRampDownDistribution):
@@ -34,12 +59,10 @@ class PhredErrorModel(AbstractErrorModel):
 
     # noinspection PyUnusedLocal
     def indel_ll(self, read: SequenceRead, insertions: np.ndarray, deletions: np.ndarray):
-        insertion_ll = np.sum(insertions) * (self.insertion_error_ll - np.log(4))
-        deletion_ll = np.sum(deletions) * self.deletion_error_ll
-        return insertion_ll + deletion_ll
+        return phred_indel_ll_jit(insertions, deletions, self.insertion_error_ll, self.deletion_error_ll)
 
     def compute_log_likelihood(self,
-                               fragment: Fragment,
+                               fragment: np.ndarray,
                                read: SequenceRead,
                                read_reverse_complemented: bool,
                                insertions: np.ndarray,
@@ -49,43 +72,18 @@ class PhredErrorModel(AbstractErrorModel):
         """
         Uses phred scores to compute Pr(Read | Fragment, Quality).
         """
-        read_qual = read.quality
-        read_seq = read.seq
-        fragment_seq = fragment.seq
-
         if read_reverse_complemented:
-            read_qual = read_qual[::-1]
-            read_seq = reverse_complement_seq(read_seq)
+            read_qual = read.quality[::-1]
+            read_seq = read.seq.revcomp_bytes()
+        else:
+            read_qual = read.quality
+            read_seq = read.seq.bytes()
 
         # take care of insertions/deletions/clipping
         # (NOTE: after reverse complement transformation of read, if necessary)
         _slice = slice(read_start_clip, len(read_seq) - read_end_clip)
         read_qual = read_qual[_slice][~insertions]
         read_seq = read_seq[_slice][~insertions]
-        fragment_seq = fragment_seq[~deletions]
+        fragment_seq = fragment[~deletions]
 
-        error_log10_prob = -0.1 * read_qual
-        matches: np.ndarray = (fragment_seq == read_seq) & (read_qual > 0)
-        mismatches: np.ndarray = (fragment_seq != read_seq) & (read_seq != nucleotide_N_z4)
-
-        """
-        Phred model: Pr(measured base = 'A', true base = 'G' | q) = ( 1/3 * 10^{-q/10} )
-        """
-        log_p_errors = -np.log(3) + np.log(10) * error_log10_prob[np.where(mismatches)]
-        log_p_matches = np.log(1 - np.power(10, error_log10_prob[np.where(matches)]))
-        return self.indel_ll(read, insertions, deletions) + log_p_matches.sum() + log_p_errors.sum()
-
-    def sample_noisy_read(self, read_id: str, fragment: Fragment, metadata="") -> SequenceRead:
-        qvec = self.q_dist.sample_qvec()
-        read = SequenceRead(read_id=read_id, seq=fragment.seq, quality=qvec, metadata=metadata)
-
-        # Random shift by an integer mod 4.
-        error_probs = np.power(10, -0.1 * qvec)
-        error_locations: np.ndarray = np.less(np.random.rand(error_probs.shape[0]), error_probs)
-
-        rand_shift = np.random.randint(low=0, high=4, size=np.sum(error_locations), dtype=NucleotideDtype)
-        read.seq[np.where(error_locations)] = np.mod(
-            read.seq[np.where(error_locations)] + rand_shift,
-            4
-        )
-        return read
+        return self.indel_ll(read, insertions, deletions) + phred_log_likelihood_jit(fragment_seq, read_seq, read_qual)

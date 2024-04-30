@@ -50,6 +50,10 @@ def ascii_to_phred(qstr: str, quality_format: str) -> np.ndarray:
         raise NotImplementedError("Unknown quality_format input `{}`.".format(quality_format))
 
 
+def ascii_pysam_to_phred(qlist: List[int]) -> np.ndarray:
+    return np.array(qlist, dtype=float)
+
+
 def phred_to_ascii(phred_arr: np.ndarray, quality_format: str) -> str:
     if quality_format == 'fastq':
         return "".join(chr(math.floor(i)) for i in ord('!') + phred_arr)

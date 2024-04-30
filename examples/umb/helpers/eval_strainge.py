@@ -214,6 +214,7 @@ def evaluate_by_clades(strainge_output_dir: Path, clades: Dict[str, str], metada
         else:
             timeseries, strain_ids = convert_to_numpy(timeseries_df, patient, metadata)
             for clade, sub_timeseries in divide_into_timeseries(timeseries, strain_ids, clades):
+                print("CLADE: {}".format(clade))
                 if sub_timeseries.shape[1] == 0:
                     df_entries.append({
                         "Patient": patient,
@@ -245,7 +246,12 @@ def divide_into_timeseries(timeseries: np.ndarray, strain_ids: List[str], clades
 
 
 def timeseries_coherence_factor(x: np.ndarray) -> np.ndarray:
-    return mean_coherence_factor(x[1:], x[:-1])
+    print("DATA:")
+    print(x)
+    _ans = mean_coherence_factor(x[1:], x[:-1])
+    print("ANS")
+    print(_ans)
+    return _ans
 
 
 def mean_coherence_factor(x: np.ndarray, y: np.ndarray) -> np.ndarray:
@@ -253,6 +259,13 @@ def mean_coherence_factor(x: np.ndarray, y: np.ndarray) -> np.ndarray:
     assert x.shape[-1] == y.shape[-1]
 
     if len(x.shape) == 2 and len(y.shape) == 2:
+        print("ASDF")
+        print(
+            np.array([
+                coherence_factor(x_t, y_t)
+                for x_t, y_t in zip(x, y)
+            ])
+        )
         return np.nanmean([
             coherence_factor(x_t, y_t)
             for x_t, y_t in zip(x, y)
@@ -278,11 +291,11 @@ def coherence_factor(x: np.ndarray, y: np.ndarray) -> float:
 
     if np.std(x) == 0 and np.std(y) == 0:  # edge case
         if x[0] == 0.:
-            return np.nan
+            return np.nan  # zero abundance -> nothing to evaluate.
         elif x[0] == y[0]:
             return 1.0
         else:
-            return 0.0
+            return 1.0
 
     if np.std(x) == 0 or np.std(y) == 0:  # only one is zero
         return 0.0

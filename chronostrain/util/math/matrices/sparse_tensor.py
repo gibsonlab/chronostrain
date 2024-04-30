@@ -22,7 +22,7 @@ class SparseMatrix(object):
     def __init__(self,
                  indices: torch.Tensor,
                  values: torch.Tensor,
-                 dims: Tuple[int, int],
+                 dims: Union[List[int], Tuple[int, int]],
                  force_coalesce: bool = False):
         self.rows: int = int(dims[0])
         self.columns: int = int(dims[1])
@@ -210,7 +210,7 @@ class SparseMatrix(object):
 
     def column_normed_row_sum(self) -> torch.Tensor:
         """
-        Normalize each column (so that each column sums to zero (sum, dim=0)), and then sum over the rows (sum, dim=1).
+        Normalize each column (so that each column sums to 1 (sum, dim=0)), and then sum over the rows (sum, dim=1).
 
         :return: A dense 1-d vector.
         """

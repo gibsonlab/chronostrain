@@ -1,10 +1,7 @@
-from typing import Union
-
-import numpy as np
+import numpy as np  # Not using jax
 
 # ================================= Constants.
 NucleotideDtype = np.ubyte
-SeqType = np.ndarray
 
 # Cyclic group representation.
 _acgt_to_z4 = {
@@ -44,7 +41,7 @@ def map_z4_to_nucleotide(z4: int) -> str:
     return _z4_to_acgt[z4]
 
 
-def nucleotides_to_z4(nucleotides: str) -> SeqType:
+def nucleotides_to_z4(nucleotides: str) -> np.ndarray:
     """
     Convert an input nucleotide string (A/C/G/T) to a torch tensor of elements of integers mod 4 (0/1/2/3).
     :param nucleotides:
@@ -53,7 +50,7 @@ def nucleotides_to_z4(nucleotides: str) -> SeqType:
     return np.fromiter((map_nucleotide_to_z4(x) for x in nucleotides), NucleotideDtype)
 
 
-def z4_to_nucleotides(z4seq: SeqType) -> str:
+def z4_to_nucleotides(z4seq: np.ndarray) -> str:
     if len(z4seq.shape) > 1:
         raise ValueError("Expected 1-D array, instead got array of size {}.".format(
             z4seq.shape
@@ -62,6 +59,18 @@ def z4_to_nucleotides(z4seq: SeqType) -> str:
     return "".join(
         map_z4_to_nucleotide(element) for element in z4seq
     )
+
+
+def complement_z4(seq: np.ndarray) -> np.ndarray:
+    return np.where(
+        seq < 4,
+        3 - seq,
+        seq
+    )
+
+
+def reverse_complement_z4(seq: np.ndarray) -> np.ndarray:
+    return complement_z4(seq)[::-1]
 
 
 class UnknownNucleotideError(Exception):

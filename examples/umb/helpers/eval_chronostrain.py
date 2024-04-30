@@ -3,6 +3,9 @@ from pathlib import Path
 import argparse
 import numpy as np
 import pandas as pd
+import jax
+jax.random.PRNGKey(12345)
+
 import torch
 import scipy.stats
 
@@ -61,7 +64,7 @@ def umb_outputs(outputs_dir: Path, read_dir: Path) -> Iterator[Tuple[str, TimeSe
             print(f"File `{sample_path}` not found. Skipping {umb_id}...")
             continue
 
-        reads = TimeSeriesReads.load_from_csv(read_dir / f"{umb_id}_filtered/filtered_{umb_id}_inputs.csv")
+        reads = TimeSeriesReads.load_from_file(read_dir / f"{umb_id}_filtered/filtered_{umb_id}_inputs.csv")
         samples = torch.load(umb_dir / "samples.pt")
         strain_ids = load_strain_ids(umb_dir / "strains.txt")
         yield umb_id, reads, samples.cpu().numpy(), strain_ids
@@ -105,12 +108,21 @@ def evaluate(chronostrain_output_dir: Path, reads_dir: Path, db: StrainDatabase,
 
         thresholded_presence = np.copy(db_relabund_samples)
         thresholded_presence[thresholded_presence < detection_lb] = 0.
+        n_present = np.sum(thresholded_presence > 0., axis=0)  # N x S
+        p_present = np.mean(n_present > 0, axis=0)
 
-        filter_indices = [i for i, s in enumerate(db.all_strains()) if s.metadata.genus in allowed_genera]
+        filter_indices = [
+            i
+            for i, s in enumerate(db.all_strains())
+            if (s.metadata.genus in allowed_genera) and (p_present[i] > 0.5)
+        ]
 
-        coherence = timeseries_coherence_factor(
-            thresholded_presence[:, :, filter_indices]
-        )
+        if len(filter_indices) > 0:
+            coherence = timeseries_coherence_factor(
+                thresholded_presence[:, :, filter_indices]
+            )
+        else:
+            coherence = [np.nan]
 
         df_entries.append({
             "Patient": patient,
@@ -139,7 +151,16 @@ def evaluate_by_clades(chronostrain_output_dir: Path, reads_dir: Path, clades: D
 
             thresholded_presence = np.copy(relative_chunk)
             thresholded_presence[thresholded_presence < detection_lb] = 0.
-            coherence = timeseries_coherence_factor(relative_chunk)
+            n_present = np.sum(thresholded_presence > 0., axis=0)  # N x S
+            p_present = np.mean(n_present > 0, axis=0)
+
+            filter_indices, = np.where(p_present > 0.9)
+            if len(filter_indices) > 0:
+                coherence = timeseries_coherence_factor(
+                    relative_chunk[:, :, filter_indices]
+                )
+            else:
+                coherence = [np.nan]
 
             df_entries.append({
                 "Patient": patient,
@@ -207,7 +228,7 @@ def coherence_factor(x: np.ndarray, y: np.ndarray) -> float:
         elif x[0] == y[0]:
             return 1.0
         else:
-            return 0.0
+            return 1.0
 
     if np.std(x) == 0 or np.std(y) == 0:  # only one is zero
         return 0.0

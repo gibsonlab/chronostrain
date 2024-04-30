@@ -1,0 +1,3 @@
+export METAPHLAN_DB_DIR=/mnt/e/metaphlan_databases/mpa_vJun23_CHOCOPhlAnSGB_202307
+export METAPHLAN_DB_NAME="mpa_vJun23_CHOCOPhlAnSGB_202307"
+export METAPHLAN_N_THREADS=4

@@ -1,11 +1,13 @@
+from contextlib import contextmanager
 from pathlib import Path
-from typing import List, Iterator, Union, Dict, Tuple
+from typing import List, Iterator, Union
 
+import pysam
 import numpy as np
 
-from chronostrain.util.quality import ascii_to_phred
-from .cigar import CigarElement, parse_cigar
-from chronostrain.util.sequences import SeqType, nucleotides_to_z4, UnknownNucleotideError
+from chronostrain.util.quality import ascii_pysam_to_phred
+from .cigar import CigarElement, pysam_ordering
+from chronostrain.util.sequences import Sequence, AllocatedSequence, UnknownNucleotideError
 
 from chronostrain.logging import create_logger
 from .util import *
@@ -15,56 +17,45 @@ logger = create_logger(__name__)
 class SamLine:
     def __init__(self,
                  lineno: int,
-                 plaintext_line: str,
+                 raw_aln: pysam.AlignedSegment,
                  readname: str,
-                 read_seq: SeqType,
+                 read_seq: Sequence,
                  read_phred: np.ndarray,
                  is_mapped: bool,
                  is_reverse_complemented: bool,
-                 contig_name: str,
-                 contig_map_idx: int,
+                 ref_name: str,
+                 ref_start: int,
+                 ref_end: int,
                  cigar: List[CigarElement],
                  mate_pair: str,
-                 mate_pos: str,
-                 template_len: str
+                 mate_pos: int,
+                 template_len: int
                  ):
         """
         Parse the line using the provided reference.
-
-        :param lineno: The line number in the .sam file corresponding to this instance.
-        :param plaintext_line: The raw line read from the .sam file.
         """
         self.lineno = lineno
-        self.line = plaintext_line
+        self.raw_aln = raw_aln
 
         self.readname = readname
-        self.read_seq = read_seq
+        self.read_seq: Sequence = read_seq
         self.read_phred = read_phred
 
         self.is_mapped = is_mapped
         self.is_reverse_complemented = is_reverse_complemented
-        self.contig_name = contig_name
-        self.contig_map_idx = contig_map_idx
+        self.ref_name = ref_name
+        self.ref_start = ref_start
+        self.ref_end = ref_end
         self.cigar = cigar
 
         self.mate_pair = mate_pair
         self.mate_pos = mate_pos
         self.template_len = template_len
 
-    @property
-    def read_len(self) -> int:
-        return len(self.read_seq)
-
-    @property
-    def optional_fields(self) -> Iterator[Tuple[str, str, str]]:
-        for token in self.line.strip().split('\t')[11:]:
-            tag_name, tag_type, tag_value = token.split(':')
-            yield tag_name, tag_type, tag_value
-
     def __str__(self):
         return "SamLine(L={lineno}):{tokens}".format(
             lineno=self.lineno,
-            tokens=self.line
+            tokens=self.raw_aln.to_string()
         )
 
     def __repr__(self):
@@ -72,13 +63,11 @@ class SamLine:
 
     @staticmethod
     def parse(lineno: int,
-              plaintext_line: str,
+              aln_segment: pysam.AlignedSegment,
               prev_sam_line: Union['SamLine', None],
               quality_format: str) -> 'SamLine':
-        tokens = plaintext_line.strip().split('\t')
-
-        readname = tokens[SamTags.ReadName.value]
-        map_flag = int(tokens[SamTags.MapFlag.value])
+        readname = aln_segment.query_name
+        map_flag = aln_segment.flag
         is_secondary_alignment = has_sam_flag(map_flag, SamFlags.SecondaryAlignment)
 
         if is_secondary_alignment:
@@ -100,25 +89,32 @@ class SamLine:
             read_seq = prev_sam_line.read_seq
             read_phred = prev_sam_line.read_phred
         else:
-            read_seq = nucleotides_to_z4(tokens[SamTags.Read.value])
-            read_phred = ascii_to_phred(tokens[SamTags.Quality.value], quality_format)
+            read_seq = AllocatedSequence(aln_segment.query_sequence)
+            read_phred = ascii_pysam_to_phred(aln_segment.query_qualities)
 
-        cigar = parse_cigar(tokens[SamTags.Cigar.value])
+        if aln_segment.cigartuples is not None:
+            cigar = [
+                CigarElement(pysam_ordering[op], n)
+                for op, n in aln_segment.cigartuples
+            ]
+        else:
+            cigar = None
 
         return SamLine(
             lineno=lineno,
-            plaintext_line=plaintext_line,
+            raw_aln=aln_segment,
             readname=readname,
             read_seq=read_seq,
             read_phred=read_phred,
             is_mapped=not has_sam_flag(map_flag, SamFlags.SegmentUnmapped),
             is_reverse_complemented=has_sam_flag(map_flag, SamFlags.SeqReverseComplement),
-            contig_name=tokens[SamTags.ContigName.value],
-            contig_map_idx=int(tokens[SamTags.MapPos.value]) - 1,
+            ref_name=aln_segment.reference_name,
+            ref_start=aln_segment.reference_start,
+            ref_end=aln_segment.reference_end,
             cigar=cigar,
-            mate_pair=tokens[SamTags.MatePair.value],
-            mate_pos=tokens[SamTags.MatePos.value],
-            template_len=tokens[SamTags.TemplateLen.value]
+            mate_pair=aln_segment.next_reference_id,
+            mate_pos=aln_segment.next_reference_start,
+            template_len=aln_segment.template_length
         )
 
 
@@ -132,7 +128,23 @@ def num_mismatches_from_xm(match_tag: str):
     return num_mismatches
 
 
-class SamFile:
+@contextmanager
+def open_with_pysam(file_path: Path) -> Iterator[pysam.AlignedSegment]:
+    if file_path.stat().st_size == 0:
+        yield []
+    else:
+        pysam.set_verbosity(0)  # Suppress "[E::idx_find_and_load] Could not retrieve index file" errors
+        if file_path.suffix == ".sam":
+            f = pysam.AlignmentFile(file_path, "r")
+        elif file_path.suffix == ".bam":
+            f = pysam.AlignmentFile(file_path, "rb")
+        else:
+            raise RuntimeError("Unrecognized output suffix {}".format(file_path.suffix))
+        yield f
+        f.close()
+
+
+class SamIterator:
     def __init__(self, file_path: Path, quality_format: str):
         """
         :param file_path:
@@ -141,35 +153,30 @@ class SamFile:
         self.file_path = file_path
         self.quality_format = quality_format
 
-    def num_mapped_lines(self) -> int:
-        with open(self.file_path, 'r') as f:
-            return sum(1 for line in f if not sam_line_is_header(line))
+    def num_lines(self) -> int:
+        with open_with_pysam(self.file_path) as f:
+            return sum(1 for _ in f)
 
     def mapped_lines(self) -> Iterator[SamLine]:
-        n_lines = 0
-        n_mapped_lines = 0
         prev_sam_line: Union[SamLine, None] = None
-        with open(self.file_path, 'r') as f:
-            for line_idx, line in enumerate(f):
-                if sam_line_is_header(line):
-                    continue
-
+        with open_with_pysam(self.file_path) as f:
+            for line_idx, aln_segment in enumerate(f):
                 try:
-                    sam_line = SamLine.parse(
-                        lineno=line_idx+1,
-                        plaintext_line=line,
-                        prev_sam_line=prev_sam_line,
-                        quality_format=self.quality_format
-                    )
+                    sam_line = self.parse_line(aln_segment, line_idx, prev_sam_line)
                 except UnknownNucleotideError as e:
                     raise RuntimeError(
                         f"Encountered unknown nucleotide {e.nucleotide} "
                         f"while reading {self.file_path}, line {line_idx+1}"
                     )
                 if sam_line.is_mapped:
-                    n_mapped_lines += 1
                     yield sam_line
 
                 prev_sam_line = sam_line
-                n_lines += 1
-        logger.debug(f"{self.file_path.name} -- Total # SAM lines parsed: {n_lines}; # mapped lines: {n_mapped_lines}")
+
+    def parse_line(self, aln_segment: pysam.AlignedSegment, line_idx: int, prev_line: SamLine) -> SamLine:
+        return SamLine.parse(
+            lineno=line_idx+1,
+            aln_segment=aln_segment,
+            prev_sam_line=prev_line,
+            quality_format=self.quality_format
+        )

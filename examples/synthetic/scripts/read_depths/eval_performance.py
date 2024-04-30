@@ -17,11 +17,11 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Take all chronostrain runs and evaluate their performances.")
 
     parser.add_argument('-b', '--base_data_dir', required=True, type=str,
-                        help='<Required> The data directory contining all of the runs.')
+                        help='<Required> The read_frags directory contining all of the runs.')
     parser.add_argument('-g', '--ground_truth_path', required=True, type=str,
                         help='<Required> The path to the ground truth file.')
     parser.add_argument('-o', '--out_path', required=True, type=str,
-                        help='<Required> The output path to save the data to. (Output is CSV format)')
+                        help='<Required> The output path to save the read_frags to. (Output is CSV format)')
 
     return parser.parse_args()
 

@@ -35,8 +35,9 @@ for time_point in 0 1 2 3 4; do
 done
 
 
-export PATH=${METAPHLAN2_DIR}:$PATH
-export mpa_dir=${METAPHLAN2_DIR}:$PATH
+env \
+PATH=${METAPHLAN2_DIR}:$PATH \
+mpa_dir=${METAPHLAN2_DIR}:$PATH \
 python ${CONSTRAINS_DIR}/ConStrains.py \
 -o ${output_dir} \
 -c ${cfg_file} \

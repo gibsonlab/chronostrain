@@ -7,34 +7,18 @@ from chronostrain.logging import create_logger
 logger = create_logger(__name__)
 
 
-_fasta_filename = "{accession}.fasta"
-_genbank_filename = "{accession}.gb"
-
-
-_INITIALIZED = False
-
-
-def init_entrez(email: str):
-    if not _INITIALIZED:
-        if len(email) == 0:
-            raise RuntimeError("To meet NCBI's Entrez API conventions [https://www.ncbi.nlm.nih.gov/books/NBK25497/#chapter2.Usage_Guidelines_and_Requiremen], please specify an Email address in the configuration (We do not store or use your e-mail for any other purpose).")
-        logger.info(f"Using email `{email}` for Entrez.")
-        Entrez.email = email
-        Entrez.tool = "chronostrain"
-
-
 def fasta_filename(accession: str, base_dir: Path) -> Path:
     """
     The default filename to output fasta files to.
     """
-    return base_dir / _fasta_filename.format(accession=accession)
+    return base_dir / f"{accession}.fasta"
 
 
 def genbank_filename(accession: str, base_dir: Path) -> Path:
     """
     The default filename to output genbank files to.
     """
-    return base_dir / _genbank_filename.format(accession=accession)
+    return base_dir / f"{accession}.gb"
 
 
 def fetch_fasta(accession, base_dir: Path, force_download: bool = False) -> Path:
@@ -63,7 +47,9 @@ def fetch_entrez(entrez_db: str,
             file_path
         ))
     else:
+        from chronostrain.config import cfg
         file_path.parent.mkdir(exist_ok=True, parents=True)
+        cfg.entrez_cfg.ensure_enabled()
         logger.debug("[{}] Downloading entrez file ({})...".format(
             accession[0] if isinstance(accession, list) else accession,
             str(file_path.name)

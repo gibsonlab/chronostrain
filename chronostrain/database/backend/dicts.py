@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import List, Iterator
+from typing import List, Iterator, Dict
 
 from chronostrain.model import Marker, Strain
 from .base import AbstractStrainDatabaseBackend
@@ -9,10 +9,11 @@ from ..error import QueryNotFoundError
 class DictionaryBackend(AbstractStrainDatabaseBackend):
 
     def __init__(self):
-        self.strains = {}
-        self.markers = {}
-        self.markers_to_strains = {}
-        self.markers_by_name = defaultdict(list)
+        self.strain_order: List[Strain] = []
+        self.strains: Dict[str, Strain] = {}
+        self.markers: Dict[str, Marker] = {}
+        self.markers_to_strains: Dict[str, List[Strain]] = {}
+        self.markers_by_name: Dict[str, List[Marker]] = defaultdict(list)
 
     def add_strains(self, strains: Iterator[Strain]):
         for strain in strains:
@@ -23,6 +24,7 @@ class DictionaryBackend(AbstractStrainDatabaseBackend):
                     self.markers_to_strains[marker.id] = []
                 self.markers_to_strains[marker.id].append(strain)
                 self.markers_by_name[marker.name].append(marker)
+            self.strain_order.append(strain)
 
     def get_strain(self, strain_id: str) -> Strain:
         try:
@@ -46,16 +48,13 @@ class DictionaryBackend(AbstractStrainDatabaseBackend):
         return len(self.markers)
 
     def all_strains(self) -> List[Strain]:
-        return list(self.strains.values())
+        return self.strain_order
 
     def all_markers(self) -> List[Marker]:
         return list(self.markers.values())
 
-    def get_strains_with_marker(self, marker: Marker) -> List[Strain]:
-        try:
-            return self.markers_to_strains[marker.id]
-        except KeyError:
-            return []
+    def get_strain_with_marker(self, marker: Marker) -> Strain:
+        return self.markers_to_strains[marker.id][0]
 
     def get_markers_by_name(self, marker_name: str) -> List[Marker]:
         try:
@@ -63,22 +62,17 @@ class DictionaryBackend(AbstractStrainDatabaseBackend):
         except KeyError:
             return []
 
-    def get_canonical_marker(self, marker_name: str) -> Marker:
-        markers = self.get_markers_by_name(marker_name)
-
-        for marker in markers:
-            if marker.is_canonical:
-                return marker
-
-        raise RuntimeError("No canonical markers found with name `{}`.".format(marker_name))
-
-    def all_canonical_markers(self) -> List[Marker]:
-        ans = []
-        for marker in self.all_markers():
-            if marker.is_canonical:
-                ans.append(marker)
-
-        return ans
-
-    def num_canonical_markers(self) -> int:
-        return len(self.all_canonical_markers())
+    def signature(self) -> str:
+        import hashlib
+        return "DICT={}".format(
+            hashlib.sha256("|".join(
+                "{}:{}".format(
+                    strain.id,
+                    "+".join(
+                        marker.id
+                        for marker in strain.markers
+                    )
+                )
+                for strain in self.strain_order
+            ).encode()).hexdigest()
+        )

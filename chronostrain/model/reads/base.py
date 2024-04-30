@@ -1,19 +1,16 @@
 """
     Contains abstract classes. See the other python files for implementations.
 """
-from typing import Union
-
 import numpy as np
 from abc import abstractmethod, ABCMeta
-from chronostrain.model import Fragment
-from chronostrain.util.sequences import nucleotides_to_z4, z4_to_nucleotides, SeqType, reverse_complement_seq
+from chronostrain.util.sequences import Sequence
 
 
 class SequenceRead:
     """
     A class representing a sequence-quality vector pair.
     """
-    def __init__(self, read_id: str, seq: Union[str, SeqType], quality: np.ndarray, metadata: str):
+    def __init__(self, read_id: str, seq: Sequence, quality: np.ndarray, metadata: str):
         self.id: str = read_id
         if len(seq) != len(quality):
             raise ValueError(
@@ -25,24 +22,13 @@ class SequenceRead:
         """
         The sequence content of the read is stored as a numpy-optimized array of ubyte.
         """
-        if isinstance(seq, str):
-            self.seq: np.ndarray = nucleotides_to_z4(seq)
-        elif isinstance(seq, np.ndarray):
-            self.seq = seq
-        else:
-            raise TypeError("Unexpected type for argument `seq` (got `{}`)".format(type(seq)))
+        self.seq = seq
         self.quality: np.array = quality
         self.metadata: str = metadata
 
-    def nucleotide_content(self, reverse_complement: bool = False) -> str:
-        if reverse_complement:
-            return z4_to_nucleotides(reverse_complement_seq(self.seq))
-        else:
-            return z4_to_nucleotides(self.seq)
-
     def __str__(self):
         return "[SEQ:{},QUAL:{}]".format(
-            z4_to_nucleotides(self.seq),
+            self.seq.nucleotides(),
             self.quality
         )
 
@@ -53,7 +39,7 @@ class SequenceRead:
         )
 
     def __len__(self):
-        return self.seq.shape[0]
+        return len(self.seq)
 
     def __eq__(self, other):
         if not isinstance(other, SequenceRead):
@@ -67,12 +53,12 @@ class SequenceRead:
 class AbstractErrorModel(metaclass=ABCMeta):
     """
     Parent class for all fragment-to-read error models. This class (and its implementations) determines the
-    likelihood values of the model (and therefore all inference algorithms).
+    likelihood values of the model (and therefore all algs algorithms).
     """
 
     @abstractmethod
     def compute_log_likelihood(self,
-                               fragment: Fragment,
+                               fragment: np.ndarray,
                                read: SequenceRead,
                                read_reverse_complemented: bool,
                                insertions: np.ndarray,
@@ -81,7 +67,7 @@ class AbstractErrorModel(metaclass=ABCMeta):
                                read_end_clip: int = 0) -> float:
         """
         Compute the log probability of observing the read, conditional on the fragment.
-        :param fragment: The source fragment (a String)
+        :param fragment: The source fragment
         :param read: The read (of type SequenceRead)
         :param read_reverse_complemented: Indicates whether the read ought to be reverse complemented.
         :param insertions: A boolean array that indicates inserted nucleotides of the read.
@@ -96,18 +82,6 @@ class AbstractErrorModel(metaclass=ABCMeta):
         """
         pass
 
-    @abstractmethod
-    def sample_noisy_read(self, read_id: str, fragment: Fragment, metadata: str = "") -> SequenceRead:
-        """
-        Obtain a random read (q-vec and sequence pair) from a given fragment.
-
-        :param read_id: The ID of the read.
-        :param fragment: The source fragment.
-        :param metadata: The metadata to store in the read.
-        :return: A list of reads sampled according to their probabilities.
-        """
-        pass
-
 
 class AbstractTrainableErrorModel(AbstractErrorModel):
     """
@@ -117,7 +91,7 @@ class AbstractTrainableErrorModel(AbstractErrorModel):
     @abstractmethod
     def train_from_data(self, reads, fragments, iters):
         """
-        Attempt to train the error model from data.
+        Attempt to train the error model from read_frags.
         :param reads: A list of reads from a dataset.
         :param fragments: The corresponding collection of fragments.
         :param iters: the number of iterations.

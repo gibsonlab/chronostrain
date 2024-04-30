@@ -7,9 +7,10 @@ import numpy as np
 import seaborn as sns
 import pandas as pd
 
-from chronostrain.model import StrainVariant
-from chronostrain.model.bacteria import Population
+from chronostrain.model import StrainCollection
 from chronostrain.model.io import load_abundances
+from chronostrain.logging import create_logger
+logger = create_logger(__name__)
 
 
 def plot_abundances_comparison(
@@ -166,7 +167,7 @@ def plot_abundance_dataframe(
 def plot_posterior_abundances(
         times: List[float],
         posterior_samples: np.ndarray,
-        population: Population,
+        population: StrainCollection,
         plots_out_path: Path,
         draw_legend: bool,
         img_format: str,
@@ -234,11 +235,7 @@ def plot_posterior_abundances(
         # This is (T x N), for the particular strain.
         traj_samples = posterior_samples[:, :, s_idx]
 
-        if isinstance(strain, StrainVariant):
-            label = f"{s_idx}_{strain.base_strain}_variant"
-        else:
-            label = strain.id
-
+        label = strain.id
         render_posterior_abundances(
             times=times,
             label=label,
@@ -283,7 +280,6 @@ def render_posterior_abundances(
     quantile_values = parse_quantiles(traj_samples, quantiles)  # size Q x T
 
     if np.sum(quantile_values[-1, :] > strain_trunc_level) == 0:
-        print(f"Strain label `{label}` didn't meet criteria for plotting.")
         return
 
     median = np.quantile(traj_samples, q=0.5, axis=1)
@@ -363,7 +359,7 @@ def plot_elbo(elbo: np.ndarray,
               output_path: str,
               plot_format: str = "pdf"):
     """
-    Plots the elbo values; can be used to check if the inference is working properly or not.
+    Plots the elbo values; can be used to check if the algs is working properly or not.
     :param elbo: The array of ELBO values.
     :param x_label: The x label to insert into the plot.
     :param y_label: The y label to insert into the plot.

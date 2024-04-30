@@ -1,8 +1,8 @@
 #!/bin/bash
 
 #BSUB -J umb-filter
-#BSUB -o /data/cctm/chronostrain/umb/lsf/umb-filter-%J.out
-#BSUB -e /data/cctm/chronostrain/umb/lsf/umb-filter-%J.err
+#BSUB -o /read_frags/cctm/chronostrain/umb/lsf/umb-filter-%J.out
+#BSUB -e /read_frags/cctm/chronostrain/umb/lsf/umb-filter-%J.err
 #BSUB -q normal
 #BSUB -n 4
 #BSUB -M 16000

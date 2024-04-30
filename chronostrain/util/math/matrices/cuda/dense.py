@@ -22,21 +22,22 @@ def log_matmul_exp(x: torch.Tensor, y: torch.Tensor):
             _CUDA_WARNED = True
 
         return cpu_like_torch_log_matmul_exp(x, y)
+    return cpu_like_torch_log_matmul_exp(x, y)
 
-    out = torch.empty((x.shape[0], y.shape[1]), dtype=x.dtype, device=x.device)
-
-    # CUDA memory specification
-    threads_per_block = (_THREADS_PER_BLOCK, _THREADS_PER_BLOCK)
-    n_blocks_x = int(math.ceil(out.shape[0] / threads_per_block[0]))
-    n_blocks_y = int(math.ceil(out.shape[1] / threads_per_block[1]))
-    block_dims = (n_blocks_x, n_blocks_y)
-
-    jit_log_matmul_exp[block_dims, threads_per_block](
-        cuda.as_cuda_array(x),
-        cuda.as_cuda_array(y),
-        cuda.as_cuda_array(out)
-    )
-    return out
+    # out = torch.empty((x.shape[0], y.shape[1]), dtype=x.dtype, device=x.device)
+    #
+    # # CUDA memory specification
+    # threads_per_block = (_THREADS_PER_BLOCK, _THREADS_PER_BLOCK)
+    # n_blocks_x = int(math.ceil(out.shape[0] / threads_per_block[0]))
+    # n_blocks_y = int(math.ceil(out.shape[1] / threads_per_block[1]))
+    # block_dims = (n_blocks_x, n_blocks_y)
+    #
+    # jit_log_matmul_exp[block_dims, threads_per_block](
+    #     cuda.as_cuda_array(x),
+    #     cuda.as_cuda_array(y),
+    #     cuda.as_cuda_array(out)
+    # )
+    # return out
 
 
 @cuda.jit
@@ -69,7 +70,7 @@ def jit_log_matmul_exp(A, B, C):
     for i in range(int(math.ceil(A.shape[1] / _THREADS_PER_BLOCK))):
         num_j = min(_THREADS_PER_BLOCK, A.shape[1] - i * _THREADS_PER_BLOCK)
 
-        # Preload data into shared memory
+        # Preload read_frags into shared memory
         sA[tx, ty] = A[x, ty + i * _THREADS_PER_BLOCK]
         sB[tx, ty] = B[tx + i * _THREADS_PER_BLOCK, y]
 

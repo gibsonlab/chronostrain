@@ -1,2 +1,3 @@
-from .database import StrainDatabase, JSONStrainDatabase
+from .database import StrainDatabase
 from .error import QueryNotFoundError
+from .parser import *

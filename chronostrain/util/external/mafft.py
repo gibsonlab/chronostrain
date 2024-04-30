@@ -29,7 +29,45 @@ def mafft_global(
     exit_code = call_command(
         command='mafft',
         args=params,
-        output_path=output_path
+        stdout=output_path
+    )
+
+    if exit_code != 0:
+        raise CommandLineException('mafft', exit_code)
+
+
+def mafft_add(
+        existing_alignment_fasta: Path,
+        new_fasta_path: Path,
+        output_path: Path,
+        n_threads: int = -1,
+        reorder: bool = False,
+        auto: bool = False,
+        mafft_quiet: bool = True,
+        keep_length: bool = False,
+        silent: bool = False
+):
+    # Biopython's interface appears outdated (as of 10/23/2021). Use our own cline interface.
+    params = [
+        '--add', new_fasta_path,
+        '--nuc'
+    ]
+    if mafft_quiet:
+        params.append('--quiet')
+    if auto:
+        params.append('--auto')
+    if reorder:
+        params.append('--reorder')
+    if keep_length:
+        params.append('--keeplength')
+    params += ['--thread', str(n_threads)]
+    params.append(str(existing_alignment_fasta))
+
+    exit_code = call_command(
+        command='mafft',
+        args=params,
+        stdout=output_path,
+        silent=silent
     )
 
     if exit_code != 0:
@@ -75,7 +113,7 @@ def mafft_fragment(
     exit_code = call_command(
         command='mafft',
         args=params,
-        output_path=output_path
+        stdout=output_path
     )
 
     if exit_code != 0:

@@ -2,12 +2,14 @@
 set -e
 source settings.sh
 
-CLERMONTYPING_SCRIPT=~/ClermonTyping/clermonTyping.sh
+CLERMONTYPING_SCRIPT=/home/youn/work/ClermonTyping/clermonTyping.sh
+require_file ${CLERMONTYPING_SCRIPT}
+
 echo "[*] Using ClermonTyping script at: ${CLERMONTYPING_SCRIPT}"
 echo "[*] If ClermonTyping script is not found, install it and/or change the path in this script (run_clermontyping.sh)."
 
 python ${BASE_DIR}/scripts/phylogeny/create_clermontyping_input.py \
--i ${NCBI_REFSEQ_DIR}/index.tsv  \
+-i ${NCBI_REFSEQ_DIR}/index.tsv \
 -c ${CLERMONTYPING_SCRIPT} \
 -o ${PHYLOGENY_OUTPUT_DIR}/ClermonTyping/clermontyping.sh \
 

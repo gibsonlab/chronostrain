@@ -1,12 +1,10 @@
 import click
-from logging import Logger
 from pathlib import Path
 
 from ..base import option
 
 
 @click.command()
-@click.pass_context
 @option(
     '--in-path', '-i', 'in_path',
     type=click.Path(path_type=Path, dir_okay=False, exists=True, readable=True),
@@ -20,7 +18,14 @@ from ..base import option
     help="The output file path, to be written in fastq format.",
 )
 @option(
-    '--read-type', '-r', 'read_type',
+    '--strain-subset', '-s', 'strain_subset_path',
+    type=click.Path(path_type=Path, dir_okay=False, exists=False, readable=True),
+    required=False, default=None,
+    help="A text file specifying a subset of database strain IDs to perform filtering with; "
+         "a TSV file containing one ID per line, optionally with a second column for metadata.",
+)
+@option(
+    '--read-type', '-r', 'read_type_str',
     type=str,
     required=True,
     help="A string token specifying what type of reads the file contains. (options: paired_1, paired_2, single)"
@@ -58,39 +63,52 @@ from ..base import option
          "A value of 1.0 disables this feature."
 )
 def main(
-        ctx: click.Context,
         in_path: Path,
         out_path: Path,
+        strain_subset_path: Path,
         aligner: str,
         min_read_len: int,
         frac_identity_threshold: float,
         error_threshold: float,
-        read_type: str,
+        read_type_str: str,
         quality_format: str,
 ):
     """
     Filter a single read file.
     """
-    ctx.ensure_object(Logger)
-    logger = ctx.obj
+    from chronostrain.logging import create_logger
+    logger = create_logger("chronostrain.cli.filter_single")
     logger.info(f"Applying filter to `{in_path}`")
 
     from chronostrain.config import cfg
     from .base import Filter, create_aligner
-    from chronostrain.model.io import parse_read_type
+    from chronostrain.model import ReadType
+    from chronostrain.model import StrainCollection
 
     db = cfg.database_cfg.get_database()
+    if strain_subset_path is not None:
+        with open(strain_subset_path, "rt") as f:
+            strain_collection = StrainCollection(
+                [db.get_strain(line.strip().split('\t')[0]) for line in f if not line.startswith("#")],
+                db.signature
+            )
+        logger.info("Loaded list of {} strains.".format(len(strain_collection)))
+    else:
+        strain_collection = StrainCollection(db.all_strains(), db.signature)
+        logger.info("Using complete collection of {} strains from database.".format(len(strain_collection)))
+
 
     # =========== Parse reads.
     filter = Filter(
         db=cfg.database_cfg.get_database(),
+        strain_collection=strain_collection,
         min_read_len=min_read_len,
         frac_identity_threshold=frac_identity_threshold,
         error_threshold=error_threshold
     )
 
-    read_type = parse_read_type(read_type)
-    aligner_obj = create_aligner(aligner, read_type, db)
+    read_type = ReadType.parse_from_str(read_type_str)
+    aligner_obj = create_aligner(aligner, read_type, strain_collection.multifasta_file)
     filter.apply(
         in_path,
         out_path,
@@ -104,9 +122,9 @@ def main(
 
 if __name__ == "__main__":
     from chronostrain.logging import create_logger
-    my_logger = create_logger("chronostrain.filter")
+    main_logger = create_logger("chronostrain.MAIN")
     try:
-        main(obj=my_logger)
+        main()
     except Exception as e:
-        my_logger.exception(e)
+        main_logger.exception(e)
         exit(1)

@@ -2,13 +2,9 @@
     Classes written for simple toy examples, modelling deterministic Q scores
     and noisy reads (conditioned on these q-scores).
 """
-from typing import Optional
-
+import jax.numpy
 import numpy as np
-from chronostrain.model import Fragment
 from chronostrain.model.reads.base import SequenceRead, AbstractErrorModel, AbstractQScoreDistribution
-from chronostrain.util.numpy_helpers import choice_vectorized
-import chronostrain.util.sequences as cseq
 
 
 class RampUpRampDownDistribution(AbstractQScoreDistribution):
@@ -73,7 +69,7 @@ class RampUpRampDownDistribution(AbstractQScoreDistribution):
         each element is a quality score from self.quality_score_values
         """
 
-        lengths = np.zeros(shape=len(self.quality_score_values)*2-1)
+        lengths = np.zeros(shape=len(self.quality_score_values)*2-1, dtype=jax.numpy.uint16)
 
         # Iterate over each quality score and find the length of each chunk it will
         # span in the return vector.
@@ -178,7 +174,7 @@ class BasicErrorModel(AbstractErrorModel):
         self.deletion_error_ll = deletion_error_ll
 
     def compute_log_likelihood(self,
-                               fragment: Fragment,
+                               fragment: np.ndarray,
                                read: SequenceRead,
                                read_reverse_complemented: bool,
                                insertions: np.ndarray,
@@ -188,29 +184,19 @@ class BasicErrorModel(AbstractErrorModel):
         insertion_ll = np.sum(insertions) * self.insertion_error_ll
         deletion_ll = np.sum(deletions) * self.deletion_error_ll
 
-        read_qual = read.quality
-        read_seq = read.seq
-        fragment_seq = fragment.seq
-
         if read_reverse_complemented:
-            read_qual = read_qual[::-1]
-            read_seq = cseq.reverse_complement_seq(read_seq)
+            read_qual = read.quality[::-1]
+            read_seq = read.seq.revcomp_bytes()
+        else:
+            read_qual = read.quality
+            read_seq = read.seq.bytes()
 
         # take care of insertions/deletions/clipping.
         _slice = slice(read_start_clip, len(read_seq) - read_end_clip)
         read_qual = read_qual[_slice][~insertions]
         read_seq = read_seq[_slice][~insertions]
-        fragment_seq = fragment_seq[~deletions]
+        fragment_seq = fragment[~deletions]
 
         return insertion_ll + deletion_ll + np.log(
             BasicErrorModel.Q_SCORE_BASE_CHANGE_MATRICES[read_qual, fragment_seq, read_seq]
         ).sum()
-
-    def sample_noisy_read(self, read_id: str, fragment: Fragment, metadata: str = "") -> SequenceRead:
-        quality_score_vector = self.q_dist.sample_qvec()
-        random_seq = choice_vectorized(
-            p=BasicErrorModel.Q_SCORE_BASE_CHANGE_MATRICES[quality_score_vector, fragment.seq, :],
-            axis=1,
-            dtype=cseq.NucleotideDtype
-        )
-        return SequenceRead(read_id=read_id, seq=random_seq, quality=quality_score_vector, metadata=metadata)

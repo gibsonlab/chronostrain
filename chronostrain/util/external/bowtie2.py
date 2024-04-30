@@ -20,7 +20,7 @@ def bowtie2_inspect(basename: str,
     exit_code = call_command(
         command_path,
         args=[basename],
-        output_path=out_path
+        stdout=out_path
     )
     if exit_code != 0:
         raise CommandLineException("bowtie2-inspect", exit_code)
@@ -31,15 +31,18 @@ def bowtie2_build(refs_in: List[Path],
                   index_basename: str,
                   bmax: Optional[int] = None,
                   bmaxdivn: Optional[int] = None,
+                  offrate: Optional[int] = None,
+                  ftabchars: Optional[int] = None,
                   diff_cover_sample: Optional[int] = None,
                   packed: Optional[bool] = False,
+                  threads: Optional[int] = None,
                   seed: Optional[int] = None,
                   quiet: bool = False,
                   command_path: str = "bowtie2-build"):
     """
     :param refs_in: List of paths to reference sequences.
     :param index_basepath: The path to which the index is stored.
-    :param index_basename: write bt2 data to files with this basename.
+    :param index_basename: write bt2 read_frags to files with this basename.
     :param bmax: Passed to '--bmax' param.
     :param bmaxdivn: Passed to '--bmaxdivn' param.
     :param diff_cover_sample: Passed to '--dcv' param.
@@ -49,7 +52,7 @@ def bowtie2_build(refs_in: List[Path],
     :param quiet: Suppress debug messages.
     :return:
     """
-    args = [",".join(str(p) for p in refs_in), index_basepath / index_basename]
+    args = []
 
     auto = True
     for optional_param in [bmax, bmaxdivn, diff_cover_sample]:
@@ -72,9 +75,16 @@ def bowtie2_build(refs_in: List[Path],
 
     if seed is not None:
         args += ['--seed', seed]
-
+    if offrate is not None:
+        args += ['--offrate', offrate]
+    if ftabchars is not None:
+        args += ['--ftabchars', ftabchars]
+    if threads is not None:
+        args += ['--threads', threads]
     if quiet:
         args.append('--quiet')
+
+    args += [",".join(str(p) for p in refs_in), index_basepath / index_basename]
 
     exit_code = call_command(
         command_path,
@@ -123,6 +133,7 @@ def bowtie2(
         report_k_alignments: Optional[int] = None,
         num_threads: int = 1,
         rng_seed: int = 0,
+        offrate: int = None,
         sam_suppress_noalign: bool = False,
         command_path: str = "bowtie2",
         local: bool = False
@@ -177,6 +188,9 @@ def bowtie2(
         args.append('-a')
     elif report_k_alignments is not None:
         args += ['-k', report_k_alignments]
+
+    if offrate:
+        args += ['--offrate', offrate]
 
     if sam_suppress_noalign:
         args.append('--no-unal')

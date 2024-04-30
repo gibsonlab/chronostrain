@@ -1,9 +1,9 @@
 import argparse
 import random
 import csv
+from itertools import repeat
 from pathlib import Path
 
-import pandas as pd
 from multiprocessing.dummy import Pool
 from typing import Tuple, Dict, List
 
@@ -23,13 +23,10 @@ def parse_args():
                         help='<Required> The directory to which the reads should be output to.')
     parser.add_argument('-a', '--abundance_path', dest='abundance_path', required=True, type=str,
                         help='<Required> The path to the abundance CSV file.')
-    parser.add_argument('-i', '--index_path', dest='index_path', required=True, type=str,
-                        help='<Required> The path to the RefSeq index TSV file.')
+    parser.add_argument('-g', '--genome_dir', dest='genome_dir', type=str,
+                        help='<Required> The directory contaiing the genomes to simulate reads from.')
     parser.add_argument('-n', '--num_reads', dest='num_reads', required=True, type=int,
                         help='<Required> The number of synthetic reads to sample per time point.')
-    parser.add_argument('-p', '--profiles', dest='profiles', required=True, nargs=2,
-                        help='<Required> A pair of read profiles for paired-end reads. '
-                             'The first profile is for the forward strand and the second profile is for the reverse.')
     parser.add_argument('-l', '--read_len', dest='read_len', required=False, type=int, default=150,
                         help='<Required> The length of each read.')
 
@@ -100,19 +97,18 @@ def main():
     index_path = out_dir / "input_files.csv"
     logger.info(f"Reads will be sampled to {index_path}.")
 
-    index_df = pd.read_csv(args.index_path, sep='\t')
-
     # Invoke art sampler on each time point.
     index_entries = sample_reads_from_rel_abundances(
-        index_df=index_df,
+        genome_dir=Path(args.genome_dir),
         time_points=time_points,
         read_counts=read_counts,
         out_dir=out_dir,
-        profile_first=args.profiles[0],
-        profile_second=args.profiles[1],
+        sequencing_sys='HS25',
         read_len=args.read_len,
         quality_shift=args.quality_shift,
         quality_shift_2=args.quality_shift_2,
+        insert_len_mean=1000,
+        insert_len_std=500,
         seed=master_seed,
         n_cores=args.num_cores
     )
@@ -133,6 +129,10 @@ def concatenate_files(time_points: List[float], index_entries: List[Tuple[float,
 
                 reads1 = entry[2]
                 reads2 = entry[3]
+                if not reads1.exists():
+                    raise Exception(f"Read file {reads1} does not exist. Did ART run correctly?")
+                if not reads2.exists():
+                    raise Exception(f"Read file {reads2} does not exist. Did ART run correctly?")
                 with open(reads1, 'rt') as in_r1:
                     for line in in_r1:
                         out_r1.write(line)
@@ -178,16 +178,17 @@ def parse_abundance_profile(abundance_path: str) -> List[Tuple[float, Dict]]:
 
 
 def sample_reads_from_rel_abundances(
-        index_df: pd.DataFrame,
+        genome_dir: Path,
         time_points: List[float],
         read_counts: List[Dict[str, int]],
         out_dir: Path,
-        profile_first: Path,
-        profile_second: Path,
+        sequencing_sys: str,
         read_len: int,
         quality_shift: int,
         quality_shift_2: int,
         seed: Seed,
+        insert_len_mean: int,
+        insert_len_std: int,
         n_cores: int
 ) -> List[Tuple[float, int, Path, Path]]:
     """
@@ -198,24 +199,25 @@ def sample_reads_from_rel_abundances(
         index_entries = []
         for t_idx, (time_point, read_counts_t) in enumerate(zip(time_points, read_counts)):
             for strain_id, n_reads in read_counts_t.items():
-                refseq_rows = index_df.loc[index_df['Accession'] == strain_id]
-                if refseq_rows.shape[0] == 0:
-                    raise RuntimeError(f"Unable to locate strain id `{strain_id}`.")
-
-                fasta_path = Path(refseq_rows.head(1)['SeqPath'].item())
+                fasta_path = genome_dir / f'{strain_id}.fasta'
+                if not fasta_path.exists():
+                    logger.error(f"Fasta file {fasta_path} does not exist!")
+                    exit(1)
                 output_path_1, out_path_2 = art_illumina(
                     reference_path=fasta_path,
                     num_reads=n_reads,
                     output_dir=out_dir,
                     output_prefix="{}_{}_".format(t_idx, strain_id),
-                    profile_first=profile_first,
-                    profile_second=profile_second,
+                    sequencing_sys=sequencing_sys,
                     quality_shift=quality_shift,
                     quality_shift_2=quality_shift_2,
                     read_length=read_len,
                     seed=seed.next_value(),
+                    paired_end_frag_mean_len=insert_len_mean,
+                    paired_end_frag_stdev_len=insert_len_std,
                     output_sam=False,
-                    output_aln=False
+                    output_aln=False,
+                    stdout_path=out_dir / "{}_{}.out.txt".format(t_idx, strain_id)
                 )
 
                 index_entries.append(
@@ -223,37 +225,37 @@ def sample_reads_from_rel_abundances(
                 )
     elif n_cores > 1:
         partial_index_entries = []
-        configs = []
+        kwargs_iter = []
         for t_idx, (time_point, read_counts_t) in enumerate(zip(time_points, read_counts)):
             for strain_id, n_reads in read_counts_t.items():
-                refseq_rows = index_df.loc[index_df['Accession'] == strain_id]
-                if refseq_rows.shape[0] == 0:
-                    raise RuntimeError(f"Unable to locate strain id `{strain_id}`.")
-
-                fasta_path = Path(refseq_rows.head(1)['SeqPath'].item())
-                configs.append((
-                    fasta_path,
-                    n_reads,
-                    out_dir,
-                    "{}_{}_".format(t_idx, strain_id),
-                    profile_first,
-                    profile_second,
-                    read_len,
-                    seed.next_value(),
-                    1000,
-                    200,
-                    False,
-                    False,
-                    quality_shift,
-                    quality_shift_2
-                ))
+                fasta_path = genome_dir / f'{strain_id}.fasta'
+                if not fasta_path.exists():
+                    logger.error(f"Fasta file {fasta_path} does not exist!")
+                    exit(1)
+                kwargs = {
+                    'reference_path': fasta_path,
+                    'num_reads': n_reads,
+                    'output_dir': out_dir,
+                    'output_prefix': "{}_{}_".format(t_idx, strain_id),
+                    'sequencing_sys': sequencing_sys,
+                    'quality_shift': quality_shift,
+                    'quality_shift_2': quality_shift_2,
+                    'read_length': read_len,
+                    'seed': seed.next_value(),
+                    'paired_end_frag_mean_len': insert_len_mean,
+                    'paired_end_frag_stdev_len': insert_len_std,
+                    'output_sam': False,
+                    'output_aln': False,
+                    'stdout_path': out_dir / "{}_{}.out.txt".format(t_idx, strain_id)
+                }
+                kwargs_iter.append(kwargs)
 
                 partial_index_entries.append(
                     (time_point, n_reads)
                 )
 
         with Pool(n_cores) as pool:
-            result_files = pool.starmap(art_illumina, configs)
+            result_files = starmap_with_kwargs(pool, art_illumina, kwargs_iter)
             index_entries = []
             for (time_point, n_reads), (reads1, reads2) in zip(partial_index_entries, result_files):
                 index_entries.append(
@@ -263,6 +265,14 @@ def sample_reads_from_rel_abundances(
         raise ValueError("# cores must be positive. Got: {}".format(n_cores))
 
     return index_entries
+
+
+def starmap_with_kwargs(pool, fn, kwargs_iter):
+    kwargs_for_starmap = zip(repeat(fn), kwargs_iter)
+    return pool.starmap(apply_kwargs, kwargs_for_starmap)
+
+def apply_kwargs(fn, kwargs):
+    return fn(**kwargs)
 
 
 if __name__ == "__main__":

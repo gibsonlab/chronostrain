@@ -2,8 +2,8 @@
 set -e
 
 source settings.sh
-check_program pigz
-check_program karp
+require_program pigz
+require_program karp
 
 
 do_inference() {
