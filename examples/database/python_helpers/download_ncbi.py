@@ -51,12 +51,12 @@ def fetch_catalog(taxids: List[str], save_dir: Path, level: str, reference_only:
 def fetch_catalog_single_taxa(taxid: str, save_path: Path, level: str, assembly_source: str, reference_only: bool) -> List[NCBIRecord]:
     if reference_only:
         cmd = f"datasets summary genome taxon \"{taxid}\" --assembly-source {assembly_source} "\
-              f"--assembly-version latest --assembly-level {level} --exclude-atypical "\
+              f"--assembly-version latest --assembly-level {level} --exclude-atypical --mag exclude "\
               f"--reference"\
               f"> {save_path}"
     else:
         cmd = f"datasets summary genome taxon \"{taxid}\" --assembly-source {assembly_source} "\
-              f"--assembly-version latest --assembly-level {level} --exclude-atypical "\
+              f"--assembly-version latest --assembly-level {level} --exclude-atypical --mag exclude "\
               f"> {save_path}"
     logger.info("[EXECUTE] {}".format(cmd))
     os.system(cmd)
