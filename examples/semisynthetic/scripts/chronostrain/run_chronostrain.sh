@@ -26,10 +26,11 @@ filter_file=${output_dir}/filter_runtime.txt
 
 prior_p=0.001
 
-#if [ -f $runtime_file ]; then
-#	echo "[*] Skipping Chronostrain Inference (mut_ratio: ${mutation_ratio} | replicate: ${replicate} |  n_reads: ${n_reads} | trial: ${trial})"
-#	exit 0
-#fi
+
+if [ -f $runtime_file ]; then
+	echo "[*] Skipping Chronostrain Inference (mut_ratio: ${mutation_ratio} | replicate: ${replicate} |  n_reads: ${n_reads} | trial: ${trial})"
+	exit 0
+fi
 
 if [ ! -f $filter_file ]; then
 	echo "[*] Filtered result not found for (mut_ratio: ${mutation_ratio} | replicate: ${replicate} |  n_reads: ${n_reads} | trial: ${trial})"
