@@ -490,6 +490,39 @@ class ChronostrainRenderer:
             d = row['UTIDay']
             ax.axvline(x=d, color=color, alpha=1.0, zorder=1)
 
+    def set_xtick_times(self, ax: Axes):
+        """
+        read from the UMB experiment dataframe and change x-axis labels to the sample dates.
+        """
+        xticks = []
+        xlabels = []
+        prev_t = -10000
+        start_t = int(np.min(self.sample_df['T']))
+        for _, row in self.sample_df.groupby('T').head(1).sort_values('T').iterrows():
+            date = row['date']
+            samplename = row['SampleName']
+            t = row['T']
+
+            day_number = int(t - start_t)
+            lbl_t = f'{day_number}'
+            if t - prev_t < 7:  # Within a week
+                xticks.append(t)
+                xlabels.append("")
+                # xlabels[-1] = lbl_t
+            else:
+                xticks.append(t)
+                xlabels.append(lbl_t)
+            prev_t = t
+        t_min = self.sample_df['T'].min()
+        t_max = self.sample_df['T'].max()
+        dt = (t_max - t_min) * 0.02
+        ax.set_xlim(
+            left=t_min - dt,
+            right=t_max + dt
+        )
+        ax.set_xticks(xticks)
+        ax.set_xticklabels(xlabels, rotation=90)
+
     def set_xtick_dates(self, ax: Axes, show_t: bool = False):
         """
         read from the UMB experiment dataframe and change x-axis labels to the sample dates.
@@ -505,6 +538,38 @@ class ChronostrainRenderer:
                 lbl_t = f'{date.date()} ({samplename}): {t}'
             else:
                 lbl_t = f'{date.date()}'
+            if t - prev_t < 7:  # Within a week
+                xticks.append(t)
+                xlabels.append("")
+                # xlabels[-1] = lbl_t
+            else:
+                xticks.append(t)
+                xlabels.append(lbl_t)
+            prev_t = t
+        t_min = self.sample_df['T'].min()
+        t_max = self.sample_df['T'].max()
+        dt = (t_max - t_min) * 0.02
+        ax.set_xlim(
+            left=t_min - dt,
+            right=t_max + dt
+        )
+        ax.set_xticks(xticks)
+        ax.set_xticklabels(xlabels, rotation=90)
+
+    def set_xtick_names(self, ax: Axes, show_t: bool = False):
+        """
+        read from the UMB experiment dataframe and change x-axis labels to the sample dates.
+        """
+        xticks = []
+        xlabels = []
+        prev_t = -10000
+        for _, row in self.sample_df.groupby('T').head(1).sort_values('T').iterrows():
+            samplename = row['SampleName']
+            t = row['T']
+            if show_t:
+                lbl_t = f'{samplename}: {t}'
+            else:
+                lbl_t = f'{samplename}'
             if t - prev_t < 7:  # Within a week
                 xticks.append(t)
                 xlabels.append("")
