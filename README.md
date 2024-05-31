@@ -14,7 +14,7 @@
 
 # 1. Colab Demo <a name="colab-demo"></a>
 
-<a href="https://colab.research.google.com/github/gibsonlab/chronostrain/blob/master/examples/colab_demo/demo.ipynb"><img alt="" src="https://img.shields.io/badge/Google%20Colab-Open%20tutorial-blue?style=flat&logo=googlecolab"/></a>
+(WORK IN PROGRESS, UNDER CONSTRUCTION) <a href="https://colab.research.google.com/github/gibsonlab/chronostrain/blob/master/examples/colab_demo/demo.ipynb"><img alt="" src="https://img.shields.io/badge/Google%20Colab-Open%20tutorial-blue?style=flat&logo=googlecolab"/></a>
 
 # 2. Installation <a name="installation"></a>
 
