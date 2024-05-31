@@ -35,15 +35,20 @@ These are included in the full conda recipe `conda_full.yml`.
 2. `ncbi-genome-download`: This can be obtained from the original
 author's <a href="https://github.com/kblin/ncbi-genome-download">github repo</a> or through
 <a href="https://anaconda.org/bioconda/ncbi-genome-download">conda</a>.
-3. `MetaPhlAn`: Since we will be extracting marker seeds from MetaPhlan (we will use version 4 as an example), the user should
-also install it <a href="https://huttenhower.sph.harvard.edu/metaphlan/">(LINK)</a> and know where the 
-database files are located. 
+3. `MetaPhlAn` (optional): Since we only require a single FASTA file for defining a marker seed (one (multi-)FASTA file per marker), it is possible
+to extract and use MetaPhlAn marker genes for ChronoStrain's markers. 
+The notebooks optionally include the ability to read MetaPhlan (we will use version 4 as an example) pickled database files.
+The user should follow installation directions <a href="https://huttenhower.sph.harvard.edu/metaphlan/">(LINK)</a> and know where the 
+database pickle files are located. 
 *Note: By default (as of Oct. 2022), one can follow the MetaPhlAn documentation and run `metaphlan --install`, which downloads/extracts a tarball into 
   `<PYTHON_LIBS>/site-packages/metaphlan/metaphlan_databases`.*
-This path must be included into `settings.sh`.
+This path should be included into `settings.sh` if one wants to use these genes.
   
 
-# 3. The Recipe, Explained
+# 3. The Recipe, Explained using an Example
+
+The notebooks in this subdirectory are a bit more involved than what's described below. 
+This README section just walks through an example.
 
 ## Step 1: Download and compile a RefSeq index
 Run the script `download_ncbi.sh`:
@@ -62,7 +67,8 @@ The recipe outlined in this script is as follows:
 ## Step 2: Generate marker sequence seeds
 
 ### Strategy
-In this example, we will extract all marker sequences from MetaPhlAn (version 3 or later) that include the
+In general, the user can specify any marker seed using a FASTA file containing one or more records containing known variants of a particular gene.
+As an example, we will extract all marker sequences from MetaPhlAn (version 3 or later) that include the
 `g__Klebsiella` taxonomic label.
 These will serve as *marker seeds* for ChronoStrain's database.
 

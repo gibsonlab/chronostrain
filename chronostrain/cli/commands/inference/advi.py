@@ -27,7 +27,7 @@ from ..base import option
 )
 @option(
     '--with-zeros/--without-zeros', 'with_zeros',
-    is_flag=True, default=False,
+    is_flag=True, default=True,
     help='Specify whether to include zeros into the model.'
 )
 @option(

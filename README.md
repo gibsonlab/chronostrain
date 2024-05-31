@@ -1,6 +1,5 @@
 # ChronoStrain
 
-*** Under active development! *** The contents of this repository will soon be outdated and replaced with the development branch, with many updates and streamlining.
 
 # Table of Contents
 1. [Colab Demo](#colab-demo)
@@ -25,14 +24,11 @@ There are three ways to install chronostrain.
 
 Necessary dependencies only, installs cuda-toolkit from NVIDIA for (optional, but highly useful) GPU usage.
 ```bash
-conda env create -f conda_basic.yml
+conda env create -f conda_basic.yml -n chronostrain
 conda activate chronostrain
 ```
 
-If you intend to use a GPU (highly recommended), verify whether pytorch's CUDA interface is available for usage:
-```bash
-python -c "import torch; print(torch.cuda.is_available())"
-```
+GPU usage is enabled by default. To disable it, set `JAX_PLATFORM_NAME=cpu` in the environment variables.
 
 ### B. Full conda recipe
 
@@ -42,8 +38,8 @@ Includes additional dependencies such as: `sra-tools`, `kneaddata`, `trimmomatic
 subdirectories.
 
 ```bash
-conda env create -f conda_full.yml
-conda activate chronostrain_full
+conda env create -f conda_full.yml -n chronostrain_paper
+conda activate chronostrain_paper
 ```
 
 ### C. Pip
@@ -73,6 +69,20 @@ export PATH=${PATH}:/home/username/dashing2_dir
 # 3. Core Interface: Quickstart (Unix) <a name="quickstart"></a>
 
 Installing chronostrain creates a command-line entry point `chronostrain`.
+
+An example pipeline looks like the following:
+```bash
+# Step 0: create database (this only needs to be done once)
+chronostrain make-db -m my_marker_seeds.tsv -r my_reference_genomes.tsv -o DB_DIR/my_database.json
+chronostrain cluster-db -i DB_DIR/my_database.json -o DB_DIR/my_clusters.txt -t 0.998
+
+# Step 1: filter reads
+chronostrain filter -r timeseries_metagenomic_reads.tsv -o FILTERED_DIR -s DB_DIR/my_clusters.txt
+
+# Step 2: perform inference
+chronostrain advi -r FILTERED_DIR/filtered_timeseries_metagenomic_reads.tsv -o INFERENCE_DIR -s DB_DIR/my_clusters.txt
+```
+
 For precise I/O specification and a description of all arguments, please invoke the `--help` option.
 Note that all commands below requires a valid configuration file; refer to [Configuration](#config).
 
@@ -81,12 +91,16 @@ Note that all commands below requires a valid configuration file; refer to [Conf
     If one really wants to generate a new database manually, this command outputs a JSON file and populates a data directory 
     specified by the configuration:
     ```bash
-    chronostrain make-db <ARGS>
+    chronostrain make-db -m <marker_seeds> -r <reference_catalog> -o <output_json> ...
     ```
-    This has a major prerequisite: one needs to have a local repository of reference sequences, and 
-    catalogued this repository via a TSV file, to be passed via the `--reference` argument.
-    The TSV file must contain at least the following columns:
+    The most important arguments are:
+    - `-m, --marker-seeds FILE`: a TSV file of marker seeds,  with at least two columns: `[gene name], [path_to_fasta]` 
+    - `-r, '--references FILE`: a TSV file that catalogs the reference genome collection. It must contain at least the following columns:
     `Accession`, `Genus`, `Species`, `Strain`, `ChromosomeLen`, `SeqPath`, `GFF`.
+    The GFF column is optional, and is used to extract gene name annotations for metadata. 
+    ChromosomeLen is only used as metadata; it is used in the "overall relative abundance" estimator.
+    To download genomes, we recommend the `ncbi datasets` API.
+    We provide example scripts that use this API, located in `examples/database/download_ncbi2.sh`
 
     Then, one configures chronostrain to use the database
     ```text
@@ -95,26 +109,33 @@ Note that all commands below requires a valid configuration file; refer to [Conf
     ENTRIES_FILE=<path_to_json>
     ...
     ```
-   Refer to [Configuration](#config) for more details.
-   An example json is included in `examples/example_configs/entero_ecoli.json`.
+    Refer to [Configuration](#config) for more details.
+    An example json is included in `examples/example_configs/entero_ecoli.json`.
    
 2. **Time-series read filtering**
 
     To run the pre-processing step for filtering a time-series collection of reads by aligning them to our database,
     run this command.
     ```bash
-    chronostrain filter <ARGS>
+    chronostrain filter -r <read_tsv> -o <out_dir> [-s <cluster_txt>] ...
     ```
-   A pre-requisite for this command is that one has a TSV/CSV file (tab- or comma-separated), formatted in the following way:
+    The most important arguments here are:
+    - `-r, --reads FILE`: The collection of reads from a time-series experiment is to be specified using TSV/CSV file (tab- or comma-separated), formatted in the following way
+    (exclude headers). See below for the file format.
+    - `-o, --out-dir DIRECTORY`: The directory to store the filtered reads into. This tool will also output a CSV file that catalogs the filtered reads.
+    - `-s, --strain-subset FILE`: This is optional. 
+    If specified, performs filtering only on the genome IDs listed in the file
+    Typically, such a file will specify cluster representatives, generated by `chronostrain cluster-db`.
    
-    **example (of CSV format):**
+    **Sequencing read input file format (in CSV/TSV):**
     ```csv
     <timepoint>,<sample_name>,<experiment_read_depth>,<path_to_fastq>,<read_type>,<quality_fmt>
     ```
     - timepoint: A floating-point number specifying the timepoint annotation of the sample.
     - sample_name: A sample-specific description/name. Samples with the same sample_name will be grouped together as paired-end reads (user must specify `paired_1` and `paired_2` in `read_type`)
     - experiment_read_depth: The total number of reads sequenced (the "read depth") for this fastq file.
-    - path_to_fastq: Path to the read FASTQ file (include a separate row for forward/reverse reads if using paired-end). Accepts relative paths (e.g. not starting with forward slash "/")
+    - path_to_fastq: Path to the read FASTQ file (include a separate row for forward/reverse reads if using paired-end). Accepts relative paths (e.g. not starting with forward slash "/"). 
+    GZIP is supported as well, if the filename ends with `.gz`.
     - read_type: one of `single`, `paired_1` or `paired_2`.
     - quality_fmt: Currently implemented options are: `fastq`, `fastq-sanger`, `fastq-illumina`, `fastq-solexa`. 
       Generally speaking, we can add on any format implemented in the `BioPython.QualityIO` module.
@@ -126,7 +147,7 @@ Note that all commands below requires a valid configuration file; refer to [Conf
     
     To run the inference using time-series reads that have been filered (via `chronostrain filter`), run this command.
     ```bash
-    chronostrain advi <ARGS>
+    chronostrain advi -r <filtered_reads_tsv> -o <out_dir> [-s <cluster_txt>] ...
     ```
     The pre-requisite for this command is that one has run `chronostrain filter` to produce a TSV/CSV file that
     catalogues the filtered fastq files. Several options are available to tweak the optimization; we highly recommend
@@ -155,7 +176,7 @@ chronostrain -c examples/example_configs/chronostrain.ini.example filter -r subj
 
 ## Second method: env variables
 
-By default, ChronoStrain uses the variable `CHRONOSTRAIN_INI`.
+By default, ChronoStrain looks for the variable `CHRONOSTRAIN_INI`, if the `-c` option is not specified.
 The following is equivalent to using the -c option from the above example:
 ```bash
 export CHRONOSTRAIN_INI=examples/exmaple_configs/chronostrain.ini.example
