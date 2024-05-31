@@ -18,7 +18,7 @@
 
 # 2. Installation <a name="installation"></a>
 
-There are three ways to install chronostrain.
+We provide a setup script for `pip` and also two different conda recipes.
 
 ### A. Basic conda recipe (Recommended)
 
