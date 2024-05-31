@@ -48,7 +48,7 @@ conda activate chronostrain_paper
 pip install .
 ```
 
-one may need to pick and choose the proper pytorch version beforehand (e.g. with/without cuda).
+One needs to install the remaining dependencies separately. (Cuda toolkit, `bowtie2` and/or `bwa-mem2`, `blast`, `samtools`)
 
 
 ## 2.1 Other requirements
