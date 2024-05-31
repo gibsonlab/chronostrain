@@ -19,13 +19,13 @@ if Path(requirementPath).is_file():
 
 setuptools.setup(
     name="chronostrain",
-    version="0.5.0",
+    version="0.6.0",
     author="Younhun Kim",
     author_email="younhun@mit.edu",
     url="https://github.com/gibsonlab/chronostrain",
     classifiers=[
         "Programming Language :: Python :: 3",
-        "License :: <TODO>",
+        "License :: MIT",
         "Operating System :: Unix",
     ],
     packages=setuptools.find_packages(),
