@@ -35,7 +35,7 @@ aln_and_compress()
 	tmp_dir=$3
 
 	aln_raw=${aln_out}-raw.txt
-	n_ref=$(wc -l < "ref_clu.txt")
+	n_ref=$(wc -l < "${ECOLI_REF_CLUSTER}")
 	themisto pseudoalign \
     --index-prefix ${ECOLI_REF_INDEX} --rc --temp-dir ${tmp_dir} --n-threads ${N_CORES} --sort-output-lines \
     --query-file ${fq_in} \

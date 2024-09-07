@@ -97,7 +97,7 @@ demix_check --mode_check \
   --binned_reads_dir ../binned_reads \
   --msweep_abun ../msweep_abundances.txt \
   --out_dir . \
-  --ref ${ECOLI_REF_DIR} \
+  --ref ${ECOLI_REF_DIR}/demix_ref \
   --min_abun 0.0 \
   --threads ${N_CORES}
 touch ${breadcrumb}
