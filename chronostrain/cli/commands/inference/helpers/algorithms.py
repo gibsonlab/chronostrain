@@ -91,8 +91,7 @@ def perform_advi(
     if with_zeros:
         from chronostrain.model import PopulationGlobalZeros
         zero_model = PopulationGlobalZeros(gaussian_prior.num_strains, prior_p=prior_p)
-        if prior_p != 0.5:
-            logger.info(f"Initialized model inclusion prior with p={prior_p}")
+        logger.info(f"Initialized model inclusion prior with p={prior_p}")
         solver = ADVIGaussianZerosSolver(
             gaussian_prior=gaussian_prior,
             error_model=error_model,

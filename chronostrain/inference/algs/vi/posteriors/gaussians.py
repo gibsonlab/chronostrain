@@ -38,7 +38,9 @@ class GaussianPosteriorFullReparametrizedCorrelation(ReparametrizedGaussianPoste
         1) Parametrize the (T x S) trajectory as a (TS)-dimensional Gaussian.
         2) Parametrize F_1, ..., F_T as independent (but not identical) categorical RVs (for each read).
         """
-        logger.info("Initializing Fully joint posterior")
+        logger.info("Initializing Fully joint posterior (non-sparsified)")
+        self.num_strains = num_strains
+        self.num_times = num_times
         self.dtype = dtype
         self.initial_gaussian_bias = initial_gaussian_bias
         super().__init__(num_strains, num_times)
@@ -77,9 +79,10 @@ class GaussianPosteriorFullReparametrizedCorrelation(ReparametrizedGaussianPoste
         return jax.nn.softmax(x, axis=-1)
 
     def entropy(self, params: Dict[str, np.ndarray]) -> np.ndarray:
-        return gaussian_entropy(
-            params['tril_weights'], np.exp(params['diag_weights'])
-        )
+        return params['diag_weights'].sum()
+        #return gaussian_entropy(
+        #    params['tril_weights'], np.exp(params['diag_weights'])
+        #)
 
 
 # class GaussianPosteriorStrainCorrelation(ReparametrizedGaussianPosterior):

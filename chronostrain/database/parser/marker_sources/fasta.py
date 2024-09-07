@@ -3,6 +3,7 @@ from pathlib import Path
 from Bio import SeqIO
 from chronostrain.model import Marker, MarkerMetadata
 from chronostrain.util.sequences import *
+from chronostrain.util.io import read_seq_file
 from .base import AbstractMarkerSource
 
 
@@ -16,7 +17,7 @@ class MultiFastaMarkerSource(AbstractMarkerSource):
 
         self.fasta_records = [
             record.seq
-            for record in SeqIO.parse(fasta_path, "fasta")
+            for record in read_seq_file(fasta_path, "fasta")
         ]
         # Note: this might be faster by using `samtools faidx` automatically.
         # self.fasta = FastaIndexedResource(fasta_path)

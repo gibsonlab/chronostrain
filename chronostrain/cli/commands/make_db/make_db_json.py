@@ -111,6 +111,8 @@ def main(
             tokens = line.strip().split('\t')
             gene_name = tokens[0]
             gene_fasta_path = Path(tokens[1])
+            if not gene_fasta_path.is_absolute():
+                gene_fasta_path = marker_seeds_path.parent / gene_fasta_path
             if not gene_fasta_path.exists():
                 raise FileNotFoundError(
                     f"Sequence file for marker `{gene_name}` does not exist (got: {gene_fasta_path})"
