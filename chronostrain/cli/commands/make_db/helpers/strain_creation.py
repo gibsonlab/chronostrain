@@ -3,6 +3,7 @@ from pathlib import Path
 import pandas as pd
 from logging import Logger
 import csv
+import gzip
 
 from intervaltree import IntervalTree
 
@@ -307,7 +308,12 @@ def create_chronostrain_db(
                     so that BLAST refids are easily mappable back to the originating file.
                     """
                     assert seq_entry.seq_path is not None
-                    with open(seq_entry.seq_path, "rt") as src_f:
+                    if seq_entry.seq_path.suffix.endswith(".gz"):
+                        src_f = gzip.open(seq_entry.seq_path, "rt")
+                    else:
+                        src_f = open(seq_entry.seq_path, "rt")
+
+                    try:
                         record_idx = 0
                         for line in src_f:
                             if line.startswith(">"):
@@ -315,6 +321,8 @@ def create_chronostrain_db(
                                 record_idx += 1
                             else:
                                 out_f.write(line)
+                    finally:
+                        src_f.close()
 
         # Invoke makeblastdb.
         make_blast_db(

@@ -389,9 +389,9 @@ class ReadFragmentMappings:
         denom = fwd_hit_df.shape[0] + rev_hit_df.shape[0]
         if denom > 0:
             logger.debug(
-                "# Paired alignments = {} (Jaccard IOU reduction ratio: {})".format(
+                "# Paired alignments = {} (reduction ratio: {})".format(
                     merged.shape[0],
-                    merged.shape[0] / (fwd_hit_df.shape[0] + rev_hit_df.shape[0])
+                    2*merged.shape[0] / (fwd_hit_df.shape[0] + rev_hit_df.shape[0])
                 )
             )
         for _, row in merged.iterrows():

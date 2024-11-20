@@ -1,5 +1,6 @@
 from abc import abstractmethod, ABC
 from typing import *
+import itertools
 
 import jax
 import jax.numpy as jnp
@@ -348,9 +349,14 @@ class AbstractADVISolver(AbstractModelSolver, AbstractADVI, ABC):
 
             if len(clust) > 1:
                 clust_members = [self.gaussian_prior.strain_collection.strains[i] for i in clust]
-                logger.debug("Formed cluster [{}] due to read_frags correlation greater than {}.".format(
+                avg_corr = cnp.mean([
+                    corr[c_idx_i, c_idx_j]
+                    for c_idx_i, c_idx_j in itertools.combinations(clust, r=2)
+                ])
+                logger.debug("Formed cluster [{}] due to read_frags correlation greater than {} (AVG_CORR={}).".format(
                     ",".join(f'{s.id}({s.metadata.genus[0]}. {s.metadata.species} {s.name})' for s in clust_members),
-                    correlation_threshold
+                    correlation_threshold,
+                    avg_corr
                 ))
 
         # Update read_frags structures

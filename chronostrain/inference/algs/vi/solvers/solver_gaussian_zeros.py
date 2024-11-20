@@ -59,7 +59,9 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
             adhoc_corr_threshold=adhoc_corr_threshold
         )
         self.temperature = np.array(10., dtype=dtype)
-        self.temp_min = 1e-4
+        self.__temp_min = 1e-2
+        self.__anneal_rate = 0.95
+        logger.debug(f"MIN POSSIBLE TEMPERATURE = {self.__temp_min}, ANNEAL RATE = {self.__anneal_rate}")
         self.n_epochs_at_current_temp = 0
         self.zero_model = zero_model
 
@@ -104,8 +106,7 @@ class ADVIGaussianZerosSolver(AbstractADVISolver):
             raise ValueError("Unrecognized `correlation_type` argument {}.".format(self.correlation_type))
 
     def advance_epoch(self, epoch):
-        __anneal_rate = 0.95
-        self.temperature = np.maximum(self.temperature * __anneal_rate, self.temp_min)
+        self.temperature = np.maximum(self.temperature * self.__anneal_rate, self.__temp_min)
         if epoch % 10 == 0:
             logger.debug("Temperature = {}".format(self.temperature))
 
