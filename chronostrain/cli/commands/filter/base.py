@@ -1,6 +1,7 @@
 import csv
 from pathlib import Path
 import re
+import gzip
 
 import numpy as np
 from Bio import SeqIO
@@ -53,8 +54,9 @@ class Filter(object):
         aligner_tmp_dir = out_path.parent / "tmp"
         aligner_tmp_dir.mkdir(exist_ok=True)
 
-        metadata_path = out_path.parent / f"{out_path.name}.metadata.tsv"
-        sam_path = aligner_tmp_dir / f"{out_path.name}.sam"
+        base_out_name = remove_suffixes(out_path).name
+        metadata_path = out_path.parent / f"{base_out_name}.metadata.tsv"
+        sam_path = aligner_tmp_dir / f"{base_out_name}.sam"
         aligner.align(
             query_path=read_file,
             output_path=sam_path,
@@ -103,7 +105,10 @@ class Filter(object):
             ]
         )
 
-        result_fq = open(result_fq_path, 'w')
+        if result_fq_path.name.endswith(".gz"):
+            result_fq = gzip.open(result_fq_path, 'wt')
+        else:
+            result_fq = open(result_fq_path, 'wt')
         reads_already_passed = set()
 
         logger.debug(f"Reading: {sam_path.name}")
@@ -170,6 +175,7 @@ class Filter(object):
                     description="{}_{}:{}".format(aln.marker.id, aln.marker_start, aln.marker_end)
                 )
                 record.letter_annotations["phred_quality"] = aln.read.quality
+                # result_fq.write(record.format("fastq"))
                 SeqIO.write(record, result_fq, "fastq")
         logger.debug(f"# passed reads: {len(reads_already_passed)}")
         result_metadata.close()

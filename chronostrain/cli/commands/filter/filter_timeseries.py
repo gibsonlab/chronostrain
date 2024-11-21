@@ -67,6 +67,11 @@ from ..base import option
     help='Specify whether to attach sample IDs to the fasta filename. Useful if, for some reason, '
          'the input fasta files have non-unique names -- but DO become unique if sample IDs are attached.'
 )
+@option(
+    '--compress-fastq', 'compress_fastq',
+    is_flag=True, default=True,
+    help='Specify whether to compress the fastq output files. Currently, only gzip is supported.'
+)
 def main(
         reads_input: Path,
         out_dir: Path,
@@ -76,7 +81,8 @@ def main(
         frac_identity_threshold: float,
         error_threshold: float,
         output_filename: Optional[str],
-        attach_sample_ids: bool
+        attach_sample_ids: bool,
+        compress_fastq: bool
 ):
     """
     Perform filtering on a timeseries dataset, specified by a standard CSV-formatted input index.
@@ -137,6 +143,9 @@ def main(
             out_file = f"filtered_{remove_suffixes(read_path).name}-{sample_name}.fastq"
         else:
             out_file = f"filtered_{remove_suffixes(read_path).name}.fastq"
+
+        if compress_fastq:
+            out_file = out_file + ".gz"
 
         filter.apply(read_path, out_dir / out_file, read_type, aligner_obj, quality_format=qual_fmt)
         with open(target_csv_path, 'a') as target_csv:
