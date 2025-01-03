@@ -11,7 +11,7 @@ mkdir -p ${poppunk_outdir}
 cd "${poppunk_outdir}"
 
 echo "[!] Preparing PopPUNK inputs. (${poppunk_outdir})"
-grep "\scoli\s" "${REFSEQ_INDEX}" | cut -f4,6 > poppunk_input.tsv
+grep "\scoli\s" "${REFSEQ_INDEX}" | cut -f4,6 > poppunk_input.tsv  # no need to use sed 1d here, since the grep removes the header.
 
 
 ## run poppunk

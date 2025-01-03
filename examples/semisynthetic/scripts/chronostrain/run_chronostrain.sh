@@ -24,8 +24,6 @@ output_dir=${trial_dir}/output/${out_subdir}
 runtime_file=${output_dir}/inference_runtime.txt
 filter_file=${output_dir}/filter_runtime.txt
 
-prior_p=0.001
-
 
 if [ -f $runtime_file ]; then
 	echo "[*] Skipping Chronostrain Inference (mut_ratio: ${mutation_ratio} | replicate: ${replicate} |  n_reads: ${n_reads} | trial: ${trial})"

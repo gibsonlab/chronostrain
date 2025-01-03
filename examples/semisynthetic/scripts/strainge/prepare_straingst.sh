@@ -35,7 +35,7 @@ echo "[*] Computing clusters."
 ## -c 0.918 --> 914 clusters, 307 phylogroup A clusters
 ## -c 0.92 --> 927 clusters, 309 phylogroup A clusters
 ## -c 0.94 --> 1065 clusters, 330 phylogroup A clusters
-## -c 0.947 --> 1119 clusters, 340 phylogroup A clusters
+## -c 0.947 --> 1119 clusters, 340 phylogroup A clusters [We use this one]
 ## -c 0.95 --> 1147 clusters, 345 phylogroup A clusters
 straingst cluster -i similarities.tsv -d -C 0.99 -c 0.947 --clusters-out clusters.tsv ${kmer_dir}/*.hdf5 > references_to_keep.txt
 
