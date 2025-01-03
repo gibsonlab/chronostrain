@@ -31,8 +31,15 @@ def extract_chronostrain_prediction(
     posterior.load(Path(output_dir / "posterior.{}.npz".format(cfg.engine_cfg.dtype)))
 
     adhoc_clusters = parse_adhoc_clusters(output_dir / 'adhoc_cluster.txt')
-    runtime = parse_runtime(output_dir / 'filter_runtime.txt') + parse_runtime(output_dir / 'inference_runtime.txt')
-    return posterior, strains, adhoc_clusters, runtime
+    try:
+        filter_runtime = parse_runtime(output_dir / 'filter_runtime.txt')
+    except FileNotFoundError as e:
+        print("Couldn't find filter runtime file for {}. Defaulting to NaN.".format(
+            output_dir
+        ))
+        filter_runtime = np.nan
+    runtime = parse_runtime(output_dir / 'inference_runtime.txt')
+    return posterior, strains, adhoc_clusters, runtime + filter_runtime
 
 
 def parse_chronostrain_strains(txt_file) -> List[str]:
@@ -160,7 +167,8 @@ def chronostrain_results(
     trial: int,
     abundance_bins: np.ndarray,
     subdir_name: str = 'chronostrain', 
-    posterior_threshold: float = 0.9901
+    posterior_threshold: float = 0.9901,
+    prior_p: float = 0.001
 ):
     truth_accs, time_points, ground_truth = load_ground_truth(mut_ratio=mut_ratio, replicate=replicate)
     posterior, strains, adhoc_clusters, runtime = extract_chronostrain_prediction(mut_ratio, replicate, read_depth, trial, subdir_name=subdir_name)
@@ -182,7 +190,7 @@ def chronostrain_results(
 
     # Extract samples.
     n_samples = 5000
-    sample_dir = Path() / f'{subdir_name}_samples' / f'mutratio_{mut_ratio}' / f'replicate_{replicate}' / f'reads_{read_depth}' / f'trial_{trial}'  # relative dir
+    sample_dir = Path() / 'samples' / f'{subdir_name}' / f'mutratio_{mut_ratio}' / f'replicate_{replicate}' / f'reads_{read_depth}' / f'trial_{trial}'  # relative dir
     sample_dir.mkdir(exist_ok=True, parents=True)
     g_samples, z_samples = load_chronostrain_posterior_samples(posterior, n_samples, save_dir=sample_dir)
 
@@ -194,7 +202,7 @@ def chronostrain_results(
         truth_accs,
         ground_truth,
         posterior,
-        g_samples, z_samples, 0.001,
+        g_samples, z_samples, prior_p,
         phylogroup_A_clusts,
         strain_to_idx,
         chronostrain_clustering_df,
@@ -208,7 +216,7 @@ def chronostrain_results(
         truth_accs,
         ground_truth,
         posterior,
-        g_samples, z_samples, 0.001,
+        g_samples, z_samples, prior_p,
         sim_clusts,
         strain_to_idx,
         chronostrain_clustering_df,
@@ -300,7 +308,7 @@ def chronostrain_roc(
 
     # Extract samples.
     n_samples = 5000
-    sample_dir = Path() / 'chronostrain_samples' / f'mutratio_{mut_ratio}' / f'replicate_{replicate}' / f'reads_{read_depth}' / f'trial_{trial}'  # relative dir
+    sample_dir = Path() / 'samples' / 'chronostrain' / f'mutratio_{mut_ratio}' / f'replicate_{replicate}' / f'reads_{read_depth}' / f'trial_{trial}'  # relative dir
     sample_dir.mkdir(exist_ok=True, parents=True)
     g_samples, z_samples = load_chronostrain_posterior_samples(posterior, n_samples, save_dir=sample_dir)
 
