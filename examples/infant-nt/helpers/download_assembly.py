@@ -42,15 +42,12 @@ def fetch_post(url: str, data: Dict[str, str], headers: Dict[str, str]) -> str:
 
     r_raw = response.read()
     print("Got a response of size {}.".format(convert_size(len(r_raw))))
-    return r_raw.decode('utf-8')
+    return r_raw
 
 
-def download_fasta(accession: str, out_path: Path, do_gzip: bool):
+def download_fasta(accession: str, out_path: Path):
     url = 'https://www.ebi.ac.uk/ena/browser/api/fasta'
-    if do_gzip:
-        f = gzip.open(out_path, 'wt')
-    else:
-        f = open(out_path, 'wt')
+    f = open(out_path, 'wb')  # We expect a fastq.gz (gzipped) file.
 
     try:
         f.write(
@@ -75,7 +72,7 @@ def download_fasta(accession: str, out_path: Path, do_gzip: bool):
     '--outdir', '-o', 'output_dir',
     type=click.Path(path_type=Path, file_okay=False),
     required=True,
-    help="Path to the ENA-derived Reads TSV file."
+    help="Directory to output the downloads (and respective sub-folders) to."
 )
 def main(
         assembly_tsv_path: Path,
@@ -125,9 +122,9 @@ def download_for_patient(assembly_df: pd.DataFrame, target_participant: str, out
         else:
             raise ValueError(f"Was unable to parse the sample title `{sample_title}`.")
 
-        fasta_path = target_download_dir / f'{assembly_acc}.fasta'
+        fasta_path = target_download_dir / f'{assembly_acc}.fna.gz'
         print(f"Downloading assembly {assembly_acc} [{genus} {species}] -- timepoint {timepoint}")
-        download_fasta(assembly_acc, fasta_path, do_gzip=False)
+        download_fasta(assembly_acc, fasta_path)
         metadata_df_entries.append({
             'Participant': target_participant,
             'Accession': assembly_acc,

@@ -22,7 +22,8 @@ export TRIMMOMATIC_PATH=/home/youn/mambaforge/envs/chronostrain/share/trimmomati
 
 
 # ========== Posthoc analysis
-export REFSEQ_INDEX=${DATA_DIR}/database/ref_genomes/index.tsv
+export REFSEQ_INDEX=${DATA_DIR}/ref_genomes/index.tsv
+export EUROPE_ISOLATE_INDEX=/data/cctm/youn/europe_efaecalis/index.tsv
 
 export MARKER_SEED_INDEX=${DATA_DIR}/database/marker_seeds/marker_seed_index.tsv
 export MARKER_BLAST_DB_DIR=${DATA_DIR}/database/posthoc/marker_blast_db

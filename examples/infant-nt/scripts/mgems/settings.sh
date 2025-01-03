@@ -8,14 +8,17 @@ export SPECIES_REF_DIR=/data/cctm/youn/infant_nt/database/mgems/themisto_640k
 export SPECIES_REF_INDEX=index
 export SPECIES_REF_CLUSTER=index_mSWEEP_indicators.txt
 
+# This is the pre-built index from the ELMC mGEMS analysis authors.
 export EFAECALIS_REF_DIR=/data/cctm/youn/infant_nt/database/mgems/Efaecalis_elmc_natcom
 export EFAECALIS_REF_INDEX=index_v3/index_v3
 export EFAECALIS_REF_CLUSTER=index_v3/index_v3_mSWEEP_indicators.txt
 
+# This is the database that was re-cosntructed using ChronoStrain's granularity.
 export EFAECALIS_CHRONO_MIRROR_REF_DIR=/data/cctm/youn/infant_nt/database/mgems/Efaecalis_chrono_mirror
 export EFAECALIS_CHRONO_MIRROR_REF_INDEX=ref_idx/ref_idx
 export EFAECALIS_CHRONO_MIRROR_CLUSTER=ref_clu.txt
 
+# This is the database that was re-cosntructed using ChronoStrain's granularity (where CS was clustered at 99.99% thresholding)
 export EFAECALIS_CHRONO_99_99PCT_MIRROR_REF_DIR=/data/cctm/youn/infant_nt/database/mgems/Efaecalis_chrono_99_99pct_mirror
 export EFAECALIS_CHRONO_99_99PCT_MIRROR_REF_INDEX=ref_idx/ref_idx
 export EFAECALIS_CHRONO_99_99PCT_MIRROR_CLUSTER=ref_clu.txt

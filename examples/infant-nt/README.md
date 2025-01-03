@@ -44,12 +44,8 @@ bash ../helpers/process_dataset.sh A01653  # invoke kneaddata/trimmomatic pipeli
 
 ## 2. Set up the database.
 Use the provided `efaecalis` recipe in the `database` example. 
-Ensure that it is configured to use the database directories that match this example. (TODO provide a standalone recipe for this example).
-
-```bash
-cd chronostrain/examples/database
-bash complete_recipes/efaecalis.sh
-```
+Ensure that it is configured to use the database directories that match this example.
+Then, run the notebook "database_efaecalis_elmc.ipynb" in the `infant-nt/notebooks` subdirectory and execute all cells.
 
 
 ## 3. Perform analysis
