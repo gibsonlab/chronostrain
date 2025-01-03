@@ -21,11 +21,11 @@ cd "${STRAINGE_DB_DIR}"
 #straingst kmersim --all-vs-all -t 12 -S jaccard -S subset ${kmer_dir}/*.hdf5 > similarities.tsv
 
 # Empirical testing (Escherichia+Shigella only)
-## -c 90 --> 803 clusters
+## -c 90 --> 803 clusters  [Default setting, we use this one.]
 ## -c 92 --> 925 clusters
 ## -c 93 --> 986 clusters
 ## -c 95 --> 1147 clusters
-straingst cluster -i similarities.tsv -d -C 0.99 -c 0.92 --clusters-out clusters.tsv ${kmer_dir}/*.hdf5 > references_to_keep.txt
+straingst cluster -i similarities.tsv -d -C 0.99 -c 0.90 --clusters-out clusters.tsv ${kmer_dir}/*.hdf5 > references_to_keep.txt
 
 # Step 4: pan-genome k-mer database
 straingst createdb -f references_to_keep.txt -o database.hdf5

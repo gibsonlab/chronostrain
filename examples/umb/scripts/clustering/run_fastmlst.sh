@@ -4,7 +4,7 @@ source settings.sh
 
 # Run FastMLST on RefSeq database.
 
-fastmlst_outdir="${CHRONOSTRAIN_DB_DIR}/fastmlst"
+fastmlst_outdir="${ECOLI_DB_DIR}/fastmlst"
 fastmlst_genome_tmp="${fastmlst_outdir}/_tmp"
 st_output="${fastmlst_outdir}/fastmlst.tsv"
 echo "Output of FastMLST will be written to: ${st_output}"

@@ -229,7 +229,8 @@ class ChronostrainRenderer:
             abx_palette: Dict[str, np.ndarray],
             abx_label: Dict[str, str],
             uti_df: pd.DataFrame,
-            sample_df: pd.DataFrame
+            sample_df: pd.DataFrame,
+            mlst_df: pd.DataFrame,
     ):
         self.abund_lb = abund_lb
         self.db = db
@@ -243,27 +244,24 @@ class ChronostrainRenderer:
         self.abx_palette = abx_palette
         self.uti_df = uti_df
         self.sample_df = sample_df
-        self.clustering = {}
+        self.mlst_df = mlst_df
+        self.cluster_names = {}  # customized cluster names.
         with open(cluster_path, "rt") as f:
+            _next_cluster_number = 1
             for line in f:
                 if line.startswith("#"):
                     continue
                 tokens = line.strip().split('\t')
-                if len(tokens) > 1:
-                    s_rep = tokens[0]
-                    s_members = tokens[1].split(",")
-                    self.clustering[s_rep] = s_members
-                else:
-                    s_rep = tokens[0]
-                    s_members = []
-                    self.clustering[s_rep] = s_members
+                s_rep = tokens[0]
+                self.cluster_names[s_rep] = f'CS{_next_cluster_number}'
+                _next_cluster_number += 1
 
         t_mins = [np.min(self.stool_result.time_points)]
         if self.urine_result is not None:
             t_mins.append(np.min(self.urine_result.time_points))
         self.min_t = np.min(t_mins)
 
-    def get_merged_df(self):
+    def get_merged_df(self) -> pd.DataFrame:
         dfs = [
             self.stool_result.annot_df_with_lower_bound(self.abund_lb, target_taxon=self.target_taxon).assign(Src='stool')
         ]
@@ -278,8 +276,12 @@ class ChronostrainRenderer:
                     T=t
                 )
             )
-
-        return pd.concat(dfs, ignore_index=True)
+        df_all = pd.concat(dfs, ignore_index=True)
+        if self.mlst_df.shape[0] > 0:
+            df_all = df_all.merge(self.mlst_df, on='StrainId', how='left')  # only attach MLST annotations if available.
+        else:
+            df_all['MLST'] = None
+        return df_all
         
     def get_color(self, strain_id: str) -> np.ndarray:
         return self.strain_palette[strain_id]
@@ -398,7 +400,10 @@ class ChronostrainRenderer:
         if show_ylabels:
             labels = []
             for y, _df in df.sort_values('Y').groupby('Y'):
-                labels.append(_df.head(1)['StrainName'].item())
+                mlst_annot = _df.head(1)['MLST'].item()
+                cluster_name = self.cluster_names[_df.head(1)['StrainId'].item()]
+                labels.append('{}:{}'.format(cluster_name, mlst_annot))
+                # labels.append(_df.head(1)['StrainName'].item())
             ax.set_yticklabels(labels=labels)
         else:
             ax.set_yticklabels(labels=["" for _ in range(len(strain_y))])
@@ -409,7 +414,8 @@ class ChronostrainRenderer:
             tree: Tree,
     ) -> Tuple[Dict, Dict]:
         strain_id_to_names = {
-            row['StrainId']: row['StrainName']
+            # row['StrainId']: row['StrainName']
+            row['StrainId']: '{}:{}'.format(self.cluster_names[row['StrainId']], row['MLST'])
             for _, row in self.get_merged_df().iterrows()
         }
         ax.axis('off')
@@ -432,11 +438,6 @@ class ChronostrainRenderer:
                 return "{}".format(
                     strain_id_to_names[s.name]
                 )
-                # return "{} [{}]".format(
-                #     strain_id_to_names[s.name], 
-                #     ' | '.join(self.db.get_strain(x).name for x in self.clustering[s.name])
-                #     # len(self.clustering[s.name])
-                # )
             else:
                 return ""
             
@@ -450,7 +451,7 @@ class ChronostrainRenderer:
             label_colors=color_fn,
             branch_labels=lambda c: '{:.03f}'.format(c.branch_length) if (c.branch_length is not None and c.branch_length > 0.003) else ''
         )
-        return x_posns, y_posns
+        return x_posns, y_posns, strain_id_to_names
     
     def plot_abx(self, ax: Axes, draw_labels: bool = True, text_width: float = 10):
         abx_dict = defaultdict(list)

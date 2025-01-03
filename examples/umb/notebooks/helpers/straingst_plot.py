@@ -34,10 +34,10 @@ def parse_umb_entries(straingst_output_basedir: Path, entries_csv_path: Path) ->
 
         if sample_type == 'stool':
             sample_type = 'Stool'
-            straingst_path = straingst_output_basedir / 'stool' / f'{patient_id}' / 'straingst' / f'{sample_name}.tsv'
+            straingst_path = straingst_output_basedir / 'stool' / f'{patient_id}' / 'straingst' / f'{sample_name}.strains.tsv'
         elif sample_type == 'urine raw':
             sample_type = 'Urine'
-            straingst_path = straingst_output_basedir / 'urine' / f'{patient_id}' / 'straingst' / f'{sample_name}.tsv'
+            straingst_path = straingst_output_basedir / 'urine' / f'{patient_id}' / 'straingst' / f'{sample_name}.strains.tsv'
         else:
             continue
 
@@ -54,9 +54,11 @@ def parse_umb_entries(straingst_output_basedir: Path, entries_csv_path: Path) ->
         ))
 
     # Parse plate scrape results.
+    suffix = '.strains.tsv'
     plate_output_dir = straingst_output_basedir / 'plate_scrapes' / 'split_samples_run'
-    for fpath in plate_output_dir.glob("Esch_coli_UMB*/straingst/*.tsv"):
-        tokens = fpath.stem.split("_")
+    for fpath in plate_output_dir.glob("Esch_coli_UMB*/straingst/*.strains.tsv"):
+        sample_fullname = fpath.name[:-len(suffix)]
+        tokens = sample_fullname.split("_")
         assert tokens[0] == 'UMB'
 
         if len(tokens[1]) == 1:
@@ -71,14 +73,13 @@ def parse_umb_entries(straingst_output_basedir: Path, entries_csv_path: Path) ->
             raise Exception(f"Couldn't find {patient_id}, sample {umb_stool_name}")
 
         sample_type = 'Plate'
-        sample_name = fpath.stem
 
         sra_id = ''
         umb_date = datetime.datetime.strptime(row['date'].item(), '%Y-%m-%d').date()
         days = row['days'].item()
         entries.append(StrainGSTUMBEntry(
             patient_id,
-            sample_name,
+            sample_fullname,
             sample_type,
             sra_id,
             umb_date,
@@ -108,13 +109,26 @@ def retrieve_patient_dates(umbs: List[StrainGSTUMBEntry]) -> pd.DataFrame:
     )
 
 
-def fetch_strain_id_from_straingst(strain_name: str, index_df: pd.DataFrame) -> Tuple[str, str, str]:
-    fasta_path = Path("/mnt/e/strainge/strainge_db") / strain_name
-    gcf_id = '_'.join(fasta_path.resolve().stem.split('_')[:2])
-    hit = index_df.loc[index_df['Assembly'] == gcf_id, :].head(1)
+def fetch_strain_info(accession: str, index_df: pd.DataFrame) -> Tuple[str, str, str]:
+    hit = index_df.loc[index_df['Accession'] == accession, :].head(1)
     if hit.shape[0] == 0:
-        raise ValueError(f"Couldn't find strain from StrainGST identifier `{strain_name}`.")
+        raise ValueError(f"Couldn't find strain from StrainGST identifier `{accession}`.")
     return hit['Accession'].item(), hit['Strain'].item(), hit['Species'].item()
+
+
+def assign_strainge_cluster_names(cluster_path: Path) -> Dict[str, str]:
+    cluster_names = {}
+    with open(cluster_path, "rt") as f:
+        next_cluster_id = 1
+        for line in f:
+            line = line.strip()
+            if len(line) == 0:
+                continue
+            accessions = line.strip().split("\t")
+            for acc in accessions:
+                cluster_names[acc] = f'SGE{next_cluster_id}'
+            next_cluster_id += 1
+    return cluster_names
 
 
 def straingst_dataframe(umb_entries: List[StrainGSTUMBEntry], phylogroup_path: Path) -> pd.DataFrame:
@@ -134,11 +148,8 @@ def straingst_dataframe(umb_entries: List[StrainGSTUMBEntry], phylogroup_path: P
         with open(umb_entry.straingst_result_path, "r") as f:
             for strain in parse_straingst(f):
                 try:
-                    strain_tag = strain['strain']
-                    if not (strain_tag.startswith('Esch') or strain_tag.startswith('Shig')):
-                        print(f"UMB entry `{umb_entry.sample_name}` contains non-Esch/Shig name `{strain_tag}`.")
-                        continue
-                    accession, strain_name, species_name = fetch_strain_id_from_straingst(strain_tag, index_df)
+                    strain_id = strain['strain']
+                    accession, strain_name, species_name = fetch_strain_info(strain_id, index_df)
                     if species_name != 'coli':
                         print(f"UMB entry `{umb_entry.sample_name}` reported species `{species_name}` (accession={accession}). Skipping.")
                         continue
@@ -209,8 +220,21 @@ def plot_straingst_abundances(
     ax.set_yscale(yscale)
 
 
+def get_mlst_label(strain_id: str, mlst_df: pd.DataFrame) -> str:
+    if mlst_df.shape[0] == 0:
+        return 'None'
+    else:
+        mlst_hits = mlst_df.loc[mlst_df['StrainId'] == strain_id]
+        if mlst_hits.shape[0] == 0:
+            return 'None'
+        else:
+            return mlst_hits.head(1)['MLST'].item()
+
+
 def plot_tree(
         strain_df: pd.DataFrame,
+        mlst_df: pd.DataFrame,
+        strainge_cluster_names: Dict[str, str],
         clade_colors: Dict[str, np.ndarray],
         ax: Axes,
         tree: Tree,
@@ -223,16 +247,19 @@ def plot_tree(
         strain_name = row['StrainName']
         phylogroup = row['Phylogroup']
 
-        strain_id_to_names[strain_id] = strain_name
+        # strain_id_to_names[strain_id] = strain_name
+        mlst_label = get_mlst_label(strain_id, mlst_df)
+        strainge_cluster_name = strainge_cluster_names[strain_id]
+        strain_id_to_names[strain_id] = f'{strainge_cluster_name}:{mlst_label}'
         strain_id_to_colors[strain_id] = clade_colors[phylogroup]
 
     strain_leaves = set(strain_id_to_names.keys())
     if len(strain_leaves) == 0:
-        return {}, {}
+        return {}, {}, {}
     elif len(strain_leaves) == 1:
         singleton_name = next(iter(strain_leaves))
         node = next(iter(tree.find_clades(terminal=True, target=singleton_name)))
-        return {node: 0}, {node: 0}
+        return {node: 0}, {node: 0}, {}
 
     subtree = pruned_subtree(tree, strain_leaves)
 
@@ -259,11 +286,13 @@ def plot_tree(
         branch_labels=lambda c: '{:.03f}'.format(c.branch_length) if (
                     c.branch_length is not None and c.branch_length > 0.003) else ''
     )
-    return x_posns, y_posns
+    return x_posns, y_posns, strain_id_to_names
 
 
 def plot_clade_presence(
         strain_df: pd.DataFrame,
+        mlst_df: pd.DataFrame,
+        strainge_cluster_names: Dict[str, str],
         dates_df: pd.DataFrame,
         clade_colors: Dict[str, np.ndarray],
         ax: Axes,
@@ -311,7 +340,11 @@ def plot_clade_presence(
     if show_ylabels:
         labels = []
         for y, _df in strain_df.sort_values('Y').groupby('Y'):
-            labels.append(_df.head(1)['StrainName'].item())
+            #labels.append(_df.head(1)['StrainName'].item())
+            strain_id = _df.head(1)['StrainId'].item()
+            strainge_cluster_name = strainge_cluster_names[strain_id]
+            mlst_label = get_mlst_label(strain_id, mlst_df)
+            labels.append(f'{strainge_cluster_name}:{mlst_label}')
         ax.set_yticklabels(labels=labels)
     else:
         ax.set_yticklabels(labels=["" for _ in range(len(strain_y))])
