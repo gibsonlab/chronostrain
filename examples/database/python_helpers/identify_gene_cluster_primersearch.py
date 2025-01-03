@@ -298,7 +298,7 @@ def main(
 
     primer1 = Seq(primer1_seq)
     primer2 = Seq(primer2_seq)
-
+    
     index_df = index_df.loc[
         (index_df['Genus'].str.lower() == target_genus.lower())
         & (index_df['Species'].str.lower() == target_species.lower())

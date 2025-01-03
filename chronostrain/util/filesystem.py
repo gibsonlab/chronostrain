@@ -3,6 +3,7 @@ import glob
 import math
 from typing import List, Union
 import hashlib
+import gzip
 
 
 def convert_size(size_bytes: int) -> str:
@@ -31,5 +32,9 @@ def files_in_dir(base_dir: str, extension: str = None) -> List[str]:
 
 
 def md5_checksum(file_path: Union[str, Path]):
-    with open(file_path, "r") as f:
-        return hashlib.md5(f.read().encode()).hexdigest()
+    if file_path.name.endswith(".gz"):
+        with gzip.open(file_path, "rt") as f:
+            return hashlib.md5(f.read().encode()).hexdigest()
+    else:
+        with open(file_path, "rt") as f:
+            return hashlib.md5(f.read().encode()).hexdigest()

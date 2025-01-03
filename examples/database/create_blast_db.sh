@@ -21,7 +21,11 @@ while IFS=$'\t' read genus species strain accession assembly seqpath chrlen gffp
 do
 	if [ "${seqpath}" == "SeqPath" ]; then continue; fi
 	echo "Concatenating ${seqpath}..."
-	cat ${seqpath} >> ${BLAST_DB_DIR}/${refseq_fasta}
+    if [[ "${seqpath}" == *.gz ]]; then
+    	pigz -dck ${seqpath} >> ${BLAST_DB_DIR}/${refseq_fasta}
+    else
+        cat ${seqpath} >> ${BLAST_DB_DIR}/${refseq_fasta}
+    fi
 done < ${REFSEQ_INDEX}
 
 # Invoke makeblastdb.
