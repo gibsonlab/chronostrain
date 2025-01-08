@@ -137,7 +137,7 @@ class EMSolver(AbstractModelSolver):
                         self.strain_data_lls[t]
                     )
                     ll += np.where(np.isinf(prod), 0.0, prod).sum()
-                logger.info("Iteration {i} | time left: {t:.1f} min. | Learned Abundance Diff: {diff} | LL = {ll}".format(
+                logger.info("Iteration {i} | Learned Abundance Diff: {diff} | LL = {ll}".format(
                     i=k,
                     t=time_est.time_left() / 60000,
                     diff=diff,

@@ -1,5 +1,5 @@
 from logging import Logger
-from typing import List
+from typing import List, Tuple
 
 import jax.numpy as jnp
 import numpy as cnp
@@ -45,7 +45,12 @@ def perform_advi(
         correlation_type: str = "strain",
         save_elbo_history: bool = False,
         save_training_history: bool = False
-):
+) -> Tuple[
+    AbstractADVISolver,
+    AbstractReparametrizedPosterior,
+    List,
+    Tuple[List, List, List]
+]:
     # ==== Run the solver.
     time_points = [time_slice.time_point for time_slice in reads]
     gaussian_prior = create_gaussian_prior(

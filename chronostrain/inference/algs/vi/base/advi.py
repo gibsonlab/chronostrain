@@ -77,7 +77,7 @@ class AbstractADVI(ABC):
             secs_elapsed = time_est.stopwatch_click()
             time_est.increment(secs_elapsed)
             logger.info(
-                "Epoch {epoch} | time left: {t:.2f} min. | Average ELBO = {elbo:.2f} | LR = {lr}".format(
+                "Epoch {epoch} | Average ELBO = {elbo:.2f} | LR = {lr}".format(
                     epoch=epoch,
                     t=time_est.time_left() / 60000,
                     elbo=epoch_elbo_avg,

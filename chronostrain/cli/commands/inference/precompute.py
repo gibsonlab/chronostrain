@@ -22,6 +22,7 @@ def main(
         strain_subset_path: Path,
 ):
     """
+    (Non-essential)
     Perform alignments and fragment counting to pre-calculate necessary model parameters prior to inference.
     This command should be run if it is necessary to perform these operations (which uses bowtie2,
     bwa-mem and/or bwa fastmap) separately prior to running ADVI inference.

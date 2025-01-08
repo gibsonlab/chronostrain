@@ -74,7 +74,7 @@ def main(
         quality_format: str,
 ):
     """
-    Filter a single read file.
+    (Non-essential) Filter a single read file, instead of an entire timeseries.
     """
     from chronostrain.logging import create_logger
     logger = create_logger("chronostrain.cli.filter_single")

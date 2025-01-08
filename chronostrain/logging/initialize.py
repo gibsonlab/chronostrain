@@ -23,13 +23,13 @@ def default_logger(name: str):
     stdout_handler = logging.StreamHandler(sys.stdout)
     stdout_handler.addFilter(LoggingLevelFilter([logging.INFO, logging.DEBUG]))
     stdout_handler.setLevel(logging.DEBUG)
-    stdout_formatter = logging.Formatter("%(asctime)s [%(levelname)s - %(name)s] - %(message)s")
+    stdout_formatter = logging.Formatter("%(asctime)s - %(message)s")
     stdout_handler.setFormatter(stdout_formatter)
 
     stderr_handler = logging.StreamHandler(sys.stderr)
     stderr_handler.addFilter(LoggingLevelFilter([logging.ERROR, logging.WARNING, logging.CRITICAL]))
     stderr_handler.setLevel(logging.WARNING)
-    stderr_formatter = logging.Formatter("%(asctime)s [%(levelname)s - %(name)s] - %(message)s")
+    stderr_formatter = logging.Formatter("%(asctime)s [%(levelname)s] - %(message)s")
     stderr_handler.setFormatter(stderr_formatter)
 
     logger.addHandler(stdout_handler)

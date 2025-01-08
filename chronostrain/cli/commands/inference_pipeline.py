@@ -46,6 +46,7 @@ def run_inference_pipeline(
         accumulate_gradients: bool
 ):
     """
+    (Non-essential)
     Run the pipeline (filter + advi) with mainly default settings.
     To use non-standard settings for any of the steps, one must run the subcommands separately/manually.
     """

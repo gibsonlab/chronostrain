@@ -1,0 +1,1 @@
+from .interpret_posterior import main as interpret_posterior

@@ -1,5 +1,6 @@
 from abc import ABC
 from typing import *
+from pathlib import Path
 
 import jax
 import jax.numpy as np
@@ -44,6 +45,14 @@ class GaussianPosteriorFullReparametrizedCorrelation(ReparametrizedGaussianPoste
         self.dtype = dtype
         self.initial_gaussian_bias = initial_gaussian_bias
         super().__init__(num_strains, num_times)
+
+    # noinspection PyTypeChecker
+    def save_class_initializer(self, path: Path):
+        with open(path, "wt") as f:
+            print(".".join([self.__class__.__module__, self.__class__.__name__]), file=f)
+            print(f"num_strains:int={self.num_strains}", file=f)
+            print(f"num_times:int={self.num_times}", file=f)
+            print(f"dtype:str={self.dtype}", file=f)
 
     def initial_params(self) -> GENERIC_PARAM_TYPE:
         # Reparametrization network (standard Gaussians -> nonstandard Gaussians)

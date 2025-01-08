@@ -20,7 +20,7 @@ from ..base import option
 )
 @option(
     '--strain-subset', '-s', 'strain_subset_path',
-    type=click.Path(path_type=Path, dir_okay=False, exists=False, readable=True),
+    type=click.Path(path_type=Path, dir_okay=False, exists=True, readable=True),
     required=False, default=None,
     help="A text file specifying a subset of database strain IDs to perform filtering with; "
          "a TSV file containing one ID per line, optionally with a second column for metadata.",
@@ -36,7 +36,7 @@ from ..base import option
 )
 @option(
     '--prune-strains/--dont-prune-strains', 'prune_strains',
-    is_flag=True, default=False,
+    is_flag=True, default=True,
     help='Specify whether to prune the input database strains based on the read_frags.'
 )
 @option(
@@ -267,6 +267,7 @@ def main(
 
     # ==== Save the posterior distribution.
     posterior.save(model_out_path)
+    posterior.save_class_initializer(out_dir / "posterior.{}.metadata".format(cfg.engine_cfg.dtype))
     logger.info(f"Saved model to `{model_out_path}`.")
 
 

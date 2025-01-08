@@ -3,26 +3,38 @@
 
 # Table of Contents
 1. [Colab Demo](#colab-demo)
-2. [Installation](#installation)
-3. [Core Interface - Quickstart](#quickstart)
-4. [Configuration](#config) 
-5. [Manually defining a database](#manual-db)
-   1. [Strain Definition](#strain-def)
-   2. [Marker Sequence Definition](#marker-def)
-   3. [Source Sequence Definition](#seq-def)
+2. [Dependencies](#dependencies)
+3. [Installation](#installation)
+4. [Core Interface - Quickstart](#quickstart)
+5. [Configuration](#config) 
 6. [Reproducing paper analyses](#paper)
 
 # 1. Colab Demo <a name="colab-demo"></a>
 
-(WORK IN PROGRESS, UNDER CONSTRUCTION) <a href="https://colab.research.google.com/github/gibsonlab/chronostrain/blob/master/examples/colab_demo/demo.ipynb"><img alt="" src="https://img.shields.io/badge/Google%20Colab-Open%20tutorial-blue?style=flat&logo=googlecolab"/></a>
+Navigate to the following link for a short demonstration (installation + usage)
+<a href="https://colab.research.google.com/github/gibsonlab/chronostrain/blob/master/examples/colab_demo/demo.ipynb"><img alt="" src="https://img.shields.io/badge/Google%20Colab-Open%20tutorial-blue?style=flat&logo=googlecolab"/></a>
 
-# 2. Installation <a name="installation"></a>
 
-We provide a setup script for `pip` and also two different conda recipes.
+# 2. Dependencies <a name="dependencies"></a>
 
-### A. Basic conda recipe (Recommended)
+### A. Software
+We require a working python installation (python >= 3.8, tested on python 3.10) or a working conda environment. We recommend mamba+miniforge: https://github.com/conda-forge/miniforge.
 
-Necessary dependencies only, installs cuda-toolkit from NVIDIA for (optional, but highly useful) GPU usage.
+### B. Hardware
+- For running the analysis, we recommend a CUDA-enabled NVIDIA GPU.
+- Please allocate sufficient disk space for constructing databases. An Enterobacteriaeae-level complete assembly catalog used in our paper occupied ~70G of disk space after GZIP compression.
+- Depending on read sequencing depth and database size, the analysis pipeline (`chronostrain advi`) may require more disk space to store intermediate bioinformatics results. For us, this meant up to 16G per time-series of disk space for E. faecalis (BBS analysis), and 1G per time-series of disk space for E. coli (UMB analysis).
+
+# 3. Installation <a name="installation"></a>
+
+Please pull this code from the git repository, via `git clone https://github.com/gibsonlab/chronostrain.git`
+
+We provide a setup script for `pip` and also two different conda recipes. 
+(Note: all cells below assume that the user is inside the git repo directory.)
+
+### A. Basic conda recipe (Recommended, ~7G disk space, ~3 minutes)
+
+Necessary dependencies only, installs cuda-toolkit from NVIDIA for (technically optional, but highly useful) GPU usage.
 ```bash
 conda env create -f conda_basic.yml -n chronostrain
 conda activate chronostrain
@@ -30,9 +42,10 @@ conda activate chronostrain
 
 GPU usage is enabled by default. To disable it, set `JAX_PLATFORM_NAME=cpu` in the environment variables.
 
-### B. Full conda recipe
+### B. Full conda recipe (~10G disk space, ~4 minutes)
 
 Necessary dependencies + optional bioinformatics dependencies for running the examples/paper analyses.
+(Note: this recipe also contains version numbers for packages that the paper analysis was run with.)
 
 Includes additional dependencies such as: `sra-tools`, `kneaddata`, `trimmomatic` etc found in scripts in `example` 
 subdirectories.
@@ -48,13 +61,15 @@ conda activate chronostrain_paper
 pip install .
 ```
 
-One needs to install the remaining dependencies separately. (Cuda toolkit, `bowtie2` and/or `bwa-mem2`, `blast`, `samtools`)
+Unlike the conda recipes, one needs to install the remaining dependencies separately. (`cuda-toolkit`, `bowtie2`, `bwa` and/or `bwa-mem2`, `blast`, `samtools`)
 
 
-## 2.1 Other requirements
+## 3.1 Other requirements
 
 To enable database construction (`chronostrain make-db`), we require 
 the tool <a href="https://github.com/dnbaker/dashing2">dashing2</a>.
+Here is a link to the authors' repository for pre-built binaries: https://github.com/dnbaker/dashing2-binaries
+
 After downloading and/or building an executable from source, the `dashing2` executable must be
 discoverable; add it to your PATH environment variable.
 One way to do this is to add the following to your `.bashrc`:
@@ -66,9 +81,9 @@ export PATH=${PATH}:/home/username/dashing2_dir
 ```
 
 
-# 3. Core Interface: Quickstart (Unix) <a name="quickstart"></a>
+# 4. Core Interface: Quickstart (Unix) <a name="quickstart"></a>
 
-Installing chronostrain creates a command-line entry point `chronostrain`.
+Installing chronostrain (using one of the above recipes) creates a command-line entry point `chronostrain`.
 
 An example pipeline looks like the following:
 ```bash
@@ -154,7 +169,7 @@ Note that all commands below requires a valid configuration file; refer to [Conf
     that one enable the `--plot-elbo` flag to diagnose whether the stochastic optimization is converging properly.
 
 
-# 4. Configuration <a name="config"></a>
+# 5. Configuration <a name="config"></a>
 
 A configuration file for ChronoStrain is required, because it specifies parameters for our model, how many 
 cores to use, where to store/load the database from, etc.
@@ -193,104 +208,12 @@ For debugging and/or requiring chronostrain to log more helpful and verbose stat
 export CHRONOSTRAIN_LOG_INI=./log_config.ini.example
 ```
 
-# 5. Defining a database manually <a name="manual-db"></a>
-
-In general, one may refer to our manuscript for how we define strains using BLAST and a 
-cleaning procedure, resulting in a .json strain definition file.
-
-For those who wish to implement scripts to make a database differently (e.g. without using
-`chronostrain make-db`), one only needs to adhere to the following convention.
-
-The JSON file ought to be formatted as a single list of objects:
-```text
-[
-    { ...strain1 },
-    { ...strain2 }
-]
-```
-
-## Strain Definition <a name="strain-def"></a>
-
-A strain is simply a collection of marker sequences, plus some metadata 
-(species/genus/strain name/chromosome length (if known)).
-
-Example of a strain definition:
-```text
-{
-    "id": "STRAIN_ID",
-    "genus": "Escherichia",
-    "species": "coli",
-    "name": "K12_MG1655",
-    "genome_length": 4631469,
-    "seqs": [
-        {"id": "SEQ_ID_1", "seq_path": "path_to_fasta"}
-    ],
-    "markers": [
-        {
-            "id": "UNIQUE_GENE_ID",
-            "name": "COMMON_GENE_NAME" ,
-            "type": "subseq",
-            "source": "SEQ_ID_1",
-            "source_i": FASTA_RECORD_IDX,
-            "start": 840273,
-            "end": 840855,
-            "strand": "+"
-        }
-    ]
-}
-```
-All of the listed fields are required (to enforce clean/interpretable database records), but not all are used.
-
-## Marker Sequence Definition <a name="marker-def"></a>
-
-A strain-specific marker sequence is defined using the following attributes.
-
-- **id**: a string that uniquely identifies this sequence (no two markers, even between different strain 
-  entries, may share an ID)
-- **name**: a common name for the sequence. A good choice is the name of a gene, if it represents one.
-  (*NOTE: This is just metadata that helps one organize how the marker sequence was chosen.*)
-- **type**: A string specifying how you want to extract the subsequence from the chromosome. Currently, only "subseq" is supported.
-- **source**: A FASTA file from which this marker is a subsequence of.
-- **source_i**: The index of the FASTA record. Example: to index into the first record, pass `"source_i": 0`.
-- **start**:  an integer encoding the starting (inclusive) position on the chromosome.
-- **end**: an integer, encoding the last (inclusive) position on the chromosome.
-- **strand**: either `"+"` or `"-"` (quotes included). 
-  If minus, the database will first extract the start -> end position substring, *and then*
-  compute the reverse complement of the subsequence.
-
-
-## Source Sequence Definition <a name="seq-def"></a>
-
-Each strain entry contains a `seqs` field, which specifies the source sequence that each marker should be pulled out of.
-Each corresponds to a FASTA file `<accession>.fasta`, containing at least one FASTA sequence record representing the 
-assembled genome (either contigs or a completed assembly. Scaffolds with gaps are not accepted.).
-If these files are missing (in the `DATA_DB_DIR` directory, as specified in the configuration), then ChronoStrain 
-can be configured to automatically download these files from NCBI on-the-fly.
-(If this behavior is something that you would like, please use a valid NCBI-searchable accession for the 
-`accession` field, and enable NCBI API usage in the configuration by setting ENABLED=True under "[Entrez]".)
-
-In the case of a strain with a *complete* chromosomal assembly, one only needs to provide a single-object list:
-```text
-...
-"seqs": [{"accession": "SEQ_ID_1", "seq_path": "path_to_fasta"}],
-...
-```
-
-If a complete assembly is not available and one only has contigs (it can be split into multiple fasta files), one can specify multiple sources:
-```text
-...
-"seqs": [
-    {"accession": "CONTIG_ACC_1", "seq_path": "path_to_fasta1"},
-    {"accession": "CONTIG_ACC_2", "seq_path": "path_to_fasta2"},
-    ...
-],
-...
-```
 
 # 6. Reproducing paper analyses <a name="paper"></a>
 
 Please refer to the scripts/documentation found in each respective subdirectory.
 
 - Semi-synthetic: `examples/semisynthetic`
+- CAMI strain-madness challenge: separate repo -- `https://github.com/gibsonlab/chronostrain_CAMI`
 - UMB Analysis: `examples/umb`
-- ELMC infant analysis: `examples/infant-nt` 
+- BBS infant analysis: `examples/infant-nt` 

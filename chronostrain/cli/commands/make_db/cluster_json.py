@@ -9,7 +9,7 @@ from ..base import option
     '--input', '-i', 'source_json_path',
     type=click.Path(path_type=Path, file_okay=True, dir_okay=False),
     required=True,
-    help="The JSON database file.."
+    help="The JSON database file."
 )
 @option(
     '--output', '-o', 'output_cluster_path',

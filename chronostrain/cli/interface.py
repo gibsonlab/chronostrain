@@ -14,13 +14,14 @@ logger = create_logger("chronostrain.cli")
         'max_content_width': 120
     },
     commands={
-        'filter': filter_timeseries,
-        'filter-single': filter_single,
-        'advi': run_advi,
         'make-db': make_db,
         'cluster-db': cluster_json,
         'analyze': run_inference_pipeline,
-        'precompute': precompute
+        'filter': filter_timeseries,
+        'filter-single': filter_single,
+        'advi': run_advi,
+        'precompute': precompute,
+        'interpret': interpret_posterior
     }
 )
 @click.option(

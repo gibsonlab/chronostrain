@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Optional
+from pathlib import Path
 
 import jax
 import jax.numpy as np
@@ -52,6 +53,14 @@ class GaussianStrainCorrelatedWithGlobalZerosPosterior(GaussianWithGumbelsPoster
         self.dtype = dtype
         self.initial_gaussian_bias = initial_gaussian_bias
         super().__init__()
+
+    # noinspection PyTypeChecker
+    def save_class_initializer(self, path: Path):
+        with open(path, "wt") as f:
+            print(".".join([self.__class__.__module__, self.__class__.__name__]), file=f)
+            print(f"num_strains:int={self.num_strains}", file=f)
+            print(f"num_times:int={self.num_times}", file=f)
+            print(f"dtype:str={self.dtype}", file=f)
 
     def initial_params(self) -> GENERIC_PARAM_TYPE:
         parameters = {}
@@ -173,6 +182,14 @@ class GaussianTimeCorrelatedWithGlobalZerosPosterior(GaussianWithGumbelsPosterio
         self.initial_gaussian_bias = initial_gaussian_bias
         super().__init__()
 
+    # noinspection PyTypeChecker
+    def save_class_initializer(self, path: Path):
+        with open(path, "wt") as f:
+            print(".".join([self.__class__.__module__, self.__class__.__name__]), file=f)
+            print(f"num_strains:int={self.num_strains}", file=f)
+            print(f"num_times:int={self.num_times}", file=f)
+            print(f"dtype:str={self.dtype}", file=f)
+
     def initial_params(self) -> GENERIC_PARAM_TYPE:
         parameters = {}
         for s_idx in range(self.num_strains):  # gaussians are parametrized by block-banded precision matrix.
@@ -285,6 +302,14 @@ class GaussianWithGlobalZerosPosteriorDense(GaussianWithGumbelsPosterior):
         self.dtype = dtype
         self.initial_gaussian_bias = initial_gaussian_bias
         super().__init__()
+
+    # noinspection PyTypeChecker
+    def save_class_initializer(self, path: Path):
+        with open(path, "wt") as f:
+            print(".".join([self.__class__.__module__, self.__class__.__name__]), file=f)
+            print(f"num_strains:int={self.num_strains}", file=f)
+            print(f"num_times:int={self.num_times}", file=f)
+            print(f"dtype:str={self.dtype}", file=f)
 
     def initial_params(self) -> GENERIC_PARAM_TYPE:
         parameters = {}
