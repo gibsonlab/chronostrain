@@ -1,5 +1,7 @@
 # ChronoStrain
 
+ChronoStrain is a bioinformatics tool for estimating abundance ratios of bacterial strains (e.g. ratio of E. coli strains or strain genome clusters).
+As input, it takes a sequence of time-series, whole-genome metagenomic sequencing FASTQ files as input, and a reference database of known genomic variants of a particular species.
 
 # Table of Contents
 1. [Colab Demo](#colab-demo)
