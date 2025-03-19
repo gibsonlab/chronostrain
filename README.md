@@ -24,7 +24,7 @@ We require a working python installation (python >= 3.8, tested on python 3.10) 
 
 ### B. Hardware
 - For running the analysis, we recommend a CUDA-enabled NVIDIA GPU.
-- Please allocate sufficient disk space for constructing databases. Even though the final database's disk usage is roughly ~400 MB, during construction & initialization, one may need more disk space. An Enterobacteriaeae-level complete assembly catalog used in our paper occupied ~70 GB of disk space after GZIP compression.
+- Please allocate sufficient disk space for constructing databases. Even though the final database's disk usage is typically less than 500 MB, during construction & initialization, one may need more disk space. An Enterobacteriaeae-level complete assembly catalog used in our paper occupied ~70 GB of disk space after GZIP compression.
 - Depending on read sequencing depth and database size, the analysis pipeline (`chronostrain advi`) may require more disk space to store intermediate bioinformatics results. For us, this meant up to 16G per time-series of disk space for E. faecalis (BBS analysis), and 1G per time-series of disk space for E. coli (UMB analysis).
 
 # 3. Installation <a name="installation"></a>
