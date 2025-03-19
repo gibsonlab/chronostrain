@@ -213,7 +213,7 @@ export CHRONOSTRAIN_LOG_INI=./log_config.ini.example
 
 # 6. Reproducing paper analyses <a name="paper"></a>
 
-Please refer to the scripts/documentation found in each respective subdirectory.
+Please refer to the scripts/documentation found in the subdirectories in the companion repository: https://github.com/gibsonlab/chronostrain_paper 
 
 - Semi-synthetic: `examples/semisynthetic`
 - CAMI strain-madness challenge: separate repo -- `https://github.com/gibsonlab/chronostrain_CAMI`
