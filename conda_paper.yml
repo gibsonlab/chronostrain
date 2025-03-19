@@ -1,0 +1,48 @@
+name: chronostrain_paper
+
+channels:
+  - conda-forge
+  - bioconda
+  - nvidia
+
+dependencies:
+  - python>=3.10
+  - pip
+  - numpy
+  - scipy
+  - pandas
+  - pyarrow
+  - numba
+  - pysam
+  - intervaltree
+  - tqdm
+  - jax
+  - jaxlib=*=*cuda*
+  - optax
+  - cuda-nvcc
+  - scikit-learn
+  - matplotlib
+  - seaborn
+  - biopython
+  - click
+  - blast
+  - samtools
+  - mafft
+  - bwa
+  - bwa-mem2
+  - bowtie2
+  - cdbtools
+  - pigz
+  - fasttree
+  - ncbi-datasets-cli
+  - bcbio-gff
+  - sra-tools>=2.11
+  - kneaddata
+  - trimmomatic
+  - strainge
+  - fastmlst
+  - jupyter
+  - ipykernel
+  - ipywidgets
+  - pip:
+    - ./
