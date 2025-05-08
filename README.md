@@ -10,6 +10,7 @@ As input, it takes a sequence of time-series, whole-genome metagenomic sequencin
 4. [Core Interface - Quickstart](#quickstart)
 5. [Configuration](#config) 
 6. [Reproducing paper analyses](#paper)
+7. [Citing our work](#citing)
 
 # 1. Colab Demo <a name="colab-demo"></a>
 
@@ -218,4 +219,9 @@ Please refer to the scripts/documentation found in the subdirectories in the com
 - Semi-synthetic: `examples/semisynthetic`
 - CAMI strain-madness challenge: separate repo -- `https://github.com/gibsonlab/chronostrain_CAMI`
 - UMB Analysis: `examples/umb`
-- BBS infant analysis: `examples/infant-nt` 
+- BBS infant analysis: `examples/infant-nt`
+
+# 7. Citing our work <a name="citing"></a>
+
+To cite this software, please use the following publication reference:
+Kim, Y., Worby, C.J., Acharya, S. et al. Longitudinal profiling of low-abundance strains in microbiomes with ChronoStrain. Nat Microbiol 10, 1184–1197 (2025). https://doi.org/10.1038/s41564-025-01983-z
