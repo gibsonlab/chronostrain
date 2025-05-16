@@ -326,7 +326,7 @@ def create_chronostrain_db(
 
         # Invoke makeblastdb.
         make_blast_db(
-            input_fasta=concat_fasta,
+            input_fasta=concat_fasta.resolve(),  # always use absolute pathing for this by convention.
             db_dir=blast_db_dir,
             db_name=blast_db_name,
             is_nucleotide=True,
