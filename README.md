@@ -91,7 +91,7 @@ Installing chronostrain (using one of the above recipes) creates a command-line 
 An example pipeline looks like the following:
 ```bash
 # Step 0: create database (this only needs to be done once)
-chronostrain make-db -m my_marker_seeds.tsv -r my_reference_genomes.tsv -o DB_DIR/my_database.json
+chronostrain make-db -m my_marker_seeds.tsv -r my_reference_genomes.tsv -b my_blast_db_name -bd tmp_blast_dir -o DB_DIR/my_database.json
 chronostrain cluster-db -i DB_DIR/my_database.json -o DB_DIR/my_clusters.txt -t 0.998
 
 # Step 1: filter reads
