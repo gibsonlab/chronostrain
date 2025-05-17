@@ -137,7 +137,7 @@ def download_assemblies(record_list: List[NCBIRecord], out_dir: Path):
         f'datasets download genome accession --inputfile {input_file} '
         f'--include genome,gff3 --assembly-version latest --filename {out_zip}'
     )
-    print("[EXECUTE]", cmd)
+    logger.info("[EXECUTE]", cmd)
     os.system(cmd)
 
     # unzip
