@@ -119,6 +119,7 @@ def main(
                 )
             gene_paths[gene_name] = gene_fasta_path
 
+    blast_db_dir.mkdir(exist_ok=True, parents=True)
     strain_entries = create_chronostrain_db(
         blast_result_dir=json_output_path.parent / f"_BLAST_{json_output_path.stem}",
         strain_df=reference_df,
