@@ -104,12 +104,11 @@ chronostrain advi -r FILTERED_DIR/filtered_timeseries_metagenomic_reads.tsv -o I
 For precise I/O specification and a description of all arguments, please invoke the `--help` option.
 Note that all commands below requires a valid configuration file; refer to [Configuration](#config).
 
-1. **Database creation** -- **We recommend following the notebook recipe `examples/database/complete_recipes/<example>.ipynb`.**   
+1. **Database creation** -- **We HIGHLY recommend reading the notebook recipe `examples/database/complete_recipes/ecoli_mlst_simple.ipynb`.**   
     
-    If one really wants to generate a new database manually, this command outputs a JSON file and populates a data directory 
-    specified by the configuration:
+    This command outputs a JSON file and populates a data directory specified by the configuration:
     ```bash
-    chronostrain make-db -m <marker_seeds> -r <reference_catalog> -o <output_json> ...
+    chronostrain make-db -m <marker_seeds> -r <reference_catalog> -o <output_json> -b <blast_db_name> -db <blast_db_dir> ...
     ```
     The most important arguments are:
     - `-m, --marker-seeds FILE`: a TSV file of marker seeds,  with at least two columns: `[gene name], [path_to_fasta]` 
@@ -119,6 +118,8 @@ Note that all commands below requires a valid configuration file; refer to [Conf
     ChromosomeLen is only used as metadata; it is used in the "overall relative abundance" estimator.
     To download genomes, we recommend the `ncbi datasets` API.
     We provide example scripts that use this API, located in `examples/database/download_ncbi2.sh`
+
+    Note that `blast_db_dir` points to a directory, and `blast_db_name` refers to a new blast database name. It will be created automatically.
 
     Then, one configures chronostrain to use the database
     ```text
