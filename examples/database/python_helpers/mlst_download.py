@@ -132,7 +132,7 @@ def generate_marker_index(mlst_xml_path: Path, target_taxa: Optional[Set[str]], 
                     fasta_path, "fasta"
                 )
                 print(
-                    f"{locus.locus_name}\t{fasta_path}\tMLST:{taxon.genus}_{taxon.species}_{taxon.typeid}",
+                    f"{locus.locus_name}\t{fasta_path.resolve()}\tMLST:{taxon.genus}_{taxon.species}_{taxon.typeid}",
                     file=f
                 )
     f.close()

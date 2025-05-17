@@ -3,6 +3,7 @@ from pathlib import Path
 import json
 import click
 import os
+import time
 
 import pandas as pd
 from Bio import SeqIO
@@ -229,6 +230,8 @@ def main(taxids: str, target_dir: Path, output_index_path: Path, level: str, ref
             continue
         else:
             logger.info("[{}] Found {} unique strain records.".format(tax_id, len(record_list)))
+
+        time.sleep(1)
         download_assemblies(record_list, target_dir)
         indices.append(create_catalog(record_list, target_dir))
 
