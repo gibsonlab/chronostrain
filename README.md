@@ -184,7 +184,7 @@ Note that all commands below requires a valid configuration file; refer to [Conf
     only those database entries exceeding posterior inclusion probability $q(Z_s) > \bar{\pi}$ exceeding some 
     threshold $\bar{\pi}$ are included into the model.
 
-    The output of this command is a `(T x N x S)` array, where T is the number of timepoints, 
+    The output of this command is a `(T x N x S)` array (`<target_dir>/abundance_profile.npy`), where T is the number of timepoints, 
     S is the number of database clusters, and N is the target number of samples (N=5000 by default).
     For an example of how to use this command and its output, please refer to the colab notebook demo.
     
