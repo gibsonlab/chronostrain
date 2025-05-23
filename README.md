@@ -172,6 +172,23 @@ Note that all commands below requires a valid configuration file; refer to [Conf
     catalogues the filtered fastq files. Several options are available to tweak the optimization; we highly recommend
     that one enable the `--plot-elbo` flag to diagnose whether the stochastic optimization is converging properly.
 
+4. **Abundance Profile Extraction**
+
+    To use the estimated posteriors and extract a time-series abundance profile, run this command.
+    ```bash
+    chronostrain interpret -a <inference_out_dir> -r <filtered_reads_csv> -o <target_dir> -s <cluster_txt> [-p <pi_bar>] [-rs <species_name>] ...
+    ```
+    **The value of `-a, -r, -s` arguments must match what was passed into `chronostrain advi`.**
+    The pre-requisite for this command is that one has run `chronostrain advi` which has estimated a posterior model,
+    which has been saved to `<inference_out_dir>`. Note that this command samples from the conditional posterior, where
+    only those database entries exceeding posterior inclusion probability $q(Z_s) > \bar{\pi}$ exceeding some 
+    threshold $\bar{\pi}$ are included into the model.
+
+    The output of this command is a `(T x N x S)` array, where T is the number of timepoints, 
+    S is the number of database clusters, and N is the target number of samples (N=5000 by default).
+    For an example of how to use this command and its output, please refer to the colab notebook demo.
+    
+
 
 # 5. Configuration <a name="config"></a>
 
