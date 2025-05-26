@@ -206,8 +206,8 @@ def parse_line_into_alignment(sam_path: Path,
 
     alignment_length = marker_frag_len + n_insertions
     assert alignment_length == global_read_end_pos - global_read_start_pos + n_deletions
-    marker_frag_aln = np.full(alignment_length, fill_value=-1, dtype=NucleotideDtype)
-    read_aln = np.full(alignment_length, fill_value=-1, dtype=NucleotideDtype)
+    marker_frag_aln = np.full(alignment_length, fill_value=255, dtype=NucleotideDtype)
+    read_aln = np.full(alignment_length, fill_value=255, dtype=NucleotideDtype)
 
     # Reattach clipped bases.
     if samline.is_reverse_complemented:
