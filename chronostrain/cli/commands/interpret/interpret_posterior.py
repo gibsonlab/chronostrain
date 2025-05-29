@@ -116,7 +116,7 @@ def main(
     out_dir.mkdir(exist_ok=True, parents=True)
     if isinstance(posterior, GaussianWithGumbelsPosterior):
         logger.info("Using posterior threshold = {}".format(posterior_threshold))
-        posterior_ratios = interpret_posterior_with_zeroes(
+        posterior_ratios, posterior_inclusion_p = interpret_posterior_with_zeroes(
             logger,
             posterior,
             n_samples,
@@ -144,6 +144,7 @@ def main(
                 f.write(f"{strain.id}\n")
         np.save(out_dir / "abundance_profile.npy", abundance_profile)
         np.save(out_dir / "time_points.npy", time_points)
+        np.save(out_dir / "model_inclusion_probs.npy", posterior_inclusion_p)
         logger.info("Finished the conversion.")
     elif isinstance(posterior, ReparametrizedGaussianPosterior):
         raise NotImplementedError("[todo] implement posterior interpretation for simple model without q(Z). Note: posterior_threshold should have no effect for this.")

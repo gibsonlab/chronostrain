@@ -74,7 +74,7 @@ def interpret_posterior_with_zeroes(
         strains_to_profile: List[Strain],
         post_inference_strains: List[Strain],
         adhoc_clustering: Dict[str, Strain],
-) -> np.ndarray:
+) -> Tuple[np.ndarray, np.ndarray]:
     rand = posterior.random_sample(n_samples)
     g_samples = np.array(posterior.reparametrized_gaussians(rand['std_gaussians'], posterior.get_parameters()))  # T x N x S
     # z_samples = np.array(posterior.reparametrized_zeros(rand['std_gumbels'], posterior.get_parameters()))
@@ -108,4 +108,4 @@ def interpret_posterior_with_zeroes(
         else:
             pred_abundances[:, :, s_idx] = 0.0
 
-    return pred_abundances
+    return pred_abundances, posterior_inclusion_p
