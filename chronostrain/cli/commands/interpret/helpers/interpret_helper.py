@@ -96,6 +96,8 @@ def interpret_posterior_with_zeroes(
 
     # Unwind the adhoc grouping.
     pred_abundances = np.zeros(shape=(n_times, n_samples, len(strains_to_profile)), dtype=float)
+    full_posterior_inclusion_p = np.zeros(len(strains_to_profile), dtype=float)  # this is the non-adhoc-clustered version of posterior_inclusion_p
+
     adhoc_indices = {s.id: i for i, s in enumerate(post_inference_strains)}
     output_indices = {s.id for s in strains_to_profile}
     for s_idx, s in enumerate(strains_to_profile):
@@ -105,7 +107,9 @@ def interpret_posterior_with_zeroes(
             adhoc_clust_ids = set(s_ for s_, clust in adhoc_clustering.items() if clust.id == adhoc_rep.id)
             adhoc_sz = len(adhoc_clust_ids.intersection(output_indices))
             pred_abundances[:, :, s_idx] = pred_abundances_raw[:, :, adhoc_idx] / adhoc_sz
+            full_posterior_inclusion_p[s_idx] = posterior_inclusion_p[adhoc_idx]
         else:
             pred_abundances[:, :, s_idx] = 0.0
+            full_posterior_inclusion_p[s_idx] = 0.0
 
-    return pred_abundances, posterior_inclusion_p
+    return pred_abundances, full_posterior_inclusion_p
