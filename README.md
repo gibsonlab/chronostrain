@@ -25,10 +25,12 @@ We require a working python installation (python >= 3.8, tested on python 3.10) 
 
 ### B. Hardware
 - For running the analysis, we recommend a CUDA-enabled NVIDIA GPU.
-- Please allocate sufficient disk space for constructing databases. Even though the final database's disk usage is typically less than 500 MB, during construction & initialization, one may need more disk space. An Enterobacteriaeae-level complete assembly catalog used in our paper occupied ~70 GB of disk space after GZIP compression.
+- [**Database construction**] Please allocate sufficient disk space for constructing databases, including the preliminary step of downloading complete genomes (e.g. using <a href="https://www.ncbi.nlm.nih.gov/datasets/docs/v2/command-line-tools/download-and-install/">NCBI Datasets</a>). Even though the final database's disk usage is typically less than 500 MB, during construction & initialization, one may need more disk space. An Enterobacteriaeae-level complete assembly catalog used in our paper occupied ~70 GB of disk space after GZIP compression.
 - Depending on read sequencing depth and database size, the analysis pipeline (`chronostrain advi`) may require more disk space to store intermediate bioinformatics results. For us, this meant up to 16G per time-series of disk space for E. faecalis (BBS analysis), and 1G per time-series of disk space for E. coli (UMB analysis).
 
 # 3. Installation <a name="installation"></a>
+
+## 3.1 [REQUIRED] Core package (pip or conda)
 
 Please pull this code from the git repository, via `git clone https://github.com/gibsonlab/chronostrain.git`
 
@@ -67,10 +69,11 @@ pip install .
 Unlike the conda recipes, one needs to install the remaining dependencies separately. (`cuda-toolkit`, `bowtie2`, `bwa` and/or `bwa-mem2`, `blast`, `samtools`)
 
 
-## 3.1 Other requirements
+## 3.2 [REQUIRED] dashing2 -- for database construction
 
 To enable database construction (`chronostrain make-db`), we require 
-the tool <a href="https://github.com/dnbaker/dashing2">dashing2</a>.
+the tool <a href="https://github.com/dnbaker/dashing2">dashing2</a>, **version 2.1.19 or later**.
+
 Here is a link to the authors' repository for pre-built binaries: https://github.com/dnbaker/dashing2-binaries
 
 After downloading and/or building an executable from source, the `dashing2` executable must be
@@ -82,6 +85,15 @@ One way to do this is to add the following to your `.bashrc`:
 # assuming dashing2 binary is located in /home/username/dashing2_dir directory
 export PATH=${PATH}:/home/username/dashing2_dir
 ```
+
+## 3.3 [OPTIONAL BUT RECOMMENDED] ncbi datasets -- for downloading genomes
+
+We suggest the use of NCBI `datasets` (https://www.ncbi.nlm.nih.gov/datasets/docs/v2/command-line-tools/download-and-install/), which is a command-line tool for downloading genomes.
+
+For convenience, please refer to our helper scripts, described below. These scripts automate the process of using the NCBI `datasets` tool to download a genome catalogue specified by a taxonomic label.
+
+1. `examples/database/download_ncbi2.sh`  -- core wrapper script which invokes the python script `download_ncbi.py`, described next.
+2. `examples/database/python_helpers/download_ncbi.py` --  python script which invokes `ncbi datasets` command-line utility, parses the resulting JSON, downloads the assembly FASTA files and catalogues the chromosomes into a TSV index.
 
 
 # 4. Core Interface: Quickstart (Unix) <a name="quickstart"></a>
