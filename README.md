@@ -207,7 +207,7 @@ Note that all commands below requires a valid configuration file; refer to [Conf
 A configuration file for ChronoStrain is required, because it specifies parameters for our model, how many 
 cores to use, where to store/load the database from, etc.
 
-Configurations are specified by a file in the INI format; see `examples/example_configs/chronostrain.ini.example` for an example.
+Configurations are specified by a file in the INI format; see `examples/example_configs/chronostrain.ini` for an example.
 
 ## First method: command-line
 All subcommands can be preceded with the `-c / --config` argument, which specifies how the software is configured.
@@ -227,7 +227,7 @@ chronostrain -c examples/example_configs/chronostrain.ini.example filter -r subj
 By default, ChronoStrain looks for the variable `CHRONOSTRAIN_INI`, if the `-c` option is not specified.
 The following is equivalent to using the -c option from the above example:
 ```bash
-export CHRONOSTRAIN_INI=examples/exmaple_configs/chronostrain.ini.example
+export CHRONOSTRAIN_INI=examples/exmaple_configs/chronostrain.ini
 chronostrain filter -r subject_1_timeseries.csv -o subj_1_filtered
 ```
 in the scenario that both of the `-c` and `CHRONOSTRAIN_INI` are specified, the program will always 
@@ -238,7 +238,7 @@ prioritize the command-line argument.
 For debugging and/or requiring chronostrain to log more helpful and verbose status, specify the
 `CHRONOSTRAIN_LOG_INI` variable.
 ```bash
-export CHRONOSTRAIN_LOG_INI=./log_config.ini.example
+export CHRONOSTRAIN_LOG_INI=examples/exmaple_configs/log_config.ini
 ```
 
 
